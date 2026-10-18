@@ -61,6 +61,29 @@ Not from real data, or not decided:
 
 Source files read for it: `src/Yaat.Sim/Phases/RunwayLandability.cs`, `src/Yaat.Client.Core/ContextMenus/PatternRunwayChoices.cs`, `MenuCatalog.cs` (`BuildPatternRunwayRow`), `MenuGlyphRow.cs`, `QuickCommandGlyphs.cs`, `COMMANDS.md` (`CVA`, `CIFR`), the YAAT-569 rulings and orchestrator decision, `src/Yaat.Sim/Data/AircraftProfiles.json`, and a throwaway probe over `TestVnasData` for the runway figures.
 
+## Force approach and greyed visual rows (`force.html`)
+
+A third mock, after the owner ruled that a visual row without FOLLOW is live once the pilot has reported the field in sight (a FOLLOW row once the traffic is reported), that a "Force approach" checkbox in the Cleared approach flyout overrides both, and that every approach row on a short runway is dimmed "short" but still clickable. Open `force.html` beside the others; it is drawn in HTML and inline SVG, with no image files.
+
+Every flyout draws the ruled design with the visual row at the top of each runway tab (UAL455, A320, IFR arrival to KOAK, field not reported, the room landing 30 and 28R, the 28R tab chosen). Each decision has lanes, with how each works and its worst case; no lane is marked recommended. The checkboxes toggle.
+
+1. Where the Force approach checkbox sits.
+   - A: a checkbox row under the tab bar, above the rows. B: beside the Approach box at the bottom. C: a small "Force" toggle in an added "Cleared approach" title line.
+2. How a visual row looks while the field is not reported (both lanes: the row at 50% with "· field not in sight"; a row both greyed and short at the same 50% with both notes, drawn on the 10L tab).
+   - A: disabled: not clickable, skipped by the arrow keys, a tooltip with the sim's refusal ("Field not in sight — issue RFIS first", `ApproachCommandHandler`). B: same look, still clickable: sends `CVA {rwy}` and the sim refuses.
+3. What Force approach ticked does to the rows (checkbox drawn as section 1 A).
+   - A: only the visual rows change, sending `CVAF {rwy}`; instrument rows and the box keep `CAPP {id}`. B: every row turns forced: `CVAF {rwy}` and `CAPPF {id}`, the box `CAPPF`.
+
+Data. Approaches and runway lengths as in `visuals.html`. An A320 has a 4,724 ft landing distance (`AircraftProfiles.json`), so it needs 5,433 ft (× 1.15): 28R (5,457) passes by 24 ft, and 10L (5,336), 15 and 33 (3,376) are short.
+
+Not from real data, or not decided:
+
+- The callsign, the aircraft state and the room's runway setup are illustrative.
+- The checkbox, the tooltip, the greyed note "field not in sight" and the force mark on rows of the plain Cleared approach flyout are drawings, not built UI. A forced row wears the mark of the Cleared approach (force) flyout as `index.html` draws it (filled "force" badge, amber command), in section 3 lane A on the visual rows too. Whether the tick survives closing the menu is not drawn.
+- FOLLOW rows are not drawn: no flyout mock has one.
+
+Source files read for it: `src/Yaat.Sim/Commands/ApproachCommandHandler.cs` (the CVA/CVAF gate), `src/Yaat.Sim/Phases/RunwayLandability.cs`, `src/Yaat.Sim/Data/AircraftProfiles.json`, `COMMANDS.md` (`CVA`, `CVAF`, `CAPPF`), and the mocks `index.html` and `visuals.html`.
+
 ## Sources for `index.html`
 
 Source files read: `.tmp/map-569-x3.md` (code map and open decisions), `src/Yaat.Client.Core/ContextMenus/ApproachPickerBuilder.cs`, `MenuCatalog.cs` (`ApproachSpec`, `DestinationApproaches`), `SharedMenuGroups.cs` (`Approach`), `FlyoutTabStrip.cs`, `TaxiToRunwayFlyout.cs`, `ExitFlyout.cs`, `IMenuHost.cs` (`GetPatternRunwayChoices`), `RunwayDesignatorComparer.cs`, `src/Yaat.Client/Views/MenuPopups.cs` (`ShowInput`), `COMMANDS.md` (Approach Control Commands), and the mocks `quick-command-flyouts/`, `quick-command-taxi-to-runway-tabs/` and `quick-command-exit-passed/`.

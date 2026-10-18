@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Force Approach Choices</title>
+<style>
+  /* Layout: one artboard per open decision; each has a header (question, situation, the aircraft menu) over its lanes. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send], .mi[data-say] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.kfocus { background: rgba(255, 255, 255, .085); }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 6px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; padding-left: 12px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .nm .n:has(+ .note), .nm .n:has(+ .bdg) { flex-shrink: 0; }
+  .kind { padding-left: 14px; font-size: 11px; color: #a4adb8; white-space: nowrap; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  /* A dimmed row, as the pattern-entry list draws a short runway (MenuGlyphRow: the whole row at 0.5, " · short"); a row
+     both short and greyed is drawn at the same 0.5 with both notes. */
+  .mi.dimr { opacity: .5; }
+  .mi.dim > :not(.nm), .mi.dim .nm > .n { opacity: .5; }
+  .mi.dim .cmd { opacity: .35; }
+  /* The force mark the Cleared approach (force) flyout draws (index.html, decision 1 lane B): the filled badge and the amber command. */
+  .mi.force .cmd { color: #ffc062; opacity: .95; }
+  .bdg { flex: 0 0 auto; border: 1px solid #e0a84a; color: #e0a84a; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .bdg.force { background: #4a3111; border-color: #ffb259; color: #ffd08a; font-weight: 600; }
+  .panel { max-height: 440px; overflow-y: auto; scrollbar-color: #555 transparent; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+  .tdiv { width: 1px; align-self: stretch; background: #4a4f57; margin: 2px 4px; }
+
+  /* The Approach box. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+
+  /* The "Force approach" checkbox: a Fluent dark CheckBox, the one new control on this page. */
+  .chk { display: inline-flex; align-items: center; gap: 8px; font: 13px Inter, "Segoe UI", sans-serif; color: #ffffff; cursor: pointer; white-space: nowrap;
+         border-radius: 4px; letter-spacing: 0; }
+  .chk:focus-visible { outline: 2px solid #8fc1ff; outline-offset: 2px; }
+  .cbx { width: 18px; height: 18px; border: 1px solid #9a9a9a; border-radius: 4px; background: rgba(255, 255, 255, .04); display: grid; place-items: center;
+         flex: 0 0 auto; }
+  .chk.on .cbx { background: #8fc1ff; border-color: #8fc1ff; }
+  .chk:hover .cbx { border-color: #c9c9c9; }
+  .chk.small { gap: 5px; font-size: 11px; color: #c9d0d8; }
+  .chk.small .cbx { width: 14px; height: 14px; border-radius: 3px; }
+  .chkrow { display: flex; align-items: center; min-height: 32px; padding: 5px 11px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; }
+
+  /* Mock-only annotations: the pointer, the tooltip a hover shows, the dashed notes. */
+  .anno { position: relative; height: 0; z-index: 6; }
+  .cursor { position: absolute; width: 18px; height: 24px; pointer-events: none; z-index: 5; left: 52%; top: 50%; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  .anno .cursor { left: 27%; top: -20px; }
+  .tip { position: absolute; left: calc(27% + 14px); top: 6px; font: 12px/1.35 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #2b2b2b;
+         border: 1px solid #474747; border-radius: 4px; padding: 5px 9px; box-shadow: 0 6px 16px rgba(0, 0, 0, .55); white-space: nowrap; pointer-events: none; }
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  /* The aircraft menu stub: title, state line, the strip (no label row, per YAAT-545). */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part X3 · Force approach and the field-in-sight gate · mock for three open looks</div>
+  <h1>Force approach and greyed visual rows</h1>
+  <p class="lede">The owner ruled that a visual row without FOLLOW is live once the pilot has <b>reported the field in sight</b>, a FOLLOW row once the traffic is reported, and that a <b>“Force approach”</b> checkbox in the Cleared approach flyout overrides both; every approach row on a runway short for the type is dimmed “short” but still clickable. This page asks where the checkbox sits, how a greyed visual row looks, and what ticking it does. Each artboard has lanes A and B (and C for the first); no lane is marked recommended.</p>
+  <p class="lede">Every flyout draws the ruled design (<code>index.html</code> and <code>visuals.html</code> beside this page): tabs in the room's runway order, a <code>Visual RWY n</code> row at the top of each runway tab, glyph rows, the Approach box. The checkbox is the only new control. Approaches, runways and their lengths are real (bundled CIFP and NavData, aircraft profiles); the callsign, the aircraft state and the room's runway setup are illustrative. Click a row, a tab or a checkbox to see what it does.</p>
+  <nav class="index" id="index" aria-label="Decisions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Rows follow the built <code>MenuGlyphRow</code> as <code>visuals.html</code> draws them: Inter text, a 12 px note after “ · ”, commands in JetBrains Mono at 70%, the whole row at 50% when dimmed, 22 px glyphs at stroke 1.9 in the flight colour; the visual rows carry the Cleared visual eye. A row that sends a forced command wears the mark of the Cleared approach (force) flyout (<code>index.html</code>, decision 1 lane B): the filled amber “force” badge and the amber command. The checkbox is drawn as a Fluent dark CheckBox; the tooltip as a Fluent tooltip. FOLLOW rows are not drawn: no flyout mock has one yet. The pointer and the dashed notes are mock annotations. The page loads no web fonts and shows no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const GL = {
+    CAPP: ["#A8CAFF", "M3 12L21 5 M3 12L21 19 M3 12h18"],
+    CM: ["#A8CAFF", "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+    SPD: ["#A8CAFF", "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    RFIS: ["#FFC062", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"],
+    CTL: ["#FFC062", "M2 20h20 M5 6l11 9 M10 15h6v-6"],
+  };
+  const EYE = "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6";
+  const LABEL = { CAPP: "Cleared approach", CM: "Maintain altitude", SPD: "Assign speed", RFIS: "Report field in sight", CTL: "Cleared to land" };
+  const UNFILLED = "···";
+  const REFUSAL = "Field not in sight — issue RFIS first";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const svgOpen = (size, color) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`;
+  const gl = (id, size = 22) => `${svgOpen(size, GL[id][0])}<path d="${GL[id][1]}"/></svg>`;
+  const glv = () => `${svgOpen(22, "#A8CAFF")}<path d="${EYE}"/></svg>`;
+  const checkSvg = size => `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="#10141a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>`;
+  const menu = (inner, cls = "w", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const sendAttr = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+  const cursorSvg = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = (html, calm) => `<div class="callout${calm ? " calm" : ""}" role="note">${html}</div>`;
+  const rowNote = t => `<span class="note">· ${esc(t)}</span>`;
+  const forceBadge = `<span class="bdg force">force</span>`;
+  let uidN = 0;
+  const uid = p => `${p}-${++uidN}`;
+
+  /* ---------- Data: approaches from the bundled CIFP, runways and lengths from NavData ---------- */
+  const FULL = { ILS: "ILS", LOC: "LOC", RNAV: "RNAV (GPS)", RNP: "RNAV (RNP)", VOR: "VOR" };
+  const ap = (kind, rwy, id, variant = "") => ({ kind, id, name: `${FULL[kind]}${variant ? " " + variant : ""} RWY ${rwy}` });
+  const OAK = {
+    "10L": [ap("RNAV", "10L", "R10L")],
+    "10R": [ap("RNAV", "10R", "R10R"), ap("VOR", "10R", "S10R")],
+    "12": [ap("ILS", "12", "I12"), ap("LOC", "12", "L12"), ap("RNAV", "12", "R12-Y", "Y"), ap("RNP", "12", "H12-Z", "Z")],
+    "28L": [ap("RNAV", "28L", "R28LY", "Y"), ap("RNP", "28L", "H28LZ", "Z")],
+    "28R": [ap("ILS", "28R", "I28R"), ap("LOC", "28R", "L28R"), ap("RNAV", "28R", "R28RY", "Y"), ap("RNP", "28R", "H28RZ", "Z")],
+    "30": [ap("ILS", "30", "I30"), ap("LOC", "30", "L30"), ap("RNAV", "30", "R30-Y", "Y"), ap("RNP", "30", "H30-Z", "Z")],
+    "15": [], "33": [],
+  };
+  /* Landing distance available, ft (RunwayLandability.LandingDistanceAvailableFt: NavData's declared figure). */
+  const LDA = { "10L": 5336, "28R": 5457, "10R": 6213, "28L": 6213, "12": 10000, "30": 10000, "15": 3376, "33": 3376 };
+  const A320_NEED = 5433; /* 4,724 ft landing distance (AircraftProfiles.json) × 1.15 = 5,432.6 */
+  const isShort = r => LDA[r] < A320_NEED;
+  const ROOM = ["30", "28R"];
+  const REST = ["10L", "10R", "12", "15", "28L", "33"];
+  const ALL = [...ROOM, ...REST];
+  const TABS = [...ROOM.map(k => ({ k, label: k, small: OAK[k].length + 1 })), { div: true }, ...REST.map(k => ({ k, label: k, small: OAK[k].length + 1 }))];
+
+  /*
+   * One flyout's state. cb: where the checkbox sits ("tabs" | "box" | "title"); grey: how a greyed visual row behaves
+   * ("off" disabled | "click" still sends CVA); mode: what a tick changes (null nothing drawn | "vis" visual rows | "all" every row);
+   * ticked; sel: the chosen tab; hot / tip / pointer / kfocus: annotations for one frame.
+   */
+  const REG = {};
+  const reg = st => { const key = uid("fly"); REG[key] = { key, ...st }; return REG[key]; };
+
+  /* ---------- Rows ---------- */
+  function anno(st, rowKey) {
+    const ptr = st.pointer === rowKey;
+    const tip = st.tip === rowKey;
+    return ptr || tip ? `<div class="anno" aria-hidden="true">${ptr ? cursorSvg : ""}${tip ? `<span class="tip">${esc(REFUSAL)}</span>` : ""}</div>` : "";
+  }
+  /** A runway's visual row: greyed until the field is reported, unless the tick forces it; dimmed "short" either way. */
+  function visRow(st, r) {
+    const sh = isShort(r);
+    const forced = st.ticked && (st.mode === "vis" || st.mode === "all");
+    const rowKey = `vis${r}`;
+    const cls = ["mi", (sh || !forced) ? "dimr" : "", forced ? "force" : "", st.hot === rowKey ? "hot" : "", st.kfocus === rowKey ? "kfocus" : ""].filter(Boolean).join(" ");
+    let attrs;
+    let cmd;
+    if (forced) {
+      cmd = `CVAF ${r}`;
+      attrs = sendAttr(cmd) + (sh ? ` data-short="${r}"` : "");
+    } else {
+      cmd = `CVA ${r}`;
+      attrs = st.grey === "off"
+        ? `data-say="Disabled: a click does nothing and the arrow keys skip the row. Hovering shows the tooltip: ${esc(REFUSAL)}." title="${esc(REFUSAL)}" aria-disabled="true"`
+        : `${sendAttr(cmd)} data-refuse="1" title="${esc(REFUSAL)}"${sh ? ` data-short="${r}"` : ""}`;
+    }
+    const notes = (forced ? forceBadge : "") + (sh ? rowNote("short") : "") + (forced ? "" : rowNote("field not in sight"));
+    return `<div class="${cls}" role="menuitem" ${attrs}>${glv()}<span class="nm"><span class="n">Visual RWY ${esc(r)}</span>${notes}</span><span class="kind">VIS</span><span class="cmd">${esc(cmd)}</span></div>${anno(st, rowKey)}`;
+  }
+  /** An instrument approach row: CAPP, or CAPPF with the force mark when the tick forces every row; dimmed "short" on a short runway. */
+  function apRow(st, a, r) {
+    const sh = isShort(r);
+    const forced = st.ticked && st.mode === "all";
+    const cmd = `${forced ? "CAPPF" : "CAPP"} ${a.id}`;
+    const cls = ["mi", sh ? "dimr" : "", forced ? "force" : "", st.kfocus === a.id ? "kfocus" : ""].filter(Boolean).join(" ");
+    const notes = (forced ? forceBadge : "") + (sh ? rowNote("short") : "");
+    return `<div class="${cls}" role="menuitem" ${sendAttr(cmd)}${sh ? ` data-short="${r}"` : ""}>${gl("CAPP")}<span class="nm"><span class="n">${esc(a.name)}</span>${notes}</span><span class="kind">${esc(a.kind)}</span><span class="cmd">${esc(cmd)}</span></div>`;
+  }
+  const chk = (st, small) => `<span class="chk${st.ticked ? " on" : ""}${small ? " small" : ""}" role="checkbox" aria-checked="${st.ticked}" tabindex="0" data-chk="${st.key}"><span class="cbx">${st.ticked ? checkSvg(small ? 11 : 14) : ""}</span><span>${small ? "Force" : "Force approach"}</span></span>`;
+  function boxRow(st) {
+    const forced = st.ticked && st.mode === "all";
+    const verb = forced ? "CAPPF" : "CAPP";
+    const id = uid("box");
+    const box = `<input class="tbox" type="text" id="${id}" placeholder="id, e.g. I28R" data-tpl="${verb} {}" aria-label="Cleared approach by approach id" maxlength="10" style="width:130px" autocomplete="off" spellcheck="false">`;
+    return `<div class="mi dim boxed${forced ? " force" : ""}" role="menuitem" data-send="" data-tplrow="${id}">${gl("CAPP")}<span class="nm col"><span class="n">Approach</span><span class="under">${box}${st.cb === "box" ? chk(st, false) : ""}</span></span><span class="kind"></span><span class="cmd">${verb} ${UNFILLED}</span></div>`;
+  }
+
+  /* ---------- The flyout ---------- */
+  const tabBtn = (t, sel) => `<button type="button" class="tab" role="tab" data-tab="${esc(t.k)}" aria-selected="${t.k === sel}">${esc(t.label)}<small>${esc(t.small)}</small></button>`;
+  const tabBar = sel => `<div class="tabs" role="tablist">${TABS.map(t => (t.div ? `<span class="tdiv" aria-hidden="true"></span>` : tabBtn(t, sel))).join("")}</div>`;
+  function fly(st) {
+    const panels = ALL.map(r => `<div class="panel" data-panel="${esc(r)}"${r === st.sel ? "" : " hidden"}>${visRow(st, r)}${OAK[r].map(a => apRow(st, a, r)).join("")}</div>`).join("");
+    const pre = st.cb === "title" ? `<div class="mi title"><span>Cleared approach</span><span class="r">${chk(st, true)}</span></div>` : "";
+    const mid = st.cb === "tabs" ? `<div class="chkrow">${chk(st, false)}</div>` : "";
+    return menu(`${pre}<div data-tabgroup>${tabBar(st.sel)}${mid}${panels}</div>${sep()}${boxRow(st)}`, "w", "Cleared approach", `data-reg="${st.key}"`);
+  }
+  const F = st => fly(reg(st));
+
+  /* ---------- The aircraft menu stub ---------- */
+  const CELLS = [{ id: "CAPP", notch: true, latched: true }, { id: "CM" }, { id: "SPD" }, { id: "RFIS" }, { id: "CTL" }];
+  function stubMenu(s) {
+    const strip = CELLS.map(c => `<span class="cell${c.latched ? " latched" : ""}" title="${esc(LABEL[c.id])}" role="img" aria-label="${esc(LABEL[c.id])}${c.latched ? " (flyout open)" : ""}">${gl(c.id, 32)}${c.notch ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const faint = t => `<div class="mi plain faint"><span>${esc(t)}</span><span></span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${esc(s.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span><span></span></div>${sep()}<div class="strip">${strip}</div>${sep()}${["Track", "Data Block", "All Commands"].map(faint).join("")}`, "", "Aircraft menu");
+  }
+  const stub = s => `<div class="stage stub-stage">${stubMenu(s)}</div>`;
+
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>Click a row, a tab or the checkbox to see what it does.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head">
+        <div class="art-meta">
+          <h2>${esc(a.title)}</h2>
+          <div class="sends">${esc(a.sends)}</div>
+          ${a.intro.map(p => `<p>${p}</p>`).join("")}
+        </div>
+        ${a.stub ? stub(a.stub) : ""}
+      </div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  const UAL_STATE = "Arrival · KOAK · 6,000 ft · 210 kt";
+  const OAK_FACTS = "The aircraft is an <b>A320</b>: landing distance 4,724 ft (<code>AircraftProfiles.json</code>) × 1.15 = 5,433 ft. KOAK's landing distance available (NavData's declared figures): 12 and 30 10,000 ft, 10R and 28L 6,213, 28R 5,457, 10L 5,336, 15 and 33 3,376. 28R passes by 24 ft; 10L, 15 and 33 are short, so every row on their tabs is dimmed “short”.";
+
+  /* ---------- 1. Where the checkbox sits ---------- */
+  const d1 = {
+    id: "d1-where", title: "1 · Where the Force approach checkbox sits", sends: "Force approach (unticked) · CVA <runway> · CAPP <id>",
+    intro: [
+      "<b>UAL455</b>, A320, IFR arrival to KOAK; the pilot has <b>not reported the field in sight</b> (no <code>RFIS</code> yet). The room lands 30 and 28R, so their tabs come first; the 28R tab is chosen.",
+      "Each lane draws the checkbox unticked, the visual row greyed as section 2 draws it (both of its lanes look the same). Ticking it here only ticks the box; what a tick does to the rows is section 3.",
+    ],
+    stub: { title: "UAL455 · A320", state: UAL_STATE },
+    lanes: [
+      { kind: "a", name: "A checkbox row under the tab bar",
+        how: "A “Force approach” checkbox row sits between the tab bar and the rows, the same on every tab, directly above the visual row it unlocks.",
+        worst: "Every Cleared approach flyout gains a row, even for an aircraft that has reported the field and needs no force; it sits right above the first row, so a click aimed at the visual's top edge can tick Force instead.",
+        body: frame("Cleared approach › <b>flyout</b> · 28R tab chosen", F({ cb: "tabs", grey: "off", mode: null, ticked: false, sel: "28R" })) },
+      { kind: "b", name: "Beside the Approach box at the bottom",
+        how: "The checkbox sits on the Approach box's line, after the box, under the separator; the rows above are unchanged.",
+        worst: "Placed on the box's line it reads as applying to the typed id only, and it is below the rows it changes: the eye goes down to tick it and back up to the visual row.",
+        body: frame("Cleared approach › <b>flyout</b> · 28R tab chosen", F({ cb: "box", grey: "off", mode: null, ticked: false, sel: "28R" })) },
+      { kind: "c", name: "A small toggle in the flyout's title line",
+        how: "A title line “Cleared approach” is added above the tabs, with a small “Force” checkbox at its right end.",
+        worst: "The flyout gains a title line the ruled design does not have, and the toggle is the smallest target on it, in grey 11 px text: ticked, it is the easiest state on the flyout to miss.",
+        body: frame("Cleared approach › <b>flyout</b> · 28R tab chosen", F({ cb: "title", grey: "off", mode: null, ticked: false, sel: "28R" })) },
+    ],
+  };
+
+  /* ---------- 2. A greyed visual row ---------- */
+  const d2 = {
+    id: "d2-greyed", title: "2 · How a visual row looks while the field is not reported", sends: "CVA <runway> (refused today: “Field not in sight — issue RFIS first”)",
+    intro: [
+      `The same UAL455, Force approach unticked (drawn under the tab bar, section 1 lane A). The sim refuses a <code>CVA</code> without a field-in-sight report with <b>“${esc(REFUSAL)}”</b> (<code>ApproachCommandHandler</code>). Instrument rows need no report and stay live.`,
+      "Both lanes draw the greyed row as the short row is drawn (the whole row at 50%, a note “· field not in sight”). A row both greyed and short is drawn at the same 50% with both notes; the lanes differ in what the row does.",
+      OAK_FACTS,
+    ],
+    lanes: [
+      { kind: "a", name: "Disabled: not clickable, skipped by the keyboard, with a tooltip",
+        how: `The greyed visual row takes no click and the arrow keys skip it; hovering it shows the tooltip “${esc(REFUSAL)}”. Short rows stay clickable.`,
+        worst: "On 10L a dead row (greyed and short) and a live one (RNAV 10L, short) sit together at the same 50%, told apart only by the notes; nothing on the row says Force approach is what unlocks it.",
+        body: frame("28R tab · <b>pointer on the visual row</b>, its tooltip", F({ cb: "tabs", grey: "off", mode: null, ticked: false, sel: "28R", pointer: "vis28R", tip: "vis28R" }))
+          + frame("28R tab, opened by keyboard · <b>the first live row focused</b>", F({ cb: "tabs", grey: "off", mode: null, ticked: false, sel: "28R", kfocus: "I28R" }),
+                  note("<b>Skipped:</b> the arrow keys go from the checkbox to ILS RWY 28R; the visual row cannot take focus."))
+          + frame("<b>10L tab</b> · short for an A320", F({ cb: "tabs", grey: "off", mode: null, ticked: false, sel: "10L" }),
+                  note("<b>Both:</b> Visual RWY 10L is greyed and short, and dead; RNAV (GPS) RWY 10L is short only, and sends <code>CAPP R10L</code>.")) },
+      { kind: "b", name: "Same look, still clickable: sends CVA and the sim refuses",
+        how: `The row looks as in A but takes the click and the keyboard; it sends <code>CVA 28R</code>, the menu closes and the sim answers “${esc(REFUSAL)}”, as a typed <code>CVA 28R</code> does today.`,
+        worst: "The click spends the flyout: the menu closes, nothing is cleared, and the instructor reopens it to tick Force or after an RFIS; opened by keyboard, the first focused row is the one that will be refused.",
+        body: frame("28R tab · <b>about to click the visual row</b>", F({ cb: "tabs", grey: "click", mode: null, ticked: false, sel: "28R", pointer: "vis28R", hot: "vis28R" }),
+                  note(`<b>Refused:</b> sends <code>CVA 28R</code>; the reply is “${esc(REFUSAL)}” and the menu is already closed.`))
+          + frame("28R tab, opened by keyboard · <b>the first row focused</b>", F({ cb: "tabs", grey: "click", mode: null, ticked: false, sel: "28R", kfocus: "vis28R" }))
+          + frame("<b>10L tab</b> · short for an A320", F({ cb: "tabs", grey: "click", mode: null, ticked: false, sel: "10L" }),
+                  note("<b>Both:</b> Visual RWY 10L is greyed and short and still sends <code>CVA 10L</code>, which is refused; RNAV (GPS) RWY 10L sends <code>CAPP R10L</code>.")) },
+    ],
+  };
+
+  /* ---------- 3. What a tick does ---------- */
+  const d3 = {
+    id: "d3-ticked", title: "3 · What Force approach ticked does to the rows", sends: "CVAF <runway> · CAPP <id> or CAPPF <id>",
+    intro: [
+      "The same UAL455, field still not reported, <b>Force approach ticked</b> (drawn under the tab bar, section 1 lane A). Untick it to see the rows before.",
+      "<code>CVAF 28R</code> folds the pilot's field-in-sight report into the clearance and skips the weather gates; it is RPO-only and refused in solo training (COMMANDS.md). <code>CAPPF I28R</code> marks the clearance forced, captures the final course at any intercept angle and is scored as forced. A row that sends a forced command wears the mark of the Cleared approach (force) flyout: the filled “force” badge and the amber command. Short rows stay dimmed “short” and clickable.",
+    ],
+    lanes: [
+      { kind: "a", name: "Only the visual rows change: CVAF; instrument rows keep CAPP",
+        how: "Ticked, each visual row comes alive and sends <code>CVAF {rwy}</code> with the force mark; the ILS, LOC, RNAV and RNP rows and the Approach box keep <code>CAPP {id}</code>.",
+        worst: "One tab mixes forced and unforced rows: an instructor who ticks Force for a steep ILS join still sends plain <code>CAPP I28R</code>, which the intercept-angle check can refuse, and has to find the force flyout.",
+        body: frame("28R tab · <b>Force approach ticked</b>", F({ cb: "tabs", grey: "off", mode: "vis", ticked: true, sel: "28R" }))
+          + frame("<b>10L tab</b> · ticked · short for an A320", F({ cb: "tabs", grey: "off", mode: "vis", ticked: true, sel: "10L" }),
+                  note("<b>Short stays:</b> Visual RWY 10L is live and forced but still dimmed “short”; RNAV (GPS) RWY 10L keeps <code>CAPP R10L</code>.")) },
+      { kind: "b", name: "Every row turns forced: CVAF and CAPPF",
+        how: "Ticked, every row and the Approach box send their forced form: visual rows <code>CVAF {rwy}</code>, instrument rows <code>CAPPF {id}</code>, each with the force mark.",
+        worst: "Ticking to clear one visual forces every instrument row too: a later click on ILS RWY 28R sends <code>CAPPF</code>, captured at any angle and scored as forced, and this flyout now does what the Cleared approach (force) flyout does.",
+        body: frame("28R tab · <b>Force approach ticked</b>", F({ cb: "tabs", grey: "off", mode: "all", ticked: true, sel: "28R" }))
+          + frame("<b>10L tab</b> · ticked · short for an A320", F({ cb: "tabs", grey: "off", mode: "all", ticked: true, sel: "10L" }),
+                  note("<b>Short stays:</b> both 10L rows are forced and dimmed “short”: <code>CVAF 10L</code>, <code>CAPPF R10L</code>.")) },
+    ],
+  };
+
+  const ARTS = [d1, d2, d3];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("");
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const WHAT = {
+    CVAF: "a forced visual: the field-in-sight report is folded in and the weather gates are skipped (RPO-only).",
+    CAPPF: "a forced approach clearance: any intercept angle, scored as forced.",
+    CAPP: "an approach clearance, judged by the intercept-angle check as today.",
+  };
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    if (!cmd) { say(el, "Sends nothing while the box is empty; the flyout stays open."); return; }
+    const sh = el.getAttribute("data-short");
+    const shortText = sh ? ` It is listed though ${esc(sh)} is short for an A320.` : "";
+    if (el.hasAttribute("data-refuse")) {
+      say(el, `Sends <code>${esc(cmd)}</code> and closes the menu; the sim refuses it: “${esc(REFUSAL)}”.${shortText}`);
+      return;
+    }
+    const verb = cmd.split(" ")[0];
+    say(el, `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu: ${WHAT[verb] || ""}${shortText}`);
+  }
+  function onBox(t) {
+    const row = t.closest("[data-tplrow]");
+    const v = t.value.trim().toUpperCase();
+    const ok = /^[A-Z0-9]{2,6}(-[A-Z0-9])?$/.test(v);
+    const cmd = ok ? t.getAttribute("data-tpl").replace("{}", v) : "";
+    row.setAttribute("data-send", cmd);
+    row.classList.toggle("dim", !ok);
+    row.querySelector(".cmd").textContent = ok ? cmd : t.getAttribute("data-tpl").replace("{}", UNFILLED);
+  }
+  function selectTab(btn) {
+    const group = btn.closest("[data-tabgroup]");
+    const key = btn.getAttribute("data-tab");
+    group.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === btn)));
+    group.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.getAttribute("data-panel") !== key; });
+    const st = REG[btn.closest("[data-reg]").getAttribute("data-reg")];
+    st.sel = key;
+    say(btn, `Shows ${esc(key)}'s rows; sends nothing.`);
+  }
+  function toggle(box) {
+    const st = REG[box.getAttribute("data-chk")];
+    const old = box.closest("[data-reg]");
+    const laneEl = old.closest("[data-lane]");
+    st.ticked = !st.ticked;
+    Object.assign(st, { hot: null, tip: null, pointer: null, kfocus: null });
+    old.outerHTML = fly(st);
+    laneEl.querySelectorAll("input[data-tpl]").forEach(onBox);
+    const what = st.mode === "vis" ? "the visual rows send CVAF; the instrument rows keep CAPP."
+      : st.mode === "all" ? "every row sends its forced form, CVAF or CAPPF."
+      : "what a tick does to the rows is section 3.";
+    const greyed = st.grey === "off" ? "disabled" : "clickable and refused";
+    const text = st.ticked ? `Force approach ticked: ${what}` : `Force approach unticked: the visual rows are greyed (${greyed}) until the field is reported.`;
+    laneEl.querySelector("[data-sent]").innerHTML = esc(text);
+  }
+  document.querySelectorAll("input[data-tpl]").forEach(onBox);
+
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const box = e.target.closest("[data-chk]");
+    if (box) { toggle(box); return; }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { selectTab(tab); return; }
+    const sayEl = e.target.closest("[data-say]");
+    if (sayEl) { say(sayEl, esc(sayEl.getAttribute("data-say"))); return; }
+    const send = e.target.closest("[data-send]");
+    if (send) sendFrom(send);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (t.matches("input")) {
+      if (e.key === "Enter") sendFrom(t.closest("[data-tplrow]"));
+      return;
+    }
+    if (t.matches("[data-chk]")) { e.preventDefault(); toggle(t); return; }
+    if (t.matches(".mi[tabindex]")) { e.preventDefault(); t.click(); }
+  });
+  document.addEventListener("input", e => { if (e.target.hasAttribute("data-tpl")) onBox(e.target); });
+})();
+</script>
+</body>
+</html>
