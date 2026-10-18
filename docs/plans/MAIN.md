@@ -16,6 +16,7 @@
 - [ ] YAAT-773 Extract one live-list helper for the quick-command flyouts that refill while open
 - [ ] YAAT-799 Capture the tabbed Taxi to runway flyout for the feature showcase · release vNext
 - [ ] YAAT-807 Show the empty-entries line when the Taxi to runway panel fails to render a landed search
+- [ ] YAAT-823 Leave the turn-off angle out of an exit row when the layout could not measure it
 
 ## Bug reports and feature requests
 
@@ -30,8 +31,6 @@
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
-- [ ] YAAT-801 RPO pilot speech shows the spelled-out TTS form in the terminal and bubble · release vNext
-- [/] YAAT-802 Debounce typed values in the live session settings spinners · release vNext
 - [ ] YAAT-803 Offer an Air taxi quick command with a destination flyout for helicopters · release vNext
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 
@@ -564,3 +563,7 @@
 - [ ] YAAT-796 Merge the two warnings of a live weather load with neither GFS nor FD winds
 - [ ] YAAT-797 Make QuickCommandsSection_DragReordersARow hold under load
 - [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference
+
+## No project
+
+- [ ] YAAT-824 Make the tower-cab session-binding test wait for the push queue before resetting the socket
