@@ -6,6 +6,10 @@
 
 - [?] YAAT-829 Server rooms/hub: BroadcastRoomToAdmin leaks a suppressed room's delayed-spawn entries to admins during rewind/recording-load (missing IsBroadcastSuppressed guard)
 
+## Do first
+
+- [ ] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+
 ## Context-menu quick commands (#471)
 
 - [/] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
@@ -26,12 +30,11 @@
 
 ## Bug reports and feature requests
 
+- [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release v0.16.0-beta reels
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release v0.16.0-beta reels
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release v0.16.0-beta reels
-- [ ] YAAT-403 Support for vTBFM · release vNext
-  - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -103,7 +106,6 @@
 - [ ] YAAT-378 LAHSO: query an EXIT instructed beyond the hold-short point at the readback
 - [ ] YAAT-397 Repeat EXIT under a standing EXP: judge it the same before and after the exit hand-off
 - [ ] YAAT-398 Runway exit EXIT judgement leftovers: confirming EXIT under EXP, unchecked EXIT while searching, behind-wording
-- [/] YAAT-402 Count an aircraft past a runway hold line as fouling that runway · release vNext
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
@@ -118,7 +120,6 @@
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-510 Rolling re-route back through a bar it faces away from falls back to the wide turn-about arc
 - [ ] YAAT-513 Fly the acute runway turn-off onto J along its fillet, and bound exit-test turn rate
-- [ ] YAAT-578 Warn when a plain `PUSH {taxiway}` path fouls a parked neighbour · release vNext
 - [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 - [ ] YAAT-606 Clear the runway hold line with margin when a widebody vacates (RunwayExitPhase stop point)
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
@@ -173,6 +174,7 @@
 - [ ] YAAT-837 Brake a yielding taxiing aircraft to a stop instead of clamping it to zero
 - [ ] YAAT-838 Respect runway rank in the ground-conflict tie-break and runway-user skip
 - [ ] YAAT-844 Judge the solo evaluator's preceding-landing clear test by the controller definition
+- [ ] YAAT-847 Solo runway-user scoring follow-ups: weather fallback, LAHSO span, stale DepartureRunway, untested paths
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -349,7 +351,6 @@
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-638 GuideCapture live-traffic scene captures no shadow aircraft
-- [ ] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext
 - [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
 - [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
@@ -582,3 +583,4 @@
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
 - [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
+- [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext+1
