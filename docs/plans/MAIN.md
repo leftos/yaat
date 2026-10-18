@@ -30,10 +30,10 @@
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
-- [/] YAAT-800 Hold short of a taxiway at a shallow merge stops on the crossed taxiway (OAK D into C) · release vNext
 - [ ] YAAT-801 RPO pilot speech shows the spelled-out TTS form in the terminal and bubble · release vNext
-- [ ] YAAT-802 Debounce typed values in the live session settings spinners · release vNext
+- [/] YAAT-802 Debounce typed values in the live session settings spinners · release vNext
 - [ ] YAAT-803 Offer an Air taxi quick command with a destination flyout for helicopters · release vNext
+- [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 
 ## Say again
 
@@ -161,6 +161,10 @@
 - [ ] YAAT-809 Apply the shallow-merge hold-short fallback at the other hold-short arming sites
 - [ ] YAAT-810 Judge a runway crosser for the go-around from the hold line, using its route's speed profile
 - [ ] YAAT-812 Test the merge-hold ready-to-taxi and route-incomplete calls through HoldingShortPhase
+- [ ] YAAT-816 Judge only the nose on the approach to an uncleared hold within 30° of the runway axis
+- [ ] YAAT-817 Keep the TAXI not-in-route notice when a merge-hold advisory names the taxiway
+- [ ] YAAT-818 Resolve the CLAND fouler warning against the landing runway's airport layout
+- [ ] YAAT-819 Widen the rejected-takeoff obstruction to the departing aircraft's span
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -345,7 +349,7 @@
 - [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof
 - [ ] YAAT-785 Read and validate a PR's reviews before land-bot-pr merges it · release vNext
 - [ ] YAAT-798 Answer gate's routed-run CS0009 questions: test-all parallel builds, obj in routing outputs
-- [ ] YAAT-815 Commit yaat-server's .gate/warmup.toml for Release builder warm-up
+- [ ] YAAT-821 Find the Yaat.Client.Tests test that stalls a local full suite on a busy machine
 
 ## Singles
 
@@ -559,3 +563,4 @@
 - [ ] YAAT-795 Refuse recording manifest wind-grid hashes that are not 64 lowercase hex
 - [ ] YAAT-796 Merge the two warnings of a live weather load with neither GFS nor FD winds
 - [ ] YAAT-797 Make QuickCommandsSection_DragReordersARow hold under load
+- [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference
