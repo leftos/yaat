@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Air Taxi Flyout</title>
+<style>
+  /* Layout: one artboard per open question; a header (question, the aircraft menu with its strip) over lanes A, B (and C). */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #9a5a12; --tag-today: #58616c; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", "JetBrains Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --tag-today: #9aa3ae; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --tag-today: #9aa3ae; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 92ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .sit code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 84ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .stub-cap { font: 500 11px var(--f-mono); color: var(--muted); margin-bottom: 4px; letter-spacing: .04em; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 100ch; }
+
+  /* Situation lists under a Q1 lane (mock annotation, page theme). */
+  .sit { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .sit th { text-align: left; font: 500 11px var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 4px 8px 4px 0;
+            vertical-align: top; white-space: nowrap; border-top: 1px solid var(--line); }
+  .sit td { padding: 4px 0; border-top: 1px solid var(--line); color: var(--muted); }
+  .sit .add { color: var(--ink); font-weight: 600; }
+  .sit .gone { text-decoration: line-through; opacity: .7; }
+  .sit .same { font-style: italic; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 16px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel .mw { color: #ffc062; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 480px; max-width: 100%; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.faint { opacity: .55; }
+  .mi.dis { opacity: .45; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 1px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .mi.sec { grid-template-columns: minmax(0, 1fr) auto; min-height: 28px; padding-top: 6px; padding-bottom: 3px; font-size: 12px; font-weight: 600; color: #cfd4da; }
+  .mi.sec .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; font-weight: 400; padding-left: 12px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 4px; overflow: hidden; }
+  .nm.col { flex-direction: column; align-items: flex-start; }
+  .nm .n { white-space: nowrap; font-weight: 600; }
+  .nm .note { font-size: 12px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+  .dist { padding-left: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .elide { font: 11.5px Inter, "Segoe UI", sans-serif; color: #8c95a0; padding: 6px 11px; font-style: italic; }
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .clead { font-size: 11px; color: #a4adb8; margin-right: 2px; }
+  .chip { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; background: #2a2f37; border: 1px solid #3a414b; border-radius: 4px;
+          padding: 1px 6px; cursor: pointer; line-height: 16px; }
+  .chip:hover { background: #34404f; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .scroll { max-height: 420px; overflow-y: auto; scrollbar-color: #555 transparent; padding-bottom: 6px; }
+  .scroll .mi.sec { position: sticky; top: 0; background: #2c2c2c; z-index: 1; }
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+
+  /* Tabs inside a flyout, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+
+  /* The aircraft menu stub: title, state line, the strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell.new { box-shadow: inset 0 0 0 1px #6ee0ce; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+  .stripnames { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 0 11px 6px; max-width: 260px; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-803 · Air taxi quick command · mock for the owner's feedback</div>
+  <h1>Air taxi for helicopters: three open choices</h1>
+  <p class="lede">Today no quick-command situation lists <code>ATXI</code>, so a helicopter on a pad gets the fixed-wing ground strip: Push back, Preset taxi route, Draw taxi route, Push back to, Check release window. Each artboard asks one open question as lanes A, B (and C), each with how it works and its worst case in use; no lane is marked as recommended.</p>
+  <p class="lede">Data is real: <b>N812HL</b>, an EC35 (the type COMMANDS.md uses for a helicopter spawn), at parking <b>HELI1</b> on KOAK's north field, from the bundled <code>oak.geojson</code>. KOAK's layout has three helicopter positions, all <code>parking</code> features (HELI1, HELI2, HELI), 165 other parking positions and 16 spots. Runway holding positions are the RunwayHoldShort nodes LayoutInspector builds for each runway (<code>--runway … --airport-code KOAK</code>), each named by its taxiway, ordered from the threshold; a bar within 300 ft of the far threshold is left out, as Taxi to runway does. Distances are straight-line from HELI1, rounded to 50 ft, measured for this mock; the air-taxi path is not measured. Click rows, chips and tabs to see what each sends.</p>
+  <nav class="index" id="index" aria-label="Questions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Row templates follow the quick-command mocks (<code>docs/plans/canvases/quick-command-flyouts/</code>, <code>quick-command-taxi-to-runway-tabs/</code>) and <code>MenuGlyphRow.cs</code>: Inter text, commands in JetBrains Mono at 70%, 22 px glyphs at stroke 1.9 in the ground colour, the Fluent dark menu surface, strip cells 40 px with the corner notch on a flyout cell, the 480 px cap of <code>MenuCommandRow.InlineRowMaxWidth</code>, tabs as <code>FlyoutTabStrip</code> draws them. The Air taxi glyph (rotor, body, skids, arrow) is a placeholder drawn for this mock, not a designed glyph. The page loads no web fonts, so it draws in Segoe UI and Consolas where Inter and JetBrains Mono are not installed. The outlined new-cell ring, the struck-through list entries and the dashed notes are mock annotations, not app UI.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  /* ---------- KOAK from HELI1 (oak.geojson; LayoutInspector RunwayHoldShort nodes), straight-line ft rounded to 50 ---------- */
+  const D = {"pads":[["HELI2",350],["HELI",1050]],"parking":[["JSX1",150],["GA1",200],["GA2",200],["JSX2",300],["GA4",450],["JSX3",450],["GA3",500],["GA5",850],["GA6",850],["KAI1",1100],["KAI2",1150],["KAI3",1400],["KAI6",1400],["KAI4",1550],["KAI7",1600],["KAI5",1650],["PXT1",1950],["PXT2",2000],["PXT3",2000],["SIG5",2150],["SIG6",2150],["SIG7",2200],["SIG4",2350],["SIG1",2500],["SIG2",2500],["SIG3",2500],["MTN6",2700],["MTN5",2750],["MTN6A",2750],["MTN4",2800],["MTN7",2800],["MTN2A",2850],["MTN8",2850],["MTN3",2900],["MTN2",3050],["MTN1",3150],["MTN1A",3150],["GA8",3350],["GA7",3400],["GA10",3450],["GA9",3500],["FDX17",3550],["FDX18",3550],["GA12",3550],["GA11",3600],["FDX14",4000],["FDX15",4000],["PCM3",4000],["FDX16",4050],["ARGUS",4100],["PCM2",4100],["PCM1",4150],["FDX13",4250],["FDX11",4500],["FDX12",4500],["FDX10",4550],["CHEVRON",4650],["FDX1",4850],["FDX9",5000],["FDX2",5050],["A",5150],["CARGO1",5150],["B",5200],["FDX8",5250],["C",5300],["D",5350],["FDX3",5350],["CARGO2",5400],["FDX7",5450],["1D",5600],["FDX4",5600],["FDX6",5650],["1C",5700],["G",5700],["1B",5750],["F",5750],["E",5800],["FDX5",5850],["1A",5900],["DHL2",5900],["1",5950],["20",6000],["21",6000],["S9",6000],["DHL1",6050],["22",6100],["3",6100],["24",6150],["3A",6150],["4",6150],["23",6200],["S8",6200],["25",6250],["5",6250],["NEW1",6250],["NEW2",6250],["NEW3",6250],["6",6300],["7",6300],["S12",6300],["S13",6300],["S8B",6300],["8",6350],["NEW5",6350],["S14",6350],["S15",6350],["7A",6400],["8B",6400],["NEW4",6400],["R1",6400],["26",6450],["9",6450],["NEW7",6450],["S7",6450],["8A",6500],["NEW6",6500],["S6",6500],["27",6550],["S5",6550],["9A",6600],["S5B",6600],["10",6650],["S5A",6650],["29",6700],["GA15",6700],["S1",6700],["S2",6700],["S3",6700],["S4",6700],["11",6750],["GA18",6750],["12",6800],["30",6800],["GA14",6800],["14",6850],["15",6850],["17",6850],["GA13",6850],["GA17",6850],["GA20",6850],["GA16",6900],["GA19",6900],["31",6950],["32",7050],["OLD1",7150],["OLD5",7200],["OLD3",7250],["OLD7",7250],["OLD2",7300],["RON5",7300],["RON1",7350],["RON2",7350],["RON3",7350],["RON4",7350],["OLD4",7400],["OLD6",7400],["PT1",7400],["PT2",7400],["RON5A",7400],["RON6",7400],["OLD8",7450],["RON7",7450],["RON8",7500],["RON9",7500],["RON10",7550]],"spots":[["I8R",650],["A8RN",950],["A8RS",1250],["9",3100],["K0LS",5800],["K0LN",5850],["2",6600],["W",6800],["C",7000],["3",7050],["E",7050],["7",7150],["1",8000],["4",8150],["5",8600],["I30",9200]]};
+  /* Runway ends, nearest full-length bar first: [end, full-length bar (null when two tie), distance to it, the other bars from the threshold]. */
+  const RWYS = [
+    ["28R", "B", 700, ["E", "G", "H", "P", "J"]],
+    ["28L", "B", 1450, ["G", "H", "P"]],
+    ["33", "C", 3900, ["L", "K"]],
+    ["10L", "C1", 4800, ["J", "P", "H", "G", "E"]],
+    ["10R", "J", 5700, ["P", "H", "G"]],
+    ["15", null, 6700, ["D", "F", "K", "L"]],
+    ["30", "W1", 9350, ["W2", "W3", "W4", "W5", "W6"]],
+    ["12", "W7", 10550, ["W6", "W5", "W4", "W3", "W2"]],
+  ];
+  const PARK_SHOWN = 8;
+
+  const FAM = { G: "#6EE0CE", S: "#DCE2E8" };
+  const GL = {
+    ATXI: ["G", "M3 4.5h14 M10 4.5v3 M5.5 11.5a4.5 3.5 0 1 0 9 0a4.5 3.5 0 1 0-9 0 M8 15v3 M12 15v3 M5.5 18h9 M16 11.5h5.5 M19 9l2.5 2.5L19 14"],
+    PUSH: ["G", "M12 3v12 M8 11l4 4 4-4 M6 20h12"],
+    PUSHTO: ["G", "M12 3v8 M9 8l3 3 3-3 M12 13a4 4 0 1 0 0 8a4 4 0 1 0 0-8"],
+    PRESET: ["G", "M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3"],
+    DRAW: ["G", "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"],
+    CRW: ["S", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3"],
+  };
+  const LABEL = { ATXI: "Air taxi", PUSH: "Push back", PUSHTO: "Push back to", PRESET: "Preset taxi route", DRAW: "Draw taxi route", CRW: "Check release window" };
+  const OPENS = new Set(["ATXI", "PRESET", "PUSHTO"]);
+  const UNFILLED = "···";
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const gl = (id, size = 22) => {
+    const [fam, d] = GL[id];
+    return `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${FAM[fam]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  };
+  const menu = (inner, cls = "", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sec = (t, r = "", key = "") => `<div class="mi sec"${key ? ` data-sec="${key}"` : ""}><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+
+  /* ---------- Rows ---------- */
+  function drow(name, note, dist, cmd, under = "") {
+    const nm = `<span class="nm${under ? " col" : ""}"><span class="n">${esc(name)}${note ? `<span class="note">&nbsp;· ${esc(note)}</span>` : ""}</span>${under}</span>`;
+    return `<div class="mi" role="menuitem" data-send="${esc(cmd)}" data-name="${esc(name)}" tabindex="0">${gl("ATXI")}${nm}<span class="dist">${dist == null ? "" : ft(dist)}</span><span class="cmd">${esc(cmd)}</span></div>`;
+  }
+  const padRows = () => D.pads.map(([n, d]) => drow(n, "helipad", d, `ATXI @${n}`)).join("");
+  const parkRows = lim => D.parking.slice(0, lim).map(([n, d]) => drow(n, "", d, `ATXI @${n}`)).join("");
+  const parkMore = lim => D.parking.length > lim
+    ? `<div class="elide">${D.parking.length - lim} more parking positions below, nearest first (${D.parking[lim][0]} at ${ft(D.parking[lim][1])} … ${D.parking.at(-1)[0]} at ${ft(D.parking.at(-1)[1])})</div>` : "";
+  const spotRows = () => D.spots.map(([n, d]) => drow(n, "spot", d, `ATXI $${n}`)).join("");
+  function rwyRow([end, full, d, others]) {
+    const chips = `<span class="under"><span class="clead">at</span>${others.map(t => `<button type="button" class="chip" data-send="ATXI ${end}@${t}" title="ATXI ${end}@${t}">${t}</button>`).join("")}</span>`;
+    return drow(`RWY ${end}`, full ? `full length at ${full}` : "full length (D and F tie at the threshold)", d, `ATXI ${end}`, chips);
+  }
+  const rwyRows = () => RWYS.map(rwyRow).join("");
+
+  /* ---------- Tabbed flyout (Q2 lane A, Q3) ---------- */
+  const TABS = [["pk", "Pads · parking", D.pads.length + D.parking.length], ["sp", "Spots", D.spots.length], ["rw", "Runways", RWYS.length]];
+  function tabPanel(key, parkLim) {
+    if (key === "pk") return title("Helipads") + padRows() + title("Parking", "nearest first") + parkRows(parkLim) + parkMore(parkLim);
+    if (key === "sp") return title("Spots", "nearest first") + spotRows();
+    return title("Runway holding positions", "nearest first") + rwyRows();
+  }
+  let flySeq = 0;
+  const FLY = {};
+  function tabbed(o) {
+    const id = `t${++flySeq}`;
+    FLY[id] = o;
+    o.sel = o.sel || "pk";
+    const tabs = `<div class="tabs" role="tablist">${TABS.map(([k, t, n]) => `<button type="button" class="tab" role="tab" data-tab="${k}" aria-selected="${k === o.sel}">${esc(t)}<small>${n}</small></button>`).join("")}</div>`;
+    const body = `<div data-panel class="${o.scroll ? "scroll" : ""}">${tabPanel(o.sel, o.parkLim)}</div>`;
+    return menu((o.top || "") + `<div data-tabwrap${o.filterHides ? " data-filterhides" : ""}>${tabs}${body}</div>` + (o.results || ""), "w", "Air taxi", `data-fly="${id}"`);
+  }
+
+  /* ---------- One list with sticky group titles (Q2 lane B) ---------- */
+  function oneList(scrollTo) {
+    const inner = sec("Helipads and parking", "@") + padRows() + parkRows(PARK_SHOWN) + parkMore(PARK_SHOWN)
+      + sec("Spots", "$") + spotRows()
+      + sec("Runway holding positions", "28L · 28L@J", "rw") + rwyRows();
+    return menu(`<div class="scroll" data-onelist${scrollTo ? ` data-scrollto="${scrollTo}"` : ""}>${inner}</div>`, "w", "Air taxi");
+  }
+
+  /* ---------- Box rows (Q3) ---------- */
+  function sendBox(value = "") {
+    const shown = value ? `ATXI ${value.toUpperCase()}` : `ATXI ${UNFILLED}`;
+    return `<div class="mi" role="menuitem" data-boxrow style="grid-template-columns:auto minmax(0,1fr) auto">${gl("ATXI")}<span class="nm col"><span class="n" style="font-weight:400">Air taxi to</span><span class="under"><input class="tbox" type="text" data-sendbox placeholder="@pad, $spot or runway" value="${esc(value)}" aria-label="Air taxi destination, sent as typed" maxlength="10" style="width:190px" autocomplete="off" spellcheck="false"></span></span><span class="cmd" data-boxcmd>${esc(shown)}</span></div>`
+      + `<div class="hint">Enter sends <code>ATXI</code> and the box as typed.</div>` + sep();
+  }
+  function filterBox(value = "") {
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 11px 4px">${gl("ATXI")}<input class="tbox" type="text" data-filterbox placeholder="Filter pads, parking, spots, runways" value="${esc(value)}" aria-label="Filter air-taxi destinations" maxlength="10" style="flex:1;min-width:0" autocomplete="off" spellcheck="false"></div><div class="hint" data-filterhint>Type to filter every group; Enter sends the top match.</div>`;
+  }
+
+  /* ---------- Aircraft menu stub ---------- */
+  function stub(s) {
+    const cells = s.strip.map(id => `<span class="cell${id === s.active ? " latched" : ""}${id === "ATXI" && s.markNew ? " new" : ""}" title="${esc(LABEL[id])}" role="img" aria-label="${esc(LABEL[id])}${id === s.active ? " (flyout open)" : ""}">${gl(id, 32)}${OPENS.has(id) ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const plain = t => `<div class="mi plain faint"><span>${esc(t)}</span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">N812HL · EC35</div><div class="mstate">At parking · HELI1 · VFR</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span></div>${sep()}<div class="strip">${cells}</div><div class="stripnames">${s.strip.map(id => esc(LABEL[id])).join(" · ")}</div>${sep()}${["All Commands", "Track", "Data Block"].map(plain).join("")}`, "", "Aircraft menu");
+  }
+  const STRIP_TODAY = ["PUSH", "PRESET", "DRAW", "PUSHTO", "CRW"];
+  const STRIP_HIDE = ["ATXI", "PRESET", "DRAW", "CRW"];
+  const STRIP_KEEP = ["ATXI", "PUSH", "PRESET", "DRAW", "PUSHTO", "CRW"];
+
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Click a row, a chip or a tab to see what it does."}</div>
+      ${l.extra || ""}
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div><div class="stub-cap">${esc(a.stubCap)}</div><div class="stage stub-stage">${stub(a.stub)}</div></div></div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  /* ---------- 1. Situations ---------- */
+  const A = "<span class=\"add\">Air taxi ▸</span>";
+  const X = t => `<span class="gone">${t}</span>`;
+  const SAME = "<span class=\"same\">unchanged</span>";
+  const STRIP_HINT = "The strip as the menu opens (the ringed cell is new); its cells are not live here. Under it, each situation's quick list.";
+  function sitTable(rows) {
+    return `<table class="sit"><tbody>${rows.map(([s, l]) => `<tr><th>${s}</th><td>${l}</td></tr>`).join("")}</tbody></table>`;
+  }
+  const SIT_PARK_HIDE = `${A}, ${X("Push back")}, Preset taxi route ▸, Draw taxi route…, ${X("Push back to…")}, Check release window`;
+  const SIT_PARK_KEEP = `${A}, Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window`;
+  const SIT_HOG = `${A}, Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross`;
+  const SIT_HS = `Cleared for takeoff ▸, Line up and wait, Cross, ${A}, Resume taxi, Hold short of…`;
+  const SIT_RO = `Exit left ▸, Exit right ▸, ${A}, Cross, Draw taxi route…`;
+  const q1 = {
+    id: "q1-situations", title: "1 · Which situations show Air taxi, and are the push rows hidden", sends: "opens the Air taxi flyout (Q2)",
+    intro: [
+      "The four ground situations the issue names: <b>At parking</b> (on a pad or a stand), <b>Holding on ground</b> (after a spot air taxi, <code>ATXI $I8R</code>, which sets down holding position), <b>Holding short</b> (after <code>ATXI 28R</code>, which sets down at the bar) and <b>Rollout / exit</b> (after a runway landing). Air taxi goes first where nothing outranks it and after the runway-bound entries where they do. Each lane draws N812HL's strip at HELI1 and, under it, the four situations' lists (Air taxi in bold, a hidden entry struck through).",
+      "Hiding a fixed-wing entry is a quick-list rule in <code>AircraftCommandApplicability</code> like the others; All Commands keeps every entry whatever it says. It needs the helicopter category on the menu's aircraft: <code>IMenuAircraft</code> carries the type (<code>FiledAircraftType</code>, <code>BaseAircraftType</code>), not the category. <code>GroundCommandHandler</code> has no helicopter check today (searched), so nothing there refuses a push for a helicopter (not run).",
+    ],
+    stubCap: "Today", stub: { strip: STRIP_TODAY },
+    lanes: [
+      { kind: "a", name: "All four situations; Push back and Push back to… hidden", hint: STRIP_HINT,
+        body: frame("N812HL at HELI1 · At parking", stub({ strip: STRIP_HIDE, markNew: true })),
+        extra: sitTable([["At parking", SIT_PARK_HIDE], ["Holding on ground", SIT_HOG], ["Holding short", SIT_HS], ["Rollout / exit", SIT_RO]]),
+        how: "Air taxi joins all four lists; at parking the helicopter's strip drops Push back and Push back to…, so the pad strip is Air taxi, Preset taxi route, Draw taxi route, Check release window.",
+        worst: "A wheeled helicopter on a stand that the instructor wants towed (a scenario that parks one at a gate) has no Push back on its strip; it is one level down under All Commands." },
+      { kind: "b", name: "All four situations; nothing hidden", hint: STRIP_HINT,
+        body: frame("N812HL at HELI1 · At parking", stub({ strip: STRIP_KEEP, markNew: true })),
+        extra: sitTable([["At parking", SIT_PARK_KEEP], ["Holding on ground", SIT_HOG], ["Holding short", SIT_HS], ["Rollout / exit", SIT_RO]]),
+        how: "Air taxi is only added: it leads the parking strip and every fixed-wing entry stays, so the strip grows to six cells and wraps to a second row.",
+        worst: "Push back sits second on a skid helicopter's strip, one cell from Air taxi; a slip sends <code>PUSH</code>, which no helicopter check refuses, and the EC35 is towed off the pad like an airliner." },
+      { kind: "c", name: "At parking and Holding on ground only; push rows hidden", hint: STRIP_HINT,
+        body: frame("N812HL at HELI1 · At parking", stub({ strip: STRIP_HIDE, markNew: true })),
+        extra: sitTable([["At parking", SIT_PARK_HIDE], ["Holding on ground", SIT_HOG], ["Holding short", SAME], ["Rollout / exit", SAME]]),
+        how: "Air taxi only where the helicopter sits on a pad, a stand or a spot; at a runway bar or after a runway landing the lists stay the fixed-wing ones. The parking strip is the same as A's.",
+        worst: "After <code>ATXI 28R</code> the helicopter sits at the 28R bar with no Air taxi on its strip: sending it back to HELI2, or to another bar, means typing <code>ATXI @HELI2</code>; the same after a landing on 28R." },
+    ],
+  };
+
+  /* ---------- 2. Grouping ---------- */
+  const q2 = {
+    id: "q2-grouping", title: "2 · How the destination flyout groups its rows", sends: "ATXI @HELI2 · ATXI $I8R · ATXI 28R · ATXI 28R@E",
+    intro: [
+      "Three kinds of destination, each with its marker: helipads and parking (<code>@</code>), spots (<code>$</code>) and runway holding positions (a bare runway, <code>28R</code> for the full-length bar, <code>28R@E</code> for the bar on taxiway E). Every row shows the destination, its distance and the command it sends; a runway end is one row for its full-length bar with its other bars as chips under it, threshold first. HELI1, where N812HL sits, is left out.",
+      "KOAK's 16 spots include C, E, W, 1 to 5, 7 and 9, the same names as taxiways, parking positions and runway numbers, which is why each row prints its marker. Both lanes show the eight nearest parking positions; whether the other 157 are listed or typed is Q3.",
+    ],
+    stubCap: "Lane A's strip, Air taxi open", stub: { strip: STRIP_HIDE, active: "ATXI" },
+    lanes: [
+      { kind: "a", name: "A tab per group (FlyoutTabStrip)",
+        body: frame("Opened · Pads · parking selected", tabbed({ sel: "pk", parkLim: PARK_SHOWN }))
+          + frame("Runways selected", tabbed({ sel: "rw", parkLim: PARK_SHOWN })),
+        how: "Three tabs above the rows, Pads · parking first, as Taxi to runway puts one runway end per tab; a tab shows only its group, nearest first, so no group scrolls the others away.",
+        worst: "A name shared across groups sits behind two tabs: spot C is under Spots and the 33 bar at C under Runways, so an instructor looking for “C” checks both, and whichever tab opens first decides what Enter sends right after opening." },
+      { kind: "b", name: "One list, sticky group titles",
+        body: frame("Opened · top of the list", oneList(""))
+          + frame("Scrolled to the runways <span class=\"mw\" data-rwoffset></span>", oneList("rw")),
+        how: "Every group in one scrolling list under the 420 px height, each group's title sticking to the top while its rows scroll under it; the eight parking rows follow the helipads under one @ title.",
+        worst: "The runways start far down the list (the label above gives how far, measured in this page), so the full-length 28R bar, 700 ft away, takes a scroll to reach while spot I30, 9,200 ft away, sits above it." },
+    ],
+  };
+
+  /* ---------- 3. Free-text box ---------- */
+  const q3 = {
+    id: "q3-box", title: "3 · Is there an “Air taxi to” box, and what does it send", sends: "ATXI <typed> · the top match's command",
+    intro: [
+      "Exit right's “Exit at” box and the Takeoff flyout's altitude and heading boxes take what the list does not hold. Here the list cannot hold every parking position at a reasonable height: KOAK has 165 besides the helipads. Drawn on Q2 lane A's tabs; the same box sits above Q2 lane B's list.",
+      "<code>ATXI</code> reads its destination by marker: <code>@</code> a helipad or gate, <code>$</code> a spot, and a bare token is always a runway, zero-padded (COMMANDS.md, “Helicopter Commands”). KOAK has a parking position 9, a spot 9 and no runway 9.",
+    ],
+    stubCap: "Lane A's strip, Air taxi open", stub: { strip: STRIP_HIDE, active: "ATXI" },
+    lanes: [
+      { kind: "a", name: "No box; every parking position listed",
+        body: frame("Opened · Pads · parking selected · all 165 parking rows, scrolling", tabbed({ sel: "pk", parkLim: D.parking.length, scroll: true })),
+        how: "The Pads · parking tab lists every parking position nearest first in a scrolling panel; anything else is typed on the command line.",
+        worst: "Parking RON10, 7,550 ft away, is the 165th row: the instructor scrolls past every north-field and cargo stand, or gives up and types <code>ATXI @RON10</code>." },
+      { kind: "b", name: "A box sent as typed",
+        body: frame("Opened · box empty", tabbed({ sel: "pk", parkLim: PARK_SHOWN, top: sendBox("") }))
+          + frame("Typed 9 · top of the flyout (tabs and rows as above)", menu(sendBox("9") + `<div class="elide">Tabs and rows as in the frame above.</div>`, "w", "Air taxi"),`<div class="callout" role="note"><b>Sent as typed:</b> <code>ATXI 9</code> is runway 09, which KOAK lacks; parking 9 is <code>@9</code>, spot 9 is <code>$9</code>.</div>`),
+        how: "An “Air taxi to” row above the tabs; its command column shows <code>ATXI</code> and the box as typed, and Enter sends it, as the Exit at box sends <code>ER</code> and the taxiway. The marker is the instructor's to type.",
+        worst: "Typing a name without its marker, the natural thing in a box beside a list of names, sends a runway: <code>ATXI HELI2</code> is refused (“use @HELI2 for a helipad or gate”), and <code>ATXI 9</code> asks for a runway KOAK does not have." },
+      { kind: "c", name: "A filter box; Enter sends the top match",
+        body: frame("Opened · box empty", tabbed({ sel: "pk", parkLim: PARK_SHOWN, top: filterBox(""), filterHides: true, results: `<div data-results></div>` }))
+          + frame("Typed C", tabbed({ sel: "pk", parkLim: PARK_SHOWN, top: filterBox("C"), filterHides: true, results: `<div data-results></div>` })),
+        how: "A box above the tabs filters every group by name prefix, the helipads and all 165 parking positions included; while it holds text the tab bar gives way to the matches, grouped, an exact name first, then nearest first, each row printing its command with the marker, and Enter sends the first match.",
+        worst: "Short names match in several groups: “C” lists parking C, CHEVRON, CARGO1 and CARGO2, spot C, and runways 33 (full length at C) and 10L (at C1); Enter sends the first, <code>ATXI @C</code>, a parking position 5,300 ft away, when spot C was meant." },
+    ],
+  };
+
+  /* ---------- Render ---------- */
+  const ARTS = [q1, q2, q3];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title.split(" · ")[0])} · ${esc(a.title.split(" · ")[1])}</a>`).join("");
+
+  /* Measure where the runway group starts in the one-list lane, and scroll its second frame there. */
+  function measureOneList() {
+    document.querySelectorAll("[data-onelist]").forEach(el => {
+      const rw = el.querySelector('[data-sec="rw"]');
+      if (!rw) return;
+      const top = rw.offsetTop;
+      document.querySelectorAll("[data-rwoffset]").forEach(lbl => { lbl.textContent = `· the runway group starts ${top} px down the list`; });
+      if (el.dataset.scrollto === "rw") el.scrollTop = top;
+    });
+  }
+
+  /* Filter-box results (Q3 lane C). */
+  function matches(q) {
+    const Q = q.trim().toUpperCase();
+    if (!Q) return null;
+    /* Prefix match on the name; an exact name first, then nearest first. */
+    const pick = list => list.filter(([n]) => n.toUpperCase().startsWith(Q)).sort((a, b) => ((a[0] === Q ? 0 : 1) - (b[0] === Q ? 0 : 1)) || (a[1] - b[1]));
+    const pk = [...pick(D.pads).map(([n, d]) => drow(n, "helipad", d, `ATXI @${n}`)), ...pick(D.parking).map(([n, d]) => drow(n, "", d, `ATXI @${n}`))];
+    const sp = pick(D.spots).map(([n, d]) => drow(n, "spot", d, `ATXI $${n}`));
+    const rw = [];
+    RWYS.forEach(([end, full, d]) => { if (end.startsWith(Q) || (full && full.startsWith(Q))) rw.push(drow(`RWY ${end}`, full ? `full length at ${full}` : "full length", d, `ATXI ${end}`)); });
+    let html = "";
+    if (pk.length) html += sec("Helipads and parking", "@") + pk.join("");
+    if (sp.length) html += sec("Spots", "$") + sp.join("");
+    if (rw.length) html += sec("Runway holding positions", "") + rw.join("");
+    return { html: html || `<div class="mi plain dis"><span>No destination matches</span><span></span></div>`, first: (html.match(/data-send="([^"]*)"/) || [])[1] || "" };
+  }
+  function applyFilter(input) {
+    const m = input.closest(".menu");
+    const res = matches(input.value);
+    const wrap = m.querySelector("[data-tabwrap]");
+    const out = m.querySelector("[data-results]");
+    const hint = m.querySelector("[data-filterhint]");
+    if (!res) { wrap.hidden = false; out.innerHTML = ""; hint.innerHTML = "Type to filter every group; Enter sends the top match."; return; }
+    wrap.hidden = true;
+    out.innerHTML = res.html;
+    hint.innerHTML = res.first ? `Enter sends <code>${esc(res.first)}</code>, the first match.` : "Nothing to send.";
+    input.dataset.first = res.first;
+  }
+
+  function say(el, html) {
+    const s = el.closest("[data-lane]")?.querySelector("[data-sent]");
+    if (s) s.innerHTML = html;
+  }
+  document.addEventListener("click", e => {
+    const tab = e.target.closest("[data-tab]");
+    if (tab) {
+      const m = tab.closest("[data-fly]");
+      const o = FLY[m.dataset.fly];
+      o.sel = tab.dataset.tab;
+      m.querySelectorAll("[data-tab]").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
+      m.querySelector("[data-panel]").innerHTML = tabPanel(o.sel, o.parkLim);
+      say(tab, `Shows the ${esc(tab.textContent.replace(/\d+$/, ""))} group; sends nothing.`);
+      return;
+    }
+    if (e.target.closest("input")) return;
+    const s = e.target.closest("[data-send]");
+    if (s && s.dataset.send) say(s, `Sends <code>${esc(s.dataset.send)}</code>.`);
+  });
+  document.addEventListener("input", e => {
+    const t = e.target;
+    if (t.matches("[data-sendbox]")) {
+      const cmd = t.closest("[data-boxrow]").querySelector("[data-boxcmd]");
+      cmd.textContent = t.value.trim() ? `ATXI ${t.value.trim().toUpperCase()}` : `ATXI ${UNFILLED}`;
+    }
+    if (t.matches("[data-filterbox]")) applyFilter(t);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    const t = e.target;
+    if (t.matches("[data-sendbox]")) say(t, t.value.trim() ? `Sends <code>ATXI ${esc(t.value.trim().toUpperCase())}</code> as typed.` : "Empty: sends nothing.");
+    if (t.matches("[data-filterbox]")) say(t, t.dataset.first ? `Sends <code>${esc(t.dataset.first)}</code>, the top match.` : "No match: sends nothing.");
+  });
+
+  document.querySelectorAll("[data-filterbox]").forEach(applyFilter);
+  measureOneList();
+  window.addEventListener("resize", measureOneList);
+})();
+</script>
+</body>
+</html>
