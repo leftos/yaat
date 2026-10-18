@@ -85,11 +85,11 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | IFR arrival | Descend via STAR *(IFR)*, Maintain altitude, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold at fix…, Land ▸ *(helicopter)* |
 | VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain altitude, Direct to…, Expect approach ▸, Land ▸ *(helicopter)* |
 | Approach | Cleared approach ▸, Maintain altitude, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land, Land ▸ *(helicopter)* |
-| Holding | Cleared approach ▸ *(IFR)*, Report field in sight *(IFR)*, Direct to…, Maintain altitude, then *(VFR)* Enter left / right downwind, Enter left / right base, Make straight-in, then Land ▸ *(helicopter)* |
+| Holding | Cleared approach ▸ *(IFR)*, Report field in sight *(IFR)*, Cleared visual *(IFR)*, Direct to…, Maintain altitude, then *(VFR)* Enter left / right downwind, Enter left / right base, Make straight-in, then Land ▸ *(helicopter)* |
 | Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land ▸ *(helicopter)* |
 | Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left ▸, Exit right ▸, Land ▸ *(helicopter)* |
 | Rollout / exit | Exit left ▸, Exit right ▸, Air taxi ▸ *(helicopter, once settled)*, Cross, Draw taxi route… |
-| Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, Report field in sight *(IFR)*, *(VFR)* Enter left / right downwind, Land ▸ *(helicopter)* |
+| Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, Report field in sight *(IFR)*, Cleared visual *(IFR)*, *(VFR)* Enter left / right downwind, Land ▸ *(helicopter)* |
 | Live traffic | Assume control, Assume and track |
 | VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic…, Land ▸ *(helicopter)* |
 | VFR departure | Fly heading ▸, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic, Land ▸ *(helicopter)* |

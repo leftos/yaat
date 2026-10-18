@@ -324,6 +324,32 @@ public class QuickCommandVisibilityRulesTests
         Assert.Equal(shown, Shows(aircraft, MenuIds.ApproachReportFieldInSight, VfrCommandsForIfr.None));
     }
 
+    /// <summary>
+    /// Cleared visual shows in the IFR side of Holding and GoAround, after the field or the traffic report, the same
+    /// reports the sim checks before it accepts the clearance.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "IFR", SituationFlags.None, false)]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "IFR", SituationFlags.HasReportedFieldInSight, true)]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "IFR", SituationFlags.HasReportedTrafficInSight, true)]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "VFR", SituationFlags.HasReportedFieldInSight, false)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "IFR", SituationFlags.None, false)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "IFR", SituationFlags.HasReportedFieldInSight, true)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "IFR", SituationFlags.HasReportedTrafficInSight, true)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "VFR", SituationFlags.HasReportedFieldInSight, false)]
+    public void ClearedVisual_ShowsInTheIfrHoldingAndGoAroundLists_OnceTheFieldOrTrafficIsReported(
+        AircraftSituation situation,
+        string phase,
+        string rules,
+        SituationFlags flags,
+        bool shown
+    )
+    {
+        AircraftModel aircraft = Aircraft(situation, phase, onGround: false, rules);
+        aircraft.SituationFlags = flags;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.ApproachClearedVisual, VfrCommandsForIfr.None));
+    }
+
     [Theory]
     [InlineData(VfrCommandsForIfr.All, true)]
     [InlineData(VfrCommandsForIfr.EnterFinalOnly, false)]

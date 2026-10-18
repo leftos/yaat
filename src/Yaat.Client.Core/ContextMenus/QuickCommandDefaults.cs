@@ -119,6 +119,7 @@ public static class QuickCommandDefaults
             [
                 Ifr(MenuIds.ApproachCleared),
                 Ifr(MenuIds.ApproachReportFieldInSight),
+                Ifr(MenuIds.ApproachClearedVisual),
                 Entry(MenuIds.NavigationDirectTo),
                 Entry(MenuIds.AltitudeMaintain),
                 Vfr(MenuIds.PatternEnterLeftDownwind),
@@ -166,6 +167,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.AltitudeMaintain),
                 Ifr(MenuIds.ApproachCleared),
                 Ifr(MenuIds.ApproachReportFieldInSight),
+                Ifr(MenuIds.ApproachClearedVisual),
                 Vfr(MenuIds.PatternEnterLeftDownwind),
                 Vfr(MenuIds.PatternEnterRightDownwind),
                 Entry(MenuIds.GroundLandHelicopter),
