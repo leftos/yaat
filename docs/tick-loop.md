@@ -168,7 +168,7 @@ The numbering is 1–10 even though the documented summary says "8-step" — the
 Inside `SimulationWorld.Tick(delta, preTick, …)`, the `preTick` callback constructs a `PhaseContext` and calls `PhaseRunner.Tick(phases, ctx)`. So per sub-tick:
 
 1. `PhaseRunner.Tick` — phases write to `ControlTargets`.
-2. `GroundConflictDetector.ApplySpeedLimits` — caps target speed for proximity.
+2. `GroundConflictDetector.ApplySpeedLimits` — caps target speed for proximity; ranks aircraft per runway first (runway user, then vacating, then the rest) so the lower rank yields.
 3. `FlightPhysics.Update` — physics consumes the freshly-written targets.
 
 This is why phases write directly to `ctx.Targets` and never enqueue commands: they own targets up until physics reads them.
@@ -177,7 +177,7 @@ This is why phases write directly to `ctx.Targets` and never enqueue commands: t
 
 Two detectors. Both are server-only (clients see results in broadcast snapshots).
 
-- **Ground** — `GroundConflictDetector.ApplySpeedLimits` runs each sub-tick *before* physics. Pairwise check, classifies movement state (taxiing / pushing / stationary / following), applies speed caps when proximity drops below thresholds.
+- **Ground** — `GroundConflictDetector.ApplySpeedLimits` runs each sub-tick *before* physics. Pairwise check, classifies movement state (taxiing / pushing / stationary / following) and runway rank (runway user / vacating / rest), applies speed caps when proximity drops below thresholds.
 - **Airborne** — `ConflictAlertDetector.Detect` runs in the `ConflictAlerts` spine step (`SimulationEngine.TickConflictAlerts`). Predicts position 5 s ahead; reports pairs where current or predicted separation crosses thresholds (3 nm / 1000 ft IFR; 0.25 nm / 500 ft VFR). Hysteresis on existing conflicts (must reach 3.3 nm / 1100 ft to clear). Mode-C-only; ignores aircraft on ground or with CA inhibited; suppressed during paired approaches; `CASUP` pairs and shadow↔shadow pairs never alert.
 
 ## Broadcast cadence

@@ -561,22 +561,6 @@ public class RunwayOccupancyTests
         };
     }
 
-    /// <summary>A runway exit past its turn-off, following the exit path off the centreline.</summary>
-    public static RunwayExitPhase ExitOffTheCentreline(RunwayInfo runway) =>
-        RunwayExitPhase.FromSnapshot(
-            new RunwayExitPhaseDto
-            {
-                Status = (int)PhaseStatus.Active,
-                ElapsedSeconds = 20,
-                ReachedExitNode = false,
-                ExitSpeed = 10,
-                TimeSinceLastLog = 0,
-                RunwayHeadingDeg = runway.TrueHeading.Degrees,
-                ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
-            },
-            groundLayout: null
-        );
-
     private static LatLon Project(LatLon from, TrueHeading heading, double distanceFt) =>
         GeoMath.ProjectPoint(from, distanceFt >= 0 ? heading : heading.ToReciprocal(), Math.Abs(distanceFt) / GeoMath.FeetPerNm);
 
@@ -589,7 +573,7 @@ public class RunwayOccupancyTests
     }
 
     private static AircraftState ExitingArrival(RunwayInfo runway, GroundNode bar, double tailPastFt, double groundSpeedKts) =>
-        Placed(runway, bar, facingRunway: false, tailPastFt, groundSpeedKts, ExitOffTheCentreline(runway));
+        Placed(runway, bar, facingRunway: false, tailPastFt, groundSpeedKts, ExitPhaseFixture.ExitOffTheCentreline(runway));
 
     private static GroundNode OtherEnd(IGroundEdge edge, GroundNode node) => edge.Nodes[0].Id == node.Id ? edge.Nodes[1] : edge.Nodes[0];
 
@@ -831,6 +815,32 @@ public class RunwayOccupancyTests
         AircraftState exiting = ExitingArrival(oak.Runway, oak.Bar, tailPastFt: 20.0, groundSpeedKts: 0);
 
         Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, oak.Runway, oak.Layout));
+    }
+
+    /// <summary>
+    /// A B77W stopped on a high-speed exit of SFO 28R with its centre just off the pavement and its tail still over the strict paved
+    /// half-width, more than <see cref="HoldLineFootprint.MarkedBarReachFt"/> along the runway from the nearest bar on its side:
+    /// part of it is on the runway whatever the bar (AIM 4-3-21.b), so it fouls the runway (YAAT-825).
+    /// </summary>
+    [Fact]
+    public void ExitingArrival_TailOverThePavementFarFromAnyBar_Stopped_Fouls()
+    {
+        if (RunwayBarFixture.RunwayBar("KSFO", "28R") is null)
+        {
+            return;
+        }
+
+        ExitPose pose = Assert.IsType<ExitPose>(HighSpeedExitFixture.TailOverThePavementOnAHighSpeedExit("KSFO", "28R", "B77W"));
+        AircraftState exiting = pose.Stopped();
+
+        // Measured on the layout: the exit to bar #834 leaves 28R heading 271.6° true; the main gear 131.1 ft from the centreline
+        // (half-width 100 ft plus the 30 ft slack), the tail 77.4 ft from it and 418.3 ft along the runway from the nearest bar.
+        Assert.Equal(834, pose.Bar.Id);
+        Assert.Equal(131.1, pose.CentreFt, 0.5);
+        Assert.Equal(77.4, pose.TailFt, 0.5);
+        Assert.Equal(418.3, pose.TailAlongBarFt, 0.5);
+        Assert.False(RunwayOccupancy.IsOnPavement(exiting, pose.Runway));
+        Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, pose.Runway, pose.Layout));
     }
 
     [Fact]
@@ -1273,7 +1283,7 @@ public class RunwayOccupancyTests
         double awayDeg = GeoMath.BearingTo(exit.Bar.Position, exit.End.Position);
         double halfFt = AircraftBody.Of(type).LengthFt / 2.0;
         LatLon position = Project(exit.Bar.Position, new TrueHeading(awayDeg), halfFt - 20.0);
-        AircraftState exiting = StoppedAt(exit.Runway, "OAK", type, position, awayDeg, ExitOffTheCentreline(exit.Runway));
+        AircraftState exiting = StoppedAt(exit.Runway, "OAK", type, position, awayDeg, ExitPhaseFixture.ExitOffTheCentreline(exit.Runway));
         exiting.IndicatedAirspeed = 10;
         Assert.Null(Kind(exiting, exit.Runway, exit.Layout));
 

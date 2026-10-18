@@ -25,7 +25,7 @@ See [tick-loop.md](tick-loop.md) for the full PrePhysics → Physics×4 → Post
 These four hook in at four different points:
 
 - **Ground conflict** — inside the **physics sub-tick, before `FlightPhysics.Update`**:
-  `GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds)` at `SimulationWorld.cs:256`. It runs
+  `GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds)` at `SimulationWorld.cs:279`. It runs
   4× per sim-second (once per 0.25 s sub-tick) so the freshly-written `Ground.SpeedLimit` is consumed by physics in the
   same sub-tick. This is the only detector that runs more than once per sim-second.
 - **Airborne CA** — **PostPhysics**, server-side. Two sibling passes registered in the PostPhysics fan-out:
@@ -264,7 +264,14 @@ It then brakes onto the ring at the taxi rate, and at the firm rate only once th
 
 Every non-zero limit whose producer knows its room is floored at the speed the aircraft can still brake down from over one 0.25 s detector pass, since physics applies the limit at once ([ground/navigator.md](ground/navigator.md) § Ground conflict detection / mutual proximity-stop deadlock).
 
-A crosser yields to a runway aircraft across the whole trail band (`ResolveCrossing` rule 1: an off-runway aircraft yields to one on the runway).
+A crosser yields to a runway aircraft across the whole trail band (`ResolveCrossing` rule 1: the lower-ranked aircraft of the pair yields to the higher, see below).
+
+**Runway rank.** `BuildEntries` ranks every aircraft once per pass (`ComputeRank`, held in a thread-static map beside the tug continuations; outside a pass the phase alone ranks, `FloorRank`), against the pass layout's runways: a runway user (taking off, landing, rolling out, lined up or lining up with its main gear over its own runway's strict pavement: `OccupiesSurface`) outranks a vacating aircraft, which outranks the rest (7110.65 3-1-3; AIM 4-3-21.a). Rule 1 and `WouldDeadlock` read the rank, so the lower-ranked aircraft yields. A runway user always binds the yielder ("yield to runway aircraft"). A moving vacating aircraft keeps right of way as built: a taxiing aircraft yields with limit reason "yield to aircraft vacating the runway" (`DebugSink`: `[Crossing] <cs> vacating runway → <cs> yields`). A held (stopped) vacating aircraft has it only against traffic coming head-on into its way out (ahead along its heading, inside the in-path corridor, closing: `RuleOneBinds`, `TryYieldByRank`); every other taxiing aircraft gets the normal closing check, passing when clear, braking to the stop ring, or stopping at its own bar.
+
+- **Vacating** is `RunwayOccupancy.IsVacating`: on the ground, leaving a runway of the layout (an exit or the hold after it, a `ClearRunwayPhase` pull-forward, only of the runway it is clearing (`RunwayNodeId`), a hold-short with its tail over the runway, a crossing of the runway once its main gear is over the strict pavement or on the far side (the crossing is recognised by its runway id, even when its target node is not a hold bar: `CrossingTargetOf`), else facing away from the centreline) with its tail still over the strict paved half-width or more than `HoldLineFoulToleranceFt` inside the holding position marking. Moving or stopped, it keeps vacating until the tail is out. A LAHSO hold (`RunwayHoldingPhase`) and a stop inside the holding distance after an exit (`HoldingAfterExitPhase.StoppedInsideHoldingDistance`) are vacating by phase, never runway users; a generic hold in position with its main gear over any runway's strict pavement is vacating too.
+- **In the vacater's path:** for a moving vacating aircraft, a yielder ahead of it (less than 90° off its nose, lateral offset within half the two spans plus 25 ft: `LiesInPath`) does not take the yield (for a held one the same corridor is what binds the yield). The pair gets the normal closing treatment, so the vacating aircraft keeps its own closing check (AIM 4-3-21.b lets it protrude, not collide). The direction is the phase's, else the heading.
+- **Closing skip:** `ComputeClosingLimit` skips an off-runway, stopped obstacle only for a runway user, never for a vacating mover, whose path leads off the runway.
+- **Cost:** `IsVacating` first rules out a runway the tail cannot reach (`TailCanBeInside`, a flat-plane prefilter on a per-layout cached `RunwayReach`). `World.GroundConflict` took about 0.08 ms per sub-tick on the AMX669 SFO replay.
 
 An aircraft cleared across a runway is held at the **near line** while the far side lacks room, by `RunwayCrossingFarSideGate` in the phases, not by this detector; it is committed (so the gate no longer holds it) once it can no longer stop with its nose at the near marking even at the firm rate, or, at rest, with its nose past the marking ([ground/navigator.md](ground/navigator.md) § Relationship to sibling ground phases). The detector's stop curve takes over only inside `CrossingRunwayPhase`.
 
@@ -298,10 +305,10 @@ Consumers:
 |---|---|
 | `RunwaySafetyAdvisor` | A warning at every airport, SFO included: the landing/option side (7110.65 3-10-3.a; AIM 2-3-5.a.1) and the takeoff side (3-9-6). It is the only warning a fouler draws, a held one included. |
 | `OccupiedRunwayGoAround` | A blocker only with a part inside `GoAroundEdgeBandFt` of the centreline (the runway safety area half-width for its width class, kept at least `EdgeBandHoldLineMarginFt` inside the hold line). A crossing projects clear only if it decelerates to its commanded speed and reaches the far pavement edge in time; a commanded stop never clears. A stopped occupant never projects clear. |
-| `RejectedTakeoff` | A blocker only when a body part lies over the strict paved half-width (no lateral slack): `AnyPartOverPavement`. |
+| `RejectedTakeoff` | A blocker only when a body part lies over the strict paved half-width (no lateral slack): `RunwayOccupancy.AnyPartOverStrictPavement`, the same any-body-part test the runway rank uses. |
 | `PositionJurisdiction`, `RunwayCrossingGate` | Nothing: a fouler is not on the runway, so it is left out of controller-AI jurisdiction and does not close a crossing. |
 
-`GroundConflictDetector.IsOnRunway` is unchanged and still reads `ClassifyByPhase`, so a fouler gets no runway priority.
+A fouler gets no runway priority from its phase (`GroundConflictDetector.IsOnRunwayByPhase` reads `ClassifyByPhase`); a leaving one ranks above taxiing traffic only while `RunwayOccupancy.IsVacating` holds (Runway rank, above).
 
 ---
 
@@ -722,12 +729,13 @@ here and have `aviation-sim-expert` review against the local FAA references.
   because `LineUpPhase` ("LiningUp") actively drives the aircraft onto the runway — without the gate a lining-up/LUAW
   pair fell into the no-op `Stationary` bucket and the lining-up aircraft drove through the one in position (#409).
   `IsParkedOrHeld` carries the same gate.
-  `IsOnRunway` (runway priority in `ResolveCrossing`/`ComputeClosingLimit`) no longer string-matches: it is
+  `IsOnRunwayByPhase` (the phase floor of the runway rank read by `ResolveCrossing`/`ComputeClosingLimit`) no longer string-matches: it is
   `RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null))`
   (`src/Yaat.Sim/Simulation/RunwayOccupancy.cs`) — phase *types* (takeoff, landing, line-up family, runway exit on the
-  centerline). No geometry is consulted for phase-driven aircraft; a holding-in-position aircraft is therefore never "on
-  the runway" for priority purposes. Live-traffic shadows are the exception: they classify as `MovementState.External`
-  (an obstacle, never a subject) and `IsOnRunway` reads `Ground.ExternalOnRunway`, a per-tick flag the detector fills from
+  centerline). That floor consults no geometry; `ComputeRank` adds the layout geometry on top (a line-up not yet over its
+  pavement drops below runway user, and a holding-in-position aircraft over the pavement, or any aircraft still vacating, ranks
+  as vacating: see Runway rank). Live-traffic shadows are the exception: they classify as `MovementState.External`
+  (an obstacle, never a subject), rank by the floor alone, and `IsOnRunwayByPhase` reads `Ground.ExternalOnRunway`, a per-tick flag the detector fills from
   `RunwayOccupancy.ClassifyBest` over the layout airport's runways — see [live-traffic.md](live-traffic.md).
 
 - **`GroundConflictDetector` changes have emergent timing effects.** Any change to the speed-limit logic (convergence yield, crossing,

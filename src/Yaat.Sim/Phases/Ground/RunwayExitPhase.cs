@@ -165,10 +165,10 @@ public sealed class RunwayExitPhase : Phase
     public string? ExitTaxiway => _exitTaxiway;
 
     /// <summary>
-    /// True while the aircraft is rolling along the runway centerline searching for
-    /// an exit. False once it has committed to an exit and is following the taxiway
-    /// path. Used by <see cref="GroundConflictDetector"/> to decide whether the
-    /// aircraft should be exempt from ground conflict checks (only while on centerline).
+    /// True while the aircraft is rolling along the runway centerline searching for an exit. False once it has committed to an
+    /// exit and is following the taxiway path. <see cref="Simulation.RunwayOccupancy"/> classifies a rollout on the centerline as on the
+    /// runway's surface, and <see cref="ControllerAi.PositionJurisdiction"/> gives it to local control until it leaves the
+    /// centerline, then to ground.
     /// </summary>
     public bool IsOnCenterline => _state == ExitState.RollingOnCenterline;
 

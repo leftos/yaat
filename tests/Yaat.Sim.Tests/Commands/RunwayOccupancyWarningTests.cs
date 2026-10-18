@@ -690,7 +690,7 @@ public class RunwayOccupancyWarningTests
         exiting.IndicatedAirspeed = groundSpeedKts;
         exiting.FlightPlan = new AircraftFlightPlan { Destination = "KOAK" };
         exiting.Phases = new PhaseList { AssignedRunway = runway };
-        exiting.Phases.Add(RunwayOccupancyTests.ExitOffTheCentreline(runway));
+        exiting.Phases.Add(ExitPhaseFixture.ExitOffTheCentreline(runway));
         exiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
         return exiting;
     }

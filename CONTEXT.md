@@ -331,6 +331,12 @@ A turn about, from rest or rolling, that would carry any part past a line is not
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.
 
+**Runway rank**:
+Who gives way to whom across a runway in the ground-conflict pass (`GroundConflictDetector.ComputeRank`): a runway user (taking off, landing, rolling out, lined up on the pavement) outranks an aircraft vacating the runway, which outranks everything else; the lower rank yields (7110.65 3-1-3, AIM 4-3-21.a).
+
+**Vacating** (a runway):
+The pilot sense, not the controller's: an aircraft on the ground leaving a runway whose tail is still over the strict paved half-width or inside the hold line (`RunwayOccupancy.IsVacating`), moving or stopped, until the tail is out. Moving, it has right of way over taxiing traffic; held, only against traffic coming head-on into its way out.
+
 **Continuation past a short bar**:
 An uninstructed runway exit whose own bar is a dead-end fallback inside the holding distance carries on to the same runway's bar on the joining taxiway, e.g. OAK P → J's 28R bar (docs/landing-and-runway-exit.md).
 

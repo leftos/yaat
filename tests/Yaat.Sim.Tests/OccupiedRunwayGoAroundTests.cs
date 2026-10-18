@@ -451,7 +451,7 @@ public class OccupiedRunwayGoAroundTests
         AircraftState exiting = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: false, 20.0, alongFt: 0);
         exiting.IndicatedAirspeed = 10;
         exiting.Phases = new PhaseList { AssignedRunway = oak.Runway };
-        exiting.Phases.Add(RunwayOccupancyTests.ExitOffTheCentreline(oak.Runway));
+        exiting.Phases.Add(Helpers.ExitPhaseFixture.ExitOffTheCentreline(oak.Runway));
         exiting.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
         Assert.False(GoesAroundAtOak(oak.Runway, oak.Layout, exiting, "B738", out _));

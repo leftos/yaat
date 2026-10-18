@@ -188,7 +188,7 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   exceeds `ExternalCoastGraceFraction` (0.6) of its source's removal window (ASDE-X 36 s, STARS 54 s) is dropped from the
   sweep so a dead feed target cannot pin traffic (explicitly ended tracks are removed promptly anyway). Runway priority:
   the detector writes the per-tick `[JsonIgnore]` flag `Ground.ExternalOnRunway` from `RunwayOccupancy.ClassifyBest` over
-  the layout airport's runways (`RunwayOccupancy.AirportRunways`), and `IsOnRunway` reads it for shadows.
+  the layout airport's runways (`RunwayOccupancy.AirportRunways`), and `IsOnRunwayByPhase` reads it for shadows.
 - **Runway advisories** (`RunwaySafetyAdvisor`): a shadow **on the runway surface** (`RunwayOccupancy.Classify` =
   `OnSurface`: lined up, holding, or a landed rollout) makes a landing-family clearance warn "live traffic on runway —
   not clear" (3-10-3.a / 3-10-5.e; `WarnIfLiveTrafficOnRunway`, both overloads); a shadow the observer latched as

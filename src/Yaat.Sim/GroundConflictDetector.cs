@@ -67,6 +67,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim;
@@ -182,6 +183,36 @@ public static class GroundConflictDetector
     private static Dictionary<AircraftState, IReadOnlyList<TugMove>>? _tugRunContinuations;
 
     /// <summary>
+    /// Each aircraft's <see cref="RunwayRank"/> for the <see cref="ApplySpeedLimits"/> pass in flight, computed by
+    /// <see cref="BuildEntries"/> for every entry before any pair is resolved, from state a snapshot restores. Thread-static,
+    /// opened by the pass and dropped when it ends, like <see cref="_tugRunContinuations"/>; outside a pass every aircraft takes
+    /// its phase-only rank (<see cref="FloorRank"/>).
+    /// </summary>
+    [ThreadStatic]
+    private static Dictionary<AircraftState, RunwayRank>? _runwayRanks;
+
+    /// <summary>
+    /// Who gives way to whom across a runway (7110.65 3-1-3; AIM 4-3-21.a): a runway user first, an aircraft still vacating a
+    /// runway next, everyone else last. The rank decides only who yields (<see cref="ResolveCrossing"/>'s Rule 1,
+    /// <see cref="WouldDeadlock"/>); it never takes away a ranked aircraft's own closing check against what lies in its path.
+    /// </summary>
+    private enum RunwayRank
+    {
+        /// <summary>Neither using nor vacating a runway.</summary>
+        Rest,
+
+        /// <summary>
+        /// Leaving a runway with its tail still over the pavement or inside the hold line (<see cref="RunwayOccupancy.IsVacating"/>).
+        /// </summary>
+        Vacating,
+
+        /// <summary>
+        /// Taking off, landing, rolling out, lined up or lining up on the pavement (<see cref="RunwayOccupancy.OccupiesSurface"/>).
+        /// </summary>
+        RunwayUser,
+    }
+
+    /// <summary>
     /// Fraction of the source's removal window of delivery silence after which a coasting live surface track stops
     /// being an obstacle (the feed host removes it at the full window). A fraction rather than a fixed grace so the
     /// ghost threshold always lands between the coast threshold and removal for every source (ASDE-X 36 s, STARS 54 s;
@@ -224,6 +255,7 @@ public static class GroundConflictDetector
     )
     {
         _tugRunContinuations = new Dictionary<AircraftState, IReadOnlyList<TugMove>>(ReferenceEqualityComparer.Instance);
+        _runwayRanks = new Dictionary<AircraftState, RunwayRank>(ReferenceEqualityComparer.Instance);
         diagnosticLog = BuildDiagnosticSink(diagnosticLog);
         ResetGroundState(aircraft, deltaSeconds);
 
@@ -249,6 +281,7 @@ public static class GroundConflictDetector
         }
 
         _tugRunContinuations = null;
+        _runwayRanks = null;
     }
 
     /// <summary>
@@ -322,6 +355,11 @@ public static class GroundConflictDetector
 
                 ac.Ground.ExternalOnRunway =
                     RunwayOccupancy.ClassifyBest(ac, runways, layout) is { } use && RunwayOccupancy.OccupiesSurface(use.Kind);
+            }
+
+            if (_runwayRanks is { } ranks)
+            {
+                ranks[ac] = ComputeRank(ac, layout, runways);
             }
 
             (MovementState state, double? dir) = Classify(ac);
@@ -1544,7 +1582,7 @@ public static class GroundConflictDetector
             return false;
         }
 
-        if (IsOnRunway(mover.Aircraft) || (mover.Aircraft.Phases?.CurrentPhase is CrossingRunwayPhase))
+        if ((RankOf(mover.Aircraft) != RunwayRank.Rest) || (mover.Aircraft.Phases?.CurrentPhase is CrossingRunwayPhase))
         {
             return false;
         }
@@ -1878,7 +1916,14 @@ public static class GroundConflictDetector
             return null;
         }
 
-        if (IsOnRunway(pair.Mover) && !IsOnRunway(pair.Obstacle) && (pair.Obstacle.GroundSpeed <= 0))
+        // Only a runway user's path is the runway itself: an obstacle at rest off it is not in that path. A vacating aircraft's
+        // path leads off the runway, so it keeps its closing check; and an obstacle on the runway by its phase stays one.
+        if (
+            (RankOf(pair.Mover) == RunwayRank.RunwayUser)
+            && (RankOf(pair.Obstacle) != RunwayRank.RunwayUser)
+            && !IsOnRunwayByPhase(pair.Obstacle)
+            && (pair.Obstacle.GroundSpeed <= 0)
+        )
         {
             diagnosticLog?.Invoke($"    [Closing] {pair.Mover.Callsign}→{pair.Obstacle.Callsign}: mover on runway, obstacle off-runway, skip");
             return null;
@@ -2620,32 +2665,12 @@ public static class GroundConflictDetector
         double? closeDirA = IsParkedOrHeld(a) ? null : a.TrueHeading.Degrees;
         double? closeDirB = IsParkedOrHeld(b) ? null : b.TrueHeading.Degrees;
 
-        // Rule 1: an aircraft on the runway surface proceeds; the other yields.
-        if (IsOnRunway(a) != IsOnRunway(b))
+        // Rule 1: the higher-ranked aircraft (a runway user, else one vacating a runway) proceeds; the other yields.
+        var sideA = new CrossingSide(a, stateA, closeDirA, RankOf(a));
+        var sideB = new CrossingSide(b, stateB, closeDirB, RankOf(b));
+        if (TryYieldByRank(sideA, sideB, distFt, diagnosticLog))
         {
-            AircraftState onRunway = IsOnRunway(a) ? a : b;
-            double? onRunwayDir = IsOnRunway(a) ? closeDirA : closeDirB;
-            MovementState onRunwayState = IsOnRunway(a) ? stateA : stateB;
-            AircraftState yielder = IsOnRunway(a) ? b : a;
-            double? yielderDir = IsOnRunway(a) ? closeDirB : closeDirA;
-            MovementState yielderState = IsOnRunway(a) ? stateB : stateA;
-
-            // Only override when the yielder can give way (a mover); a genuinely
-            // parked obstacle keeps the normal closing/lateral treatment so the
-            // runway aircraft still stops rather than driving through it.
-            if (yielderDir is { } yd2)
-            {
-                bool conflict =
-                    ((onRunwayDir is { } od) && IsClosingConflict(new ClosingPair(onRunway, od, yielder, yielderState, distFt)))
-                    || IsClosingConflict(new ClosingPair(yielder, yd2, onRunway, onRunwayState, distFt));
-                if (conflict)
-                {
-                    diagnosticLog?.Invoke($"  [Crossing] {onRunway.Callsign} on runway → {yielder.Callsign} yields");
-                    ApplyMinLimit(yielder, 0, new LimitCause("yield to runway aircraft", onRunway, distFt, RoomFt: null));
-                }
-
-                return;
-            }
+            return;
         }
 
         (double Limit, string Reason, double? RoomFt)? limitForA = closeDirA is { } da
@@ -2690,6 +2715,65 @@ public static class GroundConflictDetector
         {
             ResolveHeadOn(a, da3, b, db3, distFt, arbitrate: routesKnown);
         }
+    }
+
+    /// <summary>One aircraft of a crossing pair: its movement state, closing direction (null when parked or held) and rank.</summary>
+    private readonly record struct CrossingSide(AircraftState Ac, MovementState State, double? Dir, RunwayRank Rank);
+
+    /// <summary>
+    /// Rule 1 of <see cref="ResolveCrossing"/>: of two aircraft of different <see cref="RunwayRank"/>, the higher proceeds and the
+    /// other, when a mover closing on it, yields at 0. True when the rule decided the pair (limit or none); false hands the pair
+    /// to the normal closing treatment: equal ranks, a yielder with no direction (a parked obstacle keeps the normal treatment so
+    /// the priority aircraft still stops rather than driving through it), or a pair <see cref="RuleOneBinds"/> leaves alone.
+    /// </summary>
+    private static bool TryYieldByRank(CrossingSide a, CrossingSide b, double distFt, Action<string>? diagnosticLog)
+    {
+        if (a.Rank == b.Rank)
+        {
+            return false;
+        }
+
+        (CrossingSide priority, CrossingSide yielder) = (a.Rank > b.Rank) ? (a, b) : (b, a);
+        if ((yielder.Dir is not { } yielderDir) || !RuleOneBinds(priority, yielder, distFt))
+        {
+            return false;
+        }
+
+        bool conflict =
+            ((priority.Dir is { } priorityDir) && IsClosingConflict(new ClosingPair(priority.Ac, priorityDir, yielder.Ac, yielder.State, distFt)))
+            || IsClosingConflict(new ClosingPair(yielder.Ac, yielderDir, priority.Ac, priority.State, distFt));
+        if (conflict)
+        {
+            bool onRunway = priority.Rank == RunwayRank.RunwayUser;
+            diagnosticLog?.Invoke(
+                $"  [Crossing] {priority.Ac.Callsign} {(onRunway ? "on runway" : "vacating runway")} → {yielder.Ac.Callsign} yields"
+            );
+            string reason = onRunway ? "yield to runway aircraft" : "yield to aircraft vacating the runway";
+            ApplyMinLimit(yielder.Ac, 0, new LimitCause(reason, priority.Ac, distFt, RoomFt: null));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether Rule 1 binds <paramref name="yielder"/> to <paramref name="priority"/>. Always for a runway user. For a vacating
+    /// aircraft its way out leads off the runway: moving, it gets priority unless the yielder lies ahead in its path, where the
+    /// pair takes the normal treatment so the vacating aircraft keeps its own closing check (AIM 4-3-21.b lets it protrude, not
+    /// collide); held (no direction), it gets priority only against traffic coming head-on into its way out — ahead along its
+    /// heading inside the in-path corridor (<see cref="LiesInPath"/>), and closing, which Rule 1's own closing test then checks.
+    /// Every other aircraft passing a held vacating one takes the normal closing check: it passes when clear, brakes to the stop
+    /// ring, or stops at its own bar.
+    /// </summary>
+    private static bool RuleOneBinds(CrossingSide priority, CrossingSide yielder, double distFt)
+    {
+        if (priority.Rank != RunwayRank.Vacating)
+        {
+            return true;
+        }
+
+        return (priority.Dir is { } moving)
+            ? !LiesInPath(priority.Ac, moving, yielder.Ac, distFt)
+            : LiesInPath(priority.Ac, priority.Ac.TrueHeading.Degrees, yielder.Ac, distFt);
     }
 
     private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt, bool arbitrate)
@@ -2740,12 +2824,93 @@ public static class GroundConflictDetector
     // --- Helpers ---
 
     /// <summary>
-    /// On the runway by phase evidence alone (no runway geometry is available here): landing, taking
-    /// off, lining up, or rolling out on the centerline. A generic holding-in-position aircraft is not
-    /// on the runway for priority purposes.
+    /// On the runway by phase evidence alone: landing, taking off, lining up, or rolling out on the centerline (a shadow: by
+    /// the geometry stamped on it this pass). A generic holding-in-position aircraft is not.
     /// </summary>
-    private static bool IsOnRunway(AircraftState ac) =>
+    private static bool IsOnRunwayByPhase(AircraftState ac) =>
         ac.IsShadow ? ac.Ground.ExternalOnRunway : RunwayOccupancy.OccupiesSurface(RunwayOccupancy.ClassifyByPhase(ac, runway: null));
+
+    /// <summary>
+    /// The rank the phase alone gives: a runway user when on the runway by phase (<see cref="IsOnRunwayByPhase"/>), else the rest.
+    /// </summary>
+    private static RunwayRank FloorRank(AircraftState ac) => IsOnRunwayByPhase(ac) ? RunwayRank.RunwayUser : RunwayRank.Rest;
+
+    /// <summary>The aircraft's rank in the pass in flight (<see cref="_runwayRanks"/>), else its phase-only rank.</summary>
+    private static RunwayRank RankOf(AircraftState ac) =>
+        ((_runwayRanks is { } ranks) && ranks.TryGetValue(ac, out RunwayRank rank)) ? rank : FloorRank(ac);
+
+    /// <summary>
+    /// The aircraft's <see cref="RunwayRank"/> against the pass layout's runways. With no layout or no runways, and for a shadow,
+    /// the phase alone decides (<see cref="FloorRank"/>), as it does for an aircraft whose own runway is another airport's. At the
+    /// pass airport: a LAHSO hold (<see cref="RunwayHoldingPhase"/>) and a stop inside the holding distance after an exit are
+    /// vacating, never runway users; a line-up is a runway user only once its main gear is over its runway's strict pavement; a
+    /// generic hold in position over any runway's strict pavement is vacating; and an aircraft not on a runway by its phase is
+    /// vacating while <see cref="RunwayOccupancy.IsVacating"/> holds for any of the runways.
+    /// </summary>
+    private static RunwayRank ComputeRank(AircraftState ac, AirportGroundLayout? layout, IReadOnlyList<RunwayInfo> runways)
+    {
+        RunwayRank floor = FloorRank(ac);
+        if (ac.IsShadow || (layout is null) || (runways.Count == 0))
+        {
+            return floor;
+        }
+
+        return PassAirportRank(ac, floor, layout, runways);
+    }
+
+    /// <summary>
+    /// <see cref="ComputeRank"/> at the pass airport, by phase: a LAHSO hold or a stop inside the holding distance is vacating when
+    /// the aircraft's own runway is here (else the floor); a line-up before its own runway's strict pavement is vacating or the
+    /// rest; a generic hold in position over any runway's strict pavement is vacating; a runway user by phase stays one; anyone
+    /// else is vacating or the rest (<see cref="VacatingOrRest"/>).
+    /// </summary>
+    private static RunwayRank PassAirportRank(AircraftState ac, RunwayRank floor, AirportGroundLayout layout, IReadOnlyList<RunwayInfo> runways)
+    {
+        RunwayInfo? own = ac.Phases?.DepartureRunway ?? ac.Phases?.AssignedRunway;
+        RunwayInfo? ownHere = ((own is not null) && RunwayOccupancy.IsLayoutOf(layout, own)) ? own : null;
+        return ac.Phases?.CurrentPhase switch
+        {
+            RunwayHoldingPhase or HoldingAfterExitPhase { StoppedInsideHoldingDistance: true } => (ownHere is not null) ? RunwayRank.Vacating : floor,
+            LineUpPhase when (ownHere is { } lineUpRunway) && !RunwayOccupancy.IsOverStrictPavement(ac.Position, lineUpRunway) => VacatingOrRest(
+                ac,
+                layout,
+                runways
+            ),
+            HoldingInPositionPhase when IsOverAnyStrictPavement(ac, runways) => RunwayRank.Vacating,
+            _ => (floor == RunwayRank.RunwayUser) ? floor : VacatingOrRest(ac, layout, runways),
+        };
+    }
+
+    private static bool IsOverAnyStrictPavement(AircraftState ac, IReadOnlyList<RunwayInfo> runways) =>
+        runways.Any(runway => RunwayOccupancy.IsOverStrictPavement(ac.Position, runway));
+
+    private static RunwayRank VacatingOrRest(AircraftState ac, AirportGroundLayout layout, IReadOnlyList<RunwayInfo> runways)
+    {
+        var body = AircraftBody.Of(ac.AircraftType);
+        return runways.Any(runway => RunwayOccupancy.IsVacating(ac, body, runway, layout)) ? RunwayRank.Vacating : RunwayRank.Rest;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="other"/> lies ahead in <paramref name="ac"/>'s path: less than 90° off its direction of travel and
+    /// no farther to the side of its track than the two wingspans need to pass (<see cref="RequiredLateralClearanceFt"/>; with no
+    /// wingspan on record for either, any aircraft ahead). Never for an aircraft with no direction (parked or held).
+    /// </summary>
+    private static bool LiesInPath(AircraftState ac, double? dir, AircraftState other, double distFt)
+    {
+        if (dir is not { } moveDir)
+        {
+            return false;
+        }
+
+        double offDeg = HeadingDifference(moveDir, GeoMath.BearingTo(ac.Position, other.Position));
+        if (offDeg >= 90)
+        {
+            return false;
+        }
+
+        double lateralFt = distFt * Math.Sin(offDeg * Math.PI / 180.0);
+        return (RequiredLateralClearanceFt(ac, other) is not { } requiredFt) || (lateralFt <= requiredFt);
+    }
 
     /// <summary>
     /// True when the aircraft is intentionally stationary — parked, holding, or

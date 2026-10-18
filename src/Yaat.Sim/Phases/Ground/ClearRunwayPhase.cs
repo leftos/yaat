@@ -23,6 +23,9 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
     private readonly int _runwayNodeId = runwayNodeId;
     private readonly int _approachNodeId = approachNodeId;
 
+    /// <summary>The runway node the aircraft pulls forward from: the runway it is clearing.</summary>
+    public int RunwayNodeId => _runwayNodeId;
+
     private TaxiRoute? _route;
     private GroundNavigator? _navigator;
     private bool _initialized;

@@ -208,7 +208,12 @@ internal static class RejectedTakeoff
                 RunwayUseKind.Crossing => !ProjectedClearOfRunway(other, runway, ArrivalTimeSeconds(departure, dFt)),
                 RunwayUseKind.Departing => PrecedingDepartureBlock.Blocks(departure, other, runway, dFt, out candidateFt),
                 // Past the hold line off the pavement: in the departure's path only with a part over the pavement.
-                RunwayUseKind.Fouling => AnyPartOverPavement(other, runway),
+                RunwayUseKind.Fouling => RunwayOccupancy.AnyPartOverStrictPavement(
+                    AircraftBody.Of(other.AircraftType),
+                    AircraftBody.AllParts,
+                    (other.Position, other.TrueHeading.Degrees),
+                    runway
+                ),
                 _ => false,
             };
 
@@ -220,23 +225,6 @@ internal static class RejectedTakeoff
         }
 
         return nearest;
-    }
-
-    /// <summary>
-    /// Some part of <paramref name="occupant"/> — nose, tail or a wingtip, from its type's length and span
-    /// (<see cref="AircraftBody"/>) — lies over <paramref name="runway"/>'s pavement, judged against the strict paved half-width
-    /// (AIM 4-3-21.b's runway edge) rather than <see cref="RunwayOccupancy.IsWithinPavement"/>'s lateral slack: a body-part point is
-    /// computed from the type's dimensions, not snapped to a graph node, so the slack has no jitter to cover. An aircraft whose
-    /// reference point is off the pavement still obstructs a departure with its nose over it.
-    /// </summary>
-    private static bool AnyPartOverPavement(AircraftState occupant, RunwayInfo runway)
-    {
-        var body = AircraftBody.Of(occupant.AircraftType);
-        double headingDeg = occupant.TrueHeading.Degrees;
-        double halfWidthFt = runway.WidthFt / 2.0;
-        return AircraftBody.AllParts.Any(part =>
-            RunwayHoldBars.CentrelineFt(runway, body.PointOf(part, occupant.Position, headingDeg)) <= halfWidthFt
-        );
     }
 
     /// <summary>
