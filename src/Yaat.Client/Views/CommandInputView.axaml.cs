@@ -29,8 +29,51 @@ public partial class CommandInputView : UserControl
         if (SessionSettingsButton.Flyout is PopupFlyoutBase sessionFlyout)
         {
             _sessionFlyoutShowMode = sessionFlyout.ShowMode;
+
+            // Every close path — the button again, Escape, a pointer move away — sends what the boxes still hold. The
+            // flyout can dismiss on a pointer move, which may come before the box's own focus loss.
+            sessionFlyout.Closed += OnSessionFlyoutClosedFlushPending;
+        }
+
+        WireSessionSettingBox(SessionDepartureAutoDeleteDistanceBox, SessionSettingKey.DepartureDistance);
+        WireSessionSettingBox(SessionAutoAcceptDelayBox, SessionSettingKey.AutoAccept);
+        WireSessionSettingBox(SessionCommandRunDelayMinBox, SessionSettingKey.RunDelay);
+        WireSessionSettingBox(SessionCommandRunDelayMaxBox, SessionSettingKey.RunDelay);
+        WireSessionSettingBox(SessionLiveTrafficCeilingBox, SessionSettingKey.LiveTrafficCeiling);
+    }
+
+    private MainViewModel? SessionSettingsViewModel => DataContext as MainViewModel;
+
+    /// <summary>
+    /// Enter and focus loss send a box's value at once; a spinner step (button, arrow key or wheel) sends it after the
+    /// short step delay, so holding the arrow key sends one value.
+    /// </summary>
+    private void WireSessionSettingBox(NumericUpDown box, SessionSettingKey key)
+    {
+        // NumericUpDown marks Enter handled once the text parses, so listen on the tunnel and to handled events.
+        box.AddHandler(KeyDownEvent, (_, e) => OnSessionSettingBoxKeyDown(key, e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        box.LostFocus += (_, _) => OnSessionSettingBoxLostFocus(box, key);
+        box.Spinned += (_, _) => SessionSettingsViewModel?.StepSessionSetting(key);
+    }
+
+    private void OnSessionSettingBoxKeyDown(SessionSettingKey key, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SessionSettingsViewModel?.FlushSessionSetting(key);
         }
     }
+
+    private void OnSessionSettingBoxLostFocus(NumericUpDown box, SessionSettingKey key)
+    {
+        // Focus moving inside the box — its text field to a spinner button — is not focus leaving it.
+        if (!box.IsKeyboardFocusWithin)
+        {
+            SessionSettingsViewModel?.FlushSessionSetting(key);
+        }
+    }
+
+    private void OnSessionFlyoutClosedFlushPending(object? sender, EventArgs e) => SessionSettingsViewModel?.FlushPendingSessionSettings();
 
     public void SetAircraftSelectKeybind(Key key, KeyModifiers modifiers)
     {

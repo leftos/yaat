@@ -2513,6 +2513,8 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 
 These are your **defaults** for new rooms, applied when *you* load a scenario. The room's live values, which affect every RPO in it, are in the session-settings (⚙) flyout on the command bar.
 
+A number you type into one of the flyout's boxes is sent to the room about a second after you stop typing, so "15" never goes out as "1". Pressing **Enter**, moving to another control or closing the flyout sends it at once, and a spinner arrow, arrow key or mouse wheel step sends after a fifth of a second, so holding an arrow sends one value. **Delete departures beyond (nm)** is the exception: it is destructive, so it never sends while you pause, only on Enter, leaving the box or closing the flyout, and a blank box (off) sends the same way. While a typed value is waiting, a change another RPO makes to that setting does not overwrite your box. Leaving the room, disconnecting, or loading a scenario or recording drops a value that was never sent.
+
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Solo training mode** | Aircraft make their own pilot transmissions, and typed natural-language ATC commands can be mapped to YAAT commands after normal parsing fails. See [Solo Training](#solo-training). | Off |

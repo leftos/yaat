@@ -309,6 +309,7 @@
             <StackPanel Spacing="2">
               <TextBlock Text="Delete departures beyond (nm)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
               <NumericUpDown
+                x:Name="SessionDepartureAutoDeleteDistanceBox"
                 Value="{Binding SessionDepartureAutoDeleteDistanceNm}"
                 Minimum="1"
                 Maximum="500"
@@ -323,6 +324,7 @@
             <StackPanel Orientation="Horizontal" Spacing="4">
               <CheckBox Content="Auto-accept handoffs after" IsChecked="{Binding SessionAutoAcceptEnabled}" VerticalAlignment="Center" />
               <NumericUpDown
+                x:Name="SessionAutoAcceptDelayBox"
                 Value="{Binding SessionAutoAcceptDelaySeconds}"
                 IsEnabled="{Binding SessionAutoAcceptEnabled}"
                 Minimum="0"
@@ -339,6 +341,7 @@
               <TextBlock Text="Command Run Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
               <StackPanel Orientation="Horizontal" Spacing="4">
                 <NumericUpDown
+                  x:Name="SessionCommandRunDelayMinBox"
                   Value="{Binding SessionCommandRunDelayMinSeconds}"
                   Minimum="0"
                   Maximum="60"
@@ -349,6 +352,7 @@
                 />
                 <TextBlock Text="to" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
                 <NumericUpDown
+                  x:Name="SessionCommandRunDelayMaxBox"
                   Value="{Binding SessionCommandRunDelayMaxSeconds}"
                   Minimum="0"
                   Maximum="60"
@@ -389,6 +393,7 @@
               <TextBlock Text="Live Traffic Ceiling:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
               <StackPanel Orientation="Horizontal" Spacing="4">
                 <NumericUpDown
+                  x:Name="SessionLiveTrafficCeilingBox"
                   Value="{Binding SessionLiveTrafficCeilingFt}"
                   Minimum="0"
                   Maximum="60000"

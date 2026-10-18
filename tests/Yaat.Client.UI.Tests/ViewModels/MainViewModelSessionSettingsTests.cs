@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
@@ -394,5 +395,240 @@ public class MainViewModelSessionSettingsTests
 
         Assert.Contains(nameof(MainViewModel.LiveTrafficAvailable), raised);
         Assert.True(vm.LiveTrafficAvailable);
+    }
+
+    [AvaloniaFact]
+    public void TypedDigits_WithinIdle_CommitOnlyLastValue()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        var committedValues = new List<int>();
+        vm.SessionCommitter.Committed += _ => committedValues.Add(vm.SessionCommandRunDelayMinSeconds);
+
+        vm.SessionCommandRunDelayMinSeconds = 1;
+        AdvanceClock(clock, TimeSpan.FromMilliseconds(500));
+        vm.SessionCommandRunDelayMinSeconds = 15;
+        AdvanceClock(clock, TimeSpan.FromMilliseconds(999));
+
+        Assert.Empty(commits);
+
+        AdvanceClock(clock, TimeSpan.FromMilliseconds(1));
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.Equal([15], committedValues);
+    }
+
+    [AvaloniaFact]
+    public void DepartureDistance_NeverCommitsOnIdle()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+
+        vm.SessionDepartureAutoDeleteDistanceNm = 1m;
+        AdvanceClock(clock, TimeSpan.FromSeconds(5));
+        Assert.Empty(commits);
+
+        vm.SessionDepartureAutoDeleteDistanceNm = 5m;
+        AdvanceClock(clock, TimeSpan.FromSeconds(5));
+        Assert.Empty(commits);
+
+        var committedValues = new List<decimal?>();
+        vm.SessionCommitter.Committed += _ => committedValues.Add(vm.SessionDepartureAutoDeleteDistanceNm);
+        vm.FlushPendingSessionSettings();
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.DepartureDistance], commits);
+        Assert.Equal<decimal?>([5m], committedValues);
+    }
+
+    [AvaloniaFact]
+    public void Steps_TrailingDebounce_SendsFinalValueOnce()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+
+        for (int step = 1; step <= 5; step++)
+        {
+            vm.SessionCommandRunDelayMaxSeconds = step;
+            vm.StepSessionSetting(SessionSettingKey.RunDelay);
+            AdvanceClock(clock, TimeSpan.FromMilliseconds(50));
+        }
+
+        AdvanceClock(clock, TimeSpan.FromMilliseconds(149));
+        Assert.Empty(commits);
+
+        AdvanceClock(clock, TimeSpan.FromMilliseconds(1));
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.Equal(5, vm.SessionCommandRunDelayMaxSeconds);
+    }
+
+    [AvaloniaFact]
+    public void Flush_SendsEveryPendingKey_Once()
+    {
+        (MainViewModel vm, _, List<SessionSettingKey> commits) = NewDebouncedVm();
+
+        vm.SessionAutoAcceptDelaySeconds = 7;
+        vm.SessionCommandRunDelayMinSeconds = 3;
+        vm.SessionLiveTrafficCeilingFt = 5_000;
+        vm.SessionDepartureAutoDeleteDistanceNm = 25m;
+
+        vm.FlushPendingSessionSettings();
+
+        Assert.Equal(4, commits.Count);
+        Assert.Equal(4, commits.Distinct().Count());
+
+        vm.FlushPendingSessionSettings();
+        Assert.Equal(4, commits.Count);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhilePending_KeepsTypedValueAndSendsIt()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        vm.SessionCommandRunDelayMinSeconds = 15;
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
+
+        Assert.Equal(15, vm.SessionCommandRunDelayMinSeconds);
+        // The pair is one key: a push for either bound is dropped while the other is waiting.
+        Assert.Equal(0, vm.SessionCommandRunDelayMaxSeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.Equal(15, vm.SessionCommandRunDelayMinSeconds);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhenNothingPending_DoesNotSend()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
+        AdvanceClock(clock, TimeSpan.FromSeconds(5));
+
+        Assert.Empty(commits);
+        Assert.Equal(5, vm.SessionCommandRunDelayMinSeconds);
+        Assert.Equal(9, vm.SessionCommandRunDelayMaxSeconds);
+    }
+
+    [AvaloniaFact]
+    public void RunDelayPair_SendsLatestMinAndMax_Once()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        var committedPairs = new List<(int Min, int Max)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionCommandRunDelayMinSeconds, vm.SessionCommandRunDelayMaxSeconds));
+
+        vm.SessionCommandRunDelayMinSeconds = 2;
+        vm.SessionCommandRunDelayMaxSeconds = 8;
+        AdvanceClock(clock, TimeSpan.FromSeconds(1));
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.Single(committedPairs);
+        Assert.Equal((2, 8), committedPairs[0]);
+    }
+
+    [AvaloniaFact]
+    public void AutoAcceptCheckbox_CommitsAtOnce_WithCurrentDelay()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        var committedPairs = new List<(bool Enabled, int Delay)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionAutoAcceptEnabled, vm.SessionAutoAcceptDelaySeconds));
+
+        vm.SessionAutoAcceptDelaySeconds = 12;
+        Assert.Empty(commits);
+
+        vm.SessionAutoAcceptEnabled = true;
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.AutoAccept], commits);
+        Assert.Equal((true, 12), committedPairs.Single());
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(5));
+        Assert.Single(commits);
+    }
+
+    [AvaloniaFact]
+    public void LeavingRoom_DiscardsPending_WithoutSending()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        vm.SessionCommandRunDelayMinSeconds = 4;
+        Assert.True(vm.SessionCommitter.IsPending(SessionSettingKey.RunDelay));
+
+        vm.ClearScenarioState();
+        AdvanceClock(clock, TimeSpan.FromSeconds(5));
+
+        Assert.False(vm.SessionCommitter.IsPending(SessionSettingKey.RunDelay));
+        Assert.Empty(commits);
+    }
+
+    [AvaloniaFact]
+    public void TimerCommit_RunsOnTheUiThread()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        bool ranOnUiThread = false;
+        vm.SessionCommitter.Committed += _ => ranOnUiThread = Dispatcher.UIThread.CheckAccess();
+
+        vm.SessionCommandRunDelayMinSeconds = 3;
+
+        // The real provider fires timers on the thread pool, never the UI thread.
+        Task.Run(() => clock.Advance(TimeSpan.FromSeconds(1))).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(ranOnUiThread);
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_BetweenTimerAndPostedCommit_KeepsTypedValue()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        var committedValues = new List<int>();
+        vm.SessionCommitter.Committed += _ => committedValues.Add(vm.SessionCommandRunDelayMinSeconds);
+
+        vm.SessionCommandRunDelayMinSeconds = 15;
+        Task.Run(() => clock.Advance(TimeSpan.FromSeconds(1))).GetAwaiter().GetResult();
+        Assert.True(vm.SessionCommitter.IsPending(SessionSettingKey.RunDelay));
+        Assert.Empty(commits);
+
+        // The timer has fired, but its commit is still queued behind this push.
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
+        Assert.Equal(15, vm.SessionCommandRunDelayMinSeconds);
+
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.Equal([15], committedValues);
+    }
+
+    [AvaloniaFact]
+    public void QueuedTimerCommit_DoesNotSendAValueTypedAfterItFired()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+
+        vm.SessionDepartureAutoDeleteDistanceNm = 20m;
+        vm.StepSessionSetting(SessionSettingKey.DepartureDistance);
+
+        // The step's timer fires on the pool thread, so its commit is queued for the UI thread.
+        Task.Run(() => clock.Advance(TimeSpan.FromMilliseconds(200))).GetAwaiter().GetResult();
+
+        // Typing re-marks the key before the queued commit gets to run: the typed value must not be sent on idle.
+        vm.SessionDepartureAutoDeleteDistanceNm = 1m;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(commits);
+        Assert.True(vm.SessionCommitter.IsPending(SessionSettingKey.DepartureDistance));
+    }
+
+    /// <summary>Moves the clock, then lets the UI thread run what the fired timers posted.</summary>
+    private static void AdvanceClock(ManualTimeProvider clock, TimeSpan delta)
+    {
+        clock.Advance(delta);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static (MainViewModel Vm, ManualTimeProvider Clock, List<SessionSettingKey> Commits) NewDebouncedVm()
+    {
+        var clock = new ManualTimeProvider();
+        var vm = new MainViewModel(new FakeFilePickerService(), clock);
+        var commits = new List<SessionSettingKey>();
+        vm.SessionCommitter.Committed += commits.Add;
+        return (vm, clock, commits);
     }
 }

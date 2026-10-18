@@ -867,6 +867,7 @@ public partial class MainViewModel
 
     internal void ApplyRecordingResult(RewindResultDto result)
     {
+        _sessionSettingCommitter.DiscardAll("a recording was loaded");
         RelabelRoomTitle(result.ArtccId);
         ResetPilotVoiceWarningSession();
         ActiveScenarioId = result.ScenarioId;

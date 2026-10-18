@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
@@ -89,6 +90,133 @@ public class CommandInputViewTests
 
         Assert.False(vm.CommandInput.SignatureHelp.IsVisible);
         Assert.Equal("typed", vm.CommandText);
+    }
+
+    [AvaloniaFact]
+    public void SessionFlyoutClosed_FlushesPendingValue()
+    {
+        // The fake clock keeps the debounce from firing on its own while the flyout is opening and closing.
+        var vm = new MainViewModel(new FakeFilePickerService(), new ManualTimeProvider()) { ActiveScenarioName = "Test" };
+        var view = new CommandInputView { DataContext = vm };
+        var window = new Window
+        {
+            Width = 600,
+            Height = 400,
+            Content = view,
+        };
+        window.ShowAndRunLayout();
+        var commits = new List<SessionSettingKey>();
+        vm.SessionCommitter.Committed += commits.Add;
+
+        vm.SessionCommandRunDelayMinSeconds = 15;
+        Assert.True(vm.SessionCommitter.IsPending(SessionSettingKey.RunDelay));
+        Assert.Empty(commits);
+
+        Button button = view.FindControl<Button>("SessionSettingsButton")!;
+        Flyout flyout = Assert.IsType<Flyout>(button.Flyout);
+        flyout.ShowAt(button);
+        HeadlessWindowExtensions.PumpDispatcher();
+        flyout.Hide();
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.False(vm.SessionCommitter.IsPending(SessionSettingKey.RunDelay));
+    }
+
+    [AvaloniaFact]
+    public void EnterInSessionBox_FlushesItsKey()
+    {
+        var clock = new ManualTimeProvider();
+        (Window window, CommandInputView view, MainViewModel vm, Flyout flyout) = OpenSessionFlyout(clock);
+        var commits = new List<SessionSettingKey>();
+        vm.SessionCommitter.Committed += commits.Add;
+        vm.SessionCommandRunDelayMinSeconds = 15;
+
+        FocusSessionBox(view, "SessionCommandRunDelayMinBox");
+        window.DispatchKey(Key.Enter);
+
+        // The flyout must still be open: an Enter that closed the flyout, and so flushed on close, would not prove the box's own handler.
+        Assert.True(flyout.IsOpen);
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+    }
+
+    [AvaloniaFact]
+    public void LeavingSessionBox_FlushesItsKey()
+    {
+        var clock = new ManualTimeProvider();
+        (_, CommandInputView view, MainViewModel vm, Flyout flyout) = OpenSessionFlyout(clock);
+        var commits = new List<SessionSettingKey>();
+        vm.SessionCommitter.Committed += commits.Add;
+        vm.SessionCommandRunDelayMinSeconds = 15;
+
+        FocusSessionBox(view, "SessionCommandRunDelayMinBox");
+        TextBox commandInput = FindCommandInput(view);
+        commandInput.Focus();
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        // The flyout must still be open: a close-time flush would not prove the box's own focus-loss handler.
+        Assert.True(flyout.IsOpen);
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+    }
+
+    [AvaloniaFact]
+    public void SpinnerStepInSessionBox_CommitsAfterTheStepDelay()
+    {
+        var clock = new ManualTimeProvider();
+        (Window window, CommandInputView view, MainViewModel vm, _) = OpenSessionFlyout(clock);
+        var commits = new List<SessionSettingKey>();
+        vm.SessionCommitter.Committed += commits.Add;
+        vm.SessionCommandRunDelayMaxSeconds = 3;
+
+        FocusSessionBox(view, "SessionCommandRunDelayMaxBox");
+        window.DispatchKey(Key.Up);
+
+        Assert.Equal(4, vm.SessionCommandRunDelayMaxSeconds);
+        Assert.Empty(commits);
+
+        clock.Advance(TimeSpan.FromMilliseconds(199));
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.Empty(commits);
+
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+    }
+
+    private static (Window Window, CommandInputView View, MainViewModel Vm, Flyout Flyout) OpenSessionFlyout(ManualTimeProvider clock)
+    {
+        var vm = new MainViewModel(new FakeFilePickerService(), clock) { ActiveScenarioName = "Test" };
+        var view = new CommandInputView { DataContext = vm };
+        var window = new Window
+        {
+            Width = 600,
+            Height = 400,
+            Content = view,
+        };
+        window.ShowAndRunLayout();
+
+        Button button = view.FindControl<Button>("SessionSettingsButton")!;
+        Flyout flyout = Assert.IsType<Flyout>(button.Flyout);
+        flyout.ShowAt(button);
+        HeadlessWindowExtensions.PumpDispatcher();
+        window.UpdateLayout();
+        return (window, view, vm, flyout);
+    }
+
+    private static void FocusSessionBox(CommandInputView view, string name)
+    {
+        NumericUpDown box = Assert.IsType<NumericUpDown>(view.FindControl<NumericUpDown>(name));
+        box.Focus();
+        HeadlessWindowExtensions.PumpDispatcher();
+        if (box.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        // The box itself is not focusable: its inner text field is where the keystrokes land.
+        TextBox textBox = Assert.IsType<TextBox>(box.GetVisualDescendants().OfType<TextBox>().FirstOrDefault());
+        textBox.Focus();
+        HeadlessWindowExtensions.PumpDispatcher();
     }
 
     private static (Window window, CommandInputView view, MainViewModel vm) SetupInputView()

@@ -111,7 +111,7 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
 
 ## Lifecycle: constructor wiring order
 
-`MainViewModel(IFilePickerService)` (`MainViewModel.cs:1085`) wires things in a deliberate order:
+`MainViewModel(IFilePickerService)` (in `MainViewModel.cs`) wires things in a deliberate order:
 
 1. **Preferences mirror** — `_isSpeechEnabled`, `_sessionSoloTrainingMode`, etc. seeded from `_preferences`.
 2. **Speech pipeline** — order matters: `AudioCaptureService` → `WhisperSttEngine` → `LocalLlmService` → the two LLM
@@ -264,16 +264,27 @@ So the suffix names the student's position type when it is GND, TWR, APP or CTR 
 
 Auto-accept is two flyout controls over one wire value: the hub carries a single delay where any negative value means off.
 
-`SessionAutoAcceptWire` (`Yaat.Client.Core/Services/SessionAutoAcceptWire.cs`) maps between them: `ToWire(enabled, delay)` sends the delay or `-1`, and `FromWire(wireDelay, previousDelay)` turns a negative delay into Enabled false with the previous delay kept, so turning the checkbox back on restores it. Both `OnSessionAutoAcceptEnabledChanged` and `OnSessionAutoAcceptDelaySecondsChanged` send `ToWire` of the pair.
+`SessionAutoAcceptWire` (`Yaat.Client.Core/Services/SessionAutoAcceptWire.cs`) maps between them: `ToWire(enabled, delay)` sends the delay or `-1`, and `FromWire(wireDelay, previousDelay)` turns a negative delay into Enabled false with the previous delay kept, so turning the checkbox back on restores it. The `AutoAccept` commit (`SendAutoAcceptDelayAsync`) sends `ToWire` of the pair, read at commit time.
 
-The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:3484`). `ApplySessionSettings(SessionSettingsDto)` (`MainViewModel.cs:3490`) sets it `true`, writes all 24 properties, then sets it `false`. Every sending `OnXxxChanged` handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`, `OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
+The guard is `_isApplyingSessionSettings`. `ApplySessionSettings(SessionSettingsDto)` sets it `true`, writes the properties, then sets it `false`. Every sending `OnXxxChanged` handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`, `OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
 
+### Typed values and the committer
+
+The four number boxes (departure distance, auto-accept delay, the two run-delay bounds, live-traffic ceiling) do not send from their `OnXxxChanged`; the handler tells `SessionSettingCommitter` (`ViewModels/SessionSettingCommitter.cs`, owned by `MainViewModel`) and the committer decides when the hub call goes out. It is keyed by wire send, not control (`SessionSettingKey`): the auto-accept checkbox and its delay share `AutoAccept`, the two run-delay bounds share `RunDelay`, so each pair goes out as one call carrying the current values of both.
+
+- **When it sends.** `Schedule` waits 1 s idle (a typed value); `ScheduleStep` waits 200 ms trailing (a spinner button, arrow key or wheel tick, signalled by `CommandInputView`'s `NumericUpDown.Spinned` handler); `Flush` sends at once (Enter, or focus leaving the box, wired in `WireSessionSettingBox`); `FlushAll` runs when the flyout closes. The auto-accept checkbox uses `CommitNow`, which also drops a delay still waiting.
+- **Departure distance never sends on idle.** It is destructive (a pause after "1" of "15" would delete every departure past 1 nm), so its handler calls `MarkPending`, which waits for Enter, focus loss or close; a blank box (off) is the same. A spinner step on it still gets the 200 ms step delay.
+- **A push while pending is dropped for that key.** `ApplySessionSettings` checks `SkipPushWhilePending` per key, so a server broadcast does not overwrite a box with a value the user typed and has not sent; the typed value then goes out. The `RunDelay` pair is one key, so a push for either bound is dropped while the other waits.
+- **Discard.** `DiscardAll` drops waiting values without sending when the value's room or scenario is gone: `ClearScenarioState` (unload, leave room, disconnect), `ApplyRecordingResult`, and the room-join, scenario-loaded and load-result adapters.
+- **Threading.** Timers come from the injected `TimeProvider` and fire on the thread pool; each only posts its take-and-commit to the UI thread, and a per-key generation lets a commit already queued for a key the user has since re-typed be skipped. Tests use the `internal MainViewModel(IFilePickerService, TimeProvider)` constructor with `ManualTimeProvider`.
 Because the same 23 DTO fields arrive under four different DTO shapes, there are **four adapters** that all build a `SessionSettingsDto` and call `ApplySessionSettings`:
 
 - `ApplySessionSettings(SessionSettingsDto)` — the base, used by the live `OnSessionSettingsChanged` broadcast and by `ApplyRecordingResult` for `RewindResultDto.SessionSettings`. A recording load therefore shows the tape's settings (the flyout and "No landing clnc" follow it); the per-position Auto Cleared-to-Land preference is neither read nor written there. A result without settings logs `The recording result for '{Scenario}' carried no session settings; the session's current ones stay`.
-- `ApplySessionSettingsFromRoom(RoomStateDto)` (`MainViewModel.cs:3527`).
-- `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)` (`MainViewModel.cs:3559`).
-- `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)` (`MainViewModel.cs:3590`).
+- `ApplySessionSettingsFromRoom(RoomStateDto)`.
+- `ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto)`.
+- `ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto)`.
+
+The last three each call `DiscardAll` first.
 
 Add a session setting and **all four** adapters plus the `SessionSettingsDto` (client + server) and the four
 source DTOs must change in lockstep — see [training-hub-contract.md](training-hub-contract.md) for the cross-repo

@@ -995,6 +995,9 @@ public partial class MainViewModel
 
     internal void ClearScenarioState()
     {
+        // Every way out of a scenario reaches here (unload, leave room, disconnect, kick, failed rejoin): a value typed
+        // into the flyout but not sent yet belonged to that scenario and must not reach the next one.
+        _sessionSettingCommitter.DiscardAll("the scenario was cleared");
         ActiveScenarioId = null;
         ActiveScenarioName = null;
         ActiveScenarioPrimaryAirportId = null;

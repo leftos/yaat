@@ -40,7 +40,7 @@ A recording load replaces that flag, and the rest of the flyout, with the tape's
 
 **Status-bar links.** The mic indicator and the live-traffic status text keep their quick on/off toggles and gain a link item: "Speech settings…" opens Settings at Speech, and "Live traffic…" opens the session flyout on whichever command input is showing.
 
-The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFrom*` adapters, the echo guard) are in [`client-mainviewmodel.md`](client-mainviewmodel.md#session-settings-echo-suppression).
+The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFrom*` adapters, the echo guard, the debounce that holds a typed number until the user pauses, presses Enter or leaves the box) are in [`client-mainviewmodel.md`](client-mainviewmodel.md#session-settings-echo-suppression).
 
 ## Import / Export hub
 

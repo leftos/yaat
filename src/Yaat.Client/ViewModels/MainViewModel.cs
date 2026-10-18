@@ -33,6 +33,7 @@ public partial class MainViewModel : ObservableObject
 
     private readonly ServerConnection _connection = new();
     public ServerConnection Connection => _connection;
+    private readonly SessionSettingCommitter _sessionSettingCommitter;
     private readonly UserPreferences _preferences = new();
     private readonly FavoriteStore _favoriteStore;
     private readonly VatsimAuthClient _auth = new();
@@ -1627,8 +1628,27 @@ public partial class MainViewModel : ObservableObject
     public void RefreshWindowTitleFromPrefs() => OnPropertyChanged(nameof(WindowTitle));
 
     public MainViewModel(IFilePickerService filePicker)
+        : this(filePicker, TimeProvider.System) { }
+
+    /// <summary>
+    /// Test seam: the session-settings committer's timers run on <paramref name="timeProvider"/>, so a test can advance
+    /// the clock instead of waiting out the debounce.
+    /// </summary>
+    internal MainViewModel(IFilePickerService filePicker, TimeProvider timeProvider)
     {
         _filePicker = filePicker;
+        _sessionSettingCommitter = new SessionSettingCommitter(
+            timeProvider,
+            AppLog.CreateLogger<SessionSettingCommitter>(),
+            new Dictionary<SessionSettingKey, Action>
+            {
+                [SessionSettingKey.DepartureDistance] = CommitDepartureAutoDeleteDistance,
+                [SessionSettingKey.AutoAccept] = CommitAutoAcceptDelay,
+                [SessionSettingKey.RunDelay] = CommitCommandRunDelay,
+                [SessionSettingKey.LiveTrafficCeiling] = CommitLiveTrafficCeiling,
+            },
+            action => Avalonia.Threading.Dispatcher.UIThread.Post(action)
+        );
         WireScenarioExportAvailability();
         _favoriteStore = new FavoriteStore(FavoriteStore.DefaultRootDir);
         FavoriteLegacyMigration.Run(_preferences, _favoriteStore);
@@ -3487,7 +3507,79 @@ public partial class MainViewModel : ObservableObject
 
     // --- Session settings (flyout) ---
 
+    /// <summary>Test seam: the committer that decides when a flyout value reaches the hub.</summary>
+    internal SessionSettingCommitter SessionCommitter => _sessionSettingCommitter;
+
+    /// <summary>Commits every flyout value still waiting to be sent (the flyout closed, or the session is going away).</summary>
+    public void FlushPendingSessionSettings() => _sessionSettingCommitter.FlushAll();
+
+    /// <summary>Commits one box's waiting value now (Enter, or focus leaving the box).</summary>
+    internal void FlushSessionSetting(SessionSettingKey key) => _sessionSettingCommitter.Flush(key);
+
+    /// <summary>A spinner step, arrow key or wheel tick on one box: its value sends after the short step delay.</summary>
+    internal void StepSessionSetting(SessionSettingKey key) => _sessionSettingCommitter.ScheduleStep(key);
+
+    private void CommitDepartureAutoDeleteDistance() =>
+        _ = SendDepartureAutoDeleteDistance(SessionDepartureAutoDeleteDistanceNm is { } distanceNm ? (double)distanceNm : null);
+
+    private void CommitAutoAcceptDelay() => _ = SendAutoAcceptDelayAsync();
+
+    private void CommitCommandRunDelay() => _ = SendCommandRunDelayAsync();
+
+    private void CommitLiveTrafficCeiling() => _ = SendLiveTrafficCeilingAsync();
+
+    private async Task SendAutoAcceptDelayAsync()
+    {
+        try
+        {
+            await _connection.SetAutoAcceptDelayAsync(SessionAutoAcceptWire.ToWire(SessionAutoAcceptEnabled, SessionAutoAcceptDelaySeconds));
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto-accept delay");
+        }
+    }
+
+    private async Task SendCommandRunDelayAsync()
+    {
+        try
+        {
+            await _connection.SetCommandRunDelayAsync(SessionCommandRunDelayMinSeconds, SessionCommandRunDelayMaxSeconds);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set command run delay");
+        }
+    }
+
+    private async Task SendLiveTrafficCeilingAsync()
+    {
+        try
+        {
+            await _connection.SetLiveTrafficCeilingFtAsync(SessionLiveTrafficCeilingFt);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set live traffic ceiling");
+        }
+    }
+
     private bool _isApplyingSessionSettings;
+
+    /// <summary>
+    /// A push for a key the user has typed into but not sent yet must not overwrite the box: the typed value stays and
+    /// the push's value for that key is dropped.
+    /// </summary>
+    private bool SkipPushWhilePending(SessionSettingKey key)
+    {
+        if (!_sessionSettingCommitter.IsPending(key))
+        {
+            return false;
+        }
+
+        _log.LogDebug("Session settings push for {Key} dropped: the typed value is still waiting to be sent", key);
+        return true;
+    }
 
     private void OnSessionSettingsChanged(SessionSettingsDto dto) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
 
@@ -3498,13 +3590,25 @@ public partial class MainViewModel : ObservableObject
         _isApplyingSessionSettings = true;
         ActiveAutoDeleteMode = dto.EffectiveAutoDeleteMode;
         SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteOverride);
-        SessionDepartureAutoDeleteDistanceNm = dto.DepartureAutoDeleteDistanceNm is { } departureDistanceNm ? (decimal)departureDistanceNm : null;
-        (SessionAutoAcceptEnabled, SessionAutoAcceptDelaySeconds) = SessionAutoAcceptWire.FromWire(
-            dto.AutoAcceptDelaySeconds,
-            SessionAutoAcceptDelaySeconds
-        );
-        SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
-        SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
+        if (!SkipPushWhilePending(SessionSettingKey.DepartureDistance))
+        {
+            SessionDepartureAutoDeleteDistanceNm = dto.DepartureAutoDeleteDistanceNm is { } departureDistanceNm ? (decimal)departureDistanceNm : null;
+        }
+
+        if (!SkipPushWhilePending(SessionSettingKey.AutoAccept))
+        {
+            (SessionAutoAcceptEnabled, SessionAutoAcceptDelaySeconds) = SessionAutoAcceptWire.FromWire(
+                dto.AutoAcceptDelaySeconds,
+                SessionAutoAcceptDelaySeconds
+            );
+        }
+
+        if (!SkipPushWhilePending(SessionSettingKey.RunDelay))
+        {
+            SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
+            SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
+        }
+
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
@@ -3512,7 +3616,11 @@ public partial class MainViewModel : ObservableObject
         SessionAutoRejectTakeoffOnOccupiedRunway = dto.AutoRejectTakeoffOnOccupiedRunway;
         SessionAutoArrivalSpacingOnOccupiedRunway = dto.AutoArrivalSpacingOnOccupiedRunway;
         SessionLiveTrafficEnabled = dto.LiveTrafficEnabled;
-        SessionLiveTrafficCeilingFt = dto.LiveTrafficCeilingFt;
+        if (!SkipPushWhilePending(SessionSettingKey.LiveTrafficCeiling))
+        {
+            SessionLiveTrafficCeilingFt = dto.LiveTrafficCeilingFt;
+        }
+
         SessionLiveTrafficFilter = dto.LiveTrafficFilter;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
@@ -3532,6 +3640,8 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplySessionSettingsFromRoom(RoomStateDto state)
     {
+        // A value typed in the previous room (or before a reconnect) belongs to that room, not this one.
+        _sessionSettingCommitter.DiscardAll("joined a room");
         LiveTrafficStatus = state.LiveTrafficStatus;
         ApplySessionSettings(
             new SessionSettingsDto(
@@ -3564,6 +3674,7 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto dto)
     {
+        _sessionSettingCommitter.DiscardAll("a scenario was loaded");
         ApplySessionSettings(
             new SessionSettingsDto(
                 dto.AutoDeleteOverride,
@@ -3595,6 +3706,7 @@ public partial class MainViewModel : ObservableObject
 
     internal void ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto result)
     {
+        _sessionSettingCommitter.DiscardAll("a scenario was loaded");
         ApplySessionSettings(
             new SessionSettingsDto(
                 result.AutoDeleteOverride,
@@ -3638,10 +3750,15 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSessionDepartureAutoDeleteDistanceNmChanged(decimal? value)
     {
-        if (!_isApplyingSessionSettings)
+        if (_isApplyingSessionSettings)
         {
-            _ = SendDepartureAutoDeleteDistance(value is { } distanceNm ? (double)distanceNm : null);
+            return;
         }
+
+        // The destructive box: a pause while typing "15" must not send "1" and delete every departure past 1 nm, so a
+        // typed distance — blank ("off") included — waits for Enter, focus loss or the flyout closing. A spinner step
+        // is not typing: it keeps the 200 ms step debounce every box has.
+        _sessionSettingCommitter.MarkPending(SessionSettingKey.DepartureDistance);
     }
 
     partial void OnSessionAutoAcceptEnabledChanged(bool value)
@@ -3651,24 +3768,23 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        _ = _connection.SetAutoAcceptDelayAsync(SessionAutoAcceptWire.ToWire(value, SessionAutoAcceptDelaySeconds));
+        // The checkbox is one click, not typing: send the pair now and drop a delay still waiting to send.
+        _sessionSettingCommitter.CommitNow(SessionSettingKey.AutoAccept);
     }
 
     partial void OnSessionAutoAcceptDelaySecondsChanged(int value)
     {
-        if (_isApplyingSessionSettings)
+        if (!_isApplyingSessionSettings)
         {
-            return;
+            _sessionSettingCommitter.Schedule(SessionSettingKey.AutoAccept);
         }
-
-        _ = _connection.SetAutoAcceptDelayAsync(SessionAutoAcceptWire.ToWire(SessionAutoAcceptEnabled, value));
     }
 
     partial void OnSessionCommandRunDelayMinSecondsChanged(int value)
     {
         if (!_isApplyingSessionSettings)
         {
-            _ = _connection.SetCommandRunDelayAsync(SessionCommandRunDelayMinSeconds, SessionCommandRunDelayMaxSeconds);
+            _sessionSettingCommitter.Schedule(SessionSettingKey.RunDelay);
         }
     }
 
@@ -3676,7 +3792,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (!_isApplyingSessionSettings)
         {
-            _ = _connection.SetCommandRunDelayAsync(SessionCommandRunDelayMinSeconds, SessionCommandRunDelayMaxSeconds);
+            _sessionSettingCommitter.Schedule(SessionSettingKey.RunDelay);
         }
     }
 
@@ -3769,7 +3885,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (!_isApplyingSessionSettings)
         {
-            _ = _connection.SetLiveTrafficCeilingFtAsync(value);
+            _sessionSettingCommitter.Schedule(SessionSettingKey.LiveTrafficCeiling);
         }
     }
 
