@@ -96,7 +96,7 @@ callsign in traffic & follow calls). When a transmission lands in `PendingPilotT
 `Text` to the SAY transcript and `SpeechText` to the voice broadcast.
 
 `PilotResponder` has three routers — `RouteSoloOrRpoTransmission`, `RouteRpoSayReadback`,
-`RouteRpoTransmission` — that pick the channel from `(soloTrainingMode, rpoShowPilotSpeech, studentPositionType)`.
+`RouteRpoTransmission` (two overloads) — that pick the channel from `(soloTrainingMode, rpoShowPilotSpeech, studentPositionType)`.
 The full mode → channel matrix (and how `RpoTerminal` is resolved per branch) is in
 [`pilot-phraseology.md`](pilot-phraseology.md#routing-the-forms-by-mode). The two well-known position
 lists are `PilotResponder.SoloPositionsTower` (`["TWR"]`) and `SoloPositionsTowerApproach`
@@ -116,7 +116,7 @@ Towered-field pilots do not self-announce every pattern leg on entry. Two kinds 
 - **Position reports are no-clearance-driven.** Midfield-downwind and short-final calls fire from `OnTick`, gated on still being uncleared (`!HasLandingClearance`), so a pilot only "reminds tower" when a clearance is overdue. They never fire on phase entry.
 - **Intent declarations are entry-driven.** Initial-contact statements ("request closed traffic", "ready for departure") fire from `OnStart` on first contact — they are not position reports and must happen up front, not after a delay.
 
-Output channel follows the usual split: solo mode lands in `PendingNotifications` (gray pilot speech, AI voices the pilot); RPO mode lands in `PendingWarnings` (orange controller-facing nag) unless `RpoShowPilotSpeech` routes it to `PendingPilotSpeech`. Never delete the `PendingWarnings` text — it is the default fallback when pilot-speech mode is off.
+Output channel follows the usual split: solo mode lands in `PendingNotifications` (gray pilot speech, AI voices the pilot); RPO mode lands in `PendingWarnings` (orange controller-facing nag) unless `RpoShowPilotSpeech` routes it to `PendingPilotSpeech`, a `List<PilotSpeechText>` whose drain broadcasts the written `TerminalForRpo` line as a green `PilotSpeech` terminal entry (terminal, speech bubble, terminal history). RPO has no TTS consumer: the client voices pilots only in solo (`MainViewModel.OnPilotTransmissionReceived` gates on `SessionSoloTrainingMode`), so the `Tts` form in `PendingPilotSpeech` is never spoken. Never delete the `PendingWarnings` text — it is the default fallback when pilot-speech mode is off.
 
 ## Who the pilot calls — `PilotContactRoster` (`Pilot/PilotContactRoster.cs`)
 

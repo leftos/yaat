@@ -156,7 +156,7 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
 
     public void OnNotifications(List<(string Callsign, string Notification)> notifications) => _inner.OnNotifications(notifications);
 
-    public void OnPilotSpeech(List<(string Callsign, string PilotSpeech)> speech) => _inner.OnPilotSpeech(speech);
+    public void OnPilotSpeech(List<(string Callsign, PilotSpeechText PilotSpeech)> speech) => _inner.OnPilotSpeech(speech);
 
     public void OnPilotReadbacks(List<(string Callsign, string Readback)> readbacks) => _inner.OnPilotReadbacks(readbacks);
 

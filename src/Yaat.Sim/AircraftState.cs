@@ -241,19 +241,21 @@ public class AircraftState
     /// <summary>
     /// Pilot transmissions emitted by the sim in RPO mode when the
     /// <c>RpoShowPilotSpeech</c> scenario setting is on. Drained per tick into the
-    /// terminal as <c>PilotSpeech</c>-kind entries (green), rendered with the spelled-out
-    /// spoken form built by <see cref="Pilot.PilotResponder"/>. Solo mode queues delayed
+    /// terminal as <c>PilotSpeech</c>-kind entries (green). Each entry keeps both forms
+    /// <see cref="Pilot.PilotResponder"/> built: the terminal shows the written
+    /// <see cref="Pilot.PilotSpeechText.TerminalForRpo"/> line, and the spoken
+    /// <see cref="Pilot.PilotSpeechText.Tts"/> form rides along unused by RPO. Solo mode queues delayed
     /// SAY/audio entries in <see cref="PendingPilotTransmissions"/>; RPO with the setting
     /// off keeps using <see cref="PendingWarnings"/>. Transient — not snapshot-serialized.
     /// </summary>
-    public List<string> PendingPilotSpeech { get; } = [];
+    public List<Pilot.PilotSpeechText> PendingPilotSpeech { get; } = [];
 
     /// <summary>
     /// Terse pilot readbacks for visual-acquisition events (RTIS / RFIS — the "Have
     /// N9225L in sight" / "Negative contact, looking" line). Drained per tick into the
     /// terminal as a <c>SayReadback</c>-kind entry (the kind starts with "Say" so the
     /// client routes it to the SAY channel just like the SPOS / SALT verb output).
-    /// Used when the spelled-out <see cref="PendingPilotSpeech"/> path is not active —
+    /// Used when the green <see cref="PendingPilotSpeech"/> path is not active —
     /// RPO mode without <c>RpoShowPilotSpeech</c> lands here. Solo mode uses the delayed
     /// <see cref="PendingPilotTransmissions"/> queue. Transient — not snapshot-serialized.
     /// </summary>

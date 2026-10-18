@@ -2817,7 +2817,7 @@ internal static class PatternCommandHandler
             }
             else
             {
-                PilotResponder.RouteRpoTransmission(aircraft, soloTrainingMode, rpoShowPilotSpeech, speech.Tts, speech.TerminalForRpo);
+                PilotResponder.RouteRpoTransmission(aircraft, soloTrainingMode, rpoShowPilotSpeech, speech);
             }
             return CommandDispatcher.Ok($"Pattern size {sizeNm:G} NM (below the {floorNm:F1} NM turn-radius minimum — flown at the minimum)");
         }

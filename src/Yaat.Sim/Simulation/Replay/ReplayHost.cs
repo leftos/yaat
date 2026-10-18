@@ -93,7 +93,7 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnNotifications(List<(string Callsign, string Notification)> notifications) => _bare.OnNotifications(notifications);
 
-    public void OnPilotSpeech(List<(string Callsign, string PilotSpeech)> speech) => _bare.OnPilotSpeech(speech);
+    public void OnPilotSpeech(List<(string Callsign, PilotSpeechText PilotSpeech)> speech) => _bare.OnPilotSpeech(speech);
 
     public void OnPilotReadbacks(List<(string Callsign, string Readback)> readbacks) => _bare.OnPilotReadbacks(readbacks);
 

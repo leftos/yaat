@@ -106,8 +106,8 @@ public sealed class PhaseContext
 
     /// <summary>
     /// When true (and <see cref="SoloTrainingMode"/> is false), sim-initiated pilot
-    /// transmissions route to <c>AircraftState.PendingPilotSpeech</c> with the spoken form
-    /// from <c>PilotResponder</c>. When false, the same events fall through to
+    /// transmissions route to <c>AircraftState.PendingPilotSpeech</c> as the <c>PilotSpeechText</c>
+    /// from <c>PilotResponder</c>, shown with its written form. When false, the same events fall through to
     /// <c>PendingWarnings</c> with terse controller-debug text. Default false.
     /// </summary>
     public bool RpoShowPilotSpeech { get; init; }

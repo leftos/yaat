@@ -296,7 +296,7 @@ public sealed class DownwindPhase : Phase
                             ctx.Aircraft,
                             ctx.SoloTrainingMode,
                             ctx.RpoShowPilotSpeech,
-                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId).Tts,
+                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
                             $"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}"
                         );
                     }

@@ -95,7 +95,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         bool replacedByInitialCall = (PresetTaxiStopLocation(ctx.Aircraft) is not null) && InitialCallupCall.CanCall(ctx);
         if (!replacedByInitialCall)
         {
-            PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText.Tts, warningText);
+            PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
         }
 
         // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still

@@ -268,7 +268,7 @@ public sealed class SimScenarioState
     // (RTIS/RFIS resolution, midfield/short-final-no-clearance reminders, holding-short and
     // clear-of-runway position reports, going-around, lost-sight, follow-cancel, etc.) are
     // routed into AircraftState.PendingPilotSpeech and broadcast as TerminalEntryKind.PilotSpeech
-    // (green) with the spoken form built by PilotResponder. When false (default), those events
+    // (green) with the written form built by PilotResponder (PilotSpeechText.TerminalForRpo). When false (default), those events
     // continue to land in PendingWarnings (orange) — current behavior preserved.
     public bool RpoShowPilotSpeech { get; set; }
 

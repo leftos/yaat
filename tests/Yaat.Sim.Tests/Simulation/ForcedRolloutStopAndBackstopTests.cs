@@ -186,7 +186,7 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         {
             if (cs == callsign)
             {
-                messages.Add(text);
+                messages.Add(text.TerminalForRpo);
             }
         };
         return messages;

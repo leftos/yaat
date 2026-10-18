@@ -93,7 +93,7 @@ public class PilotTransmissionRoutingTests
     }
 
     [Fact]
-    public void HoldingShortPhase_RpoMode_PilotSpeechOn_AddsSpelledOutPilotSpeech()
+    public void HoldingShortPhase_RpoMode_PilotSpeechOn_CarriesWrittenAndSpokenForms()
     {
         AircraftState ac = MakeAircraft("N172SP");
         HoldingShortPhase phase = MakeHoldingShortPhase();
@@ -103,8 +103,10 @@ public class PilotTransmissionRoutingTests
 
         Assert.Empty(ac.PendingWarnings);
         Assert.Empty(ac.PendingNotifications);
-        string speech = Assert.Single(ac.PendingPilotSpeech);
-        Assert.Equal(PilotResponder.BuildHoldingShortCrossing(ac, "28R").Tts, speech);
+        PilotSpeechText speech = Assert.Single(ac.PendingPilotSpeech);
+        Assert.Equal("holding short runway 28R.", speech.TerminalForRpo);
+        Assert.Equal(PilotResponder.BuildHoldingShortCrossing(ac, "28R").Tts, speech.Tts);
+        Assert.Contains("november", speech.Tts, StringComparison.Ordinal);
     }
 
     // PilotObservationUpdater routing is exercised end-to-end by RpoPilotSpeechReplayTests

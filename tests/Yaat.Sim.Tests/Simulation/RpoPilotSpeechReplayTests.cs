@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -15,9 +16,10 @@ namespace Yaat.Sim.Tests.Simulation;
 /// and going-around.
 ///
 /// With <c>RpoShowPilotSpeech=true</c> set on the scenario, those events should land in
-/// <c>AircraftState.PendingPilotSpeech</c> with the spelled-out spoken form built by
-/// <c>PilotResponder</c>, instead of the terse controller-debug text in
-/// <c>PendingWarnings</c>.
+/// <c>AircraftState.PendingPilotSpeech</c> as the <c>PilotSpeechText</c> built by
+/// <c>PilotResponder</c> (written and spoken forms), instead of the terse controller-debug
+/// text in <c>PendingWarnings</c>, and the <c>PilotSpeech</c> terminal entry shows the
+/// written form.
 /// </summary>
 public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
 {
@@ -55,8 +57,16 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
         }
 
         // Collect the pilot-speech entries the engine emits as it drains them each tick.
-        var allSpeech = new List<(string Callsign, string Speech)>();
+        var allSpeech = new List<(string Callsign, PilotSpeechText Speech)>();
         engine.PilotSpeechEmitted += (callsign, speech) => allSpeech.Add((callsign, speech));
+        var terminalSpeech = new List<string>();
+        engine.TerminalEntryEmitted += entry =>
+        {
+            if (entry.Kind == "PilotSpeech")
+            {
+                terminalSpeech.Add(entry.Message);
+            }
+        };
 
         // Set the toggle BEFORE replay so it's active for every transmission site.
         engine.ReplayWithScenarioOverride(recording, (int)recording.TotalElapsedSeconds, scenario => scenario.RpoShowPilotSpeech = true);
@@ -65,9 +75,9 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
         // field-in-sight, going-around, short-final-no-clearance, holding-short, clear-of-runway).
         // With the setting on they route to pilot speech rather than PendingWarnings.
         output.WriteLine($"Pilot-speech entries emitted during replay: {allSpeech.Count}");
-        foreach ((string? cs, string? s) in allSpeech)
+        foreach ((string? cs, PilotSpeechText? s) in allSpeech)
         {
-            output.WriteLine($"  {cs}: {s}");
+            output.WriteLine($"  {cs}: {s.TerminalForRpo} | {s.Tts}");
         }
 
         Assert.True(
@@ -76,17 +86,20 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
                 + "if zero entries appeared the routing may be broken."
         );
 
-        // Spot-check format: every entry should be a pilot-speech transmission containing
-        // the spoken-form callsign (NATO-spelled or telephony) for TTS. Legacy builders
-        // emit "[CALLSIGN] november one two three..."; dual-output builders emit
-        // "november one two three..., ..." — both contain the spoken callsign.
-        foreach ((string? cs, string? s) in allSpeech)
+        // Spot-check format: every entry's spoken form contains the NATO-spelled callsign for TTS
+        // ("november one two three..., ...").
+        foreach ((string? cs, PilotSpeechText? s) in allSpeech)
         {
             Assert.True(
-                s.Contains($"[{cs}]") || s.Contains(Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(cs), StringComparison.OrdinalIgnoreCase),
-                $"Expected pilot-speech entry to contain [{cs}] or its NATO-spoken form, got: {s}"
+                s.Tts.Contains(Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(cs), StringComparison.OrdinalIgnoreCase),
+                $"Expected the spoken form to contain the NATO-spoken form of {cs}, got: {s.Tts}"
             );
         }
+
+        // The PilotSpeech terminal entry (what the RPO terminal, speech bubble and history show)
+        // carries the written form, one entry per emitted transmission, never the spelled-out TTS form.
+        Assert.Equal(allSpeech.Select(e => e.Speech.TerminalForRpo), terminalSpeech);
+        Assert.All(terminalSpeech, message => Assert.DoesNotContain("november", message, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

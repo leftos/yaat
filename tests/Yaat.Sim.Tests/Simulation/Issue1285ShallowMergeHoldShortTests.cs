@@ -113,7 +113,7 @@ public sealed class Issue1285ShallowMergeHoldShortTests
         {
             if (callsign == Callsign)
             {
-                speech.Add(text);
+                speech.Add(text.Tts);
             }
         };
         Assert.True(engine.SendCommand(Callsign, "TAXI D C B 28R").Success);

@@ -87,12 +87,12 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
         }
     }
 
-    public void OnPilotSpeech(List<(string Callsign, string PilotSpeech)> speech)
+    public void OnPilotSpeech(List<(string Callsign, PilotSpeechText PilotSpeech)> speech)
     {
-        foreach ((string? callsign, string? line) in speech)
+        foreach ((string? callsign, PilotSpeechText? text) in speech)
         {
-            _engine.EmitTerminal("PilotSpeech", callsign, line);
-            _engine.FirePilotSpeechEmitted(callsign, line);
+            _engine.EmitTerminal("PilotSpeech", callsign, text.TerminalForRpo);
+            _engine.FirePilotSpeechEmitted(callsign, text);
         }
     }
 

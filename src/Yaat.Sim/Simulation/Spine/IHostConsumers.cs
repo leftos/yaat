@@ -26,7 +26,7 @@ public interface IHostConsumers : IStateChangeConsumer
     void OnSoloTrainingEvents(IReadOnlyList<SoloTrainingEvent> events);
     void OnWarnings(List<(string Callsign, string Warning)> warnings);
     void OnNotifications(List<(string Callsign, string Notification)> notifications);
-    void OnPilotSpeech(List<(string Callsign, string PilotSpeech)> speech);
+    void OnPilotSpeech(List<(string Callsign, PilotSpeechText PilotSpeech)> speech);
     void OnPilotReadbacks(List<(string Callsign, string Readback)> readbacks);
 
     /// <summary>Pilot transmissions ready this second. Not called when nobody answers pilots — the engine discards them instead.</summary>

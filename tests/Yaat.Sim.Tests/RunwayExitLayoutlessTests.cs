@@ -57,7 +57,7 @@ public class RunwayExitLayoutlessTests
         // The aircraft stopped ON the runway — there is no exit taxiway and no layout, so the pilot has
         // nothing to report clear of.
         var lines = aircraft
-            .PendingWarnings.Concat(aircraft.PendingPilotSpeech)
+            .PendingWarnings.Concat(aircraft.PendingPilotSpeech.SelectMany(s => new[] { s.TerminalForRpo, s.Tts }))
             .Concat(aircraft.PendingPilotTransmissions.SelectMany(t => new[] { t.Text, t.SpeechText }))
             .Where(l => l.Contains("clear of runway", StringComparison.OrdinalIgnoreCase))
             .ToList();

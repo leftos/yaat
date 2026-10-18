@@ -197,14 +197,15 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Fires during the post-physics drain for each <see cref="AircraftState.PendingPilotSpeech"/>
-    /// entry — an RPO-mode pilot transmission produced this tick. Mirrors the server's
-    /// <c>TickProcessor.BroadcastPilotSpeech</c> fan-out so non-server consumers (solo client, tests)
-    /// can observe the same lines. Default null = the entry is still drained (so it does not
-    /// accumulate) but otherwise discarded. Mirrors <see cref="WarningEmitted"/>.
+    /// entry — an RPO-mode pilot transmission produced this tick, with both its written and spoken
+    /// forms (the <c>PilotSpeech</c> terminal entry carries <see cref="PilotSpeechText.TerminalForRpo"/>).
+    /// Mirrors the server's <c>TickProcessor.BroadcastPilotSpeech</c> fan-out so non-server consumers
+    /// (solo client, tests) can observe the same lines. Default null = the entry is still drained (so it
+    /// does not accumulate) but otherwise discarded. Mirrors <see cref="WarningEmitted"/>.
     /// </summary>
-    public event Action<string, string>? PilotSpeechEmitted;
+    public event Action<string, PilotSpeechText>? PilotSpeechEmitted;
 
-    internal void FirePilotSpeechEmitted(string callsign, string speech) => PilotSpeechEmitted?.Invoke(callsign, speech);
+    internal void FirePilotSpeechEmitted(string callsign, PilotSpeechText speech) => PilotSpeechEmitted?.Invoke(callsign, speech);
 
     /// <summary>An engine on <paramref name="groundData"/> whose world keeps its push plans in <paramref name="pushPlans"/>.</summary>
     /// <param name="groundData">The airport layouts the engine resolves.</param>

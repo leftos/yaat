@@ -54,7 +54,7 @@ public class HoldingShortCrossingNearestEndVoiceTests
             }
         );
         phase.OnStart(RpoCtx(ac));
-        return ac.PendingPilotSpeech.SingleOrDefault();
+        return ac.PendingPilotSpeech.SingleOrDefault()?.Tts;
     }
 
     [Fact]

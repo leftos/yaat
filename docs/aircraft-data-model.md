@@ -96,7 +96,7 @@ Every field on the aircraft falls into one of three buckets. Pick the right one 
      `LayoutAirportId` (`AircraftGroundOps.cs:28`) **does** round-trip so `SimulationEngine` can re-resolve the layout on restore.
 3. **Transient per-tick drain lists** — get-only `List<…>` outboxes producers fill during the tick and `SimulationWorld` empties after. They are
    **not** in the snapshot tree and must not be relied on across a replay round-trip:
-   `PendingWarnings`, `PendingNotifications`, `PendingPilotSpeech`, `PendingPilotReadbacks`, `PendingPilotTransmissions`, `PendingApproachScores`,
+   `PendingWarnings`, `PendingNotifications`, `PendingPilotSpeech` (`List<PilotSpeechText>`), `PendingPilotReadbacks`, `PendingPilotTransmissions`, `PendingApproachScores`,
    `PendingObservations`, `DeferredDispatches`, `PositionHistory` (all on `AircraftState`, lines 120–278). `DeferredDispatches` and `PositionHistory`
    are the exceptions that *do* serialize (they are durable state, not outboxes) — see `ToSnapshot` at `AircraftState.cs:395,412`.
 
@@ -167,7 +167,7 @@ the SignalR `AircraftUpdated` / `AircraftSpawned` deserialization.
 - **`PushPlans`** is the `PushPlanStore` the world's constructor takes (required), a derived cache of push-back stand plans that is never snapshotted. A server room passes its own to every world it builds, so it outlives each engine; a world built without a room gets `PushPlanStore.CreateShipped()`.
 - **`GetSnapshot` (`SimulationWorld.cs:169`)** returns a shallow `List` copy — a new list whose elements are the **live mutable** `AircraftState`
   instances. It is the read-only view every broadcast/projection iterates.
-- **Drain surface** — `DrainAllWarnings`, `DrainAllNotifications`, `DrainAllPilotSpeech`, `DrainAllPilotReadbacks`, `DrainReadyPilotTransmissions`,
+- **Drain surface** — `DrainAllWarnings`, `DrainAllNotifications`, `DrainAllPilotSpeech` (returns `(Callsign, PilotSpeechText)`), `DrainAllPilotReadbacks`, `DrainReadyPilotTransmissions`,
   `DrainAllApproachScores` (`SimulationWorld.cs:272-433`) each empty the corresponding per-aircraft transient list under the lock. The frequency
   airtime serialization (`ActiveFrequency.Enqueue` / `TryDequeueReady`, plus `ExpectPilotReadback` / `AcknowledgeControllerResponse`) lives here too —
   see [solo-training-pilot-speech.md](solo-training-pilot-speech.md).

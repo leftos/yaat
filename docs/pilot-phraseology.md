@@ -44,22 +44,18 @@ directly in `PilotResponder`.
 
 ## Routing the forms by mode
 
-Three routers in `PilotResponder` send a `PilotSpeechText` to the right channel. The mode — not the
-channel — decides whether the callsign diagnostic is shown.
+Three routers in `PilotResponder` send a `PilotSpeechText` to the right channel, `RouteRpoTransmission` in two overloads. The mode — not the channel — decides whether the callsign diagnostic is shown.
 
 | Router | Used by | Solo | RPO + `RpoShowPilotSpeech` | RPO default |
 |--------|---------|------|-----------------------------|-------------|
-| `RouteSoloOrRpoTransmission` | pattern reports, follow events, going-around, boundary holds (position-gated) | `PendingPilotTransmissions` (`Terminal`+`Tts`) if the student position is relevant, else warning `Terminal` | `PendingPilotSpeech` (`Tts`) | `PendingWarnings` (`TerminalForRpo`) |
-| `RouteRpoSayReadback` | RTIS/RFIS in-sight readbacks | `QueueSoloPilotReadback` (`Terminal`+`Tts`) | `PendingPilotSpeech` (`Tts`) | `PendingPilotReadbacks` (`TerminalForRpo`) |
-| `RouteRpoTransmission` (PilotSpeechText overload) | follow break-off, server maintain-contact loop | `PendingWarnings` (`Terminal`) | `PendingPilotSpeech` (`Tts`) | `PendingWarnings` (`TerminalForRpo`) |
+| `RouteSoloOrRpoTransmission` | pattern reports, follow events, going-around, boundary holds (position-gated) | `PendingPilotTransmissions` (`Terminal`+`Tts`) if the student position is relevant, else warning `Terminal` | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`TerminalForRpo`) |
+| `RouteRpoSayReadback` | RTIS/RFIS in-sight readbacks | `QueueSoloPilotReadback` (`Terminal`+`Tts`) | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingPilotReadbacks` (`TerminalForRpo`) |
+| `RouteRpoTransmission(aircraft, solo, rpoShow, text)` (4-arg) | follow break-off, server maintain-contact loop | `PendingWarnings` (`Terminal`) | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`TerminalForRpo`) |
+| `RouteRpoTransmission(aircraft, solo, rpoShow, text, warningText)` (5-arg) | `ContactCommandHandler`, `HoldingShortPhase`, `DownwindPhase` (a bespoke warning) | `PendingWarnings` (`warningText`) | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`warningText`) |
 
-Across every branch: the spoken (`Tts`) and solo (`Terminal`) forms never carry the lead/target
-callsign; only the RPO-mode terminal branch resolves `TerminalForRpo`.
+`PendingPilotSpeech` is a `List<PilotSpeechText>`: it keeps both forms, the terminal, speech bubble and terminal history show the written `TerminalForRpo` line, and `Tts` rides along unused because RPO has no TTS consumer. Across every other branch: the spoken (`Tts`) and solo (`Terminal`) forms never carry the lead/target callsign; only the RPO-mode terminal branches resolve `TerminalForRpo`.
 
-A string overload of `RouteRpoTransmission` also exists for callers that already hold a spoken
-string plus a bespoke warning (`ContactCommandHandler`, `HoldingShortPhase`, `DownwindPhase` pass
-`.Tts` + a custom warning). The well-known solo position lists are `SoloPositionsTower` (`["TWR"]`)
-and `SoloPositionsTowerApproach` (`["TWR","APP"]`).
+The well-known solo position lists are `SoloPositionsTower` (`["TWR"]`) and `SoloPositionsTowerApproach` (`["TWR","APP"]`).
 
 ## Conventions
 

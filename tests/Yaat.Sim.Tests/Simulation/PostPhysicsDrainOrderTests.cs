@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -81,7 +82,7 @@ public class PostPhysicsDrainOrderTests
 
         aircraft.PendingWarnings.Add(WarningMarker);
         aircraft.PendingNotifications.Add(NotificationMarker);
-        aircraft.PendingPilotSpeech.Add(SpeechMarker);
+        aircraft.PendingPilotSpeech.Add(new PilotSpeechText(SpeechMarker, SpeechMarker));
         aircraft.PendingPilotReadbacks.Add(ReadbackMarker);
         // Addressed by id so the strip step's refusal — no such strip on this bare engine — names the marker.
         aircraft.PendingStripDispatches.Add(new StripAnnotateCommand("1", "x", StripMarker));

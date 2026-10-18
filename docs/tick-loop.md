@@ -8,7 +8,7 @@
 
 | File | Owns |
 |---|---|
-| `SimulationEngine.cs` | Engine state (`World`, `Scenario`, the evaluators and pools), the lifecycle events (`TickCompleted`, `WarningEmitted`, `PilotSpeechEmitted`, `TerminalEntryEmitted`) and their `Fire*` helpers, the constructor, `FindAircraft`, `DeleteAircraft`, and the terminal-entry sink every other partial writes to. |
+| `SimulationEngine.cs` | Engine state (`World`, `Scenario`, the evaluators and pools), the lifecycle events (`TickCompleted`, `WarningEmitted`, `PilotSpeechEmitted` as `Action<string, PilotSpeechText>`, `TerminalEntryEmitted`) and their `Fire*` helpers, the constructor, `FindAircraft`, `DeleteAircraft`, and the terminal-entry sink every other partial writes to. |
 | `SimulationEngine.Snapshots.cs` | `CaptureSnapshot` / `RestoreFromSnapshot` and the server's slice (`CaptureServerSnapshot` / `RestoreServerSnapshot`). |
 | `SimulationEngine.Scenario.cs` | `LoadScenario` and `ResolveGroundLayout`. |
 | `SimulationEngine.Spine.cs` | **The segment entry points and the runner** — `RunSecond`, `BeginSecond`, `OpenSecond`, `RunPrePhysics`, `RunPhysicsSubTick`, `RunPostPhysics`, `RunEndOfSecond`; iterates the lists in `Simulation/Spine/SpineOrder.cs`, records every step into `StepTrace`, and times each into `TickTimings` when a sink is attached. |
@@ -89,7 +89,7 @@ EndOfSecond    SpineOrder.EndOfSecond
 
 | Host | Where | Slots | Consumers |
 |---|---|---|---|
-| `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty (delayed handoffs, auto-accept and the point-out timeout are sim steps, so a bare run performs them) | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`); the strip and TDLS change sets, the ASDE-X alert diff, auto-deleted aircraft and solo findings are discarded (the removal, the standing alert set and the evaluator's record already happened in the sim) |
+| `BareHost` | `Yaat.Sim` — `TickOneSecond`, the `RunKind.Test` run | all empty (delayed handoffs, auto-accept and the point-out timeout are sim steps, so a bare run performs them) | the engine's events (`WarningEmitted`, `TerminalEntryEmitted`, `PilotSpeechEmitted`, which carries the `PilotSpeechText`; a `PilotSpeech` terminal entry gets its `TerminalForRpo` line); the strip and TDLS change sets, the ASDE-X alert diff, auto-deleted aircraft and solo findings are discarded (the removal, the standing alert set and the evaluator's record already happened in the sim) |
 | `ReplayHost` | `Yaat.Sim` — the replay driver | pre-tick recorded actions, recorded actions after the second (a `RecordedActionPump`); the rest as bare | as bare |
 | `LiveRoomHost` | yaat-server — `RoomEngine.AdvanceLiveSecond` (the hosted loop, the harness, the headless soak room) | every `TickProcessor` body; tape-playback actions when in playback (a pump over the scenario's log at its `PlaybackCursor`); METAR issuance | the broadcasts; `Room.Weather` follows the world's profile |
 | `ReconstructionHost` | yaat-server — `RecordingManager.ReconstructViaServerTick` | the same `TickProcessor` bodies; the recorded log around the second (its own pump); no METAR | the broadcasts (suppressed) |

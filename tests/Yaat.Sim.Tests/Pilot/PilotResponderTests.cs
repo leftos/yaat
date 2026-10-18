@@ -1838,7 +1838,9 @@ public class PilotResponderTests
         Assert.DoesNotContain("seven eight four", result.Tts);
     }
 
-    // --- RouteRpoTransmission three-way branch ---
+    // --- RouteRpoTransmission branches ---
+
+    private static readonly PilotSpeechText RouteRpoSpeech = new("written", "speech");
 
     [Fact]
     public void RouteRpoTransmission_SoloMode_RoutesToWarnings_NotPilotSpeech()
@@ -1847,7 +1849,7 @@ public class PilotResponderTests
         // handles the RPO branch. In solo mode it falls through to warnings (the old default).
         AircraftState ac = MakeAircraft("AAL123");
 
-        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: true, rpoShowPilotSpeech: false, "speech", "warning");
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: true, rpoShowPilotSpeech: false, RouteRpoSpeech, "warning");
 
         Assert.Empty(ac.PendingPilotSpeech);
         Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
@@ -1858,7 +1860,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("AAL123");
 
-        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: false, rpoShowPilotSpeech: false, "speech", "warning");
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: false, rpoShowPilotSpeech: false, RouteRpoSpeech, "warning");
 
         Assert.Empty(ac.PendingPilotSpeech);
         Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
@@ -1869,9 +1871,11 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("AAL123");
 
-        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: false, rpoShowPilotSpeech: true, "speech", "warning");
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: false, rpoShowPilotSpeech: true, RouteRpoSpeech, "warning");
 
-        Assert.Equal("speech", Assert.Single(ac.PendingPilotSpeech));
+        PilotSpeechText queued = Assert.Single(ac.PendingPilotSpeech);
+        Assert.Equal("speech", queued.Tts);
+        Assert.Equal("written", queued.TerminalForRpo);
         Assert.Empty(ac.PendingWarnings);
     }
 
@@ -1883,7 +1887,7 @@ public class PilotResponderTests
         // back to warning text.
         AircraftState ac = MakeAircraft("AAL123");
 
-        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: true, rpoShowPilotSpeech: true, "speech", "warning");
+        PilotResponder.RouteRpoTransmission(ac, soloTrainingMode: true, rpoShowPilotSpeech: true, RouteRpoSpeech, "warning");
 
         Assert.Empty(ac.PendingPilotSpeech);
         Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
@@ -1892,14 +1896,16 @@ public class PilotResponderTests
     // --- RouteRpoSayReadback dual-output branch (A5-2) ---
 
     [Fact]
-    public void RouteRpoSayReadback_RpoShowsSpeech_UsesTtsForm()
+    public void RouteRpoSayReadback_RpoShowsSpeech_QueuesWrittenAndSpokenForms()
     {
         AircraftState ac = MakeAircraft("N294MG");
         var text = new PilotSpeechText("traffic in sight.", "november two nine four mike golf, traffic in sight.");
 
         PilotResponder.RouteRpoSayReadback(ac, soloTrainingMode: false, rpoShowPilotSpeech: true, text);
 
-        Assert.Equal("november two nine four mike golf, traffic in sight.", Assert.Single(ac.PendingPilotSpeech));
+        PilotSpeechText queued = Assert.Single(ac.PendingPilotSpeech);
+        Assert.Equal("november two nine four mike golf, traffic in sight.", queued.Tts);
+        Assert.Equal("traffic in sight.", queued.TerminalForRpo);
         Assert.Empty(ac.PendingPilotReadbacks);
     }
 

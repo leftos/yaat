@@ -574,7 +574,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **A branch on `x < 0` where `x` is zero on paper depends on the platform.** Positions on Linux and Windows drift apart by a few ulps over a taxi, so a distance that is a quantity minus itself (a stop placed on the aircraft) comes out `-7e-15` on one and `+7e-15` on the other, and CI on Linux goes red where Windows stays green. Keep such a quantity clearly signed (place the stop by its real offset), never compare it with zero; reproduce with a Linux run ([Linux runs](#linux-runs-ci-investigation-and-cross-platform-verification)).
 - **Pilot transmissions land in different lists depending on the `PhaseContext` flags, and the engine drains them every second.**
   `PilotResponder.RouteSoloOrRpoTransmission` writes `PendingPilotTransmissions` (solo, student on frequency), `PendingPilotSpeech` (RPO
-  with pilot speech shown) or `PendingWarnings` (RPO default — what a hand-built `PhaseContext` with the flags at their defaults gets).
+  with pilot speech shown; a `PilotSpeechText`, so a test asserts on `.TerminalForRpo`, the line the terminal shows) or `PendingWarnings` (RPO default — what a hand-built `PhaseContext` with the flags at their defaults gets).
   A bare phase-tick test therefore asserts on `PendingWarnings`, never `PendingNotifications`. At engine level the spine drains
   `PendingWarnings`/`PendingNotifications` inside `TickOneSecond`/`ReplayOneSecond`, so a per-second scan of the aircraft's lists sees
   nothing — subscribe to `engine.WarningEmitted` (and `TerminalEntryEmitted`) before the first tick instead. `Issue429FatApproachesTests`

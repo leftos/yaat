@@ -1396,15 +1396,16 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Routes a sim-initiated pilot transmission. Three-way:
+    /// Routes a sim-initiated pilot transmission. Two-way:
     /// <list type="bullet">
     ///   <item><description><see cref="AircraftState.PendingPilotSpeech"/> when in RPO mode (i.e.
     ///   <paramref name="soloTrainingMode"/> is false) and the
-    ///   <c>RpoShowPilotSpeech</c> setting is on — broadcast as <c>PilotSpeech</c> kind (green)
-    ///   with the spelled-out spoken form.</description></item>
+    ///   <c>RpoShowPilotSpeech</c> setting is on — the whole <paramref name="text"/> is queued and
+    ///   broadcast as <c>PilotSpeech</c> kind (green) with its written
+    ///   <see cref="PilotSpeechText.TerminalForRpo"/> form.</description></item>
     ///   <item><description><see cref="AircraftState.PendingWarnings"/> otherwise — broadcast as
-    ///   <c>Warning</c> kind (orange) with the existing terse controller-debug text. This is the
-    ///   default when neither toggle is set, preserving prior behavior.</description></item>
+    ///   <c>Warning</c> kind (orange) with the terse controller-debug <paramref name="warningText"/>.
+    ///   This is the default when neither toggle is set.</description></item>
     /// </list>
     /// Solo-mode pilot-speech routing (into <see cref="AircraftState.PendingPilotTransmissions"/>) is
     /// the caller's responsibility — branch on <paramref name="soloTrainingMode"/> first if the
@@ -1414,13 +1415,13 @@ public static class PilotResponder
         AircraftState aircraft,
         bool soloTrainingMode,
         bool rpoShowPilotSpeech,
-        string pilotSpeechText,
+        PilotSpeechText text,
         string warningText
     )
     {
         if (!soloTrainingMode && rpoShowPilotSpeech)
         {
-            aircraft.PendingPilotSpeech.Add(pilotSpeechText);
+            aircraft.PendingPilotSpeech.Add(text);
         }
         else
         {
@@ -1429,17 +1430,18 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// <see cref="PilotSpeechText"/> overload of <see cref="RouteRpoTransmission(AircraftState, bool, bool, string, string)"/>
-    /// for sim-initiated transmissions whose terminal form differs between the solo student (who must
-    /// not see a lead/target callsign diagnostic) and the RPO/instructor. RPO + <c>RpoShowPilotSpeech</c>
-    /// fires the spoken green form; the solo warning uses the callsign-free <see cref="PilotSpeechText.Terminal"/>;
-    /// the RPO warning uses <see cref="PilotSpeechText.TerminalForRpo"/>.
+    /// Overload of <see cref="RouteRpoTransmission(AircraftState, bool, bool, PilotSpeechText, string)"/>
+    /// for sim-initiated transmissions whose warning text is the pilot line itself, and whose terminal form
+    /// differs between the solo student (who must not see a lead/target callsign diagnostic) and the
+    /// RPO/instructor. RPO + <c>RpoShowPilotSpeech</c> queues the whole <paramref name="text"/> (shown green as
+    /// <see cref="PilotSpeechText.TerminalForRpo"/>); the solo warning uses the callsign-free
+    /// <see cref="PilotSpeechText.Terminal"/>; the RPO warning uses <see cref="PilotSpeechText.TerminalForRpo"/>.
     /// </summary>
     public static void RouteRpoTransmission(AircraftState aircraft, bool soloTrainingMode, bool rpoShowPilotSpeech, PilotSpeechText text)
     {
         if (!soloTrainingMode && rpoShowPilotSpeech)
         {
-            aircraft.PendingPilotSpeech.Add(text.Tts);
+            aircraft.PendingPilotSpeech.Add(text);
         }
         else if (soloTrainingMode)
         {
@@ -1463,8 +1465,9 @@ public static class PilotResponder
     ///   and TTS use the spoken pilot line.</description></item>
     ///   <item><description><b>Solo + irrelevant position</b>: terminal warning only (no TTS) —
     ///   the student isn't listening on this frequency.</description></item>
-    ///   <item><description><b>RPO with show-pilot-speech</b>: broadcast as
-    ///   <c>PilotSpeech</c> kind (green) with the TTS form.</description></item>
+    ///   <item><description><b>RPO with show-pilot-speech</b>: queue <paramref name="text"/> into
+    ///   <see cref="AircraftState.PendingPilotSpeech"/>, broadcast as <c>PilotSpeech</c> kind (green)
+    ///   with its written <see cref="PilotSpeechText.TerminalForRpo"/> form.</description></item>
     ///   <item><description><b>RPO default</b>: terminal warning with the readable form.</description></item>
     /// </list>
     /// </summary>
@@ -1500,7 +1503,7 @@ public static class PilotResponder
 
         if (rpoShowPilotSpeech)
         {
-            aircraft.PendingPilotSpeech.Add(text.Tts);
+            aircraft.PendingPilotSpeech.Add(text);
         }
         else
         {
@@ -1512,8 +1515,9 @@ public static class PilotResponder
     /// Routes a sim-initiated pilot readback for visual-acquisition events (RTIS / RFIS)
     /// onto the SAY channel rather than the orange Warning channel. Takes a
     /// <see cref="PilotSpeechText"/> whose terminal and TTS forms were built independently
-    /// (not by regex-compacting the spoken string). RPO mode + <c>RpoShowPilotSpeech</c> fires
-    /// the spelled-out green <see cref="AircraftState.PendingPilotSpeech"/> (TTS form); solo mode
+    /// (not by regex-compacting the spoken string). RPO mode + <c>RpoShowPilotSpeech</c> queues
+    /// the whole text into <see cref="AircraftState.PendingPilotSpeech"/> (shown green as its written
+    /// <see cref="PilotSpeechText.TerminalForRpo"/> form); solo mode
     /// queues both forms via <see cref="QueueSoloPilotReadback(AircraftState, PilotSpeechText, string)"/>;
     /// otherwise the terse <see cref="AircraftState.PendingPilotReadbacks"/> (terminal form) which
     /// the server broadcasts as kind <c>SayReadback</c> (the kind starts with "Say" so the client
@@ -1524,7 +1528,7 @@ public static class PilotResponder
     {
         if (!soloTrainingMode && rpoShowPilotSpeech)
         {
-            aircraft.PendingPilotSpeech.Add(text.Tts);
+            aircraft.PendingPilotSpeech.Add(text);
         }
         else if (soloTrainingMode)
         {

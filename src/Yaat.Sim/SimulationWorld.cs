@@ -405,16 +405,16 @@ public sealed class SimulationWorld
         return result;
     }
 
-    public List<(string Callsign, string PilotSpeech)> DrainAllPilotSpeech()
+    public List<(string Callsign, PilotSpeechText PilotSpeech)> DrainAllPilotSpeech()
     {
-        var result = new List<(string, string)>();
+        var result = new List<(string, PilotSpeechText)>();
         lock (_lock)
         {
             foreach (AircraftState ac in _aircraft)
             {
                 if (ac.PendingPilotSpeech.Count > 0)
                 {
-                    foreach (string s in ac.PendingPilotSpeech)
+                    foreach (PilotSpeechText s in ac.PendingPilotSpeech)
                     {
                         result.Add((ac.Callsign, s));
                     }
