@@ -3920,6 +3920,7 @@ public static partial class GroundCommandHandler
         {
             TugFoulsTaxiwayWarning foul => $"({FootprintPartName(foul.Part)} will foul taxiway {foul.Taxiway}, coordinate with ground)",
             TugLongPushWarning longPush => $"(taxiway {longPush.Taxiway} is {longPush.DistanceFt:F0} ft away; long push)",
+            TugPassesNeighbourWarning passes => $"(holds short of {passes.Callsign})",
             _ => throw new InvalidOperationException($"No push readback note for a {warning.Kind} warning"),
         };
 

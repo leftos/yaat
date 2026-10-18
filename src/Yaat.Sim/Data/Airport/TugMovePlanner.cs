@@ -399,12 +399,14 @@ public enum TugPlanWarningKind
 
     /// <summary>A push onto a taxiway tows a long way across the ramp before it lines up on it.</summary>
     LongPushToTaxiway,
+
+    /// <summary>A plain push's path passes a parked neighbour inside the clearance floor the sweep holds it to.</summary>
+    PassesParkedNeighbour,
 }
 
 /// <summary>Something the plan could not avoid, or that the RPO may not have meant, as data; the terminal text is formatted from it.</summary>
 /// <param name="Kind">What it is about.</param>
-/// <param name="Taxiway">The taxiway it concerns.</param>
-public abstract record TugPlanWarning(TugPlanWarningKind Kind, string Taxiway);
+public abstract record TugPlanWarning(TugPlanWarningKind Kind);
 
 /// <summary>
 /// A push kept out of the movement area (a spot, stand or node goal) that no candidate could keep outside a taxiway's
@@ -414,7 +416,7 @@ public abstract record TugPlanWarning(TugPlanWarningKind Kind, string Taxiway);
 /// <param name="Part">The part of the aircraft that reaches in deepest.</param>
 /// <param name="PeakPenetrationFt">How far inside the object-free half-width that part reaches, feet.</param>
 public sealed record TugFoulsTaxiwayWarning(string Taxiway, TugFootprintPart Part, double PeakPenetrationFt)
-    : TugPlanWarning(TugPlanWarningKind.FoulsTaxiway, Taxiway);
+    : TugPlanWarning(TugPlanWarningKind.FoulsTaxiway);
 
 /// <summary>
 /// A push onto a taxiway that tows more than <see cref="TugMovePlanner.LongPushToTaxiwayFt"/> before the aircraft is
@@ -422,7 +424,16 @@ public sealed record TugFoulsTaxiwayWarning(string Taxiway, TugFootprintPart Par
 /// </summary>
 /// <param name="Taxiway">The taxiway pushed onto.</param>
 /// <param name="DistanceFt">The tow before the aircraft is lined up, feet, rounded to the nearest 50.</param>
-public sealed record TugLongPushWarning(string Taxiway, double DistanceFt) : TugPlanWarning(TugPlanWarningKind.LongPushToTaxiway, Taxiway);
+public sealed record TugLongPushWarning(string Taxiway, double DistanceFt) : TugPlanWarning(TugPlanWarningKind.LongPushToTaxiway);
+
+/// <summary>
+/// A plain push whose path passes a parked neighbour inside the sweep floor the planner holds a tow to: the push is
+/// still made — the tug creeps up and stops short of the neighbour (<see cref="GroundConflictDetector"/>) — but the RPO
+/// is told how close it will pass.
+/// </summary>
+/// <param name="Callsign">The neighbour's callsign.</param>
+/// <param name="ClosestFt">The closest the two outlines come over the planned path, feet; 0 when they overlap.</param>
+public sealed record TugPassesNeighbourWarning(string Callsign, double ClosestFt) : TugPlanWarning(TugPlanWarningKind.PassesParkedNeighbour);
 
 /// <summary>A planned tug move: every move with its simulated path, where the aircraft ends up, and what to tell the RPO.</summary>
 /// <param name="Moves">The moves in order; each trace carries its <see cref="TugMove"/>.</param>
@@ -1679,6 +1690,11 @@ internal sealed class TugPlanBuilder
             NoteLongPush(goal, best);
         }
 
+        if (!_request.Forced && (goal.Shape != TugGoalShape.Faced))
+        {
+            NotePassedNeighbours(best);
+        }
+
         if (_request.Forced)
         {
             NoteForcedOverrides(goal, best, offStand);
@@ -1779,6 +1795,43 @@ internal sealed class TugPlanBuilder
             {
                 AddOverride(_overrides, new TugForcedPassesNeighbour(neighbour.Callsign, closestFt));
             }
+        }
+    }
+
+    /// <summary>
+    /// Every parked neighbour the kept candidate passes inside the sweep floor a plain tow is held to
+    /// (<see cref="NeighbourPass"/>): the push is still made — the tug creeps up and stops short of the neighbour — but
+    /// the RPO is told how close it will pass. A faced goal is left out: <see cref="NeighbourRefusal"/> has already
+    /// refused or dropped the candidates that swing into a neighbour there.
+    /// </summary>
+    private void NotePassedNeighbours(TugCandidate kept)
+    {
+        foreach (TugParkedNeighbour neighbour in _request.ParkedNeighbours)
+        {
+            if (NeighbourPass(kept.Traces, neighbour) is { KeepsFloor: false, ClosestFt: double closestFt })
+            {
+                AddPassedNeighbour(_warnings, new TugPassesNeighbourWarning(neighbour.Callsign, closestFt));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records a parked-neighbour warning once per callsign, at the closest any goal of the plan passes it — the way
+    /// <see cref="AddOverride(List{TugForcedOverride}, TugForcedOverride)"/> keeps a forced note, so a <c>PUSHM</c> whose
+    /// goals each sweep the same neighbour notes it once.
+    /// </summary>
+    /// <param name="warnings">The warnings so far, in the order found; updated in place.</param>
+    /// <param name="warning">The warning to record.</param>
+    internal static void AddPassedNeighbour(List<TugPlanWarning> warnings, TugPassesNeighbourWarning warning)
+    {
+        int held = warnings.FindIndex(w => (w is TugPassesNeighbourWarning other) && (other.Callsign == warning.Callsign));
+        if (held < 0)
+        {
+            warnings.Add(warning);
+        }
+        else if (warning.ClosestFt < ((TugPassesNeighbourWarning)warnings[held]).ClosestFt)
+        {
+            warnings[held] = warning;
         }
     }
 

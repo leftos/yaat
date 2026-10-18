@@ -827,6 +827,8 @@ The design group of each taxiway is estimated from the airport's widest runway a
 
 When no path stays clear the push is still flown, on the path that reaches in least, and the readback says so: `(right wing will foul taxiway A, coordinate with ground)`. A `PUSH <taxiway>`, a bare `PUSH` and `PUSH FACE` are not held to this.
 
+A plain push (a bare `PUSH`, `PUSH <taxiway>`, `PUSH FACE`/`TAIL` or `PUSHM`, not a push to a spot, gate or node that has a facing goal, and not `PUSHF`/`PUSHMF`) that is planned to pass inside a parked neighbour's clearance, or to overlap it, is still accepted: the tug stops short of the neighbour, and the RPO readback adds `(holds short of SKW3398)` once per such neighbour. The pilot's readback is unchanged.
+
 **What the readback says.** Each form reads back what the tug will do, and the pilot says the same sentence (without the parenthesised notes):
 
 | Command | Readback |

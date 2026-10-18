@@ -148,7 +148,7 @@ It is built by `TugParkedNeighbours.Build` over `NeighbourCandidate`s — the se
 
 A fouling candidate takes `TugPathRefusal(ParkedNeighbour, "Unable, the move to spot 5A would swing into SKW3398 at D1")`, ordered after `MovementArea`; `Choose` picks the best clearing candidate, and with none the refusal is what the RPO sees. Only faced goals (`TugGoalShape.Faced`: spot, stand, node-with-facing, `PUSHM` chains of them) are swept — they are the ones with a choice of template.
 
-`Clear`/`StraightBackTo`/`TaxiwayLine`/`Facing` (a bare `PUSH`, `PUSH <twy>`) keep the detector's creep-and-stop below: a bare push has one shape, and stopping short of the neighbour with it shown as the yield target is the documented outcome (OAK 25/26).
+`Clear`/`StraightBackTo`/`TaxiwayLine`/`Facing` (a bare `PUSH`, `PUSH <twy>`) keep the detector's creep-and-stop below: a bare push has one shape, and stopping short of the neighbour with it shown as the yield target is the documented outcome (OAK 25/26). The push is still accepted, and the RPO readback says so: `TugMovePlanner.NotePassedNeighbours` adds a `(holds short of <callsign>)` note for each neighbour the kept candidate passes inside the floor or overlaps (see the notes table).
 
 **When a neighbour dropped a candidate** (a faced goal off a stand, not a mid-push re-plan), the planner searches further before refusing, in pools tried in order and ranked by the usual keys.
 
@@ -442,6 +442,7 @@ The stand-vs-surface rule is [phases.md](../phases.md)'s: only a stand parks. `H
 | `(<part> will foul taxiway <X>, coordinate with ground)` | `TugFoulsTaxiwayWarning` | No candidate for the spot/stand/node push kept the outline outside X's object-free area; the plan flown reaches in least, and `<part>` (nose, tail, left wing, right wing) reaches in deepest. |
 | `(taxiway <X> is <n> ft away; long push)` | `TugLongPushWarning` | `PUSH <X> …` tows more than 500 ft before the aircraft is lined up on X; `<n>` is that tow, rounded to 50 ft. Accepted — the RPO may mean it — but worth checking for a mis-typed taxiway. |
 | `(<facing> is <n> ft away; facing only)` | `FacingTaxiwayIsFar` | The facing taxiway's junction lies more than 1,500 ft from where the push ends, so the facing only chose which way along X the nose points; `<n>` rounded to 50 ft. |
+| `(holds short of <callsign>)` | `TugPassesNeighbourWarning` (`TugPlanWarningKind.PassesParkedNeighbour`) | A plain push (bare `PUSH`, `PUSH <twy>`, `PUSHM`, `PUSH FACE`/`TAIL` and the mid-push amendment; not a faced goal, not `PUSHF`/`PUSHMF`) whose planned path passes inside a parked neighbour's floor or overlaps it. Accepted: the conflict detector holds the tug at the floor. One note per callsign (`AddPassedNeighbour` keeps the closest pass); the pilot's readback is unchanged. `PUSHF`/`PUSHMF` keep their `(forced: passes N ft from X)` / `(forced: overlaps X)` and gain no plain note. |
 | `(<stand> is a taxi-out stand)` | `ParkedStandDeparture` (`TaxiOutStandNote`) | A `PUSH` or `PUSHM` off a stand whose departure is `TaxiOut`; it follows the readback's own note and comes before the plan's notes. The push is made; `PUSHF` and `PUSHMF` carry no such note. |
 | `(<stand> normally needs a push first)` | `ParkedStandDeparture` (`GroundCommandHandler.PushBackStandTaxiNote`, added by `WithResponseNotes`) | A live `TAXI` or `TAXIAUTO` of a jet or turboprop off a stand whose departure is `PushBack`; it follows the `[warnings]` and `(cross X)`. The taxi is made, never refused, and the note is never spoken. A scenario-scripted taxi, a piston or helicopter, and a `TaxiOut`, `Either` or unnamed stand carry none. |
 
@@ -505,12 +506,12 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 **Premises a brief must not assume.**
 
 - **A plan exists.** "Unable, cannot line up on X from here" is a legal outcome for a spot or lane goal; a stand whose lead-in does not line up with its lane needs T0, T4 or T5, or has no plan.
-- **The planner routes round a neighbour.** Only faced goals are swept at plan time (the plan-time sweep under [The planner](#the-planner--tugmoveplanner)); bare `PUSH`, `PUSH <twy>` and `PUSH FACE` stop short of the neighbour at fly time with it shown as the yield target.
+- **The planner routes round a neighbour.** Only faced goals are swept at plan time (the plan-time sweep under [The planner](#the-planner--tugmoveplanner)); bare `PUSH`, `PUSH <twy>` and `PUSH FACE` stop short of the neighbour at fly time with it shown as the yield target, and their readback carries `(holds short of <callsign>)`.
 - **`PUSH <X> <facing-twy>` tows to the junction.** It stops one routine radius plus half a fuselage short of a near junction, and lined up at the exit when the junction is farther (rule 7).
 - **`PUSH <X>` ends lined up on X.** Across (≥ 45° crossing) stops on the centreline across it; a crossing just over 45° ends across the lane; a filleted end stops past the taxiway's end node on the stand heading, not lined up on X (rule 6).
 - **Spots abeam on parallel sub-lanes are reached without a reversal** (SFO 6A/6B always reverse; their two best plans differ by 1 ft).
 - **The fuselage may cross any taxiway behind.** The flown-path check refuses movement-area pavement outside the 300 ft behind-stand exemption and the leaving/arriving exemption.
-- **A plain plan's "as stored" means clear of neighbours.** For a `PUSH <twy>` goal `TugMovePlanner.NeighbourRefusal` sweeps no neighbour, so a plain acceptance says nothing about parked aircraft: cross-check a taxilane target with the forced plan's `TugForcedPassesNeighbour` note, `PushTargetLiveCheck` or a sim run.
+- **A plain plan's "as stored" is not a clearance check.** For a `PUSH <twy>` goal `TugMovePlanner.NeighbourRefusal` sweeps no neighbour, so a plain acceptance never refuses for parked aircraft; a neighbour the path passes inside the floor is flagged by the `(holds short of <callsign>)` note (`NotePassedNeighbours`), and a taxilane target can also be cross-checked with the forced plan's `TugForcedPassesNeighbour` note, `PushTargetLiveCheck` or a sim run.
 - **The layout knows the ramp's real limits.** Jet bridges, terminal faces and pavement polygons are not in it; a push-off sweep toward the terminal is unchecked.
 
 **Refusal texts**, as the RPO sees them (pin them verbatim in a test):

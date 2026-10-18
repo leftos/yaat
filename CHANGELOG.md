@@ -18,6 +18,7 @@
 
 - Report field in sight is a quick command for IFR aircraft holding or going around too, and gives way to Cleared visual once the pilot reports the field.
 - A jet or turboprop parked at a push-back stand asks "request pushback" instead of calling ready to taxi; `PUSH` or `TAXI` answers it.
+- A `PUSH` whose path passes too close to a parked aircraft is still accepted, and its readback warns "(holds short of {callsign})".
 - The right-click menu names the pointed quick-command icon in the line under its title, with no gap above the icons, and Command… and Note… follow the icons.
 - Release (HFR) and Check release window are the first icons in the menu's quick-command strip, also on a delayed spawn's menu.
 - Give way to… and Follow… open live flyouts of nearby ground traffic, refreshed each second; Follow adds a filter, and an empty list says why.

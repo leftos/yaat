@@ -4,6 +4,8 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -13,11 +15,15 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// <summary>
 /// What the tug planner could not avoid, or the RPO may not have meant, reaches the RPO as parentheticals on the push
 /// readback — the command's own response text — and never the pilot's readback, which is the same sentence without
-/// them. SFO, a B738, no neighbours.
+/// them. The SFO cases fly a B738 with no neighbours; the OAK cases stage a parked neighbour on the push line.
 /// </summary>
 public partial class PushReadbackNotesTests(ITestOutputHelper output)
 {
     private const string AircraftType = "B738";
+    private const string NeighbourCallsign = "SWA2436";
+
+    /// <summary>The RPO note a plain push that breaks a parked neighbour's floor carries.</summary>
+    private const string NeighbourNote = "(holds short of SWA2436)";
 
     /// <summary>
     /// F3 <c>PUSH A F1</c>: A's line lies ~1,285 ft across the ramp from F3 and the A/F1 junction far along A beyond it,
@@ -183,6 +189,139 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
         }
 
         Assert.Contains("(OLD1 is a taxi-out stand)", pushed.Readback);
+    }
+
+    /// <summary>
+    /// OAK gate 25, <c>PUSH TE</c>, with a B738 parked crossways on the push line 230 ft behind the stand: the push is
+    /// accepted (the tug creeps up and stops short of the neighbour) and the RPO is told it will hold short, once. The
+    /// pilot says none of it.
+    /// </summary>
+    [Fact]
+    public void PushTE_FromGate25_PastANeighbourOnThePushLine_ReadbackNotesTheHoldShort_ThePilotDoesNotSayIt()
+    {
+        if (PushPastTheNeighbour("PUSH TE", rightFt: 0.0) is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.Contains(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(pushed.Readback, NeighbourCallsign));
+        AssertNotSpoken(pushed.Spoken, NeighbourCallsign, "holds short");
+    }
+
+    /// <summary>
+    /// The same push with the neighbour only just inside its clearance floor: the planned path passes it, a few feet
+    /// clear rather than overlapping (the planner pins that side beside <c>TugMovePlannerTests</c>), and the RPO reads the
+    /// same hold-short note.
+    /// </summary>
+    [Fact]
+    public void PushTE_FromGate25_PassingANeighbourInsideItsFloor_ReadbackNotesTheHoldShort()
+    {
+        if (PushPastTheNeighbour("PUSH TE", rightFt: 185.0) is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.Contains(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(pushed.Readback, NeighbourCallsign));
+    }
+
+    /// <summary>
+    /// The same push with the neighbour 260 ft clear of the line: about 347 ft from the aircraft, inside the 400 ft
+    /// <see cref="TugParkedNeighbours.RangeFt"/> the planner is fed within, so it really does see the neighbour — and the
+    /// plan keeps its floor, so there is no note.
+    /// </summary>
+    [Fact]
+    public void PushTE_FromGate25_WithANeighbourClearOfThePushLine_ReadbackCarriesNoNote()
+    {
+        if (PushPastTheNeighbour("PUSH TE", rightFt: 260.0) is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.DoesNotContain(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
+        Assert.DoesNotContain(NeighbourCallsign, pushed.Readback, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The forced form: <c>PUSHF TE</c> past the same neighbour says it once, as its forced note, and never as the plain
+    /// note — the two would say the same thing twice.
+    /// </summary>
+    [Fact]
+    public void PushfTE_FromGate25_PastANeighbourOnThePushLine_ReadbackCarriesOneForcedNote()
+    {
+        if (PushPastTheNeighbour("PUSHF TE", rightFt: 0.0) is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.Contains("(forced: ", pushed.Readback, StringComparison.Ordinal);
+        Assert.DoesNotContain(NeighbourNote, pushed.Readback, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(pushed.Readback, NeighbourCallsign));
+        string beforeForced = pushed.Readback.Split("(forced: ", StringSplitOptions.None)[0];
+        Assert.DoesNotContain(NeighbourCallsign, beforeForced, StringComparison.Ordinal);
+        AssertNotSpoken(pushed.Spoken, NeighbourCallsign, "forced", "holds short");
+    }
+
+    /// <summary>
+    /// Parks a B738 on OAK gate 25, parks <see cref="NeighbourCallsign"/> crossways on its push line 230 ft behind it
+    /// (<paramref name="rightFt"/> clear of the line), sends <paramref name="command"/> (which must be accepted), and
+    /// returns its readback and the pilot's; null when OAK's layout is missing.
+    /// </summary>
+    private (string Readback, PilotSpeechText? Spoken)? PushPastTheNeighbour(string command, double rightFt)
+    {
+        if (BuildOak(output) is not { } ground)
+        {
+            return null;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "N123AB", AircraftType, "25");
+        aircraft.Ground.ParkingSpot = "25";
+        SpawnAcrossThePushLine(ground, aircraft, NeighbourCallsign, AircraftType, behindFt: 230.0, rightFt: rightFt);
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
+        Assert.True(result.Success, $"{command} off gate 25 was refused: {result.Message}");
+        string readback = Assert.IsType<string>(result.Message);
+        PilotSpeechText? spoken = PilotResponder.BuildReadbackAsApplied(
+            CommandParser.ParseCompound(command).Value!,
+            result,
+            aircraft,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
+        output.WriteLine($"{command} off gate 25: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\"");
+        return (readback, spoken);
+    }
+
+    /// <summary>
+    /// Parks <paramref name="type"/> crossways on <paramref name="pusher"/>'s push line, <paramref name="behindFt"/>
+    /// behind it and <paramref name="rightFt"/> clear of the line: nose 90° off the push, so its fuselage lies across it.
+    /// </summary>
+    private static void SpawnAcrossThePushLine(SfoGround ground, AircraftState pusher, string callsign, string type, double behindFt, double rightFt)
+    {
+        double pushDeg = new TrueHeading(pusher.TrueHeading.Degrees + 180.0).Degrees;
+        LatLon behind = GeoMath.ProjectPoint(pusher.Position, new TrueHeading(pushDeg), behindFt / GeoMath.FeetPerNm);
+        var aircraft = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = type,
+            Position = GeoMath.ProjectPoint(behind, new TrueHeading(pushDeg + 90.0), rightFt / GeoMath.FeetPerNm),
+            TrueHeading = new TrueHeading(pushDeg + 90.0),
+            Altitude = 0,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = ground.Layout.AirportId,
+                Destination = "KLAX",
+                FlightRules = "IFR",
+                Altitude = PlannedAltitude.Ifr(30000),
+            },
+            Phases = new PhaseList(),
+        };
+        aircraft.Phases.Add(new AtParkingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Ground.Layout = ground.Layout;
+        ground.Engine.World.AddAircraft(aircraft);
     }
 
     /// <summary>

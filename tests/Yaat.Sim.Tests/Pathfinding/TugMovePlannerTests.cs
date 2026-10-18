@@ -1297,6 +1297,7 @@ public class TugMovePlannerTests
 
         TugPlan plan = PlanOrFail(layout, request);
 
+        Assert.Empty(plan.Warnings.OfType<TugPassesNeighbourWarning>());
         double closestFt = ClosestSweptClearanceFt(plan.Moves, request, neighbour);
         double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
         double laneTurnDeg = new TrueHeading(request.Start.NoseTrueDeg).SignedAngleTo(new TrueHeading(plan.End.NoseTrueDeg));
@@ -1391,6 +1392,16 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
+    /// A point <paramref name="behindFt"/> behind the stand along the push line, then <paramref name="rightFt"/> clear of
+    /// it: a parked neighbour's position relative to the push.
+    /// </summary>
+    private static LatLon ClearOfPushLine(GroundNode stand, double pushDeg, double behindFt, double rightFt)
+    {
+        LatLon behind = GeoMath.ProjectPoint(stand.Position, new TrueHeading(pushDeg), behindFt / GeoMath.FeetPerNm);
+        return GeoMath.ProjectPoint(behind, new TrueHeading(pushDeg + 90.0), rightFt / GeoMath.FeetPerNm);
+    }
+
+    /// <summary>
     /// The closest any sample of the plan's flown path comes to the neighbour's outline, feet, each sample's outline carrying
     /// the tug's lead ahead of the nose on a pull — the outline the planner's neighbour sweep measures.
     /// </summary>
@@ -1423,11 +1434,12 @@ public class TugMovePlannerTests
     /// The split the plan-time neighbour sweep is drawn on: only a goal with templates to choose between is judged by
     /// it. A bare <c>PUSH TE</c> off OAK gate 25 with a B738 parked crossways on the push line is one shape and one
     /// shape only, so it is planned as it always was and the tug creeps up and stops short of the neighbour — the
-    /// behaviour <c>GroundConflictDetector</c> owns. The plan really does sweep through the neighbour, which is what
-    /// makes this a pin and not a vacuous pass.
+    /// behaviour <c>GroundConflictDetector</c> owns — and the plan carries a <see cref="TugPassesNeighbourWarning"/>
+    /// naming it, which the RPO reads as a hold-short note. The plan really does sweep through the neighbour, which is
+    /// what makes this a pin and not a vacuous pass.
     /// </summary>
     [Fact]
-    public void BarePushToTaxiway_WithANeighbourOnThePushLine_IsStillPlanned()
+    public void BarePushToTaxiway_WithANeighbourOnThePushLine_IsStillPlannedAndNotesTheNeighbour()
     {
         if (LoadOak() is not { } layout)
         {
@@ -1452,6 +1464,142 @@ public class TugMovePlannerTests
         double closestFt = ClosestSweptClearanceFt(plan.Moves, request, neighbour);
         _output.WriteLine($"the planned push sweeps to {closestFt:F1} ft of {neighbour.Describe()} and is still planned");
         Assert.True(closestFt <= 0.0, $"test setup: the planned push passes {closestFt:F1} ft clear of the neighbour, so it pins nothing");
+
+        TugPassesNeighbourWarning warning = Assert.Single(plan.Warnings.OfType<TugPassesNeighbourWarning>());
+        Assert.Equal("PRK1", warning.Callsign);
+        Assert.Equal(TugPlanWarningKind.PassesParkedNeighbour, warning.Kind);
+        Assert.True(warning.ClosestFt <= 0.0, $"the warning passes {warning.ClosestFt:F1} ft from the neighbour the plan sweeps through");
+    }
+
+    /// <summary>
+    /// The same push with the neighbour moved 260 ft clear of the push line: the plan keeps the neighbour's sweep floor,
+    /// so there is nothing to tell the RPO.
+    /// </summary>
+    [Fact]
+    public void BarePushToTaxiway_WithANeighbourClearOfThePushLine_CarriesNoNeighbourWarning()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "25");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 25");
+        double pushDeg = new TrueHeading(stand.TrueHeading!.Value.Degrees + 180.0).Degrees;
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "PRK2",
+            Position = ClearOfPushLine(stand, pushDeg, behindFt: 230.0, rightFt: 260.0),
+            TrueHeadingDeg = new TrueHeading(pushDeg + 90.0).Degrees,
+            Footprint = AircraftFootprint.FromType(Narrowbody),
+            StandName = null,
+        };
+        TugRequest request = StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")) with { ParkedNeighbours = [neighbour] };
+
+        TugPlan plan = PlanOrFail(layout, request);
+
+        double closestFt = ClosestSweptClearanceFt(plan.Moves, request, neighbour);
+        _output.WriteLine($"the planned push sweeps to {closestFt:F1} ft of {neighbour.Describe()}, clear of its floor");
+        Assert.True(closestFt > 25.0, $"test setup: the planned push passes {closestFt:F1} ft of the neighbour, inside the floor it pins");
+        Assert.Empty(plan.Warnings.OfType<TugPassesNeighbourWarning>());
+    }
+
+    /// <summary>
+    /// The forced form of the first case: the tow still sweeps through the neighbour, so the forced plan says so once, as
+    /// a forced override — the plain note would say the same thing a second time.
+    /// </summary>
+    [Fact]
+    public void BarePushToTaxiway_ForcedPastANeighbour_CarriesOnlyItsForcedNote()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "25");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 25");
+        double pushDeg = new TrueHeading(stand.TrueHeading!.Value.Degrees + 180.0).Degrees;
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "PRK1",
+            Position = ClearOfPushLine(stand, pushDeg, behindFt: 230.0, rightFt: 0.0),
+            TrueHeadingDeg = new TrueHeading(pushDeg + 90.0).Degrees,
+            Footprint = AircraftFootprint.FromType(Narrowbody),
+            StandName = null,
+        };
+        TugRequest request = StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")) with { ParkedNeighbours = [neighbour], Forced = true };
+
+        TugPlan plan = PlanOrFail(layout, request);
+
+        double closestFt = ClosestSweptClearanceFt(plan.Moves, request, neighbour);
+        _output.WriteLine(
+            $"the forced push sweeps to {closestFt:F1} ft of {neighbour.Describe()}; overrides {string.Join(", ", plan.ForcedOverrides)}"
+        );
+        Assert.True(closestFt <= 0.0, $"test setup: the forced push passes {closestFt:F1} ft clear of the neighbour, so it pins nothing");
+        Assert.Empty(plan.Warnings.OfType<TugPassesNeighbourWarning>());
+        TugForcedPassesNeighbour forced = Assert.Single(plan.ForcedOverrides.OfType<TugForcedPassesNeighbour>());
+        Assert.Equal("PRK1", forced.Callsign);
+    }
+
+    /// <summary>
+    /// The pass side of the same staging: the neighbour sits only just inside its clearance floor, so the planned path
+    /// passes it rather than overlapping it. The plan is still made, and the warning names the neighbour with the closest
+    /// approach.
+    /// </summary>
+    [Fact]
+    public void BarePushToTaxiway_WithANeighbourJustInsideTheFloor_IsStillPlannedAndNotesAPass()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "25");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 25");
+        double pushDeg = new TrueHeading(stand.TrueHeading!.Value.Degrees + 180.0).Degrees;
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "PRK1",
+            Position = ClearOfPushLine(stand, pushDeg, behindFt: 230.0, rightFt: 185.0),
+            TrueHeadingDeg = new TrueHeading(pushDeg + 90.0).Degrees,
+            Footprint = AircraftFootprint.FromType(Narrowbody),
+            StandName = null,
+        };
+        TugRequest request = StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")) with { ParkedNeighbours = [neighbour] };
+
+        TugPlan plan = PlanOrFail(layout, request);
+
+        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
+        TugPassesNeighbourWarning warning = Assert.Single(plan.Warnings.OfType<TugPassesNeighbourWarning>());
+        _output.WriteLine($"the planned push passes {warning.ClosestFt:F1} ft from {neighbour.Describe()}, floor {floorFt:F1} ft");
+        Assert.True(warning.ClosestFt > 0.0, $"test setup: the warning is an overlap ({warning.ClosestFt:F1} ft), not a pass");
+        Assert.True(
+            warning.ClosestFt < floorFt,
+            $"test setup: the pass at {warning.ClosestFt:F1} ft keeps the {floorFt:F1} ft floor, so nothing warns"
+        );
+    }
+
+    /// <summary>
+    /// A parked neighbour is noted once however many goals of the plan pass it, at the closest any comes; another
+    /// callsign and a taxiway warning between them are kept.
+    /// </summary>
+    [Fact]
+    public void Warnings_ANeighbourIsNotedOnceAtTheClosest()
+    {
+        List<TugPlanWarning> warnings = [];
+        TugPlanBuilder.AddPassedNeighbour(warnings, new TugPassesNeighbourWarning("PRK1", 6.0));
+        warnings.Add(new TugLongPushWarning("A", 1300.0));
+        TugPlanBuilder.AddPassedNeighbour(warnings, new TugPassesNeighbourWarning("PRK1", 2.5));
+        TugPlanBuilder.AddPassedNeighbour(warnings, new TugPassesNeighbourWarning("PRK1", 4.0));
+        TugPlanBuilder.AddPassedNeighbour(warnings, new TugPassesNeighbourWarning("PRK2", 3.0));
+        Assert.Equal<TugPlanWarning>(
+            [new TugPassesNeighbourWarning("PRK1", 2.5), new TugLongPushWarning("A", 1300.0), new TugPassesNeighbourWarning("PRK2", 3.0)],
+            warnings
+        );
+
+        TugPlanBuilder.AddPassedNeighbour(warnings, new TugPassesNeighbourWarning("PRK1", 0.0));
+        Assert.Equal(new TugPassesNeighbourWarning("PRK1", 0.0), warnings[0]);
+        Assert.Equal(3, warnings.Count);
     }
 
     /// <summary>
