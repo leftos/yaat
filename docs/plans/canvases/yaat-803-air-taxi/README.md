@@ -13,3 +13,13 @@ Each question has two or three lanes, each with how it works and its worst case;
 3. Whether an "Air taxi to" box is offered and what it sends: A, no box, every parking position listed in a scrolling tab; B, a box sent as typed (`ATXI` and the box, the marker the instructor's to type); C, a filter box over every group, Enter sending the top match with its marker.
 
 The Air taxi glyph is a placeholder drawn for the mock.
+
+## Land and NODEL
+
+`land-nodel-mock.html` asks how the Land flyout (an airborne helicopter's Air taxi flyout: filter box on top, Pads · parking and Spots tabs, no Runways tab, live distances; spots send `LAND $NAME`, pads and parking `LAND @NAME`) offers LAND's `NODEL` suffix, which exempts the aircraft from auto-delete after it lands. Data is N812HL, an EC35, airborne at a point 1.2 nm due south of HELI1, with straight-line distances from that point, rounded to 50 ft. Each lane has how it works and its worst case; no lane is marked as recommended:
+
+- A: a "Keep after landing (NODEL)" check box row at the flyout foot, off each time the flyout opens; while ticked every row and Enter send the command with ` NODEL` (drawn ticked).
+- B: a `NODEL` chip on every row that sends the row's command with NODEL; the row itself sends plain LAND.
+- C: a "Keep NODEL" check box beside the filter box, with A's effect (drawn ticked).
+
+The Land glyph is a placeholder drawn for the mock.

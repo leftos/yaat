@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Land NODEL Flyout</title>
+<style>
+  /* Layout: one artboard (the NODEL question); a header (question, the aircraft menu with its strip) over lanes A, B and C. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #9a5a12; --tag-today: #58616c; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", "JetBrains Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --tag-today: #9aa3ae; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ffb259; --tag-today: #9aa3ae; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 92ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin: 22px 0 28px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 84ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .stub-cap { font: 500 11px var(--f-mono); color: var(--muted); margin-bottom: 4px; letter-spacing: .04em; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 100ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 16px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 480px; max-width: 100%; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi.k { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.faint { opacity: .55; }
+  .mi.dis { opacity: .45; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 1px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .mi.sec { grid-template-columns: minmax(0, 1fr) auto; min-height: 28px; padding-top: 6px; padding-bottom: 3px; font-size: 12px; font-weight: 600; color: #cfd4da; }
+  .mi.sec .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; font-weight: 400; padding-left: 12px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 4px; overflow: hidden; }
+  .nm .n { white-space: nowrap; font-weight: 600; }
+  .nm .note { font-size: 12px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+  .dist { padding-left: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd .nd { color: #ffc062; }
+  .elide { font: 11.5px Inter, "Segoe UI", sans-serif; color: #8c95a0; padding: 6px 11px; font-style: italic; }
+  .chip { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; background: #2a2f37; border: 1px solid #3a414b; border-radius: 4px;
+          padding: 1px 6px; cursor: pointer; line-height: 16px; }
+  .chip:hover { background: #34404f; }
+  .mi .chip { margin-left: 12px; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  /* A Fluent dark check box: 18 px square, accent fill and a dark tick when checked. */
+  .ck { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; user-select: none; }
+  .ck input { appearance: none; -webkit-appearance: none; margin: 0; width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; border: 1px solid #9a9a9a;
+              background: rgba(255, 255, 255, .04); display: grid; place-items: center; cursor: pointer; }
+  .ck input:checked { background: #8fc1ff; border-color: #8fc1ff; }
+  .ck input:checked::after { content: ""; width: 9px; height: 5px; border-left: 2px solid #0b0d10; border-bottom: 2px solid #0b0d10; transform: translateY(-1px) rotate(-45deg); }
+  .ck input:focus-visible { outline: 2px solid #8fc1ff; outline-offset: 2px; }
+  .ck .lbl { font-size: 13px; }
+  .ck .lbl code { font: 12px "JetBrains Mono", Consolas, monospace; color: #ffc062; }
+  .ckrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 11px 6px; }
+  .ckrow .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; white-space: nowrap; }
+
+  /* Tabs inside a flyout, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+
+  /* The aircraft menu stub: title, state line, the strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+  .stripnames { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 0 11px 6px; max-width: 260px; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-803 · Land quick command · mock for the owner's feedback</div>
+  <h1>Land for an airborne helicopter: how NODEL is offered</h1>
+  <p class="lede">An airborne helicopter gets a <b>Land</b> flyout with the Air taxi flyout's look: a filter box on top (Enter sends the top match), then two tabs, Pads · parking and Spots, with live distances; no Runways tab and no chips. Spot rows send <code>LAND $NAME</code>, pads and parking <code>LAND @NAME</code>. <code>LAND</code> also takes a <code>NODEL</code> suffix (<code>LAND @HELI2 NODEL</code>), which exempts the aircraft from auto-delete after it lands. The one open choice here is how the flyout offers NODEL; each lane draws the same flyout with one answer, and no lane is marked as recommended.</p>
+  <p class="lede">Data is real: <b>N812HL</b>, an EC35, airborne <b>1.2 nm south of KOAK's north field</b> (a point 1.2 nm due south of HELI1, over the south field), with KOAK's three helicopter positions (HELI, HELI1, HELI2, all <code>parking</code> features), 165 other parking positions and 16 spots from the bundled <code>oak.geojson</code>. Distances are straight-line from that point, rounded to 50 ft, measured for this mock; in the app they follow the aircraft as it flies. Click rows, chips, tabs and check boxes, or type in a filter box, to see what each sends.</p>
+  <div id="arts"></div>
+  <footer class="foot">Row templates, tabs, the menu surface and the strip follow <code>air-taxi-mock.html</code> beside this page: Inter text, commands in JetBrains Mono at 70%, 22 px glyphs at stroke 1.9 in the ground colour, the 480 px cap of <code>MenuCommandRow.InlineRowMaxWidth</code>, tabs as <code>FlyoutTabStrip</code> draws them. The Land glyph (rotor, body, skids, down arrow) is a placeholder drawn for this mock, as the Air taxi glyph is. The check box is drawn after Avalonia Fluent's dark check box. The amber <code>NODEL</code> in a row's command is a mock highlight; the app prints the command in one colour. The page loads no web fonts, so it draws in Segoe UI and Consolas where Inter and JetBrains Mono are not installed.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  /* ---------- KOAK from a point 1.2 nm due south of HELI1 (oak.geojson), straight-line ft rounded to 50 ---------- */
+  const D = {"pads":[["HELI",6950],["HELI1",7300],["HELI2",7500]],"parking":[["25",2200],["26",2200],["27",2250],["29",2300],["31",2300],["24",2350],["30",2350],["32",2350],["23",2500],["22",2600],["21",2750],["20",2900],["6",2950],["4",3000],["8",3050],["8B",3050],["10",3100],["12",3100],["8A",3100],["14",3200],["3",3300],["3A",3300],["17",3350],["5",3350],["RON10",3350],["7A",3400],["15",3450],["7",3450],["9",3450],["RON9",3450],["11",3500],["9A",3500],["PT1",3600],["RON8",3600],["1",3650],["1A",3650],["1B",3650],["1C",3650],["1D",3700],["RON7",3700],["PT2",3800],["RON6",3850],["S15",3900],["D",3950],["RON5",3950],["RON5A",3950],["S1",4000],["S14",4050],["C",4100],["S2",4100],["RON4",4150],["E",4200],["S13",4200],["S3",4250],["B",4300],["RON3",4350],["S12",4350],["S4",4350],["F",4400],["A",4500],["RON2",4500],["MTN8",4550],["G",4600],["MTN7",4650],["R1",4650],["S8",4650],["S8B",4650],["S9",4650],["MTN6A",4700],["MTN1",4750],["MTN6",4750],["RON1",4750],["S6",4750],["S7",4750],["MTN1A",4800],["MTN2",4800],["S5A",4800],["MTN2A",4850],["MTN3",4850],["MTN4",4850],["MTN5",4850],["S5",4850],["S5B",4850],["FDX12",5100],["FDX7",5100],["FDX8",5100],["FDX9",5100],["FDX6",5150],["FDX11",5250],["FDX13",5300],["FDX10",5450],["FDX14",5450],["FDX17",5550],["FDX1",5600],["FDX2",5600],["FDX3",5600],["FDX4",5650],["FDX5",5650],["FDX18",5700],["FDX15",5750],["FDX16",5900],["PCM1",5950],["PCM2",6000],["PCM3",6000],["JSX3",7100],["JSX2",7150],["JSX1",7200],["GA2",7350],["GA1",7400],["GA3",7450],["GA4",7550],["GA5",7650],["GA6",7750],["KAI2",7800],["KAI1",7900],["KAI6",7900],["KAI3",8000],["KAI7",8000],["KAI4",8100],["KAI5",8200],["PXT3",8300],["PXT2",8400],["SIG7",8400],["SIG6",8500],["PXT1",8550],["SIG4",8550],["SIG5",8600],["SIG3",8800],["SIG2",8850],["SIG1",8950],["GA7",9650],["GA8",9700],["GA9",9800],["GA10",9850],["GA11",9950],["GA12",10000],["ARGUS",10550],["CHEVRON",10800],["CARGO1",11600],["CARGO2",11800],["DHL2",12250],["DHL1",12400],["NEW1",12600],["NEW2",12650],["GA15",12700],["NEW3",12700],["GA13",12750],["GA14",12750],["NEW4",12750],["GA17",12800],["GA18",12800],["NEW5",12800],["GA16",12850],["GA19",12900],["GA20",12900],["NEW6",12900],["NEW7",12900],["OLD1",13000],["OLD2",13100],["OLD3",13100],["OLD5",13150],["OLD4",13250],["OLD7",13250],["OLD6",13300],["OLD8",13400]],"spots":[["E",2700],["I30",2750],["C",2900],["1",3400],["W",3800],["2",5100],["9",5100],["3",5250],["7",5600],["A8RS",6200],["A8RN",6650],["4",6800],["I8R",6850],["5",8300],["K0LS",10350],["K0LN",10700]]};
+  const PARK_SHOWN = 8;
+
+  const FAM = { G: "#6EE0CE" };
+  const GL = {
+    LAND: ["G", "M3 4.5h14 M10 4.5v3 M5.5 11.5a4.5 3.5 0 1 0 9 0a4.5 3.5 0 1 0-9 0 M8 15v3 M12 15v3 M5.5 18h9 M19.5 8v10 M17 15.5l2.5 2.5 2.5-2.5"],
+  };
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const gl = (id, size = 22) => {
+    const [fam, d] = GL[id];
+    return `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${FAM[fam]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  };
+  const menu = (inner, cls = "", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sec = (t, r = "") => `<div class="mi sec"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+
+  /* ---------- Flyouts: one state object per lane ---------- */
+  const FLY = {};
+  let flySeq = 0;
+  const withNodel = (base, on) => on ? `${base} NODEL` : base;
+  const cmdHtml = (base, on) => on ? `${esc(base)}<span class="nd"> NODEL</span>` : esc(base);
+
+  /* A destination row. Lane B adds a NODEL chip column; lanes A and C append NODEL to the row's command while the box is ticked. */
+  function drow(o, name, note, dist, base) {
+    const nm = `<span class="nm"><span class="n">${esc(name)}${note ? `<span class="note">&nbsp;· ${esc(note)}</span>` : ""}</span></span>`;
+    const on = o.mode !== "b" && o.nodel;
+    const chip = o.mode === "b" ? `<button type="button" class="chip" data-send="${esc(base)} NODEL" title="${esc(base)} NODEL">NODEL</button>` : "";
+    return `<div class="mi${o.mode === "b" ? " k" : ""}" role="menuitem" data-base="${esc(base)}" data-send="${esc(withNodel(base, on))}" tabindex="0">${gl("LAND")}${nm}<span class="dist">${ft(dist)}</span>${chip}<span class="cmd">${cmdHtml(base, on)}</span></div>`;
+  }
+  const padRows = o => D.pads.map(([n, d]) => drow(o, n, "helipad", d, `LAND @${n}`)).join("");
+  const parkRows = (o, lim) => D.parking.slice(0, lim).map(([n, d]) => drow(o, n, "", d, `LAND @${n}`)).join("");
+  const parkMore = lim => D.parking.length > lim
+    ? `<div class="elide">${D.parking.length - lim} more parking positions below, nearest first (${esc(D.parking[lim][0])} at ${ft(D.parking[lim][1])} … ${esc(D.parking.at(-1)[0])} at ${ft(D.parking.at(-1)[1])})</div>` : "";
+  const spotRows = o => D.spots.map(([n, d]) => drow(o, n, "spot", d, `LAND $${n}`)).join("");
+
+  const TABS = [["pk", "Pads · parking", D.pads.length + D.parking.length], ["sp", "Spots", D.spots.length]];
+  function tabPanel(o) {
+    if (o.sel === "pk") return title("Helipads", "nearest first · live") + padRows(o) + title("Parking", "nearest first · live") + parkRows(o, PARK_SHOWN) + parkMore(PARK_SHOWN);
+    return title("Spots", "nearest first · live") + spotRows(o);
+  }
+
+  const ckBox = (o, text, extraTitle) => `<label class="ck" title="${esc(extraTitle)}"><input type="checkbox" data-nodel${o.nodel ? " checked" : ""}><span class="lbl">${text}</span></label>`;
+  function filterHintIdle(o) {
+    if (o.mode === "b") return "Type to filter both groups; Enter sends the top match as plain <code>LAND</code>.";
+    return o.nodel ? "Type to filter both groups; Enter sends the top match with <code>NODEL</code>." : "Type to filter both groups; Enter sends the top match.";
+  }
+  function filterTop(o) {
+    const box = `<input class="tbox" type="text" data-filterbox placeholder="Filter pads, parking, spots" aria-label="Filter landing destinations" maxlength="10" style="flex:1;min-width:0" autocomplete="off" spellcheck="false">`;
+    const ck = o.mode === "c" ? ckBox(o, "Keep <code>NODEL</code>", "Keep after landing (NODEL): every row and Enter send LAND … NODEL") : "";
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 11px 4px">${gl("LAND")}${box}${ck}</div><div class="hint" data-filterhint>${filterHintIdle(o)}</div>`;
+  }
+  function footRow(o) {
+    if (o.mode !== "a") return "";
+    return sep() + `<div class="ckrow">${ckBox(o, "Keep after landing (<code>NODEL</code>)", "Every row and Enter send LAND … NODEL while ticked")}<span class="r">off each time it opens</span></div>`;
+  }
+  function flyout(o) {
+    const id = `f${++flySeq}`;
+    FLY[id] = o;
+    o.sel = o.sel || "pk";
+    const tabs = `<div class="tabs" role="tablist">${TABS.map(([k, t, n]) => `<button type="button" class="tab" role="tab" data-tab="${k}" aria-selected="${k === o.sel}">${esc(t)}<small>${n}</small></button>`).join("")}</div>`;
+    return menu(filterTop(o) + `<div data-tabwrap>${tabs}<div data-panel>${tabPanel(o)}</div></div><div data-results></div>` + footRow(o), "w", "Land", `data-fly="${id}"`);
+  }
+
+  /* ---------- Aircraft menu stub ---------- */
+  function stub() {
+    const cell = `<span class="cell latched" title="Land" role="img" aria-label="Land (flyout open)">${gl("LAND", 32)}<i class="notch"></i></span>`;
+    const plain = t => `<div class="mi plain faint"><span>${esc(t)}</span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">N812HL · EC35</div><div class="mstate">Airborne · 1.2 nm S of the north field · VFR</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span></div>${sep()}<div class="strip">${cell}</div><div class="stripnames">Land (the rest of the airborne strip is not drawn: which airborne lists carry Land is a separate choice)</div>${sep()}${["All Commands", "Track", "Data Block"].map(plain).join("")}`, "", "Aircraft menu");
+  }
+
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>Click a row, a chip, a tab or the check box, or type in the filter box, to see what it does.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+
+  const art = {
+    title: "How the Land flyout offers NODEL", sends: "LAND @HELI2 · LAND $I30 · LAND @HELI2 NODEL",
+    intro: [
+      "Without NODEL a helicopter that lands is auto-deleted like any arrival; with it the aircraft stays on the pad for the next exercise step. Typed, it is the last token: <code>LAND @HELI2 NODEL</code>. Each lane draws the flyout as it opens on the Pads · parking tab; lanes A and C are drawn with the box ticked, which turns on only when clicked.",
+      "The filter box is the one settled for the Air taxi flyout: it filters both groups by name prefix, an exact name first, then nearest first, and Enter sends the first match.",
+    ],
+    lanes: [
+      { kind: "a", name: "A “Keep after landing (NODEL)” check box at the flyout foot",
+        body: frame("Opened · Pads · parking selected · box ticked", flyout({ mode: "a", nodel: true })),
+        how: "One check box row under the list, off each time the flyout opens; while ticked every row's command, and Enter in the filter box, ends in <code>NODEL</code>, and each row prints it.",
+        worst: "The box sits under the rows, away from the filter box: an instructor who types HELI2 and presses Enter never passes it and sends plain <code>LAND @HELI2</code>." },
+      { kind: "b", name: "A NODEL chip on every row; the row sends plain LAND",
+        body: frame("Opened · Pads · parking selected", flyout({ mode: "b", nodel: false })),
+        how: "Each row carries a small <code>NODEL</code> chip before its command: the row sends <code>LAND @HELI2</code>, the chip <code>LAND @HELI2 NODEL</code>. Nothing to tick, nothing remembered.",
+        worst: "Enter in the filter box always sends plain <code>LAND</code>, so a typed destination that needs NODEL has to be clicked instead, on a small chip that sits on the row's own target." },
+      { kind: "c", name: "A “Keep NODEL” check box beside the filter box",
+        body: frame("Opened · Pads · parking selected · box ticked", flyout({ mode: "c", nodel: true })),
+        how: "The same check box as A, moved up beside the filter box: off each time the flyout opens; while ticked every row and Enter send the command with <code>NODEL</code>, and each row prints it.",
+        worst: "Beside the filter box, shortened to fit the 480 px row, “Keep NODEL” reads like a filter option that narrows the list, not a word added to the command." },
+    ],
+  };
+  document.getElementById("arts").innerHTML = `<section class="art">
+      <div class="art-head"><div class="art-meta"><h2>${esc(art.title)}</h2><div class="sends">${esc(art.sends)}</div>${art.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div><div class="stub-cap">The strip, Land open</div><div class="stage stub-stage">${stub()}</div></div></div>
+      <div class="lanes">${art.lanes.map(lane).join("")}</div>
+    </section>`;
+
+  /* ---------- Filter results ---------- */
+  function matches(o, q) {
+    const Q = q.trim().toUpperCase();
+    if (!Q) return null;
+    const pick = list => list.filter(([n]) => n.toUpperCase().startsWith(Q)).sort((a, b) => ((a[0] === Q ? 0 : 1) - (b[0] === Q ? 0 : 1)) || (a[1] - b[1]));
+    const pk = [...pick(D.pads).map(([n, d]) => drow(o, n, "helipad", d, `LAND @${n}`)), ...pick(D.parking).map(([n, d]) => drow(o, n, "", d, `LAND @${n}`))];
+    const sp = pick(D.spots).map(([n, d]) => drow(o, n, "spot", d, `LAND $${n}`));
+    let html = "";
+    if (pk.length) html += sec("Helipads and parking", "@") + pk.join("");
+    if (sp.length) html += sec("Spots", "$") + sp.join("");
+    const first = (html.match(/data-send="([^"]*)"/) || [])[1] || "";
+    return { html: html || `<div class="mi plain dis"><span>No destination matches</span><span></span></div>`, first: first.replace(/&quot;/g, "\"") };
+  }
+  function applyFilter(m) {
+    const o = FLY[m.dataset.fly];
+    const input = m.querySelector("[data-filterbox]");
+    const res = matches(o, input.value);
+    const hint = m.querySelector("[data-filterhint]");
+    m.querySelector("[data-tabwrap]").hidden = !!res;
+    m.querySelector("[data-results]").innerHTML = res ? res.html : "";
+    if (!res) { hint.innerHTML = filterHintIdle(o); input.dataset.first = ""; return; }
+    hint.innerHTML = res.first ? `Enter sends <code>${esc(res.first)}</code>, the first match.` : "Nothing to send.";
+    input.dataset.first = res.first;
+  }
+  /* Re-print every row's command after the check box changes. */
+  function applyNodel(m) {
+    const o = FLY[m.dataset.fly];
+    m.querySelectorAll(".mi[data-base]").forEach(r => {
+      r.dataset.send = withNodel(r.dataset.base, o.nodel);
+      r.querySelector(".cmd").innerHTML = cmdHtml(r.dataset.base, o.nodel);
+    });
+    applyFilter(m);
+  }
+
+  function say(el, html) {
+    const s = el.closest("[data-lane]")?.querySelector("[data-sent]");
+    if (s) s.innerHTML = html;
+  }
+  document.addEventListener("click", e => {
+    const tab = e.target.closest("[data-tab]");
+    if (tab) {
+      const m = tab.closest("[data-fly]");
+      const o = FLY[m.dataset.fly];
+      o.sel = tab.dataset.tab;
+      m.querySelectorAll("[data-tab]").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
+      m.querySelector("[data-panel]").innerHTML = tabPanel(o);
+      say(tab, `Shows the ${esc(tab.textContent.replace(/\d+$/, ""))} group; sends nothing.`);
+      return;
+    }
+    if (e.target.closest("input, label")) return;
+    const s = e.target.closest("[data-send]");
+    if (s && s.dataset.send) say(s, `Sends <code>${esc(s.dataset.send)}</code>.`);
+  });
+  document.addEventListener("change", e => {
+    const t = e.target;
+    if (!t.matches("[data-nodel]")) return;
+    const m = t.closest("[data-fly]");
+    FLY[m.dataset.fly].nodel = t.checked;
+    applyNodel(m);
+    say(t, t.checked ? "Ticked: every row and Enter now send the command with <code>NODEL</code>; sends nothing itself." : "Cleared: every row and Enter send plain <code>LAND</code>; sends nothing itself.");
+  });
+  document.addEventListener("input", e => {
+    if (e.target.matches("[data-filterbox]")) applyFilter(e.target.closest("[data-fly]"));
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    const t = e.target;
+    if (t.matches("[data-filterbox]")) say(t, t.dataset.first ? `Sends <code>${esc(t.dataset.first)}</code>, the top match.` : "No match: sends nothing.");
+  });
+})();
+</script>
+</body>
+</html>
