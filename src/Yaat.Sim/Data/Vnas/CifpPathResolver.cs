@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -223,7 +224,7 @@ public static class CifpPathResolver
                 Console.Error.WriteLine($"[CifpPathResolver] Warning: bundled CIFP is cycle {bundledCycle}, current AIRAC is {currentCycleId}.");
             }
 
-            return DecompressBundledGzip(bundledGz);
+            return DecompressBundledGzip(bundledGz, BundledCachePath());
         }
 
         string cacheDir = YaatPaths.Combine("cache", "cifp");
@@ -337,25 +338,147 @@ public static class CifpPathResolver
             return null;
         }
 
-        return DecompressBundledGzip(gzPath);
+        return DecompressBundledGzip(gzPath, BundledCachePath());
     }
 
-    private static string DecompressBundledGzip(string gzPath)
+    /// <summary>
+    /// Decompresses <paramref name="gzPath"/> into <paramref name="outPath"/>, creating the output folder. An existing
+    /// output file is reused only when it is at least as new as the bundle and its length matches the bundle's
+    /// uncompressed length (the gzip ISIZE trailer), so a truncated cache file is replaced.
+    /// </summary>
+    /// <param name="gzPath">The gzipped CIFP bundle.</param>
+    /// <param name="outPath">The decompressed file to reuse or write.</param>
+    public static string DecompressBundledGzip(string gzPath, string outPath)
     {
-        string cacheDir = YaatPaths.Combine("cache", "cifp");
-        Directory.CreateDirectory(cacheDir);
-        string outPath = Path.Combine(cacheDir, "FAACIFP18-bundled.dat");
+        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
 
-        if (!File.Exists(outPath) || new FileInfo(gzPath).LastWriteTimeUtc > new FileInfo(outPath).LastWriteTimeUtc)
+        long? expectedLength = ReadUncompressedLength(gzPath);
+        if (File.Exists(outPath))
         {
-            using FileStream inputStream = File.OpenRead(gzPath);
-            using var gzipStream = new GZipStream(inputStream, CompressionMode.Decompress);
-            using FileStream outputStream = File.Create(outPath);
-            gzipStream.CopyTo(outputStream);
+            FileInfo cached = new(outPath);
+            bool newerThanBundle = new FileInfo(gzPath).LastWriteTimeUtc <= cached.LastWriteTimeUtc;
+            bool lengthMatches = expectedLength is not { } expected || cached.Length == expected;
+            if ((newerThanBundle) && (lengthMatches))
+            {
+                return outPath;
+            }
+
+            if ((newerThanBundle) && (expectedLength is { } size))
+            {
+                Log.LogInformation(
+                    "Replacing cached bundled CIFP {Path}: it holds {Actual} bytes, but the bundle decompresses to {Expected}",
+                    outPath,
+                    cached.Length,
+                    size
+                );
+            }
         }
 
+        DecompressToFile(gzPath, outPath, expectedLength);
         return outPath;
     }
+
+    /// <summary>Reads the gzip ISIZE trailer: the uncompressed length modulo 2^32, stored little-endian.</summary>
+    /// <param name="gzPath">The gzip file.</param>
+    /// <returns>The uncompressed length, or null when the file is too short to hold a gzip trailer.</returns>
+    private static long? ReadUncompressedLength(string gzPath)
+    {
+        using FileStream stream = File.OpenRead(gzPath);
+        if (stream.Length < 4)
+        {
+            return null;
+        }
+
+        Span<byte> trailer = stackalloc byte[4];
+        stream.Seek(-4, SeekOrigin.End);
+        stream.ReadExactly(trailer);
+        return BinaryPrimitives.ReadUInt32LittleEndian(trailer);
+    }
+
+    // Mirrors Yaat.Client.Core's AtomicFile, which Yaat.Sim cannot reference: a replacing move is denied while another
+    // process holds the target open without delete sharing, as an antivirus scan of a just-written file does for a few
+    // milliseconds, so it is retried with a growing wait (about 0.7 s in all) before the last failure is thrown.
+    private const int MaxMoveAttempts = 8;
+    private const int RetryStepMs = 25;
+
+    private static void DecompressToFile(string gzPath, string outPath, long? expectedLength)
+    {
+        string tmpPath = outPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            using (FileStream inputStream = File.OpenRead(gzPath))
+            using (var gzipStream = new GZipStream(inputStream, CompressionMode.Decompress))
+            using (FileStream outputStream = File.Create(tmpPath))
+            {
+                gzipStream.CopyTo(outputStream);
+            }
+
+            bool replaced = ReplaceWithRetry(tmpPath, outPath, expectedLength);
+            if (!replaced)
+            {
+                Log.LogDebug("{Path} was completed by another process; kept its {Expected} bytes", outPath, expectedLength);
+            }
+        }
+        finally
+        {
+            DeleteTemp(tmpPath);
+        }
+    }
+
+    /// <summary>
+    /// Moves <paramref name="tmpPath"/> over <paramref name="outPath"/>, retrying a denied move. Returns false when
+    /// another process completed the target with the expected length while this one was retrying.
+    /// </summary>
+    private static bool ReplaceWithRetry(string tmpPath, string outPath, long? expectedLength)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(tmpPath, outPath, overwrite: true);
+                return true;
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                if (AnotherWriterCompleted(outPath, expectedLength))
+                {
+                    Log.LogDebug(ex, "Replacing {Path} was denied, but it now holds the expected {Expected} bytes", outPath, expectedLength);
+                    return false;
+                }
+
+                if (attempt >= MaxMoveAttempts)
+                {
+                    throw;
+                }
+
+                Log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", outPath, attempt);
+                Thread.Sleep(RetryStepMs * attempt);
+            }
+        }
+    }
+
+    private static bool AnotherWriterCompleted(string outPath, long? expectedLength) =>
+        (expectedLength is { } expected) && (File.Exists(outPath)) && (new FileInfo(outPath).Length == expected);
+
+    private static void DeleteTemp(string tmpPath)
+    {
+        if (!File.Exists(tmpPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(tmpPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Cleanup of a temp file: rethrowing here would mask the outcome of the move that already happened.
+            Log.LogWarning(ex, "Could not delete temporary file {Path}", tmpPath);
+        }
+    }
+
+    private static string BundledCachePath() => Path.Combine(YaatPaths.Combine("cache", "cifp"), "FAACIFP18-bundled.dat");
 
     private sealed class CifpManifest
     {
