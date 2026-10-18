@@ -845,7 +845,7 @@ public static class CommandDispatcher
             return headResult;
         }
 
-        CommandResult tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
+        CommandResult tailResult = DispatchCompoundCore(remainder, aircraft, AfterDestinationChange(head, aircraft, ctx));
         string headMsg = headResult.Message ?? "";
         if (string.IsNullOrEmpty(headMsg))
         {
@@ -862,6 +862,46 @@ public static class CommandDispatcher
                 Message = $"{headMsg}; but {tailResult.Message}",
             };
     }
+
+    /// <summary>
+    /// <c>APT</c>: the destination change, and for an airborne aircraft the new destination's own ground layout
+    /// (<see cref="DispatchContext.LayoutForAirport"/>, by airport, never the nearer of departure and destination), so a
+    /// name a following <c>LAND @HELI1</c> resolves is looked up at the airport the aircraft is now bound for. An aircraft
+    /// on the ground, or airborne low over the field its layout covers (<see cref="GroundCommandHandler.IsOnFieldForAirTaxi"/>),
+    /// keeps that layout: its ground phases run on the field under it.
+    /// </summary>
+    private static CommandResult ChangeDestination(AircraftState aircraft, ChangeDestinationCommand dest, DispatchContext ctx)
+    {
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, dest.Airport);
+        if (
+            result.Success
+            && !aircraft.IsOnGround
+            && !IsLowOverItsField(aircraft)
+            && (ctx.LayoutForAirport?.Invoke(aircraft.FlightPlan.Destination) is { } layout)
+        )
+        {
+            aircraft.Ground.Layout = layout;
+        }
+
+        return result;
+    }
+
+    /// <summary>Whether <paramref name="aircraft"/> is low over the field its current ground layout covers.</summary>
+    private static bool IsLowOverItsField(AircraftState aircraft) =>
+        (aircraft.Ground.Layout is { } current)
+        && GroundCommandHandler.IsOnFieldForAirTaxi(aircraft, current, BuildMinimalContext(aircraft, current).FieldElevation);
+
+    /// <summary>
+    /// The context the rest of a compound runs in after <paramref name="head"/> applied: when the head changed an airborne
+    /// aircraft's destination, the ground layout <see cref="ChangeDestination"/> switched it to; otherwise unchanged.
+    /// </summary>
+    private static DispatchContext AfterDestinationChange(ParsedBlock head, AircraftState aircraft, DispatchContext ctx) =>
+        (!aircraft.IsOnGround && head.Commands.Any(cmd => cmd is ChangeDestinationCommand) && (aircraft.Ground.Layout is { } layout))
+            ? ctx with
+            {
+                GroundLayout = layout,
+            }
+            : ctx;
 
     private static bool IsAllTransparent(CompoundCommand compound)
     {
@@ -1414,7 +1454,7 @@ public static class CommandDispatcher
             // unconditioned command. The server's flight-plan change tracker picks the mutation up
             // for CRC/training broadcasts on the next tick.
             case ChangeDestinationCommand dest:
-                return FlightPlanCommandHandler.TryChangeDestination(aircraft, dest.Airport);
+                return ChangeDestination(aircraft, dest, ctx);
 
             case CancelIfrCommand:
                 if (aircraft.FlightPlan.IsVfr)
@@ -3687,6 +3727,7 @@ public static class CommandDispatcher
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
+            DispatchContext current = ctx;
 
             foreach (ParsedCommand? cmd in captured)
             {
@@ -3694,7 +3735,7 @@ public static class CommandDispatcher
 
                 if (ac.Phases?.CurrentPhase is { } currentPhase)
                 {
-                    CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, ctx);
+                    CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, current);
                     if (towerResult is not null)
                     {
                         if (ReferenceEquals(towerResult, PhaseShouldBeCleared))
@@ -3705,7 +3746,7 @@ public static class CommandDispatcher
                             ClearPhaseChain(ac, CommandDescriber.DescribeNatural(cmd));
 
                             // Now apply the tower command against the cleared phase state.
-                            result = ApplyCommand(cmd, ac, ctx);
+                            result = ApplyCommand(cmd, ac, current);
                         }
                         else
                         {
@@ -3714,7 +3755,7 @@ public static class CommandDispatcher
                     }
                 }
 
-                result ??= ApplyCommand(cmd, ac, ctx);
+                result ??= ApplyCommand(cmd, ac, current);
 
                 if (!result.Success)
                 {
@@ -3725,12 +3766,18 @@ public static class CommandDispatcher
                 // (e.g. RV SID heading hold on a successful DCT during InitialClimb).
                 if (ac.Phases?.CurrentPhase is { } phaseForNotify)
                 {
-                    NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, ctx);
+                    NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, current);
                 }
 
                 if (result.Message is not null)
                 {
                     messages.Add(result.Message);
+                }
+
+                // An APT that switched an airborne aircraft's layout: the rest of the block resolves names there.
+                if (cmd is ChangeDestinationCommand)
+                {
+                    current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
                 }
             }
 

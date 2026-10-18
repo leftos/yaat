@@ -54,6 +54,8 @@ public static class QuickCommandResolver
         [MenuIds.SpeedFinalApproach] = AircraftCommandApplicability.ShowsSpeedAdjustment,
         [MenuIds.TowerExitLeft] = AircraftCommandApplicability.ShowsRunwayExit,
         [MenuIds.TowerExitRight] = AircraftCommandApplicability.ShowsRunwayExit,
+        [MenuIds.GroundPushback] = AircraftCommandApplicability.ShowsPushback,
+        [MenuIds.GroundPushbackTo] = AircraftCommandApplicability.ShowsPushback,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>

@@ -38,6 +38,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BaseAircraftType))]
+    [NotifyPropertyChangedFor(nameof(Category))]
     [NotifyPropertyChangedFor(nameof(AircraftTypeName))]
     [NotifyPropertyChangedFor(nameof(DisplayAircraftType))]
     [NotifyPropertyChangedFor(nameof(HasFiledTypeMismatch))]
@@ -50,6 +51,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// <see cref="Yaat.Sim.AircraftState.BaseAircraftType"/> for the client-side view.
     /// </summary>
     public string BaseAircraftType => AircraftState.StripTypePrefix(AircraftType);
+
+    /// <summary>The category of <see cref="AircraftType"/>, as the sim categorizes the aircraft it flies.</summary>
+    public AircraftCategory Category => AircraftCategorization.Categorize(AircraftType);
 
     /// <summary>
     /// Human-readable display name for the bare ICAO designator (e.g. "Cessna Skyhawk 172/Cutlass"

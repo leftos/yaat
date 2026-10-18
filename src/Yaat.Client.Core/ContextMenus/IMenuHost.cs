@@ -250,6 +250,16 @@ public interface IMenuHost
     /// </summary>
     IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side);
 
+    /// <summary>
+    /// The Air taxi / Land flyout's destinations for <paramref name="callsign"/>, from the surface's ground layout: its
+    /// helipads, parking positions and taxiway spots, each name once as <c>ATXI</c> and <c>LAND</c> resolve it, and per runway
+    /// end the holding position a bare <c>ATXI 28R</c> resolves to with the end's other bars as located chips (<c>28R@E</c>),
+    /// every chip one the sim resolves, a bar within 300 ft of the far threshold left out. Each group is nearest first by
+    /// straight-line distance from the aircraft, rounded to 50 ft. A destination the aircraft stands at on the ground is left
+    /// out. <see cref="AirTaxiMenu.Empty"/> when the aircraft is unknown or no layout is loaded.
+    /// </summary>
+    AirTaxiMenu GetAirTaxiChoices(string callsign);
+
     /// <summary>Puts the surface into drawing a tug move for <paramref name="callsign"/>.</summary>
     void EnterPushRoute(string callsign);
 

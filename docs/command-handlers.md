@@ -45,7 +45,7 @@ method either way — the duplication exists because the command can arrive **wi
 
 Both arms hand the helicopter verbs (`ATXI`, `LAND`, `CTOPP`) the dispatch context's **resolved** layout (`ctx.GroundLayout` — the aircraft's
 cached layout, else `SimulationEngine.ResolveGroundLayout` from its flight plan / airport), never the raw `aircraft.Ground.Layout`: an airborne
-spawn has no cached layout, and the no-phase arm used to refuse `LAND @spot` with "No airport ground layout available" for exactly that reason.
+spawn has no cached layout, and the no-phase arm used to refuse `LAND @spot` with "No airport ground layout available" for exactly that reason. An `APT X` on an airborne aircraft (alone, or at the front of a `,` block) also switches its ground layout to X's, so the commands after it resolve names at X; on the ground nothing moves. An aircraft low over the field its current layout covers (within 0.3 nm of that layout, at or below 500 ft above the field) keeps that layout and only its destination changes. Scenario presets and triggered blocks (`LV 5 APT OAK, LAND @HELI1`) behave the same as typed commands.
 
 Flight-plan verbs (`DA`, `FP`, `RMK` — `CompoundPolicy.IsFlightPlanCommand`) have **no** arm in either switch and are refused at the dispatcher's
 public entries: they are the `ActionRouter`'s flight-plan arm (`RecordedCommandKind.FlightPlan`) on every run kind — a fresh one files through

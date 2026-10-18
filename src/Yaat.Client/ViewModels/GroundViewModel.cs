@@ -1492,6 +1492,193 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The Air taxi / Land flyout's destinations for <paramref name="ac"/> on this view's layout, the one airport layout the
+    /// client holds: each helipad, parking position and spot name once, the first node of that name as the sim's lookups
+    /// find it (a parking position sharing a helipad's name is left out, <c>@NAME</c> reaching the helipad), and per runway
+    /// end the row <see cref="AirTaxiRunwayRow"/> builds. On the ground, a destination the aircraft stands at is left out.
+    /// Each group nearest first, by straight-line distance rounded to 50 ft, then by name. <see cref="AirTaxiMenu.Empty"/>
+    /// without a layout.
+    /// </summary>
+    public AirTaxiMenu GetAirTaxiChoices(AircraftModel ac)
+    {
+        if (_domainLayout is not { } layout)
+        {
+            return AirTaxiMenu.Empty;
+        }
+
+        var named = new Dictionary<AirTaxiDestinationKind, Dictionary<string, AirTaxiDestination>>
+        {
+            [AirTaxiDestinationKind.Helipad] = new(StringComparer.OrdinalIgnoreCase),
+            [AirTaxiDestinationKind.Parking] = new(StringComparer.OrdinalIgnoreCase),
+            [AirTaxiDestinationKind.Spot] = new(StringComparer.OrdinalIgnoreCase),
+        };
+        var standsAt = new HashSet<(AirTaxiDestinationKind, string)>();
+        foreach (GroundNode node in layout.Nodes.Values)
+        {
+            if ((AirTaxiKindOf(node.Type) is not { } kind) || (node.Name is not { Length: > 0 } name) || named[kind].ContainsKey(name))
+            {
+                continue;
+            }
+
+            string marker = (kind == AirTaxiDestinationKind.Spot) ? "$" : "@";
+            named[kind][name] = new AirTaxiDestination(name, kind, StraightLineFt(ac.Position, node.Position), marker + name, null, []);
+            if (ac.IsOnGround && StandsAt(ac, node))
+            {
+                standsAt.Add((kind, name));
+            }
+        }
+
+        List<AirTaxiDestination> Listed(AirTaxiDestinationKind kind, Func<AirTaxiDestination, bool> keep) =>
+            [
+                .. named[kind]
+                    .Values.Where(d => keep(d) && !standsAt.Contains((kind, d.Name)))
+                    .OrderBy(d => d.DistanceFt)
+                    .ThenBy(d => d.Name, StringComparer.Ordinal),
+            ];
+
+        Dictionary<string, AirTaxiDestination> pads = named[AirTaxiDestinationKind.Helipad];
+        return new AirTaxiMenu(
+            layout.AirportId,
+            Listed(AirTaxiDestinationKind.Helipad, _ => true),
+            Listed(AirTaxiDestinationKind.Parking, d => !pads.ContainsKey(d.Name)),
+            Listed(AirTaxiDestinationKind.Spot, _ => true),
+            [.. AirTaxiRunwayRows(layout, ac).OrderBy(d => d.DistanceFt).ThenBy(d => d.Name, StringComparer.Ordinal)]
+        );
+    }
+
+    private static AirTaxiDestinationKind? AirTaxiKindOf(GroundNodeType type) =>
+        type switch
+        {
+            GroundNodeType.Helipad => AirTaxiDestinationKind.Helipad,
+            GroundNodeType.Parking => AirTaxiDestinationKind.Parking,
+            GroundNodeType.Spot => AirTaxiDestinationKind.Spot,
+            _ => null,
+        };
+
+    private static double StraightLineFt(LatLon from, LatLon to) => TugMovePlanner.NoteDistanceFt(GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm);
+
+    /// <summary>
+    /// One row per end of every runway the layout has a holding position of (a layout rebuilt from the server's carries no
+    /// runway list of its own).
+    /// </summary>
+    private IEnumerable<AirTaxiDestination> AirTaxiRunwayRows(AirportGroundLayout layout, AircraftModel ac)
+    {
+        foreach (RunwayIdentifier runway in RunwaysWithHoldShorts(layout))
+        {
+            if (AirTaxiRunwayRow(layout, runway, runway.End1, runway.End2, ac) is { } end1)
+            {
+                yield return end1;
+            }
+
+            if (AirTaxiRunwayRow(layout, runway, runway.End2, runway.End1, ac) is { } end2)
+            {
+                yield return end2;
+            }
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="end"/>'s Air taxi row: the holding position a bare <c>ATXI 28R</c> resolves to in the sim
+    /// (<see cref="GroundCommandHandler.ResolveRunwayHoldShortNode"/>), named by the taxiway whose located form resolves to the
+    /// same bar, and as chips every other taxiway whose located form <c>28R@E</c> resolves to another bar, nearest the
+    /// threshold first, one chip per bar (the first taxiway naming it). A bar among the far end's full-length bars (within
+    /// 300 ft of the far threshold, <see cref="FullLengthBars"/>) and not among this end's is left out, as Taxi to runway
+    /// leaves it out; so is, on the ground, the bar the aircraft stands at (<see cref="StandsAt"/>): as a chip it is dropped,
+    /// as the row's own bar the row sends nothing (<see cref="AirTaxiDestination.IsHeldAt"/>) and is dropped when it has no
+    /// chips. Null when the bare form resolves to no bar.
+    /// </summary>
+    private AirTaxiDestination? AirTaxiRunwayRow(AirportGroundLayout layout, RunwayIdentifier runway, string end, string farEnd, AircraftModel ac)
+    {
+        string designator = RunwayIdentifier.NormalizeDesignator(end);
+        if (GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(designator, null, false)) is not { } bar)
+        {
+            return null;
+        }
+
+        HashSet<int> farBars = FullLengthBars(layout, runway, farEnd);
+        farBars.ExceptWith(FullLengthBars(layout, runway, end));
+        (string? barTaxiway, List<(GroundNode Bar, AirTaxiChip Chip)> located) = AirTaxiBars(layout, designator, farBars, bar, ac);
+        (LatLon Threshold, TrueHeading Heading)? geometry = RunwayEndGeometry(runway, end);
+        List<(AirTaxiChip Chip, double AlongNm)> chips =
+        [
+            .. located.Select(l => (l.Chip, (geometry is { } g) ? GeoMath.AlongTrackDistanceNm(l.Bar.Position, g.Threshold, g.Heading) : 0)),
+        ];
+        bool heldAt = ac.IsOnGround && StandsAt(ac, bar);
+        if (heldAt && (chips.Count == 0))
+        {
+            return null;
+        }
+
+        return new AirTaxiDestination(
+            $"RWY {RunwayIdentifier.ToDisplayDesignator(designator)}",
+            AirTaxiDestinationKind.Runway,
+            StraightLineFt(ac.Position, bar.Position),
+            designator,
+            barTaxiway,
+            [.. chips.OrderBy(c => c.AlongNm).Select(c => c.Chip)]
+        )
+        {
+            IsHeldAt = heldAt,
+        };
+    }
+
+    /// <summary>
+    /// The bars of <paramref name="designator"/> its located forms <c>28R@E</c> reach in the sim, outside
+    /// <paramref name="excluded"/>: the first taxiway (in name order) whose located form reaches <paramref name="bar"/>, the
+    /// bare form's, and every other bar once with the first taxiway naming it, leaving out on the ground the one
+    /// <paramref name="ac"/> stands at.
+    /// </summary>
+    private static (string? BarTaxiway, List<(GroundNode Bar, AirTaxiChip Chip)> Chips) AirTaxiBars(
+        AirportGroundLayout layout,
+        string designator,
+        HashSet<int> excluded,
+        GroundNode bar,
+        AircraftModel ac
+    )
+    {
+        string? barTaxiway = null;
+        List<(GroundNode Bar, AirTaxiChip Chip)> chips = [];
+        HashSet<int> chipBars = [];
+        IEnumerable<string> taxiways = layout
+            .GetRunwayHoldShortNodes(designator)
+            .Where(node => !excluded.Contains(node.Id))
+            .SelectMany(BarTaxiwayNames)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.Ordinal);
+        foreach (string taxiway in taxiways)
+        {
+            if (
+                (GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(designator, taxiway, false)) is not { } located)
+                || excluded.Contains(located.Id)
+            )
+            {
+                continue;
+            }
+
+            if (located.Id == bar.Id)
+            {
+                barTaxiway ??= taxiway;
+            }
+            else if (!(ac.IsOnGround && StandsAt(ac, located)) && chipBars.Add(located.Id))
+            {
+                chips.Add((located, new AirTaxiChip(taxiway, $"{designator}@{taxiway}")));
+            }
+        }
+
+        return (barTaxiway, chips);
+    }
+
+    /// <summary>
+    /// The taxiways a holding position's off-runway edges are on, as a located <c>28R@E</c> can name them: letters and digits
+    /// only, never a ramp.
+    /// </summary>
+    private static IEnumerable<string> BarTaxiwayNames(GroundNode bar) =>
+        bar
+            .Edges.Where(edge => !edge.IsRunwayCenterline && !edge.IsRamp)
+            .Select(edge => edge.TaxiwayName)
+            .Where(name => (name.Length > 0) && name.All(char.IsAsciiLetterOrDigit));
+
+    /// <summary>
     /// Whether an aircraft bound for <paramref name="destination"/> lands at <paramref name="airportId"/>, the two identifiers
     /// resolved through the navigation data so FAA and ICAO forms match outside CONUS too (<c>HNL</c>/<c>PHNL</c>).
     /// </summary>

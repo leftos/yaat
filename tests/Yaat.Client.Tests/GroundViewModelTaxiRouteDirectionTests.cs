@@ -81,6 +81,7 @@ public class GroundViewModelTaxiRouteDirectionTests
             PreserveConditionals = false,
             IsScenarioScripted = false,
             FacilityHint = null,
+            LayoutForAirport = null,
         };
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI S HS B");
         Assert.True(parsed.IsSuccess, parsed.Reason);

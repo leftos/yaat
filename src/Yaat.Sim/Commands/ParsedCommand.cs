@@ -519,7 +519,11 @@ public record AirTaxiCommand(string? Destination) : ParsedCommand
             };
 }
 
-public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway = false) : ParsedCommand;
+public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway = false) : ParsedCommand
+{
+    /// <summary>The <c>$NAME</c> form: <see cref="SpotName"/> is a taxi spot only, never a helipad or parking position of that name.</summary>
+    public bool IsTaxiSpot { get; init; }
+}
 
 public record ClearedTakeoffPresentCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
 

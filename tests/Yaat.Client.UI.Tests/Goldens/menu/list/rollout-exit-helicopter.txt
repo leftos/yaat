@@ -1,0 +1,53 @@
+# list rollout-exit-helicopter
+N812HO · EC35 [disabled]
+Landing [disabled]
+---
+strip: [ground.draw-taxi-route]
+---
+Command…
+Note…
+All Commands
+  Tower
+    Exit left
+      Pilot's choice — EL
+    Exit right
+      Pilot's choice — ER
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+---
+Delete

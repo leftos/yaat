@@ -132,6 +132,7 @@ public class GroundViewModelApproachLegOverlayTests
             PreserveConditionals = false,
             IsScenarioScripted = false,
             FacilityHint = null,
+            LayoutForAirport = null,
         };
         CommandResult result = CommandDispatcher.Dispatch(new TaxiCommand(["T7A"], [], DestinationSpot: "7A"), aircraft, ctx);
         Assert.True(result.Success, result.Message);

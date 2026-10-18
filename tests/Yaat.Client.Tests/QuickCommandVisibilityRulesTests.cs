@@ -5,6 +5,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.Tests;
 
@@ -316,4 +317,74 @@ public class QuickCommandVisibilityRulesTests
             shown,
             Shows(Aircraft(AircraftSituation.Holding, "HoldingPattern", onGround: false, rules: "IFR"), MenuIds.PatternEnterFinal, mode)
         );
+
+    // --- Helicopters: Air taxi and Land, and no push rows ---
+
+    private static AircraftModel Typed(string type, AircraftSituation situation, string phase, bool onGround)
+    {
+        TestVnasData.EnsureInitialized();
+        AircraftModel aircraft = Aircraft(situation, phase, onGround, rules: "VFR");
+        aircraft.AircraftType = type;
+        return aircraft;
+    }
+
+    [Theory]
+    [InlineData("EC35", false, true)]
+    [InlineData("B738", true, false)]
+    public void AtParking_PushRowsHiddenForAHelicopter_AirTaxiShownInstead(string type, bool pushShown, bool airTaxiShown)
+    {
+        AircraftModel parked = Typed(type, AircraftSituation.AtParking, "At Parking", onGround: true);
+
+        Assert.Equal(pushShown, Shows(parked, MenuIds.GroundPushback, VfrCommandsForIfr.None));
+        Assert.Equal(pushShown, Shows(parked, MenuIds.GroundPushbackTo, VfrCommandsForIfr.None));
+        Assert.Equal(airTaxiShown, Shows(parked, MenuIds.GroundAirTaxi, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>The push rows are a quick-list rule only: All Commands, which reads applicability alone, keeps them for a helicopter.</summary>
+    [Fact]
+    public void AtParking_Helicopter_AllCommandsKeepsThePushRows()
+    {
+        AircraftModel parked = Typed("EC35", AircraftSituation.AtParking, "At Parking", onGround: true);
+        MenuContext context = Context(VfrCommandsForIfr.None);
+
+        Assert.True(MenuCatalog.Get(MenuIds.GroundPushback).IsApplicable(parked, context));
+        Assert.True(MenuCatalog.Get(MenuIds.GroundPushbackTo).IsApplicable(parked, context));
+    }
+
+    [Theory]
+    [InlineData(AircraftSituation.HoldingOnGround, "Holding In Position")]
+    [InlineData(AircraftSituation.HoldingShort, "Holding Short 28R")]
+    [InlineData(AircraftSituation.RolloutExit, "Clearing Runway")]
+    public void GroundSituations_ShowAirTaxi_ForAHelicopterOnly(AircraftSituation situation, string phase)
+    {
+        Assert.True(Shows(Typed("EC35", situation, phase, onGround: true), MenuIds.GroundAirTaxi, VfrCommandsForIfr.None));
+        Assert.False(Shows(Typed("C172", situation, phase, onGround: true), MenuIds.GroundAirTaxi, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>
+    /// On the landing rollout a helicopter is offered Air taxi only once it decelerates, as Cross runway waits: a ground
+    /// movement instruction is not issued on the landing roll right after touchdown (7110.65 §3-10-9.a NOTE).
+    /// </summary>
+    [Theory]
+    [InlineData(SituationFlags.None, false)]
+    [InlineData(SituationFlags.RolloutDecelerating, true)]
+    public void LandingRollout_ShowsAirTaxi_OnlyOnceDecelerating(SituationFlags flags, bool shown)
+    {
+        AircraftModel heli = Typed("EC35", AircraftSituation.RolloutExit, "Landing", onGround: true);
+        heli.SituationFlags = flags;
+
+        Assert.Equal(shown, Shows(heli, MenuIds.GroundAirTaxi, VfrCommandsForIfr.None));
+    }
+
+    [Theory]
+    [InlineData(AircraftSituation.VfrFlightFollowing, "")]
+    [InlineData(AircraftSituation.Taxiing, "AirTaxi")]
+    [InlineData(AircraftSituation.Holding, "VFR Hold")]
+    [InlineData(AircraftSituation.Final, "HelicopterApproach")]
+    public void AirborneSituations_ShowLand_ForAHelicopterOnly(AircraftSituation situation, string phase)
+    {
+        Assert.True(Shows(Typed("EC35", situation, phase, onGround: false), MenuIds.GroundLandHelicopter, VfrCommandsForIfr.None));
+        Assert.False(Shows(Typed("EC35", situation, phase, onGround: false), MenuIds.GroundAirTaxi, VfrCommandsForIfr.None));
+        Assert.False(Shows(Typed("C172", situation, phase, onGround: false), MenuIds.GroundLandHelicopter, VfrCommandsForIfr.None));
+    }
 }

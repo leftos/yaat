@@ -299,6 +299,18 @@ public static class MenuCatalog
             (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac),
             (label, _, context, host) => TaxiToRunwayFlyout.BuildTaxiToRunway(label, context, host)
         ),
+        HostLeaf(
+            MenuIds.GroundAirTaxi,
+            "Air taxi",
+            (ac, _) => AircraftCommandApplicability.CanAirTaxi(ac),
+            (label, ac, context, host) => AirTaxiFlyout.Build(label, AirTaxiVerb.AirTaxi, ac, context, host)
+        ),
+        HostLeaf(
+            MenuIds.GroundLandHelicopter,
+            "Land",
+            (ac, _) => AircraftCommandApplicability.CanLandHelicopter(ac),
+            (label, ac, context, host) => AirTaxiFlyout.Build(label, AirTaxiVerb.Land, ac, context, host)
+        ),
         HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route…", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute),
         Relative(
             MenuIds.RelativeReportInSight,

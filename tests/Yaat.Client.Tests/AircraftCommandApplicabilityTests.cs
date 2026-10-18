@@ -919,4 +919,92 @@ public class AircraftCommandApplicabilityTests
     /// <summary>A null aircraft carries no state, so it is untracked and gets the one item that always applies.</summary>
     [Fact]
     public void TrackItems_NullAircraft_ShowOnlyInitiateTrack() => Assert.Equal([MenuIds.TrackTrack], ShownTrackIds(null));
+
+    // --- Helicopter air taxi and land ---
+
+    private static AircraftModel Typed(string type, AircraftSituation situation, bool onGround)
+    {
+        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+        AircraftModel ac = Ac("", onGround, rules: "VFR");
+        ac.AircraftType = type;
+        ac.Situation = situation;
+        return ac;
+    }
+
+    [Theory]
+    [InlineData("EC35", AircraftSituation.AtParking, true, true)]
+    [InlineData("EC35", AircraftSituation.HoldingOnGround, true, true)]
+    [InlineData("EC35", AircraftSituation.HoldingShort, true, true)]
+    [InlineData("R22", AircraftSituation.RolloutExit, true, true)]
+    [InlineData("EC35", AircraftSituation.Taxiing, true, false)] // a ground taxi in progress is not one of the four situations
+    [InlineData("EC35", AircraftSituation.Taxiing, false, false)] // air-taxiing: airborne, offered Land instead
+    [InlineData("EC35", AircraftSituation.VfrFlightFollowing, false, false)]
+    [InlineData("EC35", AircraftSituation.HoldingOnGround, false, false)] // a ground situation alone does not offer it: airborne never does
+    [InlineData("B738", AircraftSituation.AtParking, true, false)]
+    [InlineData("C172", AircraftSituation.HoldingShort, true, false)]
+    [InlineData("ZZZZ", AircraftSituation.AtParking, true, false)] // a type the lookup does not know is no helicopter
+    public void CanAirTaxi_HelicopterOnTheGroundInTheFourSituations(string type, AircraftSituation situation, bool onGround, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.CanAirTaxi(Typed(type, situation, onGround)));
+
+    [Theory]
+    [InlineData("EC35", AircraftSituation.VfrFlightFollowing, false, true)]
+    [InlineData("EC35", AircraftSituation.Taxiing, false, true)] // air-taxiing is airborne
+    [InlineData("R22", AircraftSituation.Holding, false, true)]
+    [InlineData("EC35", AircraftSituation.IfrEnroute, false, true)]
+    [InlineData("EC35", AircraftSituation.Final, false, true)]
+    [InlineData("EC35", AircraftSituation.AtParking, true, false)]
+    [InlineData("B738", AircraftSituation.VfrFlightFollowing, false, false)]
+    [InlineData("ZZZZ", AircraftSituation.VfrFlightFollowing, false, false)]
+    public void CanLandHelicopter_AirborneHelicopterOnly(string type, AircraftSituation situation, bool onGround, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.CanLandHelicopter(Typed(type, situation, onGround)));
+
+    /// <summary>
+    /// Air taxi in Rollout / exit waits until the helicopter has settled, as Cross runway does: not on the landing rollout
+    /// before it decelerates (7110.65 §3-10-9.a NOTE), nor in a rejected takeoff above taxi speed; clearing the runway is
+    /// settled.
+    /// </summary>
+    [Theory]
+    [InlineData("Landing", SituationFlags.None, 0.0, false)]
+    [InlineData("Landing", SituationFlags.RolloutDecelerating, 0.0, true)]
+    [InlineData("Rejected Takeoff", SituationFlags.None, 60.0, false)]
+    [InlineData("Rejected Takeoff", SituationFlags.None, 10.0, true)]
+    [InlineData("Clearing Runway", SituationFlags.None, 0.0, true)]
+    public void CanAirTaxi_InRolloutExit_OnlyOnceSettled(string phase, SituationFlags flags, double groundSpeedKts, bool expected)
+    {
+        AircraftModel ac = Typed("EC35", AircraftSituation.RolloutExit, onGround: true);
+        ac.CurrentPhase = phase;
+        ac.SituationFlags = flags;
+        ac.GroundSpeed = groundSpeedKts;
+
+        Assert.Equal(expected, AircraftCommandApplicability.CanAirTaxi(ac));
+    }
+
+    [Fact]
+    public void HelicopterPredicates_NullAndSurfaceShadow_AreFalse()
+    {
+        AircraftModel shadow = Typed("EC35", AircraftSituation.AtParking, onGround: true);
+        shadow.IsLiveTraffic = true;
+        Assert.False(AircraftCommandApplicability.CanAirTaxi(null));
+        Assert.False(AircraftCommandApplicability.CanLandHelicopter(null));
+        Assert.False(AircraftCommandApplicability.CanAirTaxi(shadow));
+    }
+
+    [Theory]
+    [InlineData("EC35", true)]
+    [InlineData("B738", false)]
+    [InlineData("ZZZZ", false)]
+    public void IsHelicopter_ReadsTheAircraftsOwnType(string type, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.IsHelicopter(Typed(type, AircraftSituation.AtParking, onGround: true)));
+
+    /// <summary>The sim refuses ATXI by the type it flies, not the filed one, so a helicopter filed as a jet is still a helicopter.</summary>
+    [Fact]
+    public void IsHelicopter_IgnoresTheFiledType()
+    {
+        AircraftModel heli = Typed("EC35", AircraftSituation.AtParking, onGround: true);
+        heli.FiledAircraftType = "B738";
+        AircraftModel jet = Typed("B738", AircraftSituation.AtParking, onGround: true);
+        jet.FiledAircraftType = "EC35";
+        Assert.True(AircraftCommandApplicability.IsHelicopter(heli));
+        Assert.False(AircraftCommandApplicability.IsHelicopter(jet));
+    }
 }

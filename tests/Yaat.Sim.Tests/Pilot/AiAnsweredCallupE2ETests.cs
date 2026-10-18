@@ -186,6 +186,7 @@ public class AiAnsweredCallupE2ETests
             PreserveConditionals = false,
             IsScenarioScripted = true,
             FacilityHint = null,
+            LayoutForAirport = null,
         };
         BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);

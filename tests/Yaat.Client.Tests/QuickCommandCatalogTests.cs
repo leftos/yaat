@@ -46,6 +46,18 @@ public class QuickCommandCatalogTests
     [InlineData(MenuIds.LiveTrafficAssumeAndTrack)]
     public void SingleAircraftAssume_IsEligible(string id) => Assert.True(QuickCommandCatalog.IsEligible(id));
 
+    /// <summary>The helicopter entries can be added to any situation's list in Settings, under their labels and glyphs.</summary>
+    [Theory]
+    [InlineData(MenuIds.GroundAirTaxi, "Air taxi")]
+    [InlineData(MenuIds.GroundLandHelicopter, "Land")]
+    public void HelicopterEntry_IsEligible_UnderItsLabel(string id, string label)
+    {
+        QuickCommandCatalogItem item = Assert.IsType<QuickCommandCatalogItem>(QuickCommandCatalog.Find(id));
+        Assert.Equal("ground", item.Family);
+        Assert.Equal(label, item.Label);
+        Assert.NotNull(item.Glyph);
+    }
+
     [Fact]
     public void AssumeSelected_IsTheOnlyLiveTrafficActionRuledOut()
     {

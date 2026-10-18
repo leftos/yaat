@@ -8,6 +8,8 @@
 - The right-click menu offers Resume taxi for an aircraft held while taxiing or following.
 - A feed tool's room list shows each room's member count, aircraft count and whether it is paused.
 - A server run from source accepts VATSIM sandbox sign-ins for the feed tools' room list.
+- Helicopters get Air taxi and Land quick commands, each opening a live flyout of pads, parking, spots and runway holding positions with a filter box.
+- `LAND $spot` lands a helicopter at a taxiway spot and holds it there.
 
 ### Changed
 
@@ -20,6 +22,7 @@
 - Preset taxi route opens a live flyout of the airport's presets, nearest first, each showing its taxiways, distance and command; pointing previews the route.
 - Taxi to runway opens one tabbed flyout, a tab per runway end listing its entries; a tab whose search failed retries only when clicked or entered.
 - Exit left and Exit right open live flyouts of the exits ahead with distance and turn-off angle; on final an Exit at box suggests the runway's exits.
+- `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 
 ### Fixed
 

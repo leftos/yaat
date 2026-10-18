@@ -156,6 +156,13 @@ public interface IMenuAircraft
     string BaseAircraftType { get; }
 
     /// <summary>
+    /// The performance category of the aircraft physically flying, by <see cref="AircraftCategorization.Categorize"/> on its
+    /// own type (never the filed one), the test the sim refuses <c>ATXI</c> and <c>LAND</c> by; a type the lookup does not know
+    /// is <see cref="AircraftCategory.Jet"/>.
+    /// </summary>
+    AircraftCategory Category { get; }
+
+    /// <summary>
     /// The filed VFR cruise altitude in feet when the flight plan files the plain <c>VFR/NNN</c> form (<c>VFR/045</c> →
     /// 4,500); null for any other filed altitude (IFR, VFR on top, a block, a bare <c>VFR</c>). The Cleared for takeoff
     /// flyout's altitude box starts from it.

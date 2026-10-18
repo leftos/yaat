@@ -156,6 +156,31 @@ public class QuickCommandResolverTests
         Assert.NotEmpty(ids);
     }
 
+    /// <summary>
+    /// A helicopter on a stand gets the mock's pad strip from the default at-parking list: Air taxi first, then the taxi
+    /// entries, with Push back and Push back to… hidden.
+    /// </summary>
+    [Fact]
+    public void AtParking_Helicopter_ResolvesThePadStrip()
+    {
+        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+        var parked = new AircraftModel
+        {
+            Callsign = "TST123",
+            AircraftType = "EC35",
+            CurrentPhase = "At Parking",
+            IsOnGround = true,
+            FlightRules = "VFR",
+            Situation = AircraftSituation.AtParking,
+            ParkingSpot = "HELI1",
+        };
+
+        QuickCommandResolution resolution = QuickCommandResolver.Resolve(parked, Context(), _ => true);
+
+        Assert.Equal([MenuIds.GroundAirTaxi, MenuIds.GroundTaxiPreset, MenuIds.GroundDrawTaxiRoute], StripIds(resolution));
+        Assert.Empty(TextIds(resolution));
+    }
+
     [Fact]
     public void Strip_TakesTheFirstTenGlyphEntriesInOrder_AndTheEleventhGoesToText()
     {

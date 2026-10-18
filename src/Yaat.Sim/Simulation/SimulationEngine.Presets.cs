@@ -306,6 +306,7 @@ public sealed partial class SimulationEngine
             // must not mark initial contact — the departure still checks in after takeoff.
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
+            LayoutForAirport = ResolveAirportLayout,
         };
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         // The pilot's "ready for departure" call is answered even though the automated tower issued the
@@ -434,6 +435,7 @@ public sealed partial class SimulationEngine
             PreserveConditionals = false,
             IsScenarioScripted = true,
             FacilityHint = scenario.StudentPosition?.FacilityId,
+            LayoutForAirport = ResolveAirportLayout,
         };
     }
 
@@ -548,6 +550,7 @@ public sealed partial class SimulationEngine
             PreserveConditionals = false,
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
+            LayoutForAirport = ResolveAirportLayout,
         };
         TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
         CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);

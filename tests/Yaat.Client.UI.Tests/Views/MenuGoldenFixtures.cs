@@ -28,7 +28,7 @@ internal sealed record MenuFixture(string Name, AircraftModel Aircraft, Aircraft
 /// against. Every call returns fresh <see cref="AircraftModel"/>s built from constants (no clock, no randomness), one per
 /// <see cref="AircraftSituation"/> except <see cref="AircraftSituation.Unknown"/> (an IFR and a VFR one where the
 /// situation allows both), plus live traffic, a delayed spawn and a relative selection (every view; the list shares the ground's).
-/// IFR fixtures fly a B738 to KOAK runway 30 and VFR fixtures a C172 to 28R.
+/// IFR fixtures fly a B738 to KOAK runway 30 and VFR fixtures a C172 to 28R; the helicopter fixtures are a VFR EC35 at KOAK.
 /// </summary>
 internal static class MenuGoldenFixtures
 {
@@ -145,8 +145,49 @@ internal static class MenuGoldenFixtures
             new("rollout-exit-listed", RolloutJetWithExitsAhead(holdShort.Position), null),
             new("held-for-release", HeldForRelease(taxiway), null),
             new("cfr-window", CfrWindow(taxiway), null),
+            new("at-parking-helicopter", ParkedHelicopter(layout), null),
+            new(
+                "holding-on-ground-helicopter",
+                Helicopter("N812HM", "Holding In Position", AircraftSituation.HoldingOnGround, SpotI8R(layout), onGround: true),
+                null
+            ),
+            new(
+                "holding-short-helicopter",
+                Helicopter("N812HN", $"Holding Short {holdShort.RunwayId}", AircraftSituation.HoldingShort, holdShort.Position, onGround: true),
+                null
+            ),
+            new("rollout-exit-helicopter", Helicopter("N812HO", "Landing", AircraftSituation.RolloutExit, holdShort.Position, onGround: true), null),
         ];
     }
+
+    /// <summary>An EC35 parked at HELI1, one of KOAK's helicopter positions (parking features; the layout has no helipad).</summary>
+    private static AircraftModel ParkedHelicopter(AirportGroundLayout layout)
+    {
+        GroundNode heli1 = layout.FindParkingByName("HELI1") ?? throw new InvalidOperationException("The KOAK test layout has no stand HELI1");
+        AircraftModel ac = Helicopter("N812HL", "At Parking", AircraftSituation.AtParking, heli1.Position, onGround: true);
+        ac.ParkingSpot = "HELI1";
+        return ac;
+    }
+
+    private static LatLon SpotI8R(AirportGroundLayout layout) =>
+        (layout.FindSpotNodeByName("I8R") ?? throw new InvalidOperationException("The KOAK test layout has no spot I8R")).Position;
+
+    /// <summary>A VFR EC35 at KOAK, on the ground or in the air at 500 ft, in the given phase.</summary>
+    private static AircraftModel Helicopter(string callsign, string phase, AircraftSituation situation, LatLon position, bool onGround) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "EC35",
+            FlightRules = "VFR",
+            CurrentPhase = phase,
+            Situation = situation,
+            IsOnGround = onGround,
+            Position = position,
+            Heading = new TrueHeading(0),
+            Altitude = onGround ? 9 : 500,
+            Departure = "KOAK",
+            Destination = "KOAK",
+        };
 
     /// <summary>
     /// <paramref name="ac"/> with its parking spot named gate 25, as the server sends an aircraft parked there; with no
@@ -337,6 +378,11 @@ internal static class MenuGoldenFixtures
     private static List<MenuFixture> AirborneVfrFixtures() =>
         [
             new("departing-vfr", AirborneCessna("N301AB", "InitialClimb", AircraftSituation.Departing, new LatLon(37.7450, -122.2500), 1500), null),
+            new(
+                "vfr-flight-following-helicopter",
+                Helicopter("N812HP", "", AircraftSituation.VfrFlightFollowing, new LatLon(37.7350, -122.2200), onGround: false),
+                null
+            ),
             new("vfr-flight-following", VfrCessnaNoPhase("N302AB", AircraftSituation.VfrFlightFollowing, new LatLon(37.9500, -122.3500), 5500), null),
             new("vfr-arrival-inbound", VfrCessnaNoPhase("N303AB", AircraftSituation.VfrArrivalInbound, new LatLon(37.9000, -122.2500), 3500), null),
             new("vfr-departing", AirborneCessna("N304AB", "PatternExit", AircraftSituation.VfrDeparting, new LatLon(37.7400, -122.2500), 1500), null),

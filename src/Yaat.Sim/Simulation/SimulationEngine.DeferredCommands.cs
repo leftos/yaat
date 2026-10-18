@@ -197,6 +197,7 @@ public sealed partial class SimulationEngine
                     PreserveConditionals = true,
                     IsScenarioScripted = d.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
+                    LayoutForAirport = ResolveAirportLayout,
                 };
                 CommandResult deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
                 if (!deferredResult.Success)

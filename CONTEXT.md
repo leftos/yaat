@@ -558,6 +558,9 @@ The surface that owns an aircraft menu (radar, ground, aircraft list) as a catal
 **Runway entry (Taxi to runway)**:
 A runway hold short the Taxi to runway flyout offers as one title line with its variants under it, reached by the shortest route from the aircraft: the **full-length entry** at the runway's end, or an **intersection entry** whose runway remaining (shown as `~N ft avail`) is at least the type's takeoff distance (`TaxiRouteRow`, `GroundViewModel.GetTaxiToRunwayChoices`); the client's own ranking, separate from `RunwayEntryPoint`, the Sim classifier behind a queued departure's `28R@E`.
 
+**Chip**:
+The small button under a flyout row that sends a variant of the row's command: a facing under a Push back to… target (`PUSH TE FACE N`) or another holding position under an Air taxi runway row (`ATXI 28R@E`). Its accessible name is its command.
+
 **Click context (menu click)**:
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 
@@ -574,7 +577,7 @@ The Hold short of… designed flyout (`HoldShortLadder`): the aircraft's route f
 A runway end is landable for a physical aircraft type when its landing distance available is at least 1.15 times the type's landing distance, and short otherwise (`RunwayLandability`); a type with no figure, a helicopter and a `VEH*` type are always landable. The pattern entries' flyout lists landable ends first and marks short ones "short".
 
 **Designed flyout**:
-A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to…, Hold short of…, Preset taxi route and Taxi to runway are designed flyouts.
+A quick command's strip flyout built from rows with their own layout (glyph or badge, label, what it sends) instead of a copy of a context submenu; the same rows serve the entry's All Commands submenu. Cleared for takeoff, the pattern entries' runway flyout, Push back to…, Follow…, Give way to…, Hold short of…, Preset taxi route, Taxi to runway, Air taxi and Land are designed flyouts.
 
 **Detail row**:
 A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.DetailRow`), such as the point menu's FRD, distance and bearing line; not a command row.

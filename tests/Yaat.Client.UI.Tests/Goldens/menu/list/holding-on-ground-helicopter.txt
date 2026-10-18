@@ -1,0 +1,57 @@
+# list holding-on-ground-helicopter
+N812HM · EC35 [disabled]
+Holding in position [disabled]
+---
+strip: [ground.air-taxi, ground.draw-taxi-route, ground.follow]
+---
+Command…
+Note…
+All Commands
+  Taxi to runway
+    Finding runway entries…
+  Preset taxi route
+    TERMINAL to 30 · via T U W · ~13,300 ft — TAXI T U W RWY 30
+  Air taxi
+    Air taxi to · Filter pads, parking, spots, runways
+  Follow… · no other aircraft on the ground [disabled]
+  Give way to… · no other aircraft on the ground [disabled]
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+---
+Delete

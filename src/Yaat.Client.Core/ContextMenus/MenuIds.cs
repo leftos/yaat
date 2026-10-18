@@ -408,6 +408,15 @@ public static class MenuIds
     /// </summary>
     public const string GroundTaxiToRunway = "ground.taxi-to-runway";
 
+    /// <summary>
+    /// Air taxi a helicopter on the ground (<c>ATXI @pad</c>, <c>ATXI $spot</c>, <c>ATXI 28R</c>, <c>ATXI 28R@J</c>) to a
+    /// helipad, parking position, spot or runway holding position, nearest first.
+    /// </summary>
+    public const string GroundAirTaxi = "ground.air-taxi";
+
+    /// <summary>Land an airborne helicopter (<c>LAND @pad</c>, <c>LAND $spot</c>) at a helipad, parking position or spot, nearest first.</summary>
+    public const string GroundLandHelicopter = "ground.land-helicopter";
+
     /// <summary>Draw a taxi route on the surface for the aircraft.</summary>
     public const string GroundDrawTaxiRoute = "ground.draw-taxi-route";
 

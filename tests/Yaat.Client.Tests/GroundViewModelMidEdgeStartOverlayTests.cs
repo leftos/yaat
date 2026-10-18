@@ -524,6 +524,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
             PreserveConditionals = false,
             IsScenarioScripted = false,
             FacilityHint = null,
+            LayoutForAirport = null,
         };
 
     private static LatLon Along(LatLon from, LatLon to, double fraction) =>

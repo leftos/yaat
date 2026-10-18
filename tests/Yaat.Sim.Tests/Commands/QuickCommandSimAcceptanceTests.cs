@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Phases;
@@ -9,7 +10,9 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Situation;
 using Yaat.Sim.Tests.ControllerAi;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
 
@@ -490,6 +493,147 @@ public sealed class QuickCommandSimAcceptanceTests
         Assert.IsType<FinalApproachPhase>(final.Aircraft.Phases?.CurrentPhase);
         Assert.NotNull(final.Aircraft.Situation.ExitsAhead);
         return final;
+    }
+
+    // --- Air taxi and Land: every destination form the helicopter flyout builds ---
+
+    /// <summary>
+    /// Each row form of the Air taxi flyout, sent to an EC35 parked at KOAK's HELI1: pad or parking, spot, bare and located
+    /// runway.
+    /// </summary>
+    [Theory]
+    [InlineData("ATXI @HELI2")]
+    [InlineData("ATXI $I8R")]
+    [InlineData("ATXI 28R")]
+    [InlineData("ATXI 28R@J")]
+    public void AirTaxi_FromAPad_EveryFlyoutFormIsAccepted(string command)
+    {
+        (SimulationEngine engine, AircraftState heli) = HelicopterAtOak(onGround: true);
+
+        AssertAccepted(engine.SendCommand(heli.Callsign, command), $"{command} from HELI1");
+        Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// ATXI from each of the four ground situations the quick list offers Air taxi in, each staged by a phase the situation
+    /// classifier files under it: parked at HELI1, holding in position there, holding short of 28R at its full-length bar,
+    /// and clearing the runway. ATXI is taken ahead of the phase's own command gate, so each hands over to the air taxi.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftSituation.AtParking)]
+    [InlineData(AircraftSituation.HoldingOnGround)]
+    [InlineData(AircraftSituation.HoldingShort)]
+    [InlineData(AircraftSituation.RolloutExit)]
+    public void AirTaxi_FromEachGroundSituation_IsAccepted(AircraftSituation situation)
+    {
+        (SimulationEngine engine, AircraftState heli) = HelicopterAtOak(onGround: true);
+        AirportGroundLayout layout = heli.Ground.Layout!;
+        GroundNode bar =
+            GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget("28R", null, false))
+            ?? throw new Xunit.Sdk.XunitException("KOAK 28R has no holding position");
+        Phase phase = situation switch
+        {
+            AircraftSituation.AtParking => new AtParkingPhase(),
+            AircraftSituation.HoldingOnGround => new HoldingInPositionPhase(),
+            AircraftSituation.HoldingShort => new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = bar.Id,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28R",
+                }
+            ),
+            _ => new ClearRunwayPhase(0, 0),
+        };
+        if (situation == AircraftSituation.HoldingShort)
+        {
+            heli.Position = bar.Position;
+        }
+
+        heli.Phases = new PhaseList();
+        heli.Phases.Add(phase);
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        Assert.Equal(situation, SituationClassifier.Classify(heli, 0, AircraftSituation.Unknown));
+
+        AssertAccepted(engine.SendCommand(heli.Callsign, "ATXI @HELI2"), $"ATXI @HELI2 from {situation}");
+        Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// ATXI on the landing rollout itself (<see cref="LandingPhase"/>, Rollout / exit): taken ahead of the phase's gate as
+    /// from every other ground situation. The client offers it there only once the rollout decelerates.
+    /// </summary>
+    [Fact]
+    public void AirTaxi_OnTheLandingRollout_IsAccepted()
+    {
+        (SimulationEngine engine, AircraftState heli) = HelicopterAtOak(onGround: true);
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        heli.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        heli.Phases = new PhaseList { AssignedRunway = runway };
+        heli.Phases.Add(new LandingPhase());
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, heli.Ground.Layout));
+        Assert.Equal(AircraftSituation.RolloutExit, SituationClassifier.Classify(heli, 0, AircraftSituation.Unknown));
+
+        AssertAccepted(engine.SendCommand(heli.Callsign, "ATXI @HELI2"), "ATXI @HELI2 on the landing rollout");
+        Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// Each row form of the Land flyout, plain and with the Keep NODEL box ticked, sent to an EC35 airborne 1.2 nm south of
+    /// HELI1 at 500 ft; NODEL exempts it from auto-delete.
+    /// </summary>
+    [Theory]
+    [InlineData("LAND @HELI2", false)]
+    [InlineData("LAND $I8R", false)]
+    [InlineData("LAND @HELI2 NODEL", true)]
+    [InlineData("LAND $I8R NODEL", true)]
+    public void Land_Airborne_EveryFlyoutFormIsAccepted(string command, bool keptAfterLanding)
+    {
+        (SimulationEngine engine, AircraftState heli) = HelicopterAtOak(onGround: false);
+
+        AssertAccepted(engine.SendCommand(heli.Callsign, command), $"{command} 1.2 nm south of HELI1");
+        Assert.IsType<HelicopterApproachPhase>(heli.Phases!.CurrentPhase);
+        Assert.Equal(keptAfterLanding, heli.Ground.AutoDeleteExempt);
+    }
+
+    /// <summary>
+    /// An EC35 at KOAK in an engine with the real layout: parked at HELI1, or airborne 1.2 nm due south of it at 500 ft in a
+    /// VFR hold.
+    /// </summary>
+    private static (SimulationEngine Engine, AircraftState Heli) HelicopterAtOak(bool onGround)
+    {
+        var groundData = new TestAirportGroundData();
+        AirportGroundLayout layout = groundData.GetLayout("OAK") ?? throw new Xunit.Sdk.XunitException("No KOAK test layout");
+        GroundNode heli1 = layout.FindParkingByName("HELI1") ?? throw new Xunit.Sdk.XunitException("KOAK has no HELI1");
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-helicopter-flyout-forms",
+                ScenarioName = "Helicopter flyout forms",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+            },
+        };
+        var heli = new AircraftState
+        {
+            Callsign = "N812HL",
+            AircraftType = "EC35",
+            Position = onGround ? heli1.Position : GeoMath.ProjectPoint(heli1.Position, new TrueHeading(180), 1.2),
+            TrueHeading = new TrueHeading(0),
+            TrueTrack = new TrueHeading(0),
+            Altitude = onGround ? 9 : 500,
+            IndicatedAirspeed = 0,
+            IsOnGround = onGround,
+            FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
+        };
+        heli.Ground.Layout = layout;
+        heli.Phases = new PhaseList();
+        heli.Phases.Add(onGround ? new AtParkingPhase() : new VfrHoldPhase());
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        engine.World.AddAircraft(heli);
+        return (engine, heli);
     }
 
     private static AircraftState AirborneNearOak(Phase phase)

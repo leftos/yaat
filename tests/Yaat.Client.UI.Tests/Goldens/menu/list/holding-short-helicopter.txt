@@ -1,0 +1,76 @@
+# list holding-short-helicopter
+N812HN · EC35 [disabled]
+Holding short 30/12 [disabled]
+---
+strip: [ground.cross-runway, ground.air-taxi]
+---
+Command…
+Note…
+All Commands
+  Taxi to runway
+    Finding runway entries…
+  Preset taxi route
+    30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
+  Air taxi
+    Air taxi to · Filter pads, parking, spots, runways
+  Cross 30
+  Tower
+    Line up and wait 30
+    Cleared for takeoff 30
+      Initial altitude · default climb
+      Cleared for takeoff — CTO
+      Make left closed traffic — CTO MLT
+      Make right closed traffic — CTO MRT
+      Straight out — CTO MSO
+      Left crosswind departure — CTO MLC
+      Right crosswind departure — CTO MRC
+      Left downwind departure — CTO MLD
+      Right downwind departure — CTO MRD
+      Left turnout (45°) — CTO ML45
+      Right turnout (45°) — CTO MR45
+      Fly heading — CTO ···
+      On course — CTO OC [disabled]
+      Turn left direct — CTO TLDCT ···
+      Turn right direct — CTO TRDCT ···
+      ---
+      Custom… picker:input
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+---
+Delete

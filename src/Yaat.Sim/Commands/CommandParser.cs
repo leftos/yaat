@@ -1959,7 +1959,7 @@ public static class CommandParser
         string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return PR.Fail("LAND requires a taxiway or @spot");
+            return PR.Fail("LAND requires a taxiway, @helipad/@parking or $spot");
         }
 
         if (!TryParseNoDeleteFlag(tokens, "LAND", out bool noDelete, out string? error))
@@ -1969,10 +1969,15 @@ public static class CommandParser
 
         string raw = tokens[0];
 
-        // @prefix = parking/helipad spot (strip @), no prefix = taxiway name
+        // @prefix = helipad, parking or spot (strip @), $prefix = taxi spot only, no prefix = taxiway name
         if (raw.StartsWith('@'))
         {
             return PR.Ok(new LandCommand(raw[1..].ToUpperInvariant(), noDelete, IsTaxiway: false));
+        }
+
+        if (raw.StartsWith('$'))
+        {
+            return PR.Ok(new LandCommand(raw[1..].ToUpperInvariant(), noDelete, IsTaxiway: false) { IsTaxiSpot = true });
         }
 
         return PR.Ok(new LandCommand(raw.ToUpperInvariant(), noDelete, IsTaxiway: true));

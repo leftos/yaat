@@ -276,8 +276,8 @@ public static class AircraftCommandApplicability
 
     /// <summary>
     /// Exit left / right in the landing and runway exit phases, and on final while the server lists the exits ahead
-    /// (<see cref="IMenuAircraft.ExitsAhead"/> not null). Fixed-wing only — helicopters ("Landing-H") land to a spot, not a
-    /// runway exit.
+    /// (<see cref="IMenuAircraft.ExitsAhead"/> not null). There is no category test: a helicopter landing to a spot is in
+    /// "Landing-H", which matches neither phase, but one rolling out on a runway gets the items as a fixed-wing aircraft does.
     /// </summary>
     public static bool CanExitRunway(IMenuAircraft? ac)
     {
@@ -490,6 +490,36 @@ public static class AircraftCommandApplicability
             || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
+    // --- Helicopter ---
+
+    /// <summary>
+    /// True when the aircraft physically flying is a helicopter (<see cref="IMenuAircraft.Category"/>), the test the sim
+    /// refuses <c>ATXI</c> and <c>LAND</c> by. A type the category lookup does not know is no helicopter.
+    /// </summary>
+    public static bool IsHelicopter([NotNullWhen(true)] IMenuAircraft? ac) => ac is { Category: AircraftCategory.Helicopter };
+
+    /// <summary>
+    /// Air taxi (<c>ATXI</c>) — a helicopter on the ground At parking, Holding on ground, Holding short or in Rollout / exit,
+    /// the last only once settled as Cross runway waits (<see cref="IsSettledForCrossing"/>): a ground-movement instruction
+    /// is not issued on the landing roll before it decelerates (7110.65 §3-10-9.a NOTE). Not while it already moves
+    /// (Taxiing): an air-taxiing helicopter is airborne and is offered Land (<see cref="CanLandHelicopter"/>) instead.
+    /// Fixed-wing aircraft never see it, the sim refusing it for them.
+    /// </summary>
+    public static bool CanAirTaxi(IMenuAircraft? ac) =>
+        IsControllable(ac)
+        && IsHelicopter(ac)
+        && ac.IsOnGround
+        && (
+            (ac.Situation is AircraftSituation.AtParking or AircraftSituation.HoldingOnGround or AircraftSituation.HoldingShort)
+            || ((ac.Situation == AircraftSituation.RolloutExit) && IsSettledForCrossing(ac))
+        );
+
+    /// <summary>
+    /// Land (<c>LAND</c>) at a helipad, parking position or spot — an airborne helicopter in any situation, air-taxiing included.
+    /// Fixed-wing aircraft never see it (<c>CLAND</c> is theirs).
+    /// </summary>
+    public static bool CanLandHelicopter(IMenuAircraft? ac) => IsAirborneControllable(ac) && IsHelicopter(ac);
+
     // --- Pattern ---
 
     /// <summary>
@@ -588,6 +618,12 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool ShowsRunwayExit(IMenuAircraft? ac) =>
         ac is not null && ((ac.Situation != AircraftSituation.RolloutExit) || ac.SituationFlags.HasFlag(SituationFlags.RolloutDecelerating));
+
+    /// <summary>
+    /// Push back and Push back to… hide for a helicopter (<see cref="IsHelicopter"/>), whose quick list offers Air taxi
+    /// instead; a wheeled one a scenario parks at a gate still finds them under All Commands.
+    /// </summary>
+    public static bool ShowsPushback(IMenuAircraft? ac) => ac is not null && !IsHelicopter(ac);
 
     /// <summary>
     /// Cleared for takeoff and Line up and wait hide while a hold-for-release keeps the departure from departing: the sim

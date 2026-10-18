@@ -532,6 +532,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side) =>
         FindAircraft(callsign) is { } ac ? main.Ground.GetRunwayExits(ac, side) : [];
 
+    public AirTaxiMenu GetAirTaxiChoices(string callsign) => FindAircraft(callsign) is { } ac ? main.Ground.GetAirTaxiChoices(ac) : AirTaxiMenu.Empty;
+
     /// <summary>Assumes the selected shadows through the main view model, which owns the bulk-assume call.</summary>
     public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) => main.AssumeSelectedLiveTrafficAsync([.. callsigns]);
 

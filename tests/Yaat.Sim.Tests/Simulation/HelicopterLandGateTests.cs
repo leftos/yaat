@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -155,6 +156,236 @@ public class HelicopterLandGateTests
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// <c>LAND $C</c> names KOAK's taxiway spot C, never the parking position C that <c>LAND @C</c> reaches
+    /// first: the hovering helicopter lands at the spot node.
+    /// </summary>
+    [Fact]
+    public void Land_DollarMarker_LandsAtTheTaxiSpot_NotTheSameNamedParking()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? heliSpot = layout!.FindSpotByName("HELI");
+        GroundNode? spotC = layout.FindSpotNodeByName("C");
+        GroundNode? parkingC = layout.FindParkingByName("C");
+        Assert.NotNull(heliSpot);
+        Assert.NotNull(spotC);
+        Assert.NotNull(parkingC);
+        Assert.True(
+            GeoMath.DistanceNm(spotC.Position, parkingC.Position) > 0.1,
+            "KOAK's spot C and parking C must be apart for this test to tell them apart."
+        );
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            heliSpot.Position,
+            altitude: OakFieldElevationFt + 300,
+            onGround: false
+        );
+
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND $C");
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
+        for (int t = 0; (t < 900) && (heli.Phases?.CurrentPhase is not HoldingInPositionPhase); t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<HoldingInPositionPhase>(heli.Phases!.CurrentPhase);
+        Assert.True(heli.IsOnGround, "The helicopter should have landed.");
+        double fromSpot = GeoMath.DistanceNm(heli.Position, spotC.Position);
+        Assert.True(fromSpot < 0.05, $"Landed {fromSpot:F3} nm from spot C; LAND $C must land at the taxiway spot.");
+    }
+
+    /// <summary>
+    /// The Land flyout's form for a helicopter bound elsewhere: airborne bound for KSFO with SFO's layout cached,
+    /// <c>APT OAK, LAND @HELI1</c> switches it to KOAK's layout before LAND resolves the name, so it lands at KOAK's
+    /// HELI1 rather than refusing the name or finding it at SFO.
+    /// </summary>
+    [Fact]
+    public void AptThenLand_BoundElsewhereWithThatLayoutCached_LandsAtTheNamedAirport()
+    {
+        (SimulationEngine engine, AirportGroundLayout oak, AirportGroundLayout _, AircraftState heli) = BoundForSfo(onGround: false);
+        GroundNode heli1 = oak.FindParkingByName("HELI1")!;
+
+        CommandResult result = engine.SendCommand(heli.Callsign, "APT OAK, LAND @HELI1");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(oak.AirportId, heli.Ground.Layout?.AirportId);
+        for (int t = 0; (t < 900) && (heli.Phases?.CurrentPhase is not AtParkingPhase); t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<AtParkingPhase>(heli.Phases!.CurrentPhase);
+        double fromHeli1 = GeoMath.DistanceNm(heli.Position, heli1.Position);
+        Assert.True(fromHeli1 < 0.05, $"Landed {fromHeli1:F3} nm from KOAK's HELI1.");
+    }
+
+    /// <summary>
+    /// <c>APT</c> alone switches an airborne aircraft's ground layout to the new destination's, and leaves an aircraft on
+    /// the ground on the layout its wheels are on.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Apt_SwitchesTheLayout_OnlyWhenAirborne(bool onGround)
+    {
+        (SimulationEngine engine, AirportGroundLayout oak, AirportGroundLayout sfo, AircraftState heli) = BoundForSfo(onGround);
+
+        CommandResult result = engine.SendCommand(heli.Callsign, "APT OAK");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("KOAK", heli.FlightPlan.Destination);
+        Assert.Equal((onGround ? sfo : oak).AirportId, heli.Ground.Layout?.AirportId);
+    }
+
+    /// <summary>A scenario preset <c>APT OAK, LAND @HELI1</c> switches the layout as the typed form does and lands at KOAK's HELI1.</summary>
+    [Fact]
+    public void PresetAptThenLand_BoundElsewhereWithThatLayoutCached_LandsAtTheNamedAirport()
+    {
+        (SimulationEngine engine, AirportGroundLayout oak, AirportGroundLayout _, AircraftState heli) = BoundForSfo(onGround: false);
+
+        engine.DispatchPresetCommands(
+            new LoadedAircraft { State = heli, PresetCommands = [new PresetCommand { Command = "APT OAK, LAND @HELI1", TimeOffset = 0 }] }
+        );
+
+        AssertLandsAtHeli1(engine, oak, heli);
+    }
+
+    /// <summary>
+    /// A triggered block <c>LV 5 APT OAK, LAND @HELI1</c> runs its <c>LAND</c> on the layout its own <c>APT</c> switched to
+    /// when it fires, and lands at KOAK's HELI1.
+    /// </summary>
+    [Fact]
+    public void TriggeredAptThenLand_BoundElsewhereWithThatLayoutCached_LandsAtTheNamedAirport()
+    {
+        (SimulationEngine engine, AirportGroundLayout oak, AirportGroundLayout _, AircraftState heli) = BoundForSfo(onGround: false);
+
+        CommandResult result = engine.SendCommand(heli.Callsign, "LV 5 APT OAK, LAND @HELI1");
+
+        Assert.True(result.Success, result.Message);
+        AssertLandsAtHeli1(engine, oak, heli);
+    }
+
+    /// <summary>
+    /// Low over KOAK on KOAK's layout, air-taxiing to FDX1, a helicopter given <c>APT SFO</c> keeps KOAK's layout: the field
+    /// under it is the one its ground phases run on. The destination still changes.
+    /// </summary>
+    [Fact]
+    public void Apt_LowOverTheFieldItsLayoutCovers_KeepsThatLayout()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? heliSpot = layout!.FindSpotByName("HELI");
+        Assert.NotNull(heliSpot);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            heliSpot.Position,
+            altitude: OakFieldElevationFt + 300,
+            onGround: false
+        );
+        Assert.True(engine.SendCommand(heli.Callsign, "LAND @FDX1").Success);
+        Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
+
+        CommandResult result = engine.SendCommand(heli.Callsign, "APT SFO");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("KSFO", heli.FlightPlan.Destination);
+        Assert.Equal("OAK", heli.Ground.Layout?.AirportId);
+    }
+
+    private static void AssertLandsAtHeli1(SimulationEngine engine, AirportGroundLayout oak, AircraftState heli)
+    {
+        GroundNode heli1 = oak.FindParkingByName("HELI1")!;
+        for (int t = 0; (t < 900) && (heli.Phases?.CurrentPhase is not AtParkingPhase); t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.Equal(oak.AirportId, heli.Ground.Layout?.AirportId);
+        Assert.IsType<AtParkingPhase>(heli.Phases!.CurrentPhase);
+        double fromHeli1 = GeoMath.DistanceNm(heli.Position, heli1.Position);
+        Assert.True(fromHeli1 < 0.05, $"Landed {fromHeli1:F3} nm from KOAK's HELI1.");
+    }
+
+    /// <summary>
+    /// An EC35 bound for KSFO with SFO's layout cached: airborne 1.2 nm south of KOAK's HELI1 at 500 ft in a VFR hold, or on
+    /// the ground at SFO.
+    /// </summary>
+    private static (SimulationEngine Engine, AirportGroundLayout Oak, AirportGroundLayout Sfo, AircraftState Heli) BoundForSfo(bool onGround)
+    {
+        var groundData = new TestAirportGroundData();
+        AirportGroundLayout oak = groundData.GetLayout("OAK")!;
+        AirportGroundLayout sfo = groundData.GetLayout("SFO")!;
+        Assert.NotNull(oak);
+        Assert.NotNull(sfo);
+        GroundNode heli1 = oak.FindParkingByName("HELI1")!;
+        Assert.NotNull(heli1);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-helicopter-apt-land",
+                ScenarioName = "Helicopter APT then LAND",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+            },
+        };
+        LatLon position = onGround
+            ? sfo.Nodes.Values.First(n => n.Type == GroundNodeType.Parking).Position
+            : GeoMath.ProjectPoint(heli1.Position, new TrueHeading(180), 1.2);
+        var heli = new AircraftState
+        {
+            Callsign = "N812HL",
+            AircraftType = "EC35",
+            Position = position,
+            TrueHeading = new TrueHeading(0),
+            TrueTrack = new TrueHeading(0),
+            Altitude = onGround ? 13 : 500,
+            IndicatedAirspeed = 0,
+            IsOnGround = onGround,
+            FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KSFO" },
+        };
+        heli.Ground.Layout = sfo;
+        heli.Phases = new PhaseList();
+        heli.Phases.Add(onGround ? new AtParkingPhase() : new VfrHoldPhase());
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, sfo));
+        engine.World.AddAircraft(heli);
+        return (engine, oak, sfo, heli);
+    }
+
+    /// <summary>
+    /// <c>LAND $I8R</c> ends as <c>ATXI $I8R</c> does: a taxiway spot is not a parking position, so the helicopter lands and
+    /// holds in position there with no parking spot set, never reported as parked on the taxiway.
+    /// </summary>
+    [Fact]
+    public void Land_DollarMarker_HoldsInPositionAtTheSpot_WithNoParkingSpot()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        GroundNode? heliSpot = layout!.FindSpotByName("HELI");
+        GroundNode? spotI8R = layout.FindSpotNodeByName("I8R");
+        Assert.NotNull(heliSpot);
+        Assert.NotNull(spotI8R);
+        (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(
+            heliSpot.Position,
+            altitude: OakFieldElevationFt + 300,
+            onGround: false
+        );
+
+        CommandResult result = engine.SendCommand(heli.Callsign, "LAND $I8R");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(heli.Ground.ParkingSpot);
+        for (int t = 0; (t < 900) && (heli.Phases?.CurrentPhase is AirTaxiPhase or HelicopterLandingPhase); t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<HoldingInPositionPhase>(heli.Phases!.CurrentPhase);
+        Assert.True(heli.IsOnGround, "The helicopter should have landed.");
+        Assert.Null(heli.Ground.ParkingSpot);
+        double fromSpot = GeoMath.DistanceNm(heli.Position, spotI8R.Position);
+        Assert.True(fromSpot < 0.05, $"Landed {fromSpot:F3} nm from spot I8R.");
     }
 
     [Fact]

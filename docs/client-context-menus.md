@@ -22,6 +22,8 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   A submenu whose items follow live data (Push back to…, filling from a seed and then a live plan; Follow… and Give way to…, refilled from the ground traffic when they open and once a second while open; Hold short of…, refilled from the route likewise; Preset taxi route, refilled from the host's presets likewise; Taxi to runway and Exit left / right, refilled likewise) registers `QuickCommandStrip.FollowInFlyout` with an `IStripFlyoutContent`: the strip tells it when the flyout opens, with the flyout's own item list and an action that closes the flyout and the menu, when the pointer enters and leaves the flyout (`PointerInside`), and when it closes, so the flyout follows the list while open instead of showing a frozen copy.
 
+  The Air taxi and Land flyouts register the same way and refill and re-sort likewise.
+
   The icon is latched (style class `sticky`, a light background) while its flyout is open; clicking it again, or Enter or Space on it, toggles the flyout, and Escape closes it and leaves the menu open. The flyout stays open when the pointer leaves the menu or rests on a plain row, and closes when another icon opens its flyout, when another row opens its own submenu or when the menu closes. `QuickCommandStrip.OpenSubmenu(Button)` opens it as a click does.
 
   The strip has no label row or tooltip: the entry under the pointer (or keyboard focus) is named in the header's state line (`QuickCommandLabelLine`, the dimmed row under the title), in place of its text for as long as it is pointed at. The label is the entry's name, then the command it sends when it sends one fixed command (`Hold position — HOLD`), and "›" when the entry opens a submenu. The line keeps its size, so the menu does not resize. A label wider than the line scrolls as a marquee (800 ms hold at each end, 60 px/s, back and repeat; `MarqueeClock` is the test clock the marquee reads time from, and `RenderMarqueeFrame` draws one frame); one that fits stays still. Marquee frames run on a UI-owned dispatcher timer that stops when the line detaches, so none is posted after the menu is gone (`MarqueeFramesRunning` tells a test whether the timer is running). An aircraft with no state line keeps a blank line of that height under its title for the label (`QuickCommandLabelLine.Ensure`).
@@ -50,7 +52,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
   Then comes the point menu's strip, of the same shape as the quick-command strip: the ground point items that apply (Taxi here, Taxi to {runway end} per end, Push to, Custom taxi…), or, on a radar point with an airborne aircraft, Fly heading, Direct to, Hold left, Hold right and Warp here; then a separator, then the text items. Only an enabled item gets an icon ("No route found" stays a text row).
 
   On a radar point an airborne aircraft's text items are only those the strip does not repeat: Fly heading, a dimmed `FH {hdg} · {left|right} turn, {n}°` row under it (none when the turn is under 1°), then Append direct to. Anywhere else the text items are the airborne items, the taxi items or Warp here, by the aircraft's predicates.
-- **Approach pickers** (Cleared, Join, Cleared/Join straight-in, Cleared/Join (force), Join final course, Expect) share one builder, `MenuCatalog.BuildApproachPicker`.
+- **Approach pickers** (Cleared, Join, Cleared/Join straight-in, Cleared/Join (force), Join final course, Expect) share one builder, `ApproachPickerBuilder.Build`.
 
   With a **default approach** (the expected approach, else the assigned runway's ILS, else that runway's first published approach) the entry is a one-click leaf naming it (`Cleared ILS 30`, sending `CAPP I30`) with a `{label} (other)…` companion holding the grouped picker; without one it is the grouped picker under its own label; with no published approaches, free text.
 
@@ -68,29 +70,29 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
 ## Quick commands by situation
 
-The default list of each situation, most frequent first (`QuickCommandDefaults`); *(IFR)* and *(VFR)* mark a per-entry flight-rules override. An aircraft whose situation is Unknown shows no quick commands and no strip. A list names catalog actions only, never a view's display item.
+The default list of each situation, most frequent first (`QuickCommandDefaults`); *(IFR)* and *(VFR)* mark a per-entry flight-rules override and *(helicopter)* an entry only a helicopter is offered (see [When a quick command shows](#when-a-quick-command-shows)). An aircraft whose situation is Unknown shows no quick commands and no strip. A list names catalog actions only, never a view's display item.
 
 | Situation | Default quick commands |
 |---|---|
-| At parking | Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window |
+| At parking | Air taxi ▸ *(helicopter)*, Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window |
 | Pushing back | Hold position, Push route… |
-| Holding on ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross |
-| Taxiing | Hold position, Resume taxi, Hold short of…, Cross, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff ▸, Cancel takeoff clearance |
-| Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi, Hold short of… |
+| Holding on ground | Air taxi ▸ *(helicopter)*, Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross |
+| Taxiing | Hold position, Resume taxi, Hold short of…, Cross, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff ▸, Cancel takeoff clearance, Land ▸ *(helicopter)* |
+| Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Air taxi ▸ *(helicopter)*, Resume taxi, Hold short of… |
 | Lined up | Cleared for takeoff ▸, Cancel takeoff clearance, Draw taxi route… |
-| Departing | Fly heading ▸, Maintain altitude, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
-| IFR enroute | Fly heading ▸, Maintain altitude, Direct to…, Assign speed ▸, Hold at fix…, Cross fix |
-| IFR arrival | Descend via STAR *(IFR)*, Maintain altitude, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold at fix… |
-| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain altitude, Direct to…, Expect approach ▸ |
-| Approach | Cleared approach ▸, Maintain altitude, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land |
-| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain altitude, then *(VFR)* Enter left / right downwind, Enter left / right base, Make straight-in |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
-| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left ▸, Exit right ▸ |
-| Rollout / exit | Exit left ▸, Exit right ▸, Cross, Draw taxi route… |
-| Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind |
+| Departing | Fly heading ▸, Maintain altitude, Climb via SID *(IFR)*, Direct to…, Assign speed ▸, Land ▸ *(helicopter)* |
+| IFR enroute | Fly heading ▸, Maintain altitude, Direct to…, Assign speed ▸, Hold at fix…, Cross fix, Land ▸ *(helicopter)* |
+| IFR arrival | Descend via STAR *(IFR)*, Maintain altitude, Assign speed ▸, Fly heading ▸, Direct to…, Expect approach ▸, Hold at fix…, Land ▸ *(helicopter)* |
+| VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain altitude, Direct to…, Expect approach ▸, Land ▸ *(helicopter)* |
+| Approach | Cleared approach ▸, Maintain altitude, Assign speed ▸, Report field in sight, Cleared visual *(IFR)*, Cleared to land, Land ▸ *(helicopter)* |
+| Holding | Cleared approach ▸ *(IFR)*, Direct to…, Maintain altitude, then *(VFR)* Enter left / right downwind, Enter left / right base, Make straight-in, then Land ▸ *(helicopter)* |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land ▸ *(helicopter)* |
+| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left ▸, Exit right ▸, Land ▸ *(helicopter)* |
+| Rollout / exit | Exit left ▸, Exit right ▸, Air taxi ▸ *(helicopter, once settled)*, Cross, Draw taxi route… |
+| Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, *(VFR)* Enter left / right downwind, Land ▸ *(helicopter)* |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic… |
-| VFR departure | Fly heading ▸, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic |
+| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic…, Land ▸ *(helicopter)* |
+| VFR departure | Fly heading ▸, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic, Land ▸ *(helicopter)* |
 
 Holding is also the situation of a VFR hold and an airspace-boundary hold, which is why its IFR entries are followed by VFR-tagged pattern entries. Exit hold and Expect further clearance time have no sim command yet, so the Holding list leaves them out.
 
@@ -116,6 +118,11 @@ A quick command shows when its flight rules fit, its catalog predicate holds (or
 - **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix (§5-7-1).
 - **Exit left / right** show on the rollout only once it decelerates, and on final only while the server lists the exits ahead (`IMenuAircraft.ExitsAhead` not null). On the rollout, while a list exists, a side shows only with a listed exit on it, since the exit search falls back to the other side when nothing is makeable on the one asked for; with no list (no layout or hold-short data) the side is not judged. On final the side is not judged by the list: the entry stays whenever the runway has exits on that side (`IMenuHost.GetRunwayExits`), and is hidden when it has none.
 - **Give way to…** shows only with a taxi route.
+- **Air taxi** and **Land** are helicopter-only: `AircraftCommandApplicability.IsHelicopter` reads `IMenuAircraft.Category`, which `AircraftModel` takes from `AircraftCategorization.Categorize` on the aircraft's own type (never the filed one), the test the sim refuses `ATXI` and `LAND` by. A fixed-wing aircraft never sees either, in the quick list or under All Commands, and a type the lookup does not know counts as no helicopter.
+  - **Air taxi** (`CanAirTaxi`, `ground.air-taxi`) shows for a controllable helicopter on the ground in the At parking, Holding on ground, Holding short and Rollout / exit situations. In Rollout / exit it waits until the helicopter is settled: on the landing rollout once it decelerates, in a rejected takeoff at or below 30 kt, and always while clearing or exiting the runway (7110.65 §3-10-9.a NOTE). It does not show while Taxiing: an air-taxiing helicopter is airborne and gets Land.
+  - **Land** (`CanLandHelicopter`, `ground.land-helicopter`) shows for a controllable airborne helicopter in any situation, an air-taxiing one included, and is the last entry of each such situation's list.
+  - **Push back** and **Push back to…** hide from a helicopter's quick list (`AircraftCommandApplicability.ShowsPushback`, in `QuickCommandResolver.Visibility`); All Commands still offers them.
+  - Both are catalog entries in the ground-movement block of All Commands (after Preset taxi route) and eligible in Settings › Input › Quick commands. Their glyphs are one helicopter (rotor, body, skids) in the ground colour, Air taxi with a right arrow and Land with a down arrow.
 - **Climb via SID** shows only with an active SID or one the filed route names at the departure airport (never for a VFR aircraft); **Descend via STAR** only with an active STAR or one the filed route names at the destination. The lookup is the sim's own (`FiledProcedureLookup`), so the menu offers exactly what a bare `CVIA` / `DVIA` accepts.
 
 Quick-list widenings, each first proven against the sim (`QuickCommandSimAcceptanceTests`):
@@ -229,7 +236,23 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   A row pointed at or focused previews its route through `SetRoutePreview` (dashed); pointing at a tab draws nothing and leaves the last preview, choosing another tab or closing the flyout clears it. UI Automation sees each tab as a `TabItem` named by `FlyoutTabStrip.AccessibleName` (`28R`, `28R, searching`, `12, none`), which can be invoked to select it.
 
-  Two controls are built for a flyout that shows one runway or group at a time, and Taxi to runway hosts them. `FlyoutTabStrip` is the tab strip above the rows: a wrapping row of `FlyoutTab`s (label and `FlyoutTabState`: Ready, Searching with a spinner, Empty with a dimmed italic `none`).
+  Air taxi and Land are one designed flyout, `AirTaxiFlyout.Build(label, AirTaxiVerb, aircraft, context, host)` (strip flyout and All Commands, registered through `QuickCommandStrip.FollowInFlyout`), over `IMenuHost.GetAirTaxiChoices` → `AirTaxiMenu` (`AirportId` and the `Pads`, `Parking`, `Spots` and `Runways` groups of `AirTaxiDestination`s, each nearest first by straight-line distance rounded to 50 ft; `GroundViewModel.GetAirTaxiChoices` answers from the view's layout).
+
+  A `FlyoutTabStrip` has the tabs Pads · parking, Spots and, for Air taxi only, Runways (a group with nothing is a dimmed `none` tab). Above it sits the filter box (Air taxi to, placeholder naming the groups) over a hint line. Each open starts with the box clear and Pads · parking selected, focus in the box.
+
+  Pads · parking lists the true helipad nodes first (a HELI-named parking position stays under parking), then the nearest eight parking positions (`AirTaxiFlyout.ParkingShown`) and an "n more" line. Rows read name, kind, distance and the command: `ATXI @NAME` or `LAND @NAME` for pads and parking, `ATXI $NAME` or `LAND $NAME` for spots. A destination the helicopter stands at on the ground is left out.
+
+  A runway end is one row sending the bare designator (`ATXI 28R`, the bar the sim resolves it to), naming that bar's taxiway in its note (`full length at J`), with the end's other bars as chips under it (`ATXI 28R@E`). Two taxiways reaching one bar give one chip, and every chip is one the sim resolves (`GroundCommandHandler.ResolveRunwayHoldShortNode`).
+
+  A bar within 300 ft of the far threshold is left out. A bar the helicopter holds at has no chip; a row whose own bar it holds at reads `RWY 28R · full length at T · holding short here` and sends nothing, only its chips send, and with no chips the row is gone.
+
+  Typing in the box hides the tabs and lists every group's matches by name prefix (a runway end by its designator or its row's taxiway): pads and parking, then spots, then runways, in each an exact name first, then nearest. Enter sends the top match and sends nothing with the box empty or nothing matched. Down moves from the box into the rows and Up from the first row back to it; Left and Right choose the previous or next tab.
+
+  The rows refill once a second on `FlyoutLiveTick`, nearest first with the pointer outside and with the order held and the distances updated in place while it is inside; the All Commands submenu fills as it opens.
+
+  Land's flyout is headed `Land at {AIRPORT}`, the airport its rows come from: the helicopter's destination when the client holds that layout, else the ground view's. When that airport is not the helicopter's filed destination every row and Enter send `APT {AIRPORT}, LAND …`. A Keep NODEL checkbox beside the box appends ` NODEL` to every command, rows and Enter alike.
+
+  Two controls are built for a flyout that shows one runway or group at a time. `FlyoutTabStrip` is hosted by Taxi to runway and by Air taxi / Land; `MenuTwoLineRow` by Taxi to runway alone. `FlyoutTabStrip` is the tab strip above the rows: a wrapping row of `FlyoutTab`s (label and `FlyoutTabState`: Ready, Searching with a spinner, Empty with a dimmed italic `none`).
 
   It is passive, its tabs never take focus: the rows panel owns the keys and calls `Move(-1/+1)`, which does not wrap and returns false at either end; a left press or `Select` changes the selection and raises `SelectionChanged` with the new index (`SetTabs` raises none).
 

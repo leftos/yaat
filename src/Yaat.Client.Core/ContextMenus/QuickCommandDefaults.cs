@@ -17,6 +17,7 @@ public static class QuickCommandDefaults
         {
             [AircraftSituation.AtParking] =
             [
+                Entry(MenuIds.GroundAirTaxi),
                 Entry(MenuIds.GroundPushback),
                 Entry(MenuIds.GroundTaxiPreset),
                 Entry(MenuIds.GroundDrawTaxiRoute),
@@ -26,6 +27,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.PushingBack] = [Entry(MenuIds.GroundHoldPosition), Entry(MenuIds.GroundPushRoute)],
             [AircraftSituation.HoldingOnGround] =
             [
+                Entry(MenuIds.GroundAirTaxi),
                 Entry(MenuIds.GroundResumeTaxi),
                 Entry(MenuIds.GroundDrawTaxiRoute),
                 Entry(MenuIds.GroundFollow),
@@ -43,6 +45,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.GroundBreakConflict),
                 Entry(MenuIds.TowerClearedForTakeoff),
                 Entry(MenuIds.TowerCancelTakeoff),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             // One list for both bars: the visibility rules show takeoff and LUAW only at the departure runway's bar, and
             // Cross and Resume taxi only at any other (the sim refuses RES at a departure-runway bar).
@@ -51,6 +54,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.TowerClearedForTakeoff),
                 Entry(MenuIds.TowerLineUpAndWait),
                 Entry(MenuIds.GroundCrossRunway),
+                Entry(MenuIds.GroundAirTaxi),
                 Entry(MenuIds.GroundResumeTaxi),
                 Entry(MenuIds.GroundHoldShort),
             ],
@@ -67,6 +71,7 @@ public static class QuickCommandDefaults
                 Ifr(MenuIds.ProceduresClimbViaSid),
                 Entry(MenuIds.NavigationDirectTo),
                 Entry(MenuIds.SpeedAssign),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.IfrEnroute] =
             [
@@ -76,6 +81,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.SpeedAssign),
                 Entry(MenuIds.HoldPattern),
                 Entry(MenuIds.ProceduresCrossFix),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.IfrArrival] =
             [
@@ -86,6 +92,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.NavigationDirectTo),
                 Entry(MenuIds.ApproachExpect),
                 Entry(MenuIds.HoldPattern),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.VfrFlightFollowing] =
             [
@@ -94,6 +101,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.AltitudeMaintain),
                 Entry(MenuIds.NavigationDirectTo),
                 Entry(MenuIds.ApproachExpect),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.Approach] =
             [
@@ -103,6 +111,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.ApproachReportFieldInSight),
                 Ifr(MenuIds.ApproachClearedVisual),
                 Entry(MenuIds.TowerClearedToLand),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             // A VFR hold (VfrHoldPhase, AirspaceBoundaryHoldPhase) also classifies as Holding, so the IFR defaults are
             // followed by VFR-tagged pattern entries rather than a different mapping.
@@ -116,6 +125,7 @@ public static class QuickCommandDefaults
                 Vfr(MenuIds.PatternEnterLeftBase),
                 Vfr(MenuIds.PatternEnterRightBase),
                 Vfr(MenuIds.PatternEnterFinal),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.Pattern] =
             [
@@ -129,6 +139,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.PatternRight360),
                 Entry(MenuIds.PatternTurnBase),
                 Entry(MenuIds.TowerGoAround),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.Final] =
             [
@@ -138,11 +149,13 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.SpeedFinalApproach),
                 Entry(MenuIds.TowerExitLeft),
                 Entry(MenuIds.TowerExitRight),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.RolloutExit] =
             [
                 Entry(MenuIds.TowerExitLeft),
                 Entry(MenuIds.TowerExitRight),
+                Entry(MenuIds.GroundAirTaxi),
                 Entry(MenuIds.GroundCrossRunway),
                 Entry(MenuIds.GroundDrawTaxiRoute),
             ],
@@ -153,6 +166,7 @@ public static class QuickCommandDefaults
                 Ifr(MenuIds.ApproachCleared),
                 Vfr(MenuIds.PatternEnterLeftDownwind),
                 Vfr(MenuIds.PatternEnterRightDownwind),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.LiveTraffic] = [Entry(MenuIds.LiveTrafficAssume), Entry(MenuIds.LiveTrafficAssumeAndTrack)],
             [AircraftSituation.VfrArrivalInbound] =
@@ -166,6 +180,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.ApproachReportAtFix),
                 Entry(MenuIds.TowerClearedToLand),
                 Entry(MenuIds.PatternFollow),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
             [AircraftSituation.VfrDeparting] =
             [
@@ -175,6 +190,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.ApproachReportAtFix),
                 Entry(MenuIds.PatternMakeLeftTraffic),
                 Entry(MenuIds.PatternMakeRightTraffic),
+                Entry(MenuIds.GroundLandHelicopter),
             ],
         };
 

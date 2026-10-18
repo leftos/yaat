@@ -211,7 +211,7 @@
       "name": "Helicopter",
       "rows": [
         { "verb": "ATXI", "aliases": [], "description": "Air taxi to `@helipad`/gate, `$spot`, or runway holding position (`28L@J` = the bar on J)" },
-        { "verb": "LAND", "aliases": [], "description": "Land at helipad (NODEL)" },
+        { "verb": "LAND", "aliases": [], "description": "Land at `@helipad`/parking, `$spot` (holds there) or taxiway (NODEL)" },
         { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position — bare/+0XX AGL hovers & holds; heading|OC|DCT fix departs" },
         { "verb": "HPP", "aliases": [], "description": "Hover present position (no orbit)" },
         { "verb": "HFIX", "aliases": [], "description": "Hover at fix (no orbit)" }

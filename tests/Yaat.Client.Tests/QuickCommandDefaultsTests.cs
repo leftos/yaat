@@ -125,4 +125,53 @@ public class QuickCommandDefaultsTests
 
     [Fact]
     public void ForPoint_ANonPointId_Throws() => Assert.Throws<ArgumentException>(() => QuickCommandGlyphs.ForPoint(MenuIds.GroundHoldPosition));
+
+    /// <summary>Air taxi sits where the mock puts it: first where nothing outranks it, after the runway-bound entries where they do.</summary>
+    [Theory]
+    [InlineData(AircraftSituation.AtParking, 0)]
+    [InlineData(AircraftSituation.HoldingOnGround, 0)]
+    [InlineData(AircraftSituation.HoldingShort, 3)]
+    [InlineData(AircraftSituation.RolloutExit, 2)]
+    public void AirTaxi_IsListedInTheFourGroundSituations(AircraftSituation situation, int index) =>
+        Assert.Equal(index, Ids(situation).ToList().IndexOf(MenuIds.GroundAirTaxi));
+
+    public static TheoryData<AircraftSituation> AirborneSituations() =>
+        [
+            AircraftSituation.Taxiing,
+            AircraftSituation.Departing,
+            AircraftSituation.IfrEnroute,
+            AircraftSituation.IfrArrival,
+            AircraftSituation.VfrFlightFollowing,
+            AircraftSituation.Approach,
+            AircraftSituation.Holding,
+            AircraftSituation.Pattern,
+            AircraftSituation.Final,
+            AircraftSituation.GoAround,
+            AircraftSituation.VfrArrivalInbound,
+            AircraftSituation.VfrDeparting,
+        ];
+
+    /// <summary>Land closes every list an airborne helicopter can be in, the air-taxiing one (Taxiing) included.</summary>
+    [Theory]
+    [MemberData(nameof(AirborneSituations))]
+    public void LandHelicopter_ClosesEveryAirborneSituationsList(AircraftSituation situation) =>
+        Assert.Equal(MenuIds.GroundLandHelicopter, Ids(situation).Last());
+
+    [Theory]
+    [InlineData(AircraftSituation.AtParking)]
+    [InlineData(AircraftSituation.PushingBack)]
+    [InlineData(AircraftSituation.LinedUp)]
+    [InlineData(AircraftSituation.LiveTraffic)]
+    public void NoGroundOrShadowList_CarriesLand(AircraftSituation situation) => Assert.DoesNotContain(MenuIds.GroundLandHelicopter, Ids(situation));
+
+    /// <summary>The glyphs are the mocks' paths: the Air taxi glyph, and Land's with the down arrow in place of the side arrow.</summary>
+    [Fact]
+    public void HelicopterGlyphs_MatchTheMocks()
+    {
+        const string Helicopter = "M3 4.5h14 M10 4.5v3 M5.5 11.5a4.5 3.5 0 1 0 9 0a4.5 3.5 0 1 0-9 0 M8 15v3 M12 15v3 M5.5 18h9";
+        Assert.Equal($"{Helicopter} M16 11.5h5.5 M19 9l2.5 2.5L19 14", QuickCommandGlyphs.For(MenuIds.GroundAirTaxi)?.PathData);
+        Assert.Equal($"{Helicopter} M19.5 8v10 M17 15.5l2.5 2.5 2.5-2.5", QuickCommandGlyphs.For(MenuIds.GroundLandHelicopter)?.PathData);
+        Assert.Equal(QuickCommandGlyphFamily.Ground, QuickCommandGlyphs.For(MenuIds.GroundAirTaxi)?.Family);
+        Assert.Equal(QuickCommandGlyphFamily.Ground, QuickCommandGlyphs.For(MenuIds.GroundLandHelicopter)?.Family);
+    }
 }

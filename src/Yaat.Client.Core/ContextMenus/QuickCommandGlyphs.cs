@@ -50,6 +50,9 @@ public static class QuickCommandGlyphs
 
     private const string CancelPath = "M2 20h20 M8 5l8 8 M16 5l-8 8";
 
+    /// <summary>The helicopter the Air taxi and Land glyphs share: rotor, mast, body and skids; each adds its own arrow.</summary>
+    private const string HelicopterPath = "M3 4.5h14 M10 4.5v3 M5.5 11.5a4.5 3.5 0 1 0 9 0a4.5 3.5 0 1 0-9 0 M8 15v3 M12 15v3 M5.5 18h9";
+
     private const string SpeedPath = "M4 17a8 8 0 1 1 16 0 M12 17l4-5";
 
     private const string PatternRectPath = "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z";
@@ -99,6 +102,8 @@ public static class QuickCommandGlyphs
             ),
             [MenuIds.GroundTaxiPreset] = Ground("M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3"),
             [MenuIds.GroundTaxiToRunway] = Ground("M19 3v18 M3 12h12 M11 8l4 4-4 4"),
+            [MenuIds.GroundAirTaxi] = Ground(HelicopterPath + " M16 11.5h5.5 M19 9l2.5 2.5L19 14"),
+            [MenuIds.GroundLandHelicopter] = Ground(HelicopterPath + " M19.5 8v10 M17 15.5l2.5 2.5 2.5-2.5"),
             [MenuIds.GroundDrawTaxiRoute] = Ground("M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"),
             [MenuIds.GroundHoldPosition] = Ground("M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6"),
             [MenuIds.GroundResumeTaxi] = Ground("M7 4l13 8-13 8z"),

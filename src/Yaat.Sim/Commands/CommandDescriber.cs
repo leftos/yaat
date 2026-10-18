@@ -765,7 +765,9 @@ public static class CommandDescriber
             WaitCommand cmd => $"WAIT {cmd.Seconds}",
             WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
             AirTaxiCommand atxi => atxi.DestinationToken is { } destination ? $"ATXI {destination}" : "ATXI",
-            LandCommand land => land.IsTaxiway ? $"LAND {land.SpotName}" : $"LAND @{land.SpotName}",
+            LandCommand land => land.IsTaxiway ? $"LAND {land.SpotName}"
+            : land.IsTaxiSpot ? $"LAND ${land.SpotName}"
+            : $"LAND @{land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => FormatCtoppCanonical(ctopp),
             PushbackCommand push => FormatPushCanonical(push),
             PushbackMultiCommand push => FormatPushMultiCanonical(push),
@@ -1245,7 +1247,9 @@ public static class CommandDescriber
             TimerCommand timer => DescribeTimerNatural(timer),
             BookmarkCommand bookmark => DescribeBookmarkNatural(bookmark),
             AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
-            LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
+            LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}"
+            : land.IsTaxiSpot ? $"Land at spot {land.SpotName}"
+            : $"Land at {land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => DescribeCtoppNatural(ctopp),
             PushbackCommand push => ForcedNatural(FormatPushNatural(push), push.Forced),
             PushbackMultiCommand push => ForcedNatural(FormatPushMultiNatural(push), push.Forced),

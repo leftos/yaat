@@ -309,25 +309,33 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
 | Situation | Quick commands |
 |---|---|
-| At parking | Push back, Preset taxi route, Draw taxi route…, Push back to…, Check release window |
+| At parking | Air taxi (helicopter), Push back, Preset taxi route, Draw taxi route…, Push back to…, Check release window |
 | Pushing back | Hold position, Push route… |
-| Holding on the ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross {runway} |
-| Taxiing | Hold position, Resume taxi, Hold short of…, Cross {runway}, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff, Cancel takeoff clearance |
-| Holding short | Cleared for takeoff, Line up and wait (at the departure runway); Cross {runway}, Resume taxi (at any other); Hold short of… (when the route has a stop) |
+| Holding on the ground | Air taxi (helicopter), Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross {runway} |
+| Taxiing | Hold position, Resume taxi, Hold short of…, Cross {runway}, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff, Cancel takeoff clearance, Land (helicopter) |
+| Holding short | Cleared for takeoff, Line up and wait (at the departure runway); Cross {runway}, Air taxi (helicopter), Resume taxi (at any other); Hold short of… (when the route has a stop) |
 | Lined up | Cleared for takeoff, Cancel takeoff clearance, Draw taxi route… |
-| Departing | Fly heading, Maintain altitude, Climb via SID (IFR), Direct to…, Assign speed |
-| IFR enroute | Fly heading, Maintain altitude, Direct to…, Assign speed, Hold at fix…, Cross fix |
-| IFR arrival | Descend via STAR (IFR), Maintain altitude, Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix… |
-| VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude, Direct to…, Expect approach |
-| Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight, Cleared visual (IFR), Cleared to land |
-| Holding | Cleared approach (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around |
-| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right |
-| Rollout / exit | Exit left, Exit right, Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
-| Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR); for VFR, Enter left / right downwind |
+| Departing | Fly heading, Maintain altitude, Climb via SID (IFR), Direct to…, Assign speed, Land (helicopter) |
+| IFR enroute | Fly heading, Maintain altitude, Direct to…, Assign speed, Hold at fix…, Cross fix, Land (helicopter) |
+| IFR arrival | Descend via STAR (IFR), Maintain altitude, Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix…, Land (helicopter) |
+| VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude, Direct to…, Expect approach, Land (helicopter) |
+| Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight, Cleared visual (IFR), Cleared to land, Land (helicopter) |
+| Holding | Cleared approach (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land (helicopter) |
+| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Land (helicopter) |
+| Rollout / exit | Exit left, Exit right, Air taxi (helicopter, once settled), Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
+| Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic… |
-| VFR departure | Fly heading, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic |
+| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic…, Land (helicopter) |
+| VFR departure | Fly heading, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic, Land (helicopter) |
+
+**Helicopters.** The entries marked (helicopter) appear only for a helicopter, never for a fixed-wing aircraft. **Air taxi** is offered on the ground (at parking, holding on the ground, holding short, rollout / exit, where it waits until the helicopter is settled: after the landing rollout decelerates, at or below 30 kt in a rejected takeoff, and always while clearing or exiting the runway) and **Land** to a helicopter in the air, last in each list; a helicopter's quick list leaves out Push back and Push back to… (All Commands keeps them).
+
+Both open one flyout of destinations with the tabs **Pads · parking**, **Spots** and, for Air taxi, **Runways**, nearest first, refreshed every second. Type in the box (**Air taxi to** / **Land at {airport}**) to filter every tab by name, exact names first, then nearest; Enter sends the top match and sends nothing on an empty or unmatched box. Pads and parking send `@NAME`, spots `$NAME`.
+
+Pads · parking shows the helipads, the nearest eight parking positions and a line counting the rest (the filter reaches them). A runway row sends the bare runway (`ATXI 28R`, the holding position nearest the threshold) and offers its other holding positions as chips (`ATXI 28R@E`); a row for the position the helicopter already holds at only sends through its chips.
+
+Land's flyout lists the airport the helicopter is bound for (the one the ground view shows when the client has no layout for it) and sends `APT {airport}, LAND …` when that is not its filed destination; its **Keep NODEL** box appends `NODEL` to what it sends.
 
 An aircraft YAAT cannot place in a situation shows no quick commands; use All Commands. IFR-only and VFR-only commands follow the aircraft's flight rules, and the **VFR commands for IFR aircraft** setting lets the VFR ones through for IFR aircraft as it does in All Commands.
 
@@ -1899,7 +1907,8 @@ Helicopters are detected automatically from the ICAO type designator (`H60`, `EC
 | Command | Effect |
 |---------|--------|
 | `ATXI @H1` | Air-taxi to helipad/parking spot H1 — single command lifts off, cruises at 100 ft AGL / 40 KIAS, lands (on-airport only) |
-| `LAND @H1` | Land at spot H1: an air taxi when on the field, otherwise an approach that holds altitude until a 6° final onto the spot |
+| `LAND @H1` | Land at spot H1 (helipad, parking position or spot, in that order): an air taxi when on the field, otherwise an approach that holds altitude until a 6° final onto the spot |
+| `LAND $M1` | Land at taxiway spot M1 only and hold there, as `ATXI $M1` does (no parking spot is set) |
 | `CTOPP` | Cleared for takeoff, present position — vertical liftoff to a hover, holds at 25 ft AGL awaiting further instructions. `CTOPP +0XX` hovers at a higher AGL; `CTOPP <hdg>` / `OC` / `DCT FIX` lift vertically then depart |
 | `HPP` | Hover in place (no orbit, no movement) |
 | `HFIX SUNOL` | Navigate to fix SUNOL and hover (no orbit) |

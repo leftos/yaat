@@ -58,6 +58,25 @@ public class GroundParserTests
     }
 
     [Fact]
+    public void LandAtTaxiSpot_HasDollarPrefix()
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND $m1 NODEL");
+        LandCommand land = Assert.IsType<LandCommand>(cmd.Value);
+        Assert.Equal("M1", land.SpotName);
+        Assert.True(land.IsTaxiSpot);
+        Assert.False(land.IsTaxiway);
+        Assert.True(land.NoDelete);
+    }
+
+    [Fact]
+    public void LandAtTaxiSpot_DescribesInTheDollarForm()
+    {
+        LandCommand land = Assert.IsType<LandCommand>(CommandParser.Parse("LAND $m1").Value);
+
+        Assert.Equal("LAND $M1", CommandDescriber.DescribeCommand(land));
+    }
+
+    [Fact]
     public void LandOnTaxiway_NoAtPrefix()
     {
         ParseResult<ParsedCommand> cmd = CommandParser.Parse("LAND TE");

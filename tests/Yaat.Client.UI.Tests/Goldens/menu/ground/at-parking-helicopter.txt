@@ -1,0 +1,67 @@
+# ground at-parking-helicopter
+N812HL · EC35 [disabled]
+At parking · HELI1 [disabled]
+---
+strip: [ground.air-taxi, ground.taxi-preset, ground.draw-taxi-route]
+---
+Command…
+Note…
+All Commands
+  Push back
+  Push back to…
+    Computing targets… [disabled]
+  Push route…
+  Taxi to runway
+    Finding runway entries…
+  Preset taxi route
+    TERMINAL to 30 · via T U W · ~14,350 ft — TAXI T U W RWY 30
+  Air taxi
+    Air taxi to · Filter pads, parking, spots, runways
+  Follow… · no other aircraft on the ground [disabled]
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from N812HL
+---
+Delete

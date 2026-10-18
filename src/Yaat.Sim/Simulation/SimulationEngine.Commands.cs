@@ -94,6 +94,7 @@ public sealed partial class SimulationEngine
             PreserveConditionals = false,
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = facilityHint ?? Scenario?.StudentPosition?.FacilityId,
+            LayoutForAirport = ResolveAirportLayout,
         };
     }
 

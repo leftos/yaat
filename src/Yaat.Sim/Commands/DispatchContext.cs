@@ -100,6 +100,13 @@ public sealed record DispatchContext
     public required string? FacilityHint { get; init; }
 
     /// <summary>
+    /// The engine's ground layout for an airport id, which a destination change (<c>APT</c>) on an airborne aircraft not
+    /// low over its current field switches it to; null where no engine supplies one (a test harness), and the layout then
+    /// stays as it is.
+    /// </summary>
+    public required Func<string, AirportGroundLayout?>? LayoutForAirport { get; init; }
+
+    /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
     /// for the verbs whose answer carries a time of day.
     /// </summary>

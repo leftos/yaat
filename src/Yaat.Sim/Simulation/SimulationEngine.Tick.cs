@@ -173,6 +173,7 @@ public sealed partial class SimulationEngine
                     PreserveConditionals = true,
                     IsScenarioScripted = block.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
+                    LayoutForAirport = ResolveAirportLayout,
                 };
 
                 if (!CommandDispatcher.RehydrateRestoredBlock(block, aircraft, ctx))

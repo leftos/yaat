@@ -199,6 +199,8 @@ public class MenuCatalogCommandTests
         MenuIds.GroundPushRoute,
         MenuIds.GroundTaxiPreset,
         MenuIds.GroundTaxiToRunway,
+        MenuIds.GroundAirTaxi,
+        MenuIds.GroundLandHelicopter,
         MenuIds.GroundDrawTaxiRoute,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
@@ -3102,6 +3104,8 @@ public class MenuCatalogCommandTests
         public string DisplayAircraftType => FiledAircraftType;
 
         public string BaseAircraftType { get; init; } = "";
+
+        public AircraftCategory Category { get; init; } = AircraftCategory.Jet;
 
         public int? FiledVfrCruiseFeet => null;
 

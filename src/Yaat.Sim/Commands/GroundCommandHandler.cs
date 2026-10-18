@@ -6293,7 +6293,7 @@ public static partial class GroundCommandHandler
         return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 
-    internal static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout)
+    public static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout)
     {
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
@@ -6655,7 +6655,7 @@ public static partial class GroundCommandHandler
     /// same node-incidence test a located hold short (<c>HS 28R@J</c>) binds with. Null when the runway has no
     /// hold-short node at all, or none on the named taxiway.
     /// </summary>
-    private static GroundNode? ResolveRunwayHoldShortNode(AirportGroundLayout layout, HoldShortTarget target)
+    public static GroundNode? ResolveRunwayHoldShortNode(AirportGroundLayout layout, HoldShortTarget target)
     {
         List<GroundNode> candidates = layout.GetRunwayHoldShortNodes(target.Target);
         if (target.OnTaxiway is { } taxiway)
@@ -6708,7 +6708,7 @@ public static partial class GroundCommandHandler
         }
         else
         {
-            GroundNode? spot = groundLayout.FindSpotByName(land.SpotName);
+            GroundNode? spot = land.IsTaxiSpot ? groundLayout.FindSpotNodeByName(land.SpotName) : groundLayout.FindSpotByName(land.SpotName);
             if (spot is null)
             {
                 return new CommandResult(false, $"Cannot find spot '{land.SpotName}' in airport layout");
@@ -6744,12 +6744,14 @@ public static partial class GroundCommandHandler
             aircraft.Phases.Add(new HelicopterApproachPhase(destLat, destLon, resolvedName));
         }
 
+        // A taxiway spot ($NAME) is not a parking position: the heli sets down and holds there with no parking spot, as
+        // ATXI $NAME ends, so it is never reported as parked on the taxiway.
         aircraft.Phases.Add(new HelicopterLandingPhase());
-        aircraft.Phases.Add(new AtParkingPhase());
+        aircraft.Phases.Add(land.IsTaxiSpot ? new HoldingInPositionPhase() : new AtParkingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        aircraft.Ground.ParkingSpot = resolvedName;
+        aircraft.Ground.ParkingSpot = land.IsTaxiSpot ? null : resolvedName;
 
         return CommandDispatcher.Ok($"Land at {resolvedName}");
     }

@@ -489,6 +489,8 @@ public static class AircraftMenuBuilder
         MenuIds.GroundHoldPosition,
         MenuIds.GroundTaxiToRunway,
         MenuIds.GroundTaxiPreset,
+        MenuIds.GroundAirTaxi,
+        MenuIds.GroundLandHelicopter,
         MenuIds.GroundHoldShort,
         MenuIds.GroundFollow,
         MenuIds.GroundGiveWay,
@@ -499,9 +501,10 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The ground-movement block, each item by its predicate: Push back, the face items, Push back to…, Push route…, Hold
-    /// position, Taxi to runway, Preset taxi route, Hold short of…, Follow…, Give way to…, Ignore ground conflicts (15 s),
-    /// Resume taxi, then Cross. A submenu with nothing to list (no other ground traffic, no stand, no hold-short target, no
-    /// preset route) is left out; Taxi to runway builds its rows only when it opens, so it is always there. Push route…
+    /// position, Taxi to runway, Preset taxi route, Air taxi (a helicopter on the ground), Land (an airborne helicopter), Hold
+    /// short of…, Follow…, Give way to…, Ignore ground conflicts (15 s), Resume taxi, then Cross. A submenu with nothing to
+    /// list (no other ground traffic, no stand, no hold-short target, no preset route) is left out; Taxi to runway, Air taxi
+    /// and Land build their rows only when they open, so each is there whenever its predicate allows it. Push route…
     /// starts its tug move on the primary ground view, which the host shows first.
     /// </summary>
     private static void AddGroundMovement(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)

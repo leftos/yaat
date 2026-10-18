@@ -106,6 +106,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side) => inner.GetRunwayExits(callsign, side);
 
+    public AirTaxiMenu GetAirTaxiChoices(string callsign) => inner.GetAirTaxiChoices(callsign);
+
     public void EnterPushRoute(string callsign) => inner.EnterPushRoute(callsign);
 
     public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) => inner.BuildFavorites(aircraft, context);

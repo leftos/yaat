@@ -1,0 +1,85 @@
+# radar rollout-exit-helicopter
+N812HO · EC35 [disabled]
+Landing [disabled]
+---
+strip: [ground.draw-taxi-route]
+---
+Command…
+Note…
+All Commands
+  Tower
+    Exit left
+      Pilot's choice — EL
+    Exit right
+      Pilot's choice — ER
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Mini datablock
+  Show nav route
+  Measure from N812HO
+  ---
+  Leader direction
+    1
+    2
+    3
+    4
+    5 (default)
+    6
+    7
+    8
+    9
+  J-ring
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  Cone
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  ---
+  Blank target
+  Unblank target
+---
+Delete

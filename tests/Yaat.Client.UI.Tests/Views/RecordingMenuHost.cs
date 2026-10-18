@@ -341,6 +341,18 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<ExitAheadDto> GetRunwayExits(string callsign, ExitSide side) => [.. RunwayExits.Where(exit => exit.Side == side)];
 
+    /// <summary>The Air taxi / Land flyout's destinations, whatever the callsign asked about; none by default.</summary>
+    public AirTaxiMenu AirTaxi { get; set; } = AirTaxiMenu.Empty;
+
+    /// <summary>The callsign each Air taxi / Land request named, in order.</summary>
+    public List<string> AirTaxiRequests { get; } = [];
+
+    public AirTaxiMenu GetAirTaxiChoices(string callsign)
+    {
+        AirTaxiRequests.Add(callsign);
+        return AirTaxi;
+    }
+
     public void EnterPushRoute(string callsign) => PushRouteCallsigns.Add(callsign);
 
     /// <summary>The callsign lists the assume-selected item was clicked with, each in the order it was given.</summary>

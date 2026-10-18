@@ -50,5 +50,6 @@ internal static class TestDispatch
             PreserveConditionals = preserveConditionals,
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = null,
+            LayoutForAirport = null,
         };
 }
