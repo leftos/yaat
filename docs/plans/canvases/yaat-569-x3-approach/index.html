@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approach Flyout Choices</title>
+<style>
+  /* Layout: one artboard per open decision; each has a header (question, situation, the aircraft menu) over lanes A, B and C. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; }
+  .cascade { display: flex; align-items: flex-start; width: max-content; }
+  .cascade > .menu + .menu { margin-left: -4px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.kfocus { background: rgba(255, 255, 255, .085); }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 6px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; padding-left: 12px; }
+  .mi.title.force { color: #ffc062; }
+  .mi.title.force .r { color: #e0a84a; }
+  .mi.kindh { min-height: 22px; padding-top: 4px; padding-bottom: 0; font-size: 11px; color: rgba(255, 255, 255, .8); grid-template-columns: 1fr; }
+  .mi.none { opacity: .55; font-style: italic; grid-template-columns: auto minmax(0, 1fr); }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; }
+  .kind { padding-left: 14px; font-size: 11px; color: #a4adb8; white-space: nowrap; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .mi.force .cmd { color: #ffc062; opacity: .95; }
+  .mi.dim > :not(.nm), .mi.dim .nm > .n { opacity: .5; }
+  .mi.dim .cmd { opacity: .35; }
+  .bdg { flex: 0 0 auto; border: 1px solid #e0a84a; color: #e0a84a; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .bdg.force { background: #4a3111; border-color: #ffb259; color: #ffd08a; font-weight: 600; }
+  .bdg.lat { border-color: #6b7480; color: #b8c0c9; }
+  .bdg.si { border-color: #6b7480; color: #b8c0c9; }
+  .hint { font-size: 12px; color: #a4adb8; padding: 8px 11px; }
+  .hint b { color: #e4e7eb; font-weight: 600; }
+  .panel { max-height: 420px; overflow-y: auto; scrollbar-color: #555 transparent; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+  .tab.circ { font-family: Inter, "Segoe UI", sans-serif; }
+  .tdiv { width: 1px; align-self: stretch; background: #4a4f57; margin: 2px 4px; }
+  .tscroll { display: flex; align-items: center; gap: 2px; padding: 6px 4px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; }
+  .tstrip { flex: 1 1 auto; min-width: 0; display: flex; gap: 4px; overflow: hidden; scroll-behavior: smooth; position: relative; }
+  .arrow { font: 14px Inter, "Segoe UI", sans-serif; color: #e4e7eb; background: transparent; border: 1px solid transparent; border-radius: 4px; width: 20px; height: 24px;
+           cursor: pointer; flex: 0 0 auto; padding: 0; }
+  .arrow:hover { background: #2e343b; border-color: #3a414b; }
+  .arrow[disabled] { opacity: .3; cursor: default; background: transparent; border-color: transparent; }
+  .tabs.compact { gap: 3px; flex-wrap: nowrap; }
+  .tgrp { display: inline-flex; align-items: center; gap: 2px; padding-right: 5px; margin-right: 1px; border-right: 1px solid #3d3d3d; }
+  .tgrp:last-child { border-right: 0; padding-right: 0; }
+  .tnum { font: 11px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; padding-right: 2px; }
+  .tab.sfx { padding: 3px 5px; }
+
+  /* The verb selector of decision 1, lane C. */
+  .vsel { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 6px; border-bottom: 1px solid #3d3d3d; }
+  .seg { display: inline-flex; border: 1px solid #3a414b; border-radius: 5px; overflow: hidden; align-self: flex-start; }
+  .seg button { font: 12px Inter, "Segoe UI", sans-serif; color: #e4e7eb; background: #23272c; border: 0; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+  .seg button + button { border-left: 1px solid #3a414b; }
+  .seg button[aria-pressed="true"] { background: #24406a; }
+  .seg button[aria-pressed="true"].f { background: #4a3111; color: #ffd08a; }
+  .seg button[disabled] { opacity: .35; cursor: default; }
+  .seg button:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .seglbl { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-right: 6px; }
+  .segrow { display: flex; align-items: center; }
+
+  /* Inline boxes and the Approach ID popup. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .popup { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; }
+
+  /* Mock-only annotations: the pointer, the dashed notes, the flyout/nested pills. */
+  .cursor { position: absolute; width: 18px; height: 24px; pointer-events: none; z-index: 5; left: 52%; top: 50%; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .pill { font: 10px "JetBrains Mono", Consolas, monospace; border: 1px dashed; border-radius: 8px; padding: 0 5px; margin-left: 8px; white-space: nowrap; }
+  .pill.fly { color: #6ee0ce; border-color: #3f7f75; }
+  .pill.nest { color: #ffc062; border-color: #7a5a2a; }
+
+  /* The aircraft menu stub: title, state line, the strip (no label row, per YAAT-545). */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part X3 · Cleared approach / Expect approach · mock for six owner decisions</div>
+  <h1>Approach flyout: six open choices</h1>
+  <p class="lede">Every lane draws the ruled first-batch <b>lane B</b>: one flyout for the strip, All Commands and the “(other)” row, with a runway tab bar (the runway and its approach count), the chosen runway's approaches as glyph rows (procedure name, kind, command), a separator, and the “Approach” box sending <code>CAPP &lt;id&gt;</code> or <code>EAPP &lt;id&gt;</code>. Tabs and rows use the colours of the built <code>FlyoutTabStrip</code> and <code>ExitFlyout</code>. Each artboard asks one open question, with lanes A, B and C; no lane is marked recommended.</p>
+  <p class="lede">Approach ids, procedure names and runways come from the bundled CIFP (<code>tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz</code>), named as <code>ApproachPickerBuilder</code> names them. Callsigns, aircraft states and the room's runway configuration are illustrative. Click a row, a tab or a segment to see what it does; the boxes take typing.</p>
+  <nav class="index" id="index" aria-label="Decisions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">Rows follow the first-batch lane B (<code>quick-command-flyouts.html</code>, section 8): Inter text, the kind in 11 px grey, commands in JetBrains Mono at 70%, 22 px glyphs at stroke 1.9 in the flight colour, the Fluent dark menu surface, strip cells 40 px with the corner notch when the button opens a flyout. Join, straight-in, force and JFAC have no glyph (<code>QuickCommandGlyphs</code>), so their rows show an empty dashed glyph slot. Amber outlined badges are the picker's existing “expected” badge style; the filled amber “force” badge and amber force commands are a drawing of what “visibly distinct” could be, not built UI. The pointer, the dashed notes and the “flyout” / “nested” pills are mock annotations. The page loads no web fonts.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const GL = {
+    CAPP: ["#A8CAFF", "M3 12L21 5 M3 12L21 19 M3 12h18"],
+    EAPP: ["#A8CAFF", "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21"],
+    CM: ["#A8CAFF", "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+    SPD: ["#A8CAFF", "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    RFIS: ["#FFC062", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"],
+    CTL: ["#FFC062", "M2 20h20 M5 6l11 9 M10 15h6v-6"],
+  };
+  const LABEL = { CAPP: "Cleared approach", EAPP: "Expect approach", CM: "Maintain altitude", SPD: "Assign speed", RFIS: "Report field in sight", CTL: "Cleared to land" };
+  const VERB = {
+    CAPP: { label: "Cleared approach", g: "CAPP" },
+    JAPP: { label: "Join approach" },
+    CAPPSI: { label: "Cleared straight-in", si: true },
+    JAPPSI: { label: "Join straight-in", si: true },
+    CAPPF: { label: "Cleared approach (force)", force: true },
+    JAPPF: { label: "Join approach (force)", force: true },
+    JFAC: { label: "Join final approach course", lateral: true },
+    EAPP: { label: "Expect approach", g: "EAPP" },
+  };
+  const UNFILLED = "···";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${GL[id][1]}"/></svg>`;
+  const menu = (inner, cls = "w", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const title = (t, r = "", cls = "") => `<div class="mi title${cls ? " " + cls : ""}"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sendAttr = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+  const cursorSvg = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = (html, calm) => `<div class="callout${calm ? " calm" : ""}" role="note">${html}</div>`;
+  let uidN = 0;
+  const uid = p => `${p}-${++uidN}`;
+
+  /* ---------- Data: approaches from the bundled CIFP, named as ApproachPickerBuilder names them ---------- */
+  const FULL = { ILS: "ILS", LOC: "LOC", RNAV: "RNAV (GPS)", RNP: "RNAV (RNP)", VOR: "VOR" };
+  const disp = r => r.replace(/^0/, "");
+  const ap = (kind, rwy, id, variant = "") => ({ kind, id, name: `${FULL[kind]}${variant ? " " + variant : ""} RWY ${disp(rwy)}` });
+  const OAK = {
+    "10L": [ap("RNAV", "10L", "R10L")],
+    "10R": [ap("RNAV", "10R", "R10R"), ap("VOR", "10R", "S10R")],
+    "12": [ap("ILS", "12", "I12"), ap("LOC", "12", "L12"), ap("RNAV", "12", "R12-Y", "Y"), ap("RNP", "12", "H12-Z", "Z")],
+    "28L": [ap("RNAV", "28L", "R28LY", "Y"), ap("RNP", "28L", "H28LZ", "Z")],
+    "28R": [ap("ILS", "28R", "I28R"), ap("LOC", "28R", "L28R"), ap("RNAV", "28R", "R28RY", "Y"), ap("RNP", "28R", "H28RZ", "Z")],
+    "30": [ap("ILS", "30", "I30"), ap("LOC", "30", "L30"), ap("RNAV", "30", "R30-Y", "Y"), ap("RNP", "30", "H30-Z", "Z")],
+  };
+  const OAK_ORDER = ["10L", "10R", "12", "28L", "28R", "30"];
+  const TRK = { "11": [ap("RNAV", "11", "R11")], "20": [ap("RNAV", "20", "R20")] };
+  const TRK_CIRC = [{ kind: "RNAV", id: "RNV-A", name: "RNAV (GPS)-A" }];
+  const ORD_ORDER = ["04R", "09C", "09L", "09R", "10C", "10L", "10R", "22L", "22R", "27C", "27L", "27R", "28C", "28L", "28R"];
+  const ORD = {};
+  ORD_ORDER.forEach(r => { ORD[r] = [ap("ILS", r, "I" + r), ap("LOC", r, "L" + r), ap("RNAV", r, "R" + r)]; });
+  ORD["10R"] = [ap("ILS", "10R", "I10RY", "Y"), ap("ILS", "10R", "I10RZ", "Z"), ap("LOC", "10R", "L10RY", "Y"), ap("LOC", "10R", "L10RZ", "Z"),
+                ap("RNAV", "10R", "R10RY", "Y"), ap("RNAV", "10R", "R10RZ", "Z")];
+  ORD["27L"] = [ap("ILS", "27L", "I27L"), ap("LOC", "27L", "L27L"), ap("RNAV", "27L", "R27LZ", "Z"), ap("RNP", "27L", "H27LY", "Y")];
+  ORD["28L"] = [ap("ILS", "28L", "I28L"), ap("LOC", "28L", "L28L"), ap("RNAV", "28L", "R28LY", "Y"), ap("RNAV", "28L", "R28LZ", "Z")];
+  const shortKinds = list => list.map(a => a.name.replace(/ RWY .*/, "").replace("RNAV (GPS)", "RNAV").replace("RNAV (RNP)", "RNP")).join(", ");
+
+  /* ---------- Rows ---------- */
+  const badge = (t, cls = "") => `<span class="bdg${cls ? " " + cls : ""}">${esc(t)}</span>`;
+  const glyphFor = verb => (VERB[verb].g ? gl(VERB[verb].g) : `<span class="gly blank" aria-hidden="true"></span>`);
+
+  /** One approach as a glyph row: glyph, procedure name and badges, kind, command. o: label, badge, hot, focus, pointer. */
+  function apRow(verb, a, o = {}) {
+    const v = VERB[verb];
+    const cmd = `${verb} ${a.id}`;
+    const badges = (o.badge ? badge(o.badge) : "") + (v.force ? badge("force", "force") : "") + (v.si ? badge("straight-in", "si") : "")
+      + (v.lateral ? badge("lateral only", "lat") : "");
+    const cls = ["mi", o.hot ? "hot" : "", o.focus ? "kfocus" : "", v.force ? "force" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}" role="menuitem" ${sendAttr(cmd)} data-id="${esc(a.id)}">${glyphFor(verb)}<span class="nm"><span class="n">${esc(o.label || a.name)}</span>${badges}</span><span class="kind">${esc(a.kind)}</span><span class="cmd">${esc(cmd)}</span>${o.pointer ? cursorSvg : ""}</div>`;
+  }
+  const rowsFor = (verb, list, opts = {}) => list.map(a => apRow(verb, a, opts[a.id] || {})).join("");
+
+  /** The "Approach" box row: empty or unreadable, it shows the unfilled marker, fades and sends nothing. */
+  function boxRow(verb, o = {}) {
+    const id = uid("box");
+    const box = `<input class="tbox${o.focus ? " focus" : ""}" type="text" id="${id}" placeholder="${esc(o.ph || "id, e.g. I28R")}" value="${esc(o.value || "")}" data-tpl="${verb} {}" aria-label="${esc(VERB[verb].label)} by approach id" maxlength="10" style="width:130px" autocomplete="off" spellcheck="false">`;
+    return `<div class="mi dim boxed${VERB[verb].force ? " force" : ""}" role="menuitem" data-send="" data-tplrow="${id}">${glyphFor(verb)}<span class="nm col"><span class="n">Approach</span><span class="under">${box}</span></span><span class="kind"></span><span class="cmd">${verb} ${UNFILLED}</span></div>`;
+  }
+
+  /* ---------- Tabs ---------- */
+  const tabBtn = (t, sel, cls = "") => `<button type="button" class="tab${cls}" role="tab" data-tab="${esc(t.k)}" aria-selected="${t.k === sel}"${t.aria ? ` aria-label="${esc(t.aria)}"` : ""}>${esc(t.label)}${t.small !== undefined ? `<small>${esc(t.small)}</small>` : ""}</button>`;
+  function tabBar(tabs, sel, mode) {
+    if (mode === "scroll") {
+      return `<div class="tscroll" role="tablist"><button type="button" class="arrow" data-scroll="-1" aria-label="Scroll tabs left">‹</button><div class="tstrip">${tabs.map(t => tabBtn(t, sel)).join("")}</div><button type="button" class="arrow" data-scroll="1" aria-label="Scroll tabs right">›</button></div>`;
+    }
+    if (mode === "compact") {
+      const groups = [];
+      tabs.forEach(t => {
+        const num = disp(t.k.replace(/[LCR]$/, ""));
+        let g = groups.find(x => x.num === num);
+        if (!g) { g = { num, tabs: [] }; groups.push(g); }
+        g.tabs.push({ k: t.k, label: t.k.slice(-1), aria: disp(t.k) });
+      });
+      return `<div class="tabs compact" role="tablist">${groups.map(g => `<span class="tgrp"><span class="tnum">${esc(g.num)}</span>${g.tabs.map(t => tabBtn(t, sel, " sfx")).join("")}</span>`).join("")}</div>`;
+    }
+    return `<div class="tabs" role="tablist">${tabs.map(t => (t.div ? `<span class="tdiv" aria-hidden="true"></span>` : tabBtn(t, sel, t.circ ? " circ" : ""))).join("")}</div>`;
+  }
+  const countTabs = (data, order, extra = {}) => order.map(k => ({ k, label: disp(k), small: (extra[k] ? extra[k] + " · " : "") + data[k].length }));
+
+  /**
+   * The approach flyout. o: verb, tabs, sel (null opens on no tab), mode, panels {key: rows html}, pre (html above the tabs),
+   * none (html shown while no tab is chosen), box {value, focus}, label, attrs.
+   */
+  function flyout(o) {
+    const gid = uid("tg");
+    const panels = Object.entries(o.panels).map(([k, html]) => `<div class="panel" data-panel="${esc(k)}"${k === o.sel ? "" : " hidden"}>${html}</div>`).join("")
+      + (o.none ? `<div class="panel" data-panel="__none"${o.sel ? " hidden" : ""}>${o.none}</div>` : "");
+    const inner = (o.pre || "") + `<div data-tabgroup="${gid}">${tabBar(o.tabs, o.sel, o.mode)}${panels}</div>` + sep() + boxRow(o.verb, o.box || {});
+    return menu(inner, "w", o.label || VERB[o.verb].label, o.attrs || "");
+  }
+  const oakPanels = (verb, opts = {}) => Object.fromEntries(OAK_ORDER.map(r => [r, rowsFor(verb, OAK[r], opts)]));
+
+  /* ---------- The aircraft menu stub ---------- */
+  const cells = capp => [{ id: "CAPP", ...capp }, { id: "CM" }, { id: "SPD" }, { id: "RFIS" }, { id: "CTL" }];
+  function stubMenu(s) {
+    const strip = s.strip.map(c => `<span class="cell${c.latched ? " latched" : ""}" title="${esc(c.tip || LABEL[c.id])}" role="img" aria-label="${esc(c.tip || LABEL[c.id])}${c.latched ? " (flyout open)" : ""}">${gl(c.id, 32)}${c.notch ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const faint = t => `<div class="mi plain faint"><span>${esc(t)}</span><span></span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${esc(s.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span><span></span></div>${sep()}<div class="strip">${strip}</div>${(s.after || []).join("")}${sep()}${["Track", "Data Block", "All Commands"].map(faint).join("")}`, "", "Aircraft menu");
+  }
+  const stub = s => `<div class="stage stub-stage">${stubMenu(s)}</div>`;
+  const otherRow = (label, hot) => `<div class="mi plain${hot ? " hot" : ""}"><span>${esc(label)}</span><span></span><span class="chev">›</span></div>`;
+  const plainRow = (label, o = {}) => `<div class="mi plain${o.hot ? " hot" : ""}${o.faint ? " faint" : ""}"><span>${esc(label)}</span><span>${o.pill || ""}</span><span class="chev">${o.sub === false ? "" : "›"}</span></div>`;
+  const pill = (t, cls) => `<span class="pill ${cls}">${esc(t)}</span>`;
+
+  /** All Commands › Approach as built today (SharedMenuGroups.Approach), each entry marked with what it opens. */
+  function allCommands(entries, hotLabel) {
+    const rows = entries.map(e => plainRow(e.label, { hot: e.label === hotLabel, pill: e.pill })).join("");
+    return menu(rows + plainRow("Cleared visual", { faint: true }) + sep() + plainRow("Report field in sight", { faint: true, sub: false })
+      + plainRow("Report traffic in sight", { faint: true, sub: false }) + sep() + plainRow("Report when", { faint: true }), "", "All Commands, Approach");
+  }
+
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>Click a row, a tab or a segment to see what it does.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head">
+        <div class="art-meta">
+          <h2>${esc(a.title)}</h2>
+          <div class="sends">${esc(a.sends)}</div>
+          ${a.intro.map(p => `<p>${p}</p>`).join("")}
+        </div>
+        ${a.stub ? stub(a.stub) : ""}
+      </div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  const UAL_STATE = "Arrival · KOAK · 6,000 ft · 210 kt";
+
+  /* ---------- 1. Verb scope ---------- */
+  const EIGHT = ["CAPP", "JAPP", "CAPPSI", "JAPPSI", "CAPPF", "JAPPF", "JFAC", "EAPP"];
+  function todayCascade(verb, rwy) {
+    const list = menu(OAK_ORDER.map(r => plainRow(`${disp(r)} · ${shortKinds(OAK[r])}`, { hot: r === rwy })).join(""), "", "Runway submenus");
+    let k = null;
+    const rows = OAK[rwy].map(a => {
+      const head = a.kind !== k ? (k = a.kind, `<div class="mi kindh">${esc(a.kind)}</div>`) : "";
+      return head + `<div class="mi plain" role="menuitem" ${sendAttr(`${verb} ${a.id}`)}><span>${esc(a.name)}</span><span></span><span class="cmd">${verb} ${a.id}</span></div>`;
+    }).join("");
+    return `<div class="cascade">${list}<div style="margin-top:132px">${menu(rows, "", "Runway 28R approaches")}</div></div>`;
+  }
+  const d1Tabs = countTabs(OAK, OAK_ORDER);
+  const d1aEntries = EIGHT.map(v => ({ label: VERB[v].label, pill: (v === "CAPP" || v === "EAPP") ? pill("flyout", "fly") : pill("nested", "nest") }));
+  const d1bEntries = EIGHT.map(v => ({ label: VERB[v].label, pill: pill("flyout", "fly") }));
+
+  /* Lane C: one flyout whose verb comes from two segmented rows. */
+  const BASES = [["C", "Cleared"], ["J", "Join"], ["E", "Expect"], ["F", "Final course"]];
+  const MODS = [["N", "Normal"], ["S", "Straight-in"], ["X", "Force"]];
+  const verbOf = st => ({ C: { N: "CAPP", S: "CAPPSI", X: "CAPPF" }, J: { N: "JAPP", S: "JAPPSI", X: "JAPPF" }, E: { N: "EAPP" }, F: { N: "JFAC" } }[st.base][st.mod] || (st.base === "E" ? "EAPP" : "JFAC"));
+  function verbSelector(st) {
+    const modsOff = st.base === "E" || st.base === "F";
+    const b = BASES.map(([k, t]) => `<button type="button" data-seg="base" data-v="${k}" aria-pressed="${st.base === k}">${t}</button>`).join("");
+    const m = MODS.map(([k, t]) => `<button type="button" data-seg="mod" data-v="${k}" class="${k === "X" ? "f" : ""}" aria-pressed="${!modsOff && st.mod === k}"${modsOff ? " disabled" : ""}>${t}</button>`).join("");
+    return `<div class="vsel"><div class="segrow"><span class="seglbl">Verb</span><div class="seg" role="group" aria-label="Verb">${b}</div></div><div class="segrow"><span class="seglbl">Kind</span><div class="seg" role="group" aria-label="Kind">${m}</div></div></div>`;
+  }
+  const REG = {};
+  function d1cRender(key) {
+    const st = REG[key];
+    const verb = verbOf(st);
+    const force = VERB[verb].force ? title(`${VERB[verb].label} · captures the final course at any intercept angle`, verb, "force") : "";
+    return flyout({ verb, tabs: d1Tabs, sel: st.sel, mode: "wrap", panels: oakPanels(verb), pre: verbSelector(st) + force,
+                    label: "Approach, one flyout with a verb selector", attrs: `data-reg="${key}"` });
+  }
+  REG.d1c = { base: "C", mod: "X", sel: "28R" };
+
+  const d1 = {
+    id: "d1-verbs", title: "1 · Which approach verbs use the flyout", sends: "CAPP · JAPP · CAPPSI · JAPPSI · CAPPF · JAPPF · JFAC · EAPP <id>",
+    intro: [
+      "<b>UAL455</b>, A320, IFR arrival to KOAK with no expected approach and no assigned runway, so no entry has a default and every approach entry opens its picker. All Commands › Approach lists eight approach verbs (<code>MenuCatalog.ApproachPickerIds</code>); only Cleared approach and Expect approach are strip buttons, and only they have glyphs. The ruling covers Cleared and Expect; whether the other six follow is the open call.",
+      "Each lane is drawn after choosing the 28R tab. <code>CAPPF</code> marks the clearance forced and bypasses the 30° intercept gate; <code>JFAC</code> is lateral only and clears no descent (COMMANDS.md, Approach Control).",
+    ],
+    stub: { title: "UAL455 · A320", state: UAL_STATE, strip: cells({ notch: true }) },
+    lanes: [
+      { kind: "a", name: "Only Cleared and Expect get the flyout",
+        how: "Cleared approach and Expect approach open the tabbed flyout everywhere; Join, both straight-ins, both forces and JFAC keep today's nested runway submenus in All Commands.",
+        worst: "Six All Commands entries stay nested submenus beside two that are not, and the old grouped builder lives on beside the new one; a forced join is still picked from look-alike 28L / 28R submenus.",
+        body: frame("All Commands › <b>Approach</b>", allCommands(d1aEntries, "Join approach (force)"))
+          + frame("Cleared approach › <b>flyout</b> · 28R tab chosen", flyout({ verb: "CAPP", tabs: d1Tabs, sel: "28R", mode: "wrap", panels: oakPanels("CAPP") }))
+          + frame("Join approach (force) › <b>today's nested submenu</b>", todayCascade("JAPPF", "28R"),
+                  note("<b>Unchanged:</b> runway submenus named by their kinds, then the approaches under kind headers; nothing on the rows says “force” but the command text, <code>JAPPF</code>.")) },
+      { kind: "b", name: "All eight verbs, one flyout each",
+        how: "Every approach entry in All Commands opens the same tabbed flyout for its own verb; a force flyout carries an amber title, a filled “force” badge on every row and its commands in amber.",
+        worst: "Eight flyouts that look alike sit one row apart: a slip from Cleared approach to Cleared approach (force) four rows down opens rows that send <code>CAPPF</code>, which captures at any angle and is scored as forced.",
+        body: frame("All Commands › <b>Approach</b>", allCommands(d1bEntries, "Cleared approach (force)"))
+          + frame("Cleared approach (force) › <b>flyout</b> · 28R tab chosen",
+                  flyout({ verb: "CAPPF", tabs: d1Tabs, sel: "28R", mode: "wrap", panels: oakPanels("CAPPF"),
+                           pre: title("Cleared approach (force) · captures the final course at any intercept angle", "CAPPF", "force") }))
+          + frame("Join final approach course › <b>flyout</b> · 28R tab chosen",
+                  flyout({ verb: "JFAC", tabs: d1Tabs, sel: "28R", mode: "wrap", panels: oakPanels("JFAC"), pre: title("Join final approach course · lateral only, no descent", "JFAC") })) },
+      { kind: "c", name: "One flyout with a verb selector",
+        how: "One entry opens one flyout; a Verb row (Cleared · Join · Expect · Final course) and a Kind row (Normal · Straight-in · Force) above the tabs pick the command every row sends. The strip's Cleared and Expect buttons open it preset to their verb. Drawn with Force chosen.",
+        worst: "The rows read the same whatever is chosen; a Force left pressed, or a click that lands on Force beside Straight-in, turns every row into <code>CAPPF</code>, and only the badge and the amber commands show it.",
+        body: frame("All Commands › <b>Approach</b>", allCommands([{ label: "Approach clearance", pill: pill("flyout", "fly") }], "Approach clearance"))
+          + frame("Approach clearance › <b>flyout</b> · Cleared + Force chosen · 28R tab", d1cRender("d1c"),
+                  note("<b>Try it:</b> the segments change the command every row and the box send; Straight-in and Force switch off for Expect and Final course.", true)) },
+    ],
+  };
+
+  /* ---------- 2. Circling approaches ---------- */
+  const TRK_STATE = "Arrival · KTRK · 12,000 ft · 200 kt";
+  const trkTabs = countTabs(TRK, ["11", "20"]);
+  const d2 = {
+    id: "d2-circling", title: "2 · Where a circling approach goes", sends: "CAPP RNV-A",
+    intro: [
+      "<b>EJA512</b>, C68A, IFR arrival to <b>KTRK</b> (Truckee), no default runway. KOAK has no circling approach in the CIFP, so this artboard uses Truckee: RNAV (GPS) RWY 11 (<code>R11</code>), RNAV (GPS) RWY 20 (<code>R20</code>) and the circling RNAV (GPS)-A (<code>RNV-A</code>). Runways 2 and 29 have no approach of their own. Nearby, Nut Tree (KVCB: <code>R20</code>, <code>VOR-A</code>) and Watsonville (KWVI: <code>L02</code>, <code>R02</code>, <code>VOR-A</code>) are the same shape.",
+      "Today's grouped picker puts circling approaches last, in a submenu named “Circling”.",
+    ],
+    stub: { title: "EJA512 · C68A", state: TRK_STATE, strip: cells({ notch: true, latched: true }) },
+    lanes: [
+      { kind: "a", name: "A last “Circling” tab",
+        how: "The circling approaches get one more tab, last, after the runway tabs, labelled “Circling” with its count; its rows are glyph rows like any other.",
+        worst: "The Circling tab is never the one the flyout opens on, even for an aircraft landing 2 or 29, which have no approach of their own; and its label is the one tab that is not a runway.",
+        body: frame("Cleared approach › <b>flyout</b> · Circling tab chosen",
+          flyout({ verb: "CAPP", tabs: [...trkTabs, { k: "circ", label: "Circling", small: 1, circ: true }], sel: "circ", mode: "wrap",
+                   panels: { "11": rowsFor("CAPP", TRK["11"]), "20": rowsFor("CAPP", TRK["20"]), circ: rowsFor("CAPP", TRK_CIRC) } })) },
+      { kind: "b", name: "A Circling section under each runway tab",
+        how: "Every runway tab ends with a “Circling · any runway” title and the circling approaches under it, so they show whichever tab is open.",
+        worst: "The same RNAV (GPS)-A row repeats under 11 and 20 and reads as that runway's approach; an airport whose approaches were all circling would have no runway tab to hold them.",
+        body: frame("Cleared approach › <b>flyout</b> · 20 tab chosen",
+          flyout({ verb: "CAPP", tabs: trkTabs, sel: "20", mode: "wrap",
+                   panels: Object.fromEntries(["11", "20"].map(r => [r, rowsFor("CAPP", TRK[r]) + title("Circling · any runway", "no runway") + rowsFor("CAPP", TRK_CIRC)])) }),
+          note("<b>Repeated:</b> choose the 11 tab; the same circling row is under it too.")) },
+      { kind: "c", name: "Left out of the flyout, box only",
+        how: "Only runway approaches get rows; a circling approach is reached by typing its id in the Approach box.",
+        worst: "RNAV (GPS)-A shows nowhere, so the instructor has to know its id is <code>RNV-A</code>; at Nut Tree, one of its two approaches (VOR-A) never appears.",
+        body: frame("Cleared approach › <b>flyout</b> · 20 tab chosen · <b>RNV-A</b> typed",
+          flyout({ verb: "CAPP", tabs: trkTabs, sel: "20", mode: "wrap", panels: { "11": rowsFor("CAPP", TRK["11"]), "20": rowsFor("CAPP", TRK["20"]) }, box: { value: "RNV-A", focus: true } })) },
+    ],
+  };
+
+  /* ---------- 3. The strip's default approach ---------- */
+  const D3_STATE = "Arrival · KOAK · 6,000 ft · 210 kt · RWY 30 · exp ILS 30";
+  const defaultRow = o => apRow("CAPP", { kind: "ILS", id: "I30", name: "ILS RWY 30" }, { label: "Cleared ILS 30", badge: "default", ...o });
+  const d3Tabs = countTabs(OAK, OAK_ORDER);
+  const expOpts = { I30: { badge: "expected" } };
+  const d3 = {
+    id: "d3-default", title: "3 · The strip's default approach", sends: "CAPP I30 (the default) · CAPP <other id>",
+    intro: [
+      "<b>UAL455</b>, A320, KOAK runway 30 assigned and told to expect the ILS 30 (<code>EAPP I30</code>), so the default approach is ILS 30 (<code>ApproachPickerBuilder.DefaultApproach</code>: the expected approach, else the assigned runway's first). Today the strip button is a one-click leaf “Cleared ILS 30 — CAPP I30”, and “Cleared approach (other)…” under the strip opens the picker.",
+      "The ruled lane B note says the shared flyout “adds a first row, Cleared ILS 30 · default — CAPP I30, and opens on that runway”, but never drew it.",
+    ],
+    lanes: [
+      { kind: "a", name: "Leaf stays; “(other)” opens the flyout with a default row",
+        how: "The strip button sends <code>CAPP I30</code> in one click; the “(other)” row under the strip opens the flyout, whose first row is the default, above the tabs, opened on 30.",
+        worst: "ILS 30 shows three times (the leaf, the default row and the expected row on tab 30): the “(other)” flyout offers first the one approach the instructor just chose not to send.",
+        body: frame("Aircraft menu · <b>UAL455</b> · the strip button is a leaf",
+            stubMenu({ title: "UAL455 · A320", state: D3_STATE, strip: cells({ tip: "Cleared ILS 30 — CAPP I30" }), after: [otherRow("Cleared approach (other)…", true)] }),
+            note("<b>Leaf:</b> no notch on the button; its tooltip reads “Cleared ILS 30 — CAPP I30”, and a click sends it."))
+          + frame("Cleared approach (other)… › <b>flyout</b>",
+            flyout({ verb: "CAPP", tabs: d3Tabs, sel: "30", mode: "wrap", panels: oakPanels("CAPP", expOpts), pre: defaultRow({}) + sep() })) },
+      { kind: "b", name: "The strip button always opens the flyout",
+        how: "The strip button opens the flyout whether or not there is a default; the default is its first row, with keyboard focus, and the 30 tab is selected. No “(other)” row.",
+        worst: "The clearance an instructor gives most becomes two clicks (open, then the default row) where today it is one.",
+        body: frame("Aircraft menu · <b>UAL455</b> · the strip button opens the flyout",
+            stubMenu({ title: "UAL455 · A320", state: D3_STATE, strip: cells({ notch: true, latched: true }) }))
+          + frame("Cleared approach › <b>flyout</b> · focus on the first row",
+            flyout({ verb: "CAPP", tabs: d3Tabs, sel: "30", mode: "wrap", panels: oakPanels("CAPP", expOpts), pre: defaultRow({ focus: true, pointer: true }) + sep() })) },
+      { kind: "c", name: "Leaf stays; the flyout has no default row",
+        how: "As A, but the “(other)” flyout is the plain flyout opened on the default runway's tab; the expected approach is marked only by its badge on that tab.",
+        worst: "When the expected approach is on another runway than the assigned one (expect ILS 30, assigned 28R), the flyout opens on 28R and nothing on the opening tab names the expected approach.",
+        body: frame("Aircraft menu · <b>UAL455</b> · the strip button is a leaf",
+            stubMenu({ title: "UAL455 · A320", state: D3_STATE, strip: cells({ tip: "Cleared ILS 30 — CAPP I30" }), after: [otherRow("Cleared approach (other)…", true)] }))
+          + frame("Cleared approach (other)… › <b>flyout</b> · opens on 30",
+            flyout({ verb: "CAPP", tabs: d3Tabs, sel: "30", mode: "wrap", panels: oakPanels("CAPP", expOpts) }))
+          + frame("Same aircraft with <b>28R assigned</b>, still expecting ILS 30 · opens on 28R",
+            flyout({ verb: "CAPP", tabs: d3Tabs, sel: "28R", mode: "wrap", panels: oakPanels("CAPP", expOpts) }),
+            note("<b>Expected approach out of sight:</b> the strip leaf still reads “Cleared ILS 30”, but the flyout opens on 28R; ILS 30 and its badge are on the 30 tab.")) },
+    ],
+  };
+
+  /* ---------- 4. Opening tab and order with no default runway ---------- */
+  const d4OrderA = ["28R", "10L", "10R", "12", "28L", "30"];
+  const d4 = {
+    id: "d4-opening", title: "4 · Which tab opens, and in what order, with no default runway", sends: "CAPP <id>",
+    intro: [
+      "<b>UAL455</b>, A320, IFR arrival to KOAK with no assigned runway and no expected approach: there is no default runway (<code>MenuCatalog.SmartVisualRunway</code> is null). The ruled lane B opens on the first tab in runway order, 10L, whose first row sends <code>CAPP R10L</code>. Lane C uses the room's runway configuration, drawn here as KOAK west flow with 30 and 28R landing (illustrative).",
+    ],
+    stub: { title: "UAL455 · A320", state: UAL_STATE, strip: cells({ notch: true, latched: true }) },
+    lanes: [
+      { kind: "a", name: "The assigned runway first, else the first runway",
+        how: "As Taxi to runway orders its tabs: the assigned (or landing) runway's tab first and selected, the rest in runway order; with none, plain runway order and the first tab selected.",
+        worst: "With nothing assigned it opens on 10L, an east-flow runway, and a quick click sends <code>CAPP R10L</code>; and 28R's tab moves from aircraft to aircraft.",
+        body: frame("For comparison · <b>28R assigned</b> (opened from “(other)…”)",
+            flyout({ verb: "CAPP", tabs: countTabs(OAK, d4OrderA, { "28R": "assigned" }), sel: "28R", mode: "wrap", panels: oakPanels("CAPP") }))
+          + frame("Cleared approach › <b>flyout</b> · nothing assigned",
+            flyout({ verb: "CAPP", tabs: countTabs(OAK, OAK_ORDER), sel: "10L", mode: "wrap", panels: oakPanels("CAPP", { R10L: { pointer: true } }) })) },
+      { kind: "b", name: "No tab chosen, with a hint",
+        how: "With no default runway no tab is selected and the panel reads a hint; a tab shows its rows when clicked, and the Approach box works at once.",
+        worst: "One more click every time there is no default, on the flyouts most likely to be used in a hurry; the keyboard has no first row to land on.",
+        body: frame("Cleared approach › <b>flyout</b> · opens on no tab",
+            flyout({ verb: "CAPP", tabs: countTabs(OAK, OAK_ORDER), sel: null, mode: "wrap", panels: oakPanels("CAPP"),
+                     none: `<div class="hint"><b>Choose a runway</b> above, or type an approach id below.</div>` }),
+            note("<b>Try it:</b> click a tab and its rows replace the hint.", true)) },
+      { kind: "c", name: "Ordered by the room's runway configuration",
+        how: "The room's landing runways come first (as the pattern entries order theirs, <code>PatternRunwayChoices.ActiveArrivalEnds</code>), then the rest in runway order; the first is selected.",
+        worst: "An aircraft being vectored for 28R opens on 30 and a click on the first row sends <code>CAPP I30</code>; a room with no runways set opens on 10L as the ruled lane B does.",
+        body: frame("Cleared approach › <b>flyout</b> · room landing 30 and 28R",
+            flyout({ verb: "CAPP", tabs: [...countTabs(OAK, ["30", "28R"]), { div: true }, ...countTabs(OAK, ["10L", "10R", "12", "28L"])], sel: "30", mode: "wrap", panels: oakPanels("CAPP") }),
+            note("<b>Divider:</b> the room's landing runways, then the rest. The tab order follows the room, not the aircraft.")) },
+    ],
+  };
+
+  /* ---------- 5. A destination with no approaches ---------- */
+  const HES_STATE = "Arrival · KHES · 5,000 ft · 110 kt";
+  const d5 = {
+    id: "d5-none", title: "5 · A destination with no published approach", sends: "CAPP <typed text>",
+    intro: [
+      "<b>N738SP</b>, C172, IFR to <b>KHES</b> (Healdsburg). The bundled CIFP has no approach for KHES, so today the entry is free text (<code>MenuCatalog.BuildInput</code>): a leaf “Cleared approach…” that opens the host's “Approach ID” popup (<code>MenuPopups.ShowInput</code>, a 160 px box with a refusal line under it).",
+    ],
+    lanes: [
+      { kind: "a", name: "Keep today's “Approach ID” popup",
+        how: "The strip button is a leaf; a click closes the menu and opens the “Approach ID” popup, whose Enter sends <code>CAPP &lt;text&gt;</code>.",
+        worst: "The one approach entry that is not a flyout, and nothing in the popup says KHES has no approaches; any id typed is sent and refused.",
+        body: frame("Aircraft menu · <b>N738SP</b> · the strip button is a leaf", stubMenu({ title: "N738SP · C172", state: HES_STATE, strip: cells({ tip: "Cleared approach…" }) }))
+          + frame("After the click · <b>the popup</b>, the menu closed",
+            `<div class="popup m"><input class="tbox" type="text" placeholder="Approach ID" data-popup="CAPP {}" aria-label="Approach ID" style="width:160px" autocomplete="off" spellcheck="false"></div>`,
+            note("<b>Try it:</b> type an id and press Enter.", true)) },
+      { kind: "b", name: "A flyout with only the box",
+        how: "The strip button opens the flyout as everywhere else, with no tab bar: a dimmed “No approaches at KHES” line, the separator and the Approach box.",
+        worst: "A flyout opens for a field with nothing to pick, the same dead end one click deeper; the box's example id invites an approach KHES does not have.",
+        body: frame("Aircraft menu · <b>N738SP</b> · the strip button opens the flyout", stubMenu({ title: "N738SP · C172", state: HES_STATE, strip: cells({ notch: true, latched: true }) }))
+          + frame("Cleared approach › <b>flyout</b>",
+            menu(`<div class="mi none" role="note"><span class="gly blank" aria-hidden="true"></span><span class="nm"><span class="n">No approaches at KHES</span></span></div>` + sep() + boxRow("CAPP", {}), "w", "Cleared approach, no approaches")) },
+    ],
+  };
+
+  /* ---------- 6. A tab bar wider than the 480 px cap ---------- */
+  const ORD_STATE = "Arrival · KORD · 7,000 ft · 210 kt · RWY 27L";
+  const ordTabs = countTabs(ORD, ORD_ORDER);
+  const ordPanels = Object.fromEntries(ORD_ORDER.map(r => [r, rowsFor("CAPP", ORD[r])]));
+  const d6 = {
+    id: "d6-width", title: "6 · A tab bar wider than the 480 px cap", sends: "CAPP <id>",
+    intro: [
+      "<b>AAL1234</b>, B738, IFR arrival to <b>KORD</b>, runway 27L assigned, the flyout opened from “Cleared approach (other)…”. O'Hare has 16 runway ends; the 15 with an approach in the CIFP each get a tab (4L has none): 4R 9C 9L 9R 10C 10L 10R 22L 22R 27C 27L 27R 28C 28L 28R. 10R alone has six approaches (ILS, LOC and RNAV, each Y and Z). KDFW is similar with 13 tabs.",
+      "Taxi to runway's tab strip wraps (<code>FlyoutTabStrip</code> is a <code>WrapPanel</code>); that ruling was for Taxi to runway only. The default row (decision 3) is left out here.",
+    ],
+    stub: { title: "AAL1234 · B738", state: ORD_STATE, strip: cells({ tip: "Cleared ILS 27L — CAPP I27L" }), after: [otherRow("Cleared approach (other)…", true)] },
+    lanes: [
+      { kind: "a", name: "Wrap to a second row",
+        how: "The tabs keep their runway order and wrap onto as many rows as they need, as Taxi to runway's do; every tab stays visible.",
+        worst: "Fifteen tabs take two rows at 480 px, pushing the approaches down by one tab row (about 30 px), and the tab directly above the one aimed at (9C over 27L) is a slip away.",
+        body: frame("Cleared approach (other)… › <b>flyout</b> · 27L selected", flyout({ verb: "CAPP", tabs: ordTabs, sel: "27L", mode: "wrap", panels: ordPanels })) },
+      { kind: "b", name: "One row, scroll arrows",
+        how: "One row of tabs between ‹ and › arrows that scroll it; it opens scrolled to the selected tab.",
+        worst: "About half the tabs are out of sight at any time: going from 27L to 4R takes several arrow clicks, and a runway the instructor cannot see cannot be found by eye.",
+        body: frame("Cleared approach (other)… › <b>flyout</b> · 27L selected", flyout({ verb: "CAPP", tabs: ordTabs, sel: "27L", mode: "scroll", panels: ordPanels }),
+          note("<b>Try it:</b> the arrows scroll the row.", true)) },
+      { kind: "c", name: "A compact tab label",
+        how: "Each runway number is printed once with its parallels as one-letter tabs (27: C L R), counts dropped; all 15 fit in one row.",
+        worst: "The selected tab reads just “L”: 27L and 28L are look-alike “L” tabs one group apart, and a slip opens the other runway's approaches with no runway number on the tab.",
+        body: frame("Cleared approach (other)… › <b>flyout</b> · 27L selected", flyout({ verb: "CAPP", tabs: ordTabs, sel: "27L", mode: "compact", panels: ordPanels })) },
+    ],
+  };
+
+  const ARTS = [d1, d2, d3, d4, d5, d6];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("");
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    say(el, cmd ? `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu.` : "Sends nothing while the box is empty; the flyout stays open.");
+  }
+  function onBox(t) {
+    const row = t.closest("[data-tplrow]");
+    const v = t.value.trim().toUpperCase();
+    const ok = /^[A-Z0-9]{2,6}(-[A-Z0-9])?$/.test(v);
+    const cmd = ok ? t.getAttribute("data-tpl").replace("{}", v) : "";
+    row.setAttribute("data-send", cmd);
+    row.classList.toggle("dim", !ok);
+    row.querySelector(".cmd").textContent = ok ? cmd : t.getAttribute("data-tpl").replace("{}", UNFILLED);
+  }
+  function selectTab(btn) {
+    const group = btn.closest("[data-tabgroup]");
+    const key = btn.getAttribute("data-tab");
+    group.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === btn)));
+    group.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.getAttribute("data-panel") !== key; });
+    const reg = btn.closest("[data-reg]");
+    if (reg) REG[reg.getAttribute("data-reg")].sel = key;
+    say(btn, `Shows ${esc(btn.getAttribute("aria-label") || btn.firstChild.textContent)}'s approaches; sends nothing.`);
+  }
+  function updateArrows(sc) {
+    const strip = sc.querySelector(".tstrip");
+    const [l, r] = sc.querySelectorAll(".arrow");
+    l.disabled = strip.scrollLeft <= 0;
+    r.disabled = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
+  }
+  function initScroll(root) {
+    root.querySelectorAll(".tscroll").forEach(sc => {
+      const strip = sc.querySelector(".tstrip");
+      const sel = strip.querySelector('[aria-selected="true"]');
+      strip.style.scrollBehavior = "auto";
+      if (sel) strip.scrollLeft = Math.max(0, sel.offsetLeft - strip.clientWidth / 2 + sel.offsetWidth / 2);
+      strip.style.scrollBehavior = "";
+      updateArrows(sc);
+      strip.addEventListener("scroll", () => updateArrows(sc));
+    });
+  }
+  function bindBoxes(root) { root.querySelectorAll("input[data-tpl]").forEach(onBox); }
+  bindBoxes(document);
+  initScroll(document);
+
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const seg = e.target.closest("[data-seg]");
+    if (seg) {
+      if (seg.disabled) return;
+      const root = seg.closest("[data-reg]");
+      const key = root.getAttribute("data-reg");
+      REG[key][seg.getAttribute("data-seg")] = seg.getAttribute("data-v");
+      if (seg.getAttribute("data-seg") === "base" && (REG[key].base === "E" || REG[key].base === "F")) REG[key].mod = "N";
+      const verb = verbOf(REG[key]);
+      root.outerHTML = d1cRender(key);
+      const fresh = document.querySelector(`[data-reg="${key}"]`);
+      bindBoxes(fresh);
+      say(fresh, `Every row and the box now send <code>${esc(verb)} &lt;id&gt;</code>.`);
+      return;
+    }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { selectTab(tab); return; }
+    const arrow = e.target.closest("[data-scroll]");
+    if (arrow) {
+      const strip = arrow.parentElement.querySelector(".tstrip");
+      strip.scrollLeft += Number(arrow.getAttribute("data-scroll")) * 150;
+      return;
+    }
+    const send = e.target.closest("[data-send]");
+    if (send) sendFrom(send);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (t.matches("input[data-popup]")) {
+      if (e.key !== "Enter") return;
+      const v = t.value.trim().toUpperCase();
+      say(t, v ? `Sends <code>${esc(t.getAttribute("data-popup").replace("{}", v))}</code> and closes the popup; KHES publishes no approach, so it comes back refused.` : "Blank: the popup closes and nothing is sent.");
+      return;
+    }
+    if (t.matches("input")) {
+      if (e.key === "Enter") sendFrom(t.closest("[data-tplrow]"));
+      return;
+    }
+    if (t.matches("[data-send]")) { e.preventDefault(); sendFrom(t); }
+  });
+  document.addEventListener("input", e => { if (e.target.hasAttribute("data-tpl")) onBox(e.target); });
+})();
+</script>
+</body>
+</html>
