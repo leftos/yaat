@@ -227,6 +227,145 @@ public class TaxiToRunwayFlyoutTests
         Assert.Equal([TaxiToRunwayFlyout.NoRunwayEntryText], panel.Lines);
     }
 
+    /// <summary>
+    /// Arrowing away from a tab whose search failed and back onto it shows its cached none: no second search, and the failure
+    /// logged once, for the one search that ran.
+    /// </summary>
+    [AvaloniaFact]
+    public void ArrowingOntoATabWhoseSearchFailed_ShowsTheCachedNone_WithoutSearchingOrLoggingAgain()
+    {
+        FakeSearch search = new();
+        MenuFlyout flyout = OpenStripFlyout(HostWith(OakEnds(), search));
+        TaxiToRunwayPanel panel = Panel(flyout);
+        long before = AppLog.RecentErrors.LastSequence;
+        FailThe28RSearch(flyout, panel, search);
+
+        Press(flyout, Key.Left);
+        Assert.Equal(TabIndex(panel, "15"), panel.Strip.SelectedIndex);
+        Press(flyout, Key.Right);
+
+        Assert.Equal(TabIndex(panel, "28R"), panel.Strip.SelectedIndex);
+        Assert.Equal(1, search.Asked.Count(runway => runway == Runway10L));
+        Assert.Equal(FlyoutTabState.Empty, Tab(panel, "28R").State);
+        Assert.Equal([TaxiToRunwayFlyout.NoRunwayEntryText], panel.Lines);
+        search.FailPending();
+        Assert.Single(AppLog.RecentErrors.Since(before, 50), entry => entry.Message.Contains($"runway {Runway10L} failed", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A click from another tab on a tab whose search failed searches its runway once more even when the search lands at
+    /// once, as one that no longer applies or that faults does: one search per click and, for a fault, one logged failure.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClickingATabWhoseSearchFailed_FromAnotherTab_SearchesOnce_WhenTheSearchLandsAtOnce(bool faults)
+    {
+        InstantSearch search = new(faults);
+        MenuFlyout flyout = OpenStripFlyout(HostWith(OakEnds(), search.Search));
+        TaxiToRunwayPanel panel = Panel(flyout);
+        panel.Strip.Select(TabIndex(panel, "28R"));
+        Layout(flyout);
+        Assert.Equal([Runway10L], search.Asked);
+        Assert.Equal(FlyoutTabState.Empty, Tab(panel, "28R").State);
+        Press(flyout, Key.Left);
+        Assert.Equal(TabIndex(panel, "15"), panel.Strip.SelectedIndex);
+        long before = AppLog.RecentErrors.LastSequence;
+
+        PressTab(flyout, panel, "28R, none");
+
+        Assert.Equal(TabIndex(panel, "28R"), panel.Strip.SelectedIndex);
+        Assert.Equal(2, search.Asked.Count(runway => runway == Runway10L));
+        Assert.Equal(
+            faults ? 1 : 0,
+            AppLog.RecentErrors.Since(before, 50).Count(entry => entry.Message.Contains($"runway {Runway10L} failed", StringComparison.Ordinal))
+        );
+    }
+
+    /// <summary>Hiding the flyout on a tab whose search failed and opening it again shows the cached none without searching.</summary>
+    [AvaloniaFact]
+    public void ReopeningTheFlyoutOnATabWhoseSearchFailed_ShowsTheCachedNone_WithoutSearchingAgain()
+    {
+        FakeSearch search = new();
+        MenuFlyout flyout = OpenStripFlyout(HostWith(OakEnds(), search), out ContextMenu menu);
+        TaxiToRunwayPanel panel = Panel(flyout);
+        FailThe28RSearch(flyout, panel, search);
+        flyout.Hide();
+        Dispatcher.UIThread.RunJobs();
+
+        QuickCommandStrip.OpenSubmenu(StripButton(menu));
+        Dispatcher.UIThread.RunJobs();
+        Layout(flyout);
+
+        Assert.True(flyout.IsOpen);
+        Assert.Equal(TabIndex(panel, "28R"), panel.Strip.SelectedIndex);
+        Assert.Equal([Runway10L], search.Asked);
+        Assert.Equal(FlyoutTabState.Empty, Tab(panel, "28R").State);
+        Assert.Equal([TaxiToRunwayFlyout.NoRunwayEntryText], panel.Lines);
+    }
+
+    /// <summary>A right press on the selected tab whose search failed is no deliberate pick: it searches nothing.</summary>
+    [AvaloniaFact]
+    public void RightPressOnTheSelectedTabWhoseSearchFailed_DoesNotSearchAgain()
+    {
+        FakeSearch search = new();
+        MenuFlyout flyout = OpenStripFlyout(HostWith(OakEnds(), search));
+        TaxiToRunwayPanel panel = Panel(flyout);
+        FailThe28RSearch(flyout, panel, search);
+
+        PressTab(flyout, panel, "28R, none", MouseButton.Right);
+
+        Assert.Equal(TabIndex(panel, "28R"), panel.Strip.SelectedIndex);
+        Assert.Equal([Runway10L], search.Asked);
+        Assert.Equal(FlyoutTabState.Empty, Tab(panel, "28R").State);
+    }
+
+    /// <summary>
+    /// A deliberate pick of a tab whose search failed searches its runway once more: a click on it while it is selected,
+    /// Enter on it, or a click on it from another tab.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("click")]
+    [InlineData("enter")]
+    [InlineData("click from another tab")]
+    public void DeliberatelyPickingATabWhoseSearchFailed_SearchesItsRunwayOnceMore(string pick)
+    {
+        FakeSearch search = new();
+        MenuFlyout flyout = OpenStripFlyout(HostWith(OakEnds(), search));
+        TaxiToRunwayPanel panel = Panel(flyout);
+        FailThe28RSearch(flyout, panel, search);
+        Press(flyout, Key.Left);
+        if (pick != "click from another tab")
+        {
+            Press(flyout, Key.Right);
+        }
+
+        if (pick == "enter")
+        {
+            Press(flyout, Key.Enter);
+        }
+        else
+        {
+            PressTab(flyout, panel, "28R, none");
+        }
+
+        Assert.Equal(TabIndex(panel, "28R"), panel.Strip.SelectedIndex);
+        Assert.Equal(2, search.Asked.Count(runway => runway == Runway10L));
+        Assert.Equal(FlyoutTabState.Searching, Tab(panel, "28R").State);
+        Assert.Equal([TaxiToRunwayFlyout.SearchingText], panel.Lines);
+    }
+
+    /// <summary>Chooses the 28R tab, whose runway's search then fails, leaving it selected and dimmed none.</summary>
+    private static void FailThe28RSearch(MenuFlyout flyout, TaxiToRunwayPanel panel, FakeSearch search)
+    {
+        panel.Strip.Select(TabIndex(panel, "28R"));
+        Layout(flyout);
+        search.Fail(Runway10L);
+        Layout(flyout);
+        Assert.Equal([Runway10L], search.Asked);
+        Assert.Equal(FlyoutTabState.Empty, Tab(panel, "28R").State);
+    }
+
     /// <summary>Rows that cannot be drawn once a search lands are logged, and the flyout stays open.</summary>
     [AvaloniaFact]
     public void RowsThatCannotBeShownAfterASearchLands_AreLogged_AndTheFlyoutStaysOpen()
@@ -597,6 +736,44 @@ public class TaxiToRunwayFlyoutTests
             _pending[runway].SetResult(found);
             Dispatcher.UIThread.RunJobs();
         }
+
+        public void Fail(RunwayIdentifier runway)
+        {
+            _pending[runway].SetException(new InvalidOperationException($"The test failed the search of runway {runway}."));
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        /// <summary>Fails every search still running, so each one asked for logs its failure.</summary>
+        public void FailPending()
+        {
+            foreach (
+                (
+                    RunwayIdentifier runway,
+                    TaskCompletionSource<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?> result
+                ) in _pending
+            )
+            {
+                result.TrySetException(new InvalidOperationException($"The test failed the search of runway {runway}."));
+            }
+
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    /// <summary>A runway search that lands at once: no rows, as when the layout changed, or faulted. Every runway asked for, in order.</summary>
+    private sealed class InstantSearch(bool faults)
+    {
+        public List<RunwayIdentifier> Asked { get; } = [];
+
+        public Task<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?> Search(RunwayIdentifier runway)
+        {
+            Asked.Add(runway);
+            return faults
+                ? Task.FromException<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?>(
+                    new InvalidOperationException($"The test failed the search of runway {runway}.")
+                )
+                : Task.FromResult<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?>(null);
+        }
     }
 
     private static readonly Dictionary<string, TaxiRoute> Previews = [];
@@ -710,11 +887,16 @@ public class TaxiToRunwayFlyoutTests
         );
     }
 
-    private static RecordingMenuHost HostWith(List<TaxiToRunwayEnd> ends, FakeSearch search) =>
+    private static RecordingMenuHost HostWith(List<TaxiToRunwayEnd> ends, FakeSearch search) => HostWith(ends, search.Search);
+
+    private static RecordingMenuHost HostWith(
+        List<TaxiToRunwayEnd> ends,
+        Func<RunwayIdentifier, Task<IReadOnlyList<(string Designator, IReadOnlyList<TaxiRouteRow> Rows)>?>> search
+    ) =>
         new("")
         {
             Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
-            TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search.Search)),
+            TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search)),
         };
 
     /// <summary>A B738 parked at KOAK gate 25, assigned 30, on a view model holding the KOAK layout.</summary>
@@ -794,7 +976,7 @@ public class TaxiToRunwayFlyoutTests
         List<MenuItem> path = [];
         for (MenuItem? item = entry; item is not null; item = item.Parent as MenuItem)
         {
-            path.Insert(0, item);
+            path.Insert(0, (MenuItem)item);
         }
 
         foreach (MenuItem item in path)
@@ -835,13 +1017,16 @@ public class TaxiToRunwayFlyoutTests
         panel.Strip.GetVisualDescendants().OfType<Border>().First(border => Avalonia.Automation.AutomationProperties.GetName(border) == label);
 
     /// <summary>Presses the left button at the centre of the tab shown as <paramref name="label"/>.</summary>
-    private static void PressTab(MenuFlyout flyout, TaxiToRunwayPanel panel, string label)
+    private static void PressTab(MenuFlyout flyout, TaxiToRunwayPanel panel, string label) => PressTab(flyout, panel, label, MouseButton.Left);
+
+    /// <summary>Presses <paramref name="button"/> at the centre of the tab shown as <paramref name="label"/>.</summary>
+    private static void PressTab(MenuFlyout flyout, TaxiToRunwayPanel panel, string label, MouseButton button)
     {
         Control tab = TabView(panel, label);
         TopLevel popup = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(tab));
         Point centre = Assert.NotNull(tab.TranslatePoint(new Point(tab.Bounds.Width / 2, tab.Bounds.Height / 2), popup));
-        popup.MouseDown(centre, MouseButton.Left);
-        popup.MouseUp(centre, MouseButton.Left);
+        popup.MouseDown(centre, button);
+        popup.MouseUp(centre, button);
         Layout(flyout);
     }
 

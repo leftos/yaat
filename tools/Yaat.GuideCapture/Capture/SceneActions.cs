@@ -114,6 +114,57 @@ internal static class SceneActions
         return item;
     }
 
+    // Opens All Commands in an open aircraft menu (OpenAircraftMenuAsync's
+    // result), then each submenu below it down to the entry headed label, each
+    // through OpenSubmenuAsync, and returns that entry once its own dropdown is
+    // laid out. An aircraft whose strip has no icon for an entry opens it here.
+    public static async Task<MenuItem> OpenAllCommandsEntryAsync(Window window, ContextMenu menu, string label, TimeSpan timeout)
+    {
+        string allCommandsHeader = AircraftMenuBuilder.AllCommandsHeader;
+        MenuItem allCommands =
+            FindItem(menu.Items, allCommandsHeader) ?? throw new InvalidOperationException($"The aircraft menu has no '{allCommandsHeader}' entry.");
+        List<string> path =
+            PathTo(allCommands, label) ?? throw new InvalidOperationException($"'{allCommandsHeader}' of the aircraft menu has no '{label}' entry.");
+
+        allCommands.Open();
+        await WaitUntilAsync(() => IsDropdownLaidOut(allCommands), timeout, $"'{allCommandsHeader}' to open");
+        ArrangeDropdownHost(window);
+        MenuItem opened = allCommands;
+        foreach (string header in path.Skip(1))
+        {
+            opened = await OpenSubmenuAsync(opened, header, timeout);
+        }
+
+        return opened;
+    }
+
+    // The headers of the submenus from item down to the entry headed label,
+    // item's first, access keys ignored as FindItem ignores them, or null when
+    // no entry under item has that header. Only entries headed by text are
+    // walked into.
+    private static List<string>? PathTo(MenuItem item, string label)
+    {
+        if (item.Header is not string header)
+        {
+            return null;
+        }
+
+        if (StripAccessKeys(header) == StripAccessKeys(label))
+        {
+            return [header];
+        }
+
+        foreach (MenuItem child in item.Items.OfType<MenuItem>())
+        {
+            if (PathTo(child, label) is { } below)
+            {
+                return [header, .. below];
+            }
+        }
+
+        return null;
+    }
+
     // A dropdown's overlay host takes its position from the overlay layer's
     // next arrange; until then it sits at the window's origin, and so does
     // every window position measured inside it.

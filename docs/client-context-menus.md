@@ -211,7 +211,7 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   Choosing a tab whose end is not searched starts its runway's search: that tab and the runway's other end show the spinner and the panel reads `Finding runway entries…` (`TaxiToRunwayFlyout.SearchingText`) until the rows land, when the first row takes focus if the flyout is still open and the tab still selected.
 
-  An end with no entry, and one whose search failed (logged as `Taxi to runway: the search of runway {Runway} failed`; choosing the tab again retries it), is dimmed `none` and its panel reads `No runway entry found` (`NoRunwayEntryText`), as does the flyout of an airport with no runway end at all, which shows no tabs.
+  An end with no entry, and one whose search failed (logged as `Taxi to runway: the search of runway {Runway} failed`; arrowing onto the tab or reopening the flyout on it shows the cached `none` without searching, and a left click on it, a UI Automation invoke from another tab, or Enter while it is selected searches once more), is dimmed `none` and its panel reads `No runway entry found` (`NoRunwayEntryText`), as does the flyout of an airport with no runway end at all, which shows no tabs.
 
   Per end the full-length entry comes first, then every intersection whose runway remaining (the bar's junction with the centreline to the far threshold) is at least the type's takeoff distance (`AircraftProfile.TakeoffDistance`; a type with none keeps the intersections with half the runway ahead), most runway left first. An intersection row shows `~N ft avail`, rounded down to 50 ft; the full-length entry and the nearest usable one are highlighted (`MenuCommandRow.IsHighlighted`, bold).
 

@@ -18,7 +18,7 @@
 - Pointing at a Give way to… or Follow… row previews both aircraft's routes on the ground view, ringing where they meet.
 - Hold short of… opens a live ladder of the bars on the aircraft's route, nearest first; pointing at a stop highlights its bar and previews the route there.
 - Preset taxi route opens a live flyout of the airport's presets, nearest first, each showing its taxiways, distance and command; pointing previews the route.
-- Taxi to runway, from the quick commands and All Commands, opens one tabbed flyout with a tab per runway end, each listing that runway's entries.
+- Taxi to runway opens one tabbed flyout, a tab per runway end listing its entries; a tab whose search failed retries only when clicked or entered.
 - Exit left and Exit right open live flyouts of the exits ahead with distance and turn-off angle; on final an Exit at box suggests the runway's exits.
 
 ### Fixed

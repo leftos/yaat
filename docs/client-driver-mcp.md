@@ -19,7 +19,7 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 
   A server running out of `bin/` locks its own exe and dlls, and the solution build — which prek runs on every commit — then fails with `MSB3027`. Copies whose launcher has exited are pruned at the next launch. A running session keeps the build it started with; reconnect the server (`/mcp`) to pick up a rebuild.
 - Claude Code reads `.mcp.json` at session start and asks once to approve a project server.
-- The server's working directory is the repo root, so the relative defaults below resolve there.
+- The server's working directory is the repo root, so the relative defaults below resolve there. That is the checkout `.mcp.json` lives in: `screenshot` saves its PNG under that root's `.tmp/client-driver/shots/`, not under the worktree of the client it captured, and a relative `exePath` or `appDataDir` for `launch_yaat` resolves against it too, so a client built in a worktree needs absolute paths.
 - `launch_yaat` needs a built client: `dotnet build src/Yaat.Client`.
 - A client started by hand with `YAAT_AUTOMATION=1` and `--autoconnect http://localhost:5130 --scenario <vNAS scenario id>` comes up never-activated, connected, in a room and with the scenario loaded, with no input. The scenario starts paused: send `UNPAUSE` or `SIMRATE n` over the pipe.
 
@@ -27,6 +27,7 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 
 - **One driver per application.** YAAT.Client and CRC are single-instance applications, so no two agents drive the same one at the same time. One agent may drive YAAT and CRC together. An orchestrator never dispatches a second agent that would drive an application another running agent is driving; nothing in the server enforces this yet (the plan tracks a lock).
 - **Close what you opened.** A CRC or YAAT client an agent started for a session (through `launch_yaat`, `Start-Process`, or anything else) is stopped by that agent when the session ends, along with any yaat-server it started. A CRC the user already had running is left alone.
+- **Subagents need the tools in their definitions.** The implementer and debugger agents list the `mcp__yaat-client-driver__*` tools in their agent definitions; an agent started before the definitions were reloaded does not see them.
 
 ## Tools
 
@@ -61,7 +62,7 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 
 - **`virtual` (default).** Clicks and keys are posted as window messages (`WM_MOUSEMOVE`, `WM_LBUTTONDOWN`…, `WM_KEYDOWN`/`WM_KEYUP`, `WM_CHAR`) straight to the YAAT window. The real mouse pointer never moves and the foreground window never changes, so the developer can keep working while an agent drives the client. It also works when an elevated window holds the foreground, which makes Windows refuse `SetCursorPos`/`SendInput`.
 
-  Screenshots use `PrintWindow`, so a covered window captures correctly. It reaches YAAT windows only; CRC needs `real`. Avalonia reads Shift/Ctrl from the keyboard state rather than from the message, so a modified click or a `^`/`%`/`+` key is refused, not sent unmodified. `set_text` focuses with a posted click, then types (End, one Backspace per character, the text). A posted click never uses UIA `SetFocus` or `ValuePattern`, since both can take the foreground.
+  Screenshots use `PrintWindow`, so a covered window captures correctly, but popup windows are not in the image. The first posted click on a submenu entry may not open it; a second does. It reaches YAAT windows only; CRC needs `real`. Avalonia reads Shift/Ctrl from the keyboard state rather than from the message, so a modified click or a `^`/`%`/`+` key is refused, not sent unmodified. `set_text` focuses with a posted click, then types (End, one Backspace per character, the text). A posted click never uses UIA `SetFocus` or `ValuePattern`, since both can take the foreground.
 - **`real`.** `SendInput` / SendKeys, as a user would: the cursor moves and the window is brought to the front, so a video shows the pointer. Typing refuses, rather than sending keys to whatever else is in front, when the target did not take the foreground.
 - Every input tool's result ends with `(virtual)` or `(real)`, or `(pipe)` for a client driven over its automation pipe. The client drops input while navigation data loads, for ~10 s after launch in both modes; wait for the status bar's "Navigation data loaded".
 
@@ -74,6 +75,9 @@ Element ids (`e1`, `e2`, …) come from `list_windows` / `find_elements` / `dump
 
   Over the automation pipe it is the other way round: a menu's items sit under the `OverlayPopupHost` window that `list_windows` lists, not under the main window.
 - **Loading a scenario.** The Load Scenario list is virtualised and its items carry no names: click the first item, move with `{END}` or `{UP}`, and confirm the selection with a screenshot. A load then opens an "Active runways" dialog inside the main window that must be closed with its OK button. `launch_yaat` cannot pass `--scenario`.
+
+  Over the pipe there is no app tool for it. Copy the scenario file into a folder of its own and set `lastScenarioFolder` (see **Before launching**) before launching, then Scenario › Load Scenario, the Local Files tab, its only list item, Load; the Active runways prompt is found by `find_elements` with name `OK`, controlType `Button`, under the main window. A client started by hand takes `--autoconnect <url> --scenario <id>` instead (above).
+- **Types over the pipe.** There `find_elements`' `controlType` and `dump_tree` show the Avalonia type name (a custom control's own class, e.g. `TabBox`), never the UI Automation control type its peer reports. To check a peer's `AutomationControlType`, drive a client started without `YAAT_AUTOMATION` through UI Automation.
 - **File dialogs.** A client in automation mode opens no dialog: `queue_file_pick` the path before the action that opens it. A client driven through UI Automation shows the native picker, which runs in `PickerHost.exe`, outside the client's windows, and cannot be filled by the driver's keystrokes (friction #21 in [`plans/client-driver-mcp-friction.md`](plans/client-driver-mcp-friction.md)); launch through `launch_yaat` instead.
 - A button that "does nothing" usually logged `Unhandled UI-thread exception (recovered)`. Over the pipe it comes back with the call (**Client errors on every result** below); through UI Automation, `tail_yaat_log` first.
 
@@ -124,6 +128,8 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
   The discovery file sits under `%TEMP%`, a deliberate exception to the `YaatPaths` rule: a driver finds a client whatever `YAAT_APPDATA_DIR` either process runs with.
 - **Input inside the client.** A `click` runs Avalonia's own click through the public automation peers (`ButtonAutomationPeer.Invoke` → `Button.PerformClick`, `IToggleProvider.Toggle`) and sends a synthetic press and release only when there is no such action; doing both fired a button wired with a `Click` handler and a `Command` twice. That ladder runs only for a plain left single click.
 
+  `invoke` over the pipe is that same click, so it reports `(pointer)` for a control whose peer is only an `IInvokeProvider`; the peer's `Invoke()` is not called, only a `Button`'s is.
+
   YAAT has no XAML `KeyBinding`s (its shortcuts are `WindowHotkeys`, a class handler on `KeyDownEvent`, and `OnKeyDown` overrides), so `send_keys` raises `KeyDown`/`KeyUp` on the focused element and lets routing reach them, and types plain characters as text-input events at the caret so per-keystroke autocomplete runs. Avalonia's private input API is never used: it raises `AVA3001` under warnings-as-errors.
 - **Client errors on every result.** Since protocol 1.3.0 (`Protocol/ProtocolVersion.cs`; 1.4.0 adds `get_sim_time` and the windows' `hwnd`; 1.5.0 adds `hover`, `drag` and the click results' `site`). The client keeps its last 200 Error and Critical log entries in a ring with sequence numbers (`Yaat.Client.Core/Logging/RecentErrorLog.cs`, registered by `AppLog`).
 
@@ -135,6 +141,8 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
 
   A tool that throws a non-MCP exception after its pipe calls answers with the SDK's `An error occurred invoking '<tool>'.` plus the block, so a protocol-skew failure still shows the client's errors.
 - **Context menus over the pipe.** A right-click `click_point` opens the aircraft or point menu at the last `hover` point, not at the click point: `hover` where the menu should open first. The menu then sits somewhere new on each open, so a fixed `click_point` on a menu row can land on its border; reach rows and quick-command strip buttons through `find_elements` ids instead.
+
+  A right-click on an Aircraft List row only selects the row the first time; a second right-click at the same point opens the aircraft menu.
 
   A scenario-loaded sim stays paused, so aircraft situations read Unknown and the menu shows no quick-command strip: play the sim a few seconds first (`wait_until` on `sim_seconds`, with a `pause` action to stop it again).
 - **A never-activated window.** In automation mode windows show with `ShowActivated = false`, dialogs included, `OverlayPopups` is on, the client's own `Activate()`/`Topmost` calls are suppressed, and dialogs show non-modal (`DialogPresenter`) so Avalonia never activates an owner.

@@ -73,6 +73,7 @@ internal static class SceneCatalog
         new WhatsNewPickerScene(),
         new WhatsNewExitsAheadScene(),
         new WhatsNewPushBackScene(),
+        new WhatsNewTaxiToRunwayTabsScene(),
         new WhatsNewTakeoffScene(),
         new WhatsNewGroundFollowScene(),
         new WhatsNewWindsAloftSourceScene(),

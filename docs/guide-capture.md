@@ -44,6 +44,7 @@ Put exactly the aircraft the shot needs where it needs them with `ADD` through `
 - `SceneActions.PlaceInGroundView(window, vm, position, x, y)` moves the zoomed ground view so a point sits at fractions of its width and height, near the upper left to leave a menu and its flyouts room to the right.
 - **A radar range/bearing shot needs two aircraft** to latch the line to; `Scenes/WhatsNewRblLabelScene.cs` picks the pair.
 - Menu-bar menus, submenus and button flyouts: `SceneActions.OpenMenuAsync`, `OpenSubmenuAsync`, `OpenButtonFlyoutAsync`. A control's `ContextMenu` in a host window: `Scenes/TerminalRewindMenuScene.cs`.
+- An aircraft whose strip has no icon for an entry opens it through All Commands: `SceneActions.OpenAllCommandsEntryAsync(window, menu, label, timeout)` opens All Commands and each submenu down to the entry headed `label` (through `OpenSubmenuAsync`) and returns that entry, as `Scenes/WhatsNewTaxiToRunwayTabsScene.cs` does.
 
 ## Checking the result
 

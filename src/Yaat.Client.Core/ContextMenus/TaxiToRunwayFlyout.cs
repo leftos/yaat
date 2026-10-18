@@ -28,11 +28,14 @@ namespace Yaat.Client.ContextMenus;
 /// searched starts its runway's search when chosen (<see cref="TaxiToRunwayEndList.SearchRunwayOf"/>): that tab and its
 /// runway's other end show the spinner and the panel reads <see cref="SearchingText"/> until the rows land; an end found
 /// empty, or whose search failed or no longer applies, is dimmed <c>none</c> and its panel reads
-/// <see cref="NoRunwayEntryText"/>. Keyboard focus lands on the first row; Up/Down and Tab/Shift+Tab walk the rows,
-/// skipping titles and stopping at either end; Left/Right choose the previous or next tab, without wrapping, and focus
-/// its first row; the tabs never take focus, and a tab with no row leaves focus on the panel. A row sends its command and
-/// closes the flyout and the menu, and previews its own route while pointed at or focused; choosing another tab or
-/// closing the flyout clears the preview. Nothing refills while it is open.
+/// <see cref="NoRunwayEntryText"/>. A tab whose search failed or no longer applies searches again only on a deliberate
+/// pick: a left press on it, choosing it from another tab by UI Automation's invoke, or Enter while it is selected;
+/// arrowing onto it, or reopening the flyout on it, shows its <c>none</c> without searching. Keyboard focus lands on the
+/// first row; Up/Down and Tab/Shift+Tab walk the rows, skipping titles and stopping at either end; Left/Right choose the
+/// previous or next tab, without wrapping, and focus its first row; the tabs never take focus, and a tab with no row
+/// leaves focus on the panel. A row sends its command and closes the flyout and the menu, and previews its own route
+/// while pointed at or focused; choosing another tab or closing the flyout clears the preview. Nothing refills while it
+/// is open.
 /// </summary>
 public static class TaxiToRunwayFlyout
 {
@@ -197,12 +200,26 @@ public static class TaxiToRunwayFlyout
         private Action? _closeFlyout;
         private bool _open;
 
+        /// <summary>Whether Left or Right is changing the tab, a pass that never retries a failed search.</summary>
+        private bool _arrowing;
+
+        /// <summary>The selected tab's index as the strip's latest pointer press began, before any tab took it.</summary>
+        private int _selectedAtPress = -1;
+
         public TaxiToRunwayContent(MenuItem entry, MenuContext context, IMenuHost host)
         {
             _entry = entry;
             _context = context;
             _host = host;
             _panel.Strip.SelectionChanged += (_, _) => OnTabChosen();
+            // A tab marks its left press handled; a press on the tab already selected changes no selection, so it is seen here.
+            _panel.Strip.AddHandler(
+                InputElement.PointerPressedEvent,
+                (_, _) => _selectedAtPress = _panel.Strip.SelectedIndex,
+                RoutingStrategies.Tunnel,
+                handledEventsToo: true
+            );
+            _panel.Strip.AddHandler(InputElement.PointerPressedEvent, OnStripPressed, RoutingStrategies.Bubble, handledEventsToo: true);
             _panel.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
             // A menu row takes keyboard focus back from whatever inside it gets it, so the row holding the panel is not
             // focusable, and focus stays on the row button or the panel's scroll host.
@@ -255,17 +272,47 @@ public static class TaxiToRunwayFlyout
             _ends ??= _host.GetTaxiToRunwayChoices(_context.Callsign).RunwayEnds;
             _panel.Strip.SetTabs([.. _ends.Ends.Select(TabOf)]);
             _panel.Strip.IsVisible = _ends.Ends.Count > 0;
-            ShowSelected();
+            ShowSelected(retryFailed: false);
         }
 
         private void OnTabChosen()
         {
             _host.SetRoutePreview(null);
-            ShowSelected();
+            ShowSelected(retryFailed: !_arrowing);
         }
 
-        /// <summary>Shows the selected tab, starting its runway's search when it has not run, and focuses its first row.</summary>
-        private void ShowSelected()
+        /// <summary>
+        /// A left press on the tab already selected retries its failed search; a press that chose another tab already
+        /// searched it, through <see cref="OnTabChosen"/>.
+        /// </summary>
+        private void OnStripPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (e.Handled && (_panel.Strip.SelectedIndex == _selectedAtPress))
+            {
+                RetrySelectedIfFailed();
+            }
+        }
+
+        /// <summary>Searches the selected tab's runway again when its search failed or no longer applies; false when it did not.</summary>
+        private bool RetrySelectedIfFailed()
+        {
+            if ((_ends is not { } ends) || (Selected(ends) is not { } end) || !SearchFailed(end))
+            {
+                return false;
+            }
+
+            ShowSelected(retryFailed: true);
+            return true;
+        }
+
+        /// <summary>Whether this flyout started <paramref name="end"/>'s runway search and it landed with no rows for it.</summary>
+        private bool SearchFailed(TaxiToRunwayEnd end) => (end.State == TaxiToRunwayEndState.NotSearched) && _asked.Contains(end.Runway);
+
+        /// <summary>
+        /// Shows the selected tab, starting its runway's search when it has not run, or, with <paramref name="retryFailed"/>,
+        /// when it failed, and focuses its first row.
+        /// </summary>
+        private void ShowSelected(bool retryFailed)
         {
             if ((_ends is not { } ends) || (Selected(ends) is not { } end))
             {
@@ -274,7 +321,7 @@ public static class TaxiToRunwayFlyout
                 return;
             }
 
-            if (end.State == TaxiToRunwayEndState.NotSearched)
+            if ((end.State == TaxiToRunwayEndState.NotSearched) && (retryFailed || !_asked.Contains(end.Runway)))
             {
                 StartSearch(ends, end);
             }
@@ -301,19 +348,11 @@ public static class TaxiToRunwayFlyout
         /// <summary>
         /// Once <paramref name="search"/> lands, brings the tabs up to date and, while the flyout is open and a tab of
         /// <paramref name="runway"/> is still selected, shows its rows and focuses the first; a closed flyout drops the update.
-        /// A search or an update that fails is logged.
+        /// An update that fails is logged; the search logs its own failure (<see cref="TaxiToRunwayEndList.SearchRunwayOf"/>).
         /// </summary>
         private async Task LandAsync(TaxiToRunwayEndList ends, Task search, RunwayIdentifier runway)
         {
-            try
-            {
-                await search;
-            }
-            catch (Exception ex)
-            {
-                Log.LogError(ex, "Taxi to runway: the search of runway {Runway} failed", runway);
-            }
-
+            await search;
             if (!_open)
             {
                 return;
@@ -485,7 +524,19 @@ public static class TaxiToRunwayFlyout
             {
                 case Key.Left or Key.Right:
                     e.Handled = true;
-                    _panel.Strip.Move((e.Key == Key.Left) ? -1 : 1);
+                    _arrowing = true;
+                    try
+                    {
+                        _panel.Strip.Move((e.Key == Key.Left) ? -1 : 1);
+                    }
+                    finally
+                    {
+                        _arrowing = false;
+                    }
+
+                    break;
+                case Key.Enter:
+                    e.Handled = RetrySelectedIfFailed();
                     break;
                 case Key.Up or Key.Down or Key.Tab:
                     e.Handled = true;
