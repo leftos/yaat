@@ -320,11 +320,11 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | IFR arrival | Descend via STAR (IFR), Maintain altitude, Assign speed, Fly heading, Direct to…, Expect approach, Hold at fix…, Land (helicopter) |
 | VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude, Direct to…, Expect approach, Land (helicopter) |
 | Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight, Cleared visual (IFR), Cleared to land, Land (helicopter) |
-| Holding | Cleared approach (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
+| Holding | Cleared approach (IFR), Report field in sight (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
 | Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land (helicopter) |
 | Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Land (helicopter) |
 | Rollout / exit | Exit left, Exit right, Air taxi (helicopter, once settled), Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
-| Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
+| Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR), Report field in sight (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
 | Live traffic | Assume control, Assume and track |
 | VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic…, Land (helicopter) |
 | VFR departure | Fly heading, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic, Land (helicopter) |
@@ -354,6 +354,7 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
   An IFR departure's flyout is Cleared for takeoff, Fly heading, Fly runway heading and Custom…; with "VFR commands for IFR aircraft" set to All, the VFR rows follow the altitude box under the IFR rows. Each row shows the command it sends, updating as you type; a row whose heading or fix box is empty or unreadable shows "···", fades and sends nothing, and Enter in a heading or fix box sends that row (fix boxes suggest fixes as the command bar does). Glyphs are pattern purple, turned to the departure runway.
 - **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1.
 - **Cleared approach** hides once the aircraft is cleared for an approach; after a go-around or missed approach it comes back once you assign an altitude.
+- **Report field in sight** hides for an IFR aircraft once the pilot has reported the field in sight, and comes back if the pilot loses sight of the field, goes around or the approach is reset.
 - **Cleared to land** hides on final once the aircraft is cleared to land.
 - **Cleared visual** shows only after an IFR aircraft reports the field or the preceding traffic in sight. It defaults to the assigned runway, else the runway of the active or expected approach, even when that approach is written in shorthand (an expected `R28L` at KOAK gives runway 28L and sends `CVA 28L`; an expected visual, `VIS28R` from `EAPP VIS28R`, gives "Cleared visual approach 28R"). Typing `CVA <airport>` without a runway clears a visual to an untowered field and the pilot picks the runway (most headwind within the tailwind limit, else the end aligned with its track); at a towered field it is refused unless a visual is expected (`EAPP VIS28R`), which a bare `CVA` then clears.
 - **Heading pickers and Warp start from the datablock heading.** Fly heading, Turn left and Turn right highlight the aircraft's magnetic heading (rounded to 5°), and the Warp popup is pre-filled with it.

@@ -118,6 +118,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Holding] =
             [
                 Ifr(MenuIds.ApproachCleared),
+                Ifr(MenuIds.ApproachReportFieldInSight),
                 Entry(MenuIds.NavigationDirectTo),
                 Entry(MenuIds.AltitudeMaintain),
                 Vfr(MenuIds.PatternEnterLeftDownwind),
@@ -164,6 +165,7 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.HeadingFly),
                 Entry(MenuIds.AltitudeMaintain),
                 Ifr(MenuIds.ApproachCleared),
+                Ifr(MenuIds.ApproachReportFieldInSight),
                 Vfr(MenuIds.PatternEnterLeftDownwind),
                 Vfr(MenuIds.PatternEnterRightDownwind),
                 Entry(MenuIds.GroundLandHelicopter),

@@ -716,6 +716,16 @@ public class AircraftCommandApplicabilityTests
 
     [Theory]
     [InlineData(SituationFlags.None, true)]
+    [InlineData(SituationFlags.HasReportedFieldInSight, false)]
+    [InlineData(SituationFlags.HasReportedTrafficInSight, true)] // the traffic report is not the field report
+    public void ShowsReportFieldInSight_UntilThePilotReportsTheField(SituationFlags flags, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsReportFieldInSight(Situated(AircraftSituation.Approach, flags, "IFR")));
+
+    [Fact]
+    public void ShowsReportFieldInSight_NoAircraft_IsFalse() => Assert.False(AircraftCommandApplicability.ShowsReportFieldInSight(null));
+
+    [Theory]
+    [InlineData(SituationFlags.None, true)]
     [InlineData(SituationFlags.InsideFinalApproachFix, false)]
     public void ShowsSpeedAdjustment_HiddenInsideTheFinalApproachFix(SituationFlags flags, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.ShowsSpeedAdjustment(Situated(AircraftSituation.Final, flags, "IFR")));

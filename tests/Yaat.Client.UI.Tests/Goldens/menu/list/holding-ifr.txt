@@ -2,7 +2,7 @@
 AAL205 · B738 [disabled]
 Holding · 5,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
-strip: [approach.cleared, navigation.direct-to, altitude.maintain, pattern.enter-final]
+strip: [approach.cleared, approach.report-field-in-sight, navigation.direct-to, altitude.maintain, pattern.enter-final]
 Cleared approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
 ---
 Command…

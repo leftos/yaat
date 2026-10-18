@@ -606,6 +606,15 @@ public static class AircraftCommandApplicability
         && (ac.SituationFlags.HasFlag(SituationFlags.HasReportedFieldInSight) || ac.SituationFlags.HasFlag(SituationFlags.HasReportedTrafficInSight));
 
     /// <summary>
+    /// Report field in sight shows until the pilot reports the field in sight
+    /// (<see cref="SituationFlags.HasReportedFieldInSight"/>, §7-4-3.a). The flag clears when the pilot loses sight of the
+    /// field, on a go-around off a visual, or on an approach reset, and the entry returns. The server sends the flag for IFR
+    /// aircraft only, so a VFR aircraft always keeps the entry.
+    /// </summary>
+    public static bool ShowsReportFieldInSight(IMenuAircraft? ac) =>
+        ac is not null && !ac.SituationFlags.HasFlag(SituationFlags.HasReportedFieldInSight);
+
+    /// <summary>
     /// A speed adjustment (Speed, Reduce to final approach speed) hides inside the final approach fix
     /// (<see cref="SituationFlags.InsideFinalApproachFix"/>, §5-7-1); Resume normal speed is a termination and is not
     /// gated by this rule.

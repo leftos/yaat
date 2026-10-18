@@ -49,6 +49,7 @@ public static class QuickCommandResolver
         [MenuIds.GroundCrossRunway] = AircraftCommandApplicability.ShowsCrossAtHoldShort,
         [MenuIds.GroundResumeTaxi] = AircraftCommandApplicability.ShowsResumeTaxiAtHoldShort,
         [MenuIds.ApproachClearedVisual] = AircraftCommandApplicability.ShowsClearedVisual,
+        [MenuIds.ApproachReportFieldInSight] = AircraftCommandApplicability.ShowsReportFieldInSight,
         [MenuIds.SpeedAssign] = AircraftCommandApplicability.ShowsSpeedAdjustment,
         [MenuIds.SpeedCustom] = AircraftCommandApplicability.ShowsSpeedAdjustment,
         [MenuIds.SpeedFinalApproach] = AircraftCommandApplicability.ShowsSpeedAdjustment,

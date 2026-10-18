@@ -298,6 +298,32 @@ public class QuickCommandVisibilityRulesTests
         Assert.False(Shows(vfr, MenuIds.ApproachCleared, VfrCommandsForIfr.None));
     }
 
+    /// <summary>
+    /// Report field in sight shows in the three situations that offer Cleared approach — Approach, and the IFR side of
+    /// Holding and GoAround — and hides once the pilot reports the field, returning when an approach reset clears the flag.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftSituation.Approach, "InterceptCourse", "IFR", SituationFlags.None, true)]
+    [InlineData(AircraftSituation.Approach, "InterceptCourse", "IFR", SituationFlags.HasReportedFieldInSight, false)]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "IFR", SituationFlags.None, true)]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "IFR", SituationFlags.HasReportedFieldInSight, false)]
+    [InlineData(AircraftSituation.Holding, "HoldingPattern", "VFR", SituationFlags.None, false)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "IFR", SituationFlags.None, true)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "IFR", SituationFlags.HasReportedFieldInSight, false)]
+    [InlineData(AircraftSituation.GoAround, "GoAround", "VFR", SituationFlags.None, false)]
+    public void ReportFieldInSight_ShowsInTheIfrApproachHoldingAndGoAroundLists_UntilReported(
+        AircraftSituation situation,
+        string phase,
+        string rules,
+        SituationFlags flags,
+        bool shown
+    )
+    {
+        AircraftModel aircraft = Aircraft(situation, phase, onGround: false, rules);
+        aircraft.SituationFlags = flags;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.ApproachReportFieldInSight, VfrCommandsForIfr.None));
+    }
+
     [Theory]
     [InlineData(VfrCommandsForIfr.All, true)]
     [InlineData(VfrCommandsForIfr.EnterFinalOnly, false)]
@@ -349,6 +375,15 @@ public class QuickCommandVisibilityRulesTests
 
         Assert.True(MenuCatalog.Get(MenuIds.GroundPushback).IsApplicable(parked, context));
         Assert.True(MenuCatalog.Get(MenuIds.GroundPushbackTo).IsApplicable(parked, context));
+    }
+
+    /// <summary>The field-in-sight hide is a quick-list rule only: All Commands, which reads applicability alone, keeps the row.</summary>
+    [Fact]
+    public void ReportFieldInSight_AfterTheReport_AllCommandsKeepsTheRow()
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.Approach, "InterceptCourse", onGround: false, rules: "IFR");
+        aircraft.SituationFlags = SituationFlags.HasReportedFieldInSight;
+        Assert.True(MenuCatalog.Get(MenuIds.ApproachReportFieldInSight).IsApplicable(aircraft, Context(VfrCommandsForIfr.None)));
     }
 
     [Theory]
