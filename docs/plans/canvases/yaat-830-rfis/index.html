@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report Field Glyph</title>
+<style>
+  /* Layout: a header (question, the Approach strip today, the lookalike glyphs) over lanes A to E, one candidate each. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag: #9a5a12; --tag-keep: #58616c; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", "JetBrains Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag: #ffb259; --tag-keep: #9aa3ae; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag: #ffb259; --tag-keep: #9aa3ae; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 96ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin: 22px 0 28px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; margin-bottom: 18px; }
+  .ref { min-width: 0; }
+  .ref-cap { font: 500 11px var(--f-mono); color: var(--muted); margin-bottom: 4px; letter-spacing: .04em; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; color: var(--tag); }
+  .tag.keep { color: var(--tag-keep); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 100ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only (App.axaml RequestedThemeVariant="Dark"), so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 12px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; margin-bottom: 5px; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; max-width: 100%; }
+  .mtitle { font-weight: 700; padding: 6px 11px 0; opacity: .5; }
+  .mstate { font-size: 12px; padding: 2px 11px 6px; min-height: 18px; white-space: nowrap; }
+  .mstate .c { font: 11px "JetBrains Mono", Consolas, monospace; color: #b8b8b8; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .mi { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 5px 11px; border-radius: 4px; white-space: nowrap; }
+  .mi.faint { opacity: .55; }
+  .chev { color: #b9bfc6; padding-left: 10px; }
+  .strip { display: flex; gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.hover { background: #2c3036; }
+  .cell svg { display: block; }
+  .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+  .look { display: flex; flex-wrap: wrap; gap: 10px 8px; }
+  .look figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 52px; }
+  .look figcaption { font: 10.5px/1.25 Inter, "Segoe UI", sans-serif; color: #a4adb8; text-align: center; }
+  .look figure.cand figcaption { color: #ffc062; }
+  .row22 { display: flex; align-items: center; gap: 8px; background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 6px 11px; width: max-content; max-width: 100%; }
+  .row22 .n { font-size: 14px; }
+  .row22 .c { font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; padding-left: 14px; }
+  .bigs { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+  .big { width: 132px; height: 132px; border-radius: 6px; background: #1f2226; display: grid; place-items: center; }
+  .refline { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-start; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-830 · Report field in sight glyph · mock for the owner's pick</div>
+  <h1>Report field in sight: which glyph</h1>
+  <p class="lede"><b>Report field in sight</b> (<code>RFIS</code>) asks the pilot to report the airport in sight; under YAAT-830 the X3 approach flyouts grey their visual-approach (<code>CVA</code>) rows until the pilot has. It already sits fourth in the Approach situation's strip, between Assign speed and Cleared to land, with the glyph drawn in lane A. Lane A keeps that glyph; lanes B to E are four alternatives. No lane is marked as recommended.</p>
+  <p class="lede">Every candidate is drawn in the <b>Tower family's amber</b> (<code>#FFC062</code>), the colour the other Report commands (traffic in sight, N-mile final, at fix) already use, as <code>QuickCommandStrip</code> draws a glyph: a 24 px stroke path, stroke 1.9, round caps and joins, 32 px in a 40 px strip button, 22 px inline. None uses an eye (Cleared visual's) or a crosshair (Report traffic in sight's), and each lane draws its candidate beside both. The app runs dark only, so the app surfaces stay dark whichever theme this page is in.</p>
+  <div id="arts"></div>
+  <footer class="foot">Data: AAL204, a B738 on approach to KOAK runway 30, as the <code>approach-ifr</code> menu golden draws it (strip: Cleared approach, Maintain altitude, Assign speed, Report field in sight, Cleared to land; the two pickers carry the corner notch). Cleared visual is not in that strip: its button shows only while a visual clearance is offered. The pointer is drawn on the Report field in sight button, so the header's state line names it, as <code>QuickCommandLabelLine</code> does. Neighbour glyphs are copied from <code>QuickCommandGlyphs.cs</code>; every candidate's path data is in the README beside this page. The page loads no web fonts, so it draws in Segoe UI and Consolas where Inter and JetBrains Mono are not installed.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const FAM = { T: "#FFC062", F: "#A8CAFF", S: "#DCE2E8" };
+
+  /* Neighbours, copied from QuickCommandGlyphs.cs. */
+  const N = {
+    CAPP: ["F", "M3 12L21 5 M3 12L21 19 M3 12h18", "Cleared approach"],
+    CM: ["F", "M3 18l7-7 4 4 7-7 M15 8h6v6", "Maintain altitude"],
+    SPD: ["F", "M4 17a8 8 0 1 1 16 0 M12 17l4-5", "Assign speed"],
+    CTL: ["T", "M2 20h20 M5 6l11 9 M10 15h6v-6", "Cleared to land"],
+    CVA: ["F", "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6", "Cleared visual"],
+    RTIS: ["T", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8", "Report traffic in sight"],
+    NMF: ["T", "M7 21l3-10h4l3 10 M12 14v1.5 M12 18v1.5 M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0", "At N-mile final"],
+    FIX: ["T", "M12 10l6 11H6z M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0", "At fix"],
+    EAPP: ["F", "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21", "Expect approach"],
+    TRK: ["S", "M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 9v6 M9 12h6", "Track"],
+    CTO: ["T", "M2 20h20 M5 16L19 6 M13 6h6v6", "Cleared for takeoff"],
+  };
+
+  const LANES = [
+    { tag: "A", keep: true, name: "Keep: runway with sight ticks (today's glyph)",
+      d: "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2",
+      also: ["NMF"],
+      shows: "The runway seen down the approach, a dashed centreline, three short ticks above and beside it like rays: the field standing out ahead.",
+      worst: "Its runway is At N-mile final's runway, same amber, same dashes; the two differ only in ticks against arcs above it, and the side ticks echo Report traffic in sight's crosshair ticks." },
+    { tag: "B", name: "Binoculars over the runway line",
+      d: "M6.5 9a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7 M17.5 9a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7 M3.2 11.5L5 4h3l1.8 7.5 M14.2 11.5L16 4h3l1.8 7.5 M10 11.5h4 M2 21h20",
+      also: ["CTL"],
+      shows: "Binoculars above the flat runway line Cleared to land and Cleared for takeoff stand on: look for the runway.",
+      worst: "Binoculars say 'look for' but not what, so they fit Report traffic in sight as well as the field; at 22 px the two lenses and bridge can read as eyeglasses." },
+    { tag: "C", name: "Aircraft with a sight line to the runway",
+      d: "M2 7.5h9 M7.5 7.5l-3-5h-1l1.5 5 M7.5 7.5l-3 5h-1l1.5-5 M3 7.5l-1-2.5 M12.5 10.5l1.3 1.3 M15.3 13.3l1.3 1.3 M13 22l3-5h3l3 5",
+      also: ["CTL"],
+      shows: "A top-view aircraft at the upper left, a dashed line from it down to a runway in perspective at the lower right: the pilot sights the field.",
+      worst: "A diagonal running down onto a runway is Cleared to land's picture, and Cleared to land is the very next button; the busiest candidate, its aircraft blurs to a smudge at 22 px." },
+    { tag: "D", name: "Runway framed in viewfinder corners",
+      d: "M3 8V3h5 M16 3h5v5 M21 16v5h-5 M8 21H3v-5 M8.5 18l2.3-11h2.4l2.3 11 M12 10.5v2 M12 15v1.5",
+      also: ["TRK"],
+      shows: "A runway in perspective inside four viewfinder corners: the field caught in sight.",
+      worst: "The four corners are Track's and Assume and track's frame (grey, not amber), so on a radar menu that offers both it reads as a track action; it can also read as 'take a screenshot'." },
+    { tag: "E", name: "Speech bubble holding a runway",
+      d: "M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8l-4 4v-4H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M9 14l2-8h2l2 8",
+      also: ["NMF"],
+      shows: "A speech bubble with a runway in it: the pilot calls the field.",
+      worst: "No other Report glyph uses a bubble, so it starts a pattern Report traffic in sight, N-mile final and At fix do not follow; the runway inside is small and at 22 px reads as a letter A in a chat bubble." },
+  ];
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const svg = (d, col, size, extra = "") => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${extra}<path d="${d}"/></svg>`;
+  const nb = (id, size = 32) => svg(N[id][1], FAM[N[id][0]], size);
+  const cell = (inner, { notch = false, hover = false, label = "" } = {}) =>
+    `<span class="cell${hover ? " hover" : ""}" role="img" aria-label="${esc(label)}">${inner}${notch ? `<i class="notch"></i>` : ""}</span>`;
+  const GRID = `<g stroke="#ffffff" stroke-opacity=".07" stroke-width=".05">${Array.from({ length: 25 }, (_, i) => `<path d="M${i} 0V24 M0 ${i}H24"/>`).join("")}</g>`;
+
+  /* The Approach strip as the approach-ifr golden has it, the RFIS button drawn with d, the pointer on it. */
+  function menu(d, label) {
+    const strip = [
+      cell(nb("CAPP"), { label: "Cleared approach" }),
+      cell(nb("CM"), { notch: true, label: "Maintain altitude" }),
+      cell(nb("SPD"), { notch: true, label: "Assign speed" }),
+      cell(svg(d, FAM.T, 32), { hover: true, label: `Report field in sight, ${label}` }),
+      cell(nb("CTL"), { label: "Cleared to land" }),
+    ].join("");
+    return `<div class="menu m" role="img" aria-label="Aircraft menu, Approach strip, ${esc(label)}">
+      <div class="mtitle">AAL204 · B738</div>
+      <div class="mstate">Report field in sight — <span class="c">RFIS</span></div>
+      <div class="msep"></div>
+      <div class="strip">${strip}</div>
+      <div class="mi faint"><span>Cleared approach (other)…</span><span class="chev">›</span></div>
+      <div class="msep"></div>
+      <div class="mi faint"><span>Command…</span><span></span></div>
+      <div class="mi faint"><span>All Commands</span><span class="chev">›</span></div>
+    </div>`;
+  }
+
+  function lookalikes(d, also) {
+    const fig = (inner, cap, cls = "") => `<figure class="${cls}">${cell(inner, { label: cap })}<figcaption>${esc(cap)}</figcaption></figure>`;
+    return `<div class="look">${fig(svg(d, FAM.T, 32), "This glyph", "cand")}${["CVA", "RTIS", ...also].map(id => fig(nb(id), N[id][2])).join("")}</div>`;
+  }
+
+  function lane(l) {
+    return `<section class="lane">
+      <div class="lane-h"><span class="tag${l.keep ? " keep" : ""}">${l.tag}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">
+        <div><div class="flabel">Approach strip · 32 px · pointer on it</div>${menu(l.d, l.name)}</div>
+        <div><div class="flabel">Beside the eye, the crosshair and its nearest</div>${lookalikes(l.d, l.also)}</div>
+        <div><div class="flabel">Inline · 22 px</div><div class="row22 m">${svg(l.d, FAM.T, 22)}<span class="n">Report field in sight</span><span class="c">RFIS</span></div></div>
+        <div><div class="flabel">Enlarged · 24 px grid</div><div class="bigs"><span class="big">${svg(l.d, FAM.T, 112, GRID)}</span></div></div>
+      </div>
+      <dl class="cap"><dt>Shows</dt><dd>${l.shows}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+
+  const refs = ["CAPP", "CM", "SPD", "CTL", "CVA", "RTIS", "NMF", "FIX", "TRK"];
+  document.getElementById("arts").innerHTML = `<section class="art">
+      <div class="art-head"><div class="ref"><div class="ref-cap">The glyphs a candidate is read against (strip size)</div>
+        <div class="stage"><div class="look">${refs.map(id => `<figure>${cell(nb(id), { label: N[id][2] })}<figcaption>${esc(N[id][2])}</figcaption></figure>`).join("")}</div></div></div></div>
+      <div class="lanes">${LANES.map(lane).join("")}</div>
+    </section>`;
+})();
+</script>
+</body>
+</html>
