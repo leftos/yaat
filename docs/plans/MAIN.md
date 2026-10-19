@@ -31,6 +31,7 @@
 - [ ] YAAT-831 Render the Air taxi and Land panel rows in the menu goldens
 - [ ] YAAT-845 Tidy the approach flyout after X3a: scroller keys, shared refusal wording
 - [ ] YAAT-888 Point menu Taxi here answers an empty group when every route drops out
+- [ ] YAAT-892 Make Taxi here titles skip the destination runway like the variants do
 
 ## Bug reports and feature requests
 
@@ -286,7 +287,7 @@
 - [ ] YAAT-95 Warn at ATXI issue time for each runway the direct air-taxi path crosses
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload
-- [ ] YAAT-716 vStrips: Add "auto-sort this rack" as a checkbox in the context menu · release vNext
+- [/] YAAT-716 vStrips: Add "auto-sort this rack" as a checkbox in the context menu · release vNext
 
 ## Wave 7 — Client UI cleanup
 
@@ -355,7 +356,7 @@
 - [ ] YAAT-416 UserPreferencesTaxiRouteDisplayTests defaults test reads shared preferences (flaky)
 - [ ] YAAT-417 AppToolsTests automation pipe breaks under load (Pipe is broken)
 - [ ] YAAT-422 Fix doc drift: PostPhysics step count, JsonIgnore field list, stray User Guide item
-- [ ] YAAT-425 GuideCapture runs raise a Windows Firewall prompt: bind its in-process server's listeners to loopback · release vNext
+- [/] YAAT-425 GuideCapture runs raise a Windows Firewall prompt: bind its in-process server's listeners to loopback · release vNext
 - [ ] YAAT-472 Cut the context every yaat session and subagent loads: CLAUDE.md and the architecture index
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
@@ -371,19 +372,19 @@
 - [ ] YAAT-858 Start the heaviest Sim test classes first · release vNext
 - [/] YAAT-857 Run yaat-server's test collections in parallel again · release vNext
 - [/] YAAT-856 Memoise the per-tick aircraft-type string lookups · release vNext
-- [ ] YAAT-855 Make the tug-planner checks allocation-free and pre-indexed · release vNext
+- [/] YAAT-855 Make the tug-planner checks allocation-free and pre-indexed · release vNext
 - [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
 - [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
 - [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; delete tools/gate.ps1 · release vNext
 - [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof
-- [ ] YAAT-785 Read and validate a PR's reviews before land-bot-pr merges it · release vNext
 - [ ] YAAT-798 Answer gate's routed-run CS0009 questions: test-all parallel builds, obj in routing outputs
 - [ ] YAAT-821 Find the Yaat.Client.Tests test that stalls a local full suite on a busy machine
 - [ ] YAAT-873 Split GeoJsonParser.BuildLayout under the 100-line limit
 - [ ] YAAT-875 Split TaxiRoute.ToSummary under the complexity limit
 - [ ] YAAT-879 Move the shared push-planner test helpers into PushTargetPlannerFixtures
-- [ ] YAAT-887 Find every Sim test class that reads the navigation database without installing one · release vNext
+- [/] YAAT-887 Find every Sim test class that reads the navigation database without installing one · release vNext
+- [ ] YAAT-893 Prove the navigation database loader's concurrency rulings with tests
 
 ## Singles
 
@@ -614,6 +615,9 @@
 - [ ] YAAT-884 PUSH B FACE SW from SFO G10 holds 113 ft off taxiway B
 - [ ] YAAT-885 Extract one shared tabbed-rows flyout content from the quick-command flyouts
 - [ ] YAAT-886 Make TryTaxi's autoCrossRunway and the CommandQueueTests helpers' applyAction required
+- [ ] YAAT-889 Use the harness's navdata resolver in DtoConverterAdwMarkTests
+- [ ] YAAT-890 Guard TestVnasData.SetTestDataDir against parallel writers
+- [ ] YAAT-891 Make RoomEngineTestHarness.CreateWithOakData's parameters required
 
 ## No project
 
