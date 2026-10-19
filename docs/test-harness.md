@@ -175,6 +175,16 @@ test that ran *after* such a parser test would silently inherit the synthetic DB
 class that asks for it. (For per-test scoping that does not stomp the global, `NavigationDatabase` also offers an `AsyncLocal` scoped
 override — see `NavigationDatabase.Instance` / `InstanceOrNull` — but `EnsureInitialized` deliberately targets the process-wide default.)
 
+### Per-test navigation database (yaat-server tests)
+
+yaat-server's test collections run in parallel, so no test sets the process-wide navigation database. An assembly-level xunit hook (`Harness/NavigationDatabaseTestHolderAttribute.cs`) calls `NavigationDatabase.OpenTestHolder()` before every test and closes it after; its static constructor sets an empty `ForTesting()` default when none exists, so a test that never builds a harness still finds one.
+
+`RoomEngineTestHarness` installs its database with `NavigationDatabase.SetTestInstance(db)`. Lookup precedence is `ScopedOverride` (innermost scope) → the per-test holder → the process-wide default. `TestVnasData.LoadRealDataWithoutInstalling()` loads the real navdata and the aircraft tables without touching the default, which is what `RoomEngineTestHarness.ResolveRealNavDb()` uses.
+
+**Never build a harness in a constructor, field initialiser, class fixture or `IAsyncLifetime`.** xunit constructs the class before the hook runs, so `SetTestInstance` throws there ("No per-test NavigationDatabase holder is open"). Build it in the test body or in a helper the body calls, async helpers included.
+
+Two collections serialize the classes that cannot share a process with the rest. `LoadSensitive` (`Harness/LoadSensitiveCollection.cs`, `DisableParallelization = true`) holds the timing classes that wait on real concurrent work with a fixed timeout, plus the SWIM correlator soak; xunit runs it alone after the parallel collections, so the suite's own load cannot push their waits past the timeout. `ProcessLogging` (`Harness/ProcessLoggingCollection.cs`) holds the classes that redirect stderr, write through the log writer, or clean log files beside the test binary (`RollingLogWriterTests`, `FileLoggingSetupTests`, `FileLoggerRoomScopeTests`, `DataRetentionHostedServiceTests`); its classes run one at a time, in parallel with the other collections. A new class with either need joins the matching collection.
+
 ## Running tests
 
 Every test project uses xunit.v3 on the Microsoft.Testing.Platform runner (`UseMicrosoftTestingPlatformRunner` in each csproj;

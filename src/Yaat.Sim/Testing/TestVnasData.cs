@@ -263,21 +263,37 @@ public static class TestVnasData
 
     public static void EnsureInitialized()
     {
-        EnsureAircraftDataInitialized();
-
         // Always re-set the NavigationDatabase singleton. Other tests (e.g. parser tests)
         // may have replaced it with a synthetic ForTesting() instance.
-        if (NavigationDb is { } navDb)
+        if (LoadRealDataWithoutInstalling() is { } navDb)
         {
             NavigationDatabase.SetInstance(navDb);
-            lock (_lock)
+        }
+    }
+
+    /// <summary>
+    /// Loads the aircraft tables, the real navigation database and the facility operations data once per process,
+    /// and leaves the <see cref="NavigationDatabase"/> singleton alone, for test hosts that install the database
+    /// per test rather than as the process-wide default.
+    /// </summary>
+    /// <returns>The real navigation database, or <c>null</c> when NavData.dat is not present.</returns>
+    public static NavigationDatabase? LoadRealDataWithoutInstalling()
+    {
+        EnsureAircraftDataInitialized();
+        if (NavigationDb is not { } navDb)
+        {
+            return null;
+        }
+
+        lock (_lock)
+        {
+            if (!FacilityOpsDatabase.IsInitialized)
             {
-                if (!FacilityOpsDatabase.IsInitialized)
-                {
-                    FacilityOpsDatabase.Initialize(Path.Combine(AppContext.BaseDirectory, "Data", "FacilityOps"), navDb);
-                }
+                FacilityOpsDatabase.Initialize(Path.Combine(AppContext.BaseDirectory, "Data", "FacilityOps"), navDb);
             }
         }
+
+        return navDb;
     }
 
     /// <summary>

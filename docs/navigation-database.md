@@ -40,12 +40,14 @@ CIFP column-offset details belong to the CIFP-reference section of `CLAUDE.md` a
 |---|---|
 | `Initialize(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` | Constructs the instance and stores it as the **process-wide default** (`_defaultInstance`). |
 | `SetInstance(db)` | Replaces the process-wide default directly (used by tests and re-init). |
-| `ScopedOverride(db)` → `IDisposable` | Sets a **thread-local (`AsyncLocal`) override** visible only to the current async context; disposing clears it back to the default. |
+| `ScopedOverride(db)` → `IDisposable` | Sets a **thread-local (`AsyncLocal`) override** visible only to the current async context; disposing restores the override it replaced (so scopes nest), falling back to the default when there was none. |
+| `OpenTestHolder()` → `IDisposable` | Opens an empty **per-test holder** (`AsyncLocal` reference) in the current async context; a test framework hook calls it before each test. |
+| `SetTestInstance(db)` | Places `db` in the open per-test holder. **Throws** `InvalidOperationException` when no holder is open in this execution context. |
 | `ForTesting(...)` | Builds a hand-seeded instance (no NavData/CIFP file load) for unit tests. Private parameterless ctor, public static factory. |
 
 Resolution order, in `NavigationDatabase.cs:62` / `:72`:
 
-- `Instance` → `_scopedInstance.Value ?? _defaultInstance ?? throw`. **Throws** `InvalidOperationException` if neither is set.
+- `Instance` → `InstanceOrNull ?? throw`; `InstanceOrNull` → scoped override → per-test holder's instance (when one is open and filled) → process-wide default. **Throws** `InvalidOperationException` if none is set.
 - `InstanceOrNull` → `_scopedInstance.Value ?? _defaultInstance`. Returns `null` instead of throwing — use it when the lookup is
   best-effort and the caller has a fallback.
 
@@ -112,6 +114,7 @@ Two mutation patterns, two scopes:
 - **`ScopedOverride(db)`** — the preferred test pattern. `using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);`
   installs a thread-local override that disposes back to the default. It does not leak across test classes, so it does **not**
   need the serializing collection.
+- **`OpenTestHolder()` + `SetTestInstance()`** — the per-test form for a test assembly that runs its collections in parallel (yaat-server's tests: an assembly-level xunit hook opens the holder before each test and the harness fills it). The holder is a shared reference, so an instance set inside an async helper is still visible to the test body after the helper returns, and parallel tests never see each other's. See [test-harness.md](test-harness.md#per-test-navigation-database-yaat-server-tests).
 - **`ForTesting()` + `SetInstance()`** — mutates the process-wide default and **leaks into parallel test classes**. Any test that
   does this must join the `[Collection("NavDbMutator")]` collection (`NavDbMutatorCollection.cs`), which serializes those tests so
   they don't stomp each other or a concurrent reader.
@@ -540,7 +543,7 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
   `includeAllTransitionsOnMismatch = true`. Any caller building a flying `NavigationRoute` MUST pass `false`, or a radar-vectors
   SID (NIMI5/OAK6) fabricates a turn-back through every synthetic `[OAK, …]` transition fix. Autocomplete/UI/speech paths want
   `true`; everything else wants `false`. (See the caller table above.)
-- **The singleton is mutable static.** `Instance` returns the `ScopedOverride` (AsyncLocal) if set, else the process-wide default.
+- **The singleton is mutable static.** `Instance` returns the `ScopedOverride` (AsyncLocal) if set, else the per-test holder's instance, else the process-wide default.
   `ForTesting()` + `SetInstance()` leak into parallel test classes — that's why such tests join `[Collection("NavDbMutator")]` and
   why `EnsureInitialized()` re-sets the real instance on every call. Prefer `ScopedOverride` (auto-disposes, no leak).
 - **`Instance` throws; `InstanceOrNull` returns null.** Picking the wrong one either crashes a best-effort lookup or silently

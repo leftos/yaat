@@ -110,22 +110,24 @@ public sealed class NavigationDatabase
 
     private static NavigationDatabase? _defaultInstance;
     private static readonly AsyncLocal<NavigationDatabase?> _scopedInstance = new();
+    private static readonly AsyncLocal<TestHolder?> _testHolder = new();
+
+    // Set once the first per-test holder opens, so a process that never opens one (production) skips the holder lookup.
+    private static bool _holdersInUse;
 
     /// <summary>
-    /// Global singleton instance. Returns the thread-local scoped override if set,
-    /// otherwise the process-wide default. Throws if neither is initialized.
+    /// Global singleton instance. Returns the async-local scoped override if set, else the per-test
+    /// holder's instance if one is open and filled, else the process-wide default. Throws if none is set.
     /// </summary>
     public static NavigationDatabase Instance =>
-        _scopedInstance.Value
-        ?? _defaultInstance
-        ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
+        InstanceOrNull ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
 
     /// <summary>
-    /// The global instance if initialized (scoped override, else process-wide default), or
-    /// <c>null</c> if neither is set. Use when a lookup is best-effort and the caller has a
+    /// The global instance if initialized (scoped override, else per-test holder, else process-wide
+    /// default), or <c>null</c> if none is set. Use when a lookup is best-effort and the caller has a
     /// fallback — never throws, unlike <see cref="Instance"/>.
     /// </summary>
-    public static NavigationDatabase? InstanceOrNull => _scopedInstance.Value ?? _defaultInstance;
+    public static NavigationDatabase? InstanceOrNull => _scopedInstance.Value ?? (_holdersInUse ? _testHolder.Value?.Db : null) ?? _defaultInstance;
 
     /// <summary>
     /// Initializes the global singleton with NavData + CIFP. Both are required.
@@ -145,19 +147,62 @@ public sealed class NavigationDatabase
     public static void SetInstance(NavigationDatabase db) => _defaultInstance = db;
 
     /// <summary>
-    /// Sets a thread-local override visible only to the current async execution context.
-    /// Other threads and tests are unaffected. Returns an <see cref="IDisposable"/> that
-    /// clears the override on dispose, falling back to the process-wide default.
+    /// Sets an async-local override visible only to the current async execution context, taking
+    /// precedence over the per-test holder and the process-wide default. Other threads and tests are
+    /// unaffected. Returns an <see cref="IDisposable"/> that restores the override it replaced on dispose,
+    /// so scopes nest.
     /// </summary>
     public static IDisposable ScopedOverride(NavigationDatabase db)
     {
+        var scope = new OverrideScope(_scopedInstance.Value);
         _scopedInstance.Value = db;
-        return new OverrideScope();
+        return scope;
     }
 
-    private sealed class OverrideScope : IDisposable
+    private sealed class OverrideScope(NavigationDatabase? previous) : IDisposable
     {
-        public void Dispose() => _scopedInstance.Value = null;
+        public void Dispose() => _scopedInstance.Value = previous;
+    }
+
+    /// <summary>
+    /// Opens an empty per-test holder in the current async execution context, for a test framework hook
+    /// to call before each test. Unlike <see cref="ScopedOverride"/>, the holder is a shared reference, so
+    /// an instance placed in it by <see cref="SetTestInstance"/> inside an async helper is still visible to
+    /// the caller after the helper returns.
+    /// </summary>
+    /// <returns>A handle that restores the holder it replaced on dispose, so holders nest.</returns>
+    public static IDisposable OpenTestHolder()
+    {
+        _holdersInUse = true;
+        var scope = new TestHolderScope(_testHolder.Value);
+        _testHolder.Value = new TestHolder();
+        return scope;
+    }
+
+    /// <summary>
+    /// Places <paramref name="db"/> in the per-test holder opened by <see cref="OpenTestHolder"/>, where it
+    /// takes precedence over the process-wide default for the rest of the test; a <see cref="ScopedOverride"/> still wins inside its scope.
+    /// </summary>
+    /// <param name="db">The navigation database the current test reads.</param>
+    /// <exception cref="InvalidOperationException">No holder is open in this execution context.</exception>
+    public static void SetTestInstance(NavigationDatabase db)
+    {
+        TestHolder holder =
+            _testHolder.Value
+            ?? throw new InvalidOperationException(
+                "No per-test NavigationDatabase holder is open: register the test assembly's hook that calls OpenTestHolder before each test."
+            );
+        holder.Db = db;
+    }
+
+    private sealed class TestHolder
+    {
+        public NavigationDatabase? Db { get; set; }
+    }
+
+    private sealed class TestHolderScope(TestHolder? previous) : IDisposable
+    {
+        public void Dispose() => _testHolder.Value = previous;
     }
 
     /// <summary>
