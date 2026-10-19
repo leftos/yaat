@@ -39,8 +39,8 @@ starts this launcher with -File gives the binder a -name:value word to split in 
 whole, so the words are read from the argv in that case.
 
 Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>]
-           [-NoMarkers] [-Local] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]
-       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [options] -- <command> [args...]
+           [-NoMarkers] [-Local] [-Alone] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]
+       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [--alone] [options] -- <command> [args...]
        pwsh tools/gate.ps1 -StopTree <pid>
        pwsh tools/gate.ps1 stop-tree <pid>
 #>
@@ -52,8 +52,8 @@ $PSNativeCommandUseErrorActionPreference = $false
 
 $usage = @(
     'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>] ' +
-    '[-NoMarkers] [-Local] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]'
-    '       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [options] -- <command> [args...]'
+    '[-NoMarkers] [-Local] [-Alone] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]'
+    '       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [--alone] [options] -- <command> [args...]'
     '       pwsh tools/gate.ps1 -StopTree <pid>'
     '       pwsh tools/gate.ps1 stop-tree <pid>'
 )
@@ -65,13 +65,13 @@ $spellings = @{
         Prefix = '-'
         Joiner = ':'
         Values = @('Log', 'TimeoutSeconds', 'Slot', 'StallSeconds', 'Tail', 'Cd', 'Env')
-        Flags = @('NoMarkers', 'Local')
+        Flags = @('NoMarkers', 'Local', 'Alone')
     }
     Cli = @{
         Prefix = '--'
         Joiner = '='
         Values = @('log', 'timeout', 'slot', 'stall', 'tail', 'cd', 'env', 'bring-tracked', 'state-dir')
-        Flags = @('no-markers', 'local')
+        Flags = @('no-markers', 'local', 'alone')
     }
 }
 
@@ -158,7 +158,7 @@ function Read-Option {
         $value = $name.Substring($colon + 1)
         $name = $name.Substring(0, $colon)
     }
-    if ($name -in 'NoMarkers', 'Local') {
+    if ($name -in 'NoMarkers', 'Local', 'Alone') {
         $Options[$name] = $true
         return 1
     }
@@ -206,7 +206,7 @@ function Join-ColonWord {
 function Find-CommandStart {
     param([object[]]$Words, [System.Collections.Generic.List[string]]$Problems)
     $options = @{
-        Log = ''; TimeoutSeconds = ''; Slot = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false; Local = $false
+        Log = ''; TimeoutSeconds = ''; Slot = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false; Local = $false; Alone = $false
         Cd = ''; Env = ''
     }
     $read = 0
