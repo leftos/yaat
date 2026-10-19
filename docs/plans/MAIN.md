@@ -12,7 +12,6 @@
 ## Do first
 
 - [/] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-882 Three Sim test classes read the navigation database without installing one · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 
 ## Context-menu quick commands (#471)
 
@@ -31,6 +30,7 @@
 - [ ] YAAT-827 Let a UI Automation invoke on the selected Taxi to runway tab retry its failed search
 - [ ] YAAT-831 Render the Air taxi and Land panel rows in the menu goldens
 - [ ] YAAT-845 Tidy the approach flyout after X3a: scroller keys, shared refusal wording
+- [ ] YAAT-888 Point menu Taxi here answers an empty group when every route drops out
 
 ## Bug reports and feature requests
 
@@ -368,7 +368,6 @@
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-638 GuideCapture live-traffic scene captures no shadow aircraft
-- [/] YAAT-854 Speed up the Sim tests' slow tail and drop the redundant tests (YAAT-639 test side) · release vNext
 - [ ] YAAT-858 Start the heaviest Sim test classes first · release vNext
 - [/] YAAT-857 Run yaat-server's test collections in parallel again · release vNext
 - [/] YAAT-856 Memoise the per-tick aircraft-type string lookups · release vNext
@@ -384,6 +383,7 @@
 - [ ] YAAT-873 Split GeoJsonParser.BuildLayout under the 100-line limit
 - [ ] YAAT-875 Split TaxiRoute.ToSummary under the complexity limit
 - [ ] YAAT-879 Move the shared push-planner test helpers into PushTargetPlannerFixtures
+- [ ] YAAT-887 Find every Sim test class that reads the navigation database without installing one · release vNext
 
 ## Singles
 
@@ -610,6 +610,10 @@
 - [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
 - [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext+1
 - [ ] YAAT-877 Remove the WingspanLateralCheck flags only a deleted capture test set
+- [ ] YAAT-883 Split GroundCommandHandler.TryTaxiCore under the function-length limit
+- [ ] YAAT-884 PUSH B FACE SW from SFO G10 holds 113 ft off taxiway B
+- [ ] YAAT-885 Extract one shared tabbed-rows flyout content from the quick-command flyouts
+- [ ] YAAT-886 Make TryTaxi's autoCrossRunway and the CommandQueueTests helpers' applyAction required
 
 ## No project
 
