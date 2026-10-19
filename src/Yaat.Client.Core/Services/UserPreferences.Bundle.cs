@@ -115,6 +115,7 @@ public sealed partial class UserPreferences
         ("terminalChatColor", Color),
         ("terminalTdlsColor", Color),
         ("terminalStripColor", Color),
+        ("clearTerminalOnScenarioLoad", Flag),
         // Command input, strips and vTDLS
         ("signatureHelpPlacement", OneOf("Above", "Below")),
         ("autoExpandSuggestionOnEnter", Flag),

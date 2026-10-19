@@ -542,6 +542,9 @@ public sealed partial class UserPreferences
     /// <summary>When true, the scenario being run is published to Discord as the user's rich-presence status.</summary>
     public bool DiscordRichPresenceEnabled => _data.DiscordRichPresenceEnabled;
 
+    /// <summary>When true, the terminal pane is emptied when a scenario load starts in the room and when the scenario restarts.</summary>
+    public bool ClearTerminalOnScenarioLoad => _data.ClearTerminalOnScenarioLoad;
+
     /// <summary>
     /// When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it
     /// is popped out).
@@ -1312,6 +1315,17 @@ public sealed partial class UserPreferences
         }
 
         _data.DiscordRichPresenceEnabled = enabled;
+        Save();
+    }
+
+    public void SetClearTerminalOnScenarioLoad(bool enabled)
+    {
+        if (_data.ClearTerminalOnScenarioLoad == enabled)
+        {
+            return;
+        }
+
+        _data.ClearTerminalOnScenarioLoad = enabled;
         Save();
     }
 
@@ -2112,6 +2126,7 @@ public sealed partial class UserPreferences
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
             BackUpSettingsBeforeImport = GetFieldOr(obj, "backUpSettingsBeforeImport", true),
             DiscordRichPresenceEnabled = GetFieldOr(obj, "discordRichPresenceEnabled", true),
+            ClearTerminalOnScenarioLoad = GetFieldOr(obj, "clearTerminalOnScenarioLoad", false),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
             IsFavoritesPanelOpen = GetFieldOr(obj, "isFavoritesPanelOpen", false),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
@@ -2531,6 +2546,7 @@ public sealed partial class UserPreferences
         public bool RaiseWindowsTogether { get; set; } = true;
         public bool BackUpSettingsBeforeImport { get; set; } = true;
         public bool DiscordRichPresenceEnabled { get; set; } = true;
+        public bool ClearTerminalOnScenarioLoad { get; set; }
         public bool ShowFavoritesBar { get; set; } = true;
         public bool IsFavoritesPanelOpen { get; set; }
         public List<string> HiddenTerminalKinds { get; set; } = [];

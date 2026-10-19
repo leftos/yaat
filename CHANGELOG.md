@@ -17,6 +17,7 @@
 - `TAXI`, `TAXIAUTO` and `CROSS` take a trailing `EXP` for "without delay": the pilot reads it back and taxis or crosses faster, supers and heavies excepted.
 - A `TAXI` after a push that leaves the aircraft facing away from the route warns that it turns about, naming the `PUSH` that would have faced it.
 - vStrips racks can be auto-sorted (`RACKSORT`, or Auto-sort this rack): tail numbers then airlines A–Z, a moved strip landing in its sorted slot.
+- Settings › Terminal can clear the terminal whenever a scenario loads or restarts, keeping the load's own warnings; it is off by default.
 
 ### Changed
 

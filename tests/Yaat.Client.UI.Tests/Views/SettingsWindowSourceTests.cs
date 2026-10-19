@@ -123,6 +123,7 @@ public partial class SettingsWindowSourceTests
         "IsVisible={Binding UnassignedTintEnabled}",
         "Color={Binding UnassignedTintColor, Converter={StaticResource HexColorConverter}}",
         "Color={Binding SelectedColor, Converter={StaticResource HexColorConverter}}",
+        "IsChecked={Binding ClearTerminalOnScenarioLoad}",
         "Color={Binding TerminalCommandColor, Converter={StaticResource HexColorConverter}}",
         "Color={Binding TerminalResponseColor, Converter={StaticResource HexColorConverter}}",
         "Color={Binding TerminalSystemColor, Converter={StaticResource HexColorConverter}}",

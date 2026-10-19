@@ -362,6 +362,7 @@ public partial class SettingsViewModel
             Field("terminalChatColor", vm => vm.TerminalChatColor, (vm, v) => vm.TerminalChatColor = v),
             Field("terminalTdlsColor", vm => vm.TerminalTdlsColor, (vm, v) => vm.TerminalTdlsColor = v),
             Field("terminalStripColor", vm => vm.TerminalStripColor, (vm, v) => vm.TerminalStripColor = v),
+            Field("clearTerminalOnScenarioLoad", vm => vm.ClearTerminalOnScenarioLoad, (vm, v) => vm.ClearTerminalOnScenarioLoad = v),
         ];
 
     /// <summary>How the window reads one bundled preference from its field, and writes its field from an imported value.</summary>

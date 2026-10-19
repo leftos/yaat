@@ -136,7 +136,7 @@ public partial class MainViewModel
         };
     }
 
-    private void OnTerminalEntry(TerminalBroadcastDto dto)
+    internal void OnTerminalEntry(TerminalBroadcastDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -356,6 +356,10 @@ public partial class MainViewModel
     /// <see cref="OnScenarioRestarted"/> so it runs on the UI thread by contract rather than by
     /// dispatch, same as <see cref="ApplySessionSettings"/>.
     /// </summary>
+    /// <remarks>
+    /// The server's own restart line arrives before this broadcast, so clearing the terminal here takes it too; the
+    /// client then says the scenario restarted itself.
+    /// </remarks>
     internal void ApplyScenarioRestart(List<AircraftDto> manifest)
     {
         ReplaceAircraftFromManifest(manifest);
@@ -363,6 +367,26 @@ public partial class MainViewModel
         // Only a restart drops the tape, so only a restart drops the bookmarks placed against it (the
         // server clears them too — see RestartScenarioAsync). A rewind keeps both.
         ClearBookmarks();
+
+        if (ClearTerminalForNewRun())
+        {
+            AddSystemEntry("Scenario restarted with new traffic");
+        }
+    }
+
+    /// <summary>
+    /// Empties the terminal pane for a new run when the user's setting asks for it; the Up/Down command history is kept.
+    /// </summary>
+    /// <returns>Whether the pane was cleared.</returns>
+    private bool ClearTerminalForNewRun()
+    {
+        if (!_preferences.ClearTerminalOnScenarioLoad)
+        {
+            return false;
+        }
+
+        TerminalEntries.Clear();
+        return true;
     }
 
     /// <summary>

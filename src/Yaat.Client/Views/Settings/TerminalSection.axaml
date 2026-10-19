@@ -16,6 +16,20 @@
       </WrapPanel>
       <Border Classes="card">
         <StackPanel Spacing="12">
+          <TextBlock Text="Terminal History" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <CheckBox Content="Clear the terminal when a scenario loads or restarts" IsChecked="{Binding ClearTerminalOnScenarioLoad}" />
+            <TextBlock
+              Text="Starts each run with an empty terminal: the lines are cleared when a load starts in the room and when the scenario restarts. Joining a room, reconnecting and loading a recording keep them. Your Up/Down command history is not affected."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="12">
           <TextBlock Text="Terminal Channels" FontWeight="SemiBold" />
           <StackPanel Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">

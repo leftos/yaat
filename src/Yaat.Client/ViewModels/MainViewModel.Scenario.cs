@@ -475,7 +475,7 @@ public partial class MainViewModel
     /// A load the server did not complete. With a step table the overlay stays open on the failed step; a refusal before
     /// the load started has none and closes it. Either way the server's reason reaches the terminal and the status bar.
     /// </summary>
-    private void ReportLoadFailure(LoadScenarioResultDto result)
+    internal void ReportLoadFailure(LoadScenarioResultDto result)
     {
         if (result.Steps.Count > 0)
         {
@@ -532,7 +532,21 @@ public partial class MainViewModel
     /// The room's load flag changed (<c>RoomLoadingChanged</c>, raised on a SignalR thread): a member's load started
     /// (<paramref name="loadingBy"/>, their initials) or ended (null).
     /// </summary>
-    internal void OnRoomLoadingChanged(string? loadingBy) => Avalonia.Threading.Dispatcher.UIThread.Post(() => SetRoomLoadingBy(loadingBy));
+    /// <remarks>
+    /// The server raises the flag before it sends the load's own lines (its warnings and the "loaded scenario" line), so
+    /// clearing the terminal when the flag goes up keeps them. Only this live event clears, and only when no load was
+    /// already running: a join or reconnect mid-load reports the flag through the room state and must keep the lines.
+    /// </remarks>
+    internal void OnRoomLoadingChanged(string? loadingBy) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if ((loadingBy is not null) && (RoomLoadingBy is null))
+            {
+                ClearTerminalForNewRun();
+            }
+
+            SetRoomLoadingBy(loadingBy);
+        });
 
     /// <summary>
     /// Records who is loading a scenario in the room and, while someone is, says so in the status bar. The load

@@ -1463,7 +1463,7 @@ The window closes when the scenario does — an unload, leaving the room — or 
 
 ### Restarting a Scenario
 
-**Scenario > Restart Scenario** re-runs the loaded scenario from the beginning with freshly generated traffic — useful for retrying a situation you didn't like the outcome of. All aircraft are cleared, the clock returns to zero, and the session's command history, terminal log, and bookmarks are discarded.
+**Scenario > Restart Scenario** re-runs the loaded scenario from the beginning with freshly generated traffic — useful for retrying a situation you didn't like the outcome of. All aircraft are cleared, the clock returns to zero, and the bookmarks are discarded. The terminal keeps its lines unless **Settings › Terminal › Terminal History** is on, in which case it empties and shows one line, "Scenario restarted with new traffic". Your Up/Down command history is never cleared.
 
 The flight strips and PDC lists start over with the scenario's own strips; the only thing kept from the previous run is the **separators you placed**, which stay in their bays and racks. A confirmation dialog appears first.
 
@@ -2701,6 +2701,8 @@ Links at the top: **Font size → Appearance**, **Always on top → General**.
 | **System** | `#808080` | **Chat** | `#00FFFF` |
 | **SAY (controller)** | `#32CD32` | **vTDLS (PDC)** | `#FFB000` |
 | **Pilot Speech** | `#32CD32` | **Flight strips** | `#C586C0` |
+
+**Terminal History** — one checkbox, **Clear the terminal when a scenario loads or restarts** (off by default). On, each run starts with an empty terminal: the lines are cleared when any member starts a scenario load or a live session in the room (the load's own warnings and "loaded scenario" lines that follow are kept), and when the scenario restarts, which leaves one local System line, "Scenario restarted with new traffic". Joining a room, reconnecting and loading or unloading a recording keep the lines. Your Up/Down command history is not affected.
 
 #### Command input
 

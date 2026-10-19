@@ -383,6 +383,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _discordRichPresenceEnabled;
 
     [ObservableProperty]
+    private bool _clearTerminalOnScenarioLoad;
+
+    [ObservableProperty]
     private bool _mainWindowTopmost;
 
     [ObservableProperty]
@@ -856,6 +859,7 @@ public partial class SettingsViewModel : ObservableObject
         _audioOutputDevice = _preferences.AudioOutputDevice;
         _raiseWindowsTogether = _preferences.RaiseWindowsTogether;
         _discordRichPresenceEnabled = _preferences.DiscordRichPresenceEnabled;
+        _clearTerminalOnScenarioLoad = _preferences.ClearTerminalOnScenarioLoad;
         _mainWindowTopmost = _preferences.MainWindowGeometry?.IsTopmost ?? false;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
@@ -1117,6 +1121,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
         _preferences.SetDiscordRichPresenceEnabled(DiscordRichPresenceEnabled);
+        _preferences.SetClearTerminalOnScenarioLoad(ClearTerminalOnScenarioLoad);
         // Extra Radar/Ground windows (RadarView#2, GroundView#3, …) follow their view's single
         // always-on-top setting, the same way the per-facility Strips windows do.
         ApplyTopmostIfChanged("Main", MainWindowTopmost, followerPrefix: null);
@@ -2032,6 +2037,7 @@ public partial class SettingsViewModel : ObservableObject
         TerminalChatColor = colors.Chat;
         TerminalTdlsColor = colors.Tdls;
         TerminalStripColor = colors.Strip;
+        ClearTerminalOnScenarioLoad = defaults.ClearTerminalOnScenarioLoad;
     }
 
     private void ResetCommandInput(UserPreferences defaults)

@@ -30,6 +30,7 @@ public static class SettingsSearchCatalog
     private const string MvaTint = "Tint datablock altitude by MVA (red below, amber at)";
     private const string LayerBrightness = "Layer Brightness";
     private const string TerminalChannels = "Terminal Channels";
+    private const string TerminalHistory = "Terminal History";
     private const string WhisperModel = "Whisper Model (speech-to-text)";
     private const string LlmModel = "LLM Model (command interpretation)";
     private const string Acceleration = "Acceleration";
@@ -205,6 +206,13 @@ public static class SettingsSearchCatalog
         return
         [
             .. ViewLinks(s, "Font size → Appearance"),
+            SettingWithin(
+                s,
+                "ClearTerminalOnScenarioLoad",
+                "Clear the terminal when a scenario loads or restarts",
+                TerminalHistory,
+                ["clear", "terminal", "console", "history", "scenario", "restart"]
+            ),
             SettingWithin(s, "TerminalCommandColor", "Command:", TerminalChannels, Colour),
             SettingWithin(s, "TerminalResponseColor", "Response:", TerminalChannels, Colour),
             SettingWithin(s, "TerminalSystemColor", "System:", TerminalChannels, Colour),

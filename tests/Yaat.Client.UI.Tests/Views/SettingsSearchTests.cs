@@ -88,6 +88,15 @@ public class SettingsSearchTests
         Assert.Contains(result.NavItems(), item => item.Id == SettingsSectionId.QuickCommands);
     }
 
+    [Theory]
+    [InlineData("clear")]
+    [InlineData("console")]
+    [InlineData("history")]
+    [InlineData("restart")]
+    [InlineData("clear terminal scenario")]
+    public void ClearTheTerminalOnLoad_IsFoundByItsWords(string query) =>
+        Assert.Contains(Entry(SettingsSectionId.Terminal, "ClearTerminalOnScenarioLoad"), Search(query).Matches);
+
     private static SettingsSearchResult Search(string query) => SettingsSearch.Run(query, SettingsSearchCatalog.Entries);
 
     private static SettingsSearchEntry Entry(SettingsSectionId section, string bindingPath) =>

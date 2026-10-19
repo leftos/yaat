@@ -124,12 +124,16 @@ public class SettingsViewModelResetSectionTests
         );
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void Terminal_ResetsItsColours() =>
+    public void Terminal_ResetsItsColoursAndTheClearOnLoadToggle() =>
         AssertResetsToDefault(
             SettingsSectionId.Terminal,
-            vm => vm.TerminalSayColor = "#123456",
-            vm => vm.TerminalSayColor,
-            p => p.TerminalColors.Say
+            vm =>
+            {
+                vm.TerminalSayColor = "#123456";
+                vm.ClearTerminalOnScenarioLoad = true;
+            },
+            vm => (vm.TerminalSayColor, vm.ClearTerminalOnScenarioLoad),
+            p => (p.TerminalColors.Say, p.ClearTerminalOnScenarioLoad)
         );
 
     [AvaloniaFact(Timeout = 60_000)]

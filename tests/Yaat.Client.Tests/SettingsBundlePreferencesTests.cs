@@ -105,6 +105,30 @@ public class SettingsBundlePreferencesTests
         preferences.SetShowAtpa(atpaBefore);
     }
 
+    [Fact]
+    public void ClearTerminalOnScenarioLoad_TravelsInABundle()
+    {
+        const string Key = "clearTerminalOnScenarioLoad";
+        Assert.Contains(Key, UserPreferences.BundledPreferenceKeys);
+
+        var preferences = new UserPreferences();
+        bool before = preferences.ClearTerminalOnScenarioLoad;
+        try
+        {
+            Assert.Equal(before, preferences.ExportBundlePreferences()[Key]?.GetValue<bool>());
+
+            PreferencesImportResult result = preferences.ImportBundlePreferences(new JsonObject { [Key] = !before });
+
+            Assert.Equal([Key], result.AppliedKeys);
+            Assert.Equal(!before, new UserPreferences().ClearTerminalOnScenarioLoad);
+            Assert.Equal([Key], preferences.ImportBundlePreferences(new JsonObject { [Key] = "yes" }).IgnoredKeys);
+        }
+        finally
+        {
+            preferences.SetClearTerminalOnScenarioLoad(before);
+        }
+    }
+
     private static string AllEntryText(byte[] bundle)
     {
         using var zip = new ZipArchive(new MemoryStream(bundle), ZipArchiveMode.Read);
