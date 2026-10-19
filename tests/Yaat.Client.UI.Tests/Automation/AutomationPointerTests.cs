@@ -203,15 +203,23 @@ public sealed class AutomationPointerTests : AutomationHostFixture
         ContextMenu menu = view.BuildRunwaySurfaceMenu(main.Ground, [runway.Name], click, nearest, default)!;
         menu.Open(view);
         Render();
-        MenuItem taxiTo = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == "Taxi to 28R");
-        MenuItem choice = FirstLeaf(taxiTo);
-        Assert.Null(main.Ground.PreviewRoute);
+        MenuItem taxiTo = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == "Taxi to runway");
+        taxiTo.Open();
+        Render();
+        TaxiToRunwayPanel panel = Assert.IsType<TaxiToRunwayPanel>(Assert.Single(taxiTo.Items.OfType<MenuItem>()).Header);
+        panel.Strip.Select(panel.Strip.Tabs.ToList().FindIndex(tab => tab.Label == "28R"));
+        Render();
+        // The first row takes keyboard focus and previews its route, so the hover goes to the last row, which previews another.
+        Assert.True(panel.Rows.Count > 1, "The 28R tab offers more than one row.");
+        Button row = panel.Rows[^1];
+        object? focusedPreview = main.Ground.PreviewRoute;
 
-        // Headless popups are their own top levels, outside the windows a selector searches, so the hover goes to the item's own.
-        WindowPoint at = PointerTargets.CentreOf(choice)!;
+        // Headless popups are their own top levels, outside the windows a selector searches, so the hover goes to the row's own.
+        WindowPoint at = PointerTargets.CentreOf(row)!;
         await SyntheticMouse.HoverAsync(at.TopLevel, at.Point, 0, CancellationToken.None);
 
         Assert.NotNull(main.Ground.PreviewRoute);
+        Assert.NotSame(focusedPreview, main.Ground.PreviewRoute);
         menu.Close();
         Render();
         Assert.Null(main.Ground.PreviewRoute);
@@ -441,15 +449,6 @@ public sealed class AutomationPointerTests : AutomationHostFixture
 
     private const string DragParamsToOutside =
         "{\"windowSelector\":\"#PointerWindow\",\"fromX\":200,\"fromY\":150,\"toX\":10,\"toY\":300,\"button\":\"left\",\"steps\":2,\"holdMs\":0}";
-
-    /// <summary>Opens <paramref name="parent"/>'s submenu, and its first item's, down to the first item with no submenu.</summary>
-    private static MenuItem FirstLeaf(MenuItem parent)
-    {
-        parent.Open();
-        Render();
-        MenuItem first = parent.Items.OfType<MenuItem>().First();
-        return (first.Items.Count == 0) ? first : FirstLeaf(first);
-    }
 
     private static void Settle(Window window)
     {

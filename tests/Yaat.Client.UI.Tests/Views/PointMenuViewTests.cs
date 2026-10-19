@@ -274,13 +274,17 @@ public class PointMenuViewTests
 
         Assert.NotNull(menu);
         List<string> labels = Labels(menu.Items);
-        Assert.Contains("Taxi to 28R", labels);
-        Assert.Contains("Taxi to 10L", labels);
+        // One Taxi to runway item, a tab per end of the clicked runway.
+        MenuItem taxiToRunway = Assert.Single(menu.Items.OfType<MenuItem>(), m => (m.Header as string) == "Taxi to runway");
+        taxiToRunway.IsSubMenuOpen = true;
+        TaxiToRunwayPanel panel = Assert.IsType<TaxiToRunwayPanel>(Assert.Single(taxiToRunway.Items.OfType<MenuItem>()).Header);
+        Assert.True(panel.Strip.Tabs.Select(tab => tab.Label).ToHashSet().SetEquals(["28R", "10L"]));
+        taxiToRunway.IsSubMenuOpen = false;
         Assert.DoesNotContain(labels, l => (l is "Taxi here" or "Custom taxi…") || l.StartsWith("Push to", StringComparison.Ordinal));
         // Warp here, then the ground's section: the measuring items and Draw taxi route… from the node nearest the click.
         int warp = labels.IndexOf("Warp here");
         int measure = labels.IndexOf("Measure from here");
-        Assert.InRange(warp, labels.IndexOf("Taxi to 10L") + 1, measure - 1);
+        Assert.InRange(warp, labels.IndexOf("Taxi to runway") + 1, measure - 1);
         Assert.Equal("Draw taxi route…", labels[^1]);
     }
 

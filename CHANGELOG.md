@@ -31,6 +31,7 @@
 - Taxi to runway opens one tabbed flyout, a tab per runway end listing its entries; a tab whose search failed retries only when clicked or entered.
 - Exit left and Exit right open live flyouts of the exits ahead with distance and turn-off angle; on final an Exit at box suggests the runway's exits.
 - Every approach command (Cleared, Expect, Join, straight-in, force, Join final course) opens a tabbed flyout, a tab per runway, under the default approach.
+- A ground point menu's Taxi here and Taxi to runway open flyouts of routes with distance and runways crossed, targets nearest the click first.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 
 ### Fixed

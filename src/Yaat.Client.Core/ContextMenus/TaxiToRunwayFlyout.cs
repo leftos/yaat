@@ -95,11 +95,33 @@ public static class TaxiToRunwayFlyout
     }
 
     /// <summary>A runway entry's title line: the RW badge, the name over the dimmed detail, the distance at the right.</summary>
-    private static Grid Title(TaxiRouteRow row)
+    internal static Grid Title(TaxiRouteRow row) =>
+        TitleLine(row.Badge, row.Name, TitleDetail(row), HoldShortLadder.FeetText(row.DistanceFt), row.IsHighlighted);
+
+    /// <summary>
+    /// The title line of a runway entry with no route, drawn as <see cref="Title"/> without a distance and faded to
+    /// <see cref="MenuGlyphRowTemplate.DimmedOpacity"/>: the badge, the name and why it is offered (<c>RW At W2 · near click</c>).
+    /// </summary>
+    /// <param name="badge">The row's badge (<see cref="TaxiRouteRow.RunwayEntryBadge"/>).</param>
+    /// <param name="name">What the row names (<c>At W2</c>).</param>
+    /// <param name="reason">Why the entry is offered, or null.</param>
+    internal static Grid DimmedTitle(string badge, string name, string? reason)
     {
-        FontWeight weight = row.IsHighlighted ? FontWeight.Bold : FontWeight.Normal;
+        Grid grid = TitleLine(badge, name, reason, null, false);
+        grid.Opacity = MenuGlyphRowTemplate.DimmedOpacity;
+        return grid;
+    }
+
+    /// <summary>
+    /// A title line: the badge in its border, the name, then <c> · </c> and <paramref name="detail"/> when there is one, and
+    /// <paramref name="distance"/> at the right when there is one; bold and white when <paramref name="highlighted"/>.
+    /// </summary>
+    private static Grid TitleLine(string badge, string name, string? detail, string? distance, bool highlighted)
+    {
+        FontWeight weight = highlighted ? FontWeight.Bold : FontWeight.Normal;
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(11, 7, 11, 1) };
-        AutomationProperties.SetName(grid, TitleText(row));
+        string?[] parts = [$"{badge} {name}", detail, distance];
+        AutomationProperties.SetName(grid, string.Join(" · ", parts.OfType<string>()));
         grid.Children.Add(
             new Border
             {
@@ -111,7 +133,7 @@ public static class TaxiToRunwayFlyout
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
-                    Text = row.Badge,
+                    Text = badge,
                     FontSize = 10.5,
                     Foreground = RunwayBadgeBrush,
                 },
@@ -126,28 +148,36 @@ public static class TaxiToRunwayFlyout
             VerticalAlignment = VerticalAlignment.Center,
             Inlines =
             [
-                new Run(row.Name)
+                new Run(name)
                 {
                     FontSize = 12.5,
-                    FontWeight = row.IsHighlighted ? FontWeight.Bold : FontWeight.SemiBold,
-                    Foreground = row.IsHighlighted ? Brushes.White : NameBrush,
+                    FontWeight = highlighted ? FontWeight.Bold : FontWeight.SemiBold,
+                    Foreground = highlighted ? Brushes.White : NameBrush,
                 },
-                new Run($" · {TitleDetail(row)}"),
             ],
         };
+        if (detail is not null)
+        {
+            text.Inlines.Add(new Run($" · {detail}"));
+        }
+
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);
-        var distance = new TextBlock
+        if (distance is not null)
         {
-            Text = HoldShortLadder.FeetText(row.DistanceFt),
-            FontSize = 11.5,
-            FontWeight = weight,
-            Foreground = row.IsHighlighted ? Brushes.White : TitleBrush,
-            Margin = new Thickness(12, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(distance, 2);
-        grid.Children.Add(distance);
+            var right = new TextBlock
+            {
+                Text = distance,
+                FontSize = 11.5,
+                FontWeight = weight,
+                Foreground = highlighted ? Brushes.White : TitleBrush,
+                Margin = new Thickness(12, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(right, 2);
+            grid.Children.Add(right);
+        }
+
         return grid;
     }
 

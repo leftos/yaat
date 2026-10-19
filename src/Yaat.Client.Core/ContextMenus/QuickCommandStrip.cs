@@ -436,6 +436,10 @@ public static class QuickCommandStrip
     /// <param name="label">The label naming the entry and why it offers nothing.</param>
     public static void MarkInert(MenuItem entry, string label) => InertLabels.AddOrUpdate(entry, label);
 
+    /// <summary>Whether <paramref name="entry"/> was marked inert (<see cref="MarkInert"/>), so its strip button stays, faded.</summary>
+    /// <param name="entry">The item a catalog entry built.</param>
+    public static bool IsInert(MenuItem entry) => InertLabels.TryGetValue(entry, out _);
+
     private static void CloseOnChoice(object? item, MenuFlyout flyout, ContextMenu menu)
     {
         if (item is not MenuItem menuItem)

@@ -101,7 +101,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// (<see cref="GroundViewModel.FindHoldShortNodeNearestPoint"/>) and the full-length one
     /// (<see cref="GroundViewModel.FindFullLengthHoldShortNode"/>). A node two picks agree on is one target naming both
     /// reasons, labelled by the taxiway it sits on (<c>At W (nearest, full length)</c>), or by the reasons alone, capitalised,
-    /// when it sits on no named taxiway.
+    /// when it sits on no named taxiway. The targets run from the click along the runway: by how far each target and the
+    /// click lie apart along the end's centerline, both projected onto it, ties nearer the end's threshold first
+    /// (<see cref="ByAlongRunwayFromClick"/>).
     /// </summary>
     public IReadOnlyList<RunwayHoldShortTarget> GetRunwayHoldShortTargets(string callsign, string runwayName, string runwayEnd, LatLon click)
     {
@@ -141,11 +143,36 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         {
             if (ground.GetNode(nodeId) is { } node)
             {
-                targets.Add(new RunwayHoldShortTarget(node, HoldShortTargetLabel(ground.GetHoldShortTaxiwayName(nodeId), reasons)));
+                targets.Add(HoldShortTarget(node, ground.GetHoldShortTaxiwayName(nodeId), reasons));
             }
         }
 
-        return targets;
+        return ByAlongRunwayFromClick(ground, runwayName, runwayEnd, click, targets);
+    }
+
+    /// <summary>
+    /// <paramref name="targets"/> by the along-runway distance between each and <paramref name="click"/>, both projected
+    /// onto <paramref name="runwayEnd"/>'s centerline, ties nearer its threshold first; as given when the layout has no
+    /// such end.
+    /// </summary>
+    private static List<RunwayHoldShortTarget> ByAlongRunwayFromClick(
+        GroundViewModel ground,
+        string runwayName,
+        string runwayEnd,
+        LatLon click,
+        List<RunwayHoldShortTarget> targets
+    )
+    {
+        if (ground.RunwayEndThreshold(runwayName, runwayEnd) is not { } end)
+        {
+            return targets;
+        }
+
+        double AlongNm(double lat, double lon) => GeoMath.AlongTrackDistanceNm(lat, lon, end.Threshold.Lat, end.Threshold.Lon, end.Heading);
+
+        double clickAlong = AlongNm(click.Lat, click.Lon);
+        double TargetAlong(RunwayHoldShortTarget target) => AlongNm(target.Node.Latitude, target.Node.Longitude);
+        return [.. targets.OrderBy(target => Math.Abs(TargetAlong(target) - clickAlong)).ThenBy(target => Math.Abs(TargetAlong(target)))];
     }
 
     /// <summary>
@@ -164,11 +191,19 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         return nodeId;
     }
 
-    /// <summary><c>At {taxiway} ({reasons})</c>, or the reasons alone with the first capitalised when the taxiway is unnamed.</summary>
-    private static string HoldShortTargetLabel(string? taxiway, List<string> reasons)
+    /// <summary>
+    /// The target at <paramref name="node"/>: named <c>At {taxiway}</c> with its reasons, or, when the taxiway is unnamed,
+    /// named by the reasons alone with the first capitalised and no reasons of its own.
+    /// </summary>
+    private static RunwayHoldShortTarget HoldShortTarget(GroundNodeDto node, string? taxiway, List<string> reasons)
     {
+        if (!string.IsNullOrEmpty(taxiway))
+        {
+            return new RunwayHoldShortTarget(node, $"At {taxiway}", reasons);
+        }
+
         string joined = string.Join(", ", reasons);
-        return string.IsNullOrEmpty(taxiway) ? char.ToUpperInvariant(joined[0]) + joined[1..] : $"At {taxiway} ({joined})";
+        return new RunwayHoldShortTarget(node, char.ToUpperInvariant(joined[0]) + joined[1..], []);
     }
 
     /// <summary>

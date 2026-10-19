@@ -400,13 +400,17 @@ public class PointMenuTests
                 parentRoute,
                 [
                     new MenuCommandChoice("For Departure 30", "TAXI B 30", leafRoute, []),
+                    new MenuCommandChoice("Plain", "TAXI B", null, []),
                     MenuCommandChoice.Separator,
                     new MenuCommandChoice("Unavailable", null, null, []),
                     new MenuCommandChoice(
                         "Crossings",
                         null,
                         nestedRoute,
-                        [new MenuCommandChoice("Cross 28L", "TAXI B CROSS 28L", nestedLeafRoute, [])]
+                        [
+                            new MenuCommandChoice("Cross 28L", "TAXI B CROSS 28L", nestedLeafRoute, []),
+                            new MenuCommandChoice("Cross both", "TAXI B CROSS 28L CROSS 15", null, []),
+                        ]
                     ),
                 ]
             )
@@ -416,27 +420,32 @@ public class PointMenuTests
         ContextMenu menu = Build(ac, NodePoint("28R"), host, _ => []);
 
         Assert.Equal([(Callsign, TaxiNode.Id, (string?)"28R")], host.TaxiChoiceRequests);
-        MenuItem top = Item(menu.Items, "Taxi via B");
-        Assert.Equal(["For Departure 30", Separator, "Unavailable", "Crossings"], Labels(top.Items));
-        Assert.IsType<Avalonia.Controls.Separator>(top.Items[1]);
-        MenuItem disabled = Item(top.Items, "Unavailable");
-        Assert.False(disabled.IsEnabled);
-        Assert.Empty(disabled.Items);
-        MenuItem crossings = Item(top.Items, "Crossings");
-        Assert.Equal(["Cross 28L"], Labels(crossings.Items));
-        MenuItem nestedLeaf = Item(crossings.Items, "Cross 28L");
+        // The route is a title over its variants, a separator line, a disabled row, and the nested choice a title over its own.
+        TaxiToRunwayPanel panel = Panel(Item(menu.Items, "Taxi via B"));
+        Assert.Equal(
+            [
+                "Taxi via B · ~0 ft",
+                "For Departure 30 — TAXI B 30",
+                "Plain — TAXI B",
+                "---",
+                "Unavailable [disabled]",
+                "Crossings · ~0 ft",
+                "Cross 28L — TAXI B CROSS 28L",
+                "Cross both — TAXI B CROSS 28L CROSS 15",
+            ],
+            panel.Lines
+        );
+        Assert.Equal(4, panel.Rows.Count);
 
-        RaisePointerEntered(top);
-        RaisePointerEntered(Item(top.Items, "For Departure 30"));
-        RaisePointerEntered(crossings);
-        RaisePointerEntered(nestedLeaf);
-        Assert.Equal(4, host.RoutePreviews.Count);
-        Assert.Same(parentRoute, host.RoutePreviews[0]);
-        Assert.Same(leafRoute, host.RoutePreviews[1]);
-        Assert.Same(nestedRoute, host.RoutePreviews[2]);
-        Assert.Same(nestedLeafRoute, host.RoutePreviews[3]);
+        // Each row previews its own route, else the route of the choice it sits under.
+        foreach (Button row in panel.Rows)
+        {
+            RaisePointerEntered(row);
+        }
 
-        Click(nestedLeaf);
+        Assert.Equal([leafRoute, parentRoute, nestedLeafRoute, nestedRoute], host.RoutePreviews.Skip(host.RoutePreviews.Count - 4));
+
+        panel.Rows[2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal([(Callsign, "TAXI B CROSS 28L", "AB")], host.Sent);
     }
 
@@ -474,7 +483,7 @@ public class PointMenuTests
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
         Assert.Equal([Strip, Separator, "Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
-        Assert.Equal(["Taxi via A", "Taxi via B"], Labels(Item(menu.Items, "Taxi here").Items));
+        Assert.Equal(["Taxi via A — TAXI A", "Taxi via B — TAXI B"], Panel(Item(menu.Items, "Taxi here")).Lines);
     }
 
     [AvaloniaFact]
@@ -491,7 +500,7 @@ public class PointMenuTests
     }
 
     [AvaloniaFact]
-    public void TaxiHere_NoRouteFound_ShowsTheRowButNoStripIcon()
+    public void TaxiHere_NoRouteFound_ShowsTheRowAndAFadedStripIcon()
     {
         var host = new RecordingMenuHost("");
         host.TaxiChoices.Add(new MenuCommandChoice("No route found", null, null, []));
@@ -500,7 +509,8 @@ public class PointMenuTests
 
         Assert.Equal([Strip, Separator, "No route found", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
         Assert.False(Item(menu.Items, "No route found").IsEnabled);
-        Assert.Equal([MenuIds.PointCustomTaxi], StripTags(menu));
+        Assert.Equal([MenuIds.PointTaxiHere, MenuIds.PointCustomTaxi], StripTags(menu));
+        Assert.Equal(MenuGlyphRowTemplate.DimmedOpacity, StripButton(menu, MenuIds.PointTaxiHere).Opacity);
     }
 
     [AvaloniaFact]
@@ -542,18 +552,20 @@ public class PointMenuTests
         ContextMenu menu = Build(ac, SurfacePoint(Midpoint(runway), runway.Name, null), scope.Host, _ => []);
 
         List<string> labels = Labels(menu.Items);
-        string end1 = $"Taxi to {RunwayIdentifier.ToDisplayDesignator(ids.End1)}";
-        string end2 = $"Taxi to {RunwayIdentifier.ToDisplayDesignator(ids.End2)}";
-        Assert.Equal([end1, end2], labels.Where(l => l.StartsWith("Taxi to ", StringComparison.Ordinal)).ToList());
-        HashSet<string> ends = [end1, end2];
-        Assert.True(ends.SetEquals(["Taxi to 28R", "Taxi to 10L"]), $"Ends offered: {end1}, {end2}");
-        Assert.NotEmpty(Item(menu.Items, end1).Items);
-        Assert.NotEmpty(Item(menu.Items, end2).Items);
+        Assert.Equal(["Taxi to runway"], labels.Where(l => l.StartsWith("Taxi to ", StringComparison.Ordinal)).ToList());
+        TaxiToRunwayPanel panel = Panel(Item(menu.Items, "Taxi to runway"));
+        string end1 = RunwayIdentifier.ToDisplayDesignator(ids.End1);
+        string end2 = RunwayIdentifier.ToDisplayDesignator(ids.End2);
+        Assert.Equal([end1, end2], panel.Strip.Tabs.Select(tab => tab.Label));
+        Assert.True(new HashSet<string> { end1, end2 }.SetEquals(["28R", "10L"]), $"Ends offered: {end1}, {end2}");
+        Assert.NotEmpty(panel.Rows);
+        panel.Strip.Select(1);
+        Assert.NotEmpty(panel.Rows);
         Assert.DoesNotContain(labels, l => (l is "Taxi here" or "Custom taxi…") || l.StartsWith("Push to", StringComparison.Ordinal));
     }
 
     [AvaloniaFact]
-    public void PointStrip_RunwaySurface_OneButtonPerEnd_EachOpensItsTargets()
+    public void PointStrip_RunwaySurface_OneButton_OpensATabPerEnd()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         GroundRunwayDto runway = OakRunway("28R/10L");
@@ -563,13 +575,15 @@ public class PointMenuTests
         ContextMenu menu = Build(ac, SurfacePoint(Midpoint(runway), runway.Name, null), scope.Host, _ => []);
         menu.Open(scope.Window);
 
-        Assert.Equal([MenuIds.PointTaxiToRunway, MenuIds.PointTaxiToRunway], StripTags(menu));
+        Assert.Equal([MenuIds.PointTaxiToRunway], StripTags(menu));
         Button end = QuickCommandStrip.Buttons(StripOf(menu))[0];
         end.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(end));
         Assert.True(flyout.IsOpen);
-        Assert.NotEmpty(flyout.Items.OfType<MenuItem>());
+        TaxiToRunwayPanel panel = Assert.IsType<TaxiToRunwayPanel>(Assert.Single(flyout.Items.OfType<MenuItem>()).Header);
+        Assert.Equal(2, panel.Strip.Tabs.Count);
+        Assert.NotEmpty(panel.Rows);
         Assert.Empty(scope.Host.Sent);
         menu.Close();
     }
@@ -583,13 +597,18 @@ public class PointMenuTests
         AircraftModel ac = GroundAircraft(SpotI30());
         using OakHostScope scope = OakHosts(ac);
 
-        ContextMenu menu = Build(ac, SurfacePoint(Midpoint(runway), runway.Name, null), scope.Host, _ => []);
+        LatLon click = Midpoint(runway);
+        ContextMenu menu = Build(ac, SurfacePoint(click, runway.Name, null), scope.Host, _ => []);
+        TaxiToRunwayPanel panel = Panel(Item(menu.Items, "Taxi to runway"));
 
-        foreach (string end in new[] { ids.End1, ids.End2 })
+        string[] ends = [ids.End1, ids.End2];
+        for (int tab = 0; tab < ends.Length; tab++)
         {
-            List<string> targets = Labels(Item(menu.Items, $"Taxi to {RunwayIdentifier.ToDisplayDesignator(end)}").Items);
+            panel.Strip.Select(tab);
+            List<string> targets = TargetsIn(panel);
             Assert.All(targets, label => Assert.Matches(TargetLabel, label));
-            AssertEachReasonOnceInOrder(targets);
+            AssertEachReasonOnce(targets);
+            Assert.Equal(scope.Client.GetRunwayHoldShortTargets(Callsign, runway.Name, ends[tab], click).Select(t => t.Label), targets);
         }
     }
 
@@ -602,18 +621,20 @@ public class PointMenuTests
         AirportGroundLayout domain = MenuGoldenFixtures.OakDomainLayout;
         GroundNode holdShort = MenuGoldenFixtures.HoldShort30AtW3(domain);
         GroundRunwayDto runway = OakRunway(holdShort.RunwayId!.Value.ToString());
-        var ids = RunwayIdentifier.Parse(runway.Name);
         AircraftModel ac = GroundAircraft(MenuGoldenFixtures.W3NodeBeforeHoldShort30(domain).Position);
         ac.CurrentPhase = "Taxiing";
         using OakHostScope scope = OakHosts(ac);
 
         ContextMenu menu = Build(ac, SurfacePoint(holdShort.Position, runway.Name, null), scope.Host, _ => []);
+        TaxiToRunwayPanel panel = Panel(Item(menu.Items, "Taxi to runway"));
 
-        foreach (string end in new[] { ids.End1, ids.End2 })
+        Assert.Equal(2, panel.Strip.Tabs.Count);
+        for (int tab = 0; tab < panel.Strip.Tabs.Count; tab++)
         {
-            List<string> targets = Labels(Item(menu.Items, $"Taxi to {RunwayIdentifier.ToDisplayDesignator(end)}").Items);
+            panel.Strip.Select(tab);
+            List<string> targets = TargetsIn(panel);
             Assert.StartsWith("At W3 (nearest, near click", targets[0]);
-            AssertEachReasonOnceInOrder(targets);
+            AssertEachReasonOnce(targets);
         }
     }
 
@@ -628,28 +649,50 @@ public class PointMenuTests
         LatLon click = Midpoint(runway);
 
         ContextMenu menu = Build(ac, SurfacePoint(click, runway.Name, null), scope.Host, _ => []);
+        TaxiToRunwayPanel panel = Panel(Item(menu.Items, "Taxi to runway"));
 
-        foreach (string end in new[] { ids.End1, ids.End2 })
+        string[] ends = [ids.End1, ids.End2];
+        string[][] titles =
+        [
+            [
+                "RW At G · near click · via W1 W B A C G · crosses 28L · ~15,950 ft [bold]",
+                "RW At G · near click · via W1 W U T B C G · crosses 28L · ~15,250 ft",
+                "RW At G · near click · via W1 W B C G · crosses 28L · ~15,350 ft",
+                "RW At B · nearest, full length · via W1 W B · crosses 28L · ~12,100 ft [bold]",
+                "RW At B · nearest, full length · via W1 W U T B · crosses 28L · ~12,000 ft",
+            ],
+            [
+                "RW At G · near click · via W1 W B A C G · crosses 28L · ~15,950 ft [bold]",
+                "RW At G · near click · via W1 W U T B C G · crosses 28L · ~15,250 ft",
+                "RW At G · near click · via W1 W B C G · crosses 28L · ~15,350 ft",
+                "RW At C1 · full length · via W1 W B A C C1 · crosses 28L, 15 · ~18,700 ft [bold]",
+                "RW At C1 · full length · via W1 W U T B C C1 · crosses 28L, 15 · ~18,000 ft",
+                "RW At C1 · full length · via W1 W B C C1 · crosses 28L, 15 · ~18,100 ft",
+                "RW At B · nearest · via W1 W B · crosses 28L · ~12,100 ft [bold]",
+                "RW At B · nearest · via W1 W U T B · crosses 28L · ~12,000 ft",
+            ],
+        ];
+        for (int tab = 0; tab < ends.Length; tab++)
         {
-            MenuItem endItem = Item(menu.Items, $"Taxi to {RunwayIdentifier.ToDisplayDesignator(end)}");
-            IReadOnlyList<RunwayHoldShortTarget> targets = scope.Client.GetRunwayHoldShortTargets(Callsign, runway.Name, end, click);
-            Assert.Equal(targets.Select(t => t.Label), Labels(endItem.Items));
-            foreach (RunwayHoldShortTarget target in targets)
-            {
-                IReadOnlyList<MenuCommandChoice> choices = scope.Client.GetTaxiChoices(Callsign, target.Node, end);
-                MenuItem targetItem = Item(endItem.Items, target.Label);
-                Assert.Equal(ChoiceTree(choices), ItemTree(targetItem.Items));
-            }
+            panel.Strip.Select(tab);
+            IReadOnlyList<RunwayHoldShortTarget> targets = scope.Client.GetRunwayHoldShortTargets(Callsign, runway.Name, ends[tab], click);
+            Assert.Equal(targets.Select(t => t.Label), TargetsIn(panel));
+            // Each route's title as the layout gives it; a route crosses 28L/10R on the way, never its own runway 28R/10L.
+            Assert.Equal(titles[tab], panel.Lines.Where(IsTitle));
+            // Under the titles, the host's answer for each target, line for line: variant rows and separators.
+            string end = ends[tab];
+            Assert.Equal(VariantLines(targets, t => scope.Client.GetTaxiChoices(Callsign, t.Node, end)), panel.Lines.Where(line => !IsTitle(line)));
+            // Every command the Taxi here choices for each target's node and that end send is a row, in order.
+            List<string> commands = [.. targets.SelectMany(t => LeafCommands(scope.Client.GetTaxiChoices(Callsign, t.Node, ends[tab])))];
+            Assert.Equal(commands, panel.Rows.Select(MenuCommandText.GetCommand));
         }
 
-        // The first route of the first target sends exactly the Taxi here command for that node and end.
+        // The first row of the first target sends exactly the first Taxi here command for that node and end.
+        panel.Strip.Select(0);
         RunwayHoldShortTarget first = scope.Client.GetRunwayHoldShortTargets(Callsign, runway.Name, ids.End1, click)[0];
-        (MenuCommandChoice leaf, MenuItem leafItem) = FirstLeaf(
-            scope.Client.GetTaxiChoices(Callsign, first.Node, ids.End1),
-            Item(Item(menu.Items, $"Taxi to {RunwayIdentifier.ToDisplayDesignator(ids.End1)}").Items, first.Label).Items
-        );
-        Click(leafItem);
-        Assert.Equal((Callsign, leaf.Command!, "AB"), scope.Host.Sent[^1]);
+        string firstCommand = LeafCommands(scope.Client.GetTaxiChoices(Callsign, first.Node, ids.End1)).First();
+        panel.Rows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal((Callsign, firstCommand, "AB"), scope.Host.Sent[^1]);
     }
 
     [AvaloniaFact]
@@ -678,7 +721,9 @@ public class PointMenuTests
 
         // The same host and click on the runway's surface does offer it, so the plain point is what withholds it.
         ContextMenu surface = Build(ac, SurfacePoint(click, "28R/10L", null), host, _ => []);
-        Assert.Equal(["At B (nearest)"], Labels(Item(surface.Items, "Taxi to 28R").Items));
+        TaxiToRunwayPanel panel = Panel(Item(surface.Items, "Taxi to runway"));
+        panel.Strip.Select(panel.Strip.Tabs.ToList().FindIndex(tab => tab.Label == "28R"));
+        Assert.Equal(["At B (nearest)"], TargetsIn(panel));
     }
 
     [AvaloniaFact]
@@ -819,16 +864,105 @@ public class PointMenuTests
     private const string TargetLabel =
         @"^(At \S+ \((nearest|near click|full length)(, (near click|full length))*\)|(Nearest|Near click|Full length)(, (near click|full length))*)$";
 
+    /// <summary>Each of the three reasons, nearest, near click and full length, is named by exactly one target.</summary>
+    private static void AssertEachReasonOnce(List<string> targets) =>
+        Assert.Equal(new[] { "nearest", "near click", "full length" }.Order(), targets.SelectMany(TagsOf).Order());
+
+    /// <summary>The Taxi to runway panel's targets in order, once each, read from its title lines (<c>RW {target} · …</c>).</summary>
+    private static List<string> TargetsIn(TaxiToRunwayPanel panel) =>
+        [
+            .. panel
+                .Lines.Where(line => line.StartsWith("RW ", StringComparison.Ordinal))
+                .Select(line => line["RW ".Length..].Replace(" [dim]", "", StringComparison.Ordinal).Split(" · "))
+                .Select(parts => ((parts.Length > 1) && IsReason(parts[1])) ? $"{parts[0]} ({parts[1]})" : parts[0])
+                .Distinct(),
+        ];
+
+    /// <summary>Whether a title's second part names the target's reasons rather than the route's via or distance.</summary>
+    private static bool IsReason(string part) => !part.StartsWith("via ", StringComparison.Ordinal) && !part.StartsWith('~');
+
+    /// <summary>Whether a Taxi to runway panel line is a target's title (<c>RW At W · nearest · …</c>).</summary>
+    private static bool IsTitle(string line) => line.StartsWith("RW ", StringComparison.Ordinal);
+
     /// <summary>
-    /// Each of the three reasons is named by exactly one target, and the targets run in the order of their first reason:
-    /// nearest, near click, full length.
+    /// The lines the Taxi to runway panel shows under its titles for <paramref name="targets"/>, built from the host's
+    /// Taxi here answer for each (<paramref name="choicesFor"/>): per route its variants; a target with no route
+    /// <c>No route found</c>.
     /// </summary>
-    private static void AssertEachReasonOnceInOrder(List<string> targets)
+    private static List<string> VariantLines(
+        IReadOnlyList<RunwayHoldShortTarget> targets,
+        Func<RunwayHoldShortTarget, IReadOnlyList<MenuCommandChoice>> choicesFor
+    )
     {
-        string[] order = ["nearest", "near click", "full length"];
-        Assert.Equal(order.Order(), targets.SelectMany(TagsOf).Order());
-        List<int> firstRanks = [.. targets.Select(t => Array.IndexOf(order, TagsOf(t).First()))];
-        Assert.Equal(firstRanks.Order(), firstRanks);
+        List<string> lines = [];
+        foreach (RunwayHoldShortTarget target in targets)
+        {
+            IReadOnlyList<MenuCommandChoice> answer = choicesFor(target);
+            if ((answer.Count == 1) && (answer[0].Children.Count > 0) && (answer[0].Preview is null))
+            {
+                answer = answer[0].Children;
+            }
+
+            List<MenuCommandChoice> routes =
+            [
+                .. answer.Where(c => !ReferenceEquals(c, MenuCommandChoice.Separator) && ((c.Command is not null) || (c.Children.Count > 0))),
+            ];
+            if (routes.Count == 0)
+            {
+                lines.Add("No route found [disabled]");
+                continue;
+            }
+
+            foreach (MenuCommandChoice route in routes)
+            {
+                AddVariantLines(lines, (route.Children.Count > 0) ? route.Children : [route]);
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>A runway route's variants as rows: the host answers them one level deep, a separator between the two kinds.</summary>
+    private static void AddVariantLines(List<string> lines, IReadOnlyList<MenuCommandChoice> choices)
+    {
+        foreach (MenuCommandChoice choice in choices)
+        {
+            Assert.Empty(choice.Children);
+            if (ReferenceEquals(choice, MenuCommandChoice.Separator))
+            {
+                lines.Add("---");
+            }
+            else
+            {
+                lines.Add((choice.Command is { } command) ? $"{choice.Label} — {command}" : $"{choice.Label} [disabled]");
+            }
+        }
+    }
+
+    /// <summary>The commands <paramref name="choices"/> send, depth first, in order.</summary>
+    private static IEnumerable<string> LeafCommands(IReadOnlyList<MenuCommandChoice> choices)
+    {
+        foreach (MenuCommandChoice choice in choices)
+        {
+            if (choice.Children.Count > 0)
+            {
+                foreach (string command in LeafCommands(choice.Children))
+                {
+                    yield return command;
+                }
+            }
+            else if (choice.Command is { } command)
+            {
+                yield return command;
+            }
+        }
+    }
+
+    /// <summary>The panel of a point taxi entry's submenu, opened.</summary>
+    private static TaxiToRunwayPanel Panel(MenuItem entry)
+    {
+        entry.IsSubMenuOpen = true;
+        return Assert.IsType<TaxiToRunwayPanel>(Assert.Single(entry.Items.OfType<MenuItem>()).Header);
     }
 
     /// <summary>The reasons a Taxi to runway target label names, in order.</summary>
@@ -896,58 +1030,10 @@ public class PointMenuTests
     private static RecordingMenuHost HostWithTargets()
     {
         var host = new RecordingMenuHost("");
-        host.TaxiChoices.Add(new MenuCommandChoice("Taxi via B", "TAXI B", null, []));
-        host.RunwayHoldShortTargets["28R"] = [new RunwayHoldShortTarget(TaxiNode, "At B (nearest)")];
-        host.RunwayHoldShortTargets["10L"] = [new RunwayHoldShortTarget(TaxiNode, "At B (nearest)")];
+        host.TaxiChoices.Add(new MenuCommandChoice("Taxi via B", "TAXI B", NewRoute(), []));
+        host.RunwayHoldShortTargets["28R"] = [new RunwayHoldShortTarget(TaxiNode, "At B", ["nearest"])];
+        host.RunwayHoldShortTargets["10L"] = [new RunwayHoldShortTarget(TaxiNode, "At B", ["nearest"])];
         return host;
-    }
-
-    /// <summary>The choice tree's labels as one string, each child list in brackets after its parent.</summary>
-    private static string ChoiceTree(IReadOnlyList<MenuCommandChoice> choices) =>
-        string.Join(
-            "|",
-            choices.Select(c =>
-                ReferenceEquals(c, MenuCommandChoice.Separator) ? Separator
-                : (c.Children.Count > 0) ? $"{c.Label}[{ChoiceTree(c.Children)}]"
-                : c.Label
-            )
-        );
-
-    /// <summary>The menu items' headers as one string, in <see cref="ChoiceTree"/>'s shape.</summary>
-    private static string ItemTree(ItemCollection items) =>
-        string.Join(
-            "|",
-            items.Select(i =>
-                i switch
-                {
-                    Avalonia.Controls.Separator => Separator,
-                    MenuItem { Items.Count: > 0 } m => $"{m.Header}[{ItemTree(m.Items)}]",
-                    MenuItem m => m.Header as string ?? "",
-                    _ => i?.GetType().Name ?? "null",
-                }
-            )
-        );
-
-    /// <summary>
-    /// The first choice that sends a command, walking <paramref name="choices"/> and <paramref name="items"/> together,
-    /// with its item.
-    /// </summary>
-    private static (MenuCommandChoice Choice, MenuItem Item) FirstLeaf(IReadOnlyList<MenuCommandChoice> choices, ItemCollection items)
-    {
-        foreach ((MenuCommandChoice choice, object? item) in choices.Zip(items))
-        {
-            if ((item is MenuItem menuItem) && (choice.Children.Count > 0))
-            {
-                return FirstLeaf(choice.Children, menuItem.Items);
-            }
-
-            if ((item is MenuItem leafItem) && (choice.Command is not null))
-            {
-                return (choice, leafItem);
-            }
-        }
-
-        throw new InvalidOperationException("No taxi choice sends a command");
     }
 
     private static TaxiRoute NewRoute() => new() { Segments = [], HoldShortPoints = [] };
@@ -956,7 +1042,7 @@ public class PointMenuTests
     /// Raises a pointer enter on <paramref name="item"/> with a real <see cref="PointerEventArgs"/>, which the hover
     /// handler requires.
     /// </summary>
-    private static void RaisePointerEntered(MenuItem item) =>
+    private static void RaisePointerEntered(Control item) =>
         item.RaiseEvent(
             new PointerEventArgs(
                 InputElement.PointerEnteredEvent,

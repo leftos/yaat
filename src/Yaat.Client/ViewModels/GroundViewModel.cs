@@ -2944,6 +2944,13 @@ public partial class GroundViewModel : ObservableObject
         HoldShortNodesOf(RunwayIdentifier.Parse(runwayName)).MinBy(n => GeoMath.DistanceNm(point.Lat, point.Lon, n.Latitude, n.Longitude))?.Id;
 
     /// <summary>
+    /// <paramref name="runwayEnd"/>'s threshold on <paramref name="runwayName"/> and the true heading from it toward the
+    /// other end; null when the runway or the end is not in the layout.
+    /// </summary>
+    public (LatLon Threshold, TrueHeading Heading)? RunwayEndThreshold(string runwayName, string runwayEnd) =>
+        RunwayEndGeometry(RunwayIdentifier.Parse(runwayName), runwayEnd);
+
+    /// <summary>
     /// The full-length hold short for a departure from <paramref name="runwayEnd"/> of <paramref name="runwayName"/>:
     /// among the runway's <c>RunwayHoldShort</c> nodes whose along-track distance from that end's threshold is within
     /// <see cref="FullLengthWindowFt"/> of the smallest (the hold shorts either side of the runway at that end), the one

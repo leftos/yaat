@@ -136,7 +136,7 @@ public static class AircraftMenuBuilder
     /// Direct to, the two holds and Warp here, and the text items are Fly heading, with its turn row under it
     /// (<see cref="AddFlyHeadingTurn"/>), and Append direct to. Otherwise the strip holds the ground point items and the
     /// text items are: airborne, Fly heading, Direct to, Append direct to and the two holds; at a taxi node, Taxi here,
-    /// Push to and Custom taxi…; on a runway surface, a Taxi to submenu per runway end — then Warp here after a separator.
+    /// Push to and Custom taxi…; on a runway surface, Taxi to runway — then Warp here after a separator.
     /// No Favorites, command tree, foot or RPO items. The header, the strip and the text items are built over one
     /// <see cref="PointMenuHostCache"/>, so the host answers each point question once.
     /// </summary>
@@ -181,7 +181,7 @@ public static class AircraftMenuBuilder
     {
         foreach (string id in PointIds)
         {
-            AddPointItems(items, id, aircraft, context, host);
+            SharedMenuGroups.AddIfApplicable(items, id, aircraft, context, host);
         }
 
         // Warp here is built into a scratch menu first, so its separator goes in only when it builds.
@@ -244,9 +244,10 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The point menu's icon strip and a separator under it: one button per item of <paramref name="ids"/> that applies,
-    /// built by the same predicates and builders as the text items (a Taxi to runway per runway end), each with its point
-    /// glyph (<see cref="QuickCommandGlyphs.ForPoint"/>). A disabled item (Taxi here's "No route found") gets no button;
-    /// its text row still shows. Nothing when none applies.
+    /// built by the same predicates and builders as the text items, each with its point glyph
+    /// (<see cref="QuickCommandGlyphs.ForPoint"/>). A disabled item gets no button unless it is marked inert
+    /// (<see cref="QuickCommandStrip.IsInert"/>: Taxi here's "No route found"), whose button stays, faded; its text row
+    /// still shows. Nothing when none applies.
     /// </summary>
     private static void AddPointStrip(ContextMenu menu, string[] ids, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
     {
@@ -254,9 +255,9 @@ public static class AircraftMenuBuilder
         var scratch = new ContextMenu();
         foreach (string id in ids)
         {
-            AddPointItems(scratch.Items, id, aircraft, context, host);
+            SharedMenuGroups.AddIfApplicable(scratch.Items, id, aircraft, context, host);
             var item = new QuickCommandStripItem(MenuCatalog.Get(id), QuickCommandGlyphs.ForPoint(id));
-            List<MenuItem> items = [.. scratch.Items.OfType<MenuItem>().Where(menuItem => menuItem.IsEnabled)];
+            List<MenuItem> items = [.. scratch.Items.OfType<MenuItem>().Where(menuItem => menuItem.IsEnabled || QuickCommandStrip.IsInert(menuItem))];
             scratch.Items.Clear();
             built.AddRange(items.Select(menuItem => (item, menuItem)));
         }
@@ -266,18 +267,6 @@ public static class AircraftMenuBuilder
             menu.Items.Add(strip);
             menu.Items.Add(new Separator());
         }
-    }
-
-    /// <summary>The point item <paramref name="id"/> where its predicate allows it; Taxi to runway adds one item per runway end.</summary>
-    private static void AddPointItems(ItemCollection items, string id, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
-    {
-        if (id == MenuIds.PointTaxiToRunway)
-        {
-            SharedMenuGroups.AddTaxiToRunwayEnds(items, aircraft, context, host);
-            return;
-        }
-
-        SharedMenuGroups.AddIfApplicable(items, id, aircraft, context, host);
     }
 
     /// <summary>

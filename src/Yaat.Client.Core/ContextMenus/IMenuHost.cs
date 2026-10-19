@@ -43,9 +43,9 @@ public interface IMenuHost
 
     /// <summary>
     /// The Taxi here choices for <paramref name="callsign"/> to <paramref name="node"/>, routed to
-    /// <paramref name="runwayEnd"/> when a threshold click names one: one disabled "No route found" row when no route
-    /// reaches it, one route's choice when one does, else one "Taxi here" submenu over every route's choice; each route
-    /// previews on hover. Empty when the aircraft has no node to start from.
+    /// <paramref name="runwayEnd"/> when a threshold click names one: one disabled "No route found" choice when no route
+    /// reaches it, one route's choice when one does, else one "Taxi here" choice grouping every route's choice, with no
+    /// route of its own; each route carries the route it previews. Empty when the aircraft has no node to start from.
     /// </summary>
     IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd);
 
@@ -53,7 +53,9 @@ public interface IMenuHost
     /// The hold-short nodes Taxi to runway offers <paramref name="callsign"/> for <paramref name="runwayEnd"/> of
     /// <paramref name="runwayName"/> after a click on its surface at <paramref name="click"/>: the route-nearest hold
     /// short, the one nearest the click, and the route-nearest of those at that end's threshold (full length), each node
-    /// once with every reason it was picked, in that order. Empty when the aircraft or the runway is not found.
+    /// once with every reason it was picked. They run from the click along the runway: by the along-runway distance
+    /// between each and the click, both projected onto that end's centerline, ties nearer the end's threshold first.
+    /// Empty when the aircraft or the runway is not found.
     /// </summary>
     IReadOnlyList<RunwayHoldShortTarget> GetRunwayHoldShortTargets(string callsign, string runwayName, string runwayEnd, LatLon click);
 

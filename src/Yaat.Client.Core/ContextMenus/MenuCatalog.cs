@@ -382,11 +382,7 @@ public static class MenuCatalog
             MenuIds.PointTaxiToRunway,
             "Taxi to runway",
             AtRunwaySurfaceTaxiable,
-            (_, _, _, _) =>
-                throw new InvalidOperationException(
-                    $"The '{MenuIds.PointTaxiToRunway}' entry builds no item; SharedMenuGroups.AddTaxiToRunwayEnds adds one item per "
-                        + "runway end through MenuCatalog.BuildTaxiToRunwayEnds."
-                )
+            (_, point, context, host) => PointTaxiFlyout.BuildTaxiToRunway(point, context, host)
         ),
         PointEntry(MenuIds.PointPushTo, "Push to", AtNodePushable, BuildPointPushTo),
         PointEntry(MenuIds.PointCustomTaxi, "Custom taxi…", AtNodeTaxiable, BuildPointCustomTaxi),
@@ -762,65 +758,6 @@ public static class MenuCatalog
     {
         var item = new MenuItem { Header = label };
         item.Click += (_, _) => host.EnterPushRoute(context.Callsign);
-        return item;
-    }
-
-    /// <summary>
-    /// A submenu over host-answered <paramref name="choices"/>: one item per choice, sending its finished command, and
-    /// previewing its route when the pointer enters an item whose choice carries one. Nothing clears the preview when
-    /// the pointer leaves. Null when there are no choices.
-    /// </summary>
-    private static MenuItem? BuildChoiceSubmenu(string label, IReadOnlyList<MenuCommandChoice> choices, MenuContext context, IMenuHost host)
-    {
-        if (choices.Count == 0)
-        {
-            return null;
-        }
-
-        var menu = new MenuItem { Header = label };
-        foreach (MenuCommandChoice choice in choices)
-        {
-            menu.Items.Add(BuildChoice(choice, context, host));
-        }
-
-        return menu;
-    }
-
-    /// <summary>
-    /// One host-answered choice as a menu control: <see cref="MenuCommandChoice.Separator"/> as a separator, a choice
-    /// with children as a submenu over them (built the same way), one with a command as an item that sends it, and one
-    /// with neither as a disabled row. An item whose choice carries a route previews it when the pointer enters it.
-    /// </summary>
-    private static Control BuildChoice(MenuCommandChoice choice, MenuContext context, IMenuHost host)
-    {
-        if (ReferenceEquals(choice, MenuCommandChoice.Separator))
-        {
-            return new Separator();
-        }
-
-        MenuItem item;
-        if (choice.Children.Count > 0)
-        {
-            item = new MenuItem { Header = choice.Label };
-            foreach (MenuCommandChoice child in choice.Children)
-            {
-                item.Items.Add(BuildChoice(child, context, host));
-            }
-        }
-        else if (choice.Command is { } command)
-        {
-            item = BuildSend(choice.Label, command, context, host);
-        }
-        else
-        {
-            item = new MenuItem { Header = choice.Label, IsEnabled = false };
-        }
-
-        if (choice.Preview is { } preview)
-        {
-            item.PointerEntered += (_, _) => host.SetRoutePreview(preview);
-        }
-
         return item;
     }
 
@@ -1270,72 +1207,9 @@ public static class MenuCatalog
     private static MenuItem? BuildPointHold(MenuPoint point, string side, string verb, MenuContext context, IMenuHost host) =>
         host.DescribePoint(point.Position) is { } frd ? BuildSend($"Hold at {frd} ({side})", $"{verb} {frd}", context, host) : null;
 
-    /// <summary>
-    /// The host's Taxi here choices for the clicked node as one item: its one choice (a route's item, a "Taxi here"
-    /// submenu over several, or the disabled "No route found" row), or a "Taxi here" submenu should it answer more.
-    /// </summary>
-    private static MenuItem? BuildPointTaxiHere(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
-    {
-        if (point.Node is not { } node)
-        {
-            return null;
-        }
-
-        IReadOnlyList<MenuCommandChoice> choices = host.GetTaxiChoices(context.Callsign, node, point.RunwayEnd);
-        if (choices.Count != 1)
-        {
-            return BuildChoiceSubmenu("Taxi here", choices, context, host);
-        }
-
-        return BuildChoice(choices[0], context, host) as MenuItem
-            ?? throw new InvalidOperationException(
-                $"IMenuHost.GetTaxiChoices answered a lone separator for {context.Callsign} at node {node.Id}; it answers a route, a "
-                    + "\"Taxi here\" submenu or a \"No route found\" row."
-            );
-    }
-
-    /// <summary>
-    /// Taxi to runway: for each runway under the click, one <c>Taxi to {end}</c> submenu per end in the runway's order,
-    /// over the host's hold-short targets for that end, each a submenu of the Taxi here choices for its node routed to
-    /// that end, for <see cref="SharedMenuGroups.AddTaxiToRunwayEnds"/> to add in the point menu. An end with no target
-    /// that has a choice is left out.
-    /// </summary>
-    internal static IReadOnlyList<MenuItem> BuildTaxiToRunwayEnds(MenuPoint point, MenuContext context, IMenuHost host)
-    {
-        List<MenuItem> ends = [];
-        foreach (string runwayName in point.SurfaceRunways)
-        {
-            var ids = RunwayIdentifier.Parse(runwayName);
-            foreach (string end in new[] { ids.End1, ids.End2 }.Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                if (BuildTaxiToRunwayEnd(runwayName, end, point, context, host) is { } endItem)
-                {
-                    ends.Add(endItem);
-                }
-            }
-        }
-
-        return ends;
-    }
-
-    /// <summary>
-    /// The <c>Taxi to {end}</c> submenu: one submenu per host target for <paramref name="end"/> of
-    /// <paramref name="runwayName"/>, over <see cref="IMenuHost.GetTaxiChoices"/> for its node and that end, built as Taxi
-    /// here builds them; a target with no choice is left out, and null when none is left.
-    /// </summary>
-    private static MenuItem? BuildTaxiToRunwayEnd(string runwayName, string end, MenuPoint point, MenuContext context, IMenuHost host)
-    {
-        var endItem = new MenuItem { Header = $"Taxi to {RunwayIdentifier.ToDisplayDesignator(end)}" };
-        foreach (RunwayHoldShortTarget target in host.GetRunwayHoldShortTargets(context.Callsign, runwayName, end, point.Position))
-        {
-            if (BuildChoiceSubmenu(target.Label, host.GetTaxiChoices(context.Callsign, target.Node, end), context, host) is { } targetItem)
-            {
-                endItem.Items.Add(targetItem);
-            }
-        }
-
-        return (endItem.Items.Count > 0) ? endItem : null;
-    }
+    /// <summary>The host's Taxi here choices for the clicked node as one item (<see cref="PointTaxiFlyout.BuildTaxiHere"/>).</summary>
+    private static MenuItem? BuildPointTaxiHere(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host) =>
+        (point.Node is { } node) ? PointTaxiFlyout.BuildTaxiHere(host.GetTaxiChoices(context.Callsign, node, point.RunwayEnd), context, host) : null;
 
     /// <summary>
     /// Push to the clicked named spot (<c>PUSH $SPOT</c>) or stand (<c>PUSH @STAND</c>); null when the tug cannot reach it
