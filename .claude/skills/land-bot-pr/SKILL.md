@@ -159,7 +159,7 @@ The bot's tests are its own claim, not your verification. Run the repo gate in t
 ```bash
 YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)" && cd "$YAAT"
 pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
-pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 `test-all.ps1` is the right gate here rather than a bare `dotnet test`: a bot fix
@@ -169,6 +169,8 @@ cannot see. Neither command checks formatting — that is Step 6's ranged
 --verify-no-changes` fail the merge commit when it was skipped.
 
 ## Step 8: Merge with `--merge`, never `--rebase`
+
+**Read and validate every review first.** Before the merge, read every review on the PR, human or bot (`gh pr view <PR> --repo leftos/yaat --comments` and `gh api repos/leftos/yaat/pulls/<PR>/comments`), and check each finding against the head, as `/ship` Phase 2F step 4 does: a real one is fixed on the branch (back to Step 7's gate) or booked as its own issue, never merged past unread.
 
 **Consequence of trap 3:** `gh pr merge --rebase` makes GitHub replay the
 commits it *thinks* belong to the PR — creating duplicate SHAs of commits
