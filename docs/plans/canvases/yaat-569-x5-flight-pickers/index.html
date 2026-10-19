@@ -48,6 +48,7 @@
   .note-box li { margin: 0 0 6px; color: var(--muted); }
   .note-box li b { color: var(--ink); font-weight: 600; }
   .note-box .rec { font: 500 11px var(--f-mono); color: var(--tag-a); }
+  .note-box a { color: var(--accent); }
 
   .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
   .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
@@ -62,9 +63,13 @@
   .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
-  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); } .tag.d { color: var(--warn); }
   .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
   .recb { font: 600 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--panel); background: var(--tag-a); border-radius: 3px; padding: 1px 6px; }
+  .recb.asked { background: var(--warn); }
+  .lane.wide { grid-column: 1 / -1; }
+  .verdict { display: inline-block; font: 600 11.5px var(--f-mono); letter-spacing: .03em; color: var(--tag-a); border: 1px solid var(--tag-a); border-radius: 4px; padding: 2px 8px; margin: 0 0 8px; }
+  .verdict.open { color: var(--warn); border-color: var(--warn); }
   .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
   .sent code { font: 12px var(--f-mono); color: var(--accent); }
   .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
@@ -214,6 +219,20 @@
   .demo button { font: 12px Inter, "Segoe UI", sans-serif; color: #fff; background: #24406a; border: 1px solid #4a6fa5; border-radius: 4px; padding: 3px 10px; cursor: pointer; }
   .demo .clock { font: 12px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
 
+  /* The compass rose (decision 1 lane D): the degree chips stand either side of the rose, the readout under it. */
+  .compass { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 9px 2px; }
+  .chipcol { display: flex; flex-direction: column; gap: 3px; width: 50px; flex: 0 0 auto; }
+  .chipcol .cl { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; text-align: center; margin-bottom: 1px; white-space: nowrap; }
+  .chipcol .chip { min-width: 0; height: 24px; }
+  .dial { display: block; flex: 0 0 auto; cursor: crosshair; touch-action: none; border-radius: 50%; }
+  .dial.half { border-radius: 10px; }
+  .dial:focus { outline: none; }
+  .dial:focus-visible, .dial.kf { outline: 2px solid #8fc1ff; outline-offset: 2px; }
+  .dread { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; padding: 4px 11px 7px; text-align: center; min-height: 26px; }
+  .dread b { font: 700 13px "JetBrains Mono", Consolas, monospace; color: #fff; }
+  .dread code { font: 12px "JetBrains Mono", Consolas, monospace; color: #A8CAFF; }
+  .dread .k { color: #8f969e; }
+
   @media (max-width: 520px) {
     h1 { font-size: 24px; }
     .art { padding: 12px; }
@@ -226,11 +245,16 @@
 <div class="wrap">
   <div class="eyebrow">YAAT-569 · part X5 · heading, altitude and speed pickers · mock for the owner's decisions</div>
   <h1>Flight picker flyouts: heading, altitude, speed</h1>
-  <p class="lede">The strip's busiest buttons, <b>Fly heading</b>, <b>Maintain altitude</b> and <b>Assign speed</b>, still open popups drawn by <code>MenuPopups</code>: a 120 px list of 72 headings, the titled rich list of altitudes with its MVA line, and a 120 px list of speeds. Turn left / right and the degree turns are the same list popup in All Commands, and Speed…, Temporary altitude… and Cruise… are one-box input popups. This page draws each open decision as lanes A, B (and C), the recommended lane first and marked.</p>
+  <p class="lede">The strip's busiest buttons, <b>Fly heading</b>, <b>Maintain altitude</b> and <b>Assign speed</b>, still open popups drawn by <code>MenuPopups</code>: a 120 px list of 72 headings, the titled rich list of altitudes with its MVA line, and a 120 px list of speeds. Turn left / right and the degree turns are the same list popup in All Commands, and Speed…, Temporary altitude… and Cruise… are one-box input popups. This page draws each decision as lanes A, B (and C), the recommended lane first. The owner has judged the page: decisions 1b to 6 went to lane A, marked “chosen”; decision 1 stays open, and lane D draws the compass control the owner asked to see.</p>
   <p class="lede">Every flyout draws the built parts: the Fluent dark menu, the title line and glyph rows of the approach flyouts, the boxes of the takeoff and approach flyouts, the <code>FlyoutTabStrip</code> tabs, the 480 px cap, the flight glyphs of <code>QuickCommandGlyphs</code>. The aircraft are <b>UAL455</b>, an A320 at <b>FL240</b>, 280 kt, heading <b>270</b>, and <b>N738SP</b>, a C172 at <b>3,500</b>, 100 kt, assigned 4,000, both bound for KOAK (field elevation 9 ft). Click a cell, a row, a chip or a tab, and type in the boxes, to see what each sends.</p>
 
   <section class="note-box" aria-labelledby="note-h">
-    <h2 id="note-h">Settled by the owner (drawn as given, not as lanes)</h2>
+    <h2 id="note-h">The owner's verdicts on the lanes</h2>
+    <ul class="nl">
+      <li><b>Settled, lane A:</b> 1b Present heading as the flyout's first row; 2 one heading flyout with the Fly heading / Turn left / Turn right toggle and the degree chips; 3 Maintain altitude's list in the flyout, the box on top; 4 RNS and RFAS rows over knots and Mach chips; 5 Temporary altitude and Cruise each in their own one-box flyout; 6 live marks every second.</li>
+      <li><b>Open, decision 1 (Fly heading layout):</b> none of A, B or C yet; the owner asked to see a compass control, drawn as <a href="#d1-heading">lane D</a> with the decision-2 toggle and chips.</li>
+    </ul>
+    <h2>Settled by the owner before the mock (drawn as given, not as lanes)</h2>
     <ul class="nl">
       <li><b>The family.</b> Fly heading; Turn left / Turn right and the degree turns; Maintain altitude with its rich list and MVA line; Assign speed. Their single-box inputs (Speed…, Temporary altitude…, Cruise…) become inline boxes inside these flyouts; which flyout holds the last two is decision 5.</li>
       <li><b>All Commands.</b> Each All Commands entry opens the same flyout, built by the same builder.</li>
@@ -368,6 +392,14 @@
       fly.querySelectorAll(".hc.kfocus").forEach(c => c.classList.remove("kfocus"));
       const m = r && /(\d{3})$/.exec(r.cmd);
       if (m) { const c = fly.querySelector(`.hc[data-h="${parseInt(m[1], 10)}"]`); if (c) c.classList.add("kfocus"); }
+      if (m) {
+        fly.querySelectorAll(".dial").forEach(d => {
+          delete d.dataset.slip;
+          d.dataset.pick = String(parseInt(m[1], 10));
+          d.dataset.how = "Enter in the box sends";
+          drawDial(d);
+        });
+      }
     }
   }
   function onBoxEnter(box) {
@@ -490,8 +522,9 @@
 
   /* ---------- Lane and artboard ---------- */
   function lane(l) {
-    return `<section class="lane" data-lane>
-      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${l.rec ? `<span class="recb">recommended</span>` : ""}</div>
+    const badge = l.chosen ? `<span class="recb">chosen</span>` : (l.asked ? `<span class="recb asked">asked for</span>` : (l.rec ? `<span class="recb">recommended</span>` : ""));
+    return `<section class="lane${l.wide ? " wide" : ""}" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${badge}</div>
       <div class="stage">${l.body}</div>
       <div class="sent" data-sent>${l.hint || "Click a cell, a row or a chip, or type in a box, to see what it sends."}</div>
       <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
@@ -499,7 +532,7 @@
   }
   function art(a) {
     return `<section class="art" id="${a.id}">
-      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>${a.side ? `<div class="side">${a.side}</div>` : ""}</div>
+      <div class="art-head"><div class="art-meta">${a.verdict ? `<div class="verdict${a.open ? " open" : ""}">${esc(a.verdict)}</div>` : ""}<h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>${a.side ? `<div class="side">${a.side}</div>` : ""}</div>
       <div class="lanes">${a.lanes.map(lane).join("")}</div>
     </section>`;
   }
@@ -538,14 +571,124 @@
     ],
   };
 
+  /* ---------- The compass rose (decision 1 lane D) ---------- */
+  /* full: a north-up rose; half: a heading-up arc, the present heading at the top and ±90° either side. Radii set the 5° step along the rim. */
+  const DIAL = {
+    full: { w: 256, h: 256, cx: 128, cy: 128, r: 116 },
+    half: { w: 280, h: 196, cx: 140, cy: 140, r: 130 },
+  };
+  const CARD = { 360: "N", 90: "E", 180: "S", 270: "W" };
+  const snap5 = x => { const h = (((Math.round(x / 5) * 5) % 360) + 360) % 360; return h === 0 ? 360 : h; };
+  const relOf = (h, now) => ((h - now + 540) % 360) - 180;
+  const f1 = n => n.toFixed(1);
+  const dialAngle = (svg, h) => (svg.dataset.kind === "half" ? relOf(h, Number(svg.dataset.now)) : h);
+  const dialPt = (g, a, r) => { const t = a * Math.PI / 180; return [g.cx + r * Math.sin(t), g.cy - r * Math.cos(t)]; };
+  /** The turn a command makes: its side (L, R, or null for none or a 180° tie) and its size in degrees. */
+  function turnOf(now, mode, h) {
+    if (mode === "TL") return { dir: "L", deg: ((now - h + 360) % 360) || 360 };
+    if (mode === "TR") return { dir: "R", deg: ((h - now + 360) % 360) || 360 };
+    const d = relOf(h, now);
+    return (d === 0 || Math.abs(d) === 180) ? { dir: null, deg: Math.abs(d) } : { dir: d < 0 ? "L" : "R", deg: Math.abs(d) };
+  }
+  function dialSvg(o) {
+    const g = DIAL[o.kind];
+    return `<svg class="dial ${o.kind}${o.kf ? " kf" : ""}" id="${uid("dial")}" data-kind="${o.kind}" data-now="${o.now}" data-mode="${o.mode}"${o.pick ? ` data-pick="${o.pick}"` : ""}${o.how ? ` data-how="${esc(o.how)}"` : ""}${o.slip ? ` data-slip="${o.slip}"` : ""} width="${g.w}" height="${g.h}" viewBox="0 0 ${g.w} ${g.h}" tabindex="0" role="slider" aria-label="Heading" aria-valuemin="5" aria-valuemax="360" aria-valuenow="${o.pick || o.now}"></svg>`;
+  }
+  function drawDial(svg) {
+    const g = DIAL[svg.dataset.kind], now = Number(svg.dataset.now), mode = svg.dataset.mode, half = svg.dataset.kind === "half";
+    const shown = svg.dataset.ghost || svg.dataset.pick;
+    const pick = shown ? Number(shown) : null;
+    const mid = `${svg.id}-arrow`;
+    let s = `<defs><marker id="${mid}" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="#A8CAFF"/></marker></defs>`;
+    if (half) {
+      const [x0, y0] = dialPt(g, -90, g.r), [x1, y1] = dialPt(g, 90, g.r);
+      s += `<path d="M${f1(x0)} ${f1(y0)}A${g.r} ${g.r} 0 0 1 ${f1(x1)} ${f1(y1)}Z" fill="#1d2024" stroke="#3a414b"/>`;
+    } else {
+      s += `<circle cx="${g.cx}" cy="${g.cy}" r="${g.r}" fill="#1d2024" stroke="#3a414b"/>`;
+    }
+    for (let h = 5; h <= 360; h += 5) {
+      const a = dialAngle(svg, h);
+      if (half && Math.abs(a) > 90) continue;
+      const len = h % 30 === 0 ? 14 : (h % 10 === 0 ? 9 : 5);
+      const [x0, y0] = dialPt(g, a, g.r - 1), [x1, y1] = dialPt(g, a, g.r - len);
+      s += `<line x1="${f1(x0)}" y1="${f1(y0)}" x2="${f1(x1)}" y2="${f1(y1)}" stroke="${h % 30 === 0 ? "#9aa3ad" : "#4f5762"}" stroke-width="${h % 30 === 0 ? 1.6 : 1}"/>`;
+    }
+    for (let h = 30; h <= 360; h += 30) {
+      const a = dialAngle(svg, h);
+      if (half && Math.abs(a) > 90) continue;
+      const [x, y] = dialPt(g, a, g.r - 26);
+      s += `<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono, Consolas, monospace" font-size="${CARD[h] ? 12 : 10.5}" font-weight="${CARD[h] ? 700 : 400}" fill="${CARD[h] ? "#ffffff" : "#b8c0c9"}">${CARD[h] || p3(h)}</text>`;
+    }
+    const an = dialAngle(svg, now);
+    const pickOn = pick && !(half && Math.abs(relOf(pick, now)) > 90);
+    if (pickOn) {
+      const t = turnOf(now, mode, pick);
+      if (t.dir && t.deg < 360) {
+        const ra = 46, end = an + (t.dir === "R" ? t.deg : -t.deg);
+        const [sx, sy] = dialPt(g, an, ra), [ex, ey] = dialPt(g, end, ra);
+        s += `<path d="M${f1(sx)} ${f1(sy)}A${ra} ${ra} 0 ${t.deg > 180 ? 1 : 0} ${t.dir === "R" ? 1 : 0} ${f1(ex)} ${f1(ey)}" fill="none" stroke="#A8CAFF" stroke-width="2.5" opacity=".85" marker-end="url(#${mid})"/>`;
+      }
+    }
+    const [nx, ny] = dialPt(g, an, g.r - 52), [tx, ty] = dialPt(g, an, g.r - 45);
+    const [b1x, b1y] = dialPt(g, an - 8, g.r - 60), [b2x, b2y] = dialPt(g, an + 8, g.r - 60);
+    s += `<line x1="${g.cx}" y1="${g.cy}" x2="${f1(nx)}" y2="${f1(ny)}" stroke="#5b8def" stroke-width="3" stroke-linecap="round"/><path d="M${f1(tx)} ${f1(ty)}L${f1(b1x)} ${f1(b1y)}L${f1(b2x)} ${f1(b2y)}z" fill="#5b8def"/><circle cx="${g.cx}" cy="${g.cy}" r="5" fill="#5b8def"/>`;
+    if (svg.dataset.slip) {
+      const [qx, qy] = dialPt(g, dialAngle(svg, Number(svg.dataset.slip)), g.r - 6);
+      s += `<circle cx="${f1(qx)}" cy="${f1(qy)}" r="6" fill="none" stroke="#ffc062" stroke-width="1.6" stroke-dasharray="3 2"/>`;
+    }
+    if (pickOn) {
+      const ap = dialAngle(svg, pick);
+      const [px, py] = dialPt(g, ap, g.r - 6);
+      s += `<line x1="${g.cx}" y1="${g.cy}" x2="${f1(px)}" y2="${f1(py)}" stroke="#A8CAFF" stroke-width="2"${svg.dataset.ghost ? ` stroke-dasharray="4 3" opacity=".8"` : ""}/><circle cx="${f1(px)}" cy="${f1(py)}" r="6.5" fill="#A8CAFF" stroke="#0b0d10" stroke-width="1.5"/>`;
+    }
+    svg.innerHTML = s;
+    svg.setAttribute("aria-valuenow", String(pick || now));
+    dialReadout(svg, pickOn);
+  }
+  function dialReadout(svg, pickOn) {
+    const el = document.querySelector(`[data-dread="${svg.id}"]`);
+    if (!el) return;
+    const shown = svg.dataset.ghost || svg.dataset.pick;
+    if (!shown) { el.innerHTML = `<span class="k">Point at the rose to pick a heading; ← → step 5°, Shift 30°</span>`; return; }
+    const h = Number(shown), now = Number(svg.dataset.now), mode = svg.dataset.mode;
+    const how = svg.dataset.how || (svg.dataset.ghost ? "a click sends" : (svg.dataset.drag === "1" ? "release sends" : "Enter sends"));
+    el.innerHTML = `<b>${p3(h)}</b> · ${after(now, mode, h)} · <code>${mode} ${p3(h)}</code> · <span class="k">${esc(pickOn ? how : "off the arc: Enter in the box sends it")}</span>`;
+  }
+  /** The heading under the pointer, snapped to 5°; null within 18 px of the centre. On the arc, beyond ±90° clamps to its ends. */
+  function dialHeading(svg, ev) {
+    const g = DIAL[svg.dataset.kind], r = svg.getBoundingClientRect(), k = g.w / r.width;
+    const dx = (ev.clientX - r.left) * k - g.cx, dy = (ev.clientY - r.top) * k - g.cy;
+    if (Math.hypot(dx, dy) < 18) return null;
+    let a = Math.atan2(dx, -dy) * 180 / Math.PI;
+    if (svg.dataset.kind === "half") { a = Math.max(-90, Math.min(90, a)); return snap5(Number(svg.dataset.now) + a); }
+    return snap5(a);
+  }
+  function dialSend(svg) {
+    const h = Number(svg.dataset.pick), now = Number(svg.dataset.now), mode = svg.dataset.mode;
+    say(svg, `Sends <code>${mode} ${p3(h)}</code> (from ${p3(now)}, ${after(now, mode, h)}) and closes the flyout and the menu.`);
+  }
+  const chipCol = (now, dir) => `<div class="chipcol"><span class="cl">${dir === "L" ? "← Left by" : "Right by →"}</span>${[5, 10, 15, 20, 30, 45, 60, 90].map(n => {
+    const res = relHeading(now, dir === "L" ? -n : n);
+    return `<button type="button" class="chip" data-send="${dir === "L" ? "LT" : "RT"} ${n}" data-res="${p3(res)}" title="${dir === "L" ? "LT" : "RT"} ${n} → ${p3(res)}">${n}°</button>`;
+  }).join("")}</div>`;
+  /** The compass flyout: title, the decision-2 toggle, the heading box, then the rose between the left and right degree chips, and the readout. */
+  function compassFly(o) {
+    const label = { FH: "Fly heading", TL: "Turn left", TR: "Turn right" }[o.mode];
+    const svg = dialSvg({ kind: o.kind, now: 270, mode: o.mode, pick: o.pick, how: o.how, kf: o.kf, slip: o.slip });
+    const id = /id="([^"]+)"/.exec(svg)[1];
+    return menu(titleLine(`<b>${label}</b>`, "now 270") + seg(o.mode) + hdgBox(270, { verb: o.mode, focus: !o.kf }) + sep()
+      + `<div class="compass">${chipCol(270, "L")}${svg}${chipCol(270, "R")}</div><div class="dread" data-dread="${id}"></div>`, "w", label);
+  }
+
   /* ---------- 1. Fly heading layout ---------- */
   const near = now => range(-15, 15, 5).map(d => relHeading(now, d));
   const flyA = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270) + sep() + hgrid(270), "w", "Fly heading");
   const flyB = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270) + sep() + `<div class="panel" style="max-height:300px" data-centre="sel">${hdgListRows(270, HEADINGS)}</div>`, "w", "Fly heading");
   const flyC = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270) + sep() + `<div class="grp">Near the present heading</div>${hdgListRows(270, near(270))}` + sep() + `<div class="grp">Every heading</div>` + hgrid(270), "w", "Fly heading");
   const d1 = {
-    id: "d1-heading", title: "1 · Fly heading: a grid of headings, a list, or both", sends: "FH 005 … FH 360, or the typed heading",
+    id: "d1-heading", open: true, verdict: "Open: none of A to C yet; the owner asked for a compass control (lane D)", title: "1 · Fly heading: a grid of headings, a list, both, or a compass", sends: "FH 005 … FH 360, or the typed heading",
     intro: [
+      "Lanes A to C are as first drawn. Lane D, below them, is the compass control the owner asked to see: a rose showing the present heading, picked by pointing, dragging or the arrow keys, with decision 2's ruled toggle and degree chips, and a half-dial variant.",
       "UAL455 at FL240, heading <b>270</b>. All three lanes keep today's 72 headings 5° apart, a title line naming the verb and the present heading, and the Heading box at the top, focused (the recommended keyboard model). The box takes <code>250</code> (sends <code>FH 250</code>) or <code>L180</code> / <code>R090</code> (sends <code>TL 180</code> / <code>TR 090</code>, the command bar's own forms). Typing a heading outlines its cell or row.",
       "Clicking a heading tells you below the lane which way the pilot will turn from 270: <code>FH</code> takes the shorter way.",
     ],
@@ -563,17 +706,31 @@
         body: frame("Fly heading › <b>flyout</b>", flyC),
         how: "Seven rows for the present heading ±15° (the turns most often given), each naming its turn, then every heading in the grid of lane A.",
         worst: "The flyout is about 520 px tall, and each near heading is offered twice (row and cell), so the eye checks two places for 260." },
+      { kind: "d", asked: true, wide: true, name: "A compass rose, with the decision-2 toggle and the degree chips beside it",
+        hint: "Point at a rose, drag on it, or focus it and use the arrows; release, a click or Enter sends.",
+        body: `<div class="pair">`
+          + frame("Fly heading › <b>flyout</b> · full dial · dragging to 300", compassFly({ kind: "full", mode: "FH", pick: 300, how: "release sends" }),
+            note("<b>Try it:</b> point at the rose to see the heading under the pointer; press and drag to move the pick; release sends it.", true))
+          + frame("<b>Keyboard</b> · toggle on Turn left · Shift+→ once from 270", compassFly({ kind: "full", mode: "TL", pick: 300, how: "Enter sends", kf: true }),
+            note("<b>Keys:</b> Down (or Tab) from the box focuses the rose at the present heading. → and ↑ step the pick 5° clockwise, ← and ↓ 5° anticlockwise; with Shift, 30°. Enter sends the pick; Tab moves on to the chips; Escape closes. The inner arc draws the turn the toggle makes: here <code>TL 300</code>, the long way round, 330°."))
+          + frame("Worst case · <b>a drag released at the wrong angle</b>", compassFly({ kind: "full", mode: "FH", pick: 305, how: "sent on release", slip: 300 }),
+            note("<b>Slip:</b> the drag settled on 300 (amber ring) and the pointer moved 10 px as the button came up, so release sent <code>FH 305</code>. On this 116 px rim a 5° step is about 10 px; 40 px from the centre it is about 3.5 px."))
+          + frame("Variant · <b>half-dial arc</b>, heading-up, ±90° around 270", compassFly({ kind: "half", mode: "FH", pick: 225, how: "release sends" }),
+            note("<b>Half-dial:</b> the present heading at the top, the arc from 180 to 360; a 130 px radius gives about 11 px a step. 090 is not on it: type <code>090</code> in the box. The arc turns with the aircraft, so the same spot means another heading on the next aircraft."))
+          + `</div>`,
+        how: "A north-up compass rose (360 at the top) between the left and right degree chips of decision 2, under the same Heading box and Fly heading / Turn left / Turn right toggle. The blue needle is the present heading. Pointing shows the heading under the pointer, snapped to 5°, and the readout names it, the turn and the command before anything is sent; pressing and dragging moves the pick, and release sends it (a click is a press and release in one place). The inner arc draws the turn: the shorter way for Fly heading, the toggle's side for Turn left / right. The full dial is 256 px; with its chips the flyout is about 400 px wide. The half-dial variant (heading-up, ±90°) is 280 px wide on a larger radius.",
+        worst: "Release sends, so a pointer that slips as the button comes up sends its neighbour (<code>FH 305</code> for 300), and the readout is the only check. Precision falls toward the centre: about 10 px a 5° step at the full dial's rim, about 3.5 px 40 px in, so a pick made near the needle's root is a guess. The half-dial arc buys about 11 px a step but drops every heading beyond ±90° to the box." },
     ],
   };
 
   /* ---------- 1b. Present heading ---------- */
   const d1b = {
-    id: "d1b-fph", title: "1b · Present heading (FPH): a row in the flyout, or its own entry only", sends: "FPH",
+    id: "d1b-fph", verdict: "Settled by the owner: lane A", title: "1b · Present heading (FPH): a row in the flyout, or its own entry only", sends: "FPH",
     intro: [
       "<code>FPH</code> (fly present heading) is a leaf today: All Commands › Heading › Present heading. It is not on any strip. Drawn on lane 1A's grid.",
     ],
     lanes: [
-      { kind: "a", rec: true, name: "A row at the top of the Fly heading flyout",
+      { kind: "a", rec: true, chosen: true, name: "A row at the top of the Fly heading flyout",
         body: frame("Fly heading › <b>flyout</b>", menu(titleLine("<b>Fly heading</b>", "now 270") + fphRow(270) + hdgBox(270, { focus: false }) + sep() + hgrid(270), "w", "Fly heading")),
         how: "Present heading is the flyout's first row, its note naming the heading it holds; the All Commands leaf stays. From the strip, “stop the turn here” is one row away.",
         worst: "The row sits right above the box: a click aimed at the box's top edge sends <code>FPH</code> and stops the turn the instructor was about to change." },
@@ -592,13 +749,13 @@
   const degList = dir => menu(titleLine(`<b>Turn ${dir === "L" ? "left" : "right"} (degrees)</b>`, "now 270") + [5, 10, 15, 20, 30, 45, 60, 90].map(n => { const res = relHeading(270, dir === "L" ? -n : n); const cmd = `${dir === "L" ? "LT" : "RT"} ${n}`; return `<div class="mi${n === 30 ? " kfocus" : ""}" role="menuitem" ${send(cmd)} data-res="${p3(res)}">${gl("FH")}<span class="nm"><span class="n">${n}°</span><span class="note">· to ${p3(res)}</span></span><span></span><span class="cmd">${cmd}</span></div>`; }).join(""), "w", "Turn left (degrees)");
   const allHeading = hot => menu(plainRow("Present heading", { cmd: "FPH" }) + ["Fly heading", "Turn left", "Turn right", "Turn left (degrees)", "Turn right (degrees)"].map(l => plainRow(l, { sub: true, hot: l === hot })).join(""), "", "All Commands, Heading");
   const d2 = {
-    id: "d2-turns", title: "2 · Turns: fold into the heading flyout, or stay separate flyouts", sends: "TL nnn · TR nnn · LT n · RT n",
+    id: "d2-turns", verdict: "Settled by the owner: lane A", title: "2 · Turns: fold into the heading flyout, or stay separate flyouts", sends: "TL nnn · TR nnn · LT n · RT n",
     intro: [
       "Today All Commands › Heading has five pickers: Fly heading (<code>FH</code>), Turn left and Turn right (the same 72 headings, sending <code>TL</code> / <code>TR</code>), and Turn left / right (degrees) (5, 10, 15, 20, 30, 45, 60, 90, sending <code>LT</code> / <code>RT</code>, opened on 30). Only Fly heading is on a strip. UAL455, heading 270.",
     ],
     side: `<div class="stage stub-stage">${frame("All Commands › <b>Heading</b> today", allHeading("Turn left"))}</div>`,
     lanes: [
-      { kind: "a", rec: true, name: "One flyout: a direction toggle and degree chips",
+      { kind: "a", rec: true, chosen: true, name: "One flyout: a direction toggle and degree chips",
         hint: "Click the toggle, then a cell; or a degree chip.",
         body: frame("Fly heading › <b>flyout</b>, toggle on Fly heading", turnsA("FH", "Fly heading"))
           + frame("All Commands › Turn left › <b>the same flyout</b>, toggle on Turn left", turnsA("TL", "Turn left")),
@@ -627,14 +784,14 @@
     return menu(altTitle(ac, stateOf(ac)) + altBox(ac) + sep() + `<div class="panel apanel" id="${id}" data-full="${ac === JET ? "jet" : "pis"}">${altRowsHtml(l, from, to)}<div class="ar more" role="menuitem" data-expand="${id}" tabindex="0"><span class="ag">⋯</span><span class="av">Show all ${l.rows.length} altitudes</span><span class="an"></span><span class="cmd"></span></div></div>`, "w", "Maintain altitude");
   }
   const d3 = {
-    id: "d3-altitude", title: "3 · Maintain altitude: the rich list in a flyout, and where its box sits", sends: "CM <feet> · DM <feet>",
+    id: "d3-altitude", verdict: "Settled by the owner: lane A", title: "3 · Maintain altitude: the rich list in a flyout, and where its box sits", sends: "CM <feet> · DM <feet>",
     intro: [
       `UAL455 at FL240, assigned FL240: <b>${jetList().rows.length}</b> rows from FL390 (taken here as the A320's ceiling) down to 100 ft, the MVA ${JET.mva.floor.toLocaleString("en-US")} line far below. N738SP at 3,500, assigned 4,000, the MVA there: <b>${pisList().rows.length}</b> rows from 14,000, the list opens on the assigned row with the MVA line under it, every row below the line greyed (scroll down to the greyed ● 3,500 row). Every lane keeps today's rows (<code>MaintainList</code>: marks, MVA line, greyed rows that still send) and adds the command on every row, which today shows only on the ↑ and ↓ rows.`,
       "Today the list jumps as you type with nothing visible; the flyout gives that text a box. Typing <code>230</code> or <code>23000</code> outlines the nearest row and the box shows the command it will send (<code>DM 23000</code>); an altitude between steps (<code>235</code>) is sent as typed. Try it.",
     ],
     side: stub({ ac: JET, strip: JET_STRIP("CM") }),
     lanes: [
-      { kind: "a", rec: true, name: "The list in the flyout, the box on top",
+      { kind: "a", rec: true, chosen: true, name: "The list in the flyout, the box on top",
         body: frame("UAL455 · Maintain altitude › <b>flyout</b>", altA(JET)) + frame("N738SP · Maintain altitude › <b>flyout</b>", altA(PIS)),
         how: "Title line (verb, now, assigned), the Altitude box focused, then the whole list in a 300 px scrolling panel opened with the assigned row (else the ● row) centred, as today. Rows show mark, altitude, note and command. The box and the list scroll apart, so the box never leaves view.",
         worst: "Below the MVA the list still sends: N738SP's 3,700 row reads “below MVA” in grey and a click sends <code>CM 3700</code>; the grey is the only warning, as today." },
@@ -658,14 +815,14 @@
     [{ k: `${ac.cs}-kt`, label: "Knots", small: String(ac.knots.length) }, ...(ac.machs.length ? [{ k: `${ac.cs}-m`, label: "Mach", small: String(ac.machs.length) }] : [])],
     Object.fromEntries([[`${ac.cs}-kt`, knotChips(ac)], ...(ac.machs.length ? [[`${ac.cs}-m`, machChips(ac)]] : [])]), `${ac.cs}-kt`), "w", "Assign speed");
   const d4 = {
-    id: "d4-speed", title: "4 · Assign speed: knots, RNS / RFAS, Mach and the box", sends: "RNS · RFAS · SPD n · MACH .nn",
+    id: "d4-speed", verdict: "Settled by the owner: lane A", title: "4 · Assign speed: knots, RNS / RFAS, Mach and the box", sends: "RNS · RFAS · SPD n · MACH .nn",
     intro: [
       `Today's rows (<code>SpeedValues</code>): Resume normal speed (<code>RNS</code>), Final approach speed with the type's speed (<code>RFAS</code>), every tenth knot from the approach speed up to the type's knots ceiling, then, at or above FL240, the Mach rows. UAL455 at FL240 and 280 kt: ${JET.knots.length} knots values ${JET.knots[0]}–${JET.knots[JET.knots.length - 1]} and Mach .${JET.machs[0]}–.${JET.machs[JET.machs.length - 1]}. N738SP at 3,500 and 100 kt: ${PIS.knots[0]}–${PIS.knots[PIS.knots.length - 1]}, no Mach.`,
       "Every lane folds Speed… in as the Speed (knots) box (<code>SPD n</code>, digits only, as Speed… reads today); the All Commands Speed… entry opens this flyout with focus in the box. The present speed's knots value is marked; neither aircraft has a speed assigned.",
     ],
     side: stub({ ac: JET, strip: JET_STRIP("SPD") }),
     lanes: [
-      { kind: "a", rec: true, name: "Rows for RNS and RFAS, chips for knots and Mach",
+      { kind: "a", rec: true, chosen: true, name: "Rows for RNS and RFAS, chips for knots and Mach",
         body: frame("UAL455 · Assign speed › <b>flyout</b>", spdA(JET)) + frame("N738SP · Assign speed › <b>flyout</b> (All Commands; not on its strip)", spdA(PIS)),
         how: "Box on top, then the two named speeds as glyph rows with their commands, then the knots as a grid of chips, eight to a row, the present speed filled, and under its own heading the Mach chips, drawn only at or above FL240. Nothing scrolls: the jet's flyout is about 350 px tall.",
         worst: "A chip shows only its value: the command (<code>SPD 250</code>) appears only in the tooltip and the sent line, and eight to a row puts 220 directly above 300, one row's slip apart." },
@@ -688,14 +845,14 @@
     + boxRow({ g: "DB", label: "Temporary altitude", ph: "e.g. 120", kind: "tempalt", verb: "TEMPALT", now: 0, focus: true, w: 120 })
     + boxRow({ g: "DB", label: "Cruise", ph: "e.g. 240", kind: "cruise", verb: "CRUISE", now: 0, focus: false, w: 120 }), "w", "Maintain altitude");
   const d5 = {
-    id: "d5-tempalt-cruise", title: "5 · Temporary altitude and Cruise: their own small flyouts, or boxes in the altitude flyout", sends: "TEMPALT nnn · CRUISE nnn",
+    id: "d5-tempalt-cruise", verdict: "Settled by the owner: lane A", title: "5 · Temporary altitude and Cruise: their own small flyouts, or boxes in the altitude flyout", sends: "TEMPALT nnn · CRUISE nnn",
     intro: [
       "Both are All Commands › Data Block entries today, each a checked input popup (placeholder “Altitude”, refusing “Not a valid altitude”), sending the typed altitude in hundreds (<code>TEMPALT 120</code>, <code>CRUISE 240</code>; <code>FormatTemporaryAltitude</code>, <code>FormatCruiseAltitude</code>). Neither is on a strip. Neither instructs the pilot: they set the data block's temporary altitude and the flight plan's cruise altitude.",
       "Neither has a glyph; the boxes here draw Maintain's step in the scope grey <code>#DCE2E8</code> as a draft. Type an altitude and press Enter; try a bad one.",
     ],
     side: `<div class="stage stub-stage">${frame("All Commands › <b>Data Block</b>", dbMenu("Temporary altitude…"))}</div>`,
     lanes: [
-      { kind: "a", rec: true, name: "Each its own one-box flyout",
+      { kind: "a", rec: true, chosen: true, name: "Each its own one-box flyout",
         body: frame("Data Block › Temporary altitude… › <b>flyout</b>", oneBox("Temporary altitude", "tempalt", "TEMPALT", "Altitude", "e.g. 120"))
           + frame("Data Block › Cruise… › <b>flyout</b>", oneBox("Cruise", "cruise", "CRUISE", "Altitude", "e.g. 240")),
         how: "Each entry opens a flyout of one titled box row, focused, showing the command it will send; Enter sends and closes; a bad altitude shows its refusal under the box and keeps the text, as the input popup does today. The entries stay in Data Block.",
@@ -722,14 +879,14 @@
     return `<div data-live="${id}">${menu(`<div data-ltitle>${altTitle(ac, st0)}</div>` + sep() + `<div class="panel apanel" style="max-height:${h}px" data-centre="${centre}" data-lpanel>${altRowsHtml(maintain(ac, st0))}</div>`, "w", "Maintain altitude", `data-lmenu="${id}"`)}<div class="callout calm" style="margin-top:6px" data-lann><b>Aircraft now:</b> ${fmtAlt(Math.round(st0.alt / 100) * 100)}</div></div>`;
   }
   const d6 = {
-    id: "d6-live", title: "6 · While open: live marks every second, static, or live only while the pointer is outside", sends: "the row's command at the moment of the click",
+    id: "d6-live", verdict: "Settled by the owner: lane A", title: "6 · While open: live marks every second, static, or live only while the pointer is outside", sends: "the row's command at the moment of the click",
     intro: [
       "The rows themselves never move: altitudes are fixed values. What changes is each row's mark and command (● now, ↑ / ↓ and <code>CM</code> / <code>DM</code> flip as the aircraft passes a row), the title's “now”, and the MVA line when the aircraft enters another sector. The same holds for the heading grid's and the knots chips' ● mark. <code>FlyoutLiveTick</code> already drives the once-a-second refill of the ground flyouts; All Commands stays static whichever lane wins (the 2026-10-13 ruling: live refill is strip-only).",
       "The demo plays at 10×: UAL455 climbs from FL240 to its assigned FL280 at 2,000 fpm, and N738SP climbs from 3,500 to its assigned 4,000 at 500 fpm, crossing from a 3,000 ft MVA sector into a 4,000 ft one at 60 s. Point into a lane C flyout to freeze it.",
     ],
     side: `<div class="demo" role="group" aria-label="Demo clock"><button type="button" data-demo="toggle">Pause</button><button type="button" data-demo="reset">Restart</button><span class="clock" data-clock>t = 0 s</span><span>sim time, played at 10×</span></div>`,
     lanes: [
-      { kind: "a", rec: true, name: "Live in place, every second",
+      { kind: "a", rec: true, chosen: true, name: "Live in place, every second",
         body: frame("UAL455 · Maintain altitude › <b>flyout</b> · live", liveFlyout(JET, jetAt, "live")) + frame("N738SP · <b>flyout</b> · live", liveFlyout(PIS, pisAt, "live")),
         how: "Once a second the marks, the commands and the MVA line are recomputed and redrawn in place; the scroll position, the pointer row and the typed box keep their state. No order to freeze, since no row moves.",
         worst: "A row's command can change under the pointer: the click lands on FL250 a moment after the jet passes it, and sends <code>DM 25000</code> where the row read <code>CM 25000</code> when the eye settled on it." },
@@ -761,6 +918,52 @@
     if (el) p.scrollTop = el.offsetTop - p.clientHeight / 2 + el.offsetHeight / 2;
   }
   document.querySelectorAll("[data-centre]").forEach(p => { p.style.position = "relative"; centre(p); });
+
+  /* ---------- Compass roses: pointer and keys ---------- */
+  document.querySelectorAll(".dial").forEach(svg => {
+    drawDial(svg);
+    const clearStatic = () => { delete svg.dataset.how; delete svg.dataset.slip; };
+    svg.addEventListener("pointermove", e => {
+      const h = dialHeading(svg, e);
+      if (svg.dataset.drag === "1") { if (h) svg.dataset.pick = String(h); }
+      else if (h) { svg.dataset.ghost = String(h); clearStatic(); }
+      else delete svg.dataset.ghost;
+      drawDial(svg);
+    });
+    svg.addEventListener("pointerleave", () => { if (svg.dataset.drag === "1") return; delete svg.dataset.ghost; drawDial(svg); });
+    svg.addEventListener("pointerdown", e => {
+      const h = dialHeading(svg, e);
+      if (!h) return;
+      svg.setPointerCapture(e.pointerId);
+      svg.dataset.drag = "1";
+      svg.dataset.pick = String(h);
+      delete svg.dataset.ghost;
+      clearStatic();
+      drawDial(svg);
+    });
+    svg.addEventListener("pointerup", () => {
+      if (svg.dataset.drag !== "1") return;
+      svg.dataset.drag = "0";
+      svg.dataset.how = "sent on release";
+      dialSend(svg);
+      drawDial(svg);
+    });
+    svg.addEventListener("keydown", e => {
+      const step = e.shiftKey ? 30 : 5;
+      const d = { ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step }[e.key];
+      if (e.key === "Enter") { e.preventDefault(); if (!svg.dataset.pick) svg.dataset.pick = svg.dataset.now; dialSend(svg); return; }
+      if (d === undefined) return;
+      e.preventDefault();
+      const now = Number(svg.dataset.now);
+      let h = snap5(Number(svg.dataset.pick || now) + d);
+      if (svg.dataset.kind === "half" && Math.abs(relOf(h, now)) > 90) h = snap5(now + Math.sign(relOf(h, now)) * 90);
+      svg.dataset.pick = String(h);
+      delete svg.dataset.ghost;
+      clearStatic();
+      svg.dataset.how = "Enter sends";
+      drawDial(svg);
+    });
+  });
 
   /* ---------- Live demo ---------- */
   let t = 0, playing = true, last = performance.now();
@@ -825,6 +1028,9 @@
       const mode = segB.dataset.mode;
       fly.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b === segB)));
       fly.querySelectorAll(".hgrid").forEach(g => { g.dataset.mode = mode; g.className = `hgrid ${mode}`; });
+      fly.querySelectorAll(".dial").forEach(d => { d.dataset.mode = mode; if (d.dataset.pick) d.dataset.how = "Enter sends"; delete d.dataset.slip; drawDial(d); });
+      const ttl = fly.querySelector(".mi.title .et b");
+      if (ttl && fly.querySelector(".dial")) ttl.textContent = segB.firstChild.textContent;
       const box = fly.querySelector("[data-box=hdg]");
       if (box) { box.dataset.verb = mode; onBoxInput(box); }
       say(segB, `Every cell now sends <code>${mode} nnn</code>; sends nothing.`);
