@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- An aircraft cleared onto a taxiway from a spot or the ramp no longer makes a U-turn through a fillet behind it to get there (SFO spot 10).
 - Taxiing traffic gives way to an aircraft still leaving a runway, unless it stands in that aircraft's way out; a held one blocks only head-on traffic.
 - An aircraft counts as clear of a runway only once every part of it, not just its main gear, is past the edge or hold line.
 - `CVA 28R OAK` keeps its airport, `CVA FOLLOW` no longer reads as a runway, and a visual approach clearance reads back its runway.

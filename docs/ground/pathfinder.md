@@ -469,7 +469,7 @@ So `TAXI A B1` on a map where A/B1 don't meet routes `A Q B1` (0 insertions) ins
 
 ## Step-by-step walkthrough — explicit mode (`SegmentExpander.Run`)
 
-`SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:36`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
+`SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:65`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
 
 **1. Waypoint resolution.** `ResolveWaypoints` turns each token into a `WaypointToken`. `#NNNN` tokens become node-refs (`IsNodeRef = true`) — see **Node-reference paths** above for how they resolve; everything else is a named taxiway.
 
@@ -479,7 +479,13 @@ This is how `TAXI 28R G D` taxis along 28R then turns off onto G, D. A turn glyp
 
 The search starts with `head = PartialRoute.StartAt(ctx.StartNodeId)` — an immutable linked-list node (`PartialRoute.cs`) carrying head node id, arrival bearing, last edge, accumulated cost, depth, and a `VisitedNodeIds` set.
 
-**2. Parking→taxiway bridge** (`BridgeStartToTaxiway`, `:554`). If the start node has no edge on the first named taxiway (e.g. parked on a RAMP-only spot), a bounded BFS (≤ `MaxBridgeHops = 3`) collects every node within reach that carries that taxiway, then picks the best access node. Without it the first per-segment search finds no on-taxiway edge from the start and degrades to a failing detour.
+**2. Parking→taxiway bridge** (`BridgeStartToTaxiway`, `:1241`, called from `:325`). If the start node has no edge on the first named taxiway (e.g. parked on a RAMP-only spot), a bounded BFS (≤ `MaxBridgeHops = 3`) collects every node within reach that carries that taxiway, then picks the best access node. Without it the first per-segment search finds no on-taxiway edge from the start and degrades to a failing detour.
+
+**Admissible bridges first.** `PickBridgeCandidate` builds each candidate's path with `BuildBridgePath` and prefers a bridge whose every hop is an admissible turn for the type (`GeometricAdmissibility`), the first hop judged against the start heading; a parking or helipad start is exempt on the first hop. The strict pass searches at 3 hops, then at 6 (`MaxBridgeHopsDeep`) when every shallow bridge onto the taxiway is inadmissible (`[bridge] strict pass: deepened to 6 hops: every shallow bridge onto {taxiway} is inadmissible`). A candidate rejected for a first hop that turns back logs `[bridge] rejected {start} → {target}: first hop {from} → {to} turns back`, and one rejected for a later hop logs `[bridge] {strict|lenient} pass: rejected {start} → {target}: inadmissible turn onto {from} → {to}`.
+
+Only when no admissible bridge exists does the lenient pass run: it allows a first hop that turns back, while every later hop must still be admissible (`[bridge] lenient pass: start={id} → {id} onto {taxiway}: no strict bridge is admissible`). SFO spot 10 `TAXI A` routes without T9 (`SfoSpot10JoinATests`).
+
+**Known limits of the candidate search (YAAT-862, YAAT-863).** The search ignores heading and keeps one parent per node, so an admissible path to the same access node can be hidden by an inadmissible one found first. With no bias the pick is the nearest by cost, so a dead end can outrank a continuation. A node whose only edges on the taxiway are fillets counts as an access node. A turn-back bridge from a node start is not gated by `TurnAboutFit`.
 
 **Adaptive deepening (issue #396):** when every access node within the shallow reach is a dead end — no admissible onward edge on the taxiway from the bridged arrival bearing (`AdmissibleOnwardNeighbors` is empty, the same test that earns `BridgeNoOnwardPenaltyNm`) — the BFS is re-run at `MaxBridgeHopsDeep = 6` and a candidate *with* a continuation wins if one exists.
 
@@ -501,12 +507,12 @@ With no bias (single-taxiway with no known destination node) the score falls bac
 
    Candidates rank by an onward continuation on the taxiway first, then by path length. The leg runs only where the bridge has failed, so every route that resolved through the bridge resolves the same; when the leg does not help, the bridged failure is reported. The `[startleg]` lines on `ExplicitPathOptions.DiagnosticLog` trace it.
 
-**3. `ResolveSequence` with recursive look-ahead** (`:245`). Walks consecutive token pairs. For each non-final pair it calls `ExpandSegment`; the final token goes to `ExpandLastWaypoint`. After each segment it **resets `VisitedNodeIds` to just the new head node**, so a route may intentionally revisit a taxiway (`A E B B3 A B1`) — cycle prevention is per-segment, not global. `ExpandSegment` dispatches:
+**3. `ResolveSequence` with recursive look-ahead** (`:585`). Walks consecutive token pairs. For each non-final pair it calls `ExpandSegment`; the final token goes to `ExpandLastWaypoint`. After each segment it **resets `VisitedNodeIds` to just the new head node**, so a route may intentionally revisit a taxiway (`A E B B3 A B1`) — cycle prevention is per-segment, not global. `ExpandSegment` dispatches:
    - node-ref → named: `RouteFromNodeRefToTaxiway`
    - named / node-ref → node-ref: `RouteToNodeRef` → `RouteToSpecificNode` (direct edge, else `AutoRouter`)
    - named → named: `RouteNamedToNamed` (the common case)
 
-**4. `RouteNamedToNamed`** (`:833`). `FindJunctionCandidates` finds every node on `fromTaxiway` with an edge matching `toTaxiway`. For each candidate, `LocalSearchToJunction` runs a bounded best-first search (A*) **constrained to edges on `fromTaxiway`** (plus the direct junction edge), capped at `MaxLocalExpansions = 500`. Each candidate's score is `cost-to-reach + continuationCost`:
+**4. `RouteNamedToNamed`** (`:1877`). `FindJunctionCandidates` finds every node on `fromTaxiway` with an edge matching `toTaxiway`. For each candidate, `LocalSearchToJunction` runs a bounded best-first search (A*) **constrained to edges on `fromTaxiway`** (plus the direct junction edge), capped at `MaxLocalExpansions = 500`. Each candidate's score is `cost-to-reach + continuationCost`:
    - `continuationCost` = recursive one-level probe when there is a meaningful tail and look-ahead is on — the probe runs with `enableLookahead: false` to bound recursion.
    - else geometric anchor heuristic — penalizes junctions whose `toTaxiway` edges point away from the next-next taxiway's anchor.
    - **turn-direction hint** (issue #172 W7): when the entered taxiway carries a `>`/`<` hint (`SearchContext.WaypointTurnHints`), `TurnHintOntoTaxiwayPenalty` adds a finite penalty to candidates whose onward edge on it doesn't turn the hinted way from the arrival bearing.
@@ -524,7 +530,7 @@ The clearance gave no onward direction, so the aircraft stops where it meets the
 
 A preceding **runway** token is exempt — stopping at the runway/taxiway "junction" would end the route on the runway surface with no crossing bar (MIA `TAXI M1 RWY08R/26L L1`), so the final taxiway is walked clear of the runway as before.
 
-Everything else falls to `WalkToNaturalTerminus` (`:1351`): walks forward along the taxiway one admissible edge at a time until none remain. **Requirement ①:** an exact **single-name** edge ranks *strictly above* a membership-taxiway junction arc (`IsMembershipTaxiwayJunctionArc: true` — multi-name and not a runway-crossing arc).
+Everything else falls to `WalkToNaturalTerminus` (`:2649`): walks forward along the taxiway one admissible edge at a time until none remain. **Requirement ①:** an exact **single-name** edge ranks *strictly above* a membership-taxiway junction arc (`IsMembershipTaxiwayJunctionArc: true` — multi-name and not a runway-crossing arc).
 
 A multi-name junction arc is a turn *off* the taxiway, not a continuation; single-name wins regardless of cost, cost only breaks ties within a tier. Runway-crossing arcs (`IsRunwayJunction`, e.g. `H - RWY01L/19R`) *continue* the taxiway across a runway and are not excluded. (This greedy one-step walk is a known gap vs. multi-candidate discipline — see Caveats.)
 

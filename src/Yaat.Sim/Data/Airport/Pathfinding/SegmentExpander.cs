@@ -1226,17 +1226,18 @@ public static class SegmentExpander
     private const double BridgeNoOnwardPenaltyNm = 100.0;
 
     /// <summary>
-    /// Bridge the search head from a start node that is not yet on <paramref name="taxiwayName"/>
-    /// (typically a parking/RAMP spot, or a runway hold-short on a crossing taxiway) onto a node
-    /// carrying an edge on that taxiway, via a bounded BFS. Mirrors v1's <c>BfsToTaxiway</c> but is
-    /// direction-aware: among the taxiway-access nodes reachable within <see cref="MaxBridgeHops"/>
-    /// hops, it picks the one whose admissible on-taxiway continuation gets nearest
-    /// <paramref name="bias"/> (the next-junction or destination position). A direction-blind
-    /// nearest pick can enter the taxiway through a corner arc that commits the head to the wrong
-    /// branch, after which the correct branch fails the U-turn admissibility check and the route
-    /// detours the long way round. Returns empty edges and the unchanged head when the start is
-    /// already on the taxiway, or when no taxiway node is reachable — the caller then proceeds and
-    /// the per-segment detour remains the fallback.
+    /// Bridge the search head from a start node that is not yet on <paramref name="taxiwayName"/> (typically a parking/RAMP
+    /// spot, or a runway hold-short on a crossing taxiway) onto a node carrying an edge on that taxiway. A BFS collects the
+    /// taxiway-access nodes within <see cref="MaxBridgeHops"/> hops and keeps those whose bridge path is admissible: the
+    /// first hop within the category limit of the start heading (<see cref="FirstHopTurnsBack"/>; a parking or helipad
+    /// start is exempt, its heading pointing at the terminal or pad), and every later hop by the pathfinder's junction rule
+    /// (<see cref="IsAdmissibleBridgeHop"/>). Among them it picks the lowest bridge cost plus how near its admissible
+    /// on-taxiway continuation gets to <paramref name="bias"/> (the next-junction or destination position).
+    /// <see cref="DeepenBridgePick"/> re-runs the search at <see cref="MaxBridgeHopsDeep"/> hops when the shallow pick is a
+    /// dead end on the taxiway or every shallow candidate is rejected. When no admissible bridge exists within either reach,
+    /// <see cref="PickLenientBridge"/> retries with the first hop allowed to turn back through the start heading. Returns
+    /// empty edges and the unchanged head when the start is already on the taxiway, or when no bridge qualifies — the
+    /// caller then proceeds and the per-segment detour and the start leg remain the fallbacks.
     /// </summary>
     private static (List<DirectionalEdge> Edges, PartialRoute Head) BridgeStartToTaxiway(
         PartialRoute head,
@@ -1258,35 +1259,14 @@ public static class SegmentExpander
             }
         }
 
-        (List<DirectionalEdge>? Edges, PartialRoute? Head, double Score, bool HasOnward) best = PickBridgeCandidate(
+        BridgePick strict = DeepenBridgePick(
             head,
             taxiwayName,
             bias,
             ctx,
-            MaxBridgeHops
+            PickBridgeCandidate(head, taxiwayName, bias, ctx, new BridgeReach(MaxBridgeHops, false))
         );
-
-        // Every access node within the shallow reach commits the head to a U-turn onto the taxiway (the
-        // shallow pick still carries BridgeNoOnwardPenaltyNm). The real entry may simply lie a hop or two
-        // further along the gate's lead-out lane, so look deeper before settling for the dead end.
-        if (best.Edges is not null && !best.HasOnward)
-        {
-            (List<DirectionalEdge>? Edges, PartialRoute? Head, double Score, bool HasOnward) deeper = PickBridgeCandidate(
-                head,
-                taxiwayName,
-                bias,
-                ctx,
-                MaxBridgeHopsDeep
-            );
-            if (deeper.Edges is not null && deeper.HasOnward)
-            {
-                ctx.DiagnosticLog?.Invoke(
-                    $"[bridge] deepened to {MaxBridgeHopsDeep} hops: shallow pick {best.Head!.HeadNodeId} has no "
-                        + $"admissible continuation on {taxiwayName}"
-                );
-                best = deeper;
-            }
-        }
+        BridgePick best = strict.AllRejected ? PickLenientBridge(head, taxiwayName, bias, ctx) : strict;
 
         if (best.Edges is null || best.Head is null)
         {
@@ -1377,11 +1357,14 @@ public static class SegmentExpander
             }
         }
 
-        ctx.DiagnosticLog?.Invoke(
-            best is null
-                ? $"[startleg] no leg from #{start.Id} onto {taxiway}"
-                : $"[startleg] #{start.Id} → #{best.Leg.Head.HeadNodeId} onto {taxiway}: {best.LengthFt:F0} ft, {best.Leg.Edges.Count} edges, lane {best.Leg.ImpliedLane ?? "none"}"
-        );
+        if (best is null)
+        {
+            ctx.DiagnosticLog?.Invoke($"[startleg] no leg from #{start.Id} onto {taxiway}");
+            return null;
+        }
+
+        string legShape = $"{best.LengthFt:F0} ft, {best.Leg.Edges.Count} edges, lane {best.Leg.ImpliedLane ?? "none"}";
+        ctx.DiagnosticLog?.Invoke($"[startleg] #{start.Id} → #{best.Leg.Head.HeadNodeId} onto {taxiway}: {legShape}");
         return best?.Leg;
     }
 
@@ -1459,28 +1442,101 @@ public static class SegmentExpander
         return new StartLegCandidate(new StartLeg([.. route.Segments.Select(s => s.Edge)], head, impliedLane), lengthFt, hasOnward);
     }
 
-    /// <summary>True when <paramref name="candidate"/> beats <paramref name="incumbent"/>: an onward continuation first, then the shorter path.</summary>
+    /// <summary>
+    /// True when <paramref name="candidate"/> beats <paramref name="incumbent"/>: an onward continuation first, then the shorter path.
+    /// </summary>
     private static bool IsNearerStartLeg(StartLegCandidate candidate, StartLegCandidate incumbent) =>
         candidate.HasOnward != incumbent.HasOnward ? candidate.HasOnward : candidate.LengthFt < incumbent.LengthFt - 1e-6;
 
     /// <summary>
-    /// Collect the access nodes within <paramref name="maxHops"/> of the head and pick the best one.
-    /// <c>Edges</c> is null when no access node is reachable within the cap; <c>HasOnward</c> reports whether
-    /// the chosen candidate has an admissible onward edge on the taxiway from its bridged arrival bearing.
+    /// With no admissible strict bridge within either reach, re-run the search letting the first hop turn back through the
+    /// start heading (a start facing away from its route, held after a pushback or rolling out on a runway, turns about),
+    /// every later hop still admissible. Its pick, which may be empty, replaces the empty strict one.
     /// </summary>
-    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, double Score, bool HasOnward) PickBridgeCandidate(
-        PartialRoute head,
-        string taxiwayName,
-        LatLon? bias,
-        SearchContext ctx,
-        int maxHops
-    )
+    private static BridgePick PickLenientBridge(PartialRoute head, string taxiwayName, LatLon? bias, SearchContext ctx)
+    {
+        BridgePick lenient = DeepenBridgePick(
+            head,
+            taxiwayName,
+            bias,
+            ctx,
+            PickBridgeCandidate(head, taxiwayName, bias, ctx, new BridgeReach(MaxBridgeHops, true))
+        );
+        if (lenient.Head is { } lenientHead)
+        {
+            ctx.DiagnosticLog?.Invoke(
+                $"[bridge] lenient pass: start={head.HeadNodeId} → {lenientHead.HeadNodeId} onto {taxiwayName}: no strict bridge is admissible"
+            );
+        }
+
+        return lenient;
+    }
+
+    /// <summary>
+    /// A bridge pick: its edges and head (null when no candidate qualified), its score, and whether the taxiway continues
+    /// admissibly from its end. <c>AllRejected</c> says access nodes were reachable but every one's bridge path was
+    /// rejected: a hop turning through more than the category limit or onto an arc too tight to steer, or a chain that could
+    /// not be walked. <c>Reach</c> is the reach it was searched with.
+    /// </summary>
+    private readonly record struct BridgePick(
+        List<DirectionalEdge>? Edges,
+        PartialRoute? Head,
+        double Score,
+        bool HasOnward,
+        bool AllRejected,
+        BridgeReach Reach
+    );
+
+    /// <summary>
+    /// How far a bridge search looks, in BFS hops, and whether it may keep a candidate whose first hop turns through more than
+    /// the category limit off the start heading (<see cref="FirstHopTurnsBack"/>).
+    /// </summary>
+    private readonly record struct BridgeReach(int MaxHops, bool AllowsFirstHopTurnBack);
+
+    /// <summary>
+    /// Re-run the bridge search at <see cref="MaxBridgeHopsDeep"/> when the shallow pick is unusable, keeping the deeper
+    /// pick when it is better. Two cases look deeper. Every shallow access node is a dead end (the shallow pick still
+    /// carries <see cref="BridgeNoOnwardPenaltyNm"/>): the real entry may lie a hop or two further along a gate's lead-out
+    /// lane, and the deeper pick wins only with a continuation. Every shallow access node's bridge path is rejected (SFO
+    /// spot 10, whose only A entry within the shallow reach is the B5–T9 fillet behind the nose): any admissible deeper pick
+    /// wins, a dead end included, and with none the shallow pick stands.
+    /// </summary>
+    private static BridgePick DeepenBridgePick(PartialRoute head, string taxiwayName, LatLon? bias, SearchContext ctx, BridgePick shallow)
+    {
+        bool deadEnd = (shallow.Edges is not null) && !shallow.HasOnward;
+        if (!deadEnd && !shallow.AllRejected)
+        {
+            return shallow;
+        }
+
+        BridgePick deeper = PickBridgeCandidate(head, taxiwayName, bias, ctx, shallow.Reach with { MaxHops = MaxBridgeHopsDeep });
+        if ((deeper.Edges is null) || (deadEnd && !deeper.HasOnward))
+        {
+            return shallow;
+        }
+
+        string reason = deadEnd
+            ? $"shallow pick {shallow.Head!.HeadNodeId} has no admissible continuation on {taxiwayName}"
+            : $"every shallow bridge onto {taxiwayName} is inadmissible";
+        string pass = shallow.Reach.AllowsFirstHopTurnBack ? "lenient" : "strict";
+        ctx.DiagnosticLog?.Invoke($"[bridge] {pass} pass: deepened to {MaxBridgeHopsDeep} hops: {reason}");
+        return deeper;
+    }
+
+    /// <summary>
+    /// Collect the access nodes within <paramref name="reach"/> of the head and pick the best one whose bridge path is
+    /// admissible (<see cref="IsAdmissibleBridgeHop"/>; its first hop by <see cref="FirstHopTurnsBack"/> unless the reach
+    /// allows a turn back). <c>Edges</c> is null when no admissible access node is reachable
+    /// within the cap, and <c>AllRejected</c> says access nodes were reachable but none admissibly; <c>HasOnward</c> reports
+    /// whether the chosen candidate has an admissible onward edge on the taxiway from its bridged arrival bearing.
+    /// </summary>
+    private static BridgePick PickBridgeCandidate(PartialRoute head, string taxiwayName, LatLon? bias, SearchContext ctx, BridgeReach reach)
     {
         (List<int>? candidates, Dictionary<int, (int ParentId, IGroundEdge Edge)>? cameFrom) = CollectBridgeCandidates(
             head.HeadNodeId,
             taxiwayName,
             ctx,
-            maxHops
+            reach.MaxHops
         );
 
         List<DirectionalEdge>? bestEdges = null;
@@ -1488,12 +1544,14 @@ public static class SegmentExpander
         double bestScore = double.MaxValue;
         double bestCost = double.MaxValue;
         bool bestHasOnward = false;
+        int rejected = 0;
 
         foreach (int candidateId in candidates)
         {
-            (List<DirectionalEdge>? candEdges, PartialRoute? candHead) = BuildBridgePath(head, candidateId, cameFrom, ctx);
-            if (candEdges.Count == 0)
+            (List<DirectionalEdge>? candEdges, PartialRoute? candHead) = BuildBridgePath(head, candidateId, cameFrom, reach, ctx);
+            if (IsRejectedBridge(head, candEdges, reach, ctx))
             {
+                rejected++;
                 continue;
             }
 
@@ -1518,7 +1576,31 @@ public static class SegmentExpander
             }
         }
 
-        return (bestEdges, bestHead, bestScore, bestHasOnward);
+        return new BridgePick(bestEdges, bestHead, bestScore, bestHasOnward, (bestEdges is null) && (rejected > 0), reach);
+    }
+
+    /// <summary>
+    /// Whether a bridge candidate is unusable: <see cref="BuildBridgePath"/> found no admissible path to it, or its first hop
+    /// turns back through the start heading (<see cref="FirstHopTurnsBack"/>) on a reach that does not allow that, which
+    /// logs a <c>[bridge] rejected</c> line naming the hop.
+    /// </summary>
+    private static bool IsRejectedBridge(PartialRoute head, List<DirectionalEdge> candEdges, BridgeReach reach, SearchContext ctx)
+    {
+        if (candEdges.Count == 0)
+        {
+            return true;
+        }
+
+        if (reach.AllowsFirstHopTurnBack || !FirstHopTurnsBack(candEdges[0], ctx))
+        {
+            return false;
+        }
+
+        DirectionalEdge first = candEdges[0];
+        ctx.DiagnosticLog?.Invoke(
+            $"[bridge] rejected {head.HeadNodeId} → {candEdges[^1].ToNodeId}: first hop {first.FromNodeId} → {first.ToNodeId} turns back"
+        );
+        return true;
     }
 
     /// <summary>
@@ -1589,12 +1671,14 @@ public static class SegmentExpander
     /// <summary>
     /// Reconstruct the directed bridge edges and the resulting <see cref="PartialRoute"/> head for
     /// the path from <paramref name="head"/> to <paramref name="targetId"/> recorded in
-    /// <paramref name="cameFrom"/>. Returns empty edges when the chain cannot be walked.
+    /// <paramref name="cameFrom"/>. Returns empty edges when the chain cannot be walked or a hop on it is inadmissible
+    /// (<see cref="IsAdmissibleBridgeHop"/>); the rejection line names the pass by <paramref name="reach"/>.
     /// </summary>
     private static (List<DirectionalEdge> Edges, PartialRoute Head) BuildBridgePath(
         PartialRoute head,
         int targetId,
         Dictionary<int, (int ParentId, IGroundEdge Edge)> cameFrom,
+        BridgeReach reach,
         SearchContext ctx
     )
     {
@@ -1626,6 +1710,15 @@ public static class SegmentExpander
                 break;
             }
 
+            if (!IsAdmissibleBridgeHop(current, edge, toNode, ctx))
+            {
+                string pass = reach.AllowsFirstHopTurnBack ? "lenient" : "strict";
+                ctx.DiagnosticLog?.Invoke(
+                    $"[bridge] {pass} pass: rejected {head.HeadNodeId} → {targetId}: inadmissible turn onto {fromNode.Id} → {toNode.Id}"
+                );
+                return ([], head);
+            }
+
             double arrival = GeometricAdmissibility.GetArrivalBearing(edge, fromNode, toNode);
             double cost = RouteCostFunction.IncrementalCost(current, edge, toNode, ctx);
             string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
@@ -1646,6 +1739,25 @@ public static class SegmentExpander
 
         return (bridgeEdges, current);
     }
+
+    /// <summary>
+    /// Whether the bridge may take <paramref name="edge"/> from <paramref name="fromNode"/> to <paramref name="toNode"/>
+    /// after its first hop: the pathfinder's own junction rule (<see cref="GeometricAdmissibility.IsAdmissible"/>). The first
+    /// hop, which has no arrival bearing, is judged against the start heading by <see cref="FirstHopTurnsBack"/>.
+    /// </summary>
+    private static bool IsAdmissibleBridgeHop(PartialRoute current, IGroundEdge edge, GroundNode toNode, SearchContext ctx) =>
+        (current.LastEdge is null) || GeometricAdmissibility.IsAdmissible(current, edge, toNode, ctx.Category);
+
+    /// <summary>
+    /// Whether a bridge's <paramref name="first"/> edge turns off <see cref="SearchContext.StartHeadingTrue"/> through more
+    /// than the category limit, or is an arc too tight to steer (<see cref="GeometricAdmissibility.AdmitsTurn"/>). False with
+    /// no start heading, and from a parking or helipad node, whose heading points at the terminal or pad rather than along
+    /// the way out.
+    /// </summary>
+    private static bool FirstHopTurnsBack(DirectionalEdge first, SearchContext ctx) =>
+        (ctx.StartHeadingTrue is { } startHeading)
+        && (first.FromNode.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad))
+        && !GeometricAdmissibility.AdmitsTurn(startHeading, first.Edge, first.DepartureBearing, ctx.Category);
 
     /// <summary>
     /// Score a bridge candidate by the distance from <paramref name="bias"/> of the nearest node
@@ -4013,9 +4125,8 @@ public static class SegmentExpander
             SearchContext laneCtx = extCtx with { AvoidedTaxiways = others, AvoidMode = AvoidTaxiwayMode.HardExclude };
             (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(laneCtx, startOverride: head);
             bool reachesRunway = (route is not null) && ReachesRunway(route, extCtx.Layout);
-            extCtx.DiagnosticLog?.Invoke(
-                $"[extend] one-way lane {lane}: {(route is null ? "no route" : route.FormatTaxiwaySequence())}{(reachesRunway ? " (refused: reaches a runway)" : "")}"
-            );
+            string laneRoute = route is null ? "no route" : route.FormatTaxiwaySequence();
+            extCtx.DiagnosticLog?.Invoke($"[extend] one-way lane {lane}: {laneRoute}{(reachesRunway ? " (refused: reaches a runway)" : "")}");
             if ((route is null) || reachesRunway)
             {
                 continue;
@@ -4121,8 +4232,9 @@ public static class SegmentExpander
             }
 
             string? implied = ImpliedDestinationLeadIn([.. route.Segments.Select(s => s.Edge.Edge)], parkingName, spotName, uncleared.Contains);
+            double routeFt = route.TotalDistanceNm * GeoMath.FeetPerNm;
             extCtx.DiagnosticLog?.Invoke(
-                $"[extend] lead-in {leadIn}: route {route.FormatTaxiwaySequence()} ({route.TotalDistanceNm * GeoMath.FeetPerNm:F0} ft), implied={implied ?? "no"}"
+                $"[extend] lead-in {leadIn}: route {route.FormatTaxiwaySequence()} ({routeFt:F0} ft), implied={implied ?? "no"}"
             );
             if (string.Equals(implied, leadIn, StringComparison.OrdinalIgnoreCase) && ((best is null) || IsBetterRoute(route, best)))
             {
