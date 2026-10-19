@@ -156,6 +156,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`airline-fleets.md`](docs/airline-fleets.md) / [`airport-airlines.md`](docs/airport-airlines.md) — the generator's callsign realism data (`airline-fleets.json`, `airport-airlines.json.br`) and the Python tools that rebuild them
 - [`hold-for-release.md`](docs/hold-for-release.md) — `HeldReleaseService`, `DepartureSpawnClassifier`, the HFR/REL gates + rundown broadcast (departure-release control)
 - [`solo-training-evaluation.md`](docs/solo-training-evaluation.md) — `SoloTrainingEvaluator`, `AircraftCompletion`, scoring findings
+- [`runway-fouling.md`](docs/runway-fouling.md) — which "clear of the runway" definition each consumer uses (`RunwayOccupancy`, `OccupiedRunwayGoAround`, `RunwaySafetyAdvisor`, solo runway-user scoring), from P/CG, AIM 4-3-21 / 2-3-5 and 7110.65 3-9 / 3-10
 - [`track-sharing-and-consolidation.md`](docs/track-sharing-and-consolidation.md) — `ConsolidationEngine`/`ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`, `StarsConsolidation`
 - [`client-mainviewmodel.md`](docs/client-mainviewmodel.md) — any `MainViewModel` partial, `MainWindow.axaml.cs`, SignalR-driven client features
 - [`radar-rendering.md`](docs/radar-rendering.md) — `Views/Radar/`, `Views/Map/` (SkiaSharp two-thread snapshot split)

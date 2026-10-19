@@ -1,4 +1,4 @@
-# YAAT-402 ruling: which "clear of the runway" each consumer uses
+# Runway fouling: which "clear of the runway" each consumer uses
 
 ## Sources (read from the local copies under X:/dev/yaat/.claude/reference/faa/)
 
