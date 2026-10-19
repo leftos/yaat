@@ -11,7 +11,8 @@
 
 ## Do first
 
-- [ ] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [/] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-882 Three Sim test classes read the navigation database without installing one · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 
 ## Context-menu quick commands (#471)
 
@@ -129,7 +130,6 @@
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
 - [ ] YAAT-634 Apply a stored takeoff clearance only where the taxi ends at its runway
 - [ ] YAAT-635 End a taxi completed at an uncleared runway bar in HoldingShortPhase
-- [/] YAAT-658 Give TAXI, TAXIAUTO and CROSS the same EXP (expedite) modifier as EXIT · release vNext
 - [ ] YAAT-660 Ground conflict prediction ignores a ground expedite before the first navigator tick
 - [ ] YAAT-666 Let controller-AI rules and PilotResponder see a TAXI stored on the landing rollout
 - [ ] YAAT-670 Judge an HS given with the TAXI clearance against the firm braking rate
@@ -149,7 +149,7 @@
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
 - [ ] YAAT-699 Warn on a landing clearance behind an arrival stopped on the runway
 - [ ] YAAT-701 Make push-plan seeds deterministic under read errors and sidecar reloads
-- [ ] YAAT-718 Bare PUSH B from SFO G10 ends facing away from B5, forcing a turn about · release vNext
+- [/] YAAT-718 Bare PUSH B from SFO G10 ends facing away from B5, forcing a turn about · release vNext
 - [ ] YAAT-734 Check a rolling aircraft's reversal arcs against runway hold lines
 - [ ] YAAT-735 Limit the turn-about cleared-runway exemption to the cleared crossing's own bars
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
@@ -368,10 +368,10 @@
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-638 GuideCapture live-traffic scene captures no shadow aircraft
-- [ ] YAAT-854 Speed up the Sim tests' slow tail and drop the redundant tests (YAAT-639 test side) · release vNext
+- [/] YAAT-854 Speed up the Sim tests' slow tail and drop the redundant tests (YAAT-639 test side) · release vNext
 - [ ] YAAT-858 Start the heaviest Sim test classes first · release vNext
-- [ ] YAAT-857 Run yaat-server's test collections in parallel again · release vNext
-- [ ] YAAT-856 Memoise the per-tick aircraft-type string lookups · release vNext
+- [/] YAAT-857 Run yaat-server's test collections in parallel again · release vNext
+- [/] YAAT-856 Memoise the per-tick aircraft-type string lookups · release vNext
 - [ ] YAAT-855 Make the tug-planner checks allocation-free and pre-indexed · release vNext
 - [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
@@ -382,6 +382,8 @@
 - [ ] YAAT-798 Answer gate's routed-run CS0009 questions: test-all parallel builds, obj in routing outputs
 - [ ] YAAT-821 Find the Yaat.Client.Tests test that stalls a local full suite on a busy machine
 - [ ] YAAT-873 Split GeoJsonParser.BuildLayout under the 100-line limit
+- [ ] YAAT-875 Split TaxiRoute.ToSummary under the complexity limit
+- [ ] YAAT-879 Move the shared push-planner test helpers into PushTargetPlannerFixtures
 
 ## Singles
 
@@ -607,3 +609,11 @@
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
 - [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
 - [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext+1
+- [ ] YAAT-877 Remove the WingspanLateralCheck flags only a deleted capture test set
+
+## No project
+
+- [ ] YAAT-876 docs: Task Index row for adding a modifier to a ground command (TAXI EXP)
+- [ ] YAAT-878 Gate the prepare-release and land-bot-pr pushes through the provenance check
+- [ ] YAAT-880 docs: Task Index rows for training-hub calls and the recording lifecycle
+- [ ] YAAT-881 yaat-nextup: build at-risk tests from staged figures on a threshold change
