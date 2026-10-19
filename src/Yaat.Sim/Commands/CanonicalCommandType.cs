@@ -282,6 +282,7 @@ public enum CanonicalCommandType
     SeparatorDelete,
     SeparatorEdit,
     SeparatorMove,
+    RackSort,
     BlankCreate,
     BlankDelete,
 

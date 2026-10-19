@@ -121,6 +121,24 @@ public class HubJsonContractTests
         Assert.Equal(["30"], room.ActiveRunways["OAK"]);
     }
 
+    // The strips state broadcast in the server's camelCase wire shape (yaat-server's
+    // FlightStripsStateDtoJsonTests.JsonHubPayload_CarriesTheAutoSortedRacks writes this payload): the YAAT-only
+    // autoSortedRacks map must reach the client record.
+    [Fact]
+    public void FlightStripsStateShape_DeserializesTheAutoSortedRacks()
+    {
+        const string stateJson =
+            """{"printerItems":[],"bayItems":[{"bayId":"bay1","itemIds":[[],[],[]]}],"newItemInPrinter":false,"""
+            + """ "newItemInArrivalPrinter":false,"newItemInBayId":null,"itemMovedOrCreatedBySessionId":null,"""
+            + """ "autoSortedRacks":{"bay1":[0,2]}}""";
+
+        FlightStripsStateDto? state = JsonSerializer.Deserialize(stateJson, YaatStripsHubJsonContext.Default.FlightStripsStateDto);
+
+        Assert.NotNull(state);
+        Assert.Equal(3, Assert.Single(state.BayItems).ItemIds.Length);
+        Assert.Equal([0, 2], state.AutoSortedRacks["bay1"]);
+    }
+
     // The scenario-loaded broadcast, the rewind and recording-load result and the restart broadcast each carry the room's
     // active runways, in the server's wire shape.
     [Fact]

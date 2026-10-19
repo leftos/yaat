@@ -70,6 +70,7 @@ public partial class VStripsView : UserControl
     private readonly Canvas? _dragGhostCanvas;
     private readonly Border? _trashZone;
     private readonly ScrollViewer? _racksScrollViewer;
+    private readonly ItemsControl? _racksHost;
     private readonly ScrollViewer? _bayBarScroller;
 
     // Edge autoscroll: while a drag hovers within AutoscrollEdgeBand px of
@@ -140,6 +141,7 @@ public partial class VStripsView : UserControl
         _dragGhostCanvas = this.FindControl<Canvas>("DragGhostCanvas");
         _trashZone = this.FindControl<Border>("TrashZone");
         _racksScrollViewer = this.FindControl<ScrollViewer>("RacksScrollViewer");
+        _racksHost = this.FindControl<ItemsControl>("RacksHost");
         _bayBarScroller = this.FindControl<ScrollViewer>("BayBarScroller");
 
         // The bay strip scrolls horizontally under the wheel so bay buttons
@@ -232,8 +234,7 @@ public partial class VStripsView : UserControl
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () =>
             {
-                ItemsControl? host = this.FindControl<ItemsControl>("RacksHost");
-                FlightStripControl? strip = host
+                FlightStripControl? strip = _racksHost
                     ?.GetVisualDescendants()
                     .OfType<FlightStripControl>()
                     .FirstOrDefault(c => ReferenceEquals(c.Tag, target));
@@ -303,6 +304,60 @@ public partial class VStripsView : UserControl
         if (pinned is { } y)
         {
             scrollViewer.Offset = new Vector(scrollViewer.Offset.X, y);
+        }
+        PinAutoSortBanners();
+    }
+
+    // ── Auto-sort banners ───────────────────────────────────────
+
+    // A layout pass follows every zoom step, bay switch, rack realization and flag change, any of which moves a rack
+    // or shows a banner. Setting a render transform invalidates only the render, so this cannot loop.
+    private void OnRacksLayoutUpdated(object? sender, EventArgs e) => PinAutoSortBanners();
+
+    /// <summary>
+    /// Holds each shown auto-sort banner at the visible top or bottom of its rack: the racks scroll as one, so a banner
+    /// laid out at its rack's end is shifted by the part of the rack scrolled out of view, never past the other end.
+    /// Coordinates go through <see cref="Visual.TranslatePoint"/>, which carries the zoom transform and the scroll
+    /// offset, so the shift is in the rack's own units.
+    /// </summary>
+    private void PinAutoSortBanners()
+    {
+        if ((_racksScrollViewer is not { } scrollViewer) || (_racksHost is not { } racksHost))
+        {
+            return;
+        }
+        foreach (Control container in racksHost.GetRealizedContainers())
+        {
+            if (container.GetVisualDescendants().OfType<Grid>().FirstOrDefault(g => g.Name == "RackContent") is { } rackContent)
+            {
+                PinRackBanners(scrollViewer, rackContent);
+            }
+        }
+    }
+
+    private static void PinRackBanners(ScrollViewer scrollViewer, Grid rackContent)
+    {
+        Point? viewportTop = scrollViewer.TranslatePoint(new Point(0, 0), rackContent);
+        Point? viewportBottom = scrollViewer.TranslatePoint(new Point(0, scrollViewer.Viewport.Height), rackContent);
+        if ((viewportTop is not { } top) || (viewportBottom is not { } bottom))
+        {
+            return;
+        }
+        foreach (Control child in rackContent.Children)
+        {
+            if (!child.IsVisible || (child.RenderTransform is not TranslateTransform shift))
+            {
+                continue;
+            }
+            double travel = Math.Max(0, rackContent.Bounds.Height - child.Bounds.Height);
+            if (child.Name == "AutoSortTopBanner")
+            {
+                shift.Y = Math.Clamp(top.Y, 0, travel);
+            }
+            else if (child.Name == "AutoSortBottomBanner")
+            {
+                shift.Y = Math.Clamp(bottom.Y - rackContent.Bounds.Height, -travel, 0);
+            }
         }
     }
 
@@ -1408,7 +1463,7 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        FlightStripControl? stripView = this.FindControl<ItemsControl>("RacksHost")
+        FlightStripControl? stripView = _racksHost
             ?.GetVisualDescendants()
             .OfType<FlightStripControl>()
             .FirstOrDefault(c => ReferenceEquals(c.DataContext, strip));
@@ -1708,7 +1763,7 @@ public partial class VStripsView : UserControl
         // "Push all in rack to" — bulk move every strip in this strip's
         // rack. Hidden when the rack only holds this single strip (then
         // "Push to" already does the same job).
-        (StripBayViewModel? _, StripRackViewModel? sourceRack) = FindRackContaining(vm, strip);
+        (StripBayViewModel? sourceBay, StripRackViewModel? sourceRack) = FindRackContaining(vm, strip);
         if (sourceRack is not null && sourceRack.Strips.Count > 1)
         {
             var pushAllMenu = new MenuItem { Header = "Push all in rack to" };
@@ -1746,6 +1801,13 @@ public partial class VStripsView : UserControl
                 }
                 menu.Items.Add(scanMenu);
             }
+        }
+
+        // A full rack has no empty space to right-click, so the rack toggle rides on its strips' menus too. A printer
+        // strip has no rack.
+        if ((sourceBay is not null) && (sourceRack is not null))
+        {
+            menu.Items.Add(BuildAutoSortItem(sourceBay, sourceRack, vm));
         }
 
         menu.Items.Add(new Separator());
@@ -1846,7 +1908,25 @@ public partial class VStripsView : UserControl
             menu.Items.Add(pushAllMenu);
         }
 
+        menu.Items.Add(BuildAutoSortItem(selectedBay, rack, vm));
+
         return menu;
+    }
+
+    /// <summary>
+    /// The "Auto-sort this rack" check item: checked while the rack is auto-sorted, and a click asks the server for
+    /// the opposite state.
+    /// </summary>
+    private static MenuItem BuildAutoSortItem(StripBayViewModel bay, StripRackViewModel rack, VStripsViewModel vm)
+    {
+        var item = new MenuItem
+        {
+            Header = "Auto-sort this rack",
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = rack.IsAutoSorted,
+        };
+        item.Click += async (_, _) => await vm.SetRackAutoSortAsync(bay, rack, !rack.IsAutoSorted);
+        return item;
     }
 
     /// <summary>

@@ -338,4 +338,46 @@ public class StripCommandParserTests
     [InlineData("OAK/GROUND/1/0")]
     public void TryParseStripDest_RejectsMalformedSpecs(string spec) =>
         Assert.False(CommandParser.TryParseStripDest(spec, out _, out _, out _, out _, out _));
+
+    [Theory]
+    [InlineData("RACKSORT OAK/Ground1/2 ON", true)]
+    [InlineData("RACKSORT oak/ground1/2 off", false)]
+    public void RackSort_ParsesBayRackAndState(string input, bool on)
+    {
+        ParseResult<ParsedCommand> result = CommandParser.Parse(input);
+
+        RackSortCommand cmd = Assert.IsType<RackSortCommand>(result.Value);
+        Assert.Equal("OAK", cmd.FacilityId);
+        Assert.Equal("GROUND1", cmd.BayName);
+        Assert.Equal(1, cmd.Rack);
+        Assert.Equal(on, cmd.On);
+    }
+
+    [Fact]
+    public void RackSort_KeepsAMultiWordBayName()
+    {
+        RackSortCommand cmd = Assert.IsType<RackSortCommand>(CommandParser.Parse("RACKSORT OAK/Ground 1/3 ON").Value);
+
+        Assert.Equal("GROUND 1", cmd.BayName);
+        Assert.Equal(2, cmd.Rack);
+    }
+
+    [Theory]
+    [InlineData("RACKSORT")]
+    [InlineData("RACKSORT ON")]
+    [InlineData("RACKSORT OAK/Ground1/2")]
+    [InlineData("RACKSORT OAK/Ground1 ON")]
+    [InlineData("RACKSORT OAK/Ground1/2/3 ON")]
+    [InlineData("RACKSORT OAK/Ground1/2 MAYBE")]
+    public void RackSort_RejectsAMissingRackOrState(string input) => Assert.Null(CommandParser.Parse(input).Value);
+
+    [Fact]
+    public void RackSort_DescribesToTheCanonicalTextItParsesFrom()
+    {
+        string canonical = CommandDescriber.DescribeCommand(new RackSortCommand("OAK", "Ground 1", 0, true));
+
+        Assert.Equal("RACKSORT OAK/Ground 1/1 ON", canonical);
+        Assert.Equal("RACKSORT OAK/Ground 1/1 OFF", CommandDescriber.DescribeCommand(new RackSortCommand("OAK", "Ground 1", 0, false)));
+        Assert.IsType<RackSortCommand>(CommandParser.Parse(canonical).Value);
+    }
 }

@@ -616,6 +616,7 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Create half-strip | `HSC OAK/Ground 1/1 Hello\World` | `HALFSTRIPCREATE` | — |
 | Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | Also accepts `HSA HSTRIP_<id> ...` (UI default — disambiguates duplicate first-line text) |
 | Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | Also accepts `HSD HSTRIP_<id>` (UI default) |
+| Auto-sort a rack | `RACKSORT OAK/Ground 1/1 ON` / `RACKSORT OAK/Ground 1/1 OFF` | — | Keeps the rack sorted by callsign, tails above airlines (see Half-Strips below); `facility/bay/rack`, rack 1-based; ON sorts at once, OFF leaves strips where they are |
 | Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
 | Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
 | Note | `NOTE Watch wake` / `NOTE` (clear) | — | Instructor freetext datablock note (max 40 chars, preserves case/spaces). Shown as an extra amber line on the radar and ground datablocks; not sent to CRC. |
@@ -1850,6 +1851,8 @@ Changing your active position also updates the radar display:
 | `HSA Ground Hello\New` | Same, scoped to "Ground" bay (use to disambiguate when key matches in multiple bays) |
 | `HSD Hello` | Delete half-strip whose first line is "Hello" (auto-search across bays) |
 | `HSD Ground Hello` | Delete with explicit bay scope |
+| `RACKSORT OAK/Ground 1/2 ON` | Keep rack 2 of OAK's "Ground 1" bay sorted: tail registrations (N1234) A-Z at the top, then airline callsigns (AAL2210) A-Z, strips with no callsign at the bottom. A strip moved into the rack lands in its sorted slot. Separators stay put and split the rack into separately sorted runs |
+| `RACKSORT OAK/Ground 1/2 OFF` | Stop sorting the rack; strips stay where they are |
 | `SP1 OAK` | Set scratchpad 1 |
 | `SP1` | Clear scratchpad 1 |
 | `SP2 I8R` | Set scratchpad 2 |
@@ -1881,7 +1884,7 @@ Lines are separated by a literal backslash `\` and capped at 6 lines total.
 
 **Every bay reference names its facility.** The wire form is `facility/bay[/rack[/index]]` — `OAK/Ground 1/2` is rack 2 of OAK's "Ground 1" bay. The facility segment is **required**, because bay names are only unique within a facility (SFO, SJC and PAO all own a bay called "Ground") and a strips tab opened for another facility has to be able to address that facility's bays.
 
-Bay names are matched case- and whitespace-insensitively, so `OAK/Ground 1` can be typed `OAK/Ground1`. Rack and index are 1-based; without a rack the strip lands on the first one. STRIP, SCAN, HSC, HSM, HSO, HSS, SEP, SEPE, SEPD, SEPM, BLANK, and BLANKD all take this same form.
+Bay names are matched case- and whitespace-insensitively, so `OAK/Ground 1` can be typed `OAK/Ground1`. Rack and index are 1-based; without a rack the strip lands on the first one. STRIP, SCAN, HSC, HSM, HSO, HSS, SEP, SEPE, SEPD, SEPM, RACKSORT (rack required, no index), BLANK, and BLANKD all take this same form.
 
 `HSA` and `HSD` do **not** require a bay. They search every accessible strip bay for a half-strip whose first line matches the lookup key (case-insensitive). If exactly one half-strip matches, it is amended or deleted; if more than one matches across bays, the command fails and lists the bay/rack pairs so the user can disambiguate by adding the bay explicitly.
 
@@ -1906,6 +1909,12 @@ Because of this rule, a single-token global delete like `HSD Ground` is interpre
 `STRIPD STRIP_<id>` / `STRIPD ARRIVAL_<id>` deletes a specific strip; `STRIPO …` toggles offset; `AN STRIP_<id> 3 RV` annotates; `STRIP STRIP_<id> OAK/Local 1/2/3` moves. Terminal users keep the bare callsign-keyed shorthand. Bare `STRIP {facility}/{bay}` moves an existing strip only — if no `STRIP_{callsign}` strip exists it errors rather than creating a blank one.
 
 **`AN` and `STRIPO` require the strip to be in a bay.** Both are rejected while the strip is still in the printer ("…is still in the printer — move it to a bay first"): annotation boxes are edited in a bay and offset slides a strip within a rack, neither of which applies to an unfiled printer strip (matches vStrips, whose printer view only offers *Move to Bay*). Use `STRIP <facility>/<bay>` to file it first, or `STRIPD` to discard it — both still operate on printer strips.
+
+**`RACKSORT` keeps a rack sorted.** `RACKSORT facility/bay/rack ON` sorts the rack at once and then keeps it sorted top to bottom: tail registrations (anything that is not three letters then a digit) A-Z, then airline callsigns A-Z, then strips with no callsign (blank strips, empty half strips) at the bottom, ties broken by strip id.
+
+A full strip sorts by its callsign and a half strip by the text in its first line. A strip moved into the rack (`STRIP`, `SCAN`, `HSM`, a drag, a spawn) takes its sorted slot, and the move's response names the slot it landed in with `(auto-sorted)` when that is not the slot you asked for.
+
+Separators keep the slot they were put in and split the rack into runs that sort independently. The flag survives a scenario restart and is part of snapshots and recordings. `RACKSORT … OFF` stops sorting and leaves the strips where they are. The result reads `Rack OAK/Ground 1/2 auto-sort on` (or `off`). In the Strips tab it is the rack's **Auto-sort this rack** menu item.
 
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |

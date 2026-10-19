@@ -363,7 +363,8 @@ public class VStripsDragGestureTests
                 NewItemInPrinter: false,
                 NewItemInArrivalPrinter: false,
                 NewItemInBayId: null,
-                ItemMovedOrCreatedBySessionId: null
+                ItemMovedOrCreatedBySessionId: null,
+                AutoSortedRacks: []
             )
         );
         vm.Printer.IsOpen = true;

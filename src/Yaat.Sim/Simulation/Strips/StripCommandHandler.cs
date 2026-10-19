@@ -13,7 +13,7 @@ internal sealed record StripApplyResult(CommandResult Result, string? StripId);
 
 /// <summary>
 /// Single dispatch point for every canonical strip command — STRIP, AN, STRIPD, STRIPO,
-/// HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD. Handlers mutate the engine's
+/// HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, SEPE, SEPM, RACKSORT, BLANK, BLANKD. Handlers mutate the engine's
 /// <see cref="SimulationEngine.Strips"/> through <see cref="StripMutations"/>, which records what they touched in
 /// <see cref="FlightStripState.Changes"/>; the host drains that and broadcasts. The bay and position lookups are the
 /// <see cref="ArtccConfigResolver"/> extensions over <see cref="SimScenarioState.ArtccConfig"/>, so the verbs decide
@@ -51,6 +51,7 @@ internal static class StripCommandHandler
                 SeparatorDeleteCommand cmd => Verdict(HandleSeparatorDelete(engine, cmd)),
                 SeparatorEditCommand cmd => Verdict(HandleSeparatorEdit(engine, cmd)),
                 SeparatorMoveCommand cmd => Verdict(HandleSeparatorMove(engine, cmd)),
+                RackSortCommand cmd => Verdict(HandleRackSort(engine, cmd)),
                 BlankCreateCommand cmd => HandleBlankCreate(engine, cmd, bakedStripId),
                 BlankDeleteCommand cmd => Verdict(HandleBlankDelete(engine, cmd)),
                 _ => Verdict(new CommandResult(false, "Unknown strip command")),
@@ -167,14 +168,14 @@ internal static class StripCommandHandler
             }
         }
 
-        StripMutations.MoveStripToBayRack(state, stripId, bay.Id, rack, index);
+        int? insertedAt = StripMutations.MoveStripToBayRack(state, stripId, bay.Id, rack, index);
 
         // Task #19 — push-warning for external bays. If the destination bay is
         // owned by another facility (IsExternal=true) and no connected CRC
         // controller is staffed at a position in that facility, the pushed
         // strip has no receiver. Surface this via the command-result message
         // so the pushing client sees it in the status bar / terminal log.
-        string dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null);
+        string dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null, SlotTheSortMovedTo(state, stripId, insertedAt));
         AccessibleBay? accessibleEntry = accessible.FirstOrDefault(a => a.Bay.Id == bay.Id);
         if (accessibleEntry is { IsExternal: true } && !AnyControllerStaffsFacility(engine, accessibleEntry.Owner.Id))
         {
@@ -296,9 +297,9 @@ internal static class StripCommandHandler
             state.Items[copyId] = copyRecord;
         }
 
-        StripMutations.MoveStripToBayRack(state, copyId, bay.Id, rack, index);
+        int? insertedAt = StripMutations.MoveStripToBayRack(state, copyId, bay.Id, rack, index);
 
-        string dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null);
+        string dest = FormatResolvedSlot(bay.Name, rack, index, indexOrNull is null, SlotTheSortMovedTo(state, copyId, insertedAt));
         if (!AnyControllerStaffsFacility(engine, accessibleEntry.Owner.Id))
         {
             return new StripApplyResult(
@@ -325,13 +326,29 @@ internal static class StripCommandHandler
     /// <c>"Ground 1/2/3"</c>. When <paramref name="appended"/> is true the
     /// wire omitted the index so the server picked the bottom-up
     /// first-available slot; append <c>" (appended)"</c> so the terminal
-    /// makes that distinction clear.
+    /// makes that distinction clear. <paramref name="sortedTo"/> is the slot an
+    /// auto-sorted rack's sort moved the strip to (null when it did not move it);
+    /// that slot is named instead, marked <c>" (auto-sorted)"</c>.
     /// </summary>
-    private static string FormatResolvedSlot(string bayName, int rack, int resolvedIndex, bool appended)
+    private static string FormatResolvedSlot(string bayName, int rack, int resolvedIndex, bool appended, int? sortedTo)
     {
+        if (sortedTo is int landed)
+        {
+            return $"{bayName}/{rack + 1}/{landed + 1} (auto-sorted)";
+        }
+
         string wire = $"{bayName}/{rack + 1}/{resolvedIndex + 1}";
         return appended ? $"{wire} (appended)" : wire;
     }
+
+    /// <summary>
+    /// The slot an auto-sorted rack's sort moved a strip to after <see cref="StripMutations.MoveStripToBayRack"/>
+    /// inserted it at <paramref name="insertedAt"/>, or null when the sort left it there or its rack is not sorted. The
+    /// comparison is with the clamped insertion slot, not the slot asked for: an index past the top is clamped, and a
+    /// clamp is not a sort.
+    /// </summary>
+    private static int? SlotTheSortMovedTo(FlightStripState state, string stripId, int? insertedAt) =>
+        (StripMutations.AutoSortedIndexOf(state, stripId) is int landed) && (landed != insertedAt) ? landed : null;
 
     /// <summary>
     /// True when at least one attended CRC position sits in <paramref name="facilityId"/>. Used to decide whether a
@@ -778,9 +795,15 @@ internal static class StripCommandHandler
         }
 
         int resolvedDestIndex = destIndex ?? 0;
-        StripMutations.MoveStripToBayRack(engine.Strips, matches[0].Id, destBay.Id, destRack, resolvedDestIndex);
+        int? insertedAt = StripMutations.MoveStripToBayRack(engine.Strips, matches[0].Id, destBay.Id, destRack, resolvedDestIndex);
 
-        string dest = FormatResolvedSlot(destBay.Name, destRack, resolvedDestIndex, appended: destIndex is null);
+        string dest = FormatResolvedSlot(
+            destBay.Name,
+            destRack,
+            resolvedDestIndex,
+            appended: destIndex is null,
+            SlotTheSortMovedTo(engine.Strips, matches[0].Id, insertedAt)
+        );
         return new CommandResult(true, $"Half-strip '{lookupKey}' moved to {dest}");
     }
 
@@ -895,9 +918,9 @@ internal static class StripCommandHandler
         {
             strips.Items[stripId] = record;
         }
-        StripMutations.MoveStripToBayRack(strips, stripId, bay.Id, rack, index);
+        int? insertedAt = StripMutations.MoveStripToBayRack(strips, stripId, bay.Id, rack, index);
 
-        string loc = FormatResolvedSlot(bay.Name, rack, index, appended: false);
+        string loc = FormatResolvedSlot(bay.Name, rack, index, appended: false, SlotTheSortMovedTo(strips, stripId, insertedAt));
         return new StripApplyResult(
             new CommandResult(true, label is null ? $"Separator created at {loc}" : $"Separator '{label}' created at {loc}"),
             stripId
@@ -1220,9 +1243,38 @@ internal static class StripCommandHandler
 
         // The move keeps the record's BayId/Rack/Index naming the slot it landed in, so other lookups see no stale
         // facility or position.
-        StripMutations.MoveStripToBayRack(engine.Strips, cmd.StripId, bayCfg.Id, cmd.DestRack, cmd.DestIndex);
+        int? insertedAt = StripMutations.MoveStripToBayRack(engine.Strips, cmd.StripId, bayCfg.Id, cmd.DestRack, cmd.DestIndex);
 
-        return new CommandResult(true, $"Separator moved to {FormatResolvedSlot(bayCfg.Name, cmd.DestRack, cmd.DestIndex, appended: false)}");
+        string dest = FormatResolvedSlot(
+            bayCfg.Name,
+            cmd.DestRack,
+            cmd.DestIndex,
+            appended: false,
+            SlotTheSortMovedTo(engine.Strips, cmd.StripId, insertedAt)
+        );
+        return new CommandResult(true, $"Separator moved to {dest}");
+    }
+
+    /// <summary>
+    /// RACKSORT: turns a rack's auto-sort on (sorting it at once) or off (leaving every strip where it is). The flag is
+    /// bay layout, shared by every viewer of the bay.
+    /// </summary>
+    private static CommandResult HandleRackSort(SimulationEngine engine, RackSortCommand cmd)
+    {
+        (StripBayConfig? bay, string? ownerFacilityId, string? err) = ResolveBayByName(engine, cmd.FacilityId, cmd.BayName);
+        if (err is not null)
+        {
+            return new CommandResult(false, err);
+        }
+
+        StripBayConfig bayCfg = bay!;
+        if (cmd.Rack < 0 || cmd.Rack >= bayCfg.NumberOfRacks)
+        {
+            return new CommandResult(false, $"Rack {cmd.Rack + 1} out of range (bay {bayCfg.Name} has {bayCfg.NumberOfRacks} racks)");
+        }
+
+        StripMutations.SetRackAutoSort(engine.Strips, bayCfg.Id, cmd.Rack, cmd.On);
+        return new CommandResult(true, $"Rack {ownerFacilityId}/{bayCfg.Name}/{cmd.Rack + 1} auto-sort {(cmd.On ? "on" : "off")}");
     }
 
     // ── Blanks ────────────────────────────────────────────────────
@@ -1290,12 +1342,10 @@ internal static class StripCommandHandler
             // Written here rather than through a mutation, so it marks its own id; the move below marks the full state.
             strips.Changes.MarkChanged(stripId);
         }
-        StripMutations.MoveStripToBayRack(strips, stripId, bay.Id, rack, index);
+        int? insertedAt = StripMutations.MoveStripToBayRack(strips, stripId, bay.Id, rack, index);
 
-        return new StripApplyResult(
-            new CommandResult(true, $"Blank strip created at {FormatResolvedSlot(bay.Name, rack, index, appended: false)}"),
-            stripId
-        );
+        string loc = FormatResolvedSlot(bay.Name, rack, index, appended: false, SlotTheSortMovedTo(strips, stripId, insertedAt));
+        return new StripApplyResult(new CommandResult(true, $"Blank strip created at {loc}"), stripId);
     }
 
     private static CommandResult HandleBlankDelete(SimulationEngine engine, BlankDeleteCommand cmd)

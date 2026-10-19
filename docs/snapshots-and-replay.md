@@ -150,7 +150,7 @@ Some state is intentionally runtime-only:
 
   Flight strips, the vTDLS session and the tower lists are *not* on this list. The tower lists are captured in `ServerSnapshotDto.TowerLists` via `TowerListSnapshotMapper`, schema 23 — the per-list dwell entries, so a restore keeps the P-list's entry order; the list airports are re-derived from the ARTCC at load and never snapshotted.
 
-  `SimulationEngine.Strips` / `.Tdls` are engine-owned and captured in `ServerSnapshotDto.Strips` / `.Tdls` (schema 22; `FlightStripSnapshotMapper`, `TdlsSnapshotMapper` — items, bays, printer queues, the dumped lockout, active ops configs and the pending auto-WILCO instants; `TdlsState.Configs` is re-derived from the ARTCC at load and never snapshotted).
+  `SimulationEngine.Strips` / `.Tdls` are engine-owned and captured in `ServerSnapshotDto.Strips` / `.Tdls` (schema 22; `FlightStripSnapshotMapper`, `TdlsSnapshotMapper` — items, bays (each rack with its `AutoSort` flag), printer queues, the dumped lockout, active ops configs and the pending auto-WILCO instants; `TdlsState.Configs` is re-derived from the ARTCC at load and never snapshotted).
 
   Nor is CRC attendance: the live room derives it from `PositionRegistry` and records it (`RecordedAttendanceChange`), the engine's `Attendance` is snapshot-covered, and every other run kind reads the recorded set.
 

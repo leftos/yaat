@@ -28,6 +28,12 @@ public sealed class FlightStripState
     public int NextBlankId { get; set; } = 1;
 
     /// <summary>
+    /// The racks kept auto-sorted (<c>RACKSORT</c>), by bay id and 0-based rack. Bay layout rather than session state:
+    /// <see cref="ClearSession"/> keeps it with <see cref="Bays"/>, <see cref="Reset"/> clears it. Guarded by <see cref="Gate"/>.
+    /// </summary>
+    public HashSet<(string BayId, int Rack)> AutoSortedRacks { get; } = [];
+
+    /// <summary>
     /// What the mutations have touched since the last drain — the broadcast seam, not simulation state: transient,
     /// never snapshotted, cleared with the session.
     /// </summary>
@@ -86,7 +92,7 @@ public sealed class FlightStripState
     }
 
     /// <summary>
-    /// Clears all strips, bays, printer queues, and the blank id counter. Called when a
+    /// Clears all strips, bays, the auto-sorted racks, printer queues, and the blank id counter. Called when a
     /// scenario unloads so a fresh scenario starts with no residual state.
     /// </summary>
     public void Reset()
@@ -95,6 +101,7 @@ public sealed class FlightStripState
         {
             ClearSession();
             Bays.Clear();
+            AutoSortedRacks.Clear();
         }
     }
 }

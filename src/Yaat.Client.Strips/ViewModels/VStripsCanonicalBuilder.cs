@@ -243,6 +243,13 @@ public static class VStripsCanonicalBuilder
         $"SEPM {stripId} {BaySpec(facilityId, bayName)}/{OneBased(rack)}/{OneBased(index)}";
 
     /// <summary>
+    /// Turn a rack's auto-sort on or off. Emits <c>RACKSORT &lt;bay&gt;/&lt;rack&gt; ON|OFF</c>, the
+    /// 0-based <paramref name="rack"/> converted to 1-based on the wire.
+    /// </summary>
+    public static string BuildRackSort(string facilityId, string bayName, int rack, bool on) =>
+        $"RACKSORT {BaySpec(facilityId, bayName)}/{OneBased(rack)} {(on ? "ON" : "OFF")}";
+
+    /// <summary>
     /// Create a blank strip. Null bay = printer queue; otherwise bay[/rack[/index]].
     /// Omitting <paramref name="index"/> tells the server to append at the
     /// top of the rack (matches the empty-rack add-menu intent).

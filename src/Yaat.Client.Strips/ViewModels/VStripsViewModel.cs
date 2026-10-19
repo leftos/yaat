@@ -5,6 +5,8 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using StripRackSort = Yaat.Sim.Simulation.Strips.StripRackSort;
+using StripRackSortEntry = Yaat.Sim.Simulation.Strips.StripRackSortEntry;
 
 namespace Yaat.Client.ViewModels;
 
@@ -550,13 +552,18 @@ public partial class VStripsViewModel : ObservableObject
                 foreach (StripRackViewModel rack in bayVm.Racks)
                 {
                     rack.Strips.Clear();
+                    rack.IsAutoSorted = false;
                 }
                 continue;
             }
 
+            // The server sends one ItemIds row per rack (0 up to the highest it holds), so a sorted rack's number is the
+            // row index the rows are placed by below.
+            int[] sortedRows = state.AutoSortedRacks.TryGetValue(bayVm.BayId, out int[]? rows) ? rows : [];
             for (int rackIdx = 0; rackIdx < bayVm.Racks.Count; rackIdx++)
             {
                 StripRackViewModel rackVm = bayVm.Racks[rackIdx];
+                rackVm.IsAutoSorted = sortedRows.Contains(rackIdx);
                 if (rackIdx < contents.ItemIds.Length)
                 {
                     rackVm.ReplaceAll(contents.ItemIds[rackIdx], _items);
@@ -1069,6 +1076,13 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Turns auto-sort on or off for one rack of <paramref name="bay"/>. The rack's <see cref="StripRackViewModel.IsAutoSorted"/>
+    /// follows from the server's next full-state broadcast, not from this call.
+    /// </summary>
+    public async Task SetRackAutoSortAsync(StripBayViewModel bay, StripRackViewModel rack, bool on) =>
+        await _sendCommand("", VStripsCanonicalBuilder.BuildRackSort(bay.FacilityId, bay.Name, rack.RackIndex, on), _getUserInitials?.Invoke() ?? "");
+
+    /// <summary>
     /// Edits an annotation slot on a full strip — emitted by id so a scanned
     /// copy is annotated independently of its originator. <paramref name="box"/>
     /// is the canonical slot id — <c>"1"</c>..<c>"9"</c> for the 3×3 grid, or
@@ -1390,25 +1404,59 @@ public partial class VStripsViewModel : ObservableObject
             Printer.Queue.RemoveAt(sourceIdx);
             int insertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
             destRack.Strips.Insert(insertIdx, strip);
-            return;
         }
-
-        if (ReferenceEquals(sourceRack, destRack))
+        else if (ReferenceEquals(sourceRack, destRack))
         {
             // Same rack: Move (single CollectionChanged event, no presenter rebuild).
             // Removing-then-inserting in the same rack would clamp differently
             // than the server's remove-then-insert; clamp to within-current-bounds.
-            int moveTarget = Math.Clamp(index ?? destRack!.Strips.Count - 1, 0, destRack!.Strips.Count - 1);
+            int moveTarget = Math.Clamp(index ?? destRack.Strips.Count - 1, 0, destRack.Strips.Count - 1);
             if (sourceIdx != moveTarget)
             {
                 destRack.Strips.Move(sourceIdx, moveTarget);
             }
-            return;
+        }
+        else
+        {
+            sourceRack!.Strips.RemoveAt(sourceIdx);
+            int crossInsertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
+            destRack.Strips.Insert(crossInsertIdx, strip);
         }
 
-        sourceRack!.Strips.RemoveAt(sourceIdx);
-        int crossInsertIdx = Math.Clamp(index ?? destRack.Strips.Count, 0, destRack.Strips.Count);
-        destRack.Strips.Insert(crossInsertIdx, strip);
+        if (destRack.IsAutoSorted)
+        {
+            SortLikeTheServer(destRack);
+        }
+    }
+
+    /// <summary>
+    /// Reorders an auto-sorted rack the way the Sim will once the move lands (it inserts at the dropped slot, then
+    /// sorts the rack with <see cref="StripRackSort"/>), so the broadcast's <see cref="StripRackViewModel.ReplaceAll"/>
+    /// finds the rack already in order and nothing visibly reshuffles.
+    /// </summary>
+    private static void SortLikeTheServer(StripRackViewModel rack)
+    {
+        List<string> sorted = StripRackSort.Sort([.. rack.Strips.Select(s => StripRackSortEntry.Of(s.Id, (int)s.Type, s.FieldValues))]);
+        for (int targetIdx = 0; targetIdx < sorted.Count; targetIdx++)
+        {
+            int currentIdx = IndexOfId(rack.Strips, sorted[targetIdx]);
+            if (currentIdx != targetIdx)
+            {
+                rack.Strips.Move(currentIdx, targetIdx);
+            }
+        }
+    }
+
+    private static int IndexOfId(IList<StripItemViewModel> strips, string id)
+    {
+        for (int i = 0; i < strips.Count; i++)
+        {
+            if (strips[i].Id == id)
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /// <summary>

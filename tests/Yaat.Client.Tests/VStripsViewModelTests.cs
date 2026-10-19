@@ -61,13 +61,21 @@ public class VStripsViewModelTests
         new(id, AircraftId: null, IsDisconnected: false, StripItemType.BlankStrip, IsOffset: false, FieldValues: []);
 
     private static FlightStripsStateDto State(string[]? printer = null, params (string BayId, string[][] Racks)[] bays) =>
+        StateWithSortedRacks(printer ?? [], [], bays);
+
+    private static FlightStripsStateDto StateWithSortedRacks(
+        string[] printer,
+        Dictionary<string, int[]> autoSortedRacks,
+        params (string BayId, string[][] Racks)[] bays
+    ) =>
         new(
-            PrinterItems: printer ?? [],
+            PrinterItems: printer,
             BayItems: [.. bays.Select(b => new StripBayContentsDto(b.BayId, b.Racks))],
             NewItemInPrinter: false,
             NewItemInArrivalPrinter: false,
             NewItemInBayId: null,
-            ItemMovedOrCreatedBySessionId: null
+            ItemMovedOrCreatedBySessionId: null,
+            AutoSortedRacks: autoSortedRacks
         );
 
     // Workaround: ApplyBayConfig posts to the Avalonia dispatcher. Tests that
@@ -233,12 +241,50 @@ public class VStripsViewModelTests
             NewItemInPrinter: false,
             NewItemInArrivalPrinter: false,
             NewItemInBayId: "bay-gnd",
-            ItemMovedOrCreatedBySessionId: null
+            ItemMovedOrCreatedBySessionId: null,
+            AutoSortedRacks: []
         );
         vm.ReconcileFullState(state);
 
         Assert.True(vm.Bays.Single(b => b.BayId == "bay-gnd").HasNewItem);
         Assert.False(vm.Bays.Single(b => b.BayId == "bay-loc").HasNewItem);
+    }
+
+    [Fact]
+    public void ReconcileFullState_AutoSortedRacks_FlagsTheRacksAtThoseRows_AndClearsWhenDropped()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("S1", "UAL100"), FullStrip("S2", "UAL200")]);
+        (string, string[][])[] bays =
+        [
+            (
+                "bay-gnd",
+                [
+                    ["S1"],
+                    ["S2"],
+                ]
+            ),
+            (
+                "bay-loc",
+                [
+                    [],
+                    [],
+                ]
+            ),
+        ];
+
+        vm.ReconcileFullState(StateWithSortedRacks([], new Dictionary<string, int[]> { ["bay-gnd"] = [1] }, bays));
+
+        StripBayViewModel ground = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        StripBayViewModel local = vm.Bays.Single(b => b.BayId == "bay-loc");
+        Assert.False(ground.Racks[0].IsAutoSorted);
+        Assert.True(ground.Racks[1].IsAutoSorted);
+        Assert.All(local.Racks, r => Assert.False(r.IsAutoSorted));
+
+        vm.ReconcileFullState(StateWithSortedRacks([], [], bays));
+
+        Assert.All(ground.Racks, r => Assert.False(r.IsAutoSorted));
     }
 
     [Fact]
@@ -297,6 +343,75 @@ public class VStripsViewModelTests
         Assert.Equal("", entry.Callsign);
         // Wire is slash-compound 1-based: rack 1 → "2", index 2 → "3".
         Assert.Equal("STRIP S1 FAC1/LOCAL/2/3", entry.Command);
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_IntoAutoSortedRack_LandsWhereTheSortPutsIt()
+    {
+        // Storage order is bottom-up; top-down the sorted rack reads N123AB, AAL200, UAL100. DAL300 dropped at the
+        // bottom slot belongs between AAL200 and UAL100.
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("UAL", "UAL100"), FullStrip("AAL", "AAL200"), FullStrip("N", "N123AB"), FullStrip("DAL", "DAL300")]);
+        vm.ReconcileFullState(
+            StateWithSortedRacks(
+                [],
+                new Dictionary<string, int[]> { ["bay-gnd"] = [0] },
+                (
+                    "bay-gnd",
+                    [
+                        ["UAL", "AAL", "N"],
+                        [],
+                    ]
+                ),
+                (
+                    "bay-loc",
+                    [
+                        ["DAL"],
+                        [],
+                    ]
+                )
+            )
+        );
+        StripBayViewModel ground = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["DAL"], ground, rack: 0, index: 0);
+
+        string[] sortedBottomUp = ["UAL", "DAL", "AAL", "N"];
+        Assert.Equal(sortedBottomUp, ground.Racks[0].Strips.Select(s => s.Id));
+    }
+
+    [Fact]
+    public async Task MoveStripAsync_IntoUnsortedRack_LandsAtTheDroppedSlot()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("UAL", "UAL100"), FullStrip("AAL", "AAL200"), FullStrip("N", "N123AB"), FullStrip("DAL", "DAL300")]);
+        vm.ReconcileFullState(
+            State(
+                null,
+                (
+                    "bay-gnd",
+                    [
+                        ["UAL", "AAL", "N"],
+                        [],
+                    ]
+                ),
+                (
+                    "bay-loc",
+                    [
+                        ["DAL"],
+                        [],
+                    ]
+                )
+            )
+        );
+        StripBayViewModel ground = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.MoveStripAsync(vm.ItemsByIdForTests["DAL"], ground, rack: 0, index: 0);
+
+        string[] droppedAtBottom = ["DAL", "UAL", "AAL", "N"];
+        Assert.Equal(droppedAtBottom, ground.Racks[0].Strips.Select(s => s.Id));
     }
 
     [Fact]

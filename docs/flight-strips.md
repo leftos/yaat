@@ -1,16 +1,10 @@
 # YAAT Flight Strips
 
 Reference for how flight strips (full and half) work end-to-end in YAAT.
-Read this before changing anything under
-`src/Yaat.Sim/Simulation/Strips/` (`FlightStripState`, `StripMutations`,
-`StripCommandHandler`, `StripRequests`, `StripChangeTracker`, `StripItemType`),
-`src/Yaat.Sim/Simulation/SimulationEngine.Strips.cs` (the auto-print steps, the
-deferred dispatch, the spawn hook, the amendment reprint),
-`src/Yaat.Sim/Data/Vnas/ArtccConfigResolver.cs` (bay lookup),
-`src/Yaat.Server/Dtos/CrcDtos.Strips.cs`, `src/Yaat.Server/Simulation/StripBroadcaster.cs`,
-`src/Yaat.Server/Hubs/CrcClientState.Strips.cs`, or the
-strip-related entries in `src/Yaat.Sim/Commands/` (parser, registry,
-canonical type, describer).
+
+Read this before changing anything under `src/Yaat.Sim/Simulation/Strips/` (`FlightStripState`, `StripMutations`, `StripRackSort`, `StripCommandHandler`, `StripRequests`, `StripChangeTracker`, `StripItemType`), `src/Yaat.Sim/Simulation/SimulationEngine.Strips.cs` (the auto-print steps, the deferred dispatch, the spawn hook, the amendment reprint), `src/Yaat.Sim/Data/Vnas/ArtccConfigResolver.cs` (bay lookup), or the strip-related entries in `src/Yaat.Sim/Commands/`.
+
+The same goes for these files in the sibling yaat-server repo: `src/Yaat.Server/Dtos/CrcDtos.Strips.cs`, `src/Yaat.Server/Simulation/StripBroadcaster.cs`, `src/Yaat.Server/Hubs/CrcClientState.Strips.cs`.
 
 For the user-facing command surface, see [`COMMANDS.md`](../COMMANDS.md)
 (quick-reference + detailed Half-Strips subsection). For CRC's own
@@ -70,7 +64,7 @@ CommandParser.Parse                   TrainingHub.SendCommand
    │                                   ├── ArtccConfig.GetAccessibleStripBay (ArtccConfigResolver)
    │                                   ├── StripItemRecord(HSTRIP_{hex}, HalfStripLeft, …)
    │                                   ├── engine.Strips.Items[id] = record
-   │                                   ├── PrependStripToBay(state, bayId, rack, id)
+   │                                   ├── AppendStripToBay(state, bayId, rack, id)
    │                                   └── Strips.Changes marks the item (+ full state)
    │                                        │  drained by ActionRouter.Finish →
    │                                        │  RoomHost.OnStripsChanged → StripBroadcaster
@@ -218,7 +212,7 @@ Strip state is the engine's: `SimulationEngine.Strips`, typed as `FlightStripSta
 (`src/Yaat.Sim/Simulation/Strips/FlightStripState.cs`). A fresh engine starts with empty bays (a
 restart therefore starts from the scenario's own strips — `RecordingManager.RestartScenarioAsync`
 re-issues only the user's separators, as fresh `SEP` commands recorded at t=0 of the new tape under the
-restarting controller's connection, so they get new ids and every later rewind or export reproduces them), the snapshot's server section carries it
+restarting controller's connection, so they get new ids and every later rewind or export reproduces them, then the racks that were auto-sorted as fresh `RACKSORT … ON` commands, after the separators so a re-created separator is not snapped into a sorted rack; a rack in a bay the student position can no longer address is dropped with a warning, like a separator), the snapshot's server section carries it
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the engine's auto-print bodies, after which the room
 re-pushes the result to its clients (`RecordingManager.ResyncEngineStateAsync`). The mutation bodies are
@@ -267,8 +261,11 @@ public sealed class FlightStripState
     // Every strip in the run, keyed by strip id.
     public ConcurrentDictionary<string, StripItemRecord> Items { get; } = new();
 
-    // Bay -> rack -> columns of strip ids. columns[0] is the rack's single column today.
+    // Bay -> rack -> row lists of strip ids. Row 0 is the rack's single row today.
     public ConcurrentDictionary<string, Dictionary<string, List<string>[]>> Bays { get; } = new();
+
+    // Racks kept auto-sorted (RACKSORT), by bay id and 0-based rack. Bay layout: ClearSession keeps it, Reset clears it.
+    public HashSet<(string BayId, int Rack)> AutoSortedRacks { get; } = [];
 
     public List<string> DeparturePrinterQueue { get; } = new();
     public List<string> ArrivalPrinterQueue { get; } = new();
@@ -288,17 +285,25 @@ public record StripItemRecord(
 );
 ```
 
-`Items` is the flat lookup (`id → record`). `Bays` stores the rack
-layout: `Bays[bayId][rackKey]` is an array of row lists, where each row
-is a `List<string>` of strip ids. Today we only ever populate
-`Bays[bayId][rackKey] = [new List<string>()]` — one row per rack — and
-prepend new strips to row 0. If/when multi-row racks are supported by
-CRC, this layout already permits it.
+`Items` is the flat lookup (`id → record`). `Bays` stores the rack layout: `Bays[bayId][rackKey]` is an array of row lists, where each row is a `List<string>` of strip ids. Today we only ever populate `Bays[bayId][rackKey] = [new List<string>()]` — one row per rack — and append new strips to row 0, so index 0 is the visual bottom and the newest strip stacks on top. If/when multi-row racks are supported by CRC, this layout already permits it.
 
-A record's `Rack` / `Index` always match where its id sits in that row: every row mutation — a move
-(`MoveStripToBayRack`), an append (`AppendStripToBay`) and a delete (`DeleteStrip`) — rewrites the records of
-the rows it touches. `BLANKD`'s no-rack pick and `SEPD`'s numeric position read them, so a stale index would
-pick the wrong strip.
+A record's `Rack` / `Index` always match where its id sits in that row: every row mutation — a move (`MoveStripToBayRack`), an append (`AppendStripToBay`) and a delete (`DeleteStrip`) — rewrites the records of the rows it touches. `BLANKD`'s no-rack pick and `SEPD`'s numeric position read them, so a stale index would pick the wrong strip.
+
+### Auto-sorted racks (`RACKSORT`)
+
+`RACKSORT {facility}/{bay}/{rack} ON|OFF` (rack 1-based) flips a rack's membership in `FlightStripState.AutoSortedRacks` (`StripMutations.SetRackAutoSort`; a rack the bay does not hold yet is created, and the full state is marked). ON sorts the rack at once; OFF leaves every strip where it is. The result line reads `Rack {fac}/{bay name}/{rack} auto-sort on|off`. The command mints no id, so it bakes nothing.
+
+The order is the pure `StripRackSort` (Yaat.Sim, shared with the client's optimistic drop). Read top to bottom, a full strip sorts by its callsign (`FieldValues[0]`) and a half strip by its box 1 text: tails first (anything that is not airline-shaped, which is exactly three letters then a digit), then airline callsigns, each A to Z, ordinal and case-insensitive, ties broken on the strip id.
+
+Blank strips and strips whose key is empty sit at the bottom of their run in the order they already had. Separators are fixed: they split the rack into runs that sort independently, and a separator keeps the slot it was dropped at.
+
+`StripMutations.ResortRackIfAuto` is the one re-sort, called from every site that can put a rack out of order: the end of `AppendStripToBay` and `MoveStripToBayRack` (destination rack only), the raw row add in `RequestDepartureStripForAircraftIntoBay` (a spawn lands sorted), `UpdateStripFields` (an `HSA` that changes box 1 re-keys the strip) and `SyncVacatedRows` (a separator that leaves merges the runs on either side of it).
+
+A rack that is not flagged, or already in order, is left alone. A new code path that writes a rack row directly must end in `ResortRackIfAuto`.
+
+`MoveStripToBayRack` returns the slot it inserted at (the requested index clamped to the row). When the destination is auto-sorted and the sort put the strip elsewhere, the move's result line (`STRIP`, `SCAN`, `HSM`, `SEP`, `SEPM`, blank create) names the slot it landed in and appends ` (auto-sorted)` in place of the requested slot.
+
+`ClearSession` keeps the flag with `Bays`; `Reset` clears it. The snapshot carries it as `StripBayRackSnapshotDto.AutoSort` (additive, default false, no schema bump).
 
 ### `StripBayConfig`
 
@@ -435,6 +440,7 @@ Defined in `src/Yaat.Sim/Commands/`:
 | `HalfStripSlide` | `HSS` | — | `HalfStripSlideCommand(Tokens)` |
 | `SeparatorCreate` | `SEP` | — | `SeparatorCreateCommand(Type, BayName, Rack, Index, Label)` |
 | `SeparatorDelete` | `SEPD` | — | `SeparatorDeleteCommand(BayName, LabelOrPosition)` |
+| `RackSort` | `RACKSORT` | — | `RackSortCommand(FacilityId, BayName, Rack, On)` |
 | `BlankCreate` | `BLANK` | — | `BlankCreateCommand(BayName, Rack, Index)` |
 | `BlankDelete` | `BLANKD` | — | `BlankDeleteCommand(BayName)` |
 
@@ -684,8 +690,8 @@ inside `RecordingSchemaUpgrader`.
    owning facility** (from the resolver), not the scenario's
    `StudentPosition.FacilityId`. This is the tower-vs-TRACON fix —
    the strip ends up scoped to the ATCT where the bay lives.
-6. Insert into `Items`, prepend into `Bays[bayId]` via
-   `PrependStripToBay`, and mark the change tracker (item, then full state).
+6. Insert into `Items`, append into `Bays[bayId]` via
+   `AppendStripToBay`, and mark the change tracker (item, then full state).
 
 `HandleHalfStripAmend`:
 
@@ -779,6 +785,10 @@ slash-compound 1-based dest-spec as the rest of the vStrips verbs:
 - `SEPD bay[/rack] label-or-position` deletes a separator by its label
   (case-insensitive) or by a 1-based numeric position.
 
+#### `RACKSORT` (auto-sort a rack)
+
+`RACKSORT facility/bay/rack ON|OFF` — rack is 1-based and required, no index; the state is the last token, so a multi-word bay name stays whole. The rack must exist in the bay's configured count (`Rack N out of range`). See [Auto-sorted racks](#auto-sorted-racks-racksort) for the order and the re-sort sites.
+
 #### `BLANK` / `BLANKD` (blanks)
 
 Create and delete blank strips:
@@ -806,6 +816,10 @@ topic. Two payload kinds:
   are deleted, because the topic is additive on the CRC side and
   deletes have to be expressed as "here is the complete set". Also
   served in response to `RequestFullFlightStripsState`.
+
+`StripBroadcaster.BuildState` builds that DTO for both the CRC topic and the training hub, and sends one `ItemIds` row per rack from 0 up to the highest rack the bay holds, an empty row for a rack the bay does not: both CRC and the YAAT client place rows by position, so a row's index is its rack number.
+
+The DTO also carries `AutoSortedRacks` (bay id to the rack numbers that are auto-sorted, which are row positions in that bay's `ItemIds`). It is marked `[IgnoreMember]`: the training hub's JSON carries it, the MessagePack layout real CRC reads stays at vNAS's six keys.
 
 Both broadcasts are routed through `_crcBroadcast.BroadcastToTopicSubscribersAsync`
 with topic `"FlightStrips"` and no sub-id.
@@ -922,6 +936,14 @@ newline-flattened) and exposes `IsFindMatch`/`IsCurrentFindMatch` that
 Search is scoped to the shown bay and refreshes on bay switch. Ctrl+F opens, F3/Shift+F3
 (or Enter/Shift+Enter in the box) cycle matches, Esc closes. The same `FindController` /
 `FindBarView` are reused by vTDLS — see [`vtdls.md`](vtdls.md).
+
+**Auto-sorted racks in the view.** `ReconcileFullState` sets `StripRackViewModel.IsAutoSorted` from the broadcast's `AutoSortedRacks` (rack numbers equal `ItemIds` row positions, so no gap mapping).
+
+The strip context menu ("Auto-sort this rack", a checkbox, after "Scan to" and before the Delete separator; absent for a printer strip) and the empty-rack menu (last item) send `VStripsCanonicalBuilder.BuildRackSort` with the opposite state; a full rack has no empty space to right-click, which is why the strip menu carries it too.
+
+A sorted rack shows an "auto-sort on" banner at the visible top and bottom of the rack. The banners sit in the rack template's `RackContent` grid, not in `RackStripsHost` (the drop maths reads that host's children), and `PinAutoSortBanners` holds them at the viewport edges with a `TranslateTransform` driven from the racks scroll handler and layout updates, which carries zoom.
+
+`OptimisticallyMove` places a drop into a sorted rack with the same `StripRackSort` the Sim uses, so the broadcast's `ReplaceAll` does not reshuffle.
 
 **Sticky-bottom scroll.** `StickyScroll.PinnedBottomOffset` (pure, unit-tested) re-pins
 the racks `ScrollViewer` to the bottom when a fresh strip grows the content while the

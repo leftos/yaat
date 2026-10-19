@@ -1577,6 +1577,21 @@ public static class CommandRegistry
                     ),
                 ]
             ),
+            Cmd(
+                RackSort,
+                "Auto-Sort Rack",
+                "Strip Operations",
+                CommandDimension.None,
+                false,
+                ["RACKSORT"],
+                [
+                    O(
+                        null,
+                        [R("dest", "facility/bay/rack"), R("state", "ON or OFF")],
+                        "Keep the rack sorted by callsign, tails above airlines, or stop sorting it"
+                    ),
+                ]
+            ),
             // ── vTDLS ─────────────────────────────────────────────
             Cmd(
                 TdlsQueue,

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
@@ -32,4 +34,9 @@ public sealed class StripBayRackSnapshotDto
     public required string BayId { get; init; }
     public required string RackKey { get; init; }
     public required List<List<string>> Columns { get; init; }
+
+    // Whether the rack is kept auto-sorted (RACKSORT). Optional: an older snapshot reads false, and false is left out of
+    // the JSON so a snapshot with no sorted rack stays byte-identical.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AutoSort { get; init; }
 }

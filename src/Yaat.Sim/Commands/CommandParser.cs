@@ -1038,6 +1038,7 @@ public static class CommandParser
             SeparatorDelete when arg is not null => ParseSeparatorDelete(arg),
             SeparatorEdit when arg is not null => ParseSeparatorEdit(arg),
             SeparatorMove when arg is not null => ParseSeparatorMove(arg),
+            RackSort when arg is not null => ParseRackSort(arg),
             BlankCreate => PR.Ok(new BlankCreateCommand(SplitWhitespace(arg ?? ""))),
             BlankDelete when arg is not null => ParseBlankDelete(arg),
             // vTDLS — the first four are callsign-prefixed verbs.
@@ -1127,6 +1128,7 @@ public static class CommandParser
             or SeparatorDelete
             or SeparatorEdit
             or SeparatorMove
+            or RackSort
             or BlankDelete
             or TdlsSend
             or Say
@@ -3854,6 +3856,47 @@ public static class CommandParser
             return PR.Fail("SEPM destination requires facility/bay/rack/index (rack and index 1-based)");
         }
         return PR.Ok(new SeparatorMoveCommand(stripId, facilityId, bayName, rackVal, indexVal));
+    }
+
+    /// <summary>
+    /// RACKSORT: turn a rack's auto-sort on or off.
+    /// Wire: <c>RACKSORT &lt;facility&gt;/&lt;bay&gt;/&lt;rack&gt; ON|OFF</c>. The state is the last token, so a
+    /// multi-word bay name ("Ground 1") stays whole in the destination spec before it.
+    /// </summary>
+    private static PR ParseRackSort(string arg)
+    {
+        List<string> tokens = SplitWhitespace(arg);
+        if (tokens.Count < 2)
+        {
+            return PR.Fail("RACKSORT requires facility/bay/rack and ON or OFF");
+        }
+
+        bool on;
+        string state = tokens[^1].ToUpperInvariant();
+        if (state == "ON")
+        {
+            on = true;
+        }
+        else if (state == "OFF")
+        {
+            on = false;
+        }
+        else
+        {
+            return PR.Fail($"invalid RACKSORT state '{tokens[^1]}' (expected ON or OFF)");
+        }
+
+        string destSpec = string.Join(' ', tokens.Take(tokens.Count - 1));
+        if (!TryParseStripDest(destSpec, out string? facilityId, out string? bayName, out int? rack, out int? index, out string? error))
+        {
+            return PR.Fail(error!);
+        }
+        if (rack is not int rackVal || index is not null)
+        {
+            return PR.Fail("RACKSORT destination requires facility/bay/rack (rack 1-based, no index)");
+        }
+
+        return PR.Ok(new RackSortCommand(facilityId, bayName, rackVal, on));
     }
 
     private static PR ParseSeparatorEdit(string arg)

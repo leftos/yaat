@@ -429,7 +429,8 @@ public class VStripsViewInteractionTests
                 NewItemInPrinter: false,
                 NewItemInArrivalPrinter: false,
                 NewItemInBayId: null,
-                ItemMovedOrCreatedBySessionId: null
+                ItemMovedOrCreatedBySessionId: null,
+                AutoSortedRacks: []
             )
         );
         (Window _, VStripsView? view) = BootView(vm);
@@ -549,6 +550,140 @@ public class VStripsViewInteractionTests
         Assert.Contains("Add handwritten separator", headers);
         Assert.Contains("Add blank strip", headers);
         Assert.DoesNotContain("Add separator", headers);
+    }
+
+    // ── Auto-sorted racks ────────────────────────────────────────
+
+    [AvaloniaFact]
+    public async Task EmptyRackContextMenu_AutoSortItem_IsLast_FollowsTheFlag_AndSendsTheToggle()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            [
+                ["S1"],
+                [],
+            ],
+            autoSortedRows: [0]
+        );
+        (Window _, VStripsView _) = BootView(vm);
+        StripBayViewModel ground = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        MenuFlyout sortedMenu = VStripsView.BuildEmptyRackMenu(ground.Racks[0], vm)!;
+        MenuFlyout unsortedMenu = VStripsView.BuildEmptyRackMenu(ground.Racks[1], vm)!;
+
+        Assert.Equal(AutoSortHeader, ExtractHeaders(sortedMenu)[^1]);
+        Assert.Equal(AutoSortHeader, ExtractHeaders(unsortedMenu)[^1]);
+        MenuItem sortedItem = AutoSortItem(sortedMenu);
+        MenuItem unsortedItem = AutoSortItem(unsortedMenu);
+        Assert.Equal(MenuItemToggleType.CheckBox, sortedItem.ToggleType);
+        Assert.True(sortedItem.IsChecked);
+        Assert.False(unsortedItem.IsChecked);
+
+        await ClickAndDrain(sortedItem, captured, 1);
+        await ClickAndDrain(unsortedItem, captured, 2);
+
+        string[] sent = ["RACKSORT FAC1/GROUND/1 OFF", "RACKSORT FAC1/GROUND/2 ON"];
+        Assert.Equal(sent, captured.Select(c => c.Command));
+    }
+
+    [AvaloniaFact]
+    public async Task StripContextMenu_AutoSortItem_SitsBeforeDelete_FollowsTheFlag_AndSendsTheToggle()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            [
+                ["S1"],
+                ["S2"],
+            ],
+            autoSortedRows: [1]
+        );
+        (Window _, VStripsView? view) = BootView(vm);
+
+        MenuFlyout unsortedMenu = view.BuildStripContextMenu(vm.ItemsByIdForTests["S1"], vm);
+        MenuFlyout sortedMenu = view.BuildStripContextMenu(vm.ItemsByIdForTests["S2"], vm);
+
+        List<string?> headers = ExtractHeaders(sortedMenu);
+        Assert.Equal(headers.IndexOf("Delete") - 1, headers.IndexOf(AutoSortHeader));
+        MenuItem sortedItem = AutoSortItem(sortedMenu);
+        MenuItem unsortedItem = AutoSortItem(unsortedMenu);
+        Assert.Equal(MenuItemToggleType.CheckBox, sortedItem.ToggleType);
+        Assert.True(sortedItem.IsChecked);
+        Assert.False(unsortedItem.IsChecked);
+
+        await ClickAndDrain(sortedItem, captured, 1);
+        await ClickAndDrain(unsortedItem, captured, 2);
+
+        string[] sent = ["RACKSORT FAC1/GROUND/2 OFF", "RACKSORT FAC1/GROUND/1 ON"];
+        Assert.Equal(sent, captured.Select(c => c.Command));
+        Assert.All(captured, c => Assert.Equal("", c.Callsign));
+    }
+
+    [AvaloniaFact]
+    public void StripContextMenu_PrinterStrip_HasNoAutoSortItem()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("P1")]);
+        vm.ReconcileFullState(
+            new FlightStripsStateDto(
+                PrinterItems: ["P1"],
+                BayItems: [],
+                NewItemInPrinter: false,
+                NewItemInArrivalPrinter: false,
+                NewItemInBayId: null,
+                ItemMovedOrCreatedBySessionId: null,
+                AutoSortedRacks: []
+            )
+        );
+        (Window _, VStripsView? view) = BootView(vm);
+
+        MenuFlyout menu = view.BuildStripContextMenu(vm.ItemsByIdForTests["P1"], vm);
+
+        Assert.DoesNotContain(AutoSortHeader, ExtractHeaders(menu));
+    }
+
+    // 0.8 is the default zoom; at 1.5 the zoom transform scales the rack, which the banner shift must carry.
+    [AvaloniaTheory]
+    [InlineData(0.8)]
+    [InlineData(1.5)]
+    public void AutoSortedRack_ShowsBothBannersInsideTheViewport_OutsideTheStripsHost(double zoomScale)
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ZoomScale = zoomScale;
+        string[] ids = [.. Enumerable.Range(0, 10).Select(i => $"S{i:D2}")];
+        SeedStripsInBay(vm, "bay-gnd", [ids, ["T1"]], autoSortedRows: [0]);
+        (Window _, VStripsView? view) = BootView(vm);
+        ScrollViewer sv = view.FindControl<ScrollViewer>("RacksScrollViewer")!;
+        Assert.True(sv.Extent.Height > sv.Viewport.Height, $"content {sv.Extent.Height} must exceed viewport {sv.Viewport.Height}");
+
+        // Scrolled to the middle, neither rack end is in view, so a banner in view proves it is pinned.
+        sv.Offset = new Vector(0, (sv.Extent.Height - sv.Viewport.Height) / 2);
+        RealizeContainers(view);
+
+        StripBayViewModel ground = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        List<Border> sortedBanners = Banners(view, ground.Racks[0]);
+        List<Border> unsortedBanners = Banners(view, ground.Racks[1]);
+
+        Assert.Equal(2, sortedBanners.Count);
+        Assert.Equal(2, unsortedBanners.Count);
+        Assert.All(sortedBanners, b => Assert.True(b.IsEffectivelyVisible));
+        Assert.All(sortedBanners, b => Assert.Equal("auto-sort on", Assert.IsType<TextBlock>(b.Child).Text));
+        Assert.All(unsortedBanners, b => Assert.False(b.IsEffectivelyVisible));
+        Assert.All(sortedBanners, b => Assert.DoesNotContain(b.GetVisualAncestors().OfType<ItemsControl>(), c => c.Name == "RackStripsHost"));
+
+        double[] tops = [.. sortedBanners.Select(b => b.TranslatePoint(new Point(0, 0), sv)!.Value.Y)];
+        double[] bottoms = [.. sortedBanners.Select(b => b.TranslatePoint(new Point(0, b.Bounds.Height), sv)!.Value.Y)];
+        Assert.Contains(tops, y => Math.Abs(y) <= 1.0);
+        Assert.Contains(bottoms, y => Math.Abs(y - sv.Viewport.Height) <= 1.0);
+        Assert.All(tops, y => Assert.InRange(y, -1.0, sv.Viewport.Height + 1.0));
+        Assert.All(bottoms, y => Assert.InRange(y, -1.0, sv.Viewport.Height + 1.0));
     }
 
     [AvaloniaFact]
@@ -797,7 +932,8 @@ public class VStripsViewInteractionTests
                 NewItemInPrinter: false,
                 NewItemInArrivalPrinter: false,
                 NewItemInBayId: null,
-                ItemMovedOrCreatedBySessionId: null
+                ItemMovedOrCreatedBySessionId: null,
+                AutoSortedRacks: []
             )
         );
         (Window _, VStripsView? view) = BootView(vm);
@@ -927,7 +1063,8 @@ public class VStripsViewInteractionTests
             NewItemInPrinter: false,
             NewItemInArrivalPrinter: false,
             NewItemInBayId: null,
-            ItemMovedOrCreatedBySessionId: null
+            ItemMovedOrCreatedBySessionId: null,
+            AutoSortedRacks: []
         );
 
     private static TextBox? FindVisibleField(VStripsView view, string stripId, string tag)
@@ -1024,7 +1161,11 @@ public class VStripsViewInteractionTests
 
     // Seeds a set of full strips into bayId's racks at the positions given by
     // rackStrips (outer = rack index, inner = strip ids in model order bottom-up).
-    internal static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips)
+    internal static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips) =>
+        SeedStripsInBay(vm, bayId, rackStrips, autoSortedRows: []);
+
+    // As above, with the rows (positions in rackStrips) the server reports as auto-sorted.
+    internal static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips, int[] autoSortedRows)
     {
         string[] flatIds = [.. rackStrips.SelectMany(r => r)];
         vm.ReconcileItems([.. flatIds.Select(FullStrip)]);
@@ -1035,12 +1176,35 @@ public class VStripsViewInteractionTests
                 NewItemInPrinter: false,
                 NewItemInArrivalPrinter: false,
                 NewItemInBayId: null,
-                ItemMovedOrCreatedBySessionId: null
+                ItemMovedOrCreatedBySessionId: null,
+                AutoSortedRacks: autoSortedRows.Length > 0 ? new Dictionary<string, int[]> { [bayId] = autoSortedRows } : []
             )
         );
     }
 
     private static List<string?> ExtractHeaders(MenuFlyout menu) => [.. menu.Items.OfType<MenuItem>().Select(i => (string?)i.Header)];
+
+    private const string AutoSortHeader = "Auto-sort this rack";
+
+    private static MenuItem AutoSortItem(MenuFlyout menu) => menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == AutoSortHeader);
+
+    // Raises the item's click and drains the async handler until the capture holds the expected count.
+    private static async Task ClickAndDrain(MenuItem item, List<(string Callsign, string Command)> captured, int expectedCount)
+    {
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        for (int i = 0; i < 4 && captured.Count < expectedCount; i++)
+        {
+            await Task.Yield();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    // The top and bottom auto-sort banners drawn in the given rack's column.
+    private static List<Border> Banners(VStripsView view, StripRackViewModel rack)
+    {
+        Border rackBorder = view.GetVisualDescendants().OfType<Border>().Single(b => ReferenceEquals(b.Tag, rack));
+        return [.. rackBorder.GetVisualDescendants().OfType<Border>().Where(b => b.Name is "AutoSortTopBanner" or "AutoSortBottomBanner")];
+    }
 
     // ApplyBayConfig posts to the dispatcher. Under an Avalonia.Headless test
     // that's fine — RunJobs flushes. The reflection path in the unit-test MakeVm

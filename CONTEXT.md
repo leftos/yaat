@@ -809,6 +809,18 @@ _Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC confi
 **Sidecar**:
 A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](ARTCC_CUSTOMIZATION.md)).
 
+## Flight strips
+
+**Auto-sorted rack**:
+A rack flagged by `RACKSORT` so its strips stay in order: tail registrations, then airline callsigns, each A to Z top-down, keyless strips at the bottom, separators fixed in place and splitting the rack into runs that sort on their own. A move into it lands in its sorted slot.
+_Avoid_: sorted rack (a rack can happen to be in order without the flag)
+
+**Bay**:
+One named strip area of a facility (Ground 1, Local) holding a fixed number of racks; vNAS configures it, and bay names are unique only within a facility.
+
+**Rack**:
+One column of strips in a bay, numbered from 1 in commands and from 0 in the engine; index 0 is its visual bottom and the newest strip stacks on top.
+
 ## Releases
 
 **Feature showcase**:

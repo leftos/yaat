@@ -46,7 +46,10 @@ public record FlightStripsStateDto(
     bool NewItemInPrinter,
     bool NewItemInArrivalPrinter,
     string? NewItemInBayId,
-    string? ItemMovedOrCreatedBySessionId
+    string? ItemMovedOrCreatedBySessionId,
+    // YAAT-only (JSON hub): bay id → the auto-sorted racks' numbers. ItemIds has one row per rack from 0 up to the
+    // highest rack the bay holds, so a rack number is also its row index. A bay with no sorted rack has no entry.
+    Dictionary<string, int[]> AutoSortedRacks
 );
 
 // FacilityId is the bay's owning facility — for an IsExternal bay that is a

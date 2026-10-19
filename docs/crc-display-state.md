@@ -346,7 +346,7 @@ CRC strip DTO → StripCommandTranslator.Build*Canonical → canonical command s
 
 Strips are **item-based** (bay/rack/index), not aircraft-owned. Mutations replay through the same recorded-command path, so history stays divergence-free.
 
-`BuildFlightStripsData` emits the full `FlightStripsStateDto` on subscribe — bay/printer layout — so mid-session subscribers don't see a pile of unparented strip items.
+`BuildFlightStripsData` emits the full `FlightStripsStateDto` on subscribe — bay/printer layout, one `ItemIds` row per rack from 0 to the bay's highest (an empty row for a rack it does not hold), built by the same `StripBroadcaster.BuildState` as the training hub's; the YAAT-only `AutoSortedRacks` property is `[IgnoreMember]` and never reaches CRC — so mid-session subscribers don't see a pile of unparented strip items.
 
 See [flight-strips.md](flight-strips.md) for the full strip architecture.
 

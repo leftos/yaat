@@ -30,6 +30,13 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
+    public void BuildRackSort_OneBasedRack_OnOrOff_KeepsSpacedBayName()
+    {
+        Assert.Equal("RACKSORT OAK/Ground 1/1 ON", VStripsCanonicalBuilder.BuildRackSort("OAK", "Ground 1", 0, true));
+        Assert.Equal("RACKSORT OAK/Ground 1/3 OFF", VStripsCanonicalBuilder.BuildRackSort("OAK", "Ground 1", 2, false));
+    }
+
+    [Fact]
     public void BuildStripDeleteOffset_AreStaticVerbs()
     {
         Assert.Equal("STRIPD", VStripsCanonicalBuilder.BuildStripDelete());

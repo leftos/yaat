@@ -83,6 +83,7 @@ public static partial class TrackEngine
                 or SeparatorDeleteCommand
                 or SeparatorEditCommand
                 or SeparatorMoveCommand
+                or RackSortCommand
                 or BlankCreateCommand
                 or BlankDeleteCommand;
 

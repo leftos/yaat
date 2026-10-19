@@ -172,7 +172,8 @@ public class MainViewModelStripsTests
                 false,
                 false,
                 null,
-                null
+                null,
+                []
             )
         );
         student.ApplyMetars(["KOAK 061819Z AUTO 00000KT 10SM CLR A2992"]);
@@ -231,7 +232,7 @@ public class MainViewModelStripsTests
         new(id, callsign, false, StripItemType.DepartureStrip, false, [callsign, "", "B738/L"]);
 
     private static FlightStripsStateDto GroundBayState(params string[] rackIds) =>
-        new([], [new StripBayContentsDto("bay-gnd", [rackIds])], false, false, null, null);
+        new([], [new StripBayContentsDto("bay-gnd", [rackIds])], false, false, null, null, []);
 
     [AvaloniaFact]
     public async Task SplitSecondaryPane_SeedsStripsFromMultipleItemBroadcasts()

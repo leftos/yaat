@@ -71,4 +71,32 @@ public class FlightStripSnapshotMapperTests
             Assert.Equal(1, populated.NextBlankId);
         }
     }
+
+    [Fact]
+    public void RoundTrip_KeepsTheAutoSortFlag()
+    {
+        FlightStripState strips = Seeded();
+        StripMutations.SetRackAutoSort(strips, "bay1", 0, true);
+
+        FlightStripSnapshotDto dto = FlightStripSnapshotMapper.Capture(strips);
+
+        Assert.True(Assert.Single(dto.BayRacks).AutoSort);
+
+        var restored = new FlightStripState();
+        FlightStripSnapshotMapper.Restore(restored, dto);
+
+        Assert.Equal([("bay1", 0)], restored.AutoSortedRacks);
+    }
+
+    [Fact]
+    public void Restore_ClearsAFlagTheSnapshotDoesNotCarry()
+    {
+        FlightStripSnapshotDto unsorted = FlightStripSnapshotMapper.Capture(Seeded());
+
+        FlightStripState target = Seeded();
+        StripMutations.SetRackAutoSort(target, "bay1", 0, true);
+        FlightStripSnapshotMapper.Restore(target, unsorted);
+
+        Assert.Empty(target.AutoSortedRacks);
+    }
 }

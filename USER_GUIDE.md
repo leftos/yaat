@@ -1216,6 +1216,7 @@ Strips follow the session: rewinding the timeline shows the strips and PDCs as t
 - **Edit label** (separator only) — opens the inline editor for the separator's label
 - **Push to {bay}** — append to rack 1 of the chosen bay (external bays show **↗**)
 - **Push all in rack to {bay}** — bulk move every strip in the source rack
+- **Auto-sort this rack** — a checkbox, shown for strips in a rack (not for a strip still in the printer); see [Auto-sorting a rack](#auto-sorting-a-rack)
 - **Delete**
 
 **Right-click on empty rack space** — opens a creation menu:
@@ -1223,6 +1224,15 @@ Strips follow the session: rewinding the timeline shows the strips and PDCs as t
 - **Add separator** (with handwritten / white / red / green submenu, or only handwritten if separators are locked for the position)
 - **Add blank strip**
 - **Push all to {bay}** — when the rack already has strips
+- **Auto-sort this rack** — a checkbox, last in the menu
+
+#### Auto-sorting a rack
+
+Tick **Auto-sort this rack** (from the right-click menu of the rack's empty space, or of any strip in it, which is the way in once the rack is full) to keep that rack sorted. Read top to bottom, tail registrations (N1234) come first, then airline callsigns (AAL2210), each A to Z; strips with no callsign, such as blank strips, sit at the bottom. A half strip sorts by the text in its first line. Untick the item to stop: the strips stay where they are.
+
+A sorted rack shows a small **auto-sort on** banner pinned at the top and at the bottom of the visible part of the rack, which stays put while you scroll. Anything you drop into a sorted rack, or move within it, goes to its sorted slot instead of where you released it: the strip first shows where you dropped it, then settles into place. The terminal line for a move that landed elsewhere than you asked ends with `(auto-sorted)`.
+
+Separators keep the slot you put them in and split the rack into runs that sort on their own, and dragging a separator re-sorts the runs on both sides. The setting is the rack's, so everyone looking at that bay sees it, and it survives a scenario restart. The same switch from the command bar is `RACKSORT facility/bay/rack ON|OFF`.
 
 **Editing annotations on a full strip:**
 - Click any of the nine annotation cells (boxes 10–18) to open an inline editor
@@ -1305,6 +1315,7 @@ Every strip mutation is also available as a [command](COMMANDS.md#strip--data-op
 | `HSM` / `HSO` / `HSS` | Move / toggle offset / slide |
 | `SEP H\|W\|R\|G facility/bay[/rack[/index]] [label]` | Create separator |
 | `SEPE facility/bay/rack/index new-label` / `SEPD facility/bay[/rack] label-or-position` | Edit / delete separator |
+| `RACKSORT facility/bay/rack ON\|OFF` | Keep a rack sorted by callsign (tails first) / stop sorting it |
 | `BLANK [facility/bay[/rack[/index]]]` / `BLANKD facility/bay[/rack]` | Create / delete blank |
 
 **Bay names always carry their facility** — `OAK/Ground 1/2` is rack 2 of Oakland tower's "Ground 1". Bay names are only unique within a facility (SFO, SJC and PAO each own a bay called "Ground"), and with several facilities' tabs open the command has to say which one it means. Names stay case- and space-insensitive, so `OAK/Ground1` works too. Clicking and dragging in the Strips tab always emits the right facility for you; only typed commands need it.

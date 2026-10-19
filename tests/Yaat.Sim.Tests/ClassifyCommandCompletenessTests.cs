@@ -160,6 +160,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "PushbackCommand",
         // A phase-installing tug move, like PushbackCommand: the phase owns the aircraft once it is installed.
         "PushbackMultiCommand",
+        "RackSortCommand",
         "RandomSquawkCommand",
         "RejectPointoutCommand",
         "ReleaseDepartureCommand",

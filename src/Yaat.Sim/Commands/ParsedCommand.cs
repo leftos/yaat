@@ -1043,6 +1043,10 @@ public record SeparatorDeleteCommand(IReadOnlyList<string> Tokens) : ParsedComma
 // so a drag-drop survives concurrent moves on other clients.
 public record SeparatorMoveCommand(string StripId, string DestFacilityId, string DestBayName, int DestRack, int DestIndex) : ParsedCommand;
 
+// RACKSORT <facility>/<bay>/<rack> ON|OFF: keep one rack sorted by callsign (tails first), or stop sorting it.
+// Rack is 0-based here, 1-based on the wire.
+public record RackSortCommand(string FacilityId, string BayName, int Rack, bool On) : ParsedCommand;
+
 // SEPE <bay> <rack> <oldLabelOrIndex> <new label...>: atomic label edit. Bay +
 // rack + (label-or-1-based-index) locate the existing separator; remaining
 // tokens are the new label. Replaces the prior client-side delete+create

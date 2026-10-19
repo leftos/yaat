@@ -45,6 +45,22 @@
       <Setter Property="BorderBrush" Value="#FFD700" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
+    <!-- The rack's "auto-sort on" banners, top and bottom. -->
+    <Style Selector="Border.autoSortBanner">
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{StaticResource StripSeparatorWhiteBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource StripBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="6,1" />
+    </Style>
+    <Style Selector="Border.autoSortBanner > TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,56,*">
@@ -329,7 +345,7 @@
                      header. Bound to VStripsViewModel.ZoomScale. Avalonia's
                      LayoutTransform path allocates real bounds under the
                      transform so the ScrollViewer still works correctly. -->
-        <LayoutTransformControl>
+        <LayoutTransformControl LayoutUpdated="OnRacksLayoutUpdated">
           <LayoutTransformControl.LayoutTransform>
             <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}" />
           </LayoutTransformControl.LayoutTransform>
@@ -395,6 +411,23 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- Auto-sort banners: drawn over the rack but outside
+                                             RackStripsHost (the drop maths reads its
+                                             children), and held at the visible top and
+                                             bottom of the rack by the TranslateTransform
+                                             PinAutoSortBanners sets on scroll and layout. -->
+                    <Border x:Name="AutoSortTopBanner" Classes="autoSortBanner" IsVisible="{Binding IsAutoSorted}" VerticalAlignment="Top">
+                      <Border.RenderTransform>
+                        <TranslateTransform />
+                      </Border.RenderTransform>
+                      <TextBlock Text="auto-sort on" />
+                    </Border>
+                    <Border x:Name="AutoSortBottomBanner" Classes="autoSortBanner" IsVisible="{Binding IsAutoSorted}" VerticalAlignment="Bottom">
+                      <Border.RenderTransform>
+                        <TranslateTransform />
+                      </Border.RenderTransform>
+                      <TextBlock Text="auto-sort on" />
+                    </Border>
                   </Grid>
                 </Border>
               </DataTemplate>

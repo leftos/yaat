@@ -67,7 +67,8 @@ public class MainViewModelLeaveRoomViewsTests
                 false,
                 false,
                 null,
-                null
+                null,
+                []
             )
         );
         Dispatcher.UIThread.RunJobs();

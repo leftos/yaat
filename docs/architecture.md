@@ -153,6 +153,7 @@
 | **What data YAAT collects, how long the server keeps it, or deleting one CID's data (privacy)** | [`data-handling.md`](data-handling.md) → [`vatsim-auth.md`](vatsim-auth.md), [`logging.md`](logging.md), [`speech-recognition-pipeline.md`](speech-recognition-pipeline.md#speech-telemetry-opt-in-upload), [`session-persistence.md`](session-persistence.md), [`discord-integration.md`](discord-integration.md), [`live-traffic.md`](live-traffic.md) → yaat-server `Privacy/` (`DataRetentionHostedService`, `DataErasureEndpoints`), `Telemetry/SpeechTelemetryRetention.cs`, `Simulation/Persistence/SessionPersistenceService.cs` (`SweepExpiredCheckpoints`), `Logging/RollingLogWriter.cs`, `docker-compose.yml`; the operator's erasure script `tools/erase-user-data.ps1` |
 | **Make a wind consumer position-aware or add a wind reader** | [`weather-and-wind.md`](./weather-and-wind.md) (Consumption, the gridded wind column) → `src/Yaat.Sim/WindInterpolator.cs` (`WindSamplePoint`, the `GetWindAt` / `GetWindComponents` overloads) + `Weather/GriddedWindField.cs` (`SampleBracket`) → the airborne consumers `FlightPhysics.cs`, `LiveTraffic/LiveTrafficKinematics.cs`, `Phases/Approach/HoldingPatternPhase.cs`, yaat-server `Hubs/CrcClientState.Eram.Weather.cs` (ERAM UR) → the layer-0 readers that stay on the surface layer: `AircraftPerformance.cs` (`WindApproachAdditive`), `ControllerAi/RunwayInUse.cs` (`RunwayInUseResolver`), `WindObservation.cs` |
 | **A test red on Linux CI but green on Windows; checking numeric code on Linux before it lands** | [`test-harness.md`](./test-harness.md) "Linux runs" (WSL and Docker recipes) and the zero-on-paper footgun → `.github/workflows/ci.yml` (CI's runner and env) |
+| **Change how strips are placed or ordered in a rack (sort, move, insert), or add per-rack state like the auto-sort flag** | [`flight-strips.md`](flight-strips.md) (State model, Auto-sorted racks) → `src/Yaat.Sim/Simulation/Strips/StripMutations.cs` (`AppendStripToBay`, `MoveStripToBayRack`, `RequestDepartureStripForAircraftIntoBay`, `UpdateStripFields`, `ResortRackIfAuto`) → `StripRackSort.cs` (the order) → `StripCommandHandler.cs` (`HandleRackSort`, `FormatResolvedSlot`) → `FlightStripState.cs` (`AutoSortedRacks`) → `Simulation/Snapshots/FlightStripSnapshotMapper.cs` → yaat-server `Simulation/StripBroadcaster.cs` (`BuildState`) + `Simulation/RecordingManager.cs` (restart carry-over) → client `VStripsViewModel.cs` (`ReconcileFullState`, `OptimisticallyMove`), `Views/VStrips/VStripsView.axaml(.cs)` (menus, banners) |
 
 ## Subsystem deep-dive docs
 
@@ -419,6 +420,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Attendance**: `Helpers/AttendanceTestSupport.cs` (test helpers for CRC attendance state), `Simulation/Actions/AttendanceRecordTests.cs` (a RecordedAttendanceChange replaces the engine's set, resolves ids through the room's config, keeps an unresolvable id by id only, round-trips the snapshot and the serializer; a fresh replay starts empty)
   - **Strip id baking**: `Simulation/Actions/StripIdBakedDrawTests.cs` (the strip id a creating verb — SEP/HSC/SCAN — draws is a baked draw like the reaction delay and the generated aircraft: `RecordedCommand.StripId` round-trips the archive serializer, `BakedDraws.Of` carries it, and the strip arm bakes the id the verb minted onto the record)
   - **Strip steps**: `Simulation/Strips/StripStepTests.cs` (the flight-strip bodies on the bare engine: the spawn hook's auto-print, the approach student's takeoff-roll print, the creating verbs behind `SEP`/`HSC`, the deferred strip dispatch the engine applies itself, and the change tracker the router and the post-physics drain step hand to the host — over real ZOA data with no server in the process)
+  - **Strip rack sort**: `Simulation/Strips/StripRackSortTests.cs` (the pure order: tails above airline callsigns, half strips by box 1, keyless strips at the segment bottom, separators fixed) and `Simulation/Strips/StripRackAutoSortTests.cs` (the flag on the bare engine: `RACKSORT`, a move or spawn landing sorted, the `(auto-sorted)` result text, an `HSA` re-key, `SEPM` / `SEPD` merging runs, `ClearSession` / `Reset`; the flag's snapshot round trip is in `FlightStripSnapshotMapperTests`)
   - **Tower lists**: `Simulation/TowerLists/TowerListStepTests.cs` (the P-list step on the bare engine over real ZOA data: an in-range aircraft enters with the tick's second, the coordination flag is raised by the spine step, a static second re-stamps nothing and reports no change, a snapshot restore keeps the live dwell second).
 
     `Simulation/Snapshots/TowerListSnapshotMapperTests.cs` (round-trip incl. entry order, null → empty, ClearSession keeps the airports). `TowerListTrackerTests.cs` (the tracker's range geometry — moved from the server suite)
@@ -585,7 +587,7 @@ Logging/
   ConsoleLineLoggerProvider.cs  # ILoggerProvider that writes one text line per entry to Console.Out (browser DevTools console). Used by Yaat.VStrips.Web/Program.cs and AppLog.InitializeForBrowser.
 
 Services/
-  StripDtos.cs                  # StripItemType / StripItemDto / StripBayContentsDto / FlightStripsStateDto / StripBayConfigDto / FlightStripsConfigDto — wire-format records for the strip surface. FlightStripsConfigDto carries the vNAS enableArrivalStrips / enableSeparateArrDepPrinters flags that drive the printer modal's carousel split.
+  StripDtos.cs                  # StripItemType / StripItemDto / StripBayContentsDto / FlightStripsStateDto (ItemIds has one row per rack, so a row index is a rack number; AutoSortedRacks lists the auto-sorted racks per bay) / StripBayConfigDto / FlightStripsConfigDto — wire-format records for the strip surface. FlightStripsConfigDto carries the vNAS enableArrivalStrips / enableSeparateArrDepPrinters flags that drive the printer modal's carousel split.
   ClientProductTitle.cs         # Shared "(N) {FACILITY} - {product}[ (YAAT)]" tab/window/page title format for vStrips + vTDLS (desktop surfaces skip the YAAT suffix; browser pages include it).
   StripsTransportDtos.cs        # AccessibleFacilityDto (return of GetAccessibleFacilities / GetAccessibleTdlsFacilities; IsConsolidated marks a vTDLS parent page) + CommandResultDto (return of every strip command) + StripsWeatherDto (narrow WeatherChanged projection — raw METARs) + StripMetarEntry (parsed station + raw, for the METAR bar). Live here because the IStripsTransport surface returns/feeds them.
   IStripsTransport.cs           # Narrow contract VStripsViewModel depends on. IsConnected + transport-state events + StripsConfigChanged + FlightStripsStateChanged + StripItemsChanged + MetarsChanged (raw METARs for the current-METAR bar) + Get/RequestStrips RPC trio. ServerConnection (Core) and BrowserStripsTransport (here) both implement it.
@@ -596,9 +598,9 @@ ViewModels/
   VStripsViewModel.cs           # Root vStrips VM; manages strip bays, items, rack state. Ctor takes IStripsTransport + send-command delegate + Func<string>? getUserInitials.
   StripItemViewModel.cs         # Per-strip observable model: flight data, annotations
   StripBayViewModel.cs          # Per-bay container: list of strips, visibility state
-  StripRackViewModel.cs         # Rack (visual height) management per bay
+  StripRackViewModel.cs         # Rack (visual height) management per bay; IsAutoSorted mirrors the server's RACKSORT flag from each full-state broadcast
   StripPrinterViewModel.cs      # Auto-print on aircraft departure/arrival
-  VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations
+  VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations (BuildRackSort: RACKSORT facility/bay/rack ON|OFF)
 
 Find/                           # Shared in-view Find (Ctrl+F) — also reused by vTDLS
   IFindableItem.cs              # Row contract: GetFindText() + IsFindMatch/IsCurrentFindMatch flags. Implemented by StripItemViewModel and TdlsItemViewModel.
@@ -609,7 +611,7 @@ Views/Find/
   FindBarView.axaml(.cs)        # Shared find-bar overlay (query box, match counter, ◀ ▶ ✕). DataContext is a FindController; hosted by VStripsView and VTdlsView.
 
 Views/VStrips/
-  VStripsView.axaml(.cs)        # Embedded vStrips UserControl. Pointer-capture strip drag (no OS DnD): display-rate ghost + animated drop-preview gap with index hysteresis, Esc cancel, wheel scroll + edge autoscroll mid-drag, drop-settle animation. Also hosts the FindBar overlay (Ctrl+F, scoped to the shown bay) and sticky-bottom rack scroll.
+  VStripsView.axaml(.cs)        # Embedded vStrips UserControl. Pointer-capture strip drag (no OS DnD): display-rate ghost + animated drop-preview gap with index hysteresis, Esc cancel, wheel scroll + edge autoscroll mid-drag, drop-settle animation. Also hosts the FindBar overlay (Ctrl+F, scoped to the shown bay), sticky-bottom rack scroll, the "Auto-sort this rack" menu item and the pinned "auto-sort on" rack banners (PinAutoSortBanners).
   StickyScroll.cs               # Pure decision for the racks ScrollViewer sticky-bottom behavior — re-pin to bottom when content grows while the user was already at the bottom. Unit-tested.
   FlightStripControl.axaml(.cs) # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring, cyan find-match highlight)
   InlineTextEditPopup.axaml(.cs) # Shared popup editor for annotations, half-strip lines, separator labels
@@ -2318,7 +2320,10 @@ FlightStripState.cs            # The strips, the bay/rack layout and the two pri
                                # (moves touch Items + source rack + dest rack together); Items/Bays are concurrent collections for read-only
                                # enumeration only. StripItemRecord: one strip (id, aircraft id, type, offset, field values, facility/bay/rack/index).
                                # Changes (StripChangeTracker) records what StripMutations touched since the host's last drain — transient, not
-                               # snapshotted, cleared by ClearSession alongside the session state.
+                               # snapshotted, cleared by ClearSession alongside the session state. AutoSortedRacks (bay id + 0-based rack): the racks
+                               # kept sorted by RACKSORT — bay layout, so ClearSession keeps it and Reset clears it.
+StripRackSort.cs               # Pure rack order for an auto-sorted rack (StripRackSortEntry, StripRackSort.Sort / IsAirlineShaped): tails then airline
+                               # callsigns A-Z top-down, keyless strips at the segment bottom, separators fixed; shared with the client's optimistic drop
 StripItemType.cs               # What a strip item is: a printed departure/arrival strip, one of the four separator styles, half of a split strip, or a
                                # blank — the vStrips wire numbering; StripItemRecord.Type stores it as an int so the schema doesn't move when this enum
                                # gains a member
@@ -2331,9 +2336,10 @@ StripMutations.cs              # Stateless strip mutation helpers (create/move/a
                                # every multi-slice update and recording what changed into FlightStripState.Changes; shared by StripCommandHandler, the
                                # engine's auto-print hooks (SimulationEngine.Strips.cs) and StripRequests. MintStripId draws a manual request's id
                                # (ARRIVAL_{callsign} fixed; STRIP_{callsign} when free, else a hex-suffixed duplicate); NewScanStripId draws a SCAN copy's
-                               # id; IsSeparatorType is the shared predicate for the four separator styles
+                               # id; IsSeparatorType is the shared predicate for the four separator styles. SetRackAutoSort / ResortRackIfAuto: the
+                               # RACKSORT flag and the one re-sort every row-writing mutation ends in; MoveStripToBayRack returns the slot it inserted at
 StripCommandHandler.cs         # Single dispatch point for every canonical strip verb (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP,
-                               # SEPD, BLANK, BLANKD) against the engine's Strips, on every run kind. StripApplyResult(Result, StripId): the verdict, and
+                               # SEPD, SEPE, SEPM, RACKSORT, BLANK, BLANKD) against the engine's Strips, on every run kind. StripApplyResult(Result, StripId): the verdict, and
                                # for a creating verb (SEP/HSC/SCAN/BLANK) the id it minted or reused — the ArmTable strip arm bakes a non-null one onto the
                                # record so replay creates the item under the same id
 StripRequests.cs               # The manual "Request Strip" body: StripRequestPlan (aircraft/scenario/facility/format/ETA) + ResolveStripRequest (the
@@ -2442,7 +2448,7 @@ ServerSnapshotDto.cs           # Server-side state: consolidation overrides, con
                                # positions, the flight strips (Strips) + vTDLS session (Tdls), the tower-list dwell entries (TowerLists, schema 23) and the
                                # ERAM CRR group definitions (CrrGroups; membership rides each aircraft's ERAM state) and conflict-alert settings (EramConflictSettings, one EramConflictSettingsSnapshotDto per non-default facility) and sector messages (EramSectorMessages, one EramSectorMessageSnapshotDto per stored message) — all null-absent in a
                                # pre-feature snapshot, which restores empty
-FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout, both printer queues and the blank-id counter
+FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout (each rack with its AutoSort flag), both printer queues and the blank-id counter
 FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Restore replaces, never merges — the snapshot is the whole strip state
                                # at its second, so anything the target engine held is cleared first
 TdlsSnapshotDto.cs             # The vTDLS items, the dumped lockout, the active ops configs, the pending auto-WILCOs and the id counter. The
@@ -2734,7 +2740,7 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
     CrcVisibilityTracker.cs    # STARS/ERAM/TowerCab visibility rules; STARS hysteresis (add at elev+100, remove at elev); AircraftState.IsVehicle excluded from STARS; ASDE-X/SAID evaluators are pure diffs of the Sim's per-aircraft membership sets
     StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)
-    StripCommandHandler.cs     # Flight strip command dispatch (all 15 canonical verbs incl. SCAN)
+    StripCommandHandler.cs     # Flight strip command dispatch (every strip verb, SCAN and RACKSORT included)
     StripBroadcaster.cs        # Flight strip broadcast coordination: SignalR + CRC topic paths
     StripMutations.cs          # Stateless strip mutation helper: create/delete/amend logic
     StripCommandTranslator.cs  # Translate CRC MessagePack invocations → canonical command strings

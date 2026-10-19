@@ -16,6 +16,7 @@
 - Solo training scores a takeoff or landing cleared with another aircraft on, crossing, lining up on or past the hold line of that runway.
 - `TAXI`, `TAXIAUTO` and `CROSS` take a trailing `EXP` for "without delay": the pilot reads it back and taxis or crosses faster, supers and heavies excepted.
 - A `TAXI` after a push that leaves the aircraft facing away from the route warns that it turns about, naming the `PUSH` that would have faced it.
+- vStrips racks can be auto-sorted (`RACKSORT`, or Auto-sort this rack): tail numbers then airlines A–Z, a moved strip landing in its sorted slot.
 
 ### Changed
 
@@ -36,6 +37,7 @@
 
 ### Fixed
 
+- A strip moved into a rack above an unused, empty rack shows in that rack on vStrips and CRC, not one rack lower.
 - An aircraft cleared onto a taxiway from a spot or the ramp no longer makes a U-turn through a fillet behind it to get there (SFO spot 10).
 - A taxi to SFO gate D12 off taxiway A comes straight in from A instead of through the spot 6B alley.
 - Taxiing traffic gives way to an aircraft still leaving a runway, unless it stands in that aircraft's way out; a held one blocks only head-on traffic.

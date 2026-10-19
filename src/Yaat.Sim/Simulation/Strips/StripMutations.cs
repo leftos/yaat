@@ -88,7 +88,8 @@ public static class StripMutations
     /// upward — matching CRC bottom-up FIFO: strip #1 at bottom, strip #2
     /// above, strip #3 above that. Removes prior placement first so calling
     /// this on an already-placed strip relocates it to the tail (top). Like <see cref="MoveStripToBayRack"/>, it
-    /// rewrites the slot the appended record and every record in a row it left caches.
+    /// rewrites the slot the appended record and every record in a row it left caches. An auto-sorted rack then
+    /// moves the strip to its sorted spot.
     /// </summary>
     public static void AppendStripToBay(FlightStripState state, string bayId, int rack, string stripId)
     {
@@ -98,6 +99,7 @@ public static class StripMutations
             EnsureRack(state, bayId, rack).Add(stripId);
             SyncPlacementRecords(state, bayId, rack);
             SyncVacatedRows(state, vacated);
+            ResortRackIfAuto(state, bayId, rack);
             state.Changes.MarkChanged(stripId);
             state.Changes.MarkFullState();
         }
@@ -114,14 +116,23 @@ public static class StripMutations
     /// sits, and the picks that order candidates by them (a bay-wide <c>BLANKD</c>, <c>SEPD</c>'s 1-based fallback)
     /// read the cached copies, so a stale one addresses the wrong strip.
     /// </para>
+    /// <para>
+    /// An auto-sorted destination then sorts the run the strip was dropped into, so the strip keeps the segment the
+    /// index chose (between which separators) but takes its sorted spot within it; a separator keeps the slot it was
+    /// dropped at and the runs on both sides of it sort.
+    /// </para>
     /// </summary>
-    public static bool MoveStripToBayRack(FlightStripState state, string stripId, string destBayId, int destRack, int destIndex)
+    /// <returns>
+    /// The index the strip was inserted at, <paramref name="destIndex"/> clamped to the row, before any sort moved it;
+    /// null when there is no such strip.
+    /// </returns>
+    public static int? MoveStripToBayRack(FlightStripState state, string stripId, string destBayId, int destRack, int destIndex)
     {
         lock (state.Gate)
         {
             if (!state.Items.ContainsKey(stripId))
             {
-                return false;
+                return null;
             }
 
             List<(string BayId, int Rack)> vacated = RemoveFromAllBaysLocked(state, stripId);
@@ -133,10 +144,11 @@ public static class StripMutations
 
             SyncPlacementRecords(state, destBayId, destRack);
             SyncVacatedRows(state, vacated);
+            ResortRackIfAuto(state, destBayId, destRack);
 
             state.Changes.MarkChanged(stripId);
             state.Changes.MarkFullState();
-            return true;
+            return clamped;
         }
     }
 
@@ -230,7 +242,10 @@ public static class StripMutations
         }
     }
 
-    /// <summary>Replaces <see cref="StripItemRecord.FieldValues"/> wholesale.</summary>
+    /// <summary>
+    /// Replaces <see cref="StripItemRecord.FieldValues"/> wholesale. The first field is a half strip's box 1, the key an
+    /// auto-sorted rack orders it by, so the strip's rack re-sorts; the returned record names the slot it then holds.
+    /// </summary>
     public static StripItemRecord? UpdateStripFields(FlightStripState state, string stripId, string[] newFields)
     {
         lock (state.Gate)
@@ -243,9 +258,101 @@ public static class StripMutations
             StripItemRecord updated = existing with { FieldValues = newFields };
             state.Items[stripId] = updated;
             state.Changes.MarkChanged(stripId);
-            return updated;
+            if (updated.BayId.Length > 0)
+            {
+                ResortRackIfAuto(state, updated.BayId, updated.Rack);
+            }
+
+            return state.Items[stripId];
         }
     }
+
+    /// <summary>
+    /// Turns a rack's auto-sort on or off. On sorts the rack at once; off leaves every strip where it is. Either way the
+    /// full state is marked, since the flag travels with the rack layout.
+    /// </summary>
+    public static void SetRackAutoSort(FlightStripState state, string bayId, int rack, bool on)
+    {
+        lock (state.Gate)
+        {
+            // The rack is created if missing, so the snapshot (which walks the racks) carries the flag.
+            EnsureRack(state, bayId, rack);
+            if (on)
+            {
+                state.AutoSortedRacks.Add((bayId, rack));
+                ResortRackIfAuto(state, bayId, rack);
+            }
+            else
+            {
+                state.AutoSortedRacks.Remove((bayId, rack));
+            }
+
+            state.Changes.MarkFullState();
+        }
+    }
+
+    /// <summary>
+    /// Sorts a rack by <see cref="StripRackSort"/> when it is auto-sorted, rewriting the slot every moved record caches
+    /// and marking the full state; a rack that is not auto-sorted, or already in order, is left alone. Every mutation
+    /// that can put a rack out of order ends here.
+    /// </summary>
+    public static void ResortRackIfAuto(FlightStripState state, string bayId, int rack)
+    {
+        lock (state.Gate)
+        {
+            if (!state.AutoSortedRacks.Contains((bayId, rack)))
+            {
+                return;
+            }
+
+            if (
+                !state.Bays.TryGetValue(bayId, out Dictionary<string, List<string>[]>? racks)
+                || !racks.TryGetValue(rack.ToString(System.Globalization.CultureInfo.InvariantCulture), out List<string>[]? rackRows)
+                || rackRows.Length == 0
+            )
+            {
+                return;
+            }
+
+            List<string> row = rackRows[0];
+            List<string> sorted = StripRackSort.Sort([.. row.Select(id => SortEntryOf(state, id))]);
+            if (sorted.SequenceEqual(row, StringComparer.Ordinal))
+            {
+                return;
+            }
+
+            row.Clear();
+            row.AddRange(sorted);
+            SyncPlacementRecords(state, bayId, rack);
+            state.Changes.MarkFullState();
+        }
+    }
+
+    /// <summary>
+    /// The 0-based slot a strip holds in an auto-sorted rack, or null when the strip is missing or its rack is not
+    /// auto-sorted — what a move's result line reports when the sort moved the strip off the slot asked for.
+    /// </summary>
+    public static int? AutoSortedIndexOf(FlightStripState state, string stripId)
+    {
+        lock (state.Gate)
+        {
+            if (!state.Items.TryGetValue(stripId, out StripItemRecord? record) || !state.AutoSortedRacks.Contains((record.BayId, record.Rack)))
+            {
+                return null;
+            }
+
+            return record.Index;
+        }
+    }
+
+    /// <summary>
+    /// A rack id as the sort sees it. An id with no record (none is expected: every placement writes the record first)
+    /// sorts as a blank, so it keeps its place at the segment bottom rather than failing the mutation.
+    /// </summary>
+    private static StripRackSortEntry SortEntryOf(FlightStripState state, string id) =>
+        state.Items.TryGetValue(id, out StripItemRecord? record)
+            ? StripRackSortEntry.Of(id, record.Type, record.FieldValues)
+            : new StripRackSortEntry(id, BlankStripType, "");
 
     /// <summary>
     /// Sets a single annotation slot, growing the FieldValues array as needed.
@@ -548,8 +655,9 @@ public static class StripMutations
 
             state.Items[stripId] = record;
             row.Add(stripId);
+            ResortRackIfAuto(state, slot.BayId, slot.Rack);
             MarkPrinted(state, stripId);
-            return record;
+            return state.Items[stripId];
         }
     }
 
@@ -1217,12 +1325,16 @@ public static class StripMutations
         }
     }
 
-    /// <summary>Rewrites the records of every row <see cref="RemoveFromAllBaysLocked"/> closed a gap in.</summary>
+    /// <summary>
+    /// Rewrites the records of every row <see cref="RemoveFromAllBaysLocked"/> closed a gap in, and re-sorts each that is
+    /// auto-sorted: a separator that left merges the segments on both sides of it into one run.
+    /// </summary>
     private static void SyncVacatedRows(FlightStripState state, List<(string BayId, int Rack)> vacated)
     {
         foreach ((string bayId, int rack) in vacated)
         {
             SyncPlacementRecords(state, bayId, rack);
+            ResortRackIfAuto(state, bayId, rack);
         }
     }
 

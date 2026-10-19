@@ -218,6 +218,7 @@ public static class CommandDescriber
             SeparatorDeleteCommand => CanonicalCommandType.SeparatorDelete,
             SeparatorEditCommand => CanonicalCommandType.SeparatorEdit,
             SeparatorMoveCommand => CanonicalCommandType.SeparatorMove,
+            RackSortCommand => CanonicalCommandType.RackSort,
             BlankCreateCommand => CanonicalCommandType.BlankCreate,
             BlankDeleteCommand => CanonicalCommandType.BlankDelete,
             TdlsQueueCommand => CanonicalCommandType.TdlsQueue,
@@ -872,6 +873,7 @@ public static class CommandDescriber
             SeparatorDeleteCommand cmd => FormatTokenizedCanonical("SEPD", cmd.Tokens),
             SeparatorEditCommand cmd => FormatTokenizedCanonical("SEPE", cmd.Tokens),
             SeparatorMoveCommand cmd => $"SEPM {cmd.StripId} {cmd.DestFacilityId}/{cmd.DestBayName}/{cmd.DestRack + 1}/{cmd.DestIndex + 1}",
+            RackSortCommand cmd => $"RACKSORT {cmd.FacilityId}/{cmd.BayName}/{cmd.Rack + 1} {(cmd.On ? "ON" : "OFF")}",
             BlankCreateCommand cmd => FormatTokenizedCanonical("BLANK", cmd.Tokens),
             BlankDeleteCommand cmd => FormatTokenizedCanonical("BLANKD", cmd.Tokens),
             TdlsQueueCommand => "TDLSQ",
@@ -1413,6 +1415,7 @@ public static class CommandDescriber
             SeparatorDeleteCommand => "Delete separator",
             SeparatorEditCommand => "Edit separator",
             SeparatorMoveCommand => "Move separator",
+            RackSortCommand cmd => cmd.On ? "Auto-sort rack on" : "Auto-sort rack off",
             BlankCreateCommand => "Create blank strip",
             BlankDeleteCommand => "Delete blank strip",
             TdlsQueueCommand => "Queue TDLS clearance",
@@ -1678,6 +1681,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.SeparatorDelete
                 or CanonicalCommandType.SeparatorEdit
                 or CanonicalCommandType.SeparatorMove
+                or CanonicalCommandType.RackSort
                 or CanonicalCommandType.BlankCreate
                 or CanonicalCommandType.BlankDelete
                 or CanonicalCommandType.Scratchpad1

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim;
 
@@ -10,12 +11,16 @@ namespace Yaat.Client.ViewModels;
 /// so existing <see cref="StripItemViewModel"/> instances are preserved across
 /// server broadcasts — keeps UI selection stable during moves.
 /// </summary>
-public class StripRackViewModel(int rackIndex)
+public partial class StripRackViewModel(int rackIndex) : ObservableObject
 {
     private static readonly ILogger Log = SimLog.CreateLogger("StripRackViewModel");
 
     public int RackIndex { get; } = rackIndex;
     public ObservableCollection<StripItemViewModel> Strips { get; } = [];
+
+    /// <summary>Whether the server keeps this rack auto-sorted; mirrored from each full-state broadcast.</summary>
+    [ObservableProperty]
+    private bool _isAutoSorted;
 
     /// <summary>
     /// Rebuilds <see cref="Strips"/> from <paramref name="newOrder"/> (strip ids

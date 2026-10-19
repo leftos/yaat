@@ -39,6 +39,7 @@ public static class FlightStripSnapshotMapper
                             BayId = bayId,
                             RackKey = rackKey,
                             Columns = [.. columns.Select(col => col.ToList())],
+                            AutoSort = strips.AutoSortedRacks.Contains((bayId, ParseRackKey(rackKey))),
                         }
                     );
                 }
@@ -61,6 +62,7 @@ public static class FlightStripSnapshotMapper
         {
             strips.Items.Clear();
             strips.Bays.Clear();
+            strips.AutoSortedRacks.Clear();
             strips.DeparturePrinterQueue.Clear();
             strips.ArrivalPrinterQueue.Clear();
 
@@ -88,6 +90,10 @@ public static class FlightStripSnapshotMapper
                 }
 
                 racks[rack.RackKey] = [.. rack.Columns.Select(col => col.ToList())];
+                if (rack.AutoSort)
+                {
+                    strips.AutoSortedRacks.Add((rack.BayId, ParseRackKey(rack.RackKey)));
+                }
             }
 
             strips.DeparturePrinterQueue.AddRange(dto.DeparturePrinterQueue);
@@ -95,4 +101,7 @@ public static class FlightStripSnapshotMapper
             strips.NextBlankId = dto.NextBlankId;
         }
     }
+
+    /// <summary>A rack key is its 0-based rack index written out ("0", "1", …), the form <c>EnsureRack</c> creates.</summary>
+    private static int ParseRackKey(string rackKey) => int.Parse(rackKey, System.Globalization.CultureInfo.InvariantCulture);
 }
