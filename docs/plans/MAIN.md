@@ -5,7 +5,6 @@
 ## Do first
 
 - [/] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-896 Fix CI: wasm-tools workload install fails on the runner (NuGet lacks iOS manifest 27.1.10018) — Urgent · Singles
 
 ## Context-menu quick commands (#471)
 
@@ -41,8 +40,6 @@
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [/] YAAT-850 taxi issue · release vNext
-- [/] YAAT-851 Main yaat window remembers size of terminal in saved layouts. · release vNext
-- [/] YAAT-852 User toggleable setting to clear console history on scenario load/restart · release vNext
 
 ## Say again
 
@@ -244,6 +241,9 @@
 - [ ] YAAT-865 Pick a stand's lead-out lane deterministically at a junction on two taxiways
 - [ ] YAAT-871 Render and smooth an eastbound arrival's hook into SFO D12's lead-in
 - [ ] YAAT-872 Keep a zero-length named leg in the shown taxi route
+- [ ] YAAT-898 Pass SegmentExpander's walk state as a SegmentWalk record
+- [ ] YAAT-899 Keep a taxi detour connector off uncleared runway centrelines (SFO C3→S2 ends on 28R) · release vNext
+- [ ] YAAT-900 Try the next offset-crossing join pair when the closest one cannot be driven
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -363,7 +363,6 @@
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-638 GuideCapture live-traffic scene captures no shadow aircraft
-- [ ] YAAT-858 Start the heaviest Sim test classes first · release vNext
 - [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
 - [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
@@ -375,7 +374,7 @@
 - [ ] YAAT-875 Split TaxiRoute.ToSummary under the complexity limit
 - [ ] YAAT-879 Move the shared push-planner test helpers into PushTargetPlannerFixtures
 - [ ] YAAT-893 Prove the navigation database loader's concurrency rulings with tests
-- [ ] YAAT-895 Find the shared state behind the EramConformanceQaTests flake under parallel server collections · release vNext
+- [ ] YAAT-901 Stop SoloTrainingEvaluator.RecordPhase racing a test that clears DiagnosticPhaseTimings · release vNext
 
 ## Singles
 
@@ -615,3 +614,4 @@
 - [ ] YAAT-880 docs: Task Index rows for training-hub calls and the recording lifecycle
 - [ ] YAAT-881 yaat-nextup: build at-risk tests from staged figures on a threshold change
 - [ ] YAAT-894 Validate a recording's strip rack keys when it is imported
+- [ ] YAAT-897 Find why KMIA taxiways M, M1L, N, P and Q share one coincident edge #320→#319
