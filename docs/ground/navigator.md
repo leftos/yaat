@@ -80,6 +80,8 @@ The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** res
   Gated to a genuine forward crossing (near-side hold-short with a matching far-side hold-short of the same runway ahead, via `FindRunwayCrossingExitNode(requireSameRunwayExit: true)`); the far-side hold-short of a runway already vacated (landing-rollout exit) stays in `TaxiingPhase`. `TaxiingPhase.OnEnd` skips its stop-braking when handing off to a moving crossing.
 - `CrossingRunwayPhase` owns its own navigator over a crossing-route slice. It crosses at **taxi speed** with `RunwayCrossingSpeed` as a no-stop floor (`MinSpeedKts`) — a crossing is just taxiing across (7110.65 §3-7-2 "cross without delay"); any curve in the painted line is still slowed by the navigator's arc-speed cap.
 
+  A crossing that carries an expedite (`CrossingRunwayPhase.IsExpedited`, from `CROSS … EXP`) or runs under the route expedite takes the taxi cap of `CategoryPerformance.TaxiSpeedCap` and the expedite acceleration, and a commanded `SPD` caps it like any taxi.
+
   The ½-fuselage tail-clearance past the far-side node follows the **route's own next segments** (a straight is cut at the exact distance with a virtual node; an arc is taken whole), and on completion the crossing phase writes `route.CurrentSegmentIndex` to the segment the aircraft is actually on.
 
   Until then the route's current segment stays on the crossing's entry segment for the whole crossing, even once the aircraft is past that segment's end node. Anything that reads `AssignedTaxiRoute.CurrentSegment` during a crossing must allow for that; `GroundConflictDetector` orders an in-trail pair by along-edge progress for this reason.
@@ -624,7 +626,9 @@ Recomputed each `BuildSpeedConstraints`, so it round-trips through a snapshot fo
 
 Corner speeds, turn rate, accel/decel, main-gear turn radius, and slow-turn speed are all category-specific in `AircraftCategory.cs` (`CornerSpeedForAngle`, `GroundTurnRate`, `TaxiAccelRate` (1.0 for every category), `TaxiDecelRate` (5/5/2/2), `MainGearTurnRadiusFt`, `SlowTurnSpeedKts = 3.0`).
 
-Taxi max speed is `TaxiSpeed(category)`, multiplied by `TaxiExpediteMultiplier = 1.3` when the aircraft is expediting, or replaced outright by a controller-commanded cap when `Ground.CommandedTaxiSpeedKts` is set (`SPD <n>` while taxiing — `TaxiingPhase.OnTick`; clamped to `[MinCommandedTaxiSpeedKts, MaxCommandedTaxiSpeed(cat)]`, mutually exclusive with expedite).
+Taxi max speed is `TaxiSpeed(category)`, multiplied by `TaxiExpediteMultiplier = 1.3` when the aircraft is expediting (`CategoryPerformance.TaxiSpeedCap`), or replaced outright by a controller-commanded cap when `Ground.CommandedTaxiSpeedKts` is set (`SPD <n>` while taxiing — `TaxiingPhase.OnTick`; clamped to `[MinCommandedTaxiSpeedKts, MaxCommandedTaxiSpeed(cat)]`, mutually exclusive with expedite).
+
+A Super/Heavy gets no multiplier (`CategoryPerformance.IsSuperOrHeavy`). While expediting with no `SPD`, the phase also publishes `Targets.DesiredAccelRate` = `ExpediteTaxiAccelRate` (cleared in `OnEnd`), and a next bar ahead carrying `HoldShortPoint.IsExpedited` counts as expediting; under `SPD` the acceleration stays normal.
 
 This only sets the straight-segment ceiling — the corner/arc/braking/conflict caps above still win. These are the realism constraints: turn rate bounds heading change per tick, and entry-alignment radius floors at the main-gear turn radius so the navigator never asks for a physically impossible turn.
 

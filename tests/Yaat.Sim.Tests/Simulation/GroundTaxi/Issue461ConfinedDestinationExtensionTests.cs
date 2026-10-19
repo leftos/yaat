@@ -65,7 +65,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
         GroundNode gate = Assert.IsType<GroundNode>(layout.FindParkingByName("OLD1"));
         AircraftState aircraft = MakeAircraft(layout, gate.Position, gate.TrueHeading ?? new TrueHeading(7), new AtParkingPhase());
         aircraft.Ground.ParkingSpot = "OLD1";
-        var taxi = new TaxiCommand(Path: ["F", "C"], HoldShorts: [HoldShortTarget.Parse("33")], DestinationRunway: "28R");
+        var taxi = new TaxiCommand(Path: ["F", "C"], HoldShorts: [HoldShortTarget.Parse("33")], Expedite: false, DestinationRunway: "28R");
 
         TaxiRoute route = AssertHoldsShortOfMissingTaxiway(
             layout,
@@ -93,7 +93,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
 
         GroundNode start = layout.Nodes[OakCC1JunctionNode];
         AircraftState aircraft = MakeAircraft(layout, start.Position, new TrueHeading(OakWestAlongCHeadingDeg), new HoldingInPositionPhase());
-        var taxi = new TaxiCommand(Path: ["C"], HoldShorts: [], DestinationParking: "OLD1");
+        var taxi = new TaxiCommand(Path: ["C"], HoldShorts: [], Expedite: false, DestinationParking: "OLD1");
 
         AssertHoldsShortOfMissingTaxiway(layout, aircraft, taxi, "F", "Holding short of F: route to @OLD1 needs F, not in clearance");
     }
@@ -115,7 +115,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
 
         GroundNode start = layout.Nodes[OakGNorthOf28RHoldShortNode];
         AircraftState aircraft = MakeAircraft(layout, start.Position, new TrueHeading(OakNorthAlongGHeadingDeg), new HoldingInPositionPhase());
-        var taxi = new TaxiCommand(Path: ["G"], HoldShorts: [], DestinationParking: "SIG1");
+        var taxi = new TaxiCommand(Path: ["G"], HoldShorts: [], Expedite: false, DestinationParking: "SIG1");
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         output.WriteLine($"result: {result.Success} — {result.Message}");

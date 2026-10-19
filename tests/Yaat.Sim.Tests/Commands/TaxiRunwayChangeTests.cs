@@ -89,7 +89,7 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
     }
 
     private static CommandResult TaxiTo(AircraftState ac, AirportGroundLayout layout, string runway) =>
-        GroundCommandHandler.TryTaxi(ac, new TaxiCommand(["D", "C", "B"], [], DestinationRunway: runway), layout);
+        GroundCommandHandler.TryTaxi(ac, new TaxiCommand(["D", "C", "B"], [], Expedite: false, DestinationRunway: runway), layout);
 
     [Fact]
     public void TaxiNamingADifferentRunway_AssignsIt_DropsTheClearance_AndWarnsTheChange()

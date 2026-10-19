@@ -269,14 +269,14 @@ public class PhraseologyVerbalizerTests
 
     [Fact]
     public void VerbalizeTerminal_TaxiPathOnly_UsesSpaceJoinedLetters() =>
-        Assert.Equal("taxi via B C", PhraseologyVerbalizer.VerbalizeTerminal(new TaxiCommand(["B", "C"], [])));
+        Assert.Equal("taxi via B C", PhraseologyVerbalizer.VerbalizeTerminal(new TaxiCommand(["B", "C"], [], Expedite: false)));
 
     [Fact]
     public void VerbalizeTerminal_TaxiWithRunway_CompactIdentifiers()
     {
         // 08R → 8R; taxiway path → space-joined letters. Spoken form spells the phonetics; the
         // terminal form mirrors the same rule with compact tokens.
-        var taxi = new TaxiCommand(["B", "C", "D"], [], DestinationRunway: "08R");
+        var taxi = new TaxiCommand(["B", "C", "D"], [], Expedite: false, DestinationRunway: "08R");
         string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
         string? terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
 

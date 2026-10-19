@@ -79,7 +79,7 @@ public class ParkingSpotAtSpawnTests
         // SFO ramp path; TAXIAUTO runs the same TryTaxiCore rebuild as a typed TAXI <route> <rwy>.
         CommandResult result = GroundCommandHandler.TryTaxiAuto(
             ac,
-            new TaxiAutoCommand(DestinationRunway: "28L", DestinationParking: null, DestinationSpot: null),
+            new TaxiAutoCommand(DestinationRunway: "28L", DestinationParking: null, DestinationSpot: null, Expedite: false),
             layout,
             isScenarioScripted: false
         );

@@ -127,7 +127,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Departure = "EHAM", Destination = "KSFO" },
         };
 
-        var taxi = new TaxiCommand(Path: ["G", "B", "M1", "M5"], HoldShorts: [], DestinationParking: "A6S");
+        var taxi = new TaxiCommand(Path: ["G", "B", "M1", "M5"], HoldShorts: [], Expedite: false, DestinationParking: "A6S");
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TAXI G B M1 M5 @A6S failed: {result.Message}");
 
@@ -365,7 +365,11 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "RJAA" },
         };
 
-        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["M"], HoldShorts: [], DestinationRunway: null), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["M"], HoldShorts: [], Expedite: false, DestinationRunway: null),
+            layout
+        );
         Assert.True(result.Success, $"TAXI M failed: {result.Message}");
 
         TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;

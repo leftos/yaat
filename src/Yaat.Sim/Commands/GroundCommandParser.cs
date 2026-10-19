@@ -593,6 +593,7 @@ internal static class GroundCommandParser
             new TaxiCommand(
                 taxi.Path,
                 taxi.HoldShorts,
+                taxi.Expedite,
                 destRunway,
                 taxi.NoDelete,
                 taxi.DestinationParking,
@@ -632,12 +633,24 @@ internal static class GroundCommandParser
         bool inRwy = false;
         bool inCross = false;
         bool noDelete = false;
+        bool expedite = false;
 
         foreach (string token in tokens)
         {
             if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase))
             {
                 noDelete = true;
+                continue;
+            }
+
+            // EXP ("taxi without delay", 7110.65 §3-7-2.j) is a reserved keyword: it ends an HS / CROSS / RWY list
+            // rather than being read as a hold-short target, a crossing or a runway.
+            if (token.Equals("EXP", StringComparison.OrdinalIgnoreCase))
+            {
+                expedite = true;
+                inHoldShort = false;
+                inRwy = false;
+                inCross = false;
                 continue;
             }
 
@@ -762,7 +775,7 @@ internal static class GroundCommandParser
             return PR.Fail("empty taxi route");
         }
 
-        return PR.Ok(new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways, destSpot, turnHints));
+        return PR.Ok(new TaxiCommand(path, holdShorts, expedite, destRunway, noDelete, destParking, crossRunways, destSpot, turnHints));
     }
 
     /// <summary>
@@ -821,32 +834,40 @@ internal static class GroundCommandParser
     /// <summary>
     /// Parses TAXIAUTO {runway|@parking|$spot} — the same destination sigils as TAXI. The handler uses A*
     /// pathfinding to discover a taxiway sequence from the aircraft's current position and delegates to the
-    /// regular Taxi pipeline.
+    /// regular Taxi pipeline. A trailing <c>EXP</c> is "taxi without delay" (7110.65 §3-7-2.j).
     /// </summary>
     internal static PR ParseTaxiAuto(string? arg)
     {
+        const string MissingDestination = "TAXIAUTO requires a destination (runway, @parking, or $spot)";
         if (arg is null)
         {
-            return PR.Fail("TAXIAUTO requires a destination (runway, @parking, or $spot)");
+            return PR.Fail(MissingDestination);
         }
 
-        string token = arg.Trim();
-        if (token.Length == 0)
+        List<string> tokens = [.. arg.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
+        bool expedite = tokens.RemoveAll(t => t.Equals("EXP", StringComparison.OrdinalIgnoreCase)) > 0;
+        if (tokens.Count == 0)
         {
-            return PR.Fail("TAXIAUTO requires a destination (runway, @parking, or $spot)");
+            return PR.Fail(MissingDestination);
         }
 
+        if (tokens.Count > 1)
+        {
+            return PR.Fail($"TAXIAUTO takes one destination, got '{string.Join(" ", tokens)}'");
+        }
+
+        string token = tokens[0];
         if (token.StartsWith('@') && token.Length > 1)
         {
-            return PR.Ok(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: token[1..].ToUpperInvariant(), DestinationSpot: null));
+            return PR.Ok(new TaxiAutoCommand(null, token[1..].ToUpperInvariant(), null, expedite));
         }
 
         if (token.StartsWith('$') && token.Length > 1)
         {
-            return PR.Ok(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: null, DestinationSpot: token[1..].ToUpperInvariant()));
+            return PR.Ok(new TaxiAutoCommand(null, null, token[1..].ToUpperInvariant(), expedite));
         }
 
-        return PR.Ok(new TaxiAutoCommand(DestinationRunway: token.ToUpperInvariant(), DestinationParking: null, DestinationSpot: null));
+        return PR.Ok(new TaxiAutoCommand(token.ToUpperInvariant(), null, null, expedite));
     }
 
     /// <summary>
@@ -934,21 +955,35 @@ internal static class GroundCommandParser
     {
         if (arg is null)
         {
-            return PR.Ok(new CrossRunwayCommand([], []));
+            return PR.Ok(new CrossRunwayCommand([], [], Expedite: false));
         }
 
         string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return PR.Ok(new CrossRunwayCommand([], []));
+            return PR.Ok(new CrossRunwayCommand([], [], Expedite: false));
         }
 
         var crossRunways = new List<string>();
         var holdShorts = new List<HoldShortTarget>();
         ParseMode mode = ParseMode.Cross;
+        bool expedite = false;
 
         foreach (string raw in tokens)
         {
+            // EXP ("cross without delay", 7110.65 §3-7-2.j) is reserved: it ends the runway / HS list.
+            if (raw.Equals("EXP", StringComparison.OrdinalIgnoreCase))
+            {
+                if ((mode == ParseMode.HoldShort) && (holdShorts.Count == 0))
+                {
+                    return PR.Fail("CROSS HS requires at least one target");
+                }
+
+                expedite = true;
+                mode = ParseMode.None;
+                continue;
+            }
+
             if (raw.Equals("HS", StringComparison.OrdinalIgnoreCase))
             {
                 mode = ParseMode.HoldShort;
@@ -984,7 +1019,13 @@ internal static class GroundCommandParser
             return PR.Fail("CROSS HS requires at least one target");
         }
 
-        return PR.Ok(new CrossRunwayCommand(crossRunways, holdShorts));
+        // A hold-short-only CROSS crosses nothing, so it has nothing to expedite.
+        if (expedite && (crossRunways.Count == 0) && (holdShorts.Count > 0))
+        {
+            return PR.Fail("CROSS EXP needs a runway to cross: CROSS <runway> [HS <target>] EXP, or bare CROSS EXP for the next hold short");
+        }
+
+        return PR.Ok(new CrossRunwayCommand(crossRunways, holdShorts, expedite));
     }
 
     /// <summary>

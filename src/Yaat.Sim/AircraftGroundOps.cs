@@ -146,9 +146,14 @@ public class AircraftGroundOps
     internal TugRowClearances TowRowClearances { get; } = new();
 
     /// <summary>
-    /// When true, the active TaxiingPhase raises its straight-line speed cap by
-    /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>. Cleared on the
-    /// next HOLD/RES/HS command — pilots resume normal taxi after any of those.
+    /// The route expedite ("taxi without delay", 7110.65 §3-7-2.j): while true, TaxiingPhase and CrossingRunwayPhase raise their
+    /// straight-line cap by <see cref="CategoryPerformance.GroundExpediteMultiplier"/> and accelerate at
+    /// <see cref="CategoryPerformance.ExpediteTaxiAccelRate"/> (neither for a Super/Heavy). Set by <c>TAXI … EXP</c> /
+    /// <c>TAXIAUTO … EXP</c> (on the rollout, for the stored route) and the standalone ground <c>EXP</c>. Cleared, with every crossing
+    /// expedite on the route (<c>GroundCommandHandler.EndRouteExpedite</c>), by a TAXI or TAXIAUTO without EXP, HOLD, HS, GIVEWAY, SPD,
+    /// NORM, RNS while taxiing, a RES that releases the aircraft from a stop or breaks a conflict stall, a CROSS without EXP that
+    /// releases it from a stop, and a rollout route the exit cannot join; a bare RES or a CROSS pre-clearance while rolling, and
+    /// stopping at a bar, leave it running.
     /// </summary>
     public bool IsExpeditingTaxi { get; set; }
 
@@ -175,7 +180,7 @@ public class AircraftGroundOps
 
     /// <summary>
     /// When true, a departing aircraft taxis briskly onto the runway: LineUpPhase raises
-    /// its straight-segment lineup speed by <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>.
+    /// its straight-segment lineup speed by <see cref="CategoryPerformance.GroundExpediteMultiplier"/> (no increase for a Super/Heavy).
     /// Set by the IMM/WD/ND modifier on <c>CTO</c> ("cleared for immediate takeoff", which
     /// also rolls without stopping at the centerline) or <c>LUAW</c> ("line up and wait,
     /// without delay", which still stops at the centerline). Cleared at takeoff-roll start,

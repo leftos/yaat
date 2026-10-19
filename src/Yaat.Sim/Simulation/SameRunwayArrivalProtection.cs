@@ -385,7 +385,7 @@ public static class SameRunwayArrivalProtection
     /// <summary>
     /// The vacate of an aircraft already on its exit path: steady, then the stop. <see cref="RunwayExitPhase"/> caps
     /// its navigator at <see cref="CategoryPerformance.TaxiSpeed"/> — bumped by
-    /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/> on an expedited exit — and that navigator brakes to
+    /// <see cref="CategoryPerformance.GroundExpediteMultiplier"/> on an expedited exit, never for a Super/Heavy — and that navigator brakes to
     /// the hold-short stop at <see cref="CategoryPerformance.TaxiDecelRate"/>
     /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/> when expediting), so the remainder is one leg held at
     /// the ceiling and a final v²/2a of braking. The steady speed is never above the speed the leader is doing now:
@@ -401,7 +401,9 @@ public static class SameRunwayArrivalProtection
     {
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool expediting = aircraft.Ground.IsExpeditingExit;
-        double ceiling = CategoryPerformance.TaxiSpeed(category) * (expediting ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
+        double ceiling =
+            CategoryPerformance.TaxiSpeed(category)
+            * (expediting ? CategoryPerformance.GroundExpediteMultiplier(CategoryPerformance.IsSuperOrHeavy(aircraft.AircraftType, category)) : 1.0);
         double decelRate = expediting ? CategoryPerformance.ExpediteExitDecelRate(category) : CategoryPerformance.TaxiDecelRate(category);
         double entry = Math.Max(0.0, aircraft.GroundSpeed);
         double steady = Math.Min(entry, ceiling);

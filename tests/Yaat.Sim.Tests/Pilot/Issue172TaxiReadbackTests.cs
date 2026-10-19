@@ -20,14 +20,14 @@ public class Issue172TaxiReadbackTests
     [Fact]
     public void Taxi_PathOnly_VoicesRoute()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], []));
+        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [], Expedite: false));
         Assert.Equal("taxi via bravo, charlie", result);
     }
 
     [Fact]
     public void Taxi_WithTurnHints_VoicesTurns()
     {
-        var taxi = new TaxiCommand(["B", "C"], [], PathTurnHints: [TurnDirection.Right, null]);
+        var taxi = new TaxiCommand(["B", "C"], [], Expedite: false, PathTurnHints: [TurnDirection.Right, null]);
         string? result = PhraseologyVerbalizer.Verbalize(taxi);
         Assert.Equal("taxi via right on bravo, charlie", result);
     }
@@ -35,7 +35,7 @@ public class Issue172TaxiReadbackTests
     [Fact]
     public void Taxi_LeftTurnMidRoute_VoicesLeftTurn()
     {
-        var taxi = new TaxiCommand(["A", "B", "C"], [], PathTurnHints: [null, null, TurnDirection.Left]);
+        var taxi = new TaxiCommand(["A", "B", "C"], [], Expedite: false, PathTurnHints: [null, null, TurnDirection.Left]);
         string? result = PhraseologyVerbalizer.Verbalize(taxi);
         Assert.Equal("taxi via alpha, bravo, left on charlie", result);
     }
@@ -43,7 +43,7 @@ public class Issue172TaxiReadbackTests
     [Fact]
     public void Taxi_WithHoldShort_VoicesHoldShort()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")]));
+        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")], Expedite: false));
         Assert.Equal("taxi via bravo, charlie, hold short of runway two eight right", result);
     }
 
@@ -51,7 +51,7 @@ public class Issue172TaxiReadbackTests
     public void Taxi_NodeRefOnly_ProducesNoReadback()
     {
         // A draw-route debug taxi (node refs only) has no spoken form.
-        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["#42", "#18"], []));
+        string? result = PhraseologyVerbalizer.Verbalize(new TaxiCommand(["#42", "#18"], [], Expedite: false));
         Assert.Null(result);
     }
 }

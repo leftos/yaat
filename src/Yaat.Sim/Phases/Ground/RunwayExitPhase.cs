@@ -1282,14 +1282,12 @@ public sealed class RunwayExitPhase : Phase
             CurrentSegmentIndex = Math.Min(resumeSegmentIndex, segments.Count - 1),
         };
 
-        // Cap the exit maneuver at normal taxiway speed, not the runway-rollout coast speed: once the
+        // Cap the exit maneuver at the exit's taxi ceiling (ExitTaxiCeilingKts), not the runway-rollout coast speed: once the
         // aircraft turns off onto the exit taxiway it is taxiing, so it should not accelerate past taxi
         // speed toward coast on the straight to the hold-short and then brake hard — the
         // slow-turn-then-surge profile. The turn itself is governed by the junction arc's
-        // MaxSafeSpeedKts (a rapid exit is taken at its design speed). Mirror TaxiingPhase's expedite
-        // bump so an EXP exit still taxis briskly to the hold-short.
-        double taxiCeiling =
-            CategoryPerformance.TaxiSpeed(ctx.Category) * (ctx.Aircraft.Ground.IsExpeditingExit ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
+        // MaxSafeSpeedKts (a rapid exit is taken at its design speed).
+        double taxiCeiling = ExitTaxiCeilingKts(ctx.Category, ctx.Aircraft.AircraftType, ctx.Aircraft.Ground.IsExpeditingExit);
         double maxSpeed = Math.Min(_coastSpeed, taxiCeiling);
 
         // The route rebuild after a restore takes the navigator from the snapshot, so the set-up below resumes the primitive
@@ -1648,6 +1646,15 @@ public sealed class RunwayExitPhase : Phase
         ctx.Aircraft.Phases?.ForcedRollout = false;
         Log.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
     }
+
+    /// <summary>
+    /// The exit's straight-segment taxi ceiling (kts): <see cref="CategoryPerformance.TaxiSpeed"/>, raised on an expedited exit by
+    /// <see cref="CategoryPerformance.GroundExpediteMultiplier"/> as TaxiingPhase raises its own, so an EXP exit still taxis briskly to
+    /// the hold-short; a Super/Heavy gets no increase (<see cref="CategoryPerformance.IsSuperOrHeavy"/>).
+    /// </summary>
+    public static double ExitTaxiCeilingKts(AircraftCategory category, string aircraftType, bool expediting) =>
+        CategoryPerformance.TaxiSpeed(category)
+        * (expediting ? CategoryPerformance.GroundExpediteMultiplier(CategoryPerformance.IsSuperOrHeavy(aircraftType, category)) : 1.0);
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

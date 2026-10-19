@@ -385,11 +385,11 @@ public class ArgumentSuggesterTaxiwayTests
     }
 
     [Fact]
-    public void TaxiAuto_AfterTheDestination_OffersNothing()
+    public void TaxiAuto_AfterTheDestination_OffersOnlyExp()
     {
-        // TAXIAUTO takes exactly one destination token, so nothing follows it: neither a second name nor a
-        // sigil, whose stand/spot flyout belongs to the leading token alone. The destination slot itself
-        // offers the airport's runways, which is what makes the empty later slot an assertion.
+        // TAXIAUTO takes exactly one destination token, so only its EXP modifier ("taxi without delay") follows it:
+        // neither a second name nor a sigil, whose stand/spot flyout belongs to the leading token alone. The destination
+        // slot itself offers the airport's runways, which is what makes the narrow later slot an assertion.
         ObservableCollection<SuggestionItem> destinationSlot = Suggest(
             "TAXIAUTO ",
             ["A", "TE"],
@@ -413,7 +413,9 @@ public class ArgumentSuggesterTaxiwayTests
         );
 
         Assert.Contains(destinationSlot, s => (s.Text == "28R") && (s.Description == "Runway"));
-        Assert.Empty(afterRunway);
+        SuggestionItem exp = Assert.Single(afterRunway);
+        Assert.Equal("EXP", exp.Text);
+        Assert.Equal("TAXIAUTO 28R EXP ", exp.InsertText);
         Assert.Empty(afterStand);
     }
 

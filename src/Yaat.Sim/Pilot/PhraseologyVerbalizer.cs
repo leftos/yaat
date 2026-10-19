@@ -139,6 +139,7 @@ public static class PhraseologyVerbalizer
             cmd = new TaxiCommand(
                 [],
                 [],
+                taxiAuto.Expedite,
                 taxiAuto.DestinationRunway,
                 DestinationParking: taxiAuto.DestinationParking,
                 DestinationSpot: taxiAuto.DestinationSpot
@@ -195,6 +196,7 @@ public static class PhraseologyVerbalizer
                 || taxiDirect.HoldShorts.Count > 0
                 || taxiDirect.DestinationParking is not null
                 || taxiDirect.DestinationSpot is not null
+                || taxiDirect.Expedite
             )
         )
         {
@@ -215,8 +217,13 @@ public static class PhraseologyVerbalizer
         // A single-runway, no-HS CROSS falls through to the rule-driven path so its readback and
         // STT stay unchanged.
         if (
-            cmd is CrossRunwayCommand crossCmd
-            && (crossCmd.RunwayIds.Count > 1 || crossCmd.HoldShorts.Count > 0 || crossCmd.RunwayIds.Any(r => !CommandParser.IsRunwayArg(r)))
+            (cmd is CrossRunwayCommand crossCmd)
+            && (
+                (crossCmd.RunwayIds.Count > 1)
+                || (crossCmd.HoldShorts.Count > 0)
+                || crossCmd.RunwayIds.Any(r => !CommandParser.IsRunwayArg(r))
+                || (crossCmd.Expedite && (crossCmd.RunwayIds.Count > 0))
+            )
         )
         {
             return RenderCross(crossCmd, NoMergeHolds, fmt);
@@ -498,6 +505,12 @@ public static class PhraseologyVerbalizer
             body += $", cross runway {string.Join(" and ", cross.Select(fmt.Runway))}";
         }
 
+        // "Taxi without delay" (7110.65 §3-7-2.j) follows the route; the required hold-short readback stays last.
+        if (taxi.Expedite)
+        {
+            body += ", without delay";
+        }
+
         if (taxi.HoldShorts is { Count: > 0 } holdShorts)
         {
             body += $", hold short of {string.Join(" and ", holdShorts.Select(h => RenderHoldShortTargetWithMergeHold(h, mergeHoldOf(h), fmt)))}";
@@ -582,6 +595,12 @@ public static class PhraseologyVerbalizer
                 body.Append(", ");
             }
             body.Append(ContinueTaxiRelease);
+        }
+
+        // "Cross runway 28R without delay" (7110.65 §3-7-2.j), ahead of any hold-short.
+        if (cross.Expedite && (body.Length > 0))
+        {
+            body.Append(" without delay");
         }
 
         if (cross.HoldShorts is { Count: > 0 } holdShorts)

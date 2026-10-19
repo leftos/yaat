@@ -37,7 +37,7 @@ public class AdditiveConditionalDispatchTests
         };
 
     private static CompoundCommand WaitThenTaxi(double seconds) =>
-        new([new ParsedBlock(null, [new WaitCommand(seconds), new TaxiCommand(["N", "B"], [])])]);
+        new([new ParsedBlock(null, [new WaitCommand(seconds), new TaxiCommand(["N", "B"], [], Expedite: false)])]);
 
     private static CompoundCommand OnHandoffClimb(int altitude) =>
         new([new ParsedBlock(new OnHandoffCondition(), [new ClimbMaintainCommand(altitude)])]);

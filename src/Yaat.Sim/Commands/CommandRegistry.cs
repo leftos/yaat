@@ -848,6 +848,7 @@ public static class CommandRegistry
                     Mod("NODEL", null, false),
                     Mod("@", "parking", false),
                     Mod("$", "spot", false),
+                    Mod("EXP", null, false),
                 ]
             ),
             Bare(HoldPosition, "Hold Position", "Ground", CommandDimension.Ground, false, ["HOLD", "HP"]),
@@ -869,7 +870,7 @@ public static class CommandRegistry
                 false,
                 ["CROSS"],
                 [O(null, [], "Cross next hold-short"), O(null, [Rep("runway", "runway designator")], "Cross runway(s)")],
-                [Mod("HS", "taxiway/runway/$spot", true)]
+                [Mod("HS", "taxiway/runway/$spot", true), Mod("EXP", null, false)]
             ),
             Cmd(
                 HoldShort,
@@ -956,7 +957,17 @@ public static class CommandRegistry
                 false,
                 ["TAXIAUTO"],
                 [O(null, [R("destination", "runway, @parking, or $spot")], "Auto-route taxi to runway, parking, or spot (A* pathfinding)")],
-                [Mod("@", "parking", false) with { LeadingTokenOnly = true }, Mod("$", "spot", false) with { LeadingTokenOnly = true }]
+                [
+                    Mod("@", "parking", false) with
+                    {
+                        LeadingTokenOnly = true,
+                    },
+                    Mod("$", "spot", false) with
+                    {
+                        LeadingTokenOnly = true,
+                    },
+                    Mod("EXP", null, false),
+                ]
             ),
             Bare(BreakConflict, "Break Conflict", "Ground", CommandDimension.Ground, false, ["BREAK"]),
             Bare(ClearRunway, "Clear Runway", "Ground", CommandDimension.Ground, false, ["CLRWY", "CLEARRWY"]),

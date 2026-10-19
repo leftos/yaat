@@ -679,7 +679,7 @@ public class PilotResponderTests
     public void BuildReadback_Taxi_TerminalUsesIdentifiersTtsSpellsPhonetics()
     {
         AircraftState ac = MakeAircraft("N225R");
-        CompoundCommand compound = Compound(new TaxiCommand(["B", "C", "D"], [], DestinationRunway: "08R"));
+        CompoundCommand compound = Compound(new TaxiCommand(["B", "C", "D"], [], Expedite: false, DestinationRunway: "08R"));
 
         PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
 
@@ -703,7 +703,7 @@ public class PilotResponderTests
         // capture set. PickPreferredRule must choose the four-capture TAXI variant so none of the
         // path / destination runway / cross runway / hold-short clauses are dropped.
         CompoundCommand compound = Compound(
-            new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")], DestinationRunway: "28L", CrossRunways: ["10R"])
+            new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")], Expedite: false, DestinationRunway: "28L", CrossRunways: ["10R"])
         );
 
         PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
@@ -726,8 +726,8 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("AAL436");
         // Controller cleared M4 M1 A; the gate lead-out lane M4 was dropped by TryTaxi, so the aircraft taxis M1 A.
-        var issued = new TaxiCommand(["M4", "M1", "A"], [], DestinationRunway: "1R");
-        var effective = new TaxiCommand(["M1", "A"], [], DestinationRunway: "1R");
+        var issued = new TaxiCommand(["M4", "M1", "A"], [], Expedite: false, DestinationRunway: "1R");
+        var effective = new TaxiCommand(["M1", "A"], [], Expedite: false, DestinationRunway: "1R");
 
         PilotSpeechText? result = PilotResponder.BuildReadbackAsApplied(
             Compound(issued),
@@ -749,7 +749,7 @@ public class PilotResponderTests
     public void BuildReadbackAsApplied_NoRewrite_MatchesPlainReadback()
     {
         AircraftState ac = MakeAircraft("AAL436");
-        CompoundCommand compound = Compound(new TaxiCommand(["M1", "A"], [], DestinationRunway: "1R"));
+        CompoundCommand compound = Compound(new TaxiCommand(["M1", "A"], [], Expedite: false, DestinationRunway: "1R"));
 
         PilotSpeechText? plain = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
         PilotSpeechText? asApplied = PilotResponder.BuildReadbackAsApplied(
@@ -850,7 +850,7 @@ public class PilotResponderTests
     public void BuildReadback_TaxiPreservesCenterRunwaySuffix()
     {
         AircraftState ac = MakeAircraft("N225R");
-        CompoundCommand compound = Compound(new TaxiCommand(["A"], [], DestinationRunway: "1C"));
+        CompoundCommand compound = Compound(new TaxiCommand(["A"], [], Expedite: false, DestinationRunway: "1C"));
 
         PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
 

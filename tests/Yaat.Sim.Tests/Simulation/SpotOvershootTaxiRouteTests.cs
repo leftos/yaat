@@ -142,7 +142,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         output.WriteLine($"Spot 2 node: {spot2.Id} at ({spot2.Position.Lat:F6}, {spot2.Position.Lon:F6})");
 
         AircraftState aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
-        var taxi = new TaxiCommand(Path: ["M2"], HoldShorts: [], DestinationSpot: "2");
+        var taxi = new TaxiCommand(Path: ["M2"], HoldShorts: [], Expedite: false, DestinationSpot: "2");
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -213,7 +213,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         output.WriteLine($"Spot 1 node: {spot1.Id} at ({spot1.Position.Lat:F6}, {spot1.Position.Lon:F6})");
 
         AircraftState aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
-        var taxi = new TaxiCommand(Path: ["M4", "M1"], HoldShorts: [], DestinationSpot: "1");
+        var taxi = new TaxiCommand(Path: ["M4", "M1"], HoldShorts: [], Expedite: false, DestinationSpot: "1");
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -288,7 +288,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         output.WriteLine($"Spot 9 node: {spot9.Id} at ({spot9.Position.Lat:F6}, {spot9.Position.Lon:F6})");
 
         AircraftState aircraft = MakeSfoGroundAircraft(startNode.Position.Lat, startNode.Position.Lon);
-        var taxi = new TaxiCommand(Path: ["T9"], HoldShorts: [], DestinationSpot: "9");
+        var taxi = new TaxiCommand(Path: ["T9"], HoldShorts: [], Expedite: false, DestinationSpot: "9");
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");

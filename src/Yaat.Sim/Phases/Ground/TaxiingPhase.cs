@@ -195,10 +195,17 @@ public sealed class TaxiingPhase : Phase
         // A controller-commanded taxi speed replaces the category default outright (slower or
         // faster); it is mutually exclusive with expedite, so at most one branch is in effect.
         // Corner/arc/braking/conflict caps still win downstream via GroundNavigator's Math.Min chain.
-        double baseTaxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-        _nav.MaxSpeedKts =
-            ctx.Aircraft.Ground.CommandedTaxiSpeedKts
-            ?? (ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed);
+        // A route expedite, or a CROSS … EXP for the next hold short ahead — the approach to a pre-cleared bar and the taxi between
+        // the runways of a multi-runway CROSS EXP (7110.65 §3-7-2.j) — raises the cap and, with no commanded SPD, the acceleration,
+        // published here and cleared on exit (OnEnd).
+        // The route-order scan for the next bar runs only when some crossing on the route carries an expedite.
+        bool expedite =
+            ctx.Aircraft.Ground.IsExpeditingTaxi
+            || (route.HoldShortPoints.Exists(static hs => hs.IsExpedited) && (route.NextHoldShortAhead()?.IsExpedited ?? false));
+        bool superOrHeavy = CategoryPerformance.IsSuperOrHeavy(ctx.Aircraft.AircraftType, ctx.Category);
+        double? commandedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts;
+        _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeedCap(ctx.Category, commandedKts, expedite, superOrHeavy);
+        ctx.Targets.DesiredAccelRate = CategoryPerformance.TaxiAccelOverride(ctx.Category, commandedKts, expedite, superOrHeavy);
 
         // A spot line-up pulls up its lane onto the spot slowly; the spot-approach crawl below still takes over.
         if ((route.SpotLineUpPullFromSegment is { } pullFrom) && (route.CurrentSegmentIndex >= pullFrom))
@@ -353,6 +360,9 @@ public sealed class TaxiingPhase : Phase
         // the phase boundary: ControlTargets persist, so a phase that publishes no rate of its own —
         // an airborne descent, an approach speed reduction — would otherwise brake at ground rates.
         ctx.Targets.DesiredDecelRate = null;
+
+        // The expedite acceleration is this phase's to publish, so it ends with the phase.
+        ctx.Targets.DesiredAccelRate = null;
 
         // Two completions keep their speed instead of snapping to a standstill:
         //
@@ -2376,7 +2386,7 @@ public sealed class TaxiingPhase : Phase
             crossingExitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: false);
             if (crossingExitNodeId is { } exitNodeId)
             {
-                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName));
+                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName) { IsExpedited = holdShort.IsExpedited });
                 routeContinues = CrossingRunwayPhase.RouteIndexAfterCrossing(ctx, route, holdShort.NodeId, exitNodeId) < route.Segments.Count;
             }
         }
@@ -2454,7 +2464,10 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private static List<Phase> BuildPreClearedCrossingPhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort, int exitNodeId)
     {
-        var phases = new List<Phase> { new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName) };
+        var phases = new List<Phase>
+        {
+            new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName) { IsExpedited = holdShort.IsExpedited },
+        };
 
         // Skip past the arrived-at hold-short segment. The crossing slice ahead of it is consumed by the
         // CrossingRunwayPhase, which writes the cursor to wherever its tail-clearance extension ends.
@@ -2493,7 +2506,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         return FindRunwayCrossingExitNode(route, holdShort, layout, requireSameRunwayExit: false) is { } exitNodeId
-            ? new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName)
+            ? new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName) { IsExpedited = holdShort.IsExpedited }
             : null;
     }
 

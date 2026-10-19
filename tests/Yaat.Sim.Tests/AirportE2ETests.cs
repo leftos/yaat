@@ -89,7 +89,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D — walks south along D from NEW7 parking (via RAMP edge)
-        var taxi = new TaxiCommand(["D"], []);
+        var taxi = new TaxiCommand(["D"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
@@ -117,7 +117,7 @@ public class AirportE2ETests
         // TAXI D C — taxi up D and stop at the D/C intersection. With no downstream destination and
         // C passing through the junction both ways, the route does not commit a direction along C;
         // the aircraft holds at the junction, ready to be turned either way on C by a follow-up taxi.
-        var taxi = new TaxiCommand(["D", "C"], []);
+        var taxi = new TaxiCommand(["D", "C"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
@@ -147,7 +147,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // TAXI D C B W to runway 30 — full route from NEW7 to runway 30
-        var taxi = new TaxiCommand(["D", "C", "B", "W"], [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(["D", "C", "B", "W"], [], Expedite: false, DestinationRunway: "30");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
@@ -178,7 +178,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
-        var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
+        var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
@@ -227,7 +227,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
-        var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
+        var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed (width={widthFt}): {result.Message}");
 
@@ -339,7 +339,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: startNode.Position);
 
         // D → K → F: D connects to K, K connects to F. Both D and F cross 15/33.
-        var taxi = new TaxiCommand(["D", "K", "F"], []);
+        var taxi = new TaxiCommand(["D", "K", "F"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi D K F should succeed: {result.Message}");
@@ -379,7 +379,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: startNode.Position);
 
         // Taxi with auto-cross-runway flag
-        var taxi = new TaxiCommand(["D", "K", "F"], []);
+        var taxi = new TaxiCommand(["D", "K", "F"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout, autoCrossRunway: true);
 
         Assert.True(result.Success, $"Taxi D K F (auto-cross) should succeed: {result.Message}");
@@ -406,7 +406,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // Step 1: Taxi from parking to runway 30 via D C B W
-        var taxi = new TaxiCommand(["D", "C", "B", "W"], [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(["D", "C", "B", "W"], [], Expedite: false, DestinationRunway: "30");
         CommandResult taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(taxiResult.Success, $"Taxi failed: {taxiResult.Message}");
 
@@ -462,7 +462,7 @@ public class AirportE2ETests
         }
 
         // After pushback, issue taxi via D C
-        var taxi = new TaxiCommand(["D", "C"], []);
+        var taxi = new TaxiCommand(["D", "C"], [], Expedite: false);
         CommandResult taxiResult = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(taxiResult.Success, $"Taxi after pushback failed: {taxiResult.Message}");
         Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
@@ -484,7 +484,7 @@ public class AirportE2ETests
 
         // TAXI D to runway 30 — D doesn't reach runway 30 (it's in the 28/15-33 area).
         // Should fail because D alone can't reach the 30 threshold.
-        var taxi = new TaxiCommand(["D"], [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(["D"], [], Expedite: false, DestinationRunway: "30");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.False(result.Success, "D alone should not reach runway 30");
@@ -872,7 +872,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI T7A — bare taxiway, no destination. This is what the buggy "TAXI HERE" sent.
-        var taxi = new TaxiCommand(["T7A"], []);
+        var taxi = new TaxiCommand(["T7A"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
 
@@ -914,7 +914,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI $7A — no explicit path, A* to spot
-        var taxi = new TaxiCommand([], [], DestinationSpot: "7A");
+        var taxi = new TaxiCommand([], [], Expedite: false, DestinationSpot: "7A");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
 
@@ -949,7 +949,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // TAXI T7A $7A — explicit path + spot destination
-        var taxi = new TaxiCommand(["T7A"], [], DestinationSpot: "7A");
+        var taxi = new TaxiCommand(["T7A"], [], Expedite: false, DestinationSpot: "7A");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         if (result.Success)
@@ -985,7 +985,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
-        var taxi = new TaxiCommand(["T7A"], []);
+        var taxi = new TaxiCommand(["T7A"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
 
@@ -1047,7 +1047,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", pushback.Position);
 
         // Step 1: TAXI $7A
-        var taxi1 = new TaxiCommand([], [], DestinationSpot: "7A");
+        var taxi1 = new TaxiCommand([], [], Expedite: false, DestinationSpot: "7A");
         CommandResult result1 = GroundCommandHandler.TryTaxi(ac, taxi1, layout);
         Assert.True(result1.Success, $"TAXI $7A should succeed: {result1.Message}");
 
@@ -1063,7 +1063,7 @@ public class AirportE2ETests
         Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
 
         // Step 2: Issue another taxi — should succeed because HoldingInPositionPhase accepts Taxi
-        var taxi2 = new TaxiCommand(["A"], []);
+        var taxi2 = new TaxiCommand(["A"], [], Expedite: false);
         CommandResult result2 = GroundCommandHandler.TryTaxi(ac, taxi2, layout);
         Assert.True(result2.Success, $"Second taxi should succeed: {result2.Message}");
         Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
@@ -1086,7 +1086,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft("SFO", spot7A.Position);
 
-        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationSpot: "7A"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], Expedite: false, DestinationSpot: "7A"), layout);
         Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
 
         Assert.Empty(ac.Ground.AssignedTaxiRoute!.Segments);
@@ -1110,7 +1110,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft("SFO", gateD3.Position);
 
-        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], DestinationParking: "D3"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand([], [], Expedite: false, DestinationParking: "D3"), layout);
         Assert.True(result.Success, $"TAXI @D3 should succeed: {result.Message}");
 
         Assert.Empty(ac.Ground.AssignedTaxiRoute!.Segments);
@@ -1145,7 +1145,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", cOnlyNode.Position);
 
         // TAXI C E 28R — should find a route from C via E to runway 28R
-        var taxi = new TaxiCommand(["C", "E"], [], DestinationRunway: "28R");
+        var taxi = new TaxiCommand(["C", "E"], [], Expedite: false, DestinationRunway: "28R");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"TAXI C E 28R should succeed: {result.Message}");
@@ -1207,7 +1207,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", m1Node.Position);
 
         // TAXI M1 to runway 1L — M1 connects to 1L holds-short
-        var taxi = new TaxiCommand(["M1"], [], DestinationRunway: "1L");
+        var taxi = new TaxiCommand(["M1"], [], Expedite: false, DestinationRunway: "1L");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"TAXI M1 1L should succeed: {result.Message}");
@@ -1227,7 +1227,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
-        var taxi = new TaxiCommand(["B"], [], DestinationRunway: "28L");
+        var taxi = new TaxiCommand(["B"], [], Expedite: false, DestinationRunway: "28L");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
@@ -1333,7 +1333,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft(position: exitHoldShort.Position);
 
-        var taxi = new TaxiCommand(["G"], [], DestinationParking: "SIG1");
+        var taxi = new TaxiCommand(["G"], [], Expedite: false, DestinationParking: "SIG1");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");

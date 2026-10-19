@@ -133,7 +133,10 @@ public class WaitCommandDispatchTests
         );
 
         // WAIT 15; TAXI A — two sequential blocks
-        var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(15)]), new ParsedBlock(null, [new TaxiCommand(["A"], [])])]);
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new WaitCommand(15)]),
+            new ParsedBlock(null, [new TaxiCommand(["A"], [], Expedite: false)]),
+        ]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
@@ -154,7 +157,10 @@ public class WaitCommandDispatchTests
         AircraftState ac = MakeGroundAircraft();
 
         // No active phases — deferred dispatch still works
-        var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10)]), new ParsedBlock(null, [new TaxiCommand(["B"], [])])]);
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new WaitCommand(10)]),
+            new ParsedBlock(null, [new TaxiCommand(["B"], [], Expedite: false)]),
+        ]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
@@ -244,7 +250,7 @@ public class WaitCommandDispatchTests
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
         // BEHIND UAL999 TAXI A B
-        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new TaxiCommand(["A", "B"], [])])]);
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new TaxiCommand(["A", "B"], [], Expedite: false)])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 

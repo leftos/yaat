@@ -138,7 +138,7 @@ public class GroundViewModelApproachLegOverlayTests
             FacilityHint = null,
             LayoutForAirport = null,
         };
-        CommandResult result = CommandDispatcher.Dispatch(new TaxiCommand(["T7A"], [], DestinationSpot: "7A"), aircraft, ctx);
+        CommandResult result = CommandDispatcher.Dispatch(new TaxiCommand(["T7A"], [], Expedite: false, DestinationSpot: "7A"), aircraft, ctx);
         Assert.True(result.Success, result.Message);
         return aircraft.Ground.AssignedTaxiRoute ?? throw new InvalidOperationException("the TAXI left no route");
     }

@@ -82,7 +82,7 @@ public class Issue161PushFaceThenTaxiStartNodeTests(ITestOutputHelper output)
         output.WriteLine($"Aircraft pose: ({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}) hdg={aircraft.TrueHeading.Degrees:F0}");
         NearestNodeHelper.Log(output, "Pre-taxi", aircraft, layout, count: 5);
 
-        var taxi = new TaxiCommand(Path: ["A", "F1", "B", "Z", "S", "S3"], HoldShorts: [], DestinationRunway: "10R");
+        var taxi = new TaxiCommand(Path: ["A", "F1", "B", "Z", "S", "S3"], HoldShorts: [], Expedite: false, DestinationRunway: "10R");
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");

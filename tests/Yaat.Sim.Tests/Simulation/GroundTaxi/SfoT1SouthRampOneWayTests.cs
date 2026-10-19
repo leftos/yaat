@@ -37,7 +37,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         (CommandResult result, TaxiRoute route) = TaxiFromT28RExit(
             layout,
             "B738",
-            new TaxiCommand(Path: ["T", "A"], HoldShorts: [], DestinationParking: "B2")
+            new TaxiCommand(Path: ["T", "A"], HoldShorts: [], Expedite: false, DestinationParking: "B2")
         );
 
         AssertReachesParking(layout, route, "B2");
@@ -58,7 +58,11 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
             return;
         }
 
-        (_, TaxiRoute route) = TaxiFromT28RExit(layout, "A388", new TaxiCommand(Path: ["T", "A"], HoldShorts: [], DestinationParking: "B2"));
+        (_, TaxiRoute route) = TaxiFromT28RExit(
+            layout,
+            "A388",
+            new TaxiCommand(Path: ["T", "A"], HoldShorts: [], Expedite: false, DestinationParking: "B2")
+        );
 
         AssertReachesParking(layout, route, "B2");
         Assert.True(DrivesStraight(route, "M1"), "the super must enter the ramp on M1");
@@ -80,7 +84,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         (_, TaxiRoute route) = TaxiFromT28RExit(
             layout,
             "B738",
-            new TaxiCommand(Path: ["T", "A", "M2", "M5"], HoldShorts: [], DestinationParking: "B2")
+            new TaxiCommand(Path: ["T", "A", "M2", "M5"], HoldShorts: [], Expedite: false, DestinationParking: "B2")
         );
 
         AssertReachesParking(layout, route, "B2");
@@ -320,7 +324,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
             return;
         }
 
-        (_, TaxiRoute route) = TaxiFromT28RExit(layout, "B738", new TaxiCommand(Path: [], HoldShorts: [], DestinationParking: "B2"));
+        (_, TaxiRoute route) = TaxiFromT28RExit(layout, "B738", new TaxiCommand(Path: [], HoldShorts: [], Expedite: false, DestinationParking: "B2"));
 
         AssertReachesParking(layout, route, "B2");
         Assert.True(DrivesStraight(route, "A"), "the route drives A");
@@ -340,7 +344,12 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         }
 
         AircraftState aircraft = AircraftAtT28RExit(layout, "B738");
-        CommandResult result = GroundCommandHandler.TryTaxiAuto(aircraft, new TaxiAutoCommand(null, "B2", null), layout, isScenarioScripted: false);
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(
+            aircraft,
+            new TaxiAutoCommand(null, "B2", null, Expedite: false),
+            layout,
+            isScenarioScripted: false
+        );
         TaxiRoute route = AssertAccepted(result, aircraft);
 
         AssertReachesParking(layout, route, "B2");
@@ -494,7 +503,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         (_, TaxiRoute route) = TaxiFromT28RExit(
             layout,
             "A388",
-            new TaxiCommand(Path: ["T", "A", "M2", "M5"], HoldShorts: [], DestinationParking: "B2")
+            new TaxiCommand(Path: ["T", "A", "M2", "M5"], HoldShorts: [], Expedite: false, DestinationParking: "B2")
         );
 
         AssertReachesParking(layout, route, "B2");

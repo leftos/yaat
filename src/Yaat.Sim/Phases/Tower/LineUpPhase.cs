@@ -387,7 +387,7 @@ public sealed class LineUpPhase : Phase
             return false;
         }
 
-        double maxSpeed = ctx.Aircraft.Ground.IsExpeditingLineup ? plan.MaxSpeedKts * CategoryPerformance.TaxiExpediteMultiplier : plan.MaxSpeedKts;
+        double maxSpeed = ctx.Aircraft.Ground.IsExpeditingLineup ? plan.MaxSpeedKts * LineUpExpediteMultiplier(ctx) : plan.MaxSpeedKts;
         StartGraphRoute(ctx, plan, segmentIndex: 0, new GroundNavigator(), maxSpeed);
         ctx.Targets.TargetSpeed = maxSpeed;
 
@@ -893,15 +893,19 @@ public sealed class LineUpPhase : Phase
     /// Resolve the target speed for a straight lineup segment (nose-out, pivot straight, rollout):
     /// when an "immediate"/"without delay" lineup has been requested
     /// (<see cref="AircraftGroundOps.IsExpeditingLineup"/>), scale by
-    /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/> for a brisk taxi onto the runway,
+    /// <see cref="CategoryPerformance.GroundExpediteMultiplier"/> (none for a Super/Heavy) for a brisk taxi onto the runway,
     /// then clamp by any active ground/conflict speed limit. The arc and pivot turn segments keep
     /// their turn-rate-limited speed.
     /// </summary>
     private static double ExpediteStraightSpeed(PhaseContext ctx, double requested)
     {
-        double speed = ctx.Aircraft.Ground.IsExpeditingLineup ? requested * CategoryPerformance.TaxiExpediteMultiplier : requested;
+        double speed = ctx.Aircraft.Ground.IsExpeditingLineup ? requested * LineUpExpediteMultiplier(ctx) : requested;
         return ClampBySpeedLimit(ctx, speed);
     }
+
+    /// <summary>The line-up expedite multiplier: none for a Super/Heavy (<see cref="CategoryPerformance.GroundExpediteMultiplier"/>).</summary>
+    private static double LineUpExpediteMultiplier(PhaseContext ctx) =>
+        CategoryPerformance.GroundExpediteMultiplier(CategoryPerformance.IsSuperOrHeavy(ctx.Aircraft.AircraftType, ctx.Category));
 
     /// <summary>
     /// Walk the aircraft's phase list and return true iff the next pending

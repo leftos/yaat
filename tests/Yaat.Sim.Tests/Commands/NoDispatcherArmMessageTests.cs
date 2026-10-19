@@ -38,7 +38,7 @@ public class NoDispatcherArmMessageTests
     public void GroundCommand_ToAirborneAircraft_ReturnsFriendlyMessage()
     {
         AircraftState ac = AirborneAircraft();
-        var taxi = new TaxiCommand(["W1"], [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(["W1"], [], Expedite: false, DestinationRunway: "30");
 
         CommandResult result = CommandDispatcher.Dispatch(taxi, ac, TestDispatch.Context(Random.Shared));
 

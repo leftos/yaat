@@ -64,6 +64,16 @@ A bare `RES` (no `CROSS`/`HS`) to an aircraft that is not in `HoldingShortPhase`
 
 Later bars stay armed.
 
+**Ground expedite ("without delay").** `EXP` is a reserved last token on `TAXI`, `TAXIAUTO` and `CROSS` (`GroundCommandParser`: it ends an `HS`/`CROSS`/`RWY` list; `CROSS HS {target} EXP` with no runway is refused). A TAXI/TAXIAUTO `EXP` and the standalone ground `EXP` set the route expedite `AircraftGroundOps.IsExpeditingTaxi`; a `CROSS … EXP` marks each `HoldShortPoint.IsExpedited` it releases or pre-clears, and the `CrossingRunwayPhase` built there carries it (`IsExpedited`).
+
+`GroundCommandHandler.EndRouteExpedite` clears the route expedite and every crossing expedite on the route, and is called by everything that ends one: `NORM`, `SPD`, `RNS`, `HOLD`, `HS`, `GIVEWAY`, a TAXI/TAXIAUTO without `EXP`, a `RES` or `CROSS` without `EXP` that releases the aircraft from a stop, and a rollout route the exit cannot join.
+
+A bare `RES` to a rolling aircraft (`TryPreClearNextTaxiwayHoldShort`) and a `CROSS` pre-clearance while rolling leave the route expedite running. A plain `CROSS` cancels the expedite on the crossings it names.
+
+The speed cap and acceleration come from `CategoryPerformance.TaxiSpeedCap` / `TaxiAccelOverride` (×1.3 and `ExpediteTaxiAccelRate`; `IsSuperOrHeavy` by wake class gets neither; a commanded `SPD` wins the cap and is reached at the normal rate), published by `TaxiingPhase` (also for the approach to a pre-cleared expedited bar, via `TaxiRoute.NextHoldShortAhead`) and `CrossingRunwayPhase`.
+
+On the rollout, a `TAXI`/`TAXIAUTO` `EXP` judges the implied exit and the makeable-exit list at the expedite braking limit (`LandingPhase.EvaluateImpliedExit` / `MakeableExitsAhead` take `expedite`); under a standing `EXIT x EXP`, one without `EXP` lists at that limit too and keeps the exit expedite on. The TAXI readback and echo place `, without delay` through `TaxiRoute.ToSummary(…, withoutDelay)`.
+
 The refusals, in the order the handler tests them, each leaving the bar armed:
 
 - No uncleared bar ahead: `No upcoming hold short to clear`.

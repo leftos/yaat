@@ -439,6 +439,10 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// <summary>True once the crossing's not-clear call was made, so a restore does not make it again. Null before that.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SaidNotClear { get; init; }
+
+    /// <summary>True when the crossing flies "without delay" (<c>CROSS … EXP</c>). Null otherwise and in older snapshots.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsExpedited { get; init; }
 }
 
 /// <summary>

@@ -164,7 +164,7 @@ public class OakDrawRouteFidelityTests
         double heading = GeoMath.BearingTo(layout.Nodes[drifted.FromNodeId].Position, driftedNode.Position);
 
         AircraftState ac = MakeGroundAircraft(driftedNode.Position.Lat, driftedNode.Position.Lon, heading);
-        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(densePath, [], Expedite: false, DestinationParking: "8B"), layout);
         Assert.True(result.Success, result.Message);
 
         TaxiRoute? resolved = ac.Ground.AssignedTaxiRoute;
@@ -213,7 +213,7 @@ public class OakDrawRouteFidelityTests
         }
 
         List<int> denseIds = DenseNodeIds(preview);
-        var dense = new TaxiCommand([.. denseIds.Select(id => $"#{id}")], []);
+        var dense = new TaxiCommand([.. denseIds.Select(id => $"#{id}")], [], Expedite: false);
         Assert.True(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, dense, preview));
 
         // Same drawn nodes, but a route that wandered twelve times as far — the block-loop signature
@@ -227,7 +227,7 @@ public class OakDrawRouteFidelityTests
         Assert.False(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, dense, looped));
 
         // A sparse path — the same endpoints, no intermediate nodes — carries no size expectation.
-        var sparse = new TaxiCommand([$"#{denseIds[0]}", $"#{denseIds[^1]}"], []);
+        var sparse = new TaxiCommand([$"#{denseIds[0]}", $"#{denseIds[^1]}"], [], Expedite: false);
         Assert.True(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, sparse, looped));
     }
 
@@ -266,7 +266,11 @@ public class OakDrawRouteFidelityTests
 
         // With the @8B token the aircraft claims the stand.
         AircraftState withToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
-        CommandResult resultWith = GroundCommandHandler.TryTaxi(withToken, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
+        CommandResult resultWith = GroundCommandHandler.TryTaxi(
+            withToken,
+            new TaxiCommand(densePath, [], Expedite: false, DestinationParking: "8B"),
+            layout
+        );
         Assert.True(resultWith.Success, resultWith.Message);
         Assert.NotNull(withToken.Ground.AssignedTaxiRoute);
         Assert.Equal("8B", withToken.Ground.AssignedTaxiRoute!.DestinationParking);
@@ -274,7 +278,7 @@ public class OakDrawRouteFidelityTests
 
         // Without the token the same path taxis to the node but does NOT claim the stand.
         AircraftState noToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
-        CommandResult resultNo = GroundCommandHandler.TryTaxi(noToken, new TaxiCommand(densePath, []), layout);
+        CommandResult resultNo = GroundCommandHandler.TryTaxi(noToken, new TaxiCommand(densePath, [], Expedite: false), layout);
         Assert.True(resultNo.Success, resultNo.Message);
         Assert.Null(noToken.Ground.AssignedTaxiRoute!.DestinationParking);
     }
@@ -451,7 +455,7 @@ public class OakDrawRouteFidelityTests
                     .. TaxiRouteFormatter.BuildReadableTaxiPath(preview, hasNamedTerminus: false).Split(' ', StringSplitOptions.RemoveEmptyEntries),
                 ];
                 AircraftState ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon, 280);
-                CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], CrossRunways: crossings), layout);
+                CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], Expedite: false, CrossRunways: crossings), layout);
 
                 Assert.True(result.Success, $"{a.Id}->{b.Id} TAXI {string.Join(" ", path)} CROSS {string.Join(",", crossings)}: {result.Message}");
                 Assert.NotNull(ac.Ground.AssignedTaxiRoute);

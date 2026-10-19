@@ -641,6 +641,29 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         Assert.True(expedited.CrossFt < 3.0, $"expedited lineup off-centerline {expedited.CrossFt:F2}ft exceeds 3 ft");
     }
 
+    [Theory]
+    [InlineData("B77W")]
+    [InlineData("A388")]
+    public void ExpeditedLineup_SuperOrHeavy_GetsNoSpeedIncrease(string type)
+    {
+        const double rwyHdg = 90.0;
+        const double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        const double acLon = -121.995;
+
+        (AircraftState? normalAc, PhaseContext? normalCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        normalAc.AircraftType = type;
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) normal = RunToCompletion(new LineUpPhase(), normalAc, normalCtx);
+
+        (AircraftState? expAc, PhaseContext? expCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        expAc.AircraftType = type;
+        expAc.Ground.IsExpeditingLineup = true;
+        (bool Completed, double CrossFt, double HdgDiffDeg, double GsKts, int Ticks) expedited = RunToCompletion(new LineUpPhase(), expAc, expCtx);
+
+        Assert.True(normal.Completed && expedited.Completed, "lineup did not complete");
+        Assert.Equal(normal.Ticks, expedited.Ticks);
+    }
+
     [Fact]
     public void ExpeditedLineup_SurvivesGroundOpsSnapshotRoundTrip()
     {

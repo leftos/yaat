@@ -18,26 +18,32 @@ public class CrossReadbackTests
 
     [Fact]
     public void Cross_SingleRunway_Spoken_UsesRulePath() =>
-        Assert.Equal("cross runway two eight left", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["28L"], [])));
+        Assert.Equal("cross runway two eight left", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["28L"], [], Expedite: false)));
 
     [Fact]
     public void Cross_SingleRunway_Terminal_UsesRulePath() =>
-        Assert.Equal("cross runway 28L", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L"], [])));
+        Assert.Equal("cross runway 28L", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L"], [], Expedite: false)));
 
     [Fact]
     public void Cross_MultipleRunways_JoinedWithAnd() =>
-        Assert.Equal("cross runway 28R and 28L", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28R", "28L"], [])));
+        Assert.Equal(
+            "cross runway 28R and 28L",
+            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28R", "28L"], [], Expedite: false))
+        );
 
     [Fact]
     public void Cross_MultipleRunways_Spoken_JoinedWithAnd() =>
-        Assert.Equal("cross runway two eight right and two eight left", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["28R", "28L"], [])));
+        Assert.Equal(
+            "cross runway two eight right and two eight left",
+            PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["28R", "28L"], [], Expedite: false))
+        );
 
     [Fact]
     public void Cross_RunwayAndHoldShort_VoicesBothClauses()
     {
         Assert.Equal(
             "cross runway 28L, hold short of runway 28R",
-            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L"], [HoldShortTarget.Parse("28R")]))
+            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L"], [HoldShortTarget.Parse("28R")], Expedite: false))
         );
     }
 
@@ -47,22 +53,25 @@ public class CrossReadbackTests
 
     [Fact]
     public void Cross_TaxiwayTarget_Spoken_ReadsContinueTaxi() =>
-        Assert.Equal("continue taxi", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["B"], [])));
+        Assert.Equal("continue taxi", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["B"], [], Expedite: false)));
 
     [Fact]
     public void Cross_TaxiwayTarget_Terminal_ReadsContinueTaxi() =>
-        Assert.Equal("continue taxi", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [])));
+        Assert.Equal("continue taxi", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [], Expedite: false)));
 
     [Fact]
     public void Cross_MixedRunwayAndTaxiway_VoicesRunwayThenContinue() =>
-        Assert.Equal("cross runway 28L, continue taxi", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L", "B"], [])));
+        Assert.Equal(
+            "cross runway 28L, continue taxi",
+            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L", "B"], [], Expedite: false))
+        );
 
     [Fact]
     public void Cross_TaxiwayWithHoldShort_VoicesBothClauses()
     {
         Assert.Equal(
             "continue taxi, hold short of runway 28R",
-            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [HoldShortTarget.Parse("28R")]))
+            PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [HoldShortTarget.Parse("28R")], Expedite: false))
         );
     }
 }

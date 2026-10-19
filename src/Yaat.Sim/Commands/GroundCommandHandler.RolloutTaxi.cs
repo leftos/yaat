@@ -78,14 +78,16 @@ public static partial class GroundCommandHandler
 
     /// <summary>
     /// The first taxiway touches the landing runway: it is the implied exit, judged as an <c>EXIT</c> naming it on the side the
-    /// route turns off to, at the firm braking limit (<see cref="LandingPhase.EvaluateImpliedExit"/>). Refused with the crew's
+    /// route turns off to, at the firm braking limit, or the expedite limit for a <c>TAXI … EXP</c>
+    /// (<see cref="LandingPhase.EvaluateImpliedExit"/>). Refused with the crew's
     /// "unable" when it cannot be made or is not ahead; accepted with the route resolved from the exit's hold-short node and the
     /// exit instructed as <see cref="TryExitCommand"/> instructs one.
     /// </summary>
     private static CommandResult TryTaxiViaImpliedExit(LandingPhase landing, RolloutTaxiRequest request, TaxiRoute trimmed, string taxiway)
     {
         AircraftState aircraft = request.Inputs.Aircraft;
-        ImpliedExitVerdict implied = landing.EvaluateImpliedExit(aircraft, taxiway, RouteNodeIds(trimmed));
+        // A TAXI EXP is "exit and taxi without delay": its implied exit is judged as EXIT … EXP is, at the max-effort limit.
+        ImpliedExitVerdict implied = landing.EvaluateImpliedExit(aircraft, taxiway, RouteNodeIds(trimmed), request.Taxi.Expedite);
         if (!implied.Verdict.Allowed)
         {
             return new CommandResult(false, implied.Verdict.UnableReason!) { PilotUnable = implied.Verdict.PilotUnable };
@@ -113,20 +115,29 @@ public static partial class GroundCommandHandler
             landing.InferSideTowardTaxiRoute(side);
         }
 
-        return AcceptImpliedExit(request.Inputs, stored, implied.Preference, implied.Preference);
+        bool expediteExit = request.Taxi.Expedite || KeepsStandingExpedite(aircraft, implied.Preference);
+        return AcceptImpliedExit(request.Inputs, stored, (Exit: implied.Preference, Expedite: expediteExit), implied.Preference);
     }
 
     /// <summary>
-    /// Instructs <paramref name="exit"/> as <see cref="TryExitCommand"/> instructs one, then stores the route behind it.
+    /// Instructs <c>implied.Exit</c> as <see cref="TryExitCommand"/> instructs one, then stores the route behind it.
+    /// <c>implied.Expedite</c> is the exit expedite it is flown under: the one it was judged or listed at, so an exit only the
+    /// expedite braking limit makes is braked for at that limit.
     /// <paramref name="announced"/> is the exit instruction the readback leads with — the controller's own, when it named this exit —
     /// and null for an exit the crew picked for itself (<see cref="AcceptStoredTaxi"/>).
     /// </summary>
-    private static CommandResult AcceptImpliedExit(TaxiResolveInputs inputs, StoredTaxi stored, ExitPreference exit, ExitPreference? announced)
+    private static CommandResult AcceptImpliedExit(
+        TaxiResolveInputs inputs,
+        StoredTaxi stored,
+        (ExitPreference Exit, bool Expedite) implied,
+        ExitPreference? announced
+    )
     {
         AircraftState aircraft = inputs.Aircraft;
         PhaseList phases = aircraft.Phases!;
+        ExitPreference exit = implied.Exit;
         phases.GivenUpExitTaxiways.Remove(exit.Taxiway!);
-        aircraft.Ground.IsExpeditingExit = KeepsStandingExpedite(aircraft, exit);
+        aircraft.Ground.IsExpeditingExit = implied.Expedite;
         phases.RequestedExit = exit;
         phases.TaxiImpliedExit = exit;
         return AcceptStoredTaxi(inputs, stored, exit, announced);
@@ -184,7 +195,18 @@ public static partial class GroundCommandHandler
     )
     {
         AircraftState aircraft = inputs.Aircraft;
-        if ((aircraft.Phases?.AssignedRunway is not { } runway) || (landing.MakeableExitsAhead(aircraft) is not { } exits))
+        // The exits are listed at the braking the picked exit is flown under: the expedite limit for a TAXI EXP, and for a TAXI
+        // without EXP while a controller's EXIT … EXP stands (as AcceptStoredTaxi keeps it), so the list and the braking agree.
+        // The exit an earlier rollout TAXI EXP implied (PhaseList.TaxiImpliedExit) is no standing EXIT … EXP: a TAXI without EXP
+        // after it restates the clearance at the firm limit, as the implied-exit and stored paths do.
+        bool expedite =
+            working.Expedite
+            || (
+                (aircraft.Phases?.RequestedExit is { } standing)
+                && !ReferenceEquals(standing, aircraft.Phases.TaxiImpliedExit)
+                && KeepsStandingExpedite(aircraft, standing)
+            );
+        if ((aircraft.Phases?.AssignedRunway is not { } runway) || (landing.MakeableExitsAhead(aircraft, expedite) is not { } exits))
         {
             return null;
         }
@@ -192,7 +214,7 @@ public static partial class GroundCommandHandler
         if (!inputs.Options.IsTaxiAuto)
         {
             return JoinsFromAnExit(inputs, fromAircraft, runway.Designator)
-                ? TryTaxiJoiningFromMakeableExit(landing, inputs, working, (Exits: exits, Runway: runway))
+                ? TryTaxiJoiningFromMakeableExit(landing, inputs, working, (Exits: exits, Runway: runway, Expedite: expedite))
                 : null;
         }
 
@@ -208,7 +230,7 @@ public static partial class GroundCommandHandler
                     landing.InferSideTowardTaxiRoute(side);
                 }
 
-                return AcceptImpliedExit(inputs, StoredFrom(inputs, fromExit), chosen, chosen);
+                return AcceptImpliedExit(inputs, StoredFrom(inputs, fromExit), (Exit: chosen, Expedite: expedite), chosen);
             }
         }
 
@@ -242,7 +264,7 @@ public static partial class GroundCommandHandler
         LandingPhase landing,
         TaxiResolveInputs inputs,
         TaxiCommand working,
-        (IReadOnlyList<ResolvedExitInfo> Exits, RunwayInfo Runway) rollout
+        (IReadOnlyList<ResolvedExitInfo> Exits, RunwayInfo Runway, bool Expedite) rollout
     )
     {
         AircraftState aircraft = inputs.Aircraft;
@@ -271,7 +293,8 @@ public static partial class GroundCommandHandler
                     landing.InferSideTowardTaxiRoute(side);
                 }
 
-                return AcceptImpliedExit(inputs, StoredFrom(inputs, fromExit), picked, ControllerNamedTheExit(aircraft, picked));
+                ExitPreference? announced = ControllerNamedTheExit(aircraft, picked);
+                return AcceptImpliedExit(inputs, StoredFrom(inputs, fromExit), (Exit: picked, rollout.Expedite), announced);
             }
         }
 
@@ -346,7 +369,9 @@ public static partial class GroundCommandHandler
 
         TaxiRoute trimmed = TrimRoute(route, offRunway);
         string turnOff = TurnOff(trimmed);
-        ExitInstructionVerdict verdict = landing.EvaluateImpliedExit(inputs.Aircraft, turnOff, RouteNodeIds(trimmed)).Verdict;
+        ExitInstructionVerdict verdict = landing
+            .EvaluateImpliedExit(inputs.Aircraft, turnOff, RouteNodeIds(trimmed), inputs.AsCleared.Expedite)
+            .Verdict;
         if (!verdict.Allowed)
         {
             return new CommandResult(false, verdict.UnableReason!) { PilotUnable = verdict.PilotUnable };
@@ -398,6 +423,34 @@ public static partial class GroundCommandHandler
         string? crossLabel = ClearLandingRunwayBar(inputs.Layout, route, landedRunway);
         ApplyAutoCrossExceptLandingRunway(route, inputs.Options.AutoCrossRunway, landedRunway);
         ApplyCrossKeywords(route, stored.Taxi);
+
+        // "Taxi without delay" on the rollout is exit and taxi without delay: the exit is flown at the expedite braking, and the
+        // route expedite stands for the stored route, which TaxiingPhase reads once the route starts from the exit. A TAXI
+        // without EXP restates the clearance and ends an earlier route expedite.
+        if (!stored.Taxi.Expedite)
+        {
+            EndRouteExpedite(aircraft);
+        }
+
+        aircraft.Ground.IsExpeditingTaxi = stored.Taxi.Expedite;
+        if (impliedExit is null)
+        {
+            // Stored behind the rollout's own exit: a TAXI without EXP keeps a standing exit expedite only for the exit the
+            // controller instructed under it, as a bare EXIT repeating that exit does (KeepsStandingExpedite).
+            aircraft.Ground.IsExpeditingExit =
+                stored.Taxi.Expedite || ((aircraft.Phases?.RequestedExit is { } standing) && KeepsStandingExpedite(aircraft, standing));
+        }
+
+        if (stored.Taxi.Expedite)
+        {
+            aircraft.Ground.IsExpeditingExit = true;
+            // As the standalone EXP does: the rollout drops its cached exit and re-resolves it at the expedite braking limit.
+            foreach (LandingPhase landing in aircraft.Phases?.Phases.OfType<LandingPhase>() ?? [])
+            {
+                landing.ResetExitCandidate();
+            }
+        }
+
         if (stored.Taxi.NoDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
@@ -544,6 +597,9 @@ public static partial class GroundCommandHandler
                 PilotResponder.BuildUnableToExit(aircraft, taxiway),
                 PilotResponder.SoloPositionsTower
             );
+
+            // The route the expedite was given for is dropped, and the expedite with it.
+            EndRouteExpedite(aircraft);
             return false;
         }
 

@@ -619,7 +619,7 @@ public class GroundParserTests
     [Fact]
     public void Cross_CanonicalRoundTrip_MultiRunwayAndHoldShort()
     {
-        var cmd = new CrossRunwayCommand(["28R", "28L"], [HoldShortTarget.Parse("20")]);
+        var cmd = new CrossRunwayCommand(["28R", "28L"], [HoldShortTarget.Parse("20")], Expedite: false);
         Assert.Equal("CROSS 28R 28L HS 20", CommandDescriber.DescribeCommand(cmd));
 
         CrossRunwayCommand reparsed = Assert.IsType<CrossRunwayCommand>(CommandParser.Parse("CROSS 28R 28L HS 20").Value);
@@ -630,7 +630,7 @@ public class GroundParserTests
     [Fact]
     public void Cross_NaturalDescription_PluralizesRunways()
     {
-        Assert.Equal("Cross runway 28R", CommandDescriber.DescribeNatural(new CrossRunwayCommand(["28R"], [])));
-        Assert.Equal("Cross runways 28R and 28L", CommandDescriber.DescribeNatural(new CrossRunwayCommand(["28R", "28L"], [])));
+        Assert.Equal("Cross runway 28R", CommandDescriber.DescribeNatural(new CrossRunwayCommand(["28R"], [], Expedite: false)));
+        Assert.Equal("Cross runways 28R and 28L", CommandDescriber.DescribeNatural(new CrossRunwayCommand(["28R", "28L"], [], Expedite: false)));
     }
 }

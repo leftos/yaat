@@ -113,7 +113,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         }
 
         AircraftState aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
-        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"));
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], Expedite: false, DestinationRunway: "30"));
 
         TaxiRouteSegment leg = route.Segments[0];
         double legStartOffsetFt = GeoMath.DistanceNm(leg.Edge.FromNode.Position, aircraft.Position) * GeoMath.FeetPerNm;
@@ -136,7 +136,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         }
 
         AircraftState aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
-        var taxi = new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(Path: ["U", "W"], HoldShorts: [], Expedite: false, DestinationRunway: "30");
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
@@ -166,7 +166,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         aircraft.Ground.CurrentTaxiway = "T";
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"),
+            new TaxiCommand(Path: ["U", "W"], HoldShorts: [], Expedite: false, DestinationRunway: "30"),
             layout
         );
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -195,7 +195,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         aircraft.Ground.CurrentTaxiway = "W";
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"),
+            new TaxiCommand(Path: ["U", "W"], HoldShorts: [], Expedite: false, DestinationRunway: "30"),
             layout
         );
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -240,7 +240,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(Path: ["B"], HoldShorts: [], DestinationRunway: null),
+            new TaxiCommand(Path: ["B"], HoldShorts: [], Expedite: false, DestinationRunway: null),
             ground.Layout
         );
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -295,7 +295,11 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         aircraft = MakeAircraft(layout, SfoOnFShortOfA, SfoOnFShortOfAHeadingDeg);
         aircraft.AircraftType = type;
         aircraft.Ground.CurrentTaxiway = "E";
-        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["B"], HoldShorts: [], DestinationRunway: null), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["B"], HoldShorts: [], Expedite: false, DestinationRunway: null),
+            layout
+        );
         output.WriteLine($"{type}: {result.Success} — {result.Message}");
         return result;
     }
@@ -313,7 +317,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.True(layout.Nodes.TryGetValue(StartNodeId, out GroundNode? startNode), $"node {StartNodeId} missing from the OAK layout");
 
         AircraftState aircraft = MakeAircraft(layout, startNode.Position, PushedHeadingDeg);
-        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"));
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["U", "W"], HoldShorts: [], Expedite: false, DestinationRunway: "30"));
 
         Assert.Equal(StartNodeId, route.Segments[0].FromNodeId);
     }
@@ -367,7 +371,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"aircraft {HoldShortStandoffFt:F0} ft from the bar on bearing {runwayBearing:F0}, facing {headingDeg:F0}");
 
         AircraftState aircraft = MakeAircraft(layout, position, headingDeg);
-        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], DestinationRunway: null));
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], Expedite: false, DestinationRunway: null));
 
         Assert.Equal(HoldShortNodeId, route.Segments[0].FromNodeId);
     }
@@ -530,7 +534,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"aircraft {RolloutBehindExitFt:F0} ft back along 28R from node {RunwayExitNodeId}, facing {Runway28RHeadingDeg:F0}");
 
         AircraftState aircraft = MakeAircraft(layout, position, Runway28RHeadingDeg);
-        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["G", "D", "J"], HoldShorts: [], DestinationRunway: null));
+        TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["G", "D", "J"], HoldShorts: [], Expedite: false, DestinationRunway: null));
 
         TaxiRouteSegment leg = route.Segments[0];
         double legStartOffsetFt = GeoMath.DistanceNm(leg.Edge.FromNode.Position, aircraft.Position) * GeoMath.FeetPerNm;

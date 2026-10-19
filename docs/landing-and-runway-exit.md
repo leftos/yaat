@@ -251,7 +251,9 @@ A `TAXI` or `TAXIAUTO` issued while `LandingPhase` rolls out is accepted (`Landi
 
 - **Stored route.** The route is resolved from the exit's hold-short node (`ResolveTaxiRouteFromStart`) and stored on `PhaseList.TaxiRoute`, with the destination runway the clearance names in `PhaseList.StoredTaxiDestinationRunway`. It is not `Ground.AssignedTaxiRoute`, so no `TaxiingPhase` runs yet, but the strip and status "via" text, the route overlay and the next-crossing `CROSS` read it from the moment it is accepted (`AircraftState.ActiveOrStoredTaxiRoute`: `SituationFlagCalculator`, `AircraftStatusDescriber`, the CROSS handlers, `GIVEWAY`).
 - **The landing runway's own bar** is cleared (leaving the runway just landed on is not a crossing), and the clearance's `CROSS` keywords and `NoDelete` apply at once. Scenario auto-cross clears every other runway crossing but never the landing runway's re-crossing: `ApplyAutoCrossExceptLandingRunway` marks it `HoldShortPoint.RecrossesLandingRunway`, which `TaxiRouteAutoCross.Apply` skips, so it waits for an explicit `CROSS` (7110.65 3-10-9.b.2). The mark holds when auto-cross is toggled on mid-session (`SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes` re-applies auto-cross to a stored route too).
-- **Exit choice.** The implied exit is judged like `EXIT <twy>` at the firm braking limit with no expedite (`LandingPhase.EvaluateImpliedExit`) and instructed as `TryExitCommand` instructs one, so it is the rollout's `RequestedExit`.
+- **Exit choice.** The implied exit is judged like `EXIT <twy>` at the firm braking limit (`LandingPhase.EvaluateImpliedExit`) and instructed as `TryExitCommand` instructs one, so it is the rollout's `RequestedExit`.
+
+  A `TAXI … EXP` or `TAXIAUTO … EXP` judges at the expedite limit instead (`EvaluateImpliedExit` and `MakeableExitsAhead` take `expedite`) and picks from the exits that limit makes. Under a standing `EXIT x EXP`, a TAXI/TAXIAUTO without `EXP` lists at that limit too and flies its pick with the exit expedite on. A rollout route the exit cannot join clears the route and crossing expedites with it.
 
   A `TAXIAUTO` goes via the first exit the aircraft can make (`LandingPhase.MakeableExitsAhead`, nearest first, either side) whose route leaves the exit ahead. Re-crossing the landing runway is allowed: OAK 28R's left exit takes a back-taxi across 28L.
 
@@ -493,6 +495,7 @@ Helicopters are exempt (a wheeled pedal-turn holds the hover rate). Tight fillet
 |----------|-------|---------|
 | Firm braking limit (`FirmBrakingRate`) | jet 5.0 / TP 5.0 / piston 4.0 / helo 3.0 kts/s | Max decel for explicit exit commands and the firm-rate fallback |
 | Expedite braking rate | jet 7.5 / TP 6.0 / piston 4.5 / helo 4.0 kts/s | Max-effort decel for `EXP` ("without delay") exits |
+| Expedite taxi acceleration | 1.5 kts/s jet, TP, piston; 1.0 Super/Heavy and helo | `ExpediteTaxiAccelRate`, the acceleration of a `TAXI`/`TAXIAUTO`/`CROSS … EXP` taxi or crossing (normal 1.0) |
 | Uninstructed exit limit | by exit class | High-speed exit: `ComfortableExitDecelRate`; standard exit: `RolloutDecelRate`; none qualifies: firm-rate fallback |
 | Min soft braking | 0.5 kts/s | Floor for gentle decel on far exits |
 | Turn-off tolerance | 3.0 kts | Discrete-tick overshoot margin |

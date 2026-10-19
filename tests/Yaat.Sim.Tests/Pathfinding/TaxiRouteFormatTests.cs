@@ -144,6 +144,26 @@ public class TaxiRouteFormatTests
         Assert.Equal("", route.FormatTaxiwaySequence());
     }
 
+    /// <summary>
+    /// "Without delay" with no taxiway shown before it (every taxiway filtered out, as the rollout echo drops the leading
+    /// implied-exit taxiway) follows the destination: "@A1, without delay", never "without delay, @A1".
+    /// </summary>
+    [Fact]
+    public void ToSummary_WithoutDelay_AndNoTaxiwayShown_FollowsTheDestination()
+    {
+        GroundNode n0 = Node(0, 37.700, -122.200);
+        GroundNode n1 = Node(1, 37.701, -122.200);
+        var route = new TaxiRoute
+        {
+            Segments = [Seg(Straight(n0, n1, "A"), n0, n1)],
+            HoldShortPoints = [],
+            DestinationParking = "A1",
+        };
+
+        Assert.Equal("@A1, without delay", route.ToSummary(null, [], static _ => false, [], withoutDelay: true));
+        Assert.Equal("A, without delay, @A1", route.ToSummary(null, [], static _ => true, [], withoutDelay: true));
+    }
+
     [Fact]
     public void ToSummary_SkipsMembershipArcs()
     {

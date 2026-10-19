@@ -30,7 +30,7 @@ public class ConditionalListTests
 
         // Deferred WAIT-led taxi.
         CommandDispatcher.DispatchCompound(
-            new CompoundCommand([new ParsedBlock(null, [new WaitCommand(120), new TaxiCommand(["N", "B"], [])])]),
+            new CompoundCommand([new ParsedBlock(null, [new WaitCommand(120), new TaxiCommand(["N", "B"], [], Expedite: false)])]),
             ac,
             ctx
         );

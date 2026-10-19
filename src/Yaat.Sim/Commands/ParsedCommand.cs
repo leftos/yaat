@@ -306,7 +306,7 @@ public record PatternExitDeparture(PatternEntryLeg ExitLeg, PatternDirection Dir
 
 /// <summary>
 /// LUAW. <see cref="WithoutDelay"/> is set by the IMM/WD/ND modifier
-/// ("line up and wait, without delay", 7110.65 §3-7-2.b.10) and tells the pilot
+/// ("line up and wait, without delay", 7110.65 §3-7-2.j) and tells the pilot
 /// to taxi briskly onto the runway; the aircraft still stops and holds at the centerline.
 /// </summary>
 public record LineUpAndWaitCommand : ParsedCommand
@@ -681,6 +681,7 @@ public record PushbackMultiCommand(IReadOnlyList<PushDestination> Legs, Magnetic
 public record TaxiCommand(
     List<string> Path,
     List<HoldShortTarget> HoldShorts,
+    bool Expedite,
     string? DestinationRunway = null,
     bool NoDelete = false,
     string? DestinationParking = null,
@@ -695,9 +696,10 @@ public record TaxiCommand(
 /// aircraft's current position to the destination, then delegates to the regular
 /// Taxi pipeline so hold-short annotation, auto-crossing, and phase handoff all
 /// work identically to a user-typed TAXI command. Exactly one destination is set;
-/// all three are required arguments so every caller has to say which.
+/// all three are required arguments so every caller has to say which. <see cref="Expedite"/> is the <c>EXP</c>
+/// modifier ("taxi without delay", 7110.65 §3-7-2.j), as on <see cref="TaxiCommand"/>.
 /// </summary>
-public record TaxiAutoCommand(string? DestinationRunway, string? DestinationParking, string? DestinationSpot) : ParsedCommand;
+public record TaxiAutoCommand(string? DestinationRunway, string? DestinationParking, string? DestinationSpot, bool Expedite) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
 
@@ -721,9 +723,11 @@ public record ResumeCommand(IReadOnlyList<string> CrossRunways, IReadOnlyList<Ho
 /// <see cref="ResumeCommand.HoldShorts"/>). Both lists are always non-null and
 /// empty for bare <c>CROSS</c>, which clears the very next uncleared hold-short
 /// on the route (runway or taxiway) — exactly one, so the aircraft still stops at
-/// subsequent hold-shorts. Canonical form: <c>CROSS [rwy...] [HS target...]</c>.
+/// subsequent hold-shorts. <see cref="Expedite"/> is the <c>EXP</c> modifier ("cross without delay", 7110.65
+/// §3-7-2.j): every crossing the command releases or pre-clears is flown at the expedite cap and acceleration.
+/// Canonical form: <c>CROSS [rwy...] [HS target...] [EXP]</c>.
 /// </summary>
-public record CrossRunwayCommand(IReadOnlyList<string> RunwayIds, IReadOnlyList<HoldShortTarget> HoldShorts) : ParsedCommand;
+public record CrossRunwayCommand(IReadOnlyList<string> RunwayIds, IReadOnlyList<HoldShortTarget> HoldShorts, bool Expedite) : ParsedCommand;
 
 public record HoldShortCommand(HoldShortTarget Target) : ParsedCommand;
 

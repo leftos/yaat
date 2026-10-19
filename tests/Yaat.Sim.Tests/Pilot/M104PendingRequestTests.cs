@@ -71,7 +71,7 @@ public sealed class M104PendingRequestTests
     {
         AircraftState ac = NewAircraft();
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
-        var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], [], DestinationRunway: "28R")])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], [], Expedite: false, DestinationRunway: "28R")])]);
 
         PilotRequestTracker.ApplyControllerResponse(ac, compound, nowSeconds: 20);
 

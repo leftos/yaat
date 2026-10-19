@@ -735,6 +735,35 @@ public static class CategoryPerformance
         Math.Round(TaxiSpeed(cat) * TaxiExpediteMultiplier, MidpointRounding.AwayFromZero);
 
     /// <summary>
+    /// True for a Super or Heavy wake class (<see cref="WakeTurbulenceData.WakeClassForType"/>). A ground expedite gives these no
+    /// taxi speed or acceleration increase: 7110.65 §3-7-3.a has the controller avoid clearances requiring "super or heavy aircraft
+    /// to use greater than normal taxiing power", and the crew accepts the clearance at normal taxi power.
+    /// </summary>
+    public static bool IsSuperOrHeavy(string aircraftType, AircraftCategory cat) =>
+        WakeTurbulenceData.WakeClassForType(aircraftType, cat) is WakeTurbulenceData.WakeClass.Super or WakeTurbulenceData.WakeClass.Heavy;
+
+    /// <summary>
+    /// The straight-segment taxi speed multiplier a ground expedite (taxi, crossing, exit or line-up "without delay") applies:
+    /// <see cref="TaxiExpediteMultiplier"/>, or 1.0 for a Super/Heavy (<see cref="IsSuperOrHeavy"/>).
+    /// </summary>
+    public static double GroundExpediteMultiplier(bool superOrHeavy) => superOrHeavy ? 1.0 : TaxiExpediteMultiplier;
+
+    /// <summary>
+    /// The straight-segment taxi cap (kts): a controller-commanded <c>SPD</c> wins outright; otherwise <see cref="TaxiSpeed"/>,
+    /// raised by <see cref="GroundExpediteMultiplier"/> while a taxi or crossing expedite holds.
+    /// </summary>
+    public static double TaxiSpeedCap(AircraftCategory cat, double? commandedKts, bool expedite, bool superOrHeavy) =>
+        commandedKts ?? (expedite ? TaxiSpeed(cat) * GroundExpediteMultiplier(superOrHeavy) : TaxiSpeed(cat));
+
+    /// <summary>
+    /// The taxi acceleration a taxi or crossing phase publishes (<c>Targets.DesiredAccelRate</c>): <see cref="ExpediteTaxiAccelRate"/>
+    /// while an expedite holds and no <c>SPD</c> is commanded, else null for <see cref="TaxiAccelRate"/>. A commanded speed wins the cap
+    /// (<see cref="TaxiSpeedCap"/>) and is reached at the normal rate.
+    /// </summary>
+    public static double? TaxiAccelOverride(AircraftCategory cat, double? commandedKts, bool expedite, bool superOrHeavy) =>
+        (expedite && (commandedKts is null)) ? ExpediteTaxiAccelRate(cat, superOrHeavy) : null;
+
+    /// <summary>
     /// Max-effort braking deceleration (kts/s) used when a runway exit is
     /// expedited (<c>EXP</c>) — above the <see cref="FirmBrakingRate"/> used for normal
     /// explicit exits. Lets LandingPhase take the earliest reachable exit and lets
@@ -1136,6 +1165,29 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1.0,
             AircraftCategory.Turboprop => 1.0,
             AircraftCategory.Piston => 1.0,
+            AircraftCategory.Helicopter => 1.0,
+            _ => 1.0,
+        };
+    }
+
+    /// <summary>
+    /// Taxi acceleration rate (kts/sec) while a taxi or crossing expedite holds ("taxi/cross without delay", 7110.65 §3-7-2.j): more
+    /// than breakaway thrust for a jet, turboprop or piston, which crosses a runway from rest about 5 s sooner over 600 ft. A
+    /// Super/Heavy (7110.65 §3-7-3.a, no greater than normal taxiing power) and a helicopter keep <see cref="TaxiAccelRate"/>.
+    /// Judgement call; the FAA gives no figure. Aviation-reviewed.
+    /// </summary>
+    public static double ExpediteTaxiAccelRate(AircraftCategory cat, bool superOrHeavy)
+    {
+        if (superOrHeavy)
+        {
+            return TaxiAccelRate(cat);
+        }
+
+        return cat switch
+        {
+            AircraftCategory.Jet => 1.5,
+            AircraftCategory.Turboprop => 1.5,
+            AircraftCategory.Piston => 1.5,
             AircraftCategory.Helicopter => 1.0,
             _ => 1.0,
         };

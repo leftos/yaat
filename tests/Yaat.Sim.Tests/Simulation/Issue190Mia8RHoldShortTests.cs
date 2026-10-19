@@ -38,7 +38,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         AircraftState aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
         CommandResult result = GroundCommandHandler.TryTaxiAuto(
             aircraft,
-            new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null),
+            new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null, Expedite: false),
             data.MiaLayout,
             isScenarioScripted: false
         );
@@ -61,7 +61,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         AircraftState aircraft = MakeGroundAircraftAtNode(data.MiaLayout, TaxiAutoStartNodeId);
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(["N", "P", "M1"], [], DestinationRunway: DestinationRunway),
+            new TaxiCommand(["N", "P", "M1"], [], Expedite: false, DestinationRunway: DestinationRunway),
             data.MiaLayout
         );
         Assert.True(result.Success, $"TAXI N P M1 RWY 08R failed: {result.Message}");
@@ -92,7 +92,7 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
         CommandResult taxiResult = GroundCommandHandler.TryTaxiAuto(
             aircraft,
-            new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null),
+            new TaxiAutoCommand(DestinationRunway, DestinationParking: null, DestinationSpot: null, Expedite: false),
             data.MiaLayout,
             isScenarioScripted: false
         );

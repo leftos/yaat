@@ -114,7 +114,7 @@ public sealed partial class SimulationEngine
             return new CommandResult(false, "TAXIALL requires a destination runway, @parking, or $spot");
         }
 
-        var taxi = new TaxiAutoCommand(taxiAll.DestinationRunway, taxiAll.DestinationParking, taxiAll.DestinationSpot);
+        var taxi = new TaxiAutoCommand(taxiAll.DestinationRunway, taxiAll.DestinationParking, taxiAll.DestinationSpot, Expedite: false);
         int taxied = 0;
         int failed = 0;
         foreach (AircraftState aircraft in World.GetSnapshot())

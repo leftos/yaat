@@ -269,6 +269,12 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Phases/CrossingRunwayTailClearTests.cs` (the tail-clearance leg past a runway crossing follows the aircraft's own route rather than the graph's straightest continuation, and the phase hands the route back at the right segment; a type missing from the FAA database clears by half its CWT fallback length).
 
+    `Commands/GroundExpediteCommandTests.cs` (the `EXP` token on `TAXI`/`TAXIAUTO`/`CROSS`: parsing, the bare-`CROSS EXP` and no-runway refusal, readbacks and echoes, what ends a route or crossing expedite).
+
+    `Simulation/GroundTaxi/GroundExpediteTaxiTests.cs` (the expedited taxi and crossing physics: cap, acceleration, per-crossing scope, Super/Heavy and `SPD`).
+
+    `Simulation/GroundExpediteRolloutTests.cs` (`TAXI`/`TAXIAUTO … EXP` on the landing rollout: exit choice at the expedite limit, a standing `EXIT x EXP`).
+
     `Phases/ClearRunwayPhaseFallbackLengthTests.cs` (`CLRWY`'s pull-forward past the hold bar uses the same CWT fallback length for an unknown type). `Simulation/GroundTaxi/SfoVideoRoutePinTests.cs` (the SFO ground-controller routes from the ZOA familiarization video and SOP — 28/1, 28/28, 19/10, 19/19, 10/10, supers — resolve with exactly the hold-shorts each clearance implies; start points by gate/spot/bar/junction name).
 
     `Helpers/RecordingGroundData.cs` (the ground data a recording test builds its engine on: `Evergreen(why)` serves today's `TestData` layouts, `VersionPinned(archivePath, why)` the archive's bundled ones, `why` required), `Simulation/RecordingArchiveLayoutGuardTests.cs` (fails a test file that opens a layout-carrying archive without one of the two factories, reads `ReadLayout`/`ReadAllLayouts` directly, or builds `new TestAirportGroundData()` for it).

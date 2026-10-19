@@ -152,7 +152,7 @@ public static class RunwayOccupancy
 
     /// <summary>
     /// Ground speed (knots) above which an aligned aircraft on the pavement is unambiguously on its takeoff roll: above
-    /// every taxi and back-taxi speed (crews back-taxi at 20–30 kt, §3-7-2.b.10 "without delay"). A jet reaches it 5–7 s
+    /// every taxi and back-taxi speed (crews back-taxi at 20–30 kt, §3-7-2.j "without delay"). A jet reaches it 5–7 s
     /// after brake release, a light single ~12 s — the fallback once <see cref="RollStartAccelerationKtPerSec"/> can no
     /// longer be measured, and the only test when there is no sample history.
     /// </summary>

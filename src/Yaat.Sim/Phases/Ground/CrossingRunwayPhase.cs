@@ -16,7 +16,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// nodes that the painted line traverses, and slows for any curve via its arc-speed
 /// cap), then completes ½ aircraft length past the exit-side hold-short, following
 /// the route's own onward segments to get there so the tail clears the runway without
-/// leaving the painted line. Crossing without delay (7110.65 §3-7-2.a.10, "CROSS
+/// leaving the painted line. Crossing without delay (7110.65 §3-7-2.j, "CROSS
 /// (runway) … WITHOUT DELAY"; AIM 4-3-21.a) minimizes runway occupancy, so the aircraft
 /// does not slow below its taxi speed for a straight crossing.
 ///
@@ -82,14 +82,31 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>The crossing slice the navigator is playing back (entry bar → exit bar → tail-clearance). Null until built.</summary>
     internal TaxiRoute? CrossingRoute => _crossingRoute;
 
+    /// <summary>The navigator's straight-segment speed cap (kts), or null before the crossing slice is built.</summary>
+    public double? NavMaxSpeedKts => _navigator?.MaxSpeedKts;
+
+    /// <summary>
+    /// True when this crossing was released or pre-cleared "without delay" (<c>CROSS … EXP</c>, 7110.65 §3-7-2.j). Set at
+    /// construction from the crossing's hold-short (<see cref="HoldShortPoint.IsExpedited"/>), and again when the phase starts,
+    /// because a crossing is built when the aircraft arrives at the bar, before the <c>CROSS</c> that releases it. Snapshotted,
+    /// so a restored crossing keeps the value it had rather than reading the route again.
+    /// </summary>
+    public bool IsExpedited
+    {
+        get => _expedited;
+        init => _expedited = value;
+    }
+
+    private bool _expedited;
+
     /// <summary>
     /// A crossing that drives <paramref name="path"/> — a route from the entry-side bar across the runway to the
     /// exit-side one — rather than the aircraft's assigned taxi route, which it leaves untouched: neither read, nor
     /// replaced, nor its cursor moved. For a crossing whose onward movement is not the taxi route (a follow armed
     /// at the bar), where the route must keep describing the clearance the aircraft taxis under.
     /// </summary>
-    public static CrossingRunwayPhase OverOwnPath(int approachNodeId, int targetNodeId, string? runwayId, TaxiRoute path) =>
-        new(approachNodeId, targetNodeId, runwayId) { _ownPath = path };
+    public static CrossingRunwayPhase OverOwnPath(int approachNodeId, int targetNodeId, string? runwayId, TaxiRoute path, bool expedited) =>
+        new(approachNodeId, targetNodeId, runwayId) { _ownPath = path, _expedited = expedited };
 
     /// <summary>The route the crossing slices: the path it was handed, else the aircraft's assigned taxi route.</summary>
     private TaxiRoute? SourceRoute(PhaseContext ctx) => _ownPath ?? ctx.Aircraft.Ground.AssignedTaxiRoute;
@@ -98,6 +115,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     {
         ctx.Aircraft.IsOnGround = true;
         ctx.Targets.TargetSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _expedited = _expedited || (SourceRoute(ctx)?.GetHoldShortAt(_approachNodeId)?.IsExpedited ?? false);
 
         TryBuildCrossingRoute(ctx);
 
@@ -140,6 +158,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             return true;
         }
 
+        ApplySpeedCap(ctx, _navigator);
         bool isLastSegment = _crossingRoute.CurrentSegmentIndex + 1 >= _crossingRoute.Segments.Count;
         NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
         if (held)
@@ -421,8 +440,34 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     // would force a stop the aircraft has to re-accelerate from. If the
     // route ends after the crossing, the inserted HoldingInPositionPhase
     // / AtParkingPhase will brake to zero on its own.
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
         Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+
+        // The crossing's expedite acceleration ends with the crossing.
+        ctx.Targets.DesiredAccelRate = null;
+    }
+
+    /// <summary>
+    /// The crossing's straight-segment cap (7110.65 §3-7-2.j "CROSS … WITHOUT DELAY"): a commanded <c>SPD</c> wins, else the taxi
+    /// speed, raised to the expedite cap while this crossing or the route is expedited, with the expedite acceleration published
+    /// for as long. A Super/Heavy gets neither (<see cref="CategoryPerformance.IsSuperOrHeavy"/>).
+    /// </summary>
+    private void ApplySpeedCap(PhaseContext ctx, GroundNavigator navigator)
+    {
+        // A CROSS … EXP issued once the crossing is under way marks the crossing's hold-short, read here every tick.
+        bool expedite =
+            _expedited || (SourceRoute(ctx)?.GetHoldShortAt(_approachNodeId)?.IsExpedited ?? false) || ctx.Aircraft.Ground.IsExpeditingTaxi;
+        bool superOrHeavy = CategoryPerformance.IsSuperOrHeavy(ctx.Aircraft.AircraftType, ctx.Category);
+        double? commandedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts;
+        navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeedCap(ctx.Category, commandedKts, expedite, superOrHeavy);
+        ctx.Targets.DesiredAccelRate = CategoryPerformance.TaxiAccelOverride(ctx.Category, commandedKts, expedite, superOrHeavy);
+    }
+
+    /// <summary>
+    /// Ends this crossing's expedite: whatever ended the route expedite, or a <c>CROSS</c> without <c>EXP</c> naming it (YAAT-658).
+    /// </summary>
+    internal void EndExpedite() => _expedited = false;
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
@@ -494,7 +539,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             _restoredSegmentIndex = null;
         }
 
-        // Cross at normal taxi speed and continue without delay (7110.65 §3-7-2.a.10, "CROSS (runway) at
+        // Cross at normal taxi speed and continue without delay (7110.65 §3-7-2.j, "CROSS (runway) at
         // (taxiway) WITHOUT DELAY"; AIM 4-3-21.a): a crossing is just taxiing across, so the cap is the
         // category taxi speed — not a slower "crossing speed". RunwayCrossingSpeed is kept only as a navigator
         // FLOOR so the aircraft never brakes toward a stop on the runway or at the (artificial) slice end, and
@@ -506,7 +551,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         // playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
         GroundNavigator navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
         _navigator = navigator;
-        navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        ApplySpeedCap(ctx, navigator);
         navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
         _restoredNavigator = null;
         if ((_restoredSetupPose is { } setupPose) && !restoredIndexClamped)
@@ -839,6 +884,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             OwnPath = _ownPath?.ToSnapshot(),
             NotClearRestSeconds = _notClearRestSeconds > 0.0 ? _notClearRestSeconds : null,
             SaidNotClear = _saidNotClear ? true : null,
+            IsExpedited = _expedited ? true : null,
         };
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -855,6 +901,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             _restoredNavigator = dto.Navigator,
             _notClearRestSeconds = dto.NotClearRestSeconds ?? 0.0,
             _saidNotClear = dto.SaidNotClear ?? false,
+            _expedited = dto.IsExpedited ?? false,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

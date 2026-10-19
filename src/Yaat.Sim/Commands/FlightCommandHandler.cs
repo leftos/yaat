@@ -304,7 +304,7 @@ internal static class FlightCommandHandler
 
         aircraft.Ground.CommandedTaxiSpeedKts = clamped;
         // The numeric taxi cap supersedes expedite (the fixed-1.3x variant of the same knob).
-        aircraft.Ground.IsExpeditingTaxi = false;
+        GroundCommandHandler.EndRouteExpedite(aircraft);
 
         string suffix =
             clamped < defaultSpeed ? ", reduce speed"
@@ -320,7 +320,7 @@ internal static class FlightCommandHandler
         if (aircraft.Phases?.CurrentPhase is TaxiingPhase)
         {
             aircraft.Ground.CommandedTaxiSpeedKts = null;
-            aircraft.Ground.IsExpeditingTaxi = false;
+            GroundCommandHandler.EndRouteExpedite(aircraft);
             return CommandDispatcher.Ok("Resume normal taxi speed");
         }
 
@@ -452,7 +452,7 @@ internal static class FlightCommandHandler
             return CommandDispatcher.Ok("Exit without delay");
         }
 
-        // Ground-context expedite: raise taxi speed cap until next HOLD/RES/HS.
+        // Ground-context expedite: the route expedite (AircraftGroundOps.IsExpeditingTaxi), until whatever ends it.
         // Only meaningful with an active taxi route; pushback/parking are out of scope.
         if (aircraft.IsOnGround && cmd.Altitude is null)
         {
@@ -525,6 +525,7 @@ internal static class FlightCommandHandler
         aircraft.Procedure.IsExpediting = false;
         aircraft.Ground.IsExpeditingExit = false;
         aircraft.Ground.IsExpeditingLineup = false;
+        GroundCommandHandler.EndRouteExpedite(aircraft);
         aircraft.Targets.DesiredVerticalRate = null;
         return CommandDispatcher.Ok("Resume normal rate");
     }

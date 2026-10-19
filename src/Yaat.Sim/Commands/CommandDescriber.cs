@@ -9,6 +9,9 @@ namespace Yaat.Sim.Commands;
 
 public static class CommandDescriber
 {
+    /// <summary>The ", without delay" a ground expedite adds to its natural description (7110.65 §3-7-2.j).</summary>
+    internal const string WithoutDelaySuffix = ", without delay";
+
     public static CanonicalCommandType ToCanonicalType(ParsedCommand command)
     {
         return command switch
@@ -1026,17 +1029,18 @@ public static class CommandDescriber
 
     private static string FormatTaxiAutoCanonical(TaxiAutoCommand cmd)
     {
+        string expedite = cmd.Expedite ? " EXP" : "";
         if (cmd.DestinationRunway is not null)
         {
-            return $"TAXIAUTO {cmd.DestinationRunway}";
+            return $"TAXIAUTO {cmd.DestinationRunway}{expedite}";
         }
 
         if (cmd.DestinationSpot is not null)
         {
-            return $"TAXIAUTO ${cmd.DestinationSpot}";
+            return $"TAXIAUTO ${cmd.DestinationSpot}{expedite}";
         }
 
-        return cmd.DestinationParking is not null ? $"TAXIAUTO @{cmd.DestinationParking}" : "TAXIAUTO";
+        return cmd.DestinationParking is not null ? $"TAXIAUTO @{cmd.DestinationParking}{expedite}" : $"TAXIAUTO{expedite}";
     }
 
     private static string FormatAsdexEditCanonical(AsdexEditCommand cmd)
@@ -1261,9 +1265,9 @@ public static class CommandDescriber
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
             FollowGroundCommand follow => $"Follow {follow.TargetCallsign} (ground)",
             GiveWayCommand gw => $"Give way to {gw.TargetCallsign}",
-            ExitLeftCommand el => (el.Taxiway is not null ? $"Exit left at {el.Taxiway}" : "Exit left") + (el.Expedite ? ", without delay" : ""),
-            ExitRightCommand er => (er.Taxiway is not null ? $"Exit right at {er.Taxiway}" : "Exit right") + (er.Expedite ? ", without delay" : ""),
-            ExitTaxiwayCommand et => $"Exit at {et.Taxiway}" + (et.Expedite ? ", without delay" : ""),
+            ExitLeftCommand el => (el.Taxiway is not null ? $"Exit left at {el.Taxiway}" : "Exit left") + (el.Expedite ? WithoutDelaySuffix : ""),
+            ExitRightCommand er => (er.Taxiway is not null ? $"Exit right at {er.Taxiway}" : "Exit right") + (er.Expedite ? WithoutDelaySuffix : ""),
+            ExitTaxiwayCommand et => $"Exit at {et.Taxiway}" + (et.Expedite ? WithoutDelaySuffix : ""),
             TaxiAllCommand taxiAll => FormatTaxiAllNatural(taxiAll),
             BreakConflictCommand => $"Ignore ground conflicts ({GroundCommandHandler.BreakDurationSeconds:F0} s)",
             ClearRunwayCommand => "Continue forward, clear of the runway, then hold",
@@ -1446,17 +1450,18 @@ public static class CommandDescriber
 
     private static string DescribeTaxiAutoNatural(TaxiAutoCommand cmd)
     {
+        string withoutDelay = cmd.Expedite ? WithoutDelaySuffix : "";
         if (cmd.DestinationRunway is not null)
         {
-            return $"Taxi (auto) to runway {cmd.DestinationRunway}";
+            return $"Taxi (auto) to runway {cmd.DestinationRunway}{withoutDelay}";
         }
 
         if (cmd.DestinationSpot is not null)
         {
-            return $"Taxi (auto) to spot {cmd.DestinationSpot}";
+            return $"Taxi (auto) to spot {cmd.DestinationSpot}{withoutDelay}";
         }
 
-        return cmd.DestinationParking is not null ? $"Taxi (auto) to {cmd.DestinationParking}" : "Taxi (auto)";
+        return cmd.DestinationParking is not null ? $"Taxi (auto) to {cmd.DestinationParking}{withoutDelay}" : $"Taxi (auto){withoutDelay}";
     }
 
     private static string DescribeAsdexEditNatural(AsdexEditCommand cmd)
@@ -2416,10 +2421,6 @@ public static class CommandDescriber
 
     private static string FormatCrossCanonical(CrossRunwayCommand cross)
     {
-        if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
-        {
-            return "CROSS";
-        }
         var parts = new List<string> { "CROSS" };
         parts.AddRange(cross.RunwayIds);
         if (cross.HoldShorts.Count > 0)
@@ -2427,14 +2428,21 @@ public static class CommandDescriber
             parts.Add("HS");
             parts.AddRange(cross.HoldShorts.Select(h => h.ToCanonical()));
         }
+
+        if (cross.Expedite)
+        {
+            parts.Add("EXP");
+        }
+
         return string.Join(" ", parts);
     }
 
     private static string FormatCrossNatural(CrossRunwayCommand cross)
     {
+        string withoutDelay = cross.Expedite ? WithoutDelaySuffix : "";
         if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
         {
-            return "Cross next hold-short";
+            return $"Cross next hold-short{withoutDelay}";
         }
         if (cross.RunwayIds.Count == 0)
         {
@@ -2443,7 +2451,7 @@ public static class CommandDescriber
 
         string noun = cross.RunwayIds.Count == 1 ? "runway" : "runways";
         string runways = string.Join(" and ", cross.RunwayIds.Select(RunwayIdentifier.ToDisplayDesignator));
-        string clause = $"Cross {noun} {runways}";
+        string clause = $"Cross {noun} {runways}{withoutDelay}";
         if (cross.HoldShorts.Count > 0)
         {
             clause += $", hold short of {string.Join(" and ", cross.HoldShorts.Select(h => h.ToNatural()))}";
@@ -2493,6 +2501,11 @@ public static class CommandDescriber
             parts.Add("NODEL");
         }
 
+        if (taxi.Expedite)
+        {
+            parts.Add("EXP");
+        }
+
         return string.Join(" ", parts);
     }
 
@@ -2523,6 +2536,11 @@ public static class CommandDescriber
         if (taxi.CrossRunways is { Count: > 0 } crossRunways)
         {
             body += $", cross {string.Join(" and ", crossRunways.Select(RunwayIdentifier.ToDisplayDesignator))}";
+        }
+
+        if (taxi.Expedite)
+        {
+            body += WithoutDelaySuffix;
         }
 
         if (taxi.HoldShorts.Count > 0)

@@ -1414,7 +1414,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     public void ImpliedExitReadback_NamesTheSideAndTheTaxiwayOnly(ExitSide side, string spokenSide)
     {
         var exit = new ExitPreference { Side = side, Taxiway = "J" };
-        var taxi = new TaxiCommand(["J", "C", "B", "W", "W1"], [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(["J", "C", "B", "W", "W1"], [], Expedite: false, DestinationRunway: "30");
 
         PilotSpeechText speech = GroundCommandHandler.ImpliedExitReadback(exit, taxi) ?? throw new Xunit.Sdk.XunitException("no readback");
 
@@ -1435,7 +1435,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void WithoutTaxiway_DropsOnlyTheLeadingExitTaxiway()
     {
-        var taxi = new TaxiCommand(["J", "C", "J", "W"], [], PathTurnHints: [null, TurnDirection.Left, TurnDirection.Right, null]);
+        var taxi = new TaxiCommand(["J", "C", "J", "W"], [], Expedite: false, PathTurnHints: [null, TurnDirection.Left, TurnDirection.Right, null]);
 
         TaxiCommand rest = GroundCommandHandler.WithoutTaxiway(taxi, "J");
 
@@ -1450,7 +1450,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void WithoutTaxiway_KeepsTheExitTaxiwayWhenItDoesNotLead()
     {
-        var taxi = new TaxiCommand(["C", "J", "W"], [], PathTurnHints: [null, TurnDirection.Left, null]);
+        var taxi = new TaxiCommand(["C", "J", "W"], [], Expedite: false, PathTurnHints: [null, TurnDirection.Left, null]);
 
         TaxiCommand rest = GroundCommandHandler.WithoutTaxiway(taxi, "J");
 
@@ -1466,7 +1466,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     public void ImpliedExitReadback_RepeatingTheExitTaxiway_DropsItOnlyWhereItLeads()
     {
         var exit = new ExitPreference { Side = ExitSide.Right, Taxiway = "J" };
-        var taxi = new TaxiCommand(["J", "C", "J", "W"], [], DestinationRunway: "30");
+        var taxi = new TaxiCommand(["J", "C", "J", "W"], [], Expedite: false, DestinationRunway: "30");
 
         PilotSpeechText speech = GroundCommandHandler.ImpliedExitReadback(exit, taxi) ?? throw new Xunit.Sdk.XunitException("no readback");
 

@@ -56,7 +56,11 @@ public class ClearRunwayPhaseFallbackLengthTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KLAX" },
         };
 
-        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["M"], HoldShorts: [], DestinationRunway: null), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["M"], HoldShorts: [], Expedite: false, DestinationRunway: null),
+            layout
+        );
         Assert.True(result.Success, $"TAXI M failed: {result.Message}");
         TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);

@@ -49,7 +49,7 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
         GroundNode stand = Assert.IsType<GroundNode>(layout.FindParkingByName("GA16"));
         AircraftState aircraft = MakeParked(layout, stand);
 
-        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["C"], HoldShorts: []), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(Path: ["C"], HoldShorts: [], Expedite: false), layout);
         output.WriteLine($"TAXI C from GA16: {result.Success} — {result.Message}");
 
         Assert.DoesNotContain("Taxi via F", result.Message ?? "");
@@ -128,7 +128,7 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
         AircraftState aircraft = MakeAt(layout, layout.Nodes[508], new TrueHeading(0.0));
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(Path: ["G"], HoldShorts: [], DestinationParking: "SIG1"),
+            new TaxiCommand(Path: ["G"], HoldShorts: [], Expedite: false, DestinationParking: "SIG1"),
             layout
         );
         Assert.True(result.Success, result.Message);

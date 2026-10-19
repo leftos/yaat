@@ -1794,24 +1794,22 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// A TAXI's implied exit on the rollout: <paramref name="taxiway"/>, the TAXI's first taxiway, judged as an <c>EXIT</c> naming it
-    /// (<see cref="EvaluateAndApplyNamedExitInstruction"/>) at the firm limit, on the side whose named-exit search path reaches
+    /// (<see cref="EvaluateAndApplyNamedExitInstruction"/>) at the firm limit, or the expedite limit when <paramref name="expedite"/>
+    /// (a <c>TAXI … EXP</c>), on the side whose named-exit search path reaches
     /// <paramref name="routeNodeIds"/> (the taxi route the TAXI resolved from the runway), no side when neither does. When allowed,
     /// the exit the rollout will brake for comes back with it. Allowed with no exit — unjudged — wherever a named exit is not judged
     /// (<see cref="NamedExitQuery"/> null: a forced <c>CLANDF</c> rollout, no layout) and on a runway without hold-short data.
     /// </summary>
-    public ImpliedExitVerdict EvaluateImpliedExit(AircraftState aircraft, string taxiway, IReadOnlySet<int> routeNodeIds)
+    public ImpliedExitVerdict EvaluateImpliedExit(AircraftState aircraft, string taxiway, IReadOnlySet<int> routeNodeIds, bool expedite)
     {
         var bare = new ExitPreference { Taxiway = taxiway };
-        if (
-            (NamedExitQuery(aircraft, bare, expedite: false) is not { } query)
-            || (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0)
-        )
+        if ((NamedExitQuery(aircraft, bare, expedite) is not { } query) || (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0))
         {
             return new ImpliedExitVerdict(new ExitInstructionVerdict(true, null), bare, null);
         }
 
         var preference = new ExitPreference { Taxiway = taxiway, Side = RouteSide(query, taxiway, routeNodeIds) };
-        ExitInstructionVerdict verdict = EvaluateAndApplyNamedExitInstruction(aircraft, preference, expedite: false);
+        ExitInstructionVerdict verdict = EvaluateAndApplyNamedExitInstruction(aircraft, preference, expedite);
         ResolvedExitInfo? exit = verdict.Allowed
             ? FindWithInferredSide(query with { SearchPref = preference, SidePref = preference.Side ?? _inferredSide })
             : null;
@@ -1844,12 +1842,13 @@ public sealed class LandingPhase : Phase
     /// <summary>
     /// The exits the rollout can make right now, nearest first, ties broken by taxiway name: each row of the exits-ahead list
     /// (<see cref="ListExitsAhead(AircraftState)"/>) as the exit its named search finds. Null where the list is (off the rollout, a
-    /// forced rollout, no layout or hold-short data).
+    /// forced rollout, no layout or hold-short data). <paramref name="expedite"/> judges them at the expedite braking limit, as an
+    /// <c>EXIT … EXP</c> is judged, for a rollout <c>TAXI … EXP</c> ("exit and taxi without delay").
     /// </summary>
-    public IReadOnlyList<ResolvedExitInfo>? MakeableExitsAhead(AircraftState aircraft)
+    public IReadOnlyList<ResolvedExitInfo>? MakeableExitsAhead(AircraftState aircraft, bool expedite)
     {
         if (
-            (NamedExitQuery(aircraft, new ExitPreference(), expedite: false) is not { } query)
+            (NamedExitQuery(aircraft, new ExitPreference(), expedite) is not { } query)
             || (query.Layout.GetRunwayHoldShortNodes(query.RwyDesignator).Count == 0)
         )
         {

@@ -626,6 +626,8 @@ The aircraft then takes a later exit, and does not use W3 for the rest of that l
 
 **Taxiing while the aircraft is still rolling out.** `TAXI` and `TAXIAUTO` work on the landing rollout, so you need not wait for "clear of the runway". The aircraft takes the exit the route implies (the first taxiway you name, or for `TAXIAUTO` the first exit it can make, on either side) and rolls from it into the route without stopping. The pilot reads the exit back first: "exit right at J, taxi to runway 30 via C B W W1". The route shows on the strip, in the status "via" text and on the route overlay as soon as the pilot reads it back, and `CROSS` already applies to its next runway.
 
+Add `EXP` (`TAXI J C B EXP`, `TAXIAUTO 30 EXP`) to exit and taxi without delay: the pilot picks from the exits the expedite braking limit makes, and then taxis the route expedited.
+
 When the first taxiway you name is not on the runway, the aircraft tries the exits it can make nearest first, those on the side of an `EL`/`ER` you already gave first, then those on the side of the route. A bare `EL`/`ER` on the side of the exit the `TAXI` implied, given while the route waits, confirms that exit; an exit naming another taxiway cancels the stored route. `GIVEWAY` works once the route is stored: it waits without slowing or stopping the aircraft on the runway and takes effect when the aircraft is taxiing.
 
 If the exit is too close to make you get *"unable {taxiway}."*, and if it is already behind the aircraft *"Unable, no {taxiway} ahead"*. A `TAXI` whose first taxiway is not on the runway is joined from the first makeable exit that leads straight to it; if none does, the pilot says "unable" to that taxiway. A route that only runs along the landing runway is refused.
@@ -685,6 +687,12 @@ An aircraft that traffic brings to rest on the runway says "Holding position, no
 **Clearing multiple crossings at once.** When a taxi route crosses two closely-spaced parallels (e.g. taxiway B across 28R/10L then 28L/10R at OAK), a single `CROSS 28R 28L` clears the crossing the aircraft is holding short of and pre-clears the next, so it taxis straight through without a second command.
 
 Add a hold-short in the same clearance — `CROSS 28R HS 20` crosses 28R then holds short of taxiway 20. The command is all-or-nothing: every named runway must be an upcoming crossing on the route and none may be the assigned departure runway (use `CTO`/`LUAW` for that). `RES CROSS 28R 28L` does the same while also resuming a held taxi.
+
+**Taxiing and crossing without delay.** Write `EXP` last on `TAXI`, `TAXIAUTO` or `CROSS` (`TAXI B B5 EXP`, `TAXIAUTO 28R EXP`, `CROSS 28L 28R EXP`, or a bare `CROSS EXP` for the next crossing) and the pilot taxis or crosses without delay: a ×1.3 speed cap and a brisker acceleration (1.5 kt/s instead of 1.0). A Super or Heavy gets no increase (7110.65 §3-7-3.a). The pilot reads it back as "taxi via F, without delay, hold short of 01L/19R at F" or "cross runway 28R without delay".
+
+A crossing's expedite belongs to that crossing: `CROSS 28L 28R EXP` expedites both, including the taxi between the runways, and ends once the aircraft is clear of 28R; a plain `CROSS` cancels it on the crossings it names.
+
+`CROSS HS 20 EXP` with no runway is refused. `NORM`, `SPD`, `RNS`, `HOLD`, `HS`, `GIVEWAY`, or a `TAXI`, `TAXIAUTO`, `RES` or `CROSS` without `EXP` that sets the aircraft moving from a stop ends the expedite everywhere, crossings included; a bare `RES` to a rolling aircraft keeps it.
 
 **Holding short of a specific crossing.** When a taxi route meets the same taxiway or runway more than once — a looping clearance like `TAXI C D J` at OAK, which starts at C and meets it again at the far end of J — a bare `HS C` binds the *first* crossing in route order, which may be right where the aircraft already sits.
 
@@ -811,7 +819,7 @@ Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T
 
 **Adjusting taxi speed:** Issue `SPD {n}` to a taxiing aircraft to set its taxi speed to `n` knots — slower or faster than the category default (jet 30 / turboprop 25 / piston 20 / helo 15 kts), clamped between 5 kts and the expedite ceiling (jet 39 / turboprop 33 / piston 26 / helo 20 kts).
 
-Corner slowdowns, hold-short braking, and give-way yields still apply on top. `SPD 0` restores the normal taxi speed, as does a new `TAXI` clearance. It is mutually exclusive with `EXP` (expedite taxi), and the speed can be scripted with a condition — `AT B SPD 10` slows to 10 kts on reaching taxiway B.
+Corner slowdowns, hold-short braking, and give-way yields still apply on top. `SPD 0` restores the normal taxi speed, as does a new `TAXI` clearance. It is mutually exclusive with `EXP` (expedite taxi): the cap applies to a runway crossing as well, and an expedited taxi or crossing under `SPD` accelerates at the normal rate. The speed can be scripted with a condition — `AT B SPD 10` slows to 10 kts on reaching taxiway B.
 
 **Command-token hints:** Hovering a taxi spot or parking node shows the token that references it in a command — `$9` for taxi spot 9, `@F7` for parking F7 — so you can read straight off the map how to `TAXI` / `PUSH` / `WARPG` to it.
 

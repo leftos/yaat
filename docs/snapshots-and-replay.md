@@ -196,6 +196,7 @@ More fields are the same kind (nullable, written only when set, null on older sn
 
 `HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), `HoldingShortPhaseDto.WaitingForLead` (bool?, the hold, cleared across, is waiting at its bar for the lead of the follow armed behind it) with `SaidWaitForLead` (bool?, the "waiting for the traffic to pass" call made for the current wait; a restore does not repeat it), both omitted when null.
 
+`HoldShortPointDto.IsExpedited` (bool?, written only when true, absent on older snapshots; no schema bump) is a `CROSS … EXP` crossing's expedite, kept on the bar; `CrossingRunwayPhaseDto.IsExpedited` (bool?, same rule) is the expedite a crossing phase flies under.
 `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
 
 A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.

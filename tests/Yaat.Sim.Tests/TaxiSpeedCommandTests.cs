@@ -235,7 +235,7 @@ public class TaxiSpeedCommandTests
         };
         ac.Ground.CommandedTaxiSpeedKts = 10;
 
-        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(["A"], [], DestinationRunway: "28R"), layout);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(["A"], [], Expedite: false, DestinationRunway: "28R"), layout);
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Ground.CommandedTaxiSpeedKts);

@@ -96,6 +96,13 @@ public sealed class HoldShortPointDto
     public bool? RecrossesLandingRunway { get; init; }
 
     /// <summary>
+    /// True when a <c>CROSS … EXP</c> expedited this crossing (<see cref="HoldShortPoint.IsExpedited"/>). Null otherwise and on older
+    /// snapshots, and not written while null, so every other bar — and every snapshot 0 — serializes as before.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsExpedited { get; init; }
+
+    /// <summary>
     /// Runway hold-short node the aircraft's tail hangs over while holding short of this taxiway
     /// (issue #172 tail-over-runway state). Null in the normal case and on legacy snapshots.
     /// </summary>

@@ -54,7 +54,7 @@ public class BehindGroundTaxiTests
 
         static AircraftState? findAircraft(string _) => null;
 
-        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("GHOST"), [new TaxiCommand(["A", "B"], [])])]);
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("GHOST"), [new TaxiCommand(["A", "B"], [], Expedite: false)])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(
             compound,
@@ -77,7 +77,7 @@ public class BehindGroundTaxiTests
 
         AircraftState? findAircraft(string cs) => cs == "N152SP" ? target : null;
 
-        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("N152SP"), [new TaxiCommand(["C", "D"], [])])]);
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("N152SP"), [new TaxiCommand(["C", "D"], [], Expedite: false)])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(
             compound,

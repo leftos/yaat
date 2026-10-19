@@ -132,7 +132,7 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
     public void Verbalize_TaxiAlongRunwayFirst_UsesOnRunway_NotViaOn()
     {
         TestVnasData.EnsureInitialized();
-        var taxi = new TaxiCommand(["28R", "G", "D"], []);
+        var taxi = new TaxiCommand(["28R", "G", "D"], [], Expedite: false);
 
         string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
         string? terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
@@ -154,7 +154,7 @@ public class TaxiAlongRunwayReadbackTests(ITestOutputHelper output)
     public void Verbalize_TaxiwayThenRunway_UsesViaForTaxiwayOnForRunway()
     {
         TestVnasData.EnsureInitialized();
-        var taxi = new TaxiCommand(["B", "28R", "G"], []);
+        var taxi = new TaxiCommand(["B", "28R", "G"], [], Expedite: false);
 
         string? spoken = PhraseologyVerbalizer.Verbalize(taxi);
         output.WriteLine($"spoken: {spoken}");

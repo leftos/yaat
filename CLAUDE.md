@@ -182,6 +182,8 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - Accel/decel (kts/s): Jet 2.5/3.5, TP 1.5/2.5, Piston 1.0/2.0. Snap thresholds: heading 0.5°, altitude 10 ft, speed 2 kt.
 - Taxi (kts/s, physics is the only ground-speed integrator): accel 1.0 for every category — the breakaway rate, not the sustained idle rate (a light single's breakaway blip gives it *better* ground thrust-to-weight than a loaded transport, so it cannot be slower); brake Jet/TP 5.0, Piston/Heli 2.0. Ground snap window = one sub-tick of change.
 
+  Ground expedite ("without delay": `TAXI`/`TAXIAUTO`/`CROSS … EXP`): taxi speed cap ×1.3 and `ExpediteTaxiAccelRate` 1.5 kt/s for Jet, Turboprop and Piston, 1.0 for Super/Heavy and Helicopter. A Super/Heavy gets no taxi speed increase on any ground expedite (7110.65 §3-7-3.a; an explicit `SPD` is still allowed).
+
   Tug moves (`PUSH`/`PUSHM`, every category): accel 0.3, brake 1.0 — towbar rates published by `PushbackPhase` as `DesiredAccelRate`/`DesiredDecelRate`; judgement calls under AC 00-65A §11.17, which gives no figure. The tug holds 5 kt (`PushbackSpeed`) through turns, the main gear commanded at 5·cos(steer) (B738 routine radius 3.5 kt, tight 1.9 kt); the 3 kt align creep covers only the last 30 ft of a creep move (`PushbackPhase.AlignCreepFt`).
 
   Turn about on a taxiway: the type's radius R = max(MGW/2, 0.466 × wheelbase) from the FAA record (`TurnAboutFit`, the main-gear axle-midpoint path radius), speed ω·R; a type without those figures uses `TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter, ≈1.65/2.0/1.86/2.5 kt). A controller's turn about is refused unless the type's gear fits its TDG taxiway's half-width.

@@ -186,10 +186,10 @@
         { "verb": "PUSHM", "aliases": [], "description": "Tug move through 2+ points in order ($spot / @gate / #node / ~lat/lon[/hdg], each optionally /PUSH or /PULL) [FACE C / TAIL C]; passes each point before the last without stopping (within half a wingspan), 5 s pause at each reversal; a leg onto a runway, holding position or un-named taxiway is refused" },
         { "verb": "PUSHF / PUSHMF", "aliases": [], "description": "Forced PUSH / PUSHM, every form: skips the taxiway, parked-aircraft and object-free-area checks and never stops for parked aircraft; still refused on a runway or holding position" },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
-        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot`" },
+        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot` (+EXP = without delay)" },
         { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position" },
         { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi / release runway hold (not destination) / break a ground-conflict stop or crawl / pre-clear the next taxiway or spot hold-short while rolling; CROSS rwy... pre-clears crossings, HS target... adds a taxiway hold-short or re-arms a runway's" },
-        { "verb": "CROSS", "aliases": [], "description": "Cross next hold-short (bare), one or more named runways/taxiways (`CROSS 28R 28L`), optionally `HS target...`; chain `CROSS; HOLD` to halt past the far-side bars or `CROSS; DEL` to delete once clear" },
+        { "verb": "CROSS", "aliases": [], "description": "Cross next hold-short (bare), one or more named runways/taxiways (`CROSS 28R 28L`), optionally `HS target...`; `EXP` last = without delay (`CROSS 28L 28R EXP`, bare `CROSS EXP`); chain `CROSS; HOLD` to halt past the far-side bars or `CROSS; DEL` to delete once clear" },
         { "verb": "CLRWY", "aliases": ["clearrwy"], "description": "Pull an aircraft whose tail is over a runway (holding short of a taxiway just past it) forward until clear, then hold" },
         { "verb": "HS", "aliases": [], "description": "Hold short of taxiway/runway/spot (`HS $17`); a runway target holds on the entry side and revokes AutoCross or an earlier CROSS. `C@J` / `28R@J` picks the crossing on taxiway J when the route meets the target more than once" },
         { "verb": "RWY", "aliases": [], "description": "Assign runway (TAXI mod avail)" },
@@ -201,7 +201,7 @@
         { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
       ],
       "notes": [
-        "TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `$spot`",
+        "TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `$spot` `EXP` (last; without delay, also on `TAXIAUTO` and `CROSS`)",
         "`TAXI <twy> CROSS <rwy>` (no dest): cross that runway and hold just past — the runway sets the direction",
         "Turn hints: `>A` = right onto A, `<A` = left onto A (best-effort; unprefixed = pathfinder's choice). In PUSH, `>`/`<` mean face/tail instead"
       ]

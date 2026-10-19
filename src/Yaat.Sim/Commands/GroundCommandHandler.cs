@@ -390,8 +390,15 @@ public static partial class GroundCommandHandler
         // The route is new, so every merge hold on it was armed by this clearance; one already behind the aircraft or
         // inside its braking stop falls back to the capped stop, as for an HS.
         DeclineUnreachableMergeHolds(aircraft, groundLayout, route, route.HoldShortPoints);
-        // A fresh taxi clearance resets the commanded taxi speed to the category default.
+        // A fresh taxi clearance resets the commanded taxi speed to the category default, and restates the expedite: a TAXI
+        // without EXP ends a running one (7110.65 §2-1-5.b, by analogy: a restated clearance without the expedite cancels it).
         aircraft.Ground.CommandedTaxiSpeedKts = null;
+        if (!taxi.Expedite)
+        {
+            EndRouteExpedite(aircraft);
+        }
+
+        aircraft.Ground.IsExpeditingTaxi = taxi.Expedite;
         // The aircraft is leaving whatever stand it was on. A taxi to parking re-sets this when it
         // arrives (the zero-segment fallback below, or TaxiingPhase on route completion).
         aircraft.Ground.ParkingSpot = null;
@@ -477,7 +484,8 @@ public static partial class GroundCommandHandler
                 taxiPhases.Add(atStand ? new AtParkingPhase() : new HoldingInPositionPhase());
                 ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
                 taxiPhases.Start(ctx);
-                return CommandDispatcher.Ok($"Taxi via {destinationSigil}{parkingName}") with { EffectiveCommand = effectiveCommand };
+                string withoutDelay = taxi.Expedite ? CommandDescriber.WithoutDelaySuffix : "";
+                return CommandDispatcher.Ok($"Taxi via {destinationSigil}{parkingName}{withoutDelay}") with { EffectiveCommand = effectiveCommand };
             }
         }
 
@@ -1637,7 +1645,8 @@ public static partial class GroundCommandHandler
             HoldShorts: [],
             DestinationRunway: autoTaxi.DestinationRunway,
             DestinationParking: autoTaxi.DestinationParking,
-            DestinationSpot: autoTaxi.DestinationSpot
+            DestinationSpot: autoTaxi.DestinationSpot,
+            Expedite: autoTaxi.Expedite
         );
 
         return TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: true, isScenarioScripted, listAircraft));
@@ -1928,7 +1937,7 @@ public static partial class GroundCommandHandler
                 && (issued(taxiway) || route.ImpliedLanes.Contains(taxiway, StringComparer.OrdinalIgnoreCase));
         }
         IReadOnlyList<string> beyondRoute = inputs.EndsShort ? [] : IssuedTaxiwaysBeyondRoute(route, layout, taxi.Path);
-        return $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path, Named, beyondRoute)}";
+        return $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path, Named, beyondRoute, taxi.Expedite)}";
     }
 
     /// <summary>
@@ -5101,12 +5110,12 @@ public static partial class GroundCommandHandler
         if (phase is LineUpPhase lineup)
         {
             lineup.HoldPosition = true;
-            aircraft.Ground.IsExpeditingTaxi = false;
+            EndRouteExpedite(aircraft);
             return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
         }
 
         aircraft.Ground.Hold = HoldDirective.HoldPosition;
-        aircraft.Ground.IsExpeditingTaxi = false;
+        EndRouteExpedite(aircraft);
         return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
     }
 
@@ -5155,11 +5164,18 @@ public static partial class GroundCommandHandler
             }
 
             CommandResult broken = TryBreakConflict(aircraft);
-            return broken.Success ? CommandDispatcher.Ok("Resume taxi — breaking ground conflict") : broken;
+            if (!broken.Success)
+            {
+                return broken;
+            }
+
+            // A RES never carries EXP, so it ends a route expedite (YAAT-658 ruling).
+            EndRouteExpedite(aircraft);
+            return CommandDispatcher.Ok("Resume taxi — breaking ground conflict");
         }
 
         aircraft.Ground.Hold = null;
-        aircraft.Ground.IsExpeditingTaxi = false;
+        EndRouteExpedite(aircraft);
         return CommandDispatcher.Ok("Resume taxi");
     }
 
@@ -5513,7 +5529,117 @@ public static partial class GroundCommandHandler
         return TryAddExplicitHoldShorts(aircraft, layout, holdShorts);
     }
 
+    /// <summary>
+    /// CROSS, with its <c>EXP</c> ("cross without delay", 7110.65 §3-7-2.j). Every crossing the command releases or pre-clears is
+    /// marked <see cref="HoldShortPoint.IsExpedited"/> before the release, so a crossing phase built now reads it; a refused CROSS
+    /// takes the marks back. A release from a stop without EXP ends a route expedite, as every release without EXP does; a
+    /// pre-clearance while rolling leaves it running.
+    /// </summary>
     internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross, AirportGroundLayout? layout)
+    {
+        var holdPhase = aircraft.Phases?.CurrentPhase as HoldingShortPhase;
+        bool releasesHold =
+            (holdPhase is not null)
+            && (
+                ((cross.RunwayIds.Count == 0) && (cross.HoldShorts.Count == 0))
+                || cross.RunwayIds.Any(r => HoldShortAnnotator.TargetMatches(holdPhase.HoldShort.TargetName, r))
+            );
+        List<HoldShortPoint> targets = CrossingTargets(aircraft, cross, releasesHold ? holdPhase : null);
+        List<HoldShortPoint> marked = [];
+        if (cross.Expedite)
+        {
+            marked = [.. targets.Where(static hs => !hs.IsExpedited)];
+            marked.ForEach(static hs => hs.IsExpedited = true);
+        }
+
+        CommandResult result = TryCrossRunwayCore(aircraft, cross, layout);
+        if (!result.Success)
+        {
+            marked.ForEach(static hs => hs.IsExpedited = false);
+            return result;
+        }
+
+        if (!cross.Expedite)
+        {
+            // A CROSS without EXP restates the crossing clearance without the expedite, which cancels it (7110.65 §2-1-5.b, by
+            // analogy). Released from a stop it also ends the route expedite, with every crossing mark; a pre-clearance while
+            // rolling clears only the crossings it names.
+            if (releasesHold)
+            {
+                EndRouteExpedite(aircraft);
+            }
+            else
+            {
+                ClearCrossingExpedites(aircraft, targets);
+            }
+
+            return result;
+        }
+
+        // The multi-runway / HS path echoes the command's own description, its "without delay" included.
+        bool describesItself = (cross.RunwayIds.Count > 1) || (cross.HoldShorts.Count > 0);
+        return describesItself ? result : result with { Message = result.Message + CommandDescriber.WithoutDelaySuffix };
+    }
+
+    /// <summary>
+    /// Ends the route expedite (<see cref="AircraftGroundOps.IsExpeditingTaxi"/>) and every crossing expedite with it: each mark on the
+    /// route's hold-shorts (<see cref="HoldShortPoint.IsExpedited"/>) and each crossing phase flying one. Whatever ends a route expedite
+    /// ends them all (YAAT-658 owner ruling): NORM, SPD, RNS, HOLD, HS, GIVEWAY, a TAXI/TAXIAUTO without EXP, a release without EXP.
+    /// </summary>
+    internal static void EndRouteExpedite(AircraftState aircraft)
+    {
+        aircraft.Ground.IsExpeditingTaxi = false;
+        if (aircraft.ActiveOrStoredTaxiRoute is { } route)
+        {
+            route.HoldShortPoints.ForEach(static hs => hs.IsExpedited = false);
+        }
+
+        foreach (CrossingRunwayPhase crossing in aircraft.Phases?.Phases.OfType<CrossingRunwayPhase>() ?? [])
+        {
+            crossing.EndExpedite();
+        }
+    }
+
+    /// <summary>Clears the crossing expedite of <paramref name="crossings"/>, and of any crossing phase crossing at one of them.</summary>
+    private static void ClearCrossingExpedites(AircraftState aircraft, List<HoldShortPoint> crossings)
+    {
+        crossings.ForEach(static hs => hs.IsExpedited = false);
+        HashSet<int> approachNodeIds = [.. crossings.Select(static hs => hs.NodeId)];
+        foreach (CrossingRunwayPhase crossing in aircraft.Phases?.Phases.OfType<CrossingRunwayPhase>() ?? [])
+        {
+            if (approachNodeIds.Contains(crossing.ApproachNodeId))
+            {
+                crossing.EndExpedite();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The crossings <paramref name="cross"/> clears: the held bar it releases, every route hold-short of a runway or taxiway it names,
+    /// and for a bare CROSS the next uncleared hold-short. A CROSS EXP marks them expedited, a CROSS without EXP clears their marks.
+    /// </summary>
+    private static List<HoldShortPoint> CrossingTargets(AircraftState aircraft, CrossRunwayCommand cross, HoldingShortPhase? released)
+    {
+        var targets = new List<HoldShortPoint>();
+        if (released is not null)
+        {
+            targets.Add(released.HoldShort);
+        }
+
+        if (aircraft.ActiveOrStoredTaxiRoute is { } route)
+        {
+            if ((cross.RunwayIds.Count == 0) && (cross.HoldShorts.Count == 0) && (released is null))
+            {
+                targets.AddRange(route.HoldShortPoints.Where(static hs => !hs.IsCleared).Take(1));
+            }
+
+            targets.AddRange(route.HoldShortPoints.Where(hs => cross.RunwayIds.Any(r => HoldShortAnnotator.TargetMatches(hs.TargetName, r))));
+        }
+
+        return [.. targets.Distinct()];
+    }
+
+    private static CommandResult TryCrossRunwayCore(AircraftState aircraft, CrossRunwayCommand cross, AirportGroundLayout? layout)
     {
         // Bare CROSS: clear the next uncleared hold-short on the route.
         if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
@@ -5711,7 +5837,10 @@ public static partial class GroundCommandHandler
         crossing.Route.CurrentSegmentIndex = crossing.Route.Segments.Count;
         aircraft.Ground.AssignedTaxiRoute = crossing.Route;
         phases.ReplaceUpcoming([
-            new CrossingRunwayPhase(holdPhase.HoldShort.NodeId, crossing.ExitNodeId, runwayId.ToString()),
+            new CrossingRunwayPhase(holdPhase.HoldShort.NodeId, crossing.ExitNodeId, runwayId.ToString())
+            {
+                IsExpedited = holdPhase.HoldShort.IsExpedited,
+            },
             new HoldingInPositionPhase(),
         ]);
         return CommandDispatcher.Ok("");
@@ -5780,7 +5909,13 @@ public static partial class GroundCommandHandler
                 return NoCrossingRoute(holdPhase);
             }
 
-            crossing = CrossingRunwayPhase.OverOwnPath(holdPhase.HoldShort.NodeId, found.ExitNodeId, runwayId.ToString(), found.Route);
+            crossing = CrossingRunwayPhase.OverOwnPath(
+                holdPhase.HoldShort.NodeId,
+                found.ExitNodeId,
+                runwayId.ToString(),
+                found.Route,
+                holdPhase.HoldShort.IsExpedited
+            );
         }
 
         // Cleared across at the lead's departure bar itself, the follower crosses there rather than departs: the latch goes.
@@ -6061,7 +6196,7 @@ public static partial class GroundCommandHandler
         RecomputeHoldShortPositions(aircraft, groundLayout, route);
         DeclineUnreachableMergeHolds(aircraft, groundLayout, route, [plan]);
 
-        aircraft.Ground.IsExpeditingTaxi = false;
+        EndRouteExpedite(aircraft);
 
         bool unable = MarkUnmakeableHoldShort(aircraft, groundLayout, route, plan);
         NotifyTaxiHoldShortsChanged(aircraft);
@@ -6264,6 +6399,8 @@ public static partial class GroundCommandHandler
         }
 
         hold.SatisfyClearance(ClearanceType.RunwayCrossing);
+        // A RES never carries EXP, so the release ends a route expedite.
+        EndRouteExpedite(aircraft);
         return CommandDispatcher.Ok(CommandDescriber.DescribeNatural(resume));
     }
 
@@ -6290,7 +6427,7 @@ public static partial class GroundCommandHandler
         }
 
         aircraft.Ground.Hold = HoldDirective.GiveWay(targetCallsign);
-        aircraft.Ground.IsExpeditingTaxi = false;
+        EndRouteExpedite(aircraft);
         return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 
@@ -7032,10 +7169,10 @@ public static partial class GroundCommandHandler
     /// <summary>The controller-facing echo of an exit instruction: "Exit left at V", "Exit right", "Exit at W3, without delay".</summary>
     private static string ExitInstructionText(ExitPreference preference, bool expedite)
     {
-        // 7110.65 §3-7-2.b.10: the phrase is "without delay" (the word "expedite"
+        // 7110.65 §3-7-2.j: the phrase is "without delay" (the word "expedite"
         // is reserved by §2-1-5 for imminent situations). The EXP token is just a
         // terse keyboard mnemonic.
-        string expediteText = expedite ? ", without delay" : "";
+        string expediteText = expedite ? CommandDescriber.WithoutDelaySuffix : "";
         if (preference.Taxiway is not null)
         {
             string sideText = preference.Side switch

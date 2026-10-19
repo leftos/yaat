@@ -33,7 +33,7 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PathlessParking_SpokenAndTerminal()
     {
-        var taxi = new TaxiCommand([], [], DestinationParking: "B12");
+        var taxi = new TaxiCommand([], [], Expedite: false, DestinationParking: "B12");
 
         Assert.Equal("taxi to parking bravo one two", Spoken(taxi));
         Assert.Equal("taxi to parking B12", Terminal(taxi));
@@ -42,7 +42,7 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PathlessSpot_SpokenAndTerminal()
     {
-        var taxi = new TaxiCommand([], [], DestinationSpot: "7A");
+        var taxi = new TaxiCommand([], [], Expedite: false, DestinationSpot: "7A");
 
         Assert.Equal("taxi to spot seven alpha", Spoken(taxi));
         Assert.Equal("taxi to spot 7A", Terminal(taxi));
@@ -51,8 +51,11 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [Fact]
     public void RouteThenParking_VoicesBoth()
     {
-        Assert.Equal("taxi via alpha, bravo to parking bravo one two", Spoken(new TaxiCommand(["A", "B"], [], DestinationParking: "B12")));
-        Assert.Equal("taxi via alpha, bravo to spot seven alpha", Spoken(new TaxiCommand(["A", "B"], [], DestinationSpot: "7A")));
+        Assert.Equal(
+            "taxi via alpha, bravo to parking bravo one two",
+            Spoken(new TaxiCommand(["A", "B"], [], Expedite: false, DestinationParking: "B12"))
+        );
+        Assert.Equal("taxi via alpha, bravo to spot seven alpha", Spoken(new TaxiCommand(["A", "B"], [], Expedite: false, DestinationSpot: "7A")));
     }
 
     [Fact]
@@ -60,7 +63,7 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     {
         Assert.Equal(
             "taxi to parking bravo one two",
-            Spoken(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: "B12", DestinationSpot: null))
+            Spoken(new TaxiAutoCommand(DestinationRunway: null, DestinationParking: "B12", DestinationSpot: null, Expedite: false))
         );
     }
 
@@ -68,7 +71,7 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     public void HoldShortAndParking_DestinationComesBeforeTheHoldShort()
     {
         // 7110.65 §3-7-2.a: the route, then the hold-short — the mandatory item is read back last.
-        string spoken = Spoken(new TaxiCommand(["A", "B"], [HoldShortTarget.Parse("28R")], DestinationParking: "B12"));
+        string spoken = Spoken(new TaxiCommand(["A", "B"], [HoldShortTarget.Parse("28R")], Expedite: false, DestinationParking: "B12"));
 
         Assert.Equal("taxi via alpha, bravo to parking bravo one two, hold short of runway two eight right", spoken);
     }
@@ -76,14 +79,14 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [Fact]
     public void CrossAndParking_KeepsTheCrossingClearance()
     {
-        string spoken = Spoken(new TaxiCommand(["A", "B"], [], DestinationParking: "B12", CrossRunways: ["28R"]));
+        string spoken = Spoken(new TaxiCommand(["A", "B"], [], Expedite: false, DestinationParking: "B12", CrossRunways: ["28R"]));
 
         Assert.Equal("taxi via alpha, bravo to parking bravo one two, cross runway two eight right", spoken);
     }
 
     [Fact]
     public void ParkingNameWithDash_IsSpelledOut() =>
-        Assert.Equal("taxi to parking four one dash one zero", Spoken(new TaxiCommand([], [], DestinationParking: "41-10")));
+        Assert.Equal("taxi to parking four one dash one zero", Spoken(new TaxiCommand([], [], Expedite: false, DestinationParking: "41-10")));
 
     [Theory]
     [InlineData("CARGO1", "taxi to parking cargo one")]
@@ -94,16 +97,16 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [InlineData("SBE4", "taxi to parking sierra bravo echo four")]
     [InlineData("A13V", "taxi to parking alpha one three victor")]
     public void WordLikeParkingNames_AreSpokenAsWords(string name, string expected) =>
-        Assert.Equal(expected, Spoken(new TaxiCommand([], [], DestinationParking: name)));
+        Assert.Equal(expected, Spoken(new TaxiCommand([], [], Expedite: false, DestinationParking: name)));
 
     [Fact]
     public void SpotNamedWithTheNoun_DropsTheRepeatedNoun()
     {
-        Assert.Equal("taxi to spot seven", Spoken(new TaxiCommand([], [], DestinationSpot: "SPOT7")));
-        Assert.Equal("taxi to spot SPOT7", Terminal(new TaxiCommand([], [], DestinationSpot: "SPOT7")));
+        Assert.Equal("taxi to spot seven", Spoken(new TaxiCommand([], [], Expedite: false, DestinationSpot: "SPOT7")));
+        Assert.Equal("taxi to spot SPOT7", Terminal(new TaxiCommand([], [], Expedite: false, DestinationSpot: "SPOT7")));
     }
 
     [Fact]
     public void ParkingAndSpotBothSet_SpotWinsLikeTheCanonicalForm() =>
-        Assert.Equal("taxi to spot seven alpha", Spoken(new TaxiCommand([], [], DestinationParking: "B12", DestinationSpot: "7A")));
+        Assert.Equal("taxi to spot seven alpha", Spoken(new TaxiCommand([], [], Expedite: false, DestinationParking: "B12", DestinationSpot: "7A")));
 }

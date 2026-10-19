@@ -241,13 +241,21 @@ public sealed class TaxiRoute
     /// when a segment from <see cref="CurrentSegmentIndex"/> on ends at its node. "Next" is route order from the current segment
     /// by design: a bar behind the aircraft is never next, whatever its cleared state. Null when there is none.
     /// </summary>
-    public HoldShortPoint? NextUnclearedHoldShortAhead()
+    public HoldShortPoint? NextUnclearedHoldShortAhead() => FirstHoldShortAhead(skipCleared: true);
+
+    /// <summary>
+    /// The first hold short still ahead of the aircraft, cleared or not, in route order as <see cref="NextUnclearedHoldShortAhead"/>
+    /// orders them. Null when there is none.
+    /// </summary>
+    public HoldShortPoint? NextHoldShortAhead() => FirstHoldShortAhead(skipCleared: false);
+
+    private HoldShortPoint? FirstHoldShortAhead(bool skipCleared)
     {
         HoldShortPoint? next = null;
         int nextIndex = int.MaxValue;
         foreach (HoldShortPoint hs in HoldShortPoints)
         {
-            if (hs.IsCleared)
+            if (skipCleared && hs.IsCleared)
             {
                 continue;
             }
@@ -422,7 +430,7 @@ public sealed class TaxiRoute
     /// are ignored).
     /// </summary>
     public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints, IReadOnlyCollection<string> clearedRunways) =>
-        ToSummary(turnHints, clearedRunways, static _ => true, []);
+        ToSummary(turnHints, clearedRunways, static _ => true, [], withoutDelay: false);
 
     /// <summary>
     /// The summary above naming only the taxiways <paramref name="includeTaxiway"/> keeps: the TAXI readback
@@ -430,12 +438,16 @@ public sealed class TaxiRoute
     /// and the destination are always shown. A taxiway left adjacent to itself by a dropped leg is named once.
     /// <paramref name="issuedBeyondRoute"/> are issued taxiways the route stops short of (it ends at the junction
     /// where they begin); they follow the driven ones, before the hold-shorts, so the readback is the route as issued.
+    /// <paramref name="withoutDelay"/> ("taxi without delay", 7110.65 §3-7-2.j) adds ", without delay" after the route and
+    /// before the hold-shorts and destination, as the pilot readback places it ("B B5, without delay, HS 28R"); when no taxiway is
+    /// shown before it, after the last part shown ("@A1, without delay").
     /// </summary>
     public string ToSummary(
         IReadOnlyDictionary<string, TurnDirection>? turnHints,
         IReadOnlyCollection<string> clearedRunways,
         Func<string, bool> includeTaxiway,
-        IReadOnlyList<string> issuedBeyondRoute
+        IReadOnlyList<string> issuedBeyondRoute,
+        bool withoutDelay
     )
     {
         var parts = new List<string>();
@@ -474,6 +486,13 @@ public sealed class TaxiRoute
                 parts.Add(WithTurnHint(turnHints, twy));
                 lastShown = twy;
             }
+        }
+
+        int withoutDelayIndex = -1;
+        if (withoutDelay && (parts.Count > 0))
+        {
+            AppendWithoutDelay(parts);
+            withoutDelayIndex = parts.Count - 1;
         }
 
         // Emit each explicit hold-short. A runway bar is located with "at (taxiway)" per 7110.65
@@ -528,7 +547,28 @@ public sealed class TaxiRoute
             parts.Add($"${DestinationSpot}");
         }
 
+        if (withoutDelay && (withoutDelayIndex < 0))
+        {
+            // No taxiway shown before the phrase: it follows the destination ("@A1, without delay"), never leads the summary.
+            AppendWithoutDelay(parts);
+        }
+        else if ((withoutDelayIndex >= 0) && (withoutDelayIndex < parts.Count - 1))
+        {
+            parts[withoutDelayIndex] += ",";
+        }
+
         return string.Join(" ", parts);
+    }
+
+    /// <summary>Adds "without delay" after what the summary shows so far, a comma on the part before it.</summary>
+    private static void AppendWithoutDelay(List<string> parts)
+    {
+        if (parts.Count > 0)
+        {
+            parts[^1] += ",";
+        }
+
+        parts.Add("without delay");
     }
 
     /// <summary>
@@ -636,6 +676,7 @@ public sealed class TaxiRoute
                     Reason = hs.Reason,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
                     RecrossesLandingRunway = hs.RecrossesLandingRunway ? true : null,
+                    IsExpedited = hs.IsExpedited ? true : null,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     Unable = hs.Unable,
                     StopMoved = hs.StopMoved ? true : null,
@@ -724,6 +765,7 @@ public sealed class TaxiRoute
                         IsCleared = hs.IsSatisfied,
                         ClearedByAutoCross = hs.ClearedByAutoCross,
                         RecrossesLandingRunway = hs.RecrossesLandingRunway ?? false,
+                        IsExpedited = hs.IsExpedited ?? false,
                         Latitude = hs.Latitude,
                         Longitude = hs.Longitude,
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
@@ -798,6 +840,13 @@ public sealed class HoldShortPoint
     /// scenario toggle never clears it, at TAXI time or mid-session, so only an explicit <c>CROSS</c> does (7110.65 3-10-9.b.2).
     /// </summary>
     public bool RecrossesLandingRunway { get; set; }
+
+    /// <summary>
+    /// True when a <c>CROSS … EXP</c> released or pre-cleared this crossing "without delay" (7110.65 §3-7-2.j): the
+    /// <see cref="Phases.Ground.CrossingRunwayPhase"/> that crosses here flies the expedite cap and acceleration. It lives
+    /// with this one crossing, so <c>CROSS 28L 28R EXP</c> marks each runway's bar.
+    /// </summary>
+    public bool IsExpedited { get; set; }
 
     /// <summary>
     /// Computed hold-short position. For taxiway hold-shorts, this is offset from the

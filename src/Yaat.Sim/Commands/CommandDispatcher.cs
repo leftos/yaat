@@ -2686,6 +2686,8 @@ public static class CommandDispatcher
                     return applied;
                 }
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
+                // A RES never carries EXP, so the release ends a route expedite.
+                GroundCommandHandler.EndRouteExpedite(aircraft);
                 return Ok(CommandDescriber.DescribeNatural(hsResume));
             }
 
@@ -2724,6 +2726,7 @@ public static class CommandDispatcher
                     && !aircraft.Ground.IsImmobile
                     && !GroundCommandHandler.IsDetectorStalled(aircraft)
                     && (FollowingPhase.DrivenRouteOf(aircraft) is { IsComplete: false } preClearRoute):
+                // A pre-clearance while rolling releases nothing from a stop, so a route expedite keeps running (YAAT-658 ruling).
                 return GroundCommandHandler.TryPreClearNextTaxiwayHoldShort(aircraft, preClearRoute);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
             {
