@@ -23,13 +23,9 @@ dropped when the method is re-derived from a paragraph.
       window is the assertion. Every costly loop in this suite has been audited
       and found to be a window invariant. Shortening one silently deletes
       coverage while the test still passes.
-- [ ] **Wins come from per-test CPU, not parallelism.** Measured:
-      811 s of test-work over 16 workers has a floor of 50.7 s and the suite runs
-      in 57.2 s — **~89% scheduling efficiency**. `tools/analyze-test-schedule.py`
-      LPT-packs a TRX under both a per-class and a per-test scheduler and finds
-      **no difference**, so neither more threads nor a parallel-by-default
-      framework can move this. Re-measure before doubting it — but do not
-      re-derive the conclusion from CPU/wall (next bullet).
+- [ ] **On the 16-worker local machine, wins come from per-test CPU, not parallelism.** Measured: 811 s of test-work over 16 workers has a floor of 50.7 s and the suite runs in 57.2 s — **~89% scheduling efficiency**. `tools/analyze-test-schedule.py` LPT-packs a TRX under both a per-class and a per-test scheduler and finds **no difference**, so neither more threads nor a parallel-by-default framework can move that case. Re-measure before doubting it — but do not re-derive the conclusion from CPU/wall (next bullet).
+
+      That comparison varies the scheduler's grain, never the order collections start in. On the 64-lane builder the profile shows 837 s actual against 691 s longest-first, and `CollectionWeightOrderer` (weights in `tests/Yaat.Sim.Tests/collection-weights.json`) took the suite from 579 s to 521 s / 531 s. Refresh the table with `uv run --no-project python tools/refresh-sim-collection-weights.py <trx>` (its docstring carries the TRX command).
 - [ ] **CPU/wall is not core utilisation, and not scheduling efficiency.** It
       measures how CPU-bound the tests are. It fell from 14.8× to 8.6× of 16
       cores while the schedule stayed just as full, because the

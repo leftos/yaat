@@ -684,6 +684,9 @@ How many airports a precompute tool compute run works on at once, each holding i
 **Algorithm hash**:
 The part of a precompute cache key that names the code that produced an entry: a hash of the source files that feed the computation, generated at build time (`PrecomputeSourceHashes`). The layout and push-target halves have separate hashes, so a change to the push-target planner alone, or to an airport's sidecars, invalidates only push targets; the tug planner's `Tug*.cs` files are in the push set alone.
 
+**Collection weight**:
+A Sim test collection's measured seconds in `tests/Yaat.Sim.Tests/collection-weights.json`, keyed by the class full name for a default collection and by the name for a `[Collection]` one; `CollectionWeightOrderer` starts collections heaviest first, and a collection missing from the table weighs 0 and runs last.
+
 **Design-group entry**:
 One push-target set per stand per airplane design group (ADG I-VI), planned with the group's envelope; an aircraft reads the entry for its own group.
 
@@ -701,6 +704,9 @@ The source files whose hash is a precompute key's layout algorithm hash: `Data/A
 
 **Live check**:
 The re-fly and sweep of a cached push target when an aircraft's Push Back To menu opens: the stored moves are flown again with the aircraft's own outline and turn radius and swept against the parked or held aircraft about it (`PushTargetLiveCheck.Check`). The verdict is Clear, Blocked (by a named neighbour) or Unflyable.
+
+**LPT**:
+Longest-processing-time-first, the greedy schedule that hands the heaviest remaining job to the next free worker; `tools/analyze-test-schedule.py` simulates it over a TRX, and `CollectionWeightOrderer` makes the real run follow it.
 
 **Offline check / online check**:
 The precompute tool's `--check`. Offline, it compares each listed airport's committed entry key with the build-time source hashes, the sidecar hash and the layout format version; online (`--check --online`), it also compares the GeoJSON MD5 and NavData serial with what vNAS serves now. A missing or stale entry is a warning, never a failure.

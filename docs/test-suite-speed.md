@@ -16,11 +16,11 @@ Current baseline (2026-09-04, Release, 16 cores, quiet machine, median of 3 — 
 Historical (2026-08-26): ~2m50s for the gate; Sim.Tests 92s, 1,358s CPU, 8,686 tests. The tasks
 below did that work — CPU is down 64%, wall down 38%.
 
-**The suite is near its scheduling limit, and more parallelism cannot help.** 811s of test-work
-over 16 workers has a hard floor of 50.7s; actual is 57.2s, i.e. **~89% scheduling efficiency**.
-`tools/analyze-test-schedule.py` LPT-packs a TRX under both a per-class and a per-test scheduler and
-finds **no difference between them** — the heaviest class (36.3s) sits below the divisibility bound,
-so class grouping never becomes the constraint.
+**On the 16-worker local machine the suite is near its scheduling limit, and more parallelism cannot help.** 811s of test-work over 16 workers has a hard floor of 50.7s; actual is 57.2s, i.e. **~89% scheduling efficiency**. `tools/analyze-test-schedule.py` LPT-packs a TRX under both a per-class and a per-test scheduler and finds **no difference between them** — the heaviest class (36.3s) sits below the divisibility bound, so class grouping never becomes the constraint. That compares the scheduler's grain, not the order collections start in.
+
+**On the 64-lane builder, start order matters.** The profile shows 837s actual against 691s for a longest-first packing: the tail is a heavy collection started late. `CollectionWeightOrderer` (an assembly-level xunit collection orderer in `tests/Yaat.Sim.Tests/`) starts the heaviest collections first, from the committed `collection-weights.json` (collection key → whole seconds; a default collection's key is its class full name, a `[Collection]` one's is its name). Measured on the builder: 579s before, 521s and 531s after.
+
+The table is refreshed by hand: `uv run --no-project python tools/refresh-sim-collection-weights.py <trx> [--machine <name>] [--lanes <n>]`, whose docstring carries the command that produces the TRX. A new heavy class weighs 0 and runs last until the next refresh.
 
 > **Do not read CPU/wall as core utilisation.** It is now 8.6× of 16, down from 14.8×, which looks
 > like idle capacity and is not: the optimisations below removed CPU work (−64%) faster than wall

@@ -148,6 +148,8 @@ same singleton.
 where `96.5` is the default-fallback a lookup returns before the profile is loaded. The test **passes in isolation** and **flakes only in
 the full suite**, because in isolation nothing else is racing the init.
 
+**Collection order:** the Sim project's collections start in a fixed order, heaviest first by the weights in `tests/Yaat.Sim.Tests/collection-weights.json`, ties and collections missing from the table by key (`CollectionWeightOrderer`; [test-suite-speed.md](test-suite-speed.md)). An order-dependent test therefore fails the same way every run rather than at random; the start order is fixed, but classes still run in parallel, so a race between them is still timing-dependent.
+
 **Fix:** call `TestVnasData.EnsureInitialized()` in the racing class's **constructor**, not just inside the test methods. The constructor
 runs before any `[Fact]` body, so the lookup is pinned to a fully-loaded state before the first read:
 

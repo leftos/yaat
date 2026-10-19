@@ -27,5 +27,7 @@
   <ItemGroup>
     <Content Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The collection orderer's weight table; embedded so it resolves whatever the working directory. -->
+    <EmbeddedResource Include="collection-weights.json" />
   </ItemGroup>
 </Project>
