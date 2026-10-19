@@ -189,8 +189,8 @@
       "user": "3876083c457cc8f6"
     },
     "semantic-click-first": {
-      "repo": "fb645db8b1b87c1f",
-      "user": "07c6ef3828d1467b"
+      "repo": "81f2fa0b60e281fc",
+      "user": "cd6f779570bf6c70"
     },
     "shared-wire-types": {
       "repo": "9bd19d213c870c75",
@@ -237,5 +237,5 @@
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 5
+  "user_revision": 6
 }
