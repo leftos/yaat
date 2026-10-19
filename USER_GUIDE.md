@@ -99,7 +99,7 @@ Each extra window keeps its own centre, range, zoom, rotation, filters, DCB and 
 
 Close an extra window to remove it; open extras (with their airports) are restored on the next launch and are saved in layouts. Scope markers (`.ff`, `.markers`) and settings toggles that apply app-wide act on the main Radar/Ground view only.
 
-**Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded, and which Strips and vTDLS tabs are open.
+**Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window (Controllers, METAR and the favorites panel included), the docked terminal's size, which extra Radar/Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded, and which Strips and vTDLS tabs are open.
 
 A layout never holds radar, ground or terminal view settings, so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
 
@@ -173,7 +173,7 @@ Type a message prefixed with `'`, `/`, or `>` to send a text chat to all RPOs in
 
 #### Resizing and Pop Out
 
-Drag the splitter bar between the aircraft grid and terminal panel to resize them. Check **View > Windows > Terminal** (or press **Ctrl+Shift+E**) to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
+Drag the splitter bar between the aircraft grid and terminal panel to resize them (the terminal keeps between 15% and 85% of the height, and snaps back if you drag past that). The size is remembered across restarts and across popping the terminal out and back in, and [layouts](#interface-overview) save it. Check **View > Windows > Terminal** (or press **Ctrl+Shift+E**) to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
 
 #### Warnings
 
@@ -1399,6 +1399,8 @@ If the aircraft the editor shows is deleted while it is open (auto-delete on par
 ![The View menu open on its Layout submenu, listing a saved layout named Tower cab above Save current as layout…, From this scenario's views… (greyed out with no scenario loaded), Manage layouts… and Reset aircraft list columns](docs/user-guide/img/menu-view-layouts.png)
 
 Use **View > Layout > From this scenario's views…** to open the **Apply Layout** dialog, which copies settings into the current scenario from one of two sources: **Scenario views** (another scenario's Ground and Radar view settings, including selected video maps, range, PTL, brightness, labels, and filters) or a **Saved layout** (window geometry, every pop-out window, extra Radar/Ground windows, favorites, open Strips/vTDLS tabs, and the Aircraft List column layout).
+
+The **Terminal** row reads **docked · size 25%** (the terminal's share of the height) or **popped out**, and just **docked** for a layout saved before it recorded the size. Applying a docked layout restores the size; a layout with no saved size leaves the current one.
 
 The dialog shows your current value next to the source value for each setting, grouped into sections, and highlights the ones that differ. Tick the sections you want (**All** / **None** tick every section) and choose **Apply Selected** — matching sections start unticked, so you only copy real changes. When the source scenario is at a different airport, the map-position rows are flagged, since copying them moves your view to that airport.
 

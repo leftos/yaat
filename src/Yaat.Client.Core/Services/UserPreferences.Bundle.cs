@@ -244,6 +244,7 @@ public sealed partial class UserPreferences
         ["radarDcbVisible"] = "a Radar View toggle, not a Settings section field",
         ["vStripsSplitMode"] = "a Strips view split, not a Settings section field",
         ["vStripsSplitRatio"] = "a Strips view split, not a Settings section field",
+        ["terminalSplitRatio"] = "a window split, carried by layouts",
         ["preferencesVersion"] = "file bookkeeping",
     };
 

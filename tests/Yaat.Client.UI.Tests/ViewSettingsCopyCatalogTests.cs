@@ -190,6 +190,29 @@ public class ViewSettingsCopyCatalogTests
     }
 
     [Fact]
+    public void TerminalRow_DescribesAndDiffsTheDockedSize()
+    {
+        LayoutCopyGroup terminal = LayoutGroup(ViewSettingsCopyCatalog.LayoutTerminalKey);
+        var quarter = new SavedLayout { TerminalSplitRatio = 0.25 };
+        var half = new SavedLayout { TerminalSplitRatio = 0.5 };
+        var poppedOutHalf = new SavedLayout { IsTerminalPoppedOut = true, TerminalSplitRatio = 0.5 };
+        var legacy = new SavedLayout();
+
+        Assert.Equal("docked · size 25%", terminal.Describe(quarter));
+        // A popped-out terminal is sized by its own window geometry, so its saved share never shows or compares.
+        Assert.Equal("popped out", terminal.Describe(poppedOutHalf));
+        // A layout saved before the size was captured describes only its dock state.
+        Assert.Equal("docked", terminal.Describe(legacy));
+        Assert.False(terminal.AreEqual(quarter, half));
+        Assert.False(terminal.AreEqual(half, poppedOutHalf));
+        Assert.True(terminal.AreEqual(poppedOutHalf, new SavedLayout { IsTerminalPoppedOut = true }));
+        // A layout with no recorded size leaves the split as it is when applied, so it has nothing to compare.
+        Assert.True(terminal.AreEqual(legacy, quarter));
+        Assert.True(terminal.AreEqual(half, new SavedLayout { TerminalSplitRatio = 0.5 }));
+        Assert.True(terminal.IsSaved(legacy));
+    }
+
+    [Fact]
     public void ExtraViewRows_DescribeOrdinalAndAirport_AndDiffEachKind()
     {
         var current = new SavedLayout { ExtraRadarViews = [new SavedExtraView(2, "KOAK")] };

@@ -18,6 +18,7 @@
 - A `TAXI` after a push that leaves the aircraft facing away from the route warns that it turns about, naming the `PUSH` that would have faced it.
 - vStrips racks can be auto-sorted (`RACKSORT`, or Auto-sort this rack): tail numbers then airlines A–Z, a moved strip landing in its sorted slot.
 - Settings › Terminal can clear the terminal whenever a scenario loads or restarts, keeping the load's own warnings; it is off by default.
+- The docked terminal keeps the size you drag it to across restarts and pop-outs, and saved layouts remember it.
 
 ### Changed
 

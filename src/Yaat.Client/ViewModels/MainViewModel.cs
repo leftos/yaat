@@ -784,6 +784,26 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public bool IsTabSplitterVisible => IsAnyTabVisible && !IsTerminalPoppedOut;
 
+    private double _terminalSplitRatio;
+
+    /// <summary>
+    /// The docked terminal's share of the tabs + terminal height, clamped to 0.15–0.85. The main window writes it when
+    /// the splitter drag completes and lays the rows out from it whenever the terminal is docked; a layout captures and
+    /// applies it. Every change persists to <see cref="UserPreferences.TerminalSplitRatio"/>, so it survives launches.
+    /// </summary>
+    public double TerminalSplitRatio
+    {
+        get => _terminalSplitRatio;
+        set
+        {
+            double clamped = UserPreferences.ClampTerminalSplitRatio(value);
+            if (SetProperty(ref _terminalSplitRatio, clamped))
+            {
+                _preferences.SetTerminalSplitRatio(clamped);
+            }
+        }
+    }
+
     /// <summary>
     /// True when the central content grid (tabs + terminal) has anything
     /// to show. When false the main window collapses down to just the
@@ -1768,6 +1788,7 @@ public partial class MainViewModel : ObservableObject
         IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
         IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
         IsTerminalPoppedOut = _preferences.IsTerminalPoppedOut;
+        _terminalSplitRatio = UserPreferences.ClampTerminalSplitRatio(_preferences.TerminalSplitRatio);
         ShowFavoritesBar = _preferences.ShowFavoritesBar;
         // Student Strips entry pop-out state persists across restarts. Non-student
         // per-facility entries are session-scoped and always start docked.

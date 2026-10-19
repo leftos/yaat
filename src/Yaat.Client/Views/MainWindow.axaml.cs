@@ -301,7 +301,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Sync the content grid's row heights to the initial pop-out state
         // since the partial methods fired before we subscribed above. Without
         // this, a session that restored with all tabs popped out would still
-        // hold Row 0 at 3* (an empty 75 % stripe above the terminal).
+        // hold Row 0 at 3* (an empty 75 % stripe above the terminal), and the
+        // remembered terminal size would not be applied.
         UpdateContentGridLayout(vm);
 
         // Re-validate SelectedTabIndex now that every dynamic TabItem (Strips
@@ -1148,6 +1149,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 HandleTerminalPopOut(vm);
                 break;
             case nameof(MainViewModel.IsAnyTabVisible):
+            case nameof(MainViewModel.TerminalSplitRatio):
                 UpdateContentGridLayout(vm);
                 break;
             case nameof(MainViewModel.IsDataGridPoppedOut):
@@ -1203,7 +1205,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// the <c>IsContentGridVisible</c> binding so only the menu bar
     /// remains. Bindings handle <c>IsVisible</c>; this call only fixes
     /// row heights so docked content fills the freed space instead of
-    /// leaving the popped-out region holding 75 % of empty grid.
+    /// leaving the popped-out region holding empty grid. With both docked
+    /// the rows split by the remembered <see cref="MainViewModel.TerminalSplitRatio"/>,
+    /// so a splitter drag survives every pop-out toggle and relaunch.
     /// </summary>
     private void UpdateContentGridLayout(MainViewModel vm)
     {
@@ -1213,8 +1217,31 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        grid.RowDefinitions[0].Height = vm.IsAnyTabVisible ? new GridLength(3, GridUnitType.Star) : new GridLength(0);
-        grid.RowDefinitions[2].Height = vm.IsTerminalPoppedOut ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        double terminalShare = vm.TerminalSplitRatio;
+        grid.RowDefinitions[0].Height = vm.IsAnyTabVisible ? new GridLength(1 - terminalShare, GridUnitType.Star) : new GridLength(0);
+        grid.RowDefinitions[2].Height = vm.IsTerminalPoppedOut ? GridLength.Auto : new GridLength(terminalShare, GridUnitType.Star);
+    }
+
+    /// <summary>Remembers the docked terminal's share of the tabs + terminal height once the user lets go of the splitter.</summary>
+    private void OnTerminalSplitterDragCompleted(object? sender, VectorEventArgs e)
+    {
+        Grid? grid = this.FindControl<Grid>("ContentGrid");
+        if ((DataContext is not MainViewModel vm) || (grid is not { RowDefinitions.Count: >= 3 }))
+        {
+            return;
+        }
+
+        double tabsHeight = grid.RowDefinitions[0].ActualHeight;
+        double terminalHeight = grid.RowDefinitions[2].ActualHeight;
+        if ((tabsHeight + terminalHeight) <= 0)
+        {
+            return;
+        }
+
+        vm.TerminalSplitRatio = terminalHeight / (tabsHeight + terminalHeight);
+        // Lay the rows out again even when the clamped share did not change: a drag past the bound leaves the
+        // splitter's rows where the user dropped them while the stored share stays clamped, so the release snaps back.
+        UpdateContentGridLayout(vm);
     }
 
     private void HandleDataGridPopOut(MainViewModel vm)
@@ -2331,7 +2358,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// dialog. Row keys are <see cref="ViewSettingsCopyCatalog"/>'s; an unselected row leaves its state as it is.
     /// </summary>
     /// <returns>Status-line notes on the parts that could not take effect (deleted favorite sets, unavailable tabs), or empty.</returns>
-    private async System.Threading.Tasks.Task<string> ApplyLayoutAsync(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    public async System.Threading.Tasks.Task<string> ApplyLayoutAsync(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
     {
         string prefix = ViewSettingsCopyCatalog.LayoutGeometryKeyPrefix;
         var geometryKeys = new HashSet<string>(selected.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).Select(k => k[prefix.Length..]));
@@ -2352,6 +2379,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             // destroy the corresponding pop-out windows. New windows read the
             // freshly-staged geometry preferences on construction.
             ApplyPopoutFlags(vm, layout, selected);
+            ApplyTerminalSplitRatio(vm, layout, selected);
             ApplyFavoritesLayoutState(vm, layout, selected);
             // Open/close the extra Radar/Ground windows the layout captured before the geometry push
             // below, so each new window's helper is already in the ActiveHelpers registry by then.
@@ -2414,6 +2442,19 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         int missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
         vm.RefreshDisplayFavorites();
         return missingCount > 0 ? $" ({missingCount} favorite set(s) no longer exist)" : "";
+    }
+
+    /// <summary>
+    /// Applies the docked terminal's size the layout saved, with its Terminal row, once the pop-out flags are set: only
+    /// when the terminal ends up docked, since a popped-out terminal keeps its own window geometry. A layout saved before
+    /// the size was captured (null) leaves the current split as it is.
+    /// </summary>
+    private static void ApplyTerminalSplitRatio(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    {
+        if (selected.Contains(ViewSettingsCopyCatalog.LayoutTerminalKey) && !vm.IsTerminalPoppedOut && (layout.TerminalSplitRatio is { } ratio))
+        {
+            vm.TerminalSplitRatio = ratio;
+        }
     }
 
     /// <summary>

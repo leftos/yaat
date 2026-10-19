@@ -41,6 +41,7 @@ public sealed class LayoutService(UserPreferences preferences)
         {
             Name = name.Trim(),
             IsTerminalPoppedOut = vm.IsTerminalPoppedOut,
+            TerminalSplitRatio = vm.TerminalSplitRatio,
             IsDataGridPoppedOut = vm.IsDataGridPoppedOut,
             IsGroundViewPoppedOut = vm.IsGroundViewPoppedOut,
             IsRadarViewPoppedOut = vm.IsRadarViewPoppedOut,

@@ -682,7 +682,14 @@
                      independently. -->
         </TabControl>
 
-        <GridSplitter Grid.Row="1" Height="6" Background="#3F3F46" IsVisible="{Binding IsTabSplitterVisible}" />
+        <GridSplitter
+          Grid.Row="1"
+          x:Name="TerminalSplitter"
+          Height="6"
+          Background="#3F3F46"
+          IsVisible="{Binding IsTabSplitterVisible}"
+          DragCompleted="OnTerminalSplitterDragCompleted"
+        />
 
         <views:TerminalPanelView Grid.Row="2" IsVisible="{Binding !IsTerminalPoppedOut}" />
       </Grid>

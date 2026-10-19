@@ -659,6 +659,9 @@ public sealed partial class UserPreferences
     /// <summary>Fraction of the split axis the first strips pane occupies.</summary>
     public double VStripsSplitRatio => _data.VStripsSplitRatio;
 
+    /// <summary>The docked terminal's share of the main window's tabs + terminal height.</summary>
+    public double TerminalSplitRatio => _data.TerminalSplitRatio;
+
     /// <summary>Raised when any font-size preference changes (debounced via the single Save call).</summary>
     public event Action? FontSizesChanged;
 
@@ -1498,6 +1501,16 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    /// <summary>Clamps a docked-terminal share of the tabs + terminal height to the range the splitter may hold.</summary>
+    public static double ClampTerminalSplitRatio(double ratio) => Math.Clamp(ratio, 0.15, 0.85);
+
+    /// <summary>Persists the docked terminal's share of the tabs + terminal height, clamped to 0.15–0.85.</summary>
+    public void SetTerminalSplitRatio(double ratio)
+    {
+        _data.TerminalSplitRatio = ClampTerminalSplitRatio(ratio);
+        Save();
+    }
+
     public void SetGroundLabelFilters(
         bool runways,
         bool taxiways,
@@ -2047,6 +2060,7 @@ public sealed partial class UserPreferences
             IsVTdlsPoppedOut = GetFieldOr(obj, "isVTdlsPoppedOut", false),
             IsVTdlsDarkMode = GetFieldOr(obj, "isVTdlsDarkMode", false),
             IsTerminalPoppedOut = GetFieldOr(obj, "isTerminalPoppedOut", false),
+            TerminalSplitRatio = GetFieldOr(obj, "terminalSplitRatio", 0.25),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
             FavoriteVideoMapsByArtcc = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByArtcc", []),
@@ -2621,6 +2635,10 @@ public sealed partial class UserPreferences
         // (the enum lives in Yaat.Client) plus the first-pane fraction.
         public string VStripsSplitMode { get; set; } = "None";
         public double VStripsSplitRatio { get; set; } = 0.5;
+
+        // The docked terminal's share of the main window's tabs + terminal height.
+        public double TerminalSplitRatio { get; set; } = 0.25;
+
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
         // Per-scenario primary airport id (e.g. "KOAK"), keyed by ScenarioId. Recorded
@@ -2750,6 +2768,13 @@ public sealed class SavedLayout
     public bool IsRadarViewPoppedOut { get; set; }
     public bool IsControllersPoppedOut { get; set; }
     public bool IsMetarPoppedOut { get; set; }
+
+    /// <summary>
+    /// The docked terminal's share of the main window's tabs + terminal height at capture time. Applied only when the
+    /// layout leaves the terminal docked. Null on layouts captured before the size was saved — applying such a layout
+    /// leaves the current split as it is (same convention as <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public double? TerminalSplitRatio { get; set; }
 
     /// <summary>
     /// The extra Radar View windows open at capture time (ordinals ≥ 2; the docked view is #1), each with

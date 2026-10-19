@@ -71,7 +71,15 @@ public static class ViewSettingsCopyCatalog
 
     public static IReadOnlyList<LayoutCopyGroup> LayoutGroups { get; } =
     [
-        PopOutGroup(LayoutTerminalKey, "Terminal", l => l.IsTerminalPoppedOut),
+        new LayoutCopyGroup
+        {
+            Key = LayoutTerminalKey,
+            Section = "Pop-out windows",
+            Label = "Terminal",
+            Describe = DescribeTerminal,
+            AreEqual = (a, b) =>
+                (a.IsTerminalPoppedOut == b.IsTerminalPoppedOut) && (a.IsTerminalPoppedOut || RatioEqual(a.TerminalSplitRatio, b.TerminalSplitRatio)),
+        },
         PopOutGroup(LayoutAircraftListKey, "Aircraft list", l => l.IsDataGridPoppedOut),
         PopOutGroup(LayoutGroundKey, "Ground view", l => l.IsGroundViewPoppedOut),
         PopOutGroup(LayoutRadarKey, "Radar view", l => l.IsRadarViewPoppedOut),
@@ -342,6 +350,22 @@ public static class ViewSettingsCopyCatalog
 
         return true;
     }
+
+    // The dock state plus, on a docked layout that saved it, the terminal's share of the tabs + terminal height. A
+    // popped-out terminal is sized by its own window geometry, so its saved share never applies.
+    private static string DescribeTerminal(SavedLayout layout)
+    {
+        if (layout.IsTerminalPoppedOut)
+        {
+            return "popped out";
+        }
+
+        return layout.TerminalSplitRatio is { } ratio ? $"docked · size {Num(ratio * 100)}%" : "docked";
+    }
+
+    // Two docked layouts differ in size only when both saved a share; a layout with no recorded share leaves the
+    // current split as it is when applied, so it has nothing to compare.
+    private static bool RatioEqual(double? a, double? b) => (a is null) || (b is null) || DEq(a.Value, b.Value);
 
     private static LayoutCopyGroup PopOutGroup(string key, string label, Func<SavedLayout, bool> poppedOut) =>
         new()
