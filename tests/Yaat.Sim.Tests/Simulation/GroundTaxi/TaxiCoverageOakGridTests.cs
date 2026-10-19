@@ -68,7 +68,7 @@ public class TaxiCoverageOakGridTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [MemberData(nameof(AllParkingToRunways))]
+    [MemberData(nameof(AllParkingToRunways), DisableDiscoveryEnumeration = true)]
     public void Pair_ReachesDestinationWithinBudgets(string pairId, TaxiPair pair)
     {
         _ = pairId;

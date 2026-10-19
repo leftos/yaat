@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
+using static Yaat.Sim.Tests.Data.Airport.Precompute.PrecomputeBuilderFixtures;
 
 namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 
@@ -17,126 +18,9 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 /// </summary>
 public class PrecomputeBuilderTests
 {
-    private const long NavDataSerial = 12_345;
-
-    /// <summary>The shipped ARTCCs folder both the sidecar catalog and <see cref="AirportSidecarHash.For"/> read.</summary>
-    private static readonly string ArtccsDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
-
-    private static readonly Lazy<string> OakGeoJson = new(() => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "oak.geojson")));
-
-    private static readonly Lazy<string> SfoGeoJson = new(() => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")));
-
-    /// <summary>KOAK parsed as a build parses it, for entries whose push targets the check never reads.</summary>
-    private static readonly Lazy<AirportGroundLayout> OakLayout = new(() => GeoJsonParser.Parse("oak", OakGeoJson.Value, "OAK", []));
-
-    private static readonly IReadOnlySet<string> Gate26 = new HashSet<string>(StringComparer.Ordinal) { "26" };
-
     public PrecomputeBuilderTests()
     {
         TestVnasData.EnsureInitialized();
-    }
-
-    [Fact]
-    public void Build_RealKoakGeoJson_WritesEntryWhoseKeyIsCurrent()
-    {
-        string root = NewRoot();
-        try
-        {
-            var store = new PrecomputeStore(root);
-
-            PrecomputeEntry built = PrecomputeEntryBuild.Build(store, "OAK", OakGeoJson.Value, Context(PushTargetPlannerTests.Sequential), Gate26);
-
-            string md5 = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(OakGeoJson.Value))).ToLowerInvariant();
-            var current = PrecomputeKey.Current(
-                md5,
-                NavDataSerial,
-                AirportSidecarHash.For(ArtccsDir, "OAK"),
-                AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK")
-            );
-            Assert.Equal(current, built.Key);
-            Assert.Equal("OAK", built.AirportId);
-            Assert.True(File.Exists(Path.Combine(root, "OAK.json.br")));
-            Assert.True(store.TryRead("OAK", out PrecomputeEntry? read));
-            Assert.Equal(current, read.Key);
-            Assert.True(read.Key.PushTargetsMatch(current));
-            Assert.Contains(read.PushTargets, e => (e.StandName == "26") && (e.Targets.Count > 0));
-            Assert.Equal(PushTargetPlannerTests.Json(built.PushTargets), PushTargetPlannerTests.Json(read.PushTargets));
-        }
-        finally
-        {
-            DeleteRoot(root);
-        }
-    }
-
-    /// <summary>One build sequential, one parallel: the same file, byte for byte.</summary>
-    [Fact]
-    public void Build_TwiceToTwoRoots_IsByteIdentical()
-    {
-        IReadOnlySet<string> stands = StandsNear(OakLayout.Value, "26", 3);
-        string firstRoot = NewRoot();
-        string secondRoot = NewRoot();
-        try
-        {
-            var first = new PrecomputeStore(firstRoot);
-            var second = new PrecomputeStore(secondRoot);
-
-            PrecomputeEntryBuild.Build(first, "OAK", OakGeoJson.Value, Context(PushTargetPlannerTests.Sequential), stands);
-            PrecomputeEntryBuild.Build(
-                second,
-                "OAK",
-                OakGeoJson.Value,
-                Context(new ParallelOptions { MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount) }),
-                stands
-            );
-
-            Assert.Equal(File.ReadAllBytes(first.PathFor("OAK")), File.ReadAllBytes(second.PathFor("OAK")));
-        }
-        finally
-        {
-            DeleteRoot(firstRoot);
-            DeleteRoot(secondRoot);
-        }
-    }
-
-    /// <summary>
-    /// Two airports built one after another with one task, and together with their stands planned across every core on
-    /// one shared scheduler: the same two files, byte for byte.
-    /// </summary>
-    [Fact]
-    public async Task BuildAcrossAirports_InParallel_MatchesSequential_ByteForByte()
-    {
-        Dictionary<string, (string GeoJson, IReadOnlySet<string> Stands)> airports = new(StringComparer.Ordinal)
-        {
-            ["OAK"] = (OakGeoJson.Value, StandsNear(OakLayout.Value, "26", 3)),
-            ["SFO"] = (SfoGeoJson.Value, StandsNear(GeoJsonParser.Parse("sfo", SfoGeoJson.Value, "SFO", []), "D2", 3)),
-        };
-        string sequentialRoot = NewRoot();
-        string parallelRoot = NewRoot();
-        try
-        {
-            var sequential = new PrecomputeStore(sequentialRoot);
-            var parallel = new PrecomputeStore(parallelRoot);
-
-            await BuildAll(sequential, new PrecomputeRunLimits(1, 1));
-            await BuildAll(parallel, new PrecomputeRunLimits(Math.Max(2, Environment.ProcessorCount), 2));
-
-            Assert.All(airports.Keys, faa => Assert.True(File.Exists(sequential.PathFor(faa)), $"no sequential entry for {faa}"));
-            Assert.All(airports.Keys, faa => Assert.Equal(File.ReadAllBytes(sequential.PathFor(faa)), File.ReadAllBytes(parallel.PathFor(faa))));
-        }
-        finally
-        {
-            DeleteRoot(sequentialRoot);
-            DeleteRoot(parallelRoot);
-        }
-
-        Task BuildAll(PrecomputeStore store, PrecomputeRunLimits limits) =>
-            limits.ForEachAirportAsync(
-                airports.Keys,
-                async (faa, _) =>
-                    await limits.RunAsync(() =>
-                        PrecomputeEntryBuild.Build(store, faa, airports[faa].GeoJson, Context(limits.StandLoop), airports[faa].Stands)
-                    )
-            );
     }
 
     /// <summary>
@@ -459,63 +343,5 @@ public class PrecomputeBuilderTests
             Assert.Equal("envelopes before", File.ReadAllText(envelopesPath));
             Assert.Equal("pinned before", File.ReadAllText(pinnedPath));
         });
-    }
-
-    private static PrecomputeBuildContext Context(ParallelOptions standLoop) =>
-        new(ArtccsDir, PushTargetPlannerTests.Sidecars.Value, DesignGroupEnvelopes.LoadShipped(), NavDataSerial, standLoop);
-
-    private static string Md5() => GeoJsonMd5.Of(OakGeoJson.Value);
-
-    private static PrecomputeKey FreshKey() =>
-        PrecomputeKey.Current(Md5(), NavDataSerial, AirportSidecarHash.For(ArtccsDir, "OAK"), AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"));
-
-    private static PrecomputeOnlineFacts Online(string md5, long navDataSerial) =>
-        new(navDataSerial, new Dictionary<string, string?>(StringComparer.Ordinal) { ["OAK"] = md5 });
-
-    private static void WriteOak(PrecomputeStore store, PrecomputeKey key) => store.Write(new PrecomputeEntry("OAK", key, OakLayout.Value, []));
-
-    /// <summary>The <paramref name="count"/> named parking nodes nearest <paramref name="gateName"/>, nearest first then by node id.</summary>
-    private static IReadOnlySet<string> StandsNear(AirportGroundLayout layout, string gateName, int count)
-    {
-        GroundNode gate = layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name == gateName)).OrderBy(n => n.Id).First();
-        return layout
-            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name is not null))
-            .OrderBy(n => GeoMath.DistanceNm(gate.Position, n.Position))
-            .ThenBy(n => n.Id)
-            .Take(count)
-            .Select(n => n.Name!)
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    /// <summary>Every file under the store's folder, by path, with its bytes and last write time.</summary>
-    private static Dictionary<string, (byte[] Bytes, DateTime WrittenUtc)> Snapshot(string entryPath) =>
-        Directory
-            .EnumerateFiles(Path.GetDirectoryName(entryPath)!, "*", SearchOption.AllDirectories)
-            .ToDictionary(path => path, path => (File.ReadAllBytes(path), File.GetLastWriteTimeUtc(path)), StringComparer.Ordinal);
-
-    private static void WithStore(Action<PrecomputeStore> test) => WithRoot(root => test(new PrecomputeStore(root)));
-
-    private static void WithRoot(Action<string> test)
-    {
-        string root = NewRoot();
-        Directory.CreateDirectory(root);
-        try
-        {
-            test(root);
-        }
-        finally
-        {
-            DeleteRoot(root);
-        }
-    }
-
-    private static string NewRoot() => Path.Combine(Path.GetTempPath(), "precompute-builder-" + Guid.NewGuid());
-
-    private static void DeleteRoot(string root)
-    {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
     }
 }

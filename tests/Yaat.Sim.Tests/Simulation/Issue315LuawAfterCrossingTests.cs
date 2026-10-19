@@ -41,43 +41,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// but the crossing-exit terminus they were written against is no longer on SKW5237's path —
 /// <see cref="CrossingExitingOntoTheTerminalBar_HoldsShortOfTheDepartureRunway"/> guards it directly.</para>
 /// </summary>
-public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
+public class Issue315LuawAfterCrossingTests(ITestOutputHelper output) : Issue315LuawAfterCrossingTestBase(output)
 {
-    private const string RecordingPath = "TestData/issue315-luaw-after-crossing-recording.zip";
-
-    /// <summary>Callsign for the synthetic (non-recording) crossing-exit terminus case below.</summary>
-    private const string SyntheticCallsign = "SKW9316";
-
-    /// <summary>
-    /// Recording time at which SKW5237 is stopped on the 28R hold line, before the LUAW at t=624.
-    /// Measured: the 28L crossing ends at t=619 and the taxi on to the 28R bar brakes to a stop at t=624
-    /// (1.5 ft short of the planned stop point, itself 53 ft short of the painted bar) — the recorded LUAW
-    /// lands in that same second and the line-up starts moving at t=625, so t=624 is the one second the
-    /// aircraft is stopped and holding short. Physics owns taxi speed at 1.0 kt/s accel / 5 kt/s brake, so
-    /// the arrival is 4 s later than the t=620 this used to sample.
-    /// </summary>
-    private const int Skw5237HoldingTime = 624;
-
-    /// <summary>Recording time just past the LUAW at t=624. Ticking beyond t=666 would replay the controller's panic re-taxi.</summary>
-    private const int Skw5237PostLuawTime = 630;
-
-    private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
-
-    private SimulationEngine? BuildEngine()
-    {
-        TestVnasData.EnsureInitialized();
-        NavigationDatabase? navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
-        {
-            return null;
-        }
-
-        var groundData = RecordingGroundData.Evergreen("LUAW after a re-taxi crossing one parallel to the other");
-        SimLogBuilder.CreateForTest(output).InitializeSimLog();
-
-        return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
-    }
-
     [Fact]
     public void Skw5237_HoldsShortOfDepartureRunwayAfterCrossing()
     {
@@ -94,7 +59,7 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
         Assert.NotNull(ac);
 
         Phase? phase = ac.Phases?.CurrentPhase;
-        output.WriteLine($"t={Skw5237HoldingTime}: SKW5237 phase={phase?.Name} ias={ac.IndicatedAirspeed:F1}");
+        Output.WriteLine($"t={Skw5237HoldingTime}: SKW5237 phase={phase?.Name} ias={ac.IndicatedAirspeed:F1}");
 
         HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(phase);
         Assert.Equal(HoldShortReason.DestinationRunway, holding.HoldShort.Reason);
@@ -135,57 +100,13 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
         double toStopFt = GeoMath.DistanceNm(ac.Position, new LatLon(holdShort.Latitude.Value, holdShort.Longitude.Value)) * GeoMath.FeetPerNm;
         double barToStopFt =
             GeoMath.DistanceNm(barNode.Position, new LatLon(holdShort.Latitude.Value, holdShort.Longitude.Value)) * GeoMath.FeetPerNm;
-        output.WriteLine(
+        Output.WriteLine(
             $"t={Skw5237HoldingTime}: SKW5237 {toBarFt:F1}ft from the 28R bar, {toStopFt:F1}ft from its stop point (bar->stop {barToStopFt:F1}ft)"
         );
 
         // Stopping on the approach side means the aircraft is nearer its own stop point than the painted bar is
         // to that stop point — an overshoot past the bar puts it on the far side and inverts the comparison.
         Assert.True(toStopFt < barToStopFt, $"SKW5237 stopped {toBarFt:F1}ft past the 28R holding position markings instead of short of them");
-    }
-
-    [Fact]
-    public void Skw5237_LuawFromDestinationHoldShort_LinesUpOnRunway()
-    {
-        SessionRecording? recording = LoadRecording();
-        SimulationEngine? engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Replay past the recorded LUAW, then tick physics only. The recording's later
-        // actions (TAXI 28R C at t=666, DEL at t=686) are the controller working around
-        // this very bug and would destroy the line-up under test.
-        engine.Replay(recording, Skw5237PostLuawTime);
-
-        AircraftState? ac = engine.FindAircraft("SKW5237");
-        Assert.NotNull(ac);
-        output.WriteLine($"t={Skw5237PostLuawTime}: SKW5237 phase={ac.Phases?.CurrentPhase?.Name}");
-
-        for (int t = 1; t <= 120; t++)
-        {
-            engine.TickOneSecond();
-            ac = engine.FindAircraft("SKW5237");
-            Assert.NotNull(ac);
-
-            Phase? phase = ac.Phases?.CurrentPhase;
-            if (phase is LineUpPhase lineUp)
-            {
-                Assert.False(
-                    lineUp.CurrentState == LineUpPhase.State.Faulted,
-                    $"LineUpPhase faulted {t}s after LUAW — the aircraft accepted the clearance but cannot line up"
-                );
-            }
-
-            if (phase is LinedUpAndWaitingPhase)
-            {
-                output.WriteLine($"t={Skw5237PostLuawTime + t}: SKW5237 lined up and waiting");
-                return;
-            }
-        }
-
-        Assert.Fail($"SKW5237 never reached LinedUpAndWaiting; phase={ac.Phases?.CurrentPhase?.Name} ias={ac.IndicatedAirspeed:F1}");
     }
 
     /// <summary>
@@ -249,10 +170,10 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
 
         TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        output.WriteLine($"route={route.ToSummary()}");
+        Output.WriteLine($"route={route.ToSummary()}");
         foreach (HoldShortPoint point in route.HoldShortPoints)
         {
-            output.WriteLine($"  hold-short #{point.NodeId} {point.TargetName} {point.Reason}");
+            Output.WriteLine($"  hold-short #{point.NodeId} {point.TargetName} {point.Reason}");
         }
 
         // Pre-condition: the crossing bar is the last node before the terminal 28R bar, so the crossing
@@ -282,7 +203,7 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
         var stopPoint = new LatLon(atDeparture.HoldShort.Latitude.Value, atDeparture.HoldShort.Longitude.Value);
         double toStopFt = GeoMath.DistanceNm(aircraft.Position, stopPoint) * GeoMath.FeetPerNm;
         double barToStopFt = GeoMath.DistanceNm(departureBar.Position, stopPoint) * GeoMath.FeetPerNm;
-        output.WriteLine($"stopped {toStopFt:F1}ft from its stop point (bar->stop {barToStopFt:F1}ft)");
+        Output.WriteLine($"stopped {toStopFt:F1}ft from its stop point (bar->stop {barToStopFt:F1}ft)");
         Assert.True(toStopFt < barToStopFt, $"aircraft overshot the 28R holding position markings ({toStopFt:F1}ft from its stop point)");
 
         // LUAW from here must line up rather than fault — the whole point of routing through HoldingShortPhase.
@@ -304,79 +225,5 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
         }
 
         Assert.Fail($"never reached LinedUpAndWaiting; phase={engine.FindAircraft(SyntheticCallsign)?.Phases?.CurrentPhase?.Name}");
-    }
-
-    private HoldingShortPhase? TickUntilHoldingShort(SimulationEngine engine, string runwayDesignator, int maxSeconds)
-    {
-        for (int t = 1; t <= maxSeconds; t++)
-        {
-            engine.TickOneSecond();
-            AircraftState? aircraft = engine.FindAircraft(SyntheticCallsign);
-            if (aircraft is null)
-            {
-                return null;
-            }
-
-            if (
-                aircraft.Phases?.CurrentPhase is HoldingShortPhase hold
-                && hold.HoldShort.TargetName is { } target
-                && RunwayIdentifier.Parse(target).Contains(runwayDesignator)
-            )
-            {
-                output.WriteLine($"t={t}: holding short of {target} at node #{hold.HoldShort.NodeId}");
-                return hold;
-            }
-        }
-
-        AircraftState? last = engine.FindAircraft(SyntheticCallsign);
-        output.WriteLine($"gave up after {maxSeconds}s: phase={last?.Phases?.CurrentPhase?.Name} gs={last?.GroundSpeed:F1}");
-        return null;
-    }
-
-    private static AircraftState SpawnOnTaxiway(GroundNode node, TrueHeading heading, AirportGroundLayout layout)
-    {
-        var aircraft = new AircraftState
-        {
-            Callsign = SyntheticCallsign,
-            AircraftType = "E75L",
-            Position = node.Position,
-            TrueHeading = heading,
-            Altitude = 0,
-            IndicatedAirspeed = 0,
-            IsOnGround = true,
-            FlightPlan = new AircraftFlightPlan
-            {
-                Departure = "KSFO",
-                Destination = "KPSC",
-                FlightRules = "IFR",
-                Altitude = PlannedAltitude.Ifr(37000),
-            },
-            Phases = new PhaseList(),
-        };
-        aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
-        aircraft.Ground.Layout = layout;
-        return aircraft;
-    }
-
-    [Fact]
-    public void Skw3473_LuawFromHoldShort_StillDeparts()
-    {
-        SessionRecording? recording = LoadRecording();
-        SimulationEngine? engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // Control case: TAXI F C 28R (t=768), LUAW (t=885), CTO (t=948). Airborne by t=990.
-        engine.Replay(recording, 990);
-
-        AircraftState? ac = engine.FindAircraft("SKW3473");
-        Assert.NotNull(ac);
-        output.WriteLine($"t=990: SKW3473 phase={ac.Phases?.CurrentPhase?.Name} alt={ac.Altitude:F0} onGround={ac.IsOnGround}");
-
-        Assert.False(ac.IsOnGround, "SKW3473 should be airborne after CTO at t=948");
-        Assert.Equal("28R", ac.Phases?.AssignedRunway?.Designator);
     }
 }

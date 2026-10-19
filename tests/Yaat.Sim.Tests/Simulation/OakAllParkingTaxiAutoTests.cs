@@ -65,7 +65,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [MemberData(nameof(AllOakParking))]
+    [MemberData(nameof(AllOakParking), DisableDiscoveryEnumeration = true)]
     public void TaxiAutoFromParking_ReachesHoldShort(string parkingName, int parkingNodeId)
     {
         SimulationEngine? engine = BuildEngine();
