@@ -405,7 +405,7 @@ public static class CommandDispatcher
                         {
                             ParsedCommand modCmd = pb.Commands[0];
                             Phase modPhase = aircraft.Phases?.CurrentPhase ?? currentPhase;
-                            CommandResult? modResult = TryApplyTowerCommand(modCmd, aircraft, modPhase, ctx);
+                            CommandResult? modResult = TryApplyTowerCommand(modCmd, aircraft, modPhase, ctx, firedFromQueue: false);
                             if (modResult is null || !modResult.Success)
                             {
                                 // Couldn't apply right now — fall back to enqueueing.
@@ -563,7 +563,7 @@ public static class CommandDispatcher
                             break;
                         }
 
-                        CommandResult? modResult = TryApplyTowerCommand(parsedCmd, aircraft, postApplyPhase, ctx);
+                        CommandResult? modResult = TryApplyTowerCommand(parsedCmd, aircraft, postApplyPhase, ctx, firedFromQueue: false);
                         if (modResult is null || !modResult.Success)
                         {
                             break;
@@ -1661,7 +1661,7 @@ public static class CommandDispatcher
         Phase? currentPhase = clone.Phases?.CurrentPhase;
         if (currentPhase is not null)
         {
-            CommandResult? towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, ctx);
+            CommandResult? towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, ctx, firedFromQueue: false);
             if (towerResult is not null)
             {
                 return towerResult;
@@ -2185,7 +2185,7 @@ public static class CommandDispatcher
         }
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        CommandResult? towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx);
+        CommandResult? towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx, firedFromQueue: false);
         if (towerResult is not null)
         {
             if (!towerResult.Success)
@@ -2322,7 +2322,7 @@ public static class CommandDispatcher
             return ApplyCommand(sibling, aircraft, ctx with { ValidateDctFixes = false });
         }
 
-        return TryApplyTowerCommand(sibling, aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx);
+        return TryApplyTowerCommand(sibling, aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx, firedFromQueue: false);
     }
 
     /// <summary>
@@ -2396,9 +2396,24 @@ public static class CommandDispatcher
             _ => false,
         };
 
-    private static CommandResult? TryApplyTowerCommand(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    /// <summary>
+    /// Whether a command's result line reaches the controller who issued it: only a live command applied in the dispatch
+    /// that received it. A scenario-scripted command (<see cref="DispatchContext.IsScenarioScripted"/>), a deferred payload
+    /// firing (<see cref="DispatchContext.PreserveConditionals"/>: <c>WAIT</c>, <c>BEHIND</c>, the pilot's reaction delay) and
+    /// a queued block the queue fires later (<paramref name="firedFromQueue"/>) answer no one.
+    /// </summary>
+    private static bool ResultReachesController(DispatchContext ctx, bool firedFromQueue) =>
+        !ctx.IsScenarioScripted && !ctx.PreserveConditionals && !firedFromQueue;
+
+    private static CommandResult? TryApplyTowerCommand(
+        ParsedCommand command,
+        AircraftState aircraft,
+        Phase currentPhase,
+        DispatchContext ctx,
+        bool firedFromQueue
+    )
     {
-        CommandResult? result = TryApplyTowerCommandCore(command, aircraft, currentPhase, ctx);
+        CommandResult? result = TryApplyTowerCommandCore(command, aircraft, currentPhase, ctx, firedFromQueue);
         EmitProcedureAdvisory(result, aircraft, ctx);
 
         // Any tower or ground instruction ends a CLANDF rollout's licence to backtrack on its own: from here the
@@ -2411,7 +2426,13 @@ public static class CommandDispatcher
         return result;
     }
 
-    private static CommandResult? TryApplyTowerCommandCore(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    private static CommandResult? TryApplyTowerCommandCore(
+        ParsedCommand command,
+        AircraftState aircraft,
+        Phase currentPhase,
+        DispatchContext ctx,
+        bool firedFromQueue
+    )
     {
         AirportGroundLayout? groundLayout = ctx.GroundLayout;
         bool autoCrossRunway = ctx.AutoCrossRunway;
@@ -2434,6 +2455,12 @@ public static class CommandDispatcher
             DepartureClearanceHandler.StoreSidInitialAltitude(aircraft, ctx.ArtccConfig);
         }
 
+        var taxiDispatch = new GroundCommandHandler.TaxiDispatch(
+            autoCrossRunway,
+            ctx.IsScenarioScripted,
+            ResultReachesController(ctx, firedFromQueue),
+            ctx.ListAircraft
+        );
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
@@ -2706,14 +2733,9 @@ public static class CommandDispatcher
             case PushbackMultiCommand pushMulti:
                 return GroundCommandHandler.TryPushbackMulti(aircraft, pushMulti, groundLayout, ctx.ListAircraft);
             case TaxiCommand taxi:
-                return GroundCommandHandler.TryTaxi(
-                    aircraft,
-                    taxi,
-                    groundLayout,
-                    new GroundCommandHandler.TaxiDispatch(autoCrossRunway, ctx.IsScenarioScripted, ctx.ListAircraft)
-                );
+                return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, taxiDispatch);
             case TaxiAutoCommand autoTaxi:
-                return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway, ctx.IsScenarioScripted, ctx.ListAircraft);
+                return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, taxiDispatch);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
             // Bare RES to an aircraft rolling free on a taxi route — not held, not stalled by the ground conflict detector —
@@ -3136,7 +3158,7 @@ public static class CommandDispatcher
     private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
-        CommandResult? result = block.ApplyAction?.Invoke(aircraft);
+        CommandResult? result = block.ApplyAction?.Invoke(aircraft, false);
 
         if (result is not null && !result.Success)
         {
@@ -3745,11 +3767,11 @@ public static class CommandDispatcher
     /// fallback, which has no arm for those verbs and returns a
     /// <see cref="CommandResult.NoDispatcherArm"/> result.
     /// </summary>
-    internal static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx)
+    internal static Func<AircraftState, bool, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx)
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
-        return ac =>
+        return (ac, firedFromQueue) =>
         {
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
@@ -3763,7 +3785,7 @@ public static class CommandDispatcher
 
                 if (ac.Phases?.CurrentPhase is { } currentPhase)
                 {
-                    CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, current);
+                    CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, current, firedFromQueue);
                     if (towerResult is not null)
                     {
                         if (ReferenceEquals(towerResult, PhaseShouldBeCleared))

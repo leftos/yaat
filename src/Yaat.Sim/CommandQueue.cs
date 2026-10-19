@@ -262,6 +262,9 @@ public class CommandBlock
     /// Set by the CommandDispatcher when building the queue.
     /// Returns a CommandResult with success/failure and optional message.
     ///
+    /// The second argument, <c>firedFromQueue</c>, is false when the dispatch applies the block on the spot (its result
+    /// line reaches the controller) and true when the queue fires it later, when no one reads the result line.
+    ///
     /// Settable (not init-only) because a snapshot restore rebuilds it: the closure exists only in the dispatch
     /// that built the block. <c>CommandDispatcher.CreateBlock</c> sets it for a fresh dispatch;
     /// <c>CommandDispatcher.RehydrateRestoredBlock</c> rebuilds it from <see cref="SourceCommandText"/>, and
@@ -269,7 +272,7 @@ public class CommandBlock
     /// <c>NavigationCommandHandler.Build*Block</c> factory that builds a restored navigation follow-up block —
     /// without it a restored block fires as a silent no-op.
     /// </summary>
-    public Func<AircraftState, Commands.CommandResult>? ApplyAction { get; set; }
+    public Func<AircraftState, bool, Commands.CommandResult>? ApplyAction { get; set; }
 
     /// <summary>
     /// Original canonical command text that produced this block.

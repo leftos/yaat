@@ -311,6 +311,8 @@ evaluation owns this" — so a missing handler arm behind `AT`/`LV` is never cau
 3. Otherwise fall back to `ApplyCommand`.
 4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:3553`).
 
+The closure takes `(AircraftState, bool firedFromQueue)`: the dispatcher's `ApplyBlock` passes false, `FlightPhysics.ApplyBlock` true, and the bool reaches `TryApplyTowerCommand`. `ResultReachesController(ctx, firedFromQueue)` is false for a scripted command, a deferred payload firing (`PreserveConditionals`: `WAIT`, `BEHIND`, the pilot's reaction delay) and a queued block firing; the `TAXI`/`TAXIAUTO` handler (`TaxiDispatch.ResultReachesController`) then sends the push turn-about warning through `PendingWarnings` instead of the result line.
+
 **Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
 have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `CreateBlock`
 therefore omits track commands from the `ApplyAction` and flags the block `HasTrackCommand`; when the trigger fires,
@@ -358,9 +360,10 @@ it at the `SimulationEngine` / `RoomEngine` call sites — never pass it as a ha
 Handlers that want to warn the RPO **without failing the command** append a string to `AircraftState.PendingWarnings`. The strings are drained every
 tick (`SimulationWorld.DrainAllWarnings` → yaat-server `TickProcessor.BroadcastWarnings`) and broadcast as `"Warning"` terminal entries, rendered
 amber in the client — so the advisory surfaces on the tick *after* the command's own response, decoupled from `CommandResult.Message`. The
-string must not repeat the aircraft's callsign: the broadcast is per-aircraft and the client renders the entry as `<callsign>: <text>`. Two users:
+string must not repeat the aircraft's callsign: the broadcast is per-aircraft and the client renders the entry as `<callsign>: <text>`. Three users:
 
 - `MilitaryRouteCommandHandler.WarnIfRouteOccupied` — a second aircraft cleared onto an occupied MTR (7110.65 9-2-6.a).
+- `GroundCommandHandler.PushTurnAboutNote` — a TAXI or TAXIAUTO after a push that must turn about (YAAT-718), when its result line does not reach the RPO (`ResultReachesController` false: scripted, deferred or fired from the queue); the text starts at "pushed facing …". An immediate typed TAXI carries the full sentence on its result line instead.
 - `RunwaySafetyAdvisor` (`src/Yaat.Sim/Commands/RunwaySafetyAdvisor.cs`) — 7110.65 3-9-4 occupied-runway advisories: a landing-family clearance
   (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) onto a runway with traffic holding in position or taxiing to line up, and the reverse (LUAW while a still-airborne arrival
   holds a landing-family clearance for the runway — touchdown ends it, 3-9-4.a), plus `WarnIfTrafficOnFinal` on LUAW for live-traffic shadows within 6 nm of the

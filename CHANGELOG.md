@@ -15,6 +15,7 @@
 - `CVA {airport}` clears a visual approach to an airport without a tower; the pilot picks the landing runway by wind and active runways and reads it back.
 - Solo training scores a takeoff or landing cleared with another aircraft on, crossing, lining up on or past the hold line of that runway.
 - `TAXI`, `TAXIAUTO` and `CROSS` take a trailing `EXP` for "without delay": the pilot reads it back and taxis or crosses faster, supers and heavies excepted.
+- A `TAXI` after a push that leaves the aircraft facing away from the route warns that it turns about, naming the `PUSH` that would have faced it.
 
 ### Changed
 

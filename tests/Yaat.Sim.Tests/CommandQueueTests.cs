@@ -24,10 +24,10 @@ public class CommandQueueTests
         };
     }
 
-    private static CommandBlock ImmediateBlock(Func<AircraftState, CommandResult>? applyAction = null) =>
+    private static CommandBlock ImmediateBlock(Func<AircraftState, bool, CommandResult>? applyAction = null) =>
         new() { Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }], ApplyAction = applyAction };
 
-    private static CommandBlock TriggeredBlock(BlockTrigger trigger, Func<AircraftState, CommandResult>? applyAction = null) =>
+    private static CommandBlock TriggeredBlock(BlockTrigger trigger, Func<AircraftState, bool, CommandResult>? applyAction = null) =>
         new()
         {
             Trigger = trigger,
@@ -438,7 +438,7 @@ public class CommandQueueTests
         var block = new CommandBlock
         {
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
-            ApplyAction = a =>
+            ApplyAction = (a, _) =>
             {
                 a.TrueHeading = new TrueHeading(270);
                 return new CommandResult(true);

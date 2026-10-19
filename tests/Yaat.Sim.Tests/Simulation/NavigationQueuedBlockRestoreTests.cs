@@ -507,7 +507,7 @@ public class NavigationQueuedBlockRestoreTests
     private static List<string> ApplyAndReadRoute(AircraftState aircraft, CommandBlock block)
     {
         Assert.NotNull(block.ApplyAction);
-        Assert.True(block.ApplyAction!(aircraft).Success);
+        Assert.True(block.ApplyAction!(aircraft, true).Success);
         return [.. aircraft.Targets.NavigationRoute.Select(t => t.Name)];
     }
 

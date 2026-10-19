@@ -207,7 +207,7 @@ A queued `CommandBlock` carries:
 - `BlockTrigger` — `ReachAltitude`, `ReachFix`, `InterceptRadial`, `OnHandoff`, `GiveWay`, `AtGroundEntity`, …
 - `Commands` — `TrackedCommand[]` (the actual heading/altitude/speed payloads).
 - `Dimensions` — which axes this block touches, for selective clearing.
-- `ApplyAction` — closure that runs when the trigger fires.
+- `ApplyAction` — closure `(AircraftState, bool firedFromQueue) → CommandResult` that runs when the trigger fires; the bool is false when the dispatch applies the block on the spot and true when `FlightPhysics.ApplyBlock` fires it from the queue, where no one reads the result line.
 - `SourceCommandText` — the canonical compound string (snapshot/replay support).
 
 Each tick, step 9 of `FlightPhysics.Update` (`UpdateCommandQueue`) checks the current block's trigger. When met, the closure runs. `ReadyToAdvance` gates lateral changes until they're complete; altitude/speed continue in parallel when paired with lateral work.

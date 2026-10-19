@@ -93,7 +93,7 @@ public class PhaseTransparentCommandTests
             Commands = [new TrackedCommand { Type = TrackedCommandType.Speed }],
             Description = "Speed 120",
             NaturalDescription = "Speed 120",
-            ApplyAction = (a) => FlightCommandHandler.ApplySpeed(speedCmd, a, TestDispatch.Context(Random.Shared)),
+            ApplyAction = (a, _) => FlightCommandHandler.ApplySpeed(speedCmd, a, TestDispatch.Context(Random.Shared)),
         };
         ac.Queue.Blocks.Add(block);
         Assert.Single(ac.Queue.Blocks);

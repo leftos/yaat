@@ -243,7 +243,7 @@ public class ConditionWaitDelayTests
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
             IsWaitBlock = true,
             WaitRemainingSeconds = 30,
-            ApplyAction = _ =>
+            ApplyAction = (_, _) =>
             {
                 applied = true;
                 return new CommandResult(true);
@@ -294,7 +294,7 @@ public class ConditionWaitDelayTests
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
             IsWaitBlock = true,
             WaitRemainingSeconds = 30,
-            ApplyAction = _ =>
+            ApplyAction = (_, _) =>
             {
                 waitApplied = true;
                 return new CommandResult(true);
@@ -312,7 +312,7 @@ public class ConditionWaitDelayTests
                 FixLon = ac.Position.Lon,
             },
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
-            ApplyAction = _ =>
+            ApplyAction = (_, _) =>
             {
                 laterApplied = true;
                 return new CommandResult(true);
@@ -366,7 +366,7 @@ public class ConditionWaitDelayTests
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
             IsWaitBlock = true,
             WaitRemainingSeconds = 30,
-            ApplyAction = _ =>
+            ApplyAction = (_, _) =>
             {
                 waitApplied = true;
                 return new CommandResult(true);
@@ -381,7 +381,7 @@ public class ConditionWaitDelayTests
                 FixLon = ac.Position.Lon,
             },
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
-            ApplyAction = _ =>
+            ApplyAction = (_, _) =>
             {
                 laterApplied = true;
                 return new CommandResult(true);

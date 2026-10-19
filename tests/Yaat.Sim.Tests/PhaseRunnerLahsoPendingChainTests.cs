@@ -65,7 +65,7 @@ public class PhaseRunnerLahsoPendingChainTests(ITestOutputHelper output)
             ParsedCommands = [new ClearedForTakeoffCommand(new DefaultDeparture())],
             Description = "CTO",
             NaturalDescription = "Cleared for takeoff",
-            ApplyAction = _ =>
+            ApplyAction = (_, _) =>
             {
                 applyCount++;
                 return new CommandResult(true);
@@ -102,7 +102,7 @@ public class PhaseRunnerLahsoPendingChainTests(ITestOutputHelper output)
             ParsedCommands = [new ExitRightCommand()],
             Description = "ER",
             NaturalDescription = "Exit right",
-            ApplyAction = a =>
+            ApplyAction = (a, _) =>
             {
                 applyCount++;
                 appliedDuring = a.Phases?.CurrentPhase;

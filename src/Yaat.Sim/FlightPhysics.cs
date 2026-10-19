@@ -2352,7 +2352,7 @@ public static class FlightPhysics
         }
 
         block.IsApplied = true;
-        CommandResult? result = block.ApplyAction?.Invoke(aircraft);
+        CommandResult? result = block.ApplyAction?.Invoke(aircraft, true);
 
         if (result is not null && !result.Success)
         {

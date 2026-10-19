@@ -150,7 +150,7 @@ public class NimiRvSidDctDuringClimbTests
         Assert.NotNull(block.ApplyAction);
         Assert.NotNull(block.Trigger);
 
-        CommandResult applyResult = block.ApplyAction!(ac);
+        CommandResult applyResult = block.ApplyAction!(ac, true);
         Assert.True(applyResult.Success, applyResult.Message);
 
         InitialClimbPhaseDto dtoAfter = Assert.IsType<InitialClimbPhaseDto>(phase.ToSnapshot());

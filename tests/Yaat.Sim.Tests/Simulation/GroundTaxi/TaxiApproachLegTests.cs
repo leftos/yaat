@@ -64,6 +64,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             AircraftType = AircraftType,
             Position = position,
             TrueHeading = new TrueHeading(headingDeg),
+            Declination = MagneticDeclination.GetDeclination(position),
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -146,7 +147,11 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"sequence: {route.FormatTaxiwaySequence()}");
 
         Assert.Equal("T U W W1", route.FormatTaxiwaySequence());
-        Assert.Equal("Taxi via U W RWY 30 [taxiing via T — not in the route issued]", result.Message);
+        Assert.Equal(
+            "Taxi via U W RWY 30 [taxiing via T — not in the route issued] "
+                + "(DAL2150 pushed facing 040 and turns about to taxi; PUSH FACE SW would have faced the route)",
+            result.Message
+        );
     }
 
     /// <summary>
@@ -175,7 +180,11 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"result: {result.Message}");
 
         Assert.Equal("T U W W1", route.FormatTaxiwaySequence());
-        Assert.Equal("Taxi via T U W RWY 30", result.Message);
+        // The pose rests 164 ft off T's nearest edge, so the warning names no lane.
+        Assert.Equal(
+            "Taxi via T U W RWY 30 (DAL2150 pushed facing 040 and turns about to taxi; PUSH FACE SW would have faced the route)",
+            result.Message
+        );
     }
 
     /// <summary>
@@ -201,7 +210,11 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
         output.WriteLine($"result: {result.Message}");
 
-        Assert.Equal("Taxi via U W RWY 30 [taxiing via T — not in the route issued]", result.Message);
+        Assert.Equal(
+            "Taxi via U W RWY 30 [taxiing via T — not in the route issued] "
+                + "(DAL2150 pushed facing 040 and turns about to taxi; PUSH FACE SW would have faced the route)",
+            result.Message
+        );
     }
 
     /// <summary>
@@ -267,7 +280,11 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
 
         Assert.Equal("E B", aircraft.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence());
-        Assert.Equal("Taxi via B [taxiing via E — not in the route issued]", result.Message);
+        Assert.Equal(
+            "Taxi via B [taxiing via E — not in the route issued] "
+                + "(DAL2150 pushed facing 285 and turns about to taxi; PUSH FACE E would have faced the route)",
+            result.Message
+        );
     }
 
     /// <summary>
@@ -286,7 +303,81 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
         Assert.True(result.Success, $"TryTaxi was refused: {result.Message}");
         Assert.Equal("E B", aircraft.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence());
-        Assert.Equal("Taxi via B [taxiing via E — not in the route issued]", result.Message);
+        Assert.Equal(
+            "Taxi via B [taxiing via E — not in the route issued] "
+                + "(DAL2150 pushed facing 285 and turns about to taxi; PUSH FACE E would have faced the route)",
+            result.Message
+        );
+    }
+
+    /// <summary>How far along F from node 1607, F's far end from the F/A junction, the C172 stands when it turns about toward 1607.</summary>
+    private const double TurnsAboutFromFarEndFt = 30.0;
+
+    /// <summary>How far along F from node 1607 the C172 stands when its route leaves ahead through the F/A junction.</summary>
+    private const double RouteAheadFt = 45.0;
+
+    /// <summary>
+    /// A C172 held after a push on F, 30 ft from node 1607 and nosed along F toward the F/A junction (node 54), cleared
+    /// <c>TAXI B</c>: the start logic turns it about toward 1607, behind it, so the RPO is warned on the bearing to that target.
+    /// </summary>
+    [Fact]
+    public void OnF_TurnsAboutTowardTheFarEnd_Warns()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        (CommandResult result, TaxiRoute route) = TaxiBAlongFTowardA(ground.Layout, TurnsAboutFromFarEndFt);
+
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, route.TurnAboutShape);
+        Assert.Equal(SfoFFarEndNodeId, route.TurnAboutTargetNodeId);
+        Assert.Equal(
+            "Taxi via B [taxiing via E — not in the route issued] "
+                + "(DAL2150 pushed facing 285 and turns about to taxi; PUSH FACE E would have faced the route)",
+            result.Message
+        );
+    }
+
+    /// <summary>
+    /// The same C172 45 ft from node 1607: its route leaves ahead through the F/A junction, so it does not turn about and is not
+    /// warned.
+    /// </summary>
+    [Fact]
+    public void OnF_RouteAheadThroughTheJunction_DoesNotWarn()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        (CommandResult result, TaxiRoute route) = TaxiBAlongFTowardA(ground.Layout, RouteAheadFt);
+
+        Assert.Equal(TaxiTurnAboutShape.None, route.TurnAboutShape);
+        Assert.DoesNotContain("turns about to taxi", result.Message);
+    }
+
+    /// <summary>SFO F's far end from the F/A junction along the edge the stale-E pose stands on.</summary>
+    private const int SfoFFarEndNodeId = 1607;
+
+    /// <summary>
+    /// A C172 held after a push on F edge 54–1607, <paramref name="fromFarEndFt"/> from 1607, nosed toward 54, cleared <c>TAXI B</c>.
+    /// </summary>
+    private (CommandResult Result, TaxiRoute Route) TaxiBAlongFTowardA(AirportGroundLayout layout, double fromFarEndFt)
+    {
+        GroundNode farEnd = layout.Nodes[SfoFFarEndNodeId];
+        double towardA = GeoMath.BearingTo(farEnd.Position, layout.Nodes[SfoFAJunctionNodeId].Position);
+        AircraftState aircraft = MakeAircraft(layout, Project(farEnd.Position, towardA, fromFarEndFt), towardA);
+        aircraft.AircraftType = "C172";
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["B"], HoldShorts: [], Expedite: false, DestinationRunway: null),
+            layout
+        );
+        Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        output.WriteLine($"{fromFarEndFt:F0} ft: {result.Message}; turn about {route.TurnAboutShape} to {route.TurnAboutTargetNodeId}");
+        return (result, route);
     }
 
     /// <summary>A <paramref name="type"/> on F short of node 54, its current taxiway a stale E, cleared <c>TAXI B</c>.</summary>
@@ -688,5 +779,40 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         TaxiRoute route = ExitFilletRoute(exit);
 
         Assert.Same(route, TaxiApproachLeg.Prepend(layout, position, new TrueHeading(AcrossRunwayHeadingDeg), route));
+    }
+
+    /// <summary>SFO node 120, where B bends between its edges to nodes 119 and 12 (the THY9WC push's lane).</summary>
+    private const int SfoBBendNodeId = 120;
+
+    /// <summary>The B node the aircraft is nosed toward from <see cref="SfoBBendNodeId"/>.</summary>
+    private const int SfoBSouthWestNodeId = 119;
+
+    /// <summary>
+    /// An aircraft standing at B's node 120, nosed along B's edge toward node 119: the lane is named through the node, and the
+    /// lane edge it is measured against is the B edge at that node most nearly along the nose, 120–119. The nose lies along
+    /// it, so the FACE alternative is the reverse of the nose, not the route's first-leg bearing (passed here as the nose
+    /// itself, so the two cannot coincide).
+    /// </summary>
+    [Fact]
+    public void AtABNode_NosedAlongB_LaneEdgeIsTheBEdgeAlongTheNoseAndFaceIsItsReverse()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        GroundNode bend = ground.Layout.Nodes[SfoBBendNodeId];
+        GroundNode southWest = ground.Layout.Nodes[SfoBSouthWestNodeId];
+        double alongB = GeoMath.BearingTo(bend.Position, southWest.Position);
+        AircraftState aircraft = MakeAircraft(ground.Layout, bend.Position, alongB);
+
+        GroundCommandHandler.LaneStand stand = Assert.IsType<GroundCommandHandler.LaneStand>(
+            GroundCommandHandler.StandsOnTaxiway(ground.Layout, aircraft, "B")
+        );
+        GroundEdge laneEdge = Assert.IsType<GroundEdge>(stand.Edge);
+        output.WriteLine($"lane edge {laneEdge.Nodes[0].Id}-{laneEdge.Nodes[1].Id}; nose true {alongB:F1}");
+
+        Assert.True(laneEdge.Nodes.Contains(bend) && laneEdge.Nodes.Contains(southWest), "the lane edge is not B 120-119");
+        Assert.Equal(aircraft.MagneticHeading.ToReciprocal(), GroundCommandHandler.RouteFacing(aircraft, stand.Edge, alongB));
     }
 }

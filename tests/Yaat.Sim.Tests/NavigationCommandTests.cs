@@ -68,7 +68,7 @@ public class NavigationCommandTests : IDisposable
 
         // Simulate trigger met: apply the intercept block
         CommandBlock block = TriggerBlock(aircraft);
-        block.ApplyAction?.Invoke(aircraft);
+        block.ApplyAction?.Invoke(aircraft, true);
 
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Empty(aircraft.Targets.NavigationRoute);
@@ -101,7 +101,7 @@ public class NavigationCommandTests : IDisposable
 
         // Simulate trigger met
         CommandBlock block = TriggerBlock(aircraft);
-        block.ApplyAction?.Invoke(aircraft);
+        block.ApplyAction?.Invoke(aircraft, true);
 
         Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.Equal("OAK", aircraft.Targets.NavigationRoute[0].Name);
@@ -136,7 +136,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         CommandBlock block = TriggerBlock(aircraft);
-        block.ApplyAction?.Invoke(aircraft);
+        block.ApplyAction?.Invoke(aircraft, true);
 
         Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Empty(aircraft.Targets.NavigationRoute);
@@ -170,7 +170,7 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(6000, fix.AltitudeRestriction?.Altitude1Ft);
 
         // On reaching CASST the depart block turns the aircraft and pins the crossing speed.
-        TriggerBlock(aircraft).ApplyAction?.Invoke(aircraft);
+        TriggerBlock(aircraft).ApplyAction?.Invoke(aircraft, true);
         Assert.Equal(267, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Equal(210, aircraft.Targets.SpeedCeiling);
     }
@@ -941,7 +941,7 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(BlockTriggerType.InterceptRadial, TriggerBlock(aircraft).Trigger!.Type);
 
         // Simulate intercept: apply the block action
-        TriggerBlock(aircraft).ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft, true);
 
         // After intercept, should have TRACY → MODEN → CEDES in nav route
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -964,7 +964,7 @@ public class NavigationCommandTests : IDisposable
         Assert.True(result.Success);
 
         // Simulate intercept
-        TriggerBlock(aircraft).ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft, true);
 
         // After intercept, should follow TRACY → SUNOL (westbound)
         Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
@@ -986,7 +986,7 @@ public class NavigationCommandTests : IDisposable
         Assert.True(result.Success);
 
         // Simulate intercept
-        TriggerBlock(aircraft).ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft, true);
 
         // Should navigate from SUNOL onward
         Assert.True(aircraft.Targets.NavigationRoute.Count >= 1);
@@ -1031,7 +1031,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         CommandBlock block = TriggerBlock(aircraft);
-        block.ApplyAction?.Invoke(aircraft);
+        block.ApplyAction?.Invoke(aircraft, true);
 
         Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
@@ -1056,7 +1056,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         CommandBlock block = TriggerBlock(aircraft);
-        block.ApplyAction?.Invoke(aircraft);
+        block.ApplyAction?.Invoke(aircraft, true);
 
         Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
@@ -1082,7 +1082,7 @@ public class NavigationCommandTests : IDisposable
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         CommandBlock block = TriggerBlock(aircraft);
-        block.ApplyAction?.Invoke(aircraft);
+        block.ApplyAction?.Invoke(aircraft, true);
 
         Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
@@ -1209,7 +1209,7 @@ public class NavigationCommandTests : IDisposable
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
-        TriggerBlock(aircraft).ApplyAction!(aircraft);
+        TriggerBlock(aircraft).ApplyAction!(aircraft, true);
 
         Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }

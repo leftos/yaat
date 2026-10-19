@@ -85,27 +85,38 @@ public static partial class GroundCommandHandler
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
         bool autoCrossRunway = false
-    ) => TryTaxi(aircraft, taxi, groundLayout, new TaxiDispatch(autoCrossRunway, IsScenarioScripted: false, ListAircraft: null));
+    ) =>
+        TryTaxi(
+            aircraft,
+            taxi,
+            groundLayout,
+            new TaxiDispatch(autoCrossRunway, IsScenarioScripted: false, ResultReachesController: true, ListAircraft: null)
+        );
 
     /// <summary>
     /// A <c>TAXI</c> dispatched with the world's aircraft in view: a spot line-up from the ramp
     /// (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>) is planned clear of every other aircraft on the ground.
     /// </summary>
     internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiDispatch dispatch) =>
-        TryTaxiCore(
-            aircraft,
-            taxi,
-            groundLayout,
-            new TaxiCoreOptions(dispatch.AutoCrossRunway, IsTaxiAuto: false, dispatch.IsScenarioScripted, dispatch.ListAircraft)
-        );
+        TryTaxiCore(aircraft, taxi, groundLayout, TaxiCoreOptions.For(dispatch, isTaxiAuto: false));
 
-    /// <summary>How a <c>TAXI</c> reached the handler.</summary>
+    /// <summary>How a <c>TAXI</c> or <c>TAXIAUTO</c> reached the handler.</summary>
     /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
     /// <param name="IsScenarioScripted">
     /// No controller issued it: a scenario preset or an AI controller (<see cref="DispatchContext.IsScenarioScripted"/>).
     /// </param>
+    /// <param name="ResultReachesController">
+    /// The result line reaches the controller who issued it: a live clearance applied in the dispatch that received it. A
+    /// scripted one, a deferred one firing, or a queued block the queue fires later answers no one, so a warning for the
+    /// controller goes to <see cref="AircraftState.PendingWarnings"/> instead.
+    /// </param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
-    internal sealed record TaxiDispatch(bool AutoCrossRunway, bool IsScenarioScripted, Func<IReadOnlyList<AircraftState>>? ListAircraft);
+    internal sealed record TaxiDispatch(
+        bool AutoCrossRunway,
+        bool IsScenarioScripted,
+        bool ResultReachesController,
+        Func<IReadOnlyList<AircraftState>>? ListAircraft
+    );
 
     /// <summary>The dispatch-level switches a TAXI or TAXIAUTO resolves under.</summary>
     /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
@@ -115,14 +126,24 @@ public static partial class GroundCommandHandler
     /// taxiways the route drives that no clearance named.
     /// </param>
     /// <param name="IsScenarioScripted">No controller issued it: a scenario preset or an AI controller.</param>
+    /// <param name="ResultReachesController">
+    /// The result line reaches the controller who issued it (<see cref="TaxiDispatch.ResultReachesController"/>).
+    /// </param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
     private sealed record TaxiCoreOptions(
         bool AutoCrossRunway,
         bool IsTaxiAuto,
         bool IsScenarioScripted,
+        bool ResultReachesController,
         Func<IReadOnlyList<AircraftState>>? ListAircraft
     )
     {
+        /// <summary>
+        /// The options a TAXI (<paramref name="isTaxiAuto"/> false) or TAXIAUTO dispatched as <paramref name="dispatch"/> resolves under.
+        /// </summary>
+        public static TaxiCoreOptions For(TaxiDispatch dispatch, bool isTaxiAuto) =>
+            new(dispatch.AutoCrossRunway, isTaxiAuto, dispatch.IsScenarioScripted, dispatch.ResultReachesController, dispatch.ListAircraft);
+
         /// <summary>
         /// A controller issued the clearance and hears the readback, so a type with no room to turn about may refuse it as
         /// "unable" and wait for another. A preset, an AI controller or TAXIAUTO has no one to re-issue it, so the aircraft
@@ -375,6 +396,13 @@ public static partial class GroundCommandHandler
         // reset below drops the AtParkingPhase and the parking spot the note reads.
         string? pushBackNote = PushBackStandTaxiNote(aircraft, groundLayout, category, options.IsScenarioScripted);
 
+        // Read while the aircraft still holds after its push: the reset below replaces that phase.
+        string? pushTurnAboutNote = PushTurnAboutResultNote(
+            aircraft,
+            new PushTurnAboutInputs(groundLayout, route, asCleared),
+            options.ResultReachesController
+        );
+
         // Captured before the fresh PhaseList below drops the old clearance: both the arrival gate and the
         // runway-change warning read state this reset erases.
         DepartureRunwayAssignment priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
@@ -510,6 +538,11 @@ public static partial class GroundCommandHandler
         }
 
         msg = WithResponseNotes(msg, ResponseWarnings(route, groundLayout, traffic), implicitCrossLabel, pushBackNote);
+        if (pushTurnAboutNote is not null)
+        {
+            msg += $" ({pushTurnAboutNote})";
+        }
+
         if (startBlocker is not null)
         {
             msg += $" (blocked by {startBlocker})";
@@ -770,7 +803,7 @@ public static partial class GroundCommandHandler
             return (TurnAboutVerdict.TurnAbout, "mid-tow");
         }
 
-        double offOtherEndDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, otherEnd.Position));
+        double offOtherEndDeg = OffBearingDeg(aircraft, otherEnd);
         if (offOtherEndDeg < GroundNavigator.ReversalEntryThresholdDeg)
         {
             return (TurnAboutVerdict.TurnAbout, $"corner {offOtherEndDeg:F0}°");
@@ -784,6 +817,13 @@ public static partial class GroundCommandHandler
         TurnAboutVerdict noFit = inputs.Options.ControllerIssued ? TurnAboutVerdict.Refuse : TurnAboutVerdict.KeepRouteAhead;
         return (noFit, $"reversal {offOtherEndDeg:F0}°, gear does not fit");
     }
+
+    /// <summary>
+    /// How far off the aircraft's nose, in degrees from 0 to 180, the bearing from it to <paramref name="node"/> lies: at
+    /// <see cref="GroundNavigator.ReversalEntryThresholdDeg"/> or more, turning toward the node is a turn about.
+    /// </summary>
+    private static double OffBearingDeg(AircraftState aircraft, GroundNode node) =>
+        GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, node.Position));
 
     /// <summary>The route <paramref name="resolution"/> resolved, when it does not drive <paramref name="occupied"/>; null otherwise.</summary>
     private static TaxiRoute? RouteAvoiding(TaxiResolution resolution, GroundEdge occupied) =>
@@ -1588,12 +1628,9 @@ public static partial class GroundCommandHandler
     }
 
     /// <summary>
-    /// TAXIAUTO &lt;RWY&gt; or TAXIAUTO @&lt;PARKING&gt; — delegates to <see cref="TryTaxi"/>
-    /// with an empty taxiway path so the standard pipeline's existing A* route resolvers
-    /// (<see cref="ResolveRunwayRouteByAStar"/> / <see cref="ResolveParkingRoute"/>) discover
-    /// the taxiway sequence. Hold-short annotation, auto-cross handling, and phase handoff
-    /// work identically to a user-typed TAXI. The caller has no world and takes no auto-cross:
-    /// the convenience form for a live TAXIAUTO.
+    /// TAXIAUTO &lt;RWY&gt;, @&lt;PARKING&gt; or $&lt;SPOT&gt; from a caller with no world and no auto-cross: the
+    /// <see cref="TryTaxiAuto(AircraftState, TaxiAutoCommand, AirportGroundLayout?, TaxiDispatch)"/> form, whose result line
+    /// reaches a controller unless <paramref name="isScenarioScripted"/>.
     /// </summary>
     /// <param name="aircraft">The aircraft cleared.</param>
     /// <param name="autoTaxi">The command as issued.</param>
@@ -1606,25 +1643,29 @@ public static partial class GroundCommandHandler
         TaxiAutoCommand autoTaxi,
         AirportGroundLayout? groundLayout,
         bool isScenarioScripted
-    ) => TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway: false, isScenarioScripted, listAircraft: null);
+    ) =>
+        TryTaxiAuto(
+            aircraft,
+            autoTaxi,
+            groundLayout,
+            new TaxiDispatch(AutoCrossRunway: false, isScenarioScripted, ResultReachesController: !isScenarioScripted, ListAircraft: null)
+        );
 
     /// <summary>
-    /// A <c>TAXIAUTO</c> dispatched with the world's aircraft in view, as the matching
-    /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, TaxiDispatch)"/>.
+    /// A <c>TAXIAUTO</c> dispatched as <paramref name="dispatch"/>, as the matching
+    /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, TaxiDispatch)"/>: a TAXI with an empty taxiway path,
+    /// so the pipeline's A* route resolvers (<see cref="ResolveRunwayRouteByAStar"/> / <see cref="ResolveParkingRoute"/>)
+    /// discover the taxiway sequence. Hold-short annotation, auto-cross handling and phase handoff work as for a typed TAXI.
     /// </summary>
     /// <param name="aircraft">The aircraft cleared.</param>
     /// <param name="autoTaxi">The command as issued.</param>
     /// <param name="groundLayout">The airport ground layout, or null when the aircraft has none.</param>
-    /// <param name="autoCrossRunway">The scenario pre-clears runway crossings.</param>
-    /// <param name="isScenarioScripted">No controller issued it: a scenario preset or an AI controller.</param>
-    /// <param name="listAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    /// <param name="dispatch">How the TAXIAUTO reached the handler.</param>
     internal static CommandResult TryTaxiAuto(
         AircraftState aircraft,
         TaxiAutoCommand autoTaxi,
         AirportGroundLayout? groundLayout,
-        bool autoCrossRunway,
-        bool isScenarioScripted,
-        Func<IReadOnlyList<AircraftState>>? listAircraft
+        TaxiDispatch dispatch
     )
     {
         if (autoTaxi.DestinationRunway is null && autoTaxi.DestinationParking is null && autoTaxi.DestinationSpot is null)
@@ -1649,7 +1690,7 @@ public static partial class GroundCommandHandler
             Expedite: autoTaxi.Expedite
         );
 
-        return TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, IsTaxiAuto: true, isScenarioScripted, listAircraft));
+        return TryTaxiCore(aircraft, taxi, groundLayout, TaxiCoreOptions.For(dispatch, isTaxiAuto: true));
     }
 
     /// <summary>

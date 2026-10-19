@@ -47,7 +47,7 @@ internal static class NavigationCommandHandler
                 FixLon = cmd.FixLon,
                 Radial = cmd.Radial,
             },
-            ApplyAction = ac =>
+            ApplyAction = (ac, _) =>
             {
                 var magneticHdg = new MagneticHeading(cmd.Radial);
                 ac.Targets.NavigationRoute.Clear();
@@ -95,7 +95,7 @@ internal static class NavigationCommandHandler
                 FixLon = cmd.FixLon,
                 Radial = cmd.Radial,
             },
-            ApplyAction = ac =>
+            ApplyAction = (ac, _) =>
             {
                 ac.Targets.AssignedMagneticHeading = null;
                 ac.Targets.NavigationRoute.Clear();
@@ -158,7 +158,7 @@ internal static class NavigationCommandHandler
                 FixLat = cmd.FixLat,
                 FixLon = cmd.FixLon,
             },
-            ApplyAction = ac =>
+            ApplyAction = (ac, _) =>
             {
                 // A crossing-restriction speed assigned at this fix is an ATC-assigned speed,
                 // not a published one — it persists through the depart vector until an approach
@@ -791,7 +791,7 @@ internal static class NavigationCommandHandler
                 FixLon = plan.InterceptFixLon,
                 Radial = plan.SegmentRadial,
             },
-            ApplyAction = ac =>
+            ApplyAction = (ac, _) =>
             {
                 ac.Targets.AssignedMagneticHeading = null;
                 ac.Targets.NavigationRoute.Clear();
