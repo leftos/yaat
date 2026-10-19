@@ -10,6 +10,11 @@ namespace Yaat.Sim.Tests;
 
 public class PatternAltitudeMemoryTests
 {
+    public PatternAltitudeMemoryTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
     private static AircraftState MakePatternAircraft(Phase currentPhase)
@@ -254,7 +259,6 @@ public class PatternAltitudeMemoryTests
     {
         // TryChangePatternDirection resolves the runway via NavigationDatabase,
         // so we test the clearing behavior at OAK via real data.
-        TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
         {
             return; // Skip if test data not available
@@ -303,7 +307,6 @@ public class PatternAltitudeMemoryTests
     [Fact]
     public void TryChangePatternDirection_SameRunway_KeepsAltitudeOverride()
     {
-        TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
         {
             return;

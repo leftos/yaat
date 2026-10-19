@@ -13,6 +13,11 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class ConflictAlertTickTests
 {
+    public ConflictAlertTickTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static AircraftState ModeCAircraft(string callsign, LatLon position) =>
         new()
         {

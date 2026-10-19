@@ -13,6 +13,11 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class TransponderIdentTests
 {
+    public TransponderIdentTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     [Fact]
     public void Tick_NotIdenting_IsNoOp()
     {

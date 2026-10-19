@@ -6,6 +6,11 @@ namespace Yaat.Sim.Tests;
 /// <summary>Tests for wind physics integration in FlightPhysics.Update.</summary>
 public class WindPhysicsTests
 {
+    public WindPhysicsTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private const double Tolerance = 0.5;
 
     // -------------------------------------------------------------------------
@@ -440,7 +445,6 @@ public class WindPhysicsTests
     [Fact]
     public void GridWind_OnTheGroundAtAHighField_IsTheLayersWithoutAPosition()
     {
-        TestVnasData.EnsureInitialized();
         WeatherProfile weather = GriddedWindSamplingTests.Profile(
             ["KRNO 141755Z 30015G25KT 10SM CLR 15/M05 A3005"],
             0,

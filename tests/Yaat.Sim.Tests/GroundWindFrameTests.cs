@@ -13,6 +13,11 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class GroundWindFrameTests
 {
+    public GroundWindFrameTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private const double RunwayHeading = 280;
 
     private static WeatherProfile SteadyWind(double fromDeg, double speedKts) =>

@@ -4,6 +4,11 @@ namespace Yaat.Sim.Tests;
 
 public class MetarIssuerTests
 {
+    public MetarIssuerTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static readonly Func<string, (double Lat, double Lon)?> NoLocator = _ => null;
     private static readonly DateTime Anchor = new(2026, 6, 1, 18, 40, 0, DateTimeKind.Utc);
 
