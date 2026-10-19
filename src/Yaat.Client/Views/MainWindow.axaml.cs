@@ -1343,7 +1343,23 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             };
             tab.ContextFlyout = headerFlyout;
             _stripsTabItems[entry] = tab;
-            tabControl.Items.Add(tab);
+            // Keep every strips tab ahead of every vTDLS tab. The view-model's tab-index
+            // arithmetic (MainViewModel.IsTabVisible / FindNextVisibleTabIndex) models the
+            // dynamic tabs as one contiguous Strips block followed by one contiguous vTDLS
+            // block, so a strips tab opened after the student vTDLS tab already exists must be
+            // inserted before it, not appended after it — otherwise the VM's index→entry map
+            // diverges from the physical order and a pop-out moves the selection off the
+            // wrong tab.
+            int insertAt = tabControl.Items.Count;
+            foreach (TabItem tdlsTab in _tdlsTabItems.Values)
+            {
+                int tdlsIndex = tabControl.Items.IndexOf(tdlsTab);
+                if (tdlsIndex >= 0 && tdlsIndex < insertAt)
+                {
+                    insertAt = tdlsIndex;
+                }
+            }
+            tabControl.Items.Insert(insertAt, tab);
         }
 
         entry.PropertyChanged += (_, e) =>
