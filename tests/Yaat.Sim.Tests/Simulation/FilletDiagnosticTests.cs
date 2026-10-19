@@ -29,6 +29,11 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/sfo-s1-ground-control-28-01-recording.yaat-bug-report-bundle.zip";
 
+    /// <summary>
+    /// Seconds after t=816 at which SKW3078's live route is checked: t=820, once TAXI E A @B10 has built it.
+    /// </summary>
+    private const int LiveRouteCheckSecond = 4;
+
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
     private SimulationEngine? BuildEngine()
@@ -89,6 +94,11 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         {
             engine.ReplayOneSecond();
             AircraftState? ac = engine.FindAircraft("SKW3078");
+            if (t == LiveRouteCheckSecond)
+            {
+                AssertLiveRouteHasNoImmediateReversal(ac);
+            }
+
             if (ac?.Ground.AssignedTaxiRoute is { } route)
             {
                 if (route.CurrentSegmentIndex > maxSegReached)
@@ -106,6 +116,31 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
 
         output.WriteLine($"SKW3078 max segment reached: {maxSegReached}");
         Assert.True(maxSegReached > 19, $"SKW3078 should advance past segment 19 (former stall point), got {maxSegReached}");
+    }
+
+    /// <summary>
+    /// The live route the current pathfinder builds from SKW3078's recorded position has no immediate reversal
+    /// (segment X→Y followed by Y→X), so a spin on it comes from downstream of the route, not from a malformed one.
+    /// </summary>
+    private void AssertLiveRouteHasNoImmediateReversal(AircraftState? ac)
+    {
+        Assert.NotNull(ac);
+        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
+        Assert.NotNull(route);
+
+        var reversals = new List<int>();
+        for (int i = 0; i < route.Segments.Count - 1; i++)
+        {
+            TaxiRouteSegment a = route.Segments[i];
+            TaxiRouteSegment b = route.Segments[i + 1];
+            if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
+            {
+                reversals.Add(i);
+                output.WriteLine($"  REVERSAL at [{i}]/[{i + 1}]: {a.FromNodeId}->{a.ToNodeId} then {b.FromNodeId}->{b.ToNodeId}");
+            }
+        }
+
+        Assert.Empty(reversals);
     }
 
     // ─── Plan C: SFO A/T6 and A/T6B fillet arc geometry ───

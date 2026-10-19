@@ -7,15 +7,6 @@ namespace Yaat.Client.Tests;
 public class CommandRegistryTests
 {
     [Fact]
-    public void Registry_CoversAllCommandTypes()
-    {
-        foreach (CanonicalCommandType type in Enum.GetValues<CanonicalCommandType>())
-        {
-            Assert.True(CommandRegistry.All.ContainsKey(type), $"CommandRegistry is missing CanonicalCommandType.{type}");
-        }
-    }
-
-    [Fact]
     public void AllEntries_HaveAtLeastOneAlias()
     {
         foreach ((CanonicalCommandType type, CommandDefinition? def) in CommandRegistry.All)

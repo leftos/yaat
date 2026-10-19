@@ -24,6 +24,9 @@ public class TdlsStepTests
     private const string Callsign = "SWA1234";
     private const string Facility = "OAK";
 
+    /// <summary>How far past the session anchor the running-clock tests put the clock before issuing a command.</summary>
+    private const double RunningClockSeconds = 7;
+
     /// <summary>The nine <c>TDLSS</c> fields in canonical order: Expect|Sid|Transition|Climbout|Climbvia|InitialAlt|ContactInfo|DepFreq|LocalInfo.</summary>
     private const string SendCanonical = "TDLSS 10 MIN|OAKLAND4|ALTAM||CLIMB VIA SID|5000||120.9|";
 
@@ -227,12 +230,18 @@ public class TdlsStepTests
     /// very object the tree holds, so setting the flag in place would make OAK's Maintain mandatory in every other test
     /// class running beside this one.
     /// </summary>
-    private static void RequireMaintainAtOak(SimulationEngine engine)
+    private static void RequireMaintainAtOak(SimulationEngine engine) => IsolateOakConfig(engine).MandatoryInitialAlt = true;
+
+    /// <summary>Makes Expect mandatory at OAK for one test, on the same private copy <see cref="RequireMaintainAtOak"/> uses.</summary>
+    private static void RequireExpectAtOak(SimulationEngine engine) => IsolateOakConfig(engine).MandatoryExpect = true;
+
+    /// <summary>Replaces OAK's configuration on <paramref name="engine"/> with a deep copy of it and returns the copy.</summary>
+    private static TdlsConfig IsolateOakConfig(SimulationEngine engine)
     {
         string json = JsonSerializer.Serialize(engine.Tdls.Configs[Facility], RecordingJsonOptions.Default);
         TdlsConfig isolated = JsonSerializer.Deserialize<TdlsConfig>(json, RecordingJsonOptions.Default)!;
-        isolated.MandatoryInitialAlt = true;
         engine.Tdls.Configs[Facility] = isolated;
+        return isolated;
     }
 
     /// <summary>
@@ -610,5 +619,202 @@ public class TdlsStepTests
         Assert.Equal(15000, Departure(engine).FlightPlan.Altitude.CruiseFeet);
         TdlsChangeSet changes = Assert.Single(host.TdlsChanges);
         Assert.Contains(queued.Id, changes.ChangedItemIds);
+    }
+
+    /// <summary>
+    /// Moves the session clock <see cref="RunningClockSeconds"/> past its anchor without a tick, so neither the auto-queue
+    /// sweep nor the auto-WILCO scheduler can act, and returns the instant a command issued now must stamp.
+    /// </summary>
+    private static DateTime RunTheClockOn(SimulationEngine engine)
+    {
+        SimScenarioState scenario = engine.Scenario!;
+        DateTime anchor = scenario.SessionStartUtc;
+        scenario.ElapsedSeconds = RunningClockSeconds;
+        Assert.NotEqual(scenario.SessionStartUtc, scenario.SimTimeUtc);
+        Assert.Equal(anchor.AddSeconds(RunningClockSeconds), scenario.SimTimeUtc);
+        return scenario.SimTimeUtc;
+    }
+
+    [Fact]
+    public void Tdlsq_WithNoItem_CreatesAPendingPdcOnTheRunningClock()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Assert.Empty(engine.Tdls.Items);
+        DateTime now = RunTheClockOn(engine);
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSQ");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
+        Assert.Equal(TdlsItemStatus.Pending, item.Status);
+        Assert.Equal(Facility, item.FacilityId);
+        Assert.Equal(Callsign, item.AircraftId);
+        Assert.Equal(now, item.CreatedUtc);
+        Assert.Equal(now + TdlsMutations.DefaultTtl, item.ExpiresUtc);
+    }
+
+    [Fact]
+    public void Tdlss_StampsTheSendOnTheRunningClock()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        TdlsItemRecord queued = Queued(engine);
+        DateTime now = RunTheClockOn(engine);
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, SendCanonical);
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Equal(now, engine.Tdls.Items[queued.Id].SentUtc);
+    }
+
+    [Fact]
+    public void Tdlsw_StampsTheWilcoOnTheRunningClock()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        TdlsItemRecord queued = Queued(engine);
+        Assert.True(Issue(engine, host, Callsign, SendCanonical).Result.Success);
+        DateTime now = RunTheClockOn(engine);
+        // The auto-WILCO is overdue but has not fired without a tick, so the WILCO below is the handler's.
+        Assert.True(engine.Tdls.ScheduledWilcoAt.ContainsKey(queued.Id));
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSW");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Contains("acknowledged (WILCO)", outcome.Result.Message, StringComparison.Ordinal);
+        TdlsItemRecord item = engine.Tdls.Items[queued.Id];
+        Assert.Equal(TdlsItemStatus.Wilco, item.Status);
+        Assert.Equal(now, item.WilcoUtc);
+    }
+
+    [Fact]
+    public void Tdlsq_AlreadyPending_IsIdempotent()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Queued(engine);
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSQ");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Single(engine.Tdls.Items);
+    }
+
+    [Fact]
+    public void Tdlsq_OnADumpedLockout_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        engine.Tdls.Dumped.Add(new DumpedKey(Facility, Callsign));
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSQ");
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("dumped", outcome.Result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Tdlsq_WithNoTdlsFacility_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        engine.Tdls.Configs.Clear();
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSQ");
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("No TDLS facility", outcome.Result.Message);
+    }
+
+    [Fact]
+    public void Tdlss_MissingMandatoryExpect_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        RequireExpectAtOak(engine);
+        Queued(engine);
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSS |OAKLAND4|ALTAM|||5000||120.9|");
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("Expect", outcome.Result.Message);
+    }
+
+    [Fact]
+    public void Tdlss_WithoutAQueuedPdc_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, SendCanonical);
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("No queued PDC", outcome.Result.Message);
+    }
+
+    [Fact]
+    public void TdlsDump_WithNoItem_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSDUMP");
+
+        Assert.False(outcome.Result.Success);
+        Assert.Contains("No PDC", outcome.Result.Message);
+    }
+
+    [Fact]
+    public void Tdlsw_OnAPendingItem_IsABenignNoop()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        TdlsItemRecord queued = Queued(engine);
+
+        ActionOutcome outcome = Issue(engine, host, Callsign, "TDLSW");
+
+        Assert.True(outcome.Result.Success, outcome.Result.Message);
+        Assert.Equal(TdlsItemStatus.Pending, engine.Tdls.Items[queued.Id].Status);
     }
 }

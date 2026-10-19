@@ -16,7 +16,8 @@ export const meta = {
 
 const BLOCKS = '.tmp/triage-blocks'
 
-// The 54 ship-target (pathfinder-V2 + fillet-V2) failures as of the 2026-05-29 re-baseline.
+// The 54 ship-target (pathfinder-V2 + fillet-V2) failures as of the 2026-05-29 re-baseline, less the
+// bundle-replay reversal test whose check now lives in FilletDiagnosticTests.SKW3078_TaxiAtoB10_AdvancesPastFormerStallSegment.
 const FAILURES = [
   'Yaat.Sim.Tests.AirportE2ETests.OAK_FullTaxiToTakeoff_DCBW_HoldShort30_HasPhases',
   'Yaat.Sim.Tests.AirportE2ETests.OAK_HoldShortNodes_NotAtJunctions',
@@ -67,7 +68,6 @@ const FAILURES = [
   'Yaat.Sim.Tests.Simulation.S2Oak4RvSidCtoTests.N436MS_CtoDuringTaxi_Nimi6_Stores315OnClearanceAndInitialClimb',
   'Yaat.Sim.Tests.Simulation.SfoLineupDiagonalTests.N346G_LineUp28R_CompletesWithOnCenterlineAlignedStop',
   'Yaat.Sim.Tests.Simulation.SfoRampCrossesRunwayTests.TaxiCommand_AcrossRunways_ShouldFail',
-  'Yaat.Sim.Tests.Simulation.Skw3078TaxiEAtoB10RouteTests.BundleReplay_LiveRoute_NoImmediateReversal',
   'Yaat.Sim.Tests.Simulation.SpotOvershootTaxiRouteTests.TaxiM2ToSpot2_DoesNotOvershoot',
   'Yaat.Sim.Tests.Simulation.SpotOvershootTaxiRouteTests.TaxiM4M1ToSpot1_DoesNotOvershoot',
   'Yaat.Sim.Tests.Simulation.SpotOvershootTaxiRouteTests.TaxiT9ToSpot9_DoesNotOvershoot',

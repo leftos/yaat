@@ -219,7 +219,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 - Create `src/Yaat.Server/Simulation/TdlsCommandTranslator.cs` — CRC MessagePack DTOs → canonical command strings.
 - Modify `src/Yaat.Server/ServerApp.cs` — `AddSingleton<TdlsBroadcaster>(); AddSingleton<TdlsCommandHandler>();`.
 - Modify `src/Yaat.Server/Simulation/RoomEngine.cs` — `IsTdlsCommand` branch in `SendCommandAsync` + `RecordAndDispatchTdlsAsync`.
-- Tests: `TdlsCommandHandlerTests.cs` (Queue/Send/Dump happy paths + rejections), `TdlsCommandTranslatorTests.cs`, `TdlsBroadcasterTests.cs`.
+- Tests: `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs` (Queue/Send/Dump happy paths + rejections), `TdlsCommandTranslatorTests.cs`, `TdlsBroadcasterTests.cs`.
 
 **2.3** `add(tdls): CRC inbound dispatch for TDLS items` *(conditional — confirm Phase 1.0)*
 - If CRC has a dedicated TDLS surface beyond `SendClearance`/`HandleTdlsDump`:
@@ -241,7 +241,7 @@ Committed at `dfd35cc8`. `docs/vtdls/` cached. Findings folded into the rest of 
 
 **3.2** `add(tdls): manual TDLSW (controller force-wilco)`
 - Modify `TdlsCommandHandler.cs` — `HandleTdlsWilcoAsync` (manual). Same effects as auto-WILCO; cancels any pending scheduler entry.
-- Tests: extend `TdlsCommandHandlerTests.cs`.
+- Tests: extend `tests/Yaat.Sim.Tests/Simulation/Tdls/TdlsStepTests.cs`.
 
 **3.3** `add(tdls): 2-hour TTL expiry + reconnect re-send`
 - Modify `src/Yaat.Server/Simulation/TickProcessor.cs` — `ProcessTdlsExpiry(room)`: iterate `room.TdlsState.Items`, remove those with `ExpiresUtc < now`, broadcast removals. Idempotent.

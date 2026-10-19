@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -119,7 +118,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
     /// branch (141→1748→1754) that dead-ends at @268's F-side tangent. The
     /// bridge code then routes through the F edges 1753→1752→1755 to reach
     /// the legitimate E continuation, traversing the 9 ft / 1.9 kt
-    /// 1755↔1750 arc — the spin captured by Skw3078FixComparisonCapture.
+    /// 1755↔1750 arc, where SKW3078 spun.
     /// </para>
     ///
     /// <para>
@@ -274,79 +273,5 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         }
 
         Assert.Empty(ySegments);
-    }
-
-    /// <summary>
-    /// Replay the actual sfo-s1-ground-control-28-01 bundle through the
-    /// current engine + current sfo.geojson and dump SKW3078's live taxi
-    /// route once it's been built. The bundle was recorded against an older
-    /// layout, so the bundle's saved snapshot references node ids that no
-    /// longer exist — but Replay() ticks from t=0 with current code, so the
-    /// route observed here is the *current* pathfinder's output applied to
-    /// SKW3078's actual recorded position when TAXI E A @B10 fires at t=816.
-    ///
-    /// Use this to compare against the synthetic node-852 route above and
-    /// confirm whether the spin captured by Skw3078FixComparisonCapture is
-    /// caused by a malformed route (would show reversals here) or by
-    /// something downstream (navigator/fillet handling of a clean route).
-    /// </summary>
-    [Fact]
-    public void BundleReplay_LiveRoute_NoImmediateReversal()
-    {
-        const string RecordingPath = "TestData/sfo-s1-ground-control-28-01-recording.yaat-bug-report-bundle.zip";
-
-        TestVnasData.EnsureInitialized();
-        if (TestVnasData.NavigationDb is null)
-        {
-            return;
-        }
-
-        var groundData = new TestAirportGroundData();
-        if (groundData.GetLayout("SFO") is null)
-        {
-            return;
-        }
-
-        SimLogBuilder.CreateForTest(output).InitializeSimLog();
-
-        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
-        if (recording is null)
-        {
-            return;
-        }
-
-        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
-        engine.Replay(recording, 820);
-
-        AircraftState? ac = engine.FindAircraft("SKW3078");
-        Assert.NotNull(ac);
-
-        output.WriteLine($"position=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F1} ias={ac.IndicatedAirspeed:F1}");
-
-        TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
-        Assert.NotNull(route);
-
-        output.WriteLine("");
-        output.WriteLine($"=== ROUTE: {route.Segments.Count} segments, currentIdx={route.CurrentSegmentIndex} ===");
-        for (int i = 0; i < route.Segments.Count; i++)
-        {
-            TaxiRouteSegment s = route.Segments[i];
-            string marker = i == route.CurrentSegmentIndex ? "  <- current" : "";
-            output.WriteLine($"  [{i, 3}] {s.FromNodeId, 5} -> {s.ToNodeId, 5} ({s.TaxiwayName}){marker}");
-        }
-
-        var reversals = new List<int>();
-        for (int i = 0; i < route.Segments.Count - 1; i++)
-        {
-            TaxiRouteSegment a = route.Segments[i];
-            TaxiRouteSegment b = route.Segments[i + 1];
-            if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
-            {
-                reversals.Add(i);
-                output.WriteLine($"  REVERSAL at [{i}]/[{i + 1}]: {a.FromNodeId}->{a.ToNodeId} then {b.FromNodeId}->{b.ToNodeId}");
-            }
-        }
-
-        Assert.Empty(reversals);
     }
 }

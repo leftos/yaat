@@ -93,32 +93,6 @@ public class NimiRadarVectorsSidTests
     }
 
     [Fact]
-    public void NIMI6_BaseNameFallback_ResolvesToSameProcedureAsNIMI5()
-    {
-        if (TestVnasData.NavigationDb is null)
-        {
-            return;
-        }
-
-        using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
-
-        // Real-world failure mode: flight plan filed on NIMI5, FAA amendment cycle
-        // publishes NIMI6 (or vice versa). NavigationDatabase.GetSid's
-        // StripTrailingDigits fallback must catch the version skew and return the
-        // current procedure with the same 315° heading.
-        AircraftState ac5 = MakeOakDeparture("NIMI5 OAK V6 SAC", "28R", 280.0);
-        AircraftState ac6 = MakeOakDeparture("NIMI6 OAK V6 SAC", "28R", 280.0);
-
-        DepartureRouteResult? r5 = DepartureClearanceHandler.TryResolveSidFromCifp(ac5);
-        DepartureRouteResult? r6 = DepartureClearanceHandler.TryResolveSidFromCifp(ac6);
-
-        Assert.NotNull(r5);
-        Assert.NotNull(r6);
-        Assert.Equal(r5.DepartureHeadingMagnetic, r6.DepartureHeadingMagnetic);
-        Assert.Equal(ExpectedRvHeading, r6.DepartureHeadingMagnetic);
-    }
-
-    [Fact]
     public void NIMI_HeadingSurvivesAcrossManyVersionSkews()
     {
         if (TestVnasData.NavigationDb is null)

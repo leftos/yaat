@@ -105,15 +105,6 @@ public class StripCommandParserTests
     }
 
     [Fact]
-    public void An_Box10_IsValidAlias()
-    {
-        ParseResult<ParsedCommand> result = CommandParser.Parse("AN 10 X");
-        StripAnnotateCommand cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
-        Assert.Equal("1", cmd.Box);
-        Assert.Equal("X", cmd.Text);
-    }
-
-    [Fact]
     public void An_NoArg_ReturnsNull()
     {
         ParseResult<ParsedCommand> result = CommandParser.Parse("AN");

@@ -4,7 +4,6 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Actions;
 
@@ -110,10 +109,10 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
 
     private FixtureCensus? Census(string path)
     {
-        SessionRecording? recording;
+        List<RecordedAction>? actions;
         try
         {
-            recording = RecordingLoader.Load(path);
+            actions = ReadRecordedActions(path);
         }
         catch (InvalidDataException)
         {
@@ -121,7 +120,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
             return null;
         }
 
-        if (recording is null)
+        if (actions is null)
         {
             output.WriteLine($"SKIP: {Path.GetFileName(path)} is not a recording");
             return null;
@@ -133,7 +132,7 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
         int reactionDelayed = 0;
         int asPrefixed = 0;
         bool solo = false;
-        foreach (RecordedAction action in recording.Actions)
+        foreach (RecordedAction action in actions)
         {
             switch (action)
             {
@@ -167,6 +166,44 @@ public class RecordingCorpusRoutingCensusTests(ITestOutputHelper output)
         }
 
         return new FixtureCensus(Path.GetFileName(path), commands, byKind, unparsed, reactionDelayed, asPrefixed, solo);
+    }
+
+    /// <summary>
+    /// Reads only the recorded actions: a v4 archive's own <c>actions.json.br</c>, or the one inside a legacy bundle's
+    /// nested archive. Neither decodes a snapshot, since the census counts only commands and the solo-mode setting; a
+    /// legacy flat-JSON bundle has no separate actions entry, so for it the whole recording is still deserialised.
+    /// </summary>
+    private static List<RecordedAction>? ReadRecordedActions(string path)
+    {
+        using ZipArchive zip = ZipFile.OpenRead(path);
+        if (zip.GetEntry("manifest.json") is not null)
+        {
+            using var archive = RecordingArchive.Open(path);
+            return archive.ReadActions();
+        }
+
+        ZipArchiveEntry? nestedArchive = zip.GetEntry("recording.yaat-recording.zip");
+        if (nestedArchive is not null)
+        {
+            using Stream entryStream = nestedArchive.Open();
+            using var buffer = new MemoryStream();
+            entryStream.CopyTo(buffer);
+            buffer.Position = 0;
+            using var archive = RecordingArchive.Open(buffer);
+            return archive.ReadActions();
+        }
+
+        ZipArchiveEntry? legacyJson =
+            zip.GetEntry("recording.yaat-recording.br")
+            ?? zip.GetEntry("recording.yaat-recording.json.gz")
+            ?? zip.GetEntry("recording.yaat-recording.json");
+        if (legacyJson is null)
+        {
+            return null;
+        }
+
+        string json = RecordingCompression.Decompress(legacyJson.Open());
+        return JsonSerializer.Deserialize<SessionRecording>(json, RecordingJsonOptions.Default)?.Actions;
     }
 
     private static string FindRepoRoot()
