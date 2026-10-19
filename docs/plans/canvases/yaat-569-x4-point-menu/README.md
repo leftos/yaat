@@ -1,0 +1,26 @@
+Mock for YAAT-569 part X4 (the ground point menu's strip: Taxi here, Taxi to runway per end, Push to, Custom taxi…): the owner decisions the X4 code map left open. Open `index.html` in a browser; it works offline and loads no web fonts. The two scope insets are separate SVG files in `img/`, linked by relative path.
+
+Every flyout draws the built parts: the Fluent dark menu, `FlyoutTabStrip` tabs, Taxi to runway's title lines and `MenuTwoLineRow` rows, `MenuGlyphRow` one-line rows, the 480 px cap, the point strip glyphs of `QuickCommandGlyphs.PointById`. Each decision has lanes A, B (and C) with how it works and its worst case; no lane is marked recommended. Rows, tabs, strip buttons and the boxes are live: the line under each lane says what a click sends.
+
+An index note at the top settles decisions 5 (route preview: the X2b rule, clear on tab change and close), 6 (Custom taxi… keeps its own button and input popup) and 7 (the X2b keyboard model) by recommendation, and restates the ruled 9 (screen edge, 480 px cap).
+
+- Today: the as-built four-level cascade, Taxi to 30 › At W1 (full length) › Taxi TE U W W1 › For Departure 30.
+- 1. Taxi here with several routes (UAL455, A320, KOAK gate 25 → the V / W / W4 node, three routes; and the C / C1 node, one route crossing 28L and 15). A: two-line rows (label over the whole command, distance at the right). B: one-line glyph rows (command trimmed at 180 px).
+- 1b. Taxi here with one route (→ W / W1 / W2, `TAXI TE U W #16`). A: the button sends at once (a leaf, as today). B: the button opens a one-row flyout.
+- 2. Taxi to runway from a click on runway 30 near W2 (targets: 30 → W3 nearest, W2 near click, W1 full length; 12 → W3, W2, W7 full length with two routes). A: one button per end, a tab per hold-short target. B: one button, a tab per runway end, every target and route as a title line over its variants (the X2b panel). C: one button per end, one scrolling list with sticky target titles (drawn opened and scrolled to W2).
+- 3. A target with no route (end 12's W2, illustrative), each drawn in decision 2's lane A and lane B layouts. A: dimmed ("none" tab, or a dimmed title) with a disabled "No route found". B: left out.
+- 4. Push to at taxi spot E (`PUSH $E`). A: a plain leaf button. B: a one-row flyout showing the command. C: the Push back to flyout, the clicked spot focused.
+- 6. Custom taxi… (→ V / W / W4, seed `TAXI  V`). A: its own button and the host's input popup (today). B: a Taxi command box at the foot of the Taxi here flyout.
+- 8. "No route found" (→ C / G, illustrative). A: a disabled text row, no strip button (today). B: a faded, inert strip button whose label line reads "Taxi here · no route found", as the Follow ruling 2C.
+
+Data. Taxiway, runway, spot and stand names are from `tests/Yaat.Sim.Tests/TestData/oak.geojson`. Node ids (19 for V / W / W4, 16 for W / W1 / W2, 356 for C / C1, 523 for gate 25) and the three routes to node 19 (`TE T V`, `TE T B W`, `TE U W`, no hold shorts) and the route to node 356 (`TE T S B A C`, crossing 28L/10R then 15/33) were resolved with `tools/Yaat.LayoutInspector` (`--intersection`, `--pathfinder 523 … --pf-dest-node`, `--airport-code KOAK`). The route distances, the bar positions and the insets were measured along the layout's centrelines by a throwaway script, not by the client's pathfinder, so a distance can differ from what YAAT shows by a few hundred feet.
+
+Not from real data, or not checked:
+
+- Which routes `GetTaxiChoices` returns for each hold-short target (decision 2) is illustrative: the pathfinder's deduped preferences were not run per target; W7's second route is drawn to show a target with two routes.
+- W2 having no route (decision 3) and C / G having none (decision 8) are drawn as if; from gate 25 both have routes.
+- Push back to's rows (decision 4 C: TE ~250 ft, spots E and C) and spot E's ~1,000 ft are straight-line or illustrative figures, not the tug planner's paths; facings chips are not drawn.
+- The commands copy today's builders (`ClientMenuHost.RouteChoice`, `GroundViewModel.BuildTaxiCrossingVariants` and `BuildTaxiDestVariants`), including the `#node` pin; the readable path of `TaxiRouteFormatter.BuildReadableTaxiPath` was not run, so a route's taxiway list may read differently in YAAT.
+- Decision 3's note on today's code: `BuildTaxiToRunwayEnd` leaves a target out only when `GetTaxiChoices` answers nothing; with no route found it answers one disabled "No route found" choice, so today's target submenu opens onto that row (the X4 map read it as left out).
+
+Source files read for it: `.tmp/map-569-x4.md`, `docs/client-context-menus.md`, `src/Yaat.Client.Core/ContextMenus/MenuCatalog.cs` (`BuildChoiceSubmenu`, `BuildChoice`, `BuildPointTaxiHere`, `BuildTaxiToRunwayEnds`, `BuildTaxiToRunwayEnd`, `BuildPointPushTo`, `BuildPointCustomTaxi`), `AircraftMenuBuilder.cs` (`PointStripIds`, `AddPointStrip`), `QuickCommandGlyphs.cs`, `QuickCommandStrip.cs`, `PushbackToMenu.cs`, `SharedMenuGroups.cs` (the point title), `src/Yaat.Client/Views/ClientMenuHost.cs` (`GetTaxiChoices`, `GetRunwayHoldShortTargets`, `RouteChoice`, `GetCustomTaxiSeed`), `src/Yaat.Client/ViewModels/GroundViewModel.cs` (`FindRoutesToNode`, the variant builders), and the mocks `quick-command-taxi-to-runway-tabs/`, `yaat-569-x3-approach/`, `yaat-569-x3b-verbs/` and `pushback-to-flyout/`.

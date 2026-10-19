@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Point Menu Flyouts</title>
+<style>
+  /* Layout: an index note, today's nesting, then one artboard per open decision; each has a header (question, situation, the point menu) over lanes. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  /* The index note: the decisions this page settles by recommendation rather than by lanes. */
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 120ch; }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 0 0 6px; }
+  .note-box ul.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .rec { font: 500 11px var(--f-mono); color: var(--tag-a); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .side { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.small { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .cascade { display: flex; align-items: flex-start; width: max-content; }
+  .cascade > .menu + .menu, .cascade > .menu + div { margin-left: -4px; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.kfocus { background: rgba(255, 255, 255, .085); }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.dis { opacity: .45; cursor: default; }
+  .mi.dis:hover { background: transparent; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 1px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; font-variant-numeric: tabular-nums; padding-left: 12px; white-space: nowrap; }
+  .mi.title .et { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title.hi .et b, .mi.title.hi .r { font-weight: 700; color: #ffffff; }
+  .mi.title.dim { opacity: .5; }
+  .mi.title.stick { position: sticky; top: 0; z-index: 2; background: #2c2c2c; border-bottom: 1px solid #3d3d3d; border-radius: 0; box-shadow: 0 4px 6px rgba(0, 0, 0, .35); }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .bdg { border: 1px solid #E8A33D; color: #E8A33D; border-radius: 3px; padding: 0 3px; font-size: 10.5px; line-height: 14px; margin-right: 6px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm .n.sb { font-weight: 600; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .note { font-size: 12px; opacity: .75; white-space: nowrap; }
+  .dist { padding-left: 14px; font-size: 12px; color: #a4adb8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.trim { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+  .cmd2 { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #b8c0c9; white-space: normal; overflow-wrap: anywhere; }
+  .panel { max-height: 420px; overflow-y: auto; scrollbar-color: #555 transparent; position: relative; }
+  .panel.short { max-height: 250px; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+  .tab.empty { opacity: .45; }
+  .tab.empty small { font-style: italic; }
+
+  /* Boxes and the host's input popup (MenuPopups.ShowInput). */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; white-space: pre; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .popup { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; }
+
+  /* Push back to rows (PushbackToMenu.BadgeBorder colours). */
+  .pb { width: 22px; height: 22px; display: grid; place-items: center; font: 700 10px/1 "Segoe UI", system-ui, sans-serif; color: #1b1b1b; border-radius: 4px; margin-right: 8px; }
+  .pb.TL { background: #E0A84A; } .pb.TW { background: #F2D04B; } .pb.S { background: #7FD1B9; color: #10241e; border-radius: 11px; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; }
+
+  /* Mock-only annotations: the dashed notes and the pointer. */
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px;
+             padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .cursor { position: absolute; width: 18px; height: 24px; pointer-events: none; z-index: 5; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+
+  /* The point menu stub: bold title, the label line (blank until a button is pointed at), the strip, the text items. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; min-height: 20px; white-space: nowrap; }
+  .mstate code { font: 11px "JetBrains Mono", Consolas, monospace; }
+  .strip { display: flex; gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; cursor: pointer; }
+  .cell.latched { background: #24406a; }
+  .cell.inert { opacity: .4; cursor: default; }
+  .cell.hot { outline: 1px solid #5a6573; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+  .scope { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+  .scope img { display: block; width: 560px; max-width: 100%; height: auto; border: 1px solid #22262c; border-radius: 6px; }
+  .sc-cap { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; max-width: 460px; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part X4 · the ground point menu's strip · mock for the owner's decisions</div>
+  <h1>Point menu flyouts: Taxi here, Taxi to runway, Push to</h1>
+  <p class="lede">The owner's rule for YAAT-569 is that a quick command never opens a nested context submenu. Two places still build one, both in the ground point menu (the right-click on a taxi node, a runway or a stand with an aircraft selected): <b>Taxi here</b> with several routes (<code>MenuCatalog.BuildPointTaxiHere</code>) and <b>Taxi to {end}</b> (<code>BuildTaxiToRunwayEnds</code>), up to four menus deep. <b>Push to</b> is a single command with no choice. This page draws each open decision as lanes A, B (and C); no lane is marked recommended.</p>
+  <p class="lede">Every flyout draws the landed parts as built: the Fluent dark menu, the tab strip of <code>FlyoutTabStrip</code>, the title lines and two-line rows (<code>MenuTwoLineRow</code>) of Taxi to runway, the glyph rows of <code>MenuGlyphRow</code>, the 480 px cap. The aircraft is <b>UAL455</b>, A320, at <b>KOAK gate 25</b>; taxiway, runway, spot and node names are from the bundled layout (<code>tests/Yaat.Sim.Tests/TestData/oak.geojson</code>). Click a row, a tab or a strip button to see what it does.</p>
+
+  <section class="note-box" aria-labelledby="note-h">
+    <h2 id="note-h">Index note: settled by recommendation, not drawn as a choice</h2>
+    <ul class="nl">
+      <li><b>5 · Route preview.</b> <span class="rec">recommended:</span> as Taxi to runway (X2b): the row under the pointer, else the keyboard-focused row, previews its route on the ground scope through <code>SetRoutePreview</code> (dashed); a title line or a tab draws nothing and leaves the last preview; choosing another tab clears it, and closing the flyout clears it. Today's point submenus never clear it on pointer leave (<code>MenuCatalog.BuildChoiceSubmenu</code>).</li>
+      <li><b>6 · Custom taxi….</b> <span class="rec">recommended:</span> keep it its own strip button opening the host's input popup, seeded as today (<code>GetCustomTaxiSeed</code>), lane A below. A box inside the Taxi here flyout (lane B) has nowhere to live at a node with no route, where Custom taxi is needed most. Drawn as <a href="#d6-custom">two small lanes</a>.</li>
+      <li><b>7 · Keyboard.</b> <span class="rec">recommended:</span> the X2b model: focus lands on the first row on open, so Enter sends it; Up and Down (and Tab, Shift+Tab) walk the rows, skipping titles and stopping at the ends; Left and Right choose the previous or next tab where there are tabs, focusing its first row; tabs never take focus; Escape closes the flyout back to its strip button. The point menu has no All Commands, so its text rows (Taxi here ›, Taxi to 30 ›) open the same builder's flyout.</li>
+      <li><b>9 · Screen edge and width.</b> Already ruled (X2b ruling 5): FlipX | SlideY, no list shrinking, the 480 px cap, long two-line rows wrap and are never trimmed.</li>
+    </ul>
+  </section>
+  <nav class="index" id="index" aria-label="Decisions"></nav>
+  <div id="arts"></div>
+  <div id="media" hidden>
+    <img id="m-routes" src="img/oak-taxi-here-routes.svg" alt="KOAK ground scope: the three Taxi here routes from gate 25 to V / W / W4">
+    <img id="m-targets" src="img/oak-runway-30-targets.svg" alt="KOAK ground scope: runway 30/12, the click near W2 and the hold-short targets W1, W2, W3 and W7">
+  </div>
+  <footer class="foot">Rows follow the built flyouts: Inter text, commands in JetBrains Mono at 70% (one-line rows, trimmed at 180 px as <code>MenuCommandRow.RouteCommandMaxWidth</code>) or whole under the label (two-line rows), 22 px glyphs at stroke 1.9 in the ground colour <code>#6EE0CE</code>, 40 px strip cells with the corner notch when a button opens a flyout, Push back to's badges in <code>PushbackToMenu.BadgeBorder</code>'s colours. The strip glyphs are the built point glyphs (<code>QuickCommandGlyphs.PointById</code>): Taxi here the pin, Taxi to runway the runway arrow, Push to the push-back arrow, Custom taxi the pencil. Route distances are measured along the layout's centrelines for this mock, not by the client's pathfinder. The scope insets are separate SVG files in <code>img/</code>. The dashed notes, the pointer and the crosshair on the insets are mock annotations. The page loads no web fonts.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  /* ---------- Glyphs: QuickCommandGlyphs paths ---------- */
+  const GROUND = "#6EE0CE";
+  const GL = {
+    PIN: "M12 21s-6-5.5-6-10.5a6 6 0 0 1 12 0c0 5-6 10.5-6 10.5z M12 8a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5",
+    TTR: "M19 3v18 M3 12h12 M11 8l4 4-4 4",
+    PUSH: "M12 3v12 M8 11l4 4 4-4 M6 20h12",
+    PUSHTO: "M12 3v8 M9 8l3 3 3-3 M12 13a4 4 0 1 0 0 8a4 4 0 1 0 0-8",
+    DRAW: "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3",
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GROUND}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${GL[id]}"/></svg>`;
+  const menu = (inner, cls = "w", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = (html, calm) => `<div class="callout${calm ? " calm" : ""}" role="note">${html}</div>`;
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const send = (cmd, extra = "") => `data-send="${esc(cmd)}" tabindex="0"${extra}`;
+  const cursor = (x, y) => `<svg class="cursor" style="left:${x};top:${y}" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  let uidN = 0;
+  const uid = p => `${p}-${++uidN}`;
+
+  /* ---------- Rows ---------- */
+  /** Two-line row as Preset taxi route and MenuTwoLineRow: glyph, label in semibold over the whole command, distance at the right. */
+  function twoRow(g, label, cmd, o = {}) {
+    const cls = ["mi", o.focus ? "kfocus" : "", o.dim ? "dis" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}" role="menuitem" ${o.dim ? "" : send(cmd)} style="grid-template-columns:auto minmax(0,1fr) auto">${gl(g)}<span class="nm col"><span class="n sb">${esc(label)}</span><span class="cmd2">${esc(cmd)}</span></span><span class="dist">${o.d ? ft(o.d) : ""}</span></div>`;
+  }
+  /** One-line glyph row as MenuGlyphRow: glyph, label (and a note), command at the right, trimmed at 180 px. */
+  function glyphRow(g, label, cmd, o = {}) {
+    const cls = ["mi", o.focus ? "kfocus" : "", o.dim ? "dis" : ""].filter(Boolean).join(" ");
+    const nt = o.d ? `<span class="note">· ${ft(o.d)}</span>` : (o.note ? `<span class="note">· ${esc(o.note)}</span>` : "");
+    return `<div class="${cls}" role="menuitem" ${o.dim ? "" : send(cmd)} title="${esc(label)} — ${esc(cmd)}">${gl(g)}<span class="nm"><span class="n">${esc(label)}</span>${nt}</span><span></span><span class="cmd trim">${esc(cmd)}</span></div>`;
+  }
+  const titleLine = (html, right = "", cls = "") => `<div class="mi title${cls ? " " + cls : ""}"><span class="et">${html}</span><span class="r">${esc(right)}</span></div>`;
+  const disabledRow = text => `<div class="mi plain dis" aria-disabled="true"><span>${esc(text)}</span><span></span><span></span></div>`;
+
+  /* ---------- Data (KOAK, UAL455 A320 at gate 25) ---------- */
+  /* Taxi here to the node where V, W and W4 meet (node 19): three routes, nearest first. */
+  const VW = [
+    { via: "TE T V", d: 5150, cmd: "TAXI TE T V #19" },
+    { via: "TE U W", d: 5350, cmd: "TAXI TE U W #19" },
+    { via: "TE T B W", d: 5350, cmd: "TAXI TE T B W #19" },
+  ];
+  /* Taxi here to the node where C meets C1 (node 356): one route crossing 28L, then 15. */
+  const CC1 = { via: "TE T S B A C", d: 16350, crosses: "28L, 15",
+    rows: [["HS 28L", "TAXI TE T S B A C #356 HS 28L"], ["CROSS 28L HS 15", "TAXI TE T S B A C #356 HS 15, CROSS 28L"], ["CROSS 28L 15", "TAXI TE T S B A C #356, CROSS 28L, CROSS 15"]] };
+  /* Taxi to runway from a click on runway 30, near W2: the host's hold-short targets per end and each target's routes. */
+  const TGT = {
+    "30": [
+      { at: "W3", why: "nearest", routes: [{ via: "TE U W3", d: 3350 }] },
+      { at: "W2", why: "near click", routes: [{ via: "TE U W W2", d: 4400 }] },
+      { at: "W1", why: "full length", routes: [{ via: "TE U W W1", d: 4700 }] },
+    ],
+    "12": [
+      { at: "W3", why: "nearest", routes: [{ via: "TE U W3", d: 3350 }] },
+      { at: "W2", why: "near click", routes: [{ via: "TE U W W2", d: 4400 }] },
+      { at: "W7", why: "full length", routes: [{ via: "TE T V W W7", d: 10850 }, { via: "TE U W W7", d: 11050 }] },
+    ],
+  };
+  const variants = (via, end) => [[`For Departure ${end}`, `TAXI ${via} ${end}`], null, [`Hold short RWY ${end}`, `TAXI ${via} HS ${end}`]];
+
+  /* ---------- The point menu stub ---------- */
+  /** s: title, label (the label line's text, blank when nothing is pointed at), cells [{g, tip, cmd, notch, latched, inert, hot}], items [[text, {chev, dis, faint}]]. */
+  function pointMenu(s) {
+    const cells = s.cells.map(c => `<span class="cell${c.latched ? " latched" : ""}${c.inert ? " inert" : ""}${c.hot ? " hot" : ""}" title="${esc(c.tip)}" role="button" aria-label="${esc(c.tip)}"${c.cmd ? ` data-send="${esc(c.cmd)}"` : ""}${c.say ? ` data-say="${esc(c.say)}"` : ""}>${gl(c.g, 32)}${c.notch ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const items = (s.items || []).map(([t, o = {}]) => `<div class="mi plain${o.dis ? " dis" : ""}${o.faint ? " faint" : ""}${o.hot ? " hot" : ""}"><span>${esc(t)}</span><span></span><span class="chev">${o.chev ? "›" : ""}</span></div>`).join("");
+    return menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${s.label || ""}</div>${sep()}<div class="strip">${cells}</div>${sep()}${items}`, "", "Point menu");
+  }
+  const stubStage = s => `<div class="stage stub-stage">${pointMenu(s)}</div>`;
+  /* The insets are static <img> elements in #media (so the review copy embeds them), copied into place here. */
+  const scope = (mediaId, cap) => `<div class="scope">${document.getElementById(mediaId).outerHTML.replace(/ id="[^"]*"/, "")}<div class="sc-cap">${cap}</div></div>`;
+  const C = {
+    here: o => ({ g: "PIN", tip: "Taxi here", notch: true, ...o }),
+    ttr: (end, o) => ({ g: "TTR", tip: `Taxi to ${end}`, notch: true, ...o }),
+    push: o => ({ g: "PUSH", tip: "Push to E — PUSH $E", ...o }),
+    custom: o => ({ g: "DRAW", tip: "Custom taxi…", say: "Opens the “Taxi command” input popup (decision 6).", ...o }),
+  };
+
+  /* ---------- Tabs ---------- */
+  function tabbed(tabs, panels, sel, o = {}) {
+    const gid = uid("tg");
+    const bar = `<div class="tabs" role="tablist">${tabs.map(t => `<button type="button" class="tab${t.empty ? " empty" : ""}" role="tab" data-tab="${esc(t.k)}" aria-selected="${t.k === sel}">${esc(t.label)}${t.small ? `<small>${esc(t.small)}</small>` : ""}</button>`).join("")}</div>`;
+    const body = Object.entries(panels).map(([k, html]) => `<div class="panel${o.short ? " short" : ""}" data-panel="${esc(k)}"${k === sel ? "" : " hidden"}>${html}</div>`).join("");
+    return `<div data-tabgroup="${gid}">${bar}${body}</div>`;
+  }
+
+  /* ---------- Lane and artboard ---------- */
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Click a row, a tab or a strip button to see what it does."}</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>${a.side ? `<div class="side">${a.side}</div>` : ""}</div>
+      <div class="lanes${a.small ? " small" : ""}">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  /* ---------- 0. Today ---------- */
+  const RWY_TITLE = "UAL455 · A320 → runway 30";
+  const VW_TITLE = "UAL455 · A320 → V / W / W4";
+  const todayCascade = `<div class="cascade">
+    ${pointMenu({ title: RWY_TITLE, cells: [C.ttr("30", { latched: true }), C.ttr("12")], items: [["Taxi to 30", { chev: true, hot: true }], ["Taxi to 12", { chev: true }], ["Warp here", { faint: true }]] })}
+    <div style="margin-top:96px">${menu(TGT["30"].map(t => `<div class="mi plain${t.at === "W1" ? " hot" : ""}"><span>At ${t.at} (${t.why})</span><span></span><span class="chev">›</span></div>`).join(""), "", "Taxi to 30")}</div>
+    <div style="margin-top:160px">${menu(`<div class="mi plain hot"><span>Taxi TE U W W1</span><span></span><span class="chev">›</span></div>`, "", "At W1")}</div>
+    <div style="margin-top:160px">${menu(`<div class="mi plain" ${send("TAXI TE U W W1 30")}><span>For Departure 30</span><span></span><span class="cmd">TAXI TE U W W1 30</span></div>${sep()}<div class="mi plain" ${send("TAXI TE U W W1 HS 30")}><span>Hold short RWY 30</span><span></span><span class="cmd">TAXI TE U W W1 HS 30</span></div>`, "", "Taxi TE U W W1")}</div>
+  </div>`;
+  const d0 = {
+    id: "d0-today", title: "Today · four menus deep", sends: "TAXI TE U W W1 30 (after four hovers)",
+    intro: [
+      "A right-click on runway 30 near W2, UAL455 selected. The strip has one <b>Taxi to</b> button per end of the clicked runway (30, then 12), with the same glyph. Each opens <code>Taxi to 30</code> › the host's hold-short targets (<code>GetRunwayHoldShortTargets</code>: nearest, near the click, full length, merged when two agree, as <code>At W (nearest, full length)</code>) › the route (<code>GetTaxiChoices</code>, up to three, one per pathfinder preference) › its For Departure and Hold short variants. The strip flyout copies the same tree.",
+      "Taxi here builds the last two levels alone: one route with one variant is a leaf on the strip, anything more a submenu.",
+    ],
+    lanes: [
+      { kind: "a", name: "As built (MenuCatalog.BuildTaxiToRunwayEnds)", hint: "Click a variant row to see what it sends.",
+        body: frame("Point menu › <b>Taxi to 30</b> › <b>At W1 (full length)</b> › <b>Taxi TE U W W1</b>", todayCascade),
+        how: "Every level is a <code>MenuCommandChoice</code> rendered by <code>BuildChoice</code>; a route item previews its route on pointer entry and never clears it.",
+        worst: "Four hovers in a row with no slack: sliding diagonally from “At W1” to its route crosses “At W2” and swaps the whole cascade, and nothing on the scope says which target is which." },
+    ],
+  };
+
+  /* ---------- 1. Taxi here, several routes ---------- */
+  const VW_STUB = { title: VW_TITLE, cells: [C.here({ latched: true }), C.custom()], items: [["Taxi here", { chev: true }], ["Custom taxi…"], ["Warp here", { faint: true }]] };
+  const vwA = menu(VW.map((r, i) => twoRow("PIN", `Taxi ${r.via}`, r.cmd, { d: r.d, focus: i === 0 })).join(""), "w", "Taxi here");
+  const vwB = menu(VW.map((r, i) => glyphRow("PIN", `Taxi ${r.via}`, r.cmd, { d: r.d, focus: i === 0 })).join(""), "w", "Taxi here");
+  const ccA = menu(titleLine(`<b>Taxi ${esc(CC1.via)}</b> · crosses ${CC1.crosses}`, ft(CC1.d), "hi") + CC1.rows.map(([l, c], i) => twoRow("PIN", l, c, { focus: i === 0 })).join(""), "w", "Taxi here");
+  const ccB = menu(titleLine(`<b>Taxi ${esc(CC1.via)}</b> · crosses ${CC1.crosses}`, ft(CC1.d), "hi") + CC1.rows.map(([l, c], i) => glyphRow("PIN", l, c, { focus: i === 0 })).join(""), "w", "Taxi here");
+  const d1 = {
+    id: "d1-taxi-here", title: "1 · Taxi here with several routes: row style", sends: "TAXI TE T V #19 · TAXI TE U W #19 · TAXI TE T B W #19",
+    intro: [
+      "UAL455 at gate 25; right-click on the node where <b>V, W and W4</b> meet (node 19, <code>V / W / W4</code> in the title). The pathfinder answers up to three routes, one per preference (fewest turns, shortest, fastest), deduped; this node gets three. The node has no named terminus, so each command pins the stop with <code>#19</code> (<code>ClientMenuHost.RouteChoice</code>). Both lanes list the routes flat, nearest first, focus on the first row, with no title line: the flyout is the whole answer to “Taxi here”.",
+      "The second flyout in each lane is the other shape Taxi here answers: the node where <b>C meets C1</b> (node 356) on the north field, one route that crosses 28L and then 15, so it offers three crossing variants (<code>BuildTaxiCrossingVariants</code>), today a submenu under the route's item. Both lanes give the route a title line and its variants as rows.",
+    ],
+    side: stubStage(VW_STUB) + scope("m-routes", "The three routes on the KOAK layout, distances along the centrelines. The scope draws one at a time, dashed, for the row pointed at (decision 5)."),
+    lanes: [
+      { kind: "a", name: "Two-line rows, as Preset taxi route",
+        body: frame("Taxi here › <b>flyout</b> · V / W / W4 · three routes", vwA)
+          + frame("Taxi here › <b>flyout</b> · C / C1 · one route, three crossing variants", ccA),
+        how: "Each route is a two-line row: the label (“Taxi TE T V”) in semibold over the whole command in the monospace font, never trimmed, and the distance at the right, the shape of Preset taxi route and of Taxi to runway's variants. A route with crossings is a title line (route, what it crosses, distance) over its variants as two-line rows.",
+        worst: "Three routes take six lines where the taxiway list already says everything; the label and the command repeat the same taxiways (“Taxi TE T V” over <code>TAXI TE T V #19</code>), so the eye reads each route twice." },
+      { kind: "b", name: "Glyph rows, one line each",
+        body: frame("Taxi here › <b>flyout</b> · V / W / W4 · three routes", vwB)
+          + frame("Taxi here › <b>flyout</b> · C / C1 · one route, three crossing variants", ccB),
+        how: "Each route is one glyph row: the pin glyph, the label with its distance as a note, and the command at the right in the monospace font at 70%, trimmed at 180 px with the whole row in the tooltip, as <code>MenuGlyphRow</code> draws the other one-line flyouts.",
+        worst: "A long route's command is cut: <code>TAXI TE T S B A C #356 HS 15, CROSS 28L</code> shows as its first 180 px, so the two crossing variants that differ only at the end (<code>HS 15, CROSS 28L</code> vs <code>, CROSS 28L, CROSS 15</code>) read the same until hovered." },
+    ],
+  };
+
+  /* ---------- 1b. Taxi here, one route ---------- */
+  const W1_TITLE = "UAL455 · A320 → W / W1 / W2";
+  const d1b = {
+    id: "d1b-one-route", title: "1b · Taxi here with one route: send at once, or a one-row flyout", sends: "TAXI TE U W #16",
+    intro: [
+      "Same aircraft; right-click on the node where <b>W, W1 and W2</b> meet (node 16). All three pathfinder preferences agree, so there is one route, <code>TAXI TE U W #16</code>, ~3,850 ft, with no crossing. Today the strip button is a leaf (<code>BuildChoice</code>): one click sends it. A route with crossings, or several routes, always opens the flyout (decision 1).",
+    ],
+    small: true,
+    lanes: [
+      { kind: "a", name: "The button sends at once",
+        body: frame("Point menu · <b>W / W1 / W2</b> · the Taxi here button is a leaf",
+            pointMenu({ title: W1_TITLE, label: "Taxi here — <code>TAXI TE U W #16</code>", cells: [{ g: "PIN", tip: "Taxi here — TAXI TE U W #16", cmd: "TAXI TE U W #16", hot: true }, C.custom()], items: [["Taxi TE U W"], ["Custom taxi…"], ["Warp here", { faint: true }]] }),
+            note("<b>Leaf:</b> no notch; pointing at it puts the command in the label line, a click sends it and closes the menu.")),
+        how: "As today: with one route and one variant the button carries the command, shown in the label line while pointed at, and sends it on click. The text row reads the route (“Taxi TE U W”) and sends it too.",
+        worst: "The same button sends at once at one node and opens a flyout at the next; an instructor who clicks expecting the flyout has already sent the taxi, and only the missing notch warned." },
+      { kind: "b", name: "The button always opens the flyout",
+        body: frame("Point menu · <b>W / W1 / W2</b> · the button opens the flyout",
+            `<div class="pair">${pointMenu({ title: W1_TITLE, cells: [C.here({ latched: true }), C.custom()], items: [["Taxi here", { chev: true }], ["Custom taxi…"], ["Warp here", { faint: true }]] })}${menu(twoRow("PIN", "Taxi TE U W", "TAXI TE U W #16", { d: 3850, focus: true }), "w", "Taxi here")}</div>`),
+        how: "Taxi here always opens its flyout, here with one row, focused, so Enter or a second click sends it. The button looks and behaves the same at every node.",
+        worst: "The most common case, a node with one sensible route, costs two clicks where today it costs one." },
+    ],
+  };
+
+  /* ---------- 2. Taxi to runway from a clicked point ---------- */
+  const targetTabs = end => TGT[end].map(t => ({ k: `${end}-${t.at}`, label: t.at, small: t.why }));
+  function routeBlock(t, r, end, focusFirst, withTarget) {
+    const head = withTarget
+      ? `<span class="bdg">RW</span><b>At ${esc(t.at)}</b> · ${esc(t.why)} · via ${esc(r.via)}`
+      : `<b>via ${esc(r.via)}</b>`;
+    return titleLine(head, ft(r.d), withTarget && r === t.routes[0] ? "hi" : "")
+      + variants(r.via, end).map((v, i) => (v ? twoRow("TTR", v[0], v[1], { focus: focusFirst && i === 0 }) : sep())).join("");
+  }
+  const perTarget = (end, t, first) => t.routes.map((r, i) => routeBlock(t, r, end, first && i === 0, false)).join("");
+  const laneAFly = end => menu(tabbed(targetTabs(end), Object.fromEntries(TGT[end].map((t, i) => [`${end}-${t.at}`, perTarget(end, t, i === 0)])), `${end}-${TGT[end][0].at}`), "w", `Taxi to ${end}`);
+  const endPanel = (end, focus) => TGT[end].map((t, ti) => t.routes.map((r, ri) => routeBlock(t, r, end, focus && ti === 0 && ri === 0, true)).join("")).join("");
+  const laneBFly = sel => menu(tabbed([{ k: "30", label: "30" }, { k: "12", label: "12" }], { "30": endPanel("30", sel === "30"), "12": endPanel("12", sel === "12") }, sel), "w", "Taxi to runway");
+  function stickyList(end, scrollId) {
+    const body = TGT[end].map((t, ti) => titleLine(`<span class="bdg">RW</span><b>At ${esc(t.at)}</b> · ${esc(t.why)}`, "", "stick hi")
+      + t.routes.map((r, ri) => titleLine(`via ${esc(r.via)}`, ft(r.d)) + variants(r.via, end).map((v, i) => (v ? twoRow("TTR", v[0], v[1], { focus: !scrollId && ti === 0 && ri === 0 && i === 0 }) : sep())).join("")).join("")).join("");
+    return menu(`<div class="panel short"${scrollId ? ` data-scrollto="${scrollId}"` : ""}>${body}</div>`, "w", `Taxi to ${end}`);
+  }
+  const RWY_ITEMS = [["Taxi to 30", { chev: true }], ["Taxi to 12", { chev: true }], ["Warp here", { faint: true }]];
+  const d2 = {
+    id: "d2-taxi-to-runway", title: "2 · Taxi to runway from a clicked runway: how the targets and ends are laid out", sends: "TAXI <via> 30 · TAXI <via> HS 30 · TAXI <via> 12 · TAXI <via> HS 12",
+    intro: [
+      "UAL455 at gate 25; right-click on runway 30 about 1,000 ft from its threshold, near W2. The host's hold-short targets (<code>GetRunwayHoldShortTargets</code>): for <b>30</b>, W3 (nearest), W2 (near click), W1 (full length); for <b>12</b>, W3 (nearest, the same node for either end), W2 (near click), W7 (full length). Each target's routes come from <code>GetTaxiChoices</code> (W7 has two), each with For Departure and Hold short variants (<code>BuildTaxiDestVariants</code>). The flyout is built once per right-click (<code>PointMenuHostCache</code>), so nothing refills or reorders while it is open.",
+      "Rows are the two-line rows of the built Taxi to runway flyout (label over the whole command), so decision 1's row style does not change this one.",
+    ],
+    side: scope("m-targets", "Runway 30/12 at KOAK: the click (crosshair), and the targets the host names. W1 and W7 are the full-length bars, 38 ft from the 30 and 12 thresholds."),
+    lanes: [
+      { kind: "a", name: "One button per end, a tab per hold-short target",
+        body: frame("Point menu · <b>runway 30</b> · two Taxi to buttons", pointMenu({ title: RWY_TITLE, label: "Taxi to 30", cells: [C.ttr("30", { latched: true }), C.ttr("12")], items: RWY_ITEMS }))
+          + frame("Taxi to 30 › <b>flyout</b> · W3 tab", laneAFly("30"))
+          + frame("Taxi to 12 › <b>flyout</b> · W7 tab chosen (two routes)", menu(tabbed(targetTabs("12"), Object.fromEntries(TGT["12"].map(t => [`12-${t.at}`, perTarget("12", t, t.at === "W7")])), "12-W7"), "w", "Taxi to 12")),
+        how: "The strip keeps today's one button per end. Each opens a flyout whose tabs are the end's targets in the host's order (nearest, near click, full length; a merged target is one tab, <code>W (nearest, full length)</code>); the chosen target's routes are title lines (via, distance) over their variants.",
+        worst: "The two buttons share one glyph: 30 and 12 differ only in the label line while pointed at, so a quick click on the wrong one opens 12's flyout and a focused Enter sends <code>TAXI TE U W3 12</code>, a departure the opposite way." },
+      { kind: "b", name: "One button, a tab per runway end",
+        body: frame("Point menu · <b>runway 30</b> · one Taxi to runway button", pointMenu({ title: RWY_TITLE, label: "Taxi to runway", cells: [{ g: "TTR", tip: "Taxi to runway", notch: true, latched: true }], items: [["Taxi to runway", { chev: true }], ["Warp here", { faint: true }]] }))
+          + frame("Taxi to runway › <b>flyout</b> · 30 tab", laneBFly("30")),
+        how: "One button, as the aircraft menu's Taxi to runway (X2b): a tab per end of the clicked runway in the runway's order, and under it every target and route as a title line (RW badge, target, reason, via, distance; the target's first route bold) over its variants. Try the 12 tab.",
+        worst: "Every target's every route shows at once: 12 lists four title lines and eight rows, so the full-length W7 with two routes sits below the fold of the 420 px panel." },
+      { kind: "c", name: "One button per end, one list with sticky target titles",
+        body: frame("Taxi to 30 › <b>flyout</b> · opened", stickyList("30", ""))
+          + frame("Taxi to 30 › <b>flyout</b> · scrolled to W2: its title stays pinned", stickyList("30", "W2")),
+        how: "As A, one button per end, but no tabs: the end's targets follow each other in one scrolling list, each under a target title (RW badge, target, reason) that sticks to the top while its routes scroll under it.",
+        worst: "Everything is reachable only by scrolling a 250 px window: the full-length W1, often the one wanted, is the last block, and while scrolling, the pinned title changes under the pointer just as a row slides beneath it." },
+    ],
+  };
+
+  /* ---------- 3. A target with no route ---------- */
+  const NO_ROUTE = "No route found";
+  const t12 = TGT["12"];
+  const tabsDim = menu(tabbed(t12.map(t => ({ k: `x-${t.at}`, label: t.at, small: t.at === "W2" ? "none" : t.why, empty: t.at === "W2" })),
+    Object.fromEntries(t12.map(t => [`x-${t.at}`, t.at === "W2" ? disabledRow(NO_ROUTE) : perTarget("12", t, false)])), "x-W2"), "w", "Taxi to 12");
+  const tabsOmit = menu(tabbed(t12.filter(t => t.at !== "W2").map(t => ({ k: `y-${t.at}`, label: t.at, small: t.why })),
+    Object.fromEntries(t12.filter(t => t.at !== "W2").map(t => [`y-${t.at}`, perTarget("12", t, t.at === "W3")])), "y-W3"), "w", "Taxi to 12");
+  const listDim = menu(`<div class="panel short">${t12.map(t => (t.at === "W2"
+    ? titleLine(`<span class="bdg">RW</span><b>At W2</b> · near click`, "", "dim") + disabledRow(NO_ROUTE)
+    : t.routes.map(r => routeBlock(t, r, "12", false, true)).join(""))).join("")}</div>`, "w", "Taxi to runway, 12");
+  const listOmit = menu(`<div class="panel short">${t12.filter(t => t.at !== "W2").map(t => t.routes.map(r => routeBlock(t, r, "12", false, true)).join("")).join("")}</div>`, "w", "Taxi to runway, 12");
+  const d3 = {
+    id: "d3-no-route", title: "3 · A hold-short target with no route: dimmed or left out", sends: "nothing for that target",
+    intro: [
+      "Same click on runway 30, end 12, drawn as if the pathfinder found no route to the <b>W2</b> bar (illustrative: from gate 25 it finds one). The map read today's code as leaving such a target out; <code>BuildTaxiToRunwayEnd</code> drops a target only when <code>GetTaxiChoices</code> answers nothing, and it answers a disabled “No route found” choice when the pathfinder finds no route, so today the target's submenu opens onto that one disabled row.",
+      "Each lane is drawn in two layouts from decision 2: lane A's tab per target, and lane B's title lines.",
+    ],
+    small: true,
+    lanes: [
+      { kind: "a", name: "Dimmed, with “No route found”",
+        body: frame("Decision 2 lane A · <b>Taxi to 12</b> · the W2 tab chosen", tabsDim)
+          + frame("Decision 2 lane B · <b>12 tab</b>", listDim),
+        how: "A target the host names but cannot route to keeps its place: a dimmed tab reading “none” (the built <code>FlyoutTabState.Empty</code> look) whose panel shows a disabled “No route found”, or a dimmed title line over that row. The keyboard skips both.",
+        worst: "A dead tab or block takes space on every open, and the near-click target, the one the click asked for, can be the dead one." },
+      { kind: "b", name: "Left out",
+        body: frame("Decision 2 lane A · <b>Taxi to 12</b> · W2 has no tab", tabsOmit)
+          + frame("Decision 2 lane B · <b>12 tab</b>", listOmit),
+        how: "Only targets with a route are shown; an end whose targets all fail gets no button (lane A) or a dimmed “none” tab (lane B), as Taxi to runway's empty ends do.",
+        worst: "The instructor clicked near W2 and the flyout has no W2: nothing says it was tried and failed rather than not offered, so a second right-click a little closer is the natural, useless next move." },
+    ],
+  };
+
+  /* ---------- 4. Push to ---------- */
+  const SPOT_TITLE = "UAL455 · A320 → spot E";
+  const spotItems = [["Taxi to E TE"], ["Push to E"], ["Custom taxi…"], ["Warp here", { faint: true }]];
+  const hereE = { g: "PIN", tip: "Taxi here — TAXI TE $E", cmd: "TAXI TE $E" };
+  const pushRow = (badge, name, d, cmd, o = {}) => `<div class="mi${o.focus ? " kfocus" : ""}" role="menuitem" ${send(cmd)}><span class="pb ${badge}">${badge}</span><span class="nm"><span class="n sb">${esc(name)}</span>${o.note ? `<span class="note">· ${esc(o.note)}</span>` : ""}</span><span class="dist">${ft(d)}</span><span class="cmd">${esc(cmd)}</span></div>`;
+  const d4 = {
+    id: "d4-push-to", title: "4 · Push to: a plain button, a flyout showing the command, or the Push back to flyout", sends: "PUSH $E",
+    intro: [
+      "UAL455 still at gate 25, not yet pushed; right-click on taxi spot <b>E</b>, about 1,000 ft from the gate (straight line). Push to is offered at a named spot or stand the tug can reach (<code>BuildPointPushTo</code>, <code>CanTugReach</code>) and sends one command, <code>PUSH $E</code> (<code>PUSH @25</code> at a stand). It has nothing to choose, so the owner rule does not force a flyout; the question is whether it should still look like one.",
+      "Today Push to's strip glyph is Push back's (the arrow down to a line); the aircraft menu's Push back to… has its own glyph (the arrow down to a ring).",
+    ],
+    lanes: [
+      { kind: "a", name: "A plain button that sends",
+        body: frame("Point menu · <b>spot E</b> · Push to is a leaf",
+          pointMenu({ title: SPOT_TITLE, label: "Push to E — <code>PUSH $E</code>", cells: [hereE, { g: "PUSH", tip: "Push to E — PUSH $E", cmd: "PUSH $E", hot: true }, C.custom()], items: spotItems }),
+          note("<b>Leaf:</b> no notch; the label line names the command while it is pointed at.")),
+        how: "As today: no notch, the label line shows <code>Push to E — PUSH $E</code> while pointed at, one click sends it and closes the menu.",
+        worst: "One click commits a tug move with no second look; a slip from the Taxi here button beside it sends a push instead of a taxi." },
+      { kind: "b", name: "A one-row flyout showing the command",
+        body: frame("Point menu · <b>spot E</b> › <b>Push to flyout</b>",
+          `<div class="pair">${pointMenu({ title: SPOT_TITLE, cells: [hereE, { g: "PUSH", tip: "Push to E", notch: true, latched: true }, C.custom()], items: spotItems })}${menu(pushRow("S", "Spot E", 1000, "PUSH $E", { focus: true }), "w", "Push to")}</div>`),
+        how: "Push to opens a flyout with one Push back to–style row for the clicked spot (badge, name, distance, command), focused, so Enter or a click sends it. It reads like every other notched button.",
+        worst: "Two clicks for a command with no alternative, and the flyout shows nothing the label line did not; the facings Push back to offers as chips are not here." },
+      { kind: "c", name: "The Push back to flyout, the clicked spot focused",
+        body: frame("Point menu · <b>spot E</b> › <b>Push back to flyout</b>",
+          `<div class="pair">${pointMenu({ title: SPOT_TITLE, cells: [hereE, { g: "PUSHTO", tip: "Push back to", notch: true, latched: true }, C.custom()], items: [["Taxi to E TE"], ["Push back to…", { chev: true }], ["Custom taxi…"], ["Warp here", { faint: true }]] })}${menu(`<div class="grp">Behind the aircraft</div>${pushRow("TW", "TE", 250, "PUSH TE")}${sep()}<div class="grp">Taxi spots</div>${pushRow("S", "E", 1000, "PUSH $E", { focus: true, note: "clicked" })}${pushRow("S", "C", 1100, "PUSH $C")}`, "w", "Push back to")}</div>`),
+        how: "The point strip's Push to becomes the aircraft menu's Push back to (its glyph, <code>PushbackToMenu.Build</code>), opened with the clicked spot's row focused and marked; every other target and its facing chips are a row away.",
+        worst: "The click on spot E stops being a choice: E is one row among the push targets, and a stand click (<code>PUSH @25</code>) has no row there at all, since Push back to lists taxilanes, taxiways and spots, not stands." },
+    ],
+  };
+
+  /* ---------- 6. Custom taxi ---------- */
+  const d6 = {
+    id: "d6-custom", title: "6 · Custom taxi…: its own input popup, or a box in the Taxi here flyout", sends: "the typed TAXI command",
+    intro: [
+      "Same click on <b>V / W / W4</b>. Custom taxi… opens the host's input popup, placeholder “Taxi command”, seeded by <code>GetCustomTaxiSeed</code>: at a node that is not a stand, spot or hold short, <code>TAXI&nbsp;&nbsp;V</code> (the node's first taxiway) with the caret between the two spaces. The index note recommends lane A.",
+    ],
+    small: true,
+    lanes: [
+      { kind: "a", name: "Its own button and input popup (today)",
+        body: frame("Point menu · <b>Custom taxi…</b> pointed at", pointMenu({ title: VW_TITLE, label: "Custom taxi…", cells: [C.here(), C.custom({ hot: true })], items: [["Taxi here", { chev: true }], ["Custom taxi…"], ["Warp here", { faint: true }]] }))
+          + frame("After the click · <b>the popup</b>, the menu closed", `<div class="popup m"><input class="tbox focus" type="text" value="TAXI  V" data-popup="1" aria-label="Taxi command" placeholder="Taxi command" style="width:220px" autocomplete="off" spellcheck="false"></div>`, note("<b>Try it:</b> edit the text and press Enter.", true)),
+        how: "Unchanged: a click closes the menu and opens the popup; Enter sends the trimmed text, an empty box closes it (<code>BlankInput.Closes</code>). It is a popup, not a submenu, so the owner rule already holds.",
+        worst: "Typing a taxi starts a new surface away from the routes the instructor was just looking at; nothing carries over from a route they meant to edit." },
+      { kind: "b", name: "A box at the foot of the Taxi here flyout",
+        body: frame("Taxi here › <b>flyout</b> with a Taxi command box", menu(VW.map(r => twoRow("PIN", `Taxi ${r.via}`, r.cmd, { d: r.d })).join("") + sep()
+          + `<div class="mi" role="menuitem" data-send="" data-boxrow="1" style="grid-template-columns:auto minmax(0,1fr)">${gl("DRAW")}<span class="nm col"><span class="n">Taxi command</span><span class="under"><input class="tbox" type="text" value="TAXI  V" data-box="1" aria-label="Taxi command" style="width:280px" autocomplete="off" spellcheck="false"></span></span></div>`, "w", "Taxi here"))
+          + note("<b>The strip loses its Custom taxi button;</b> the box is the flyout's last row, as Exit's and the approach flyout's boxes are."),
+        how: "The flyout's last row is a box seeded like the popup; Enter in it sends the text. The strip keeps only Taxi here.",
+        worst: "At a node with no route there is no Taxi here flyout (decision 8), so the box is unreachable exactly when a hand-typed taxi is the only way; Custom taxi would need its own button back for that case." },
+    ],
+  };
+
+  /* ---------- 8. No route found ---------- */
+  const NR_TITLE = "UAL455 · A320 → C / G";
+  const d8 = {
+    id: "d8-no-route-found", title: "8 · “No route found”: a text row, or a faded strip button that names the reason", sends: "nothing",
+    intro: [
+      "Right-click on the node where <b>C and G</b> meet on the north field, drawn as if the pathfinder found no route there for UAL455 (illustrative). <code>GetTaxiChoices</code> answers one disabled “No route found” choice; <code>AddPointStrip</code> gives a disabled item no button, so today only the text row says it (<code>AircraftMenuBuilder.cs:259</code>). The Follow ruling (2C) instead keeps a faded, inert button whose label line names the reason (<code>QuickCommandStrip.MarkInert</code>).",
+    ],
+    small: true,
+    lanes: [
+      { kind: "a", name: "A text row, no button (today)",
+        body: frame("Point menu · <b>C / G</b> · no Taxi here button", pointMenu({ title: NR_TITLE, cells: [C.custom()], items: [["No route found", { dis: true }], ["Custom taxi…"], ["Warp here", { faint: true }]] })),
+        how: "The strip has only Custom taxi; the disabled “No route found” row stands where Taxi here would be in the text items.",
+        worst: "The strip changes shape: the button the instructor reaches for is gone and Custom taxi sits where Taxi here usually is, so a muscle-memory click opens the input popup." },
+      { kind: "b", name: "A faded button; the label line names the reason",
+        body: frame("Point menu · <b>C / G</b> · the faded Taxi here button pointed at", pointMenu({ title: NR_TITLE, label: "Taxi here · no route found", cells: [C.here({ inert: true, hot: true, notch: false, say: "Inert: sends nothing and opens nothing; the label line says why." }), C.custom()], items: [["Taxi here · no route found", { dis: true }], ["Custom taxi…"], ["Warp here", { faint: true }]] })),
+        how: "As Follow with no other ground aircraft: the Taxi here button stays in place, faded and inert, and pointing at it puts “Taxi here · no route found” in the label line; the text row reads the same, disabled, with the reason beside the label (<code>MenuDisabledReasonRow</code>).",
+        worst: "A faded button looks clickable enough to try; it does nothing, and the reason shows only on hover, not on the click." },
+    ],
+  };
+
+  const ARTS = [d0, d1, d1b, d2, d3, d4, d6, d8];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title.split(":")[0])}</a>`).join("");
+  document.querySelectorAll("[data-scrollto]").forEach(p => {
+    const titles = [...p.querySelectorAll(".mi.title.stick")];
+    const t = titles.find(x => x.textContent.includes(`At ${p.getAttribute("data-scrollto")}`));
+    /* Scroll past the target's title and its route line, so the pinned title sits over the route line and the first row shows whole. */
+    const via = t && t.nextElementSibling;
+    if (via) p.scrollTop = via.offsetTop + via.offsetHeight - t.offsetHeight;
+  });
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    if (!cmd) {
+      const box = el.querySelector("[data-box]");
+      if (box) { say(el, `Enter in the box sends <code>${esc(box.value.trim())}</code>.`); return; }
+      say(el, "Sends nothing.");
+      return;
+    }
+    say(el, `Sends <code>${esc(cmd)}</code> and closes the ${el.classList.contains("cell") ? "menu" : "flyout and the menu"}.`);
+  }
+  function selectTab(btn) {
+    const group = btn.closest("[data-tabgroup]");
+    const key = btn.getAttribute("data-tab");
+    group.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === btn)));
+    group.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.getAttribute("data-panel") !== key; });
+    say(btn, `Shows ${esc(btn.textContent)}; sends nothing and clears the route preview.`);
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { selectTab(tab); return; }
+    const cell = e.target.closest(".cell");
+    if (cell) {
+      if (cell.hasAttribute("data-send")) { sendFrom(cell); return; }
+      say(cell, cell.getAttribute("data-say") || "Opens its flyout (drawn beside or below).");
+      return;
+    }
+    const s = e.target.closest("[data-send]");
+    if (s) sendFrom(s);
+  });
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (e.key !== "Enter") return;
+    if (t.matches("[data-popup], [data-box]")) { say(t, `Sends <code>${esc(t.value.trim())}</code> and closes the ${t.matches("[data-box]") ? "flyout and the menu" : "popup"}.`); return; }
+    if (t.matches("[data-send]")) { e.preventDefault(); sendFrom(t); }
+  });
+})();
+</script>
+</body>
+</html>
