@@ -108,7 +108,7 @@ public sealed class NavigationDatabase
 
     private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
 
-    private static NavigationDatabase? _defaultInstance;
+    private static readonly DefaultSlot _default = new();
     private static readonly AsyncLocal<NavigationDatabase?> _scopedInstance = new();
     private static readonly AsyncLocal<TestHolder?> _testHolder = new();
 
@@ -117,17 +117,19 @@ public sealed class NavigationDatabase
 
     /// <summary>
     /// Global singleton instance. Returns the async-local scoped override if set, else the per-test
-    /// holder's instance if one is open and filled, else the process-wide default. Throws if none is set.
+    /// holder's instance if one is open and filled, else the process-wide default, loading it through the
+    /// loader registered by <see cref="SetTestDefaultLoader"/> when none is installed. Throws if none is set.
     /// </summary>
     public static NavigationDatabase Instance =>
         InstanceOrNull ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
 
     /// <summary>
     /// The global instance if initialized (scoped override, else per-test holder, else process-wide
-    /// default), or <c>null</c> if none is set. Use when a lookup is best-effort and the caller has a
-    /// fallback — never throws, unlike <see cref="Instance"/>.
+    /// default, loaded through a registered test loader when none is installed), or <c>null</c> if none is
+    /// set. Use when a lookup is best-effort and the caller has a fallback — never throws, unlike <see cref="Instance"/>.
     /// </summary>
-    public static NavigationDatabase? InstanceOrNull => _scopedInstance.Value ?? (_holdersInUse ? _testHolder.Value?.Db : null) ?? _defaultInstance;
+    public static NavigationDatabase? InstanceOrNull =>
+        _scopedInstance.Value ?? (_holdersInUse ? _testHolder.Value?.Db : null) ?? _default.GetOrLoad();
 
     /// <summary>
     /// Initializes the global singleton with NavData + CIFP. Both are required.
@@ -139,12 +141,55 @@ public sealed class NavigationDatabase
         string cifpFilePath,
         string? artccsBaseDir = null,
         IReadOnlyList<string>? supplementaryCifpFilePaths = null
-    ) => _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePaths);
+    ) => _default.Set(new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePaths));
 
     /// <summary>
     /// Sets the process-wide default instance (for production and test initialization).
     /// </summary>
-    public static void SetInstance(NavigationDatabase db) => _defaultInstance = db;
+    public static void SetInstance(NavigationDatabase db) => _default.Set(db);
+
+    /// <summary>
+    /// Registers a loader for a test assembly, run once on the first read that finds no scoped override, no
+    /// filled per-test holder and no installed default; its result becomes the process-wide default, so a
+    /// later <see cref="SetInstance"/> still replaces it. With no loader registered, an empty read is unchanged.
+    /// </summary>
+    /// <param name="loader">Builds the navigation database the test assembly reads by default.</param>
+    public static void SetTestDefaultLoader(Func<NavigationDatabase> loader) => _default.SetLoader(loader);
+
+    /// <summary>
+    /// The process-wide default: an installed instance, else the result of the registered loader, which runs at
+    /// most once however many threads read at the same moment.
+    /// </summary>
+    internal sealed class DefaultSlot
+    {
+        private NavigationDatabase? _installed;
+        private Lazy<NavigationDatabase>? _loaded;
+
+        public void Set(NavigationDatabase db) => Volatile.Write(ref _installed, db);
+
+        public void SetLoader(Func<NavigationDatabase> loader) =>
+            Volatile.Write(ref _loaded, new Lazy<NavigationDatabase>(loader, LazyThreadSafetyMode.ExecutionAndPublication));
+
+        /// <summary>The installed instance, else the loader's result (installed as the default), else <c>null</c>.</summary>
+        public NavigationDatabase? GetOrLoad()
+        {
+            NavigationDatabase? installed = Volatile.Read(ref _installed);
+            if (installed is not null)
+            {
+                return installed;
+            }
+
+            Lazy<NavigationDatabase>? loaded = Volatile.Read(ref _loaded);
+            if (loaded is null)
+            {
+                return null;
+            }
+
+            // An instance installed while the loader ran wins, as it would had it been set a moment later.
+            NavigationDatabase db = loaded.Value;
+            return Interlocked.CompareExchange(ref _installed, db, null) ?? db;
+        }
+    }
 
     /// <summary>
     /// Sets an async-local override visible only to the current async execution context, taking

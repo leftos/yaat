@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
@@ -9,7 +10,8 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// Runs once per test assembly load. Ensures current AIRAC CIFP is resolved (cache hit
-/// or single FAA download) before any test method touches <see cref="TestVnasData.NavigationDb"/>.
+/// or single FAA download) before any test method touches <see cref="TestVnasData.NavigationDb"/>, and registers the
+/// real navigation database as the default <see cref="NavigationDatabase.Instance"/> loads on its first read when none is installed.
 /// </summary>
 internal static class ModuleInit
 {
@@ -64,7 +66,14 @@ internal static class ModuleInit
             navOptions = navOptions with { AllowDownload = true };
         }
 
-        RequireNavData(NavDataPathResolver.EnsureCurrent(navOptions));
+        string navDataPath = RequireNavData(NavDataPathResolver.EnsureCurrent(navOptions));
+
+        // A class that reads NavigationDatabase.Instance without installing one gets the real database on its
+        // first read, rather than only when an earlier class happened to call TestVnasData.EnsureInitialized().
+        NavigationDatabase.SetTestDefaultLoader(() =>
+            Yaat.Sim.Testing.TestVnasData.LoadRealDataWithoutInstalling()
+            ?? throw new InvalidOperationException($"The real navigation database could not be loaded from the resolved NavData at {navDataPath}.")
+        );
 
         // Warm the lazily-loaded static databases off the test threads, as the server does at
         // startup (ServerApp): otherwise the first test to tick physics pays the airspace GeoJSON

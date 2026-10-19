@@ -38,18 +38,18 @@ CIFP column-offset details belong to the CIFP-reference section of `CLAUDE.md` a
 
 | Member | What it does |
 |---|---|
-| `Initialize(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` | Constructs the instance and stores it as the **process-wide default** (`_defaultInstance`). |
+| `Initialize(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePaths?)` | Constructs the instance and stores it as the **process-wide default** (`DefaultSlot`). |
 | `SetInstance(db)` | Replaces the process-wide default directly (used by tests and re-init). |
+| `SetTestDefaultLoader(loader)` | Registers a test assembly's loader, run at most once (`Lazy`, `ExecutionAndPublication`) on the first read that finds no override, no filled holder and no installed default; its result becomes the default, so a later `SetInstance` still replaces it. Only Yaat.Sim.Tests registers one (`ModuleInit`, the real navdata). |
 | `ScopedOverride(db)` → `IDisposable` | Sets a **thread-local (`AsyncLocal`) override** visible only to the current async context; disposing restores the override it replaced (so scopes nest), falling back to the default when there was none. |
 | `OpenTestHolder()` → `IDisposable` | Opens an empty **per-test holder** (`AsyncLocal` reference) in the current async context; a test framework hook calls it before each test. |
 | `SetTestInstance(db)` | Places `db` in the open per-test holder. **Throws** `InvalidOperationException` when no holder is open in this execution context. |
 | `ForTesting(...)` | Builds a hand-seeded instance (no NavData/CIFP file load) for unit tests. Private parameterless ctor, public static factory. |
 
-Resolution order, in `NavigationDatabase.cs:62` / `:72`:
+Resolution order, in `NavigationDatabase.cs` `Instance` / `InstanceOrNull`:
 
-- `Instance` → `InstanceOrNull ?? throw`; `InstanceOrNull` → scoped override → per-test holder's instance (when one is open and filled) → process-wide default. **Throws** `InvalidOperationException` if none is set.
-- `InstanceOrNull` → `_scopedInstance.Value ?? _defaultInstance`. Returns `null` instead of throwing — use it when the lookup is
-  best-effort and the caller has a fallback.
+- `Instance` → `InstanceOrNull ?? throw`; `InstanceOrNull` → scoped override → per-test holder's instance (when one is open and filled) → process-wide default → the registered test loader's result, when one is registered. **Throws** `InvalidOperationException` if none is set.
+- `InstanceOrNull` resolves in the same order, loader included, so a null check and an `Instance` read agree. Returns `null` instead of throwing — use it when the lookup is best-effort and the caller has a fallback.
 
 Picking the wrong accessor either crashes a best-effort lookup or silently no-ops a required one. `Instance` is the right call
 when the sim genuinely cannot proceed without nav data; `InstanceOrNull` is for UI/speech paths that degrade gracefully.

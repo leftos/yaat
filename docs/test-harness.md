@@ -175,6 +175,8 @@ test that ran *after* such a parser test would silently inherit the synthetic DB
 class that asks for it. (For per-test scoping that does not stomp the global, `NavigationDatabase` also offers an `AsyncLocal` scoped
 override — see `NavigationDatabase.Instance` / `InstanceOrNull` — but `EnsureInitialized` deliberately targets the process-wide default.)
 
+A Yaat.Sim.Tests class that never calls `EnsureInitialized()` still reads the real database: `ModuleInit` registers `NavigationDatabase.SetTestDefaultLoader` over `TestVnasData.LoadRealDataWithoutInstalling()`, so the first read that finds no default installed loads it and installs it as the default.
+
 ### Per-test navigation database (yaat-server tests)
 
 yaat-server's test collections run in parallel, so no test sets the process-wide navigation database. An assembly-level xunit hook (`Harness/NavigationDatabaseTestHolderAttribute.cs`) calls `NavigationDatabase.OpenTestHolder()` before every test and closes it after; its static constructor sets an empty `ForTesting()` default when none exists, so a test that never builds a harness still finds one.
