@@ -10,7 +10,7 @@
     },
     "build-before-launch": {
       "repo": "270bb079882fa82f",
-      "user": "70a4e55758c28ceb"
+      "user": "b379c34bac572167"
     },
     "cancel-timed-out-requests": {
       "repo": "c853de094de39503",
@@ -98,7 +98,7 @@
     },
     "name-out-of-reach-ui": {
       "repo": "9b934773f9e024fa",
-      "user": "76eac69226b9a50c"
+      "user": "e01672b5229d4d44"
     },
     "never-block-main-thread": {
       "repo": "df6c393a93be9a85",
@@ -146,7 +146,7 @@
     },
     "quiet-by-default": {
       "repo": "ebcf8cb4c6506449",
-      "user": "6bab3db9ab0a37c1"
+      "user": "6f85f9f72b58cf63"
     },
     "real-app-over-frontend-only": {
       "repo": "f403032e1736ece0",
@@ -190,7 +190,7 @@
     },
     "semantic-click-first": {
       "repo": "81f2fa0b60e281fc",
-      "user": "cd6f779570bf6c70"
+      "user": "08c21b44dbbdf1ea"
     },
     "shared-wire-types": {
       "repo": "9bd19d213c870c75",
@@ -237,5 +237,5 @@
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 6
+  "user_revision": 8
 }
