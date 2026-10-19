@@ -95,7 +95,7 @@ public sealed partial class SimulationEngine
 
     private static void NormalizeSyntheticAircraftSpawn(AircraftState state)
     {
-        string baseType = AircraftState.StripTypePrefix(state.AircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(state.AircraftType);
         if (!AircraftSiblingMap.TryResolve(baseType, out string? sibling))
         {
             return;

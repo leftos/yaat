@@ -97,7 +97,7 @@ public static class AircraftProfileDatabase
             return false;
         }
 
-        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
         return _overriddenFields.TryGetValue(baseType, out IReadOnlySet<string>? set) && set.Contains(fieldName);
     }
 
@@ -126,7 +126,7 @@ public static class AircraftProfileDatabase
             return null;
         }
 
-        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
         if (_lookup.TryGetValue(baseType, out AircraftProfile? profile))
         {
             return profile;

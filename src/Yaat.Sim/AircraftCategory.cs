@@ -31,7 +31,7 @@ public static class AircraftCategorization
 
     public static AircraftCategory Categorize(string aircraftType)
     {
-        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
 
         if (_lookup.TryGetValue(baseType, out AircraftCategory cat))
         {
@@ -54,7 +54,7 @@ public static class AircraftCategorization
     /// </summary>
     public static bool IsKnownType(string aircraftType)
     {
-        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
         if (_lookup.ContainsKey(baseType))
         {
             return true;

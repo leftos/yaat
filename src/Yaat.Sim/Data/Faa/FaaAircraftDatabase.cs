@@ -105,7 +105,7 @@ public static class FaaAircraftDatabase
             return null;
         }
 
-        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
         if (_lookup.TryGetValue(baseType, out FaaAircraftRecord? record))
         {
             return record;

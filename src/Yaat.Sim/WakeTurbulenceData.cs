@@ -17,7 +17,7 @@ public static class WakeTurbulenceData
     /// <summary>Get CWT code (A-I) for an aircraft type designator. Returns null if unknown.</summary>
     public static string? GetCwt(string aircraftType)
     {
-        string baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
         return _cwtLookup.TryGetValue(baseType, out string? cwt) && !string.IsNullOrEmpty(cwt) ? cwt : null;
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -14,6 +15,10 @@ namespace Yaat.Sim;
 
 public class AircraftState
 {
+    private const int NormalizedBaseTypeCacheCap = 4096;
+
+    private static readonly ConcurrentDictionary<string, string> NormalizedBaseTypeCache = new(StringComparer.Ordinal);
+
     public required string Callsign { get; set; }
     public required string AircraftType { get; set; }
     public string BaseAircraftType => StripTypePrefix(AircraftType);
@@ -33,6 +38,32 @@ public class AircraftState
 
         return parts[0];
     }
+
+    /// <summary>
+    /// The ICAO type designator alone, trimmed and upper-cased: <see cref="StripTypePrefix"/> followed by
+    /// <c>Trim().ToUpperInvariant()</c>, memoised per raw input. Memoised because the tick path calls it for every
+    /// aircraft on every sub-tick. <see cref="StripTypePrefix"/> is pure, so a cached value never goes stale. The cache
+    /// is cleared when it reaches 4,096 entries, so a stream of garbage types cannot grow it without bound.
+    /// </summary>
+    public static string NormalizedBaseType(string aircraftType)
+    {
+        if (NormalizedBaseTypeCache.TryGetValue(aircraftType, out string? cached))
+        {
+            return cached;
+        }
+
+        string normalized = StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        if (NormalizedBaseTypeCache.Count >= NormalizedBaseTypeCacheCap)
+        {
+            NormalizedBaseTypeCache.Clear();
+        }
+
+        NormalizedBaseTypeCache[aircraftType] = normalized;
+        return normalized;
+    }
+
+    /// <summary>Current entry count of the memoised <see cref="NormalizedBaseType"/> cache. Exists for tests.</summary>
+    public static int NormalizedBaseTypeCacheCount => NormalizedBaseTypeCache.Count;
 
     /// <summary>
     /// True when a leading '/'-separated segment of a filed type is a prefix (ERAM field 03 element a) rather than the
