@@ -206,6 +206,8 @@ Every test project uses xunit.v3 on the Microsoft.Testing.Platform runner (`UseM
 | TRX report | `-- --report-xunit-trx --report-xunit-trx-filename results.trx` (lands in `bin/<cfg>/net10.0/TestResults/`) |
 | See `ITestOutputHelper` / `SimLogBuilder` output | run the project as a process: `dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*Name*" --show-live-output on` |
 
+`--filter-class` accepts `*` only at the start or end of a pattern, never in the middle.
+
 `dotnet test` prints only per-assembly summaries and failures; captured test output never reaches its console, which is why the live-output
 row uses `dotnet run --project` (or the built `Yaat.Sim.Tests.exe` directly). `xunit.runner.json` is still honoured by v3 for
 parallelism settings; `showLiveOutput` there is the config-file equivalent of `--show-live-output on`.
@@ -555,6 +557,9 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **Static-singleton race.** A class reading a `TestVnasData`-populated singleton (`AircraftProfileDatabase`, `AircraftSiblingMap`,
   `NavigationDatabase`, …) can race a class mid-init. Symptom: `Expected 98 / Actual 96.5` (default-fallback), passes alone, flakes in the
   suite. **Fix: `TestVnasData.EnsureInitialized()` in the class *constructor*.**
+- **A yaat-server test room's aircraft CIDs are random unless the seed is pinned.** Rooms seed their RNG from `Random.Shared` (`ScenarioSeedSource.RngSeed()`; `RoomEngineTestHarness` never pins it), so each aircraft draws a random 3-digit CID.
+
+  A test that types a 3-digit flight ID can collide with a drawn CID and flake. Pin the seed with `harness.SeedSource.Pin(...)`, as `EramConformance.BuildAsync` does, or type a CID no aircraft holds (and assert that precondition). `EramConformanceQaTests` and `EramFlidResolutionTests.FreeCid` flaked this way.
 - **`xunit.runner.json` must be Content-copied to `bin/` in each csproj** or xUnit ignores it. The Client.UI project relies on
   `parallelizeTestCollections: false` to stop `UserPreferences` racing the shared `preferences.json`; the Sim project sets it `true`
   (collection parallelism *on*), which is exactly why the singleton race exists for Sim tests. Diagnose `Expected [...] / Actual []`
