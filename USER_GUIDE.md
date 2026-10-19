@@ -304,9 +304,9 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
   An IFR aircraft airborne below FL180 also has a **Cancel IFR…** row, which asks for confirmation inline and sends `CIFR`. Reopening the flyout resets Force, the box and the tab.
 
-  The other approach commands (**Join approach** and the straight-in, forced and final-course variants) name their likely approach for one click: the expected approach, else the assigned runway's ILS, else its first published approach (`Join ILS 30`).
+  The other approach commands (**Join approach**, **Cleared straight-in**, **Join straight-in**, **Cleared approach (force)**, **Join approach (force)** and **Join final approach course**, under All Commands › Approach, or as strip buttons in a custom quick list) open the same kind of flyout, titled with the command's name. Its default row names the likely approach (`Join ILS 30`, `Cleared straight-in ILS 30`, `Join final course ILS 30`): the expected approach, else the assigned runway's ILS, else its first published approach. Below it are one tab per runway with an instrument approach, then **Circling**, and the **Approach** box, which sends the command with the id you type.
 
-  **Join approach (other)…** under it lists every approach grouped by runway: the assigned runway first (else the runway of the active or expected approach), by kind (ILS, LOC, RNAV, RNP), each row showing the command it sends, then **Other runways**, one submenu per runway. With no expected approach and no assigned runway, the command opens that runway list directly.
+  These flyouts have no visual rows, no airport row, no Force toggle and no Cancel IFR. The two (force) commands send the forced forms (`CAPPF`, `JAPPF`) on every row, and their title and rows carry an amber "!" force mark. A destination with no published approaches shows the Approach box alone. Every approach flyout, **Expect approach** included, has a title line naming its command.
 
   **Maintain altitude** opens a picker titled with the callsign, its subtitle giving the current and assigned altitudes. The list runs from the aircraft type's ceiling down, opening centred on the assigned altitude, else the current one. Each row is marked ↑ (sends a climb) or ↓ (sends a descent); ● marks the current altitude and ◆ the assigned one, and clicking ● sends the verb toward the assignment.
 

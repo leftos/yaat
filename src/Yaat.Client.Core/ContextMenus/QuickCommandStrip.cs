@@ -13,6 +13,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using Path = Avalonia.Controls.Shapes.Path;
 
 namespace Yaat.Client.ContextMenus;
@@ -83,6 +84,9 @@ public static class QuickCommandStrip
 
     /// <summary>The dark well a strip button's glyph sits in at rest; the Settings preview draws its cells on it too.</summary>
     public static IImmutableSolidColorBrush WellBrush { get; } = new ImmutableSolidColorBrush(WellBackground);
+
+    /// <summary>The force mark's disc, the amber of the approach flyout's force badge outline.</summary>
+    private static readonly IImmutableSolidColorBrush ForceMarkBrush = new ImmutableSolidColorBrush(Color.Parse("#FFB259"));
     private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
     private static readonly ConditionalWeakTable<MenuItem, IStripFlyoutContent> FlyoutContents = [];
     private static readonly ConditionalWeakTable<MenuItem, string> InertLabels = [];
@@ -202,35 +206,74 @@ public static class QuickCommandStrip
 
     /// <summary>
     /// The glyph's stroke path on its 24 px view box, scaled to the inline glyph size and drawn in its family's colour,
-    /// mirrored and rotated about the box's centre as the glyph says (<see cref="GlyphTransform"/>). A rotated glyph's
-    /// corners reach a little past the box; nothing clips them.
+    /// mirrored and rotated about the box's centre as the glyph says (<see cref="GlyphTransform"/>), then the force mark
+    /// when the glyph carries it (<see cref="AddForceMark"/>). A rotated glyph's corners reach a little past the box;
+    /// nothing clips them.
     /// </summary>
-    public static Viewbox GlyphIcon(QuickCommandGlyph glyph) =>
-        new()
+    public static Viewbox GlyphIcon(QuickCommandGlyph glyph)
+    {
+        var canvas = new Canvas
+        {
+            Width = GlyphViewBox,
+            Height = GlyphViewBox,
+            RenderTransformOrigin = RelativePoint.TopLeft,
+            RenderTransform = GlyphTransform(glyph),
+            Children =
+            {
+                new Path
+                {
+                    Data = Geometry.Parse(glyph.PathData),
+                    Stroke = new SolidColorBrush(FamilyColor(glyph.Family)),
+                    StrokeThickness = GlyphStrokeThickness,
+                    StrokeLineCap = PenLineCap.Round,
+                    StrokeJoin = PenLineJoin.Round,
+                },
+            },
+        };
+        if (glyph.HasForceMark)
+        {
+            AddForceMark(canvas);
+        }
+
+        return new Viewbox
         {
             Width = GlyphSize,
             Height = GlyphSize,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new Canvas
-            {
-                Width = GlyphViewBox,
-                Height = GlyphViewBox,
-                RenderTransformOrigin = RelativePoint.TopLeft,
-                RenderTransform = GlyphTransform(glyph),
-                Children =
-                {
-                    new Path
-                    {
-                        Data = Geometry.Parse(glyph.PathData),
-                        Stroke = new SolidColorBrush(FamilyColor(glyph.Family)),
-                        StrokeThickness = GlyphStrokeThickness,
-                        StrokeLineCap = PenLineCap.Round,
-                        StrokeJoin = PenLineJoin.Round,
-                    },
-                },
-            },
+            Child = canvas,
         };
+    }
+
+    /// <summary>
+    /// Draws the force mark on a glyph's view box: an amber disc in the lower right with an "!" cut into it, both ringed and
+    /// drawn in the strip's well colour (<see cref="WellBrush"/>) to part the disc from the glyph's strokes.
+    /// </summary>
+    private static void AddForceMark(Canvas canvas)
+    {
+        const double centre = 19;
+        const double radius = 4.6;
+        var disc = new Ellipse
+        {
+            Width = 2 * radius,
+            Height = 2 * radius,
+            Fill = ForceMarkBrush,
+            Stroke = WellBrush,
+            StrokeThickness = 1.6,
+        };
+        Canvas.SetLeft(disc, centre - radius);
+        Canvas.SetTop(disc, centre - radius);
+        canvas.Children.Add(disc);
+        canvas.Children.Add(
+            new Path
+            {
+                Data = Geometry.Parse("M19 16.7v2.5 M19 21.3v.05"),
+                Stroke = WellBrush,
+                StrokeThickness = 1.8,
+                StrokeLineCap = PenLineCap.Round,
+            }
+        );
+    }
 
     /// <summary>
     /// How <paramref name="glyph"/>'s path is turned on its view box, with the transform origin at the box's top left: one
@@ -550,7 +593,7 @@ public static class QuickCommandStrip
             }
         }
 
-        private void OnSubmenuOpened(object? sender, RoutedEventArgs e)
+        private void OnSubmenuOpened(object? _, RoutedEventArgs e)
         {
             if ((e.Source is MenuItem row) && IsParentMenuRow(row))
             {

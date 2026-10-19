@@ -34,12 +34,18 @@ All Commands
   Approach
     Cleared approach
       approach flyout, built when it opens
-    Join approach picker:grouped [10L, 10R, 12, 28L, 28R, 30]
-    Cleared straight-in picker:grouped [10L, 10R, 12, 28L, 28R, 30]
-    Join straight-in picker:grouped [10L, 10R, 12, 28L, 28R, 30]
-    Cleared approach (force) picker:grouped [10L, 10R, 12, 28L, 28R, 30]
-    Join approach (force) picker:grouped [10L, 10R, 12, 28L, 28R, 30]
-    Join final approach course picker:grouped [10L, 10R, 12, 28L, 28R, 30]
+    Join approach
+      approach flyout, built when it opens
+    Cleared straight-in
+      approach flyout, built when it opens
+    Join straight-in
+      approach flyout, built when it opens
+    Cleared approach (force)
+      approach flyout, built when it opens
+    Join approach (force)
+      approach flyout, built when it opens
+    Join final approach course
+      approach flyout, built when it opens
     Expect approach
       approach flyout, built when it opens
     Cleared visual approach… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]

@@ -313,10 +313,7 @@ public static class AircraftMenuBuilder
     /// The aircraft's quick commands, each built through its catalog entry's own builder so its pickers, prompts and
     /// runway defaults match All Commands: the icon strip when the resolution has strip items, then the text entries.
     /// The release items that apply lead the strip whatever the situation's list (<see cref="LeadWithRelease"/>). An
-    /// approach entry with a default approach is a one-click leaf, and its "(other)" grouped picker
-    /// (<see cref="MenuCatalog.BuildApproachOther"/>) follows as a text row: directly under the leaf for a text entry,
-    /// and first among the text rows for a strip button, which stays the leaf alone. An aircraft whose situation is
-    /// unknown gets only the release icons, or nothing.
+    /// aircraft whose situation is unknown gets only the release icons, or nothing.
     /// </summary>
     private static void AddQuickCommands(ContextMenu menu, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -338,17 +335,11 @@ public static class AircraftMenuBuilder
             menu.Items.Add(strip);
         }
 
-        foreach (QuickCommandStripItem stripItem in resolution.Strip)
-        {
-            AddApproachCompanion(menu.Items, stripItem.Entry.Id, aircraft, context, host);
-        }
-
         foreach (MenuCatalogEntry entry in resolution.Text)
         {
             if (entry.Build(aircraft, context, host) is { } item)
             {
                 menu.Items.Add(item);
-                AddApproachCompanion(menu.Items, entry.Id, aircraft, context, host);
             }
         }
     }
@@ -405,15 +396,6 @@ public static class AircraftMenuBuilder
             .. resolution.Text.Where(entry => !ReleaseIds.Contains(entry.Id)),
         ];
         return new QuickCommandResolution([.. strip.Take(QuickCommandGlyphs.StripCapacity)], text);
-    }
-
-    /// <summary>Adds an approach entry's "(other)" grouped picker, or nothing for another entry or an approach entry without a default.</summary>
-    private static void AddApproachCompanion(ItemCollection items, string id, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
-    {
-        if (MenuCatalog.ApproachPickerIds.Contains(id) && (MenuCatalog.BuildApproachOther(id, aircraft, context, host) is { } other))
-        {
-            items.Add(other);
-        }
     }
 
     /// <summary>

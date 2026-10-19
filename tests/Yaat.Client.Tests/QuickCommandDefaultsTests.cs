@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Xunit;
@@ -18,6 +20,14 @@ public class QuickCommandDefaultsTests
     private const string MockRunwayArrowLeft = "M11 7.4 L9.4 9 L11 10.6";
 
     private const string MockRunwayArrowRight = "M11 13.4 L9.4 15 L11 16.6";
+
+    private const string ClearedApproachPath = "M3 12L21 5 M3 12L21 19 M3 12h18";
+
+    private const string JoinApproachPath = "M3 12h18 M20 20.5C18 15 15.5 12 11.5 12 M9.5 9l-3 3 3 3";
+
+    private const string StraightInPath = "M3 7v10 M21 12H7 M10 9l-3 3 3 3";
+
+    private const string JoinFinalCoursePath = "M2 20h9 M21 10H5 M8 7l-3 3 3 3";
 
     public static TheoryData<AircraftSituation> ClassifiedSituations() =>
         [.. Enum.GetValues<AircraftSituation>().Where(situation => situation != AircraftSituation.Unknown)];
@@ -173,5 +183,39 @@ public class QuickCommandDefaultsTests
         Assert.Equal($"{Helicopter} M19.5 8v10 M17 15.5l2.5 2.5 2.5-2.5", QuickCommandGlyphs.For(MenuIds.GroundLandHelicopter)?.PathData);
         Assert.Equal(QuickCommandGlyphFamily.Ground, QuickCommandGlyphs.For(MenuIds.GroundAirTaxi)?.Family);
         Assert.Equal(QuickCommandGlyphFamily.Ground, QuickCommandGlyphs.For(MenuIds.GroundLandHelicopter)?.Family);
+    }
+
+    /// <summary>
+    /// The approach verbs' glyphs are the approved mock's (<c>docs/plans/canvases/yaat-569-x3b-verbs</c>, lane B): one per
+    /// family, flight blue, the force pair their base glyph with the force mark.
+    /// </summary>
+    [Theory]
+    [InlineData(MenuIds.ApproachCleared, ClearedApproachPath, false)]
+    [InlineData(MenuIds.ApproachJoin, JoinApproachPath, false)]
+    [InlineData(MenuIds.ApproachClearedStraightIn, StraightInPath, false)]
+    [InlineData(MenuIds.ApproachJoinStraightIn, StraightInPath, false)]
+    [InlineData(MenuIds.ApproachClearedForce, ClearedApproachPath, true)]
+    [InlineData(MenuIds.ApproachJoinForce, JoinApproachPath, true)]
+    [InlineData(MenuIds.ApproachJoinFinalCourse, JoinFinalCoursePath, false)]
+    public void ApproachVerbGlyphs_MatchTheApprovedMock(string id, string path, bool forceMark)
+    {
+        QuickCommandGlyph glyph = Assert.IsType<QuickCommandGlyph>(QuickCommandGlyphs.For(id));
+        Assert.Equal(path, glyph.PathData);
+        Assert.Equal(QuickCommandGlyphFamily.Flight, glyph.Family);
+        Assert.Equal(forceMark, glyph.HasForceMark);
+    }
+
+    /// <summary>A force-marked glyph draws its path, then the amber disc and the "!" over its lower right; another draws its path alone.</summary>
+    [AvaloniaFact]
+    public void ForceMarkedGlyph_DrawsTheAmberDiscOverItsPath()
+    {
+        Canvas forced = Assert.IsType<Canvas>(QuickCommandStrip.GlyphIcon(QuickCommandGlyphs.For(MenuIds.ApproachClearedForce)!).Child);
+        Canvas plain = Assert.IsType<Canvas>(QuickCommandStrip.GlyphIcon(QuickCommandGlyphs.For(MenuIds.ApproachCleared)!).Child);
+
+        Assert.Single(plain.Children);
+        Assert.Equal(3, forced.Children.Count);
+        Ellipse disc = Assert.IsType<Ellipse>(forced.Children[1]);
+        Assert.Equal(Color.Parse("#FFB259"), Assert.IsAssignableFrom<ISolidColorBrush>(disc.Fill).Color);
+        Assert.IsType<Avalonia.Controls.Shapes.Path>(forced.Children[2]);
     }
 }

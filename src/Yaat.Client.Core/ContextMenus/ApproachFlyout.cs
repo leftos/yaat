@@ -14,10 +14,10 @@ using Avalonia.Threading;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The Cleared approach / Expect approach flyout over an <see cref="ApproachFlyoutModel"/>, one builder for the strip's flyout
-/// and the All Commands entry, built once when it first opens and never refilled. Top to bottom: Cleared approach's title
-/// line with the Force approach toggle (outside solo training), the pinned rows (the default row, the airport-level visual
-/// row, Cancel IFR when the destination has no instrument approach) and a separator, the runway tabs
+/// An approach verb's flyout over an <see cref="ApproachFlyoutModel"/>, one builder for the strip's flyout and the All
+/// Commands entry, built once when it first opens and never refilled. Top to bottom: the title line naming the verb (a forced
+/// verb's with the force mark, Cleared approach's with the Force approach toggle outside solo training), the pinned rows
+/// (the default row, the airport-level visual row, Cancel IFR when the destination has no instrument approach) and a separator, the runway tabs
 /// (<see cref="FlyoutTabStrip"/>) over the selected tab's rows in a scroller, a separator and the Approach box, then Cancel
 /// IFR after a separator. Keyboard focus lands on the default row, else the selected tab's first live row; Up/Down and
 /// Tab/Shift+Tab walk the pinned rows, the tab's live rows, the box and Cancel IFR, skipping greyed rows and stopping at
@@ -41,13 +41,13 @@ public static class ApproachFlyout
     private const string PanelRowClass = "approach-flyout-panel";
 
     /// <summary>
-    /// The <paramref name="verb"/> entry labelled <paramref name="label"/>: one menu row holding the flyout, its model built from
+    /// The <paramref name="spec"/> verb's entry, labelled with its label: one menu row holding the flyout, its model built from
     /// <paramref name="aircraft"/> when the flyout or the submenu first opens.
     /// </summary>
-    public static MenuItem Build(string label, ApproachFlyoutVerb verb, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static MenuItem Build(ApproachVerbSpec spec, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var entry = new MenuItem { Header = label };
-        QuickCommandStrip.FollowInFlyout(entry, new ApproachFlyoutContent(entry, verb, aircraft, context, host));
+        var entry = new MenuItem { Header = spec.Label };
+        QuickCommandStrip.FollowInFlyout(entry, new ApproachFlyoutContent(entry, spec, aircraft, context, host));
         return entry;
     }
 
@@ -55,7 +55,7 @@ public static class ApproachFlyout
     private sealed class ApproachFlyoutContent : IStripFlyoutContent
     {
         private readonly MenuItem _entry;
-        private readonly ApproachFlyoutVerb _verb;
+        private readonly ApproachVerbSpec _spec;
         private readonly IMenuAircraft? _aircraft;
         private readonly MenuContext _context;
         private readonly IMenuHost _host;
@@ -64,10 +64,10 @@ public static class ApproachFlyout
         private Action? _closeFlyout;
         private bool _open;
 
-        public ApproachFlyoutContent(MenuItem entry, ApproachFlyoutVerb verb, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+        public ApproachFlyoutContent(MenuItem entry, ApproachVerbSpec spec, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
         {
             _entry = entry;
-            _verb = verb;
+            _spec = spec;
             _aircraft = aircraft;
             _context = context;
             _host = host;
@@ -114,7 +114,7 @@ public static class ApproachFlyout
             _closeFlyout = close;
             if (_panel is null)
             {
-                _panel = new ApproachFlyoutPanel(ApproachFlyoutModel.Build(_verb, _aircraft, _context, _host), ChooseAsync);
+                _panel = new ApproachFlyoutPanel(ApproachFlyoutModel.Build(_spec, _aircraft, _context, _host), ChooseAsync);
                 _holder.Child = _panel;
             }
             else
@@ -167,6 +167,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
     private readonly FuncDataTemplate<ApproachRow> _rowTemplate;
     private readonly StackPanel _rows = new();
     private readonly List<(Button Button, int Index)> _pinned = [];
+    private readonly Grid _titleLine;
     private readonly TextBlock? _boxCommand;
     private readonly Grid? _boxRow;
     private List<Button> _tabRows = [];
@@ -176,8 +177,8 @@ public sealed class ApproachFlyoutPanel : StackPanel
     {
         _model = model;
         _choose = choose;
-        string verbId = (model.Verb == ApproachFlyoutVerb.Cleared) ? MenuIds.ApproachCleared : MenuIds.ApproachExpect;
-        QuickCommandGlyph glyph = QuickCommandGlyphs.For(verbId) ?? throw new InvalidOperationException($"No glyph for {verbId}.");
+        string glyphId = model.Spec.GlyphId;
+        QuickCommandGlyph glyph = QuickCommandGlyphs.For(glyphId) ?? throw new InvalidOperationException($"No glyph for {glyphId}.");
         QuickCommandGlyph visualGlyph =
             QuickCommandGlyphs.For(MenuIds.ApproachClearedVisual)
             ?? throw new InvalidOperationException($"No glyph for {MenuIds.ApproachClearedVisual}.");
@@ -191,10 +192,8 @@ public sealed class ApproachFlyoutPanel : StackPanel
             Focusable = true,
         };
         AutomationProperties.SetName(Scroll, $"{model.Title} approaches");
-        if (model.OffersForce)
-        {
-            Children.Add(TitleLine());
-        }
+        _titleLine = TitleLine();
+        Children.Add(_titleLine);
 
         AddPinned();
         AddTabs();
@@ -212,7 +211,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
             AutomationProperties.SetName(Box, $"{model.Title} by approach id");
             TakeoffFlyout.KeepClicksInside(Box);
             _boxCommand = new TextBlock();
-            _boxRow = BoxRow(Box, _boxCommand, glyph);
+            _boxRow = BoxRow((TextBox)Box, (TextBlock)_boxCommand, glyph);
             Children.Add(_boxRow);
             // Followed through the text property, so the rows filter as the text is set, before any later dispatcher pass.
             Box.PropertyChanged += (_, e) =>
@@ -338,18 +337,42 @@ public sealed class ApproachFlyoutPanel : StackPanel
         control.BringIntoView();
     }
 
+    /// <summary>The title line: the verb's title, the force mark after it for a forced verb, and the Force approach toggle where offered.</summary>
     private Grid TitleLine()
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(11, 6, 11, 2) };
-        grid.Children.Add(
-            new TextBlock
+        var title = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
             {
-                Text = _model.Title,
-                FontSize = 11,
-                Foreground = TitleBrush,
-                VerticalAlignment = VerticalAlignment.Center,
-            }
-        );
+                new TextBlock
+                {
+                    Text = _model.Title,
+                    FontSize = 11,
+                    Foreground = TitleBrush,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            },
+        };
+        if (_model.Spec.IsForced)
+        {
+            title.Children.Add(ApproachRowView.ForceBadge());
+        }
+
+        grid.Children.Add(title);
+        if (_model.OffersForce)
+        {
+            AddForceToggle(grid);
+        }
+
+        return grid;
+    }
+
+    private void AddForceToggle(Grid grid)
+    {
         ForceToggle = new CheckBox
         {
             Content = ApproachFlyout.ForceText,
@@ -363,7 +386,6 @@ public sealed class ApproachFlyoutPanel : StackPanel
         ForceToggle.IsCheckedChanged += (_, _) => Rerender();
         Grid.SetColumn(ForceToggle, 1);
         grid.Children.Add(ForceToggle);
-        return grid;
     }
 
     private void AddPinned()
@@ -726,7 +748,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
 
         return child switch
         {
-            Grid when ForceToggle?.Parent == child => [$"{_model.Title} · {ApproachFlyout.ForceText}{(IsForced ? " [on]" : "")}"],
+            Grid when ReferenceEquals(child, _titleLine) => [TitleText()],
             Button { Content: ApproachRow row } button => [RowLine(row, button)],
             Button when ReferenceEquals(child, _cancelIfr?.Row) => [$"{ApproachCancelIfr.Label} — {ApproachCancelIfr.Command}"],
             Border { Height: 1 } => ["---"],
@@ -736,6 +758,14 @@ public sealed class ApproachFlyoutPanel : StackPanel
             Grid when ReferenceEquals(child, _boxRow) => [$"Approach — {_boxCommand?.Text}"],
             _ => [],
         };
+    }
+
+    /// <summary>The title line as text: <c>Cleared approach · Force [on]</c>, <c>Join approach (force) · force</c>, <c>Expect approach</c>.</summary>
+    private string TitleText()
+    {
+        string mark = _model.Spec.IsForced ? $" · {ApproachRow.ForceMark}" : "";
+        string toggle = (ForceToggle is null) ? "" : $" · {ApproachFlyout.ForceText}{(IsForced ? " [on]" : "")}";
+        return $"{_model.Title}{mark}{toggle}";
     }
 
     private static string RowLine(ApproachRow row, Button button) => button.IsEnabled ? row.ToString() : $"{row} [disabled]";
@@ -819,7 +849,7 @@ internal static class ApproachRowView
 
         if (row.IsForced)
         {
-            parts.Add(Badge(ApproachRow.ForceMark, ForceLine, ForceFill, ForceText, FontWeight.SemiBold));
+            parts.Add(ForceBadge());
         }
 
         if (row.Notes.Count > 0)
@@ -848,6 +878,9 @@ internal static class ApproachRowView
 
         return view;
     }
+
+    /// <summary>The force mark a forced row, and a forced verb's title line, carry after the name.</summary>
+    public static Border ForceBadge() => Badge(ApproachRow.ForceMark, ForceLine, ForceFill, ForceText, FontWeight.SemiBold);
 
     private static Border Badge(string text, IBrush line, IBrush? fill, IBrush foreground, FontWeight weight) =>
         new()

@@ -532,9 +532,9 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Approach submenu: the approach clearances (each with its "(other)" grouped picker beside a default approach),
-    /// the visual approach (with its "(other)" runway picker beside a default runway), the in-sight requests, then the
-    /// Report when… submenu. The header names the active approach, else the expected one.
+    /// The Approach submenu: the approach entries (each opening its verb's approach flyout), the visual approach (with its
+    /// "(other)" runway picker beside a default runway), the in-sight requests, then the Report when… submenu. The header
+    /// names the active approach, else the expected one.
     /// </summary>
     public static MenuItem Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -548,7 +548,6 @@ public static class SharedMenuGroups
         foreach (string id in MenuCatalog.ApproachPickerIds)
         {
             TryAdd(menu.Items, TryLeaf(id, aircraft, context, host));
-            AddCompanion(menu.Items, MenuCatalog.BuildApproachOther(id, aircraft, context, host));
         }
 
         TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedVisual, aircraft, context, host));

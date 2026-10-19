@@ -400,32 +400,19 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void QuickList_TextApproachEntryWithADefault_HasItsOtherPickerDirectlyUnderItsLeaf()
+    public void QuickList_JoinApproach_IsAStripButton_WithNoOtherPickerBelow()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = Fixture("ifr-arrival");
         ac.AssignedRunway = "30";
-
-        List<string> items = Sequence(Build(ac, JoinApproachHost(), _ => []));
-
-        int leaf = items.IndexOf("Join ILS 30");
-        Assert.True(leaf >= 0, string.Join(" | ", items));
-        Assert.Equal("Join approach (other)…", items[leaf + 1]);
-    }
-
-    [AvaloniaFact]
-    public void QuickList_ApproachEntryWithoutADefault_IsTheGroupedPickerAlone()
-    {
-        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel ac = Fixture("ifr-arrival");
-        ac.AssignedRunway = "";
-        Assert.Null(QuickCommandGlyphs.For(MenuIds.ApproachJoin));
+        Assert.NotNull(QuickCommandGlyphs.For(MenuIds.ApproachJoin));
 
         ContextMenu menu = Build(ac, JoinApproachHost(), _ => []);
 
-        MenuItem join = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == Label(MenuIds.ApproachJoin));
-        Assert.Equal(MenuPickerDescriptor.Grouped, Assert.IsType<MenuPickerDescriptor>(join.Tag).Kind);
-        Assert.DoesNotContain("Join approach (other)…", Sequence(menu));
+        Assert.Contains(MenuIds.ApproachJoin, StripTags(menu));
+        List<string> items = Sequence(menu);
+        Assert.DoesNotContain("Join ILS 30", items);
+        Assert.DoesNotContain("Join approach (other)…", items);
     }
 
     [AvaloniaFact]
@@ -587,8 +574,8 @@ public class AircraftMenuBuilderTests
     }
 
     /// <summary>
-    /// A host whose quick list is Join approach alone: an approach picker with no glyph, so it lists as a text entry
-    /// below the strip in every situation.
+    /// A host whose quick list is Join approach alone: an approach flyout entry with its own glyph, so a strip button in
+    /// every situation.
     /// </summary>
     private static RecordingMenuHost JoinApproachHost() =>
         new("")

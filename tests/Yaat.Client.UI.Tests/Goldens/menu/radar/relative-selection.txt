@@ -37,18 +37,18 @@ All Commands
   Approach
     Cleared approach
       approach flyout, built when it opens
-    Join ILS 30
-    Join approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
-    Cleared straight-in ILS 30
-    Cleared straight-in (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
-    Join straight-in ILS 30
-    Join straight-in (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
-    Cleared ILS 30 (force)
-    Cleared approach (force) (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
-    Join ILS 30 (force)
-    Join approach (force) (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
-    Join final course ILS 30
-    Join final approach course (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
+    Join approach
+      approach flyout, built when it opens
+    Cleared straight-in
+      approach flyout, built when it opens
+    Join straight-in
+      approach flyout, built when it opens
+    Cleared approach (force)
+      approach flyout, built when it opens
+    Join approach (force)
+      approach flyout, built when it opens
+    Join final approach course
+      approach flyout, built when it opens
     Expect approach
       approach flyout, built when it opens
     Cleared visual approach 30

@@ -1,17 +1,54 @@
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
-using ApproachChoice = Yaat.Client.ContextMenus.ApproachPickerBuilder.ApproachChoice;
+using ApproachChoice = Yaat.Client.ContextMenus.ApproachChoices.ApproachChoice;
 
 namespace Yaat.Client.ContextMenus;
 
-/// <summary>Which approach flyout a model is for: its verb, fixed by the entry that opens it.</summary>
-public enum ApproachFlyoutVerb
+/// <summary>Which visual rows an approach flyout offers.</summary>
+public enum ApproachVisualRows
 {
-    /// <summary>Cleared approach: <c>CAPP</c>, its visual rows <c>CVA</c>.</summary>
-    Cleared,
+    /// <summary>None: the verb has no visual form (a visual approach has no fixes to join or course to intercept).</summary>
+    None,
 
-    /// <summary>Expect approach: <c>EAPP</c>, its visual rows <c>EAPP VIS{rwy}</c>.</summary>
-    Expect,
+    /// <summary>
+    /// Visual clearances (<c>CVA {rwy}</c>, the untowered airport row <c>CVA {airport}</c>) to an IFR aircraft only, each greyed
+    /// until the field is reported in sight.
+    /// </summary>
+    Clearance,
+
+    /// <summary>Visual expectations (<c>EAPP VIS{rwy}</c>) to any aircraft, never greyed.</summary>
+    Expectation,
+}
+
+/// <summary>
+/// An approach flyout's verb, fixed by the All Commands entry that opens it (<see cref="MenuCatalog.ApproachPickerIds"/>):
+/// its label, the command its rows send, whether they are forced, and what else the flyout offers.
+/// </summary>
+public sealed record ApproachVerbSpec
+{
+    /// <summary>The entry's label and the flyout's title: <c>Cleared approach</c>, <c>Join approach (force)</c>.</summary>
+    public required string Label { get; init; }
+
+    /// <summary>The bare verb an instrument row and the Approach box send with an approach id: <c>CAPP</c>, <c>JAPPF</c>.</summary>
+    public required string Verb { get; init; }
+
+    /// <summary>Whether every row sends a forced form and carries the force mark, and the title line too (the force pair).</summary>
+    public required bool IsForced { get; init; }
+
+    /// <summary>The visual rows the flyout offers.</summary>
+    public required ApproachVisualRows Visuals { get; init; }
+
+    /// <summary>The forced verb the Force approach toggle switches the rows to (<c>CAPPF</c>), or null when the flyout has no toggle.</summary>
+    public required string? ForceToggleVerb { get; init; }
+
+    /// <summary>Whether the flyout offers Cancel IFR (to an IFR aircraft airborne below FL180).</summary>
+    public required bool OffersCancelIfr { get; init; }
+
+    /// <summary>The catalog id whose glyph (<see cref="QuickCommandGlyphs.For"/>) the flyout's instrument rows and box carry.</summary>
+    public required string GlyphId { get; init; }
+
+    /// <summary>The default row's label for an approach's short name (<c>Join ILS 30</c>) or <c>visual {runway}</c>.</summary>
+    public required Func<string, string> DefaultLabel { get; init; }
 }
 
 /// <summary>What an approach flyout row stands for.</summary>
@@ -137,20 +174,21 @@ public sealed record ApproachRow
 }
 
 /// <summary>
-/// What the Cleared approach and Expect approach flyouts show for an aircraft, built once when the flyout opens. The tabs are
+/// What an approach flyout (one per <see cref="ApproachVerbSpec"/>) shows for an aircraft, built once when the flyout opens. The tabs are
 /// the destination's runway ends: the room's arrival ends first in the room's order (<see cref="IMenuHost.GetActiveArrivalEnds"/>),
 /// then the rest in the pattern-entry order (<see cref="IMenuHost.GetPatternRunwayChoices"/>, landable before short), then any
 /// runway with an approach the list does not name, then a
 /// last <c>Circling</c> tab for the approaches that name no runway. A runway tab holds its visual row first, then its
-/// instrument approaches in picker order (<see cref="ApproachPickerBuilder.Choices"/>); a row on a runway too short for the
+/// instrument approaches in flyout order (<see cref="ApproachChoices.Choices"/>); a row on a runway too short for the
 /// type is dimmed "short". The default approach (the expected approach, else an expected visual, else the assigned runway's
 /// first approach) is pinned above the tabs and its tab selected; without one the default runway's tab
-/// (<see cref="MenuCatalog.SmartVisualRunway"/>) is, else the first. Cleared approach offers the visual rows (and the
-/// airport row) to an IFR aircraft only, as the sim clears no other for a visual approach; a runway left with no row gets no
-/// tab. In Cleared approach a visual row waits, greyed, for the
-/// field in sight unless Force approach (offered outside solo training) is on, which turns every row forced. At an untowered
-/// field Cleared approach pins the airport-level visual row; with no instrument approach there it is the only row. Cancel IFR
-/// is offered to an IFR aircraft airborne below FL180.
+/// (<see cref="MenuCatalog.SmartVisualRunway"/>) is, else the first. Only Cleared approach and Expect approach have visual
+/// rows; Cleared approach offers them (and the airport row) to an IFR aircraft only, as the sim clears no other for a visual
+/// approach; a runway left with no row gets no tab. In Cleared approach a visual row waits, greyed, for the
+/// field in sight unless Force approach (offered outside solo training) is on, which turns every row forced; the force pair's
+/// rows are always forced. At an untowered field Cleared approach pins the airport-level visual row; with no instrument
+/// approach there it is the only row. Cleared approach and Expect approach offer Cancel IFR to an IFR aircraft airborne below
+/// FL180.
 /// </summary>
 public sealed class ApproachFlyoutModel
 {
@@ -176,14 +214,14 @@ public sealed class ApproachFlyoutModel
     private readonly SituationFlags _flags;
 
     private ApproachFlyoutModel(
-        ApproachFlyoutVerb verb,
+        ApproachVerbSpec spec,
         SituationFlags flags,
         List<RowSource> pinned,
         List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs,
         Options options
     )
     {
-        Verb = verb;
+        Spec = spec;
         _flags = flags;
         _pinned = pinned;
         _tabRows = [.. tabs.Select(tab => tab.Rows)];
@@ -195,7 +233,7 @@ public sealed class ApproachFlyoutModel
     }
 
     /// <summary>The flyout's verb.</summary>
-    public ApproachFlyoutVerb Verb { get; }
+    public ApproachVerbSpec Spec { get; }
 
     /// <summary>The runway tabs, then Circling; empty when the flyout shows no tabs.</summary>
     public IReadOnlyList<ApproachFlyoutTab> Tabs { get; }
@@ -209,41 +247,49 @@ public sealed class ApproachFlyoutModel
     /// <summary>Whether the flyout has the Approach box: always but at an untowered field with no instrument approach in Cleared approach.</summary>
     public bool HasBox { get; }
 
-    /// <summary>The Cancel IFR row, or null when the aircraft is not IFR and airborne below FL180.</summary>
+    /// <summary>
+    /// The Cancel IFR row, or null when the verb offers none (<see cref="ApproachVerbSpec.OffersCancelIfr"/>) or the aircraft is
+    /// not IFR and airborne below FL180.
+    /// </summary>
     public ApproachCancelIfr? CancelIfr { get; }
 
-    /// <summary>The flyout's title (its title line, beside the Force approach toggle).</summary>
-    public string Title => (Verb == ApproachFlyoutVerb.Cleared) ? "Cleared approach" : "Expect approach";
-
-    /// <summary>The bare verb the Approach box sends with a typed id, forced under Force approach: <c>CAPP</c>, <c>CAPPF</c>, <c>EAPP</c>.</summary>
-    public string BoxVerb(bool force) =>
-        (Verb == ApproachFlyoutVerb.Expect) ? "EAPP"
-        : force ? "CAPPF"
-        : "CAPP";
+    /// <summary>The flyout's title, its title line's text: the entry's label.</summary>
+    public string Title => Spec.Label;
 
     /// <summary>
-    /// The model for <paramref name="aircraft"/>'s <paramref name="verb"/> flyout, from the destination's approaches, the
+    /// The bare verb the Approach box sends with a typed id, switched to the toggle's forced verb under Force approach:
+    /// <c>CAPP</c>, <c>CAPPF</c>, <c>EAPP</c>, <c>JAPP</c>.
+    /// </summary>
+    public string BoxVerb(bool force) => (force && (Spec.ForceToggleVerb is { } forced)) ? forced : Spec.Verb;
+
+    /// <summary>
+    /// The model for <paramref name="aircraft"/>'s <paramref name="spec"/> flyout, from the destination's approaches, the
     /// host's runway ends and tower fact, and the menu's solo-training mode.
     /// </summary>
-    public static ApproachFlyoutModel Build(ApproachFlyoutVerb verb, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static ApproachFlyoutModel Build(ApproachVerbSpec spec, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        List<ApproachChoice> approaches = ApproachPickerBuilder.Choices(aircraft);
+        List<ApproachChoice> approaches = ApproachChoices.Choices(aircraft);
         // The sim clears only an IFR aircraft for a visual approach (CVA); Expect approach offers the visuals to any.
-        bool visuals = (verb == ApproachFlyoutVerb.Expect) || IsIfr(aircraft);
-        RowSource? airport = ((verb == ApproachFlyoutVerb.Cleared) && visuals) ? AirportRow(aircraft, host) : null;
+        bool visuals = spec.Visuals switch
+        {
+            ApproachVisualRows.Clearance => IsIfr(aircraft),
+            ApproachVisualRows.Expectation => true,
+            _ => false,
+        };
+        RowSource? airport = ((spec.Visuals == ApproachVisualRows.Clearance) && visuals) ? AirportRow(aircraft, host) : null;
         bool airportOnly = (airport is not null) && (approaches.Count == 0);
-        List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs = airportOnly ? [] : TabsFor(verb, visuals, aircraft, approaches, host);
+        List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs = airportOnly ? [] : TabsFor(spec, visuals, aircraft, approaches, host);
 
-        RowSource? defaultRow = DefaultRow(verb, visuals, aircraft, approaches, tabs);
+        RowSource? defaultRow = DefaultRow(spec, visuals, aircraft, approaches, tabs);
         List<RowSource> pinned = [.. new[] { defaultRow, airport }.OfType<RowSource>()];
 
         var options = new Options(
-            OffersForce: (verb == ApproachFlyoutVerb.Cleared) && !context.SoloTrainingMode,
+            OffersForce: (spec.ForceToggleVerb is not null) && !context.SoloTrainingMode,
             HasBox: !airportOnly,
-            CancelIfr: CancelIfrFor(aircraft, context, (approaches.Count == 0) && !airportOnly),
+            CancelIfr: spec.OffersCancelIfr ? CancelIfrFor(aircraft, context, (approaches.Count == 0) && !airportOnly) : null,
             SelectedTab: OpeningTab(aircraft, tabs, defaultRow)
         );
-        return new ApproachFlyoutModel(verb, aircraft?.SituationFlags ?? SituationFlags.None, pinned, tabs, options);
+        return new ApproachFlyoutModel(spec, aircraft?.SituationFlags ?? SituationFlags.None, pinned, tabs, options);
     }
 
     /// <summary>The rows pinned above the tabs, in order: the default row, then the airport-level visual row.</summary>
@@ -271,8 +317,9 @@ public sealed class ApproachFlyoutModel
 
     private ApproachRow Render(RowSource source, bool force)
     {
-        bool forced = force && (Verb == ApproachFlyoutVerb.Cleared);
-        ApproachRowSight needs = (forced || (Verb == ApproachFlyoutVerb.Expect)) ? ApproachRowSight.None : source.Needs;
+        bool toggled = force && (Spec.ForceToggleVerb is not null);
+        bool forced = Spec.IsForced || toggled;
+        ApproachRowSight needs = forced ? ApproachRowSight.None : source.Needs;
         (string? notInSight, string? refusal) = Waiting(needs, _flags);
         return new ApproachRow
         {
@@ -280,7 +327,7 @@ public sealed class ApproachFlyoutModel
             Name = source.Name,
             MatchId = source.MatchId,
             KindText = (source.Kind == ApproachRowKind.Instrument) ? source.KindText : "VIS",
-            Command = Command(source, forced),
+            Command = Command(source, toggled),
             Badge = source.Badge,
             IsForced = forced,
             IsShort = source.IsShort,
@@ -305,13 +352,17 @@ public sealed class ApproachFlyoutModel
             _ => (null, null),
         };
 
-    private string Command(RowSource source, bool forced) =>
-        (source.Kind, Verb) switch
+    /// <summary>
+    /// What <paramref name="source"/> sends: an instrument row the verb (the toggle's forced verb when
+    /// <paramref name="toggled"/>) with its approach id; a visual or airport row <c>CVA</c> (<c>CVAF</c>) in a clearance, or
+    /// <c>EAPP VIS{rwy}</c> in an expectation.
+    /// </summary>
+    private string Command(RowSource source, bool toggled) =>
+        (source.Kind, Spec.Visuals) switch
         {
-            (ApproachRowKind.Instrument, ApproachFlyoutVerb.Expect) => $"EAPP {source.Target}",
-            (ApproachRowKind.Instrument, _) => $"{(forced ? "CAPPF" : "CAPP")} {source.Target}",
-            (_, ApproachFlyoutVerb.Expect) => $"EAPP {ApproachIds.Visual(source.Target)}",
-            _ => $"{(forced ? "CVAF" : "CVA")} {source.Target}",
+            (ApproachRowKind.Instrument, _) => $"{BoxVerb(toggled)} {source.Target}",
+            (_, ApproachVisualRows.Expectation) => $"{Spec.Verb} {ApproachIds.Visual(source.Target)}",
+            _ => $"{(toggled ? "CVAF" : "CVA")} {source.Target}",
         };
 
     /// <summary>
@@ -319,7 +370,7 @@ public sealed class ApproachFlyoutModel
     /// order, then Circling; each runway tab its visual row first, then its approaches.
     /// </summary>
     private static List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> TabsFor(
-        ApproachFlyoutVerb verb,
+        ApproachVerbSpec spec,
         bool visuals,
         IMenuAircraft? aircraft,
         List<ApproachChoice> approaches,
@@ -327,17 +378,17 @@ public sealed class ApproachFlyoutModel
     )
     {
         string? expectedVisual = ApproachIds.TryParseVisual(aircraft?.ExpectedApproach, out string? visual) ? visual : null;
-        string? expectedId = ApproachPickerBuilder.Expected(aircraft, approaches)?.Id;
+        string? expectedId = ApproachChoices.Expected(aircraft, approaches)?.Id;
         List<(string Runway, bool IsShort)> runways = RunwaysFor(aircraft, approaches, host);
         List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs = [];
         foreach ((string runway, bool isShort) in runways)
         {
             bool visualExpected =
-                (expectedVisual is not null) && ApproachPickerBuilder.SameRunway(RunwayIdentifier.NormalizeDesignator(runway), expectedVisual);
-            List<RowSource> rows = visuals ? [VisualRow(verb, runway, isShort, visualExpected ? ExpectedBadge : null)] : [];
+                (expectedVisual is not null) && ApproachChoices.SameRunway(RunwayIdentifier.NormalizeDesignator(runway), expectedVisual);
+            List<RowSource> rows = visuals ? [VisualRow(spec, runway, isShort, visualExpected ? ExpectedBadge : null)] : [];
             rows.AddRange(
                 approaches
-                    .Where(approach => ApproachPickerBuilder.SameRunway(approach.Runway, runway))
+                    .Where(approach => ApproachChoices.SameRunway(approach.Runway, runway))
                     .Select(approach => InstrumentRow(approach, approach.FullName, isShort, (approach.Id == expectedId) ? ExpectedBadge : null))
             );
             // Without visual rows, a runway with no instrument approach has nothing to offer and gets no tab.
@@ -387,14 +438,14 @@ public sealed class ApproachFlyoutModel
         List<(string Runway, bool IsShort)> runways = [.. ends.OrderBy(RoomRank).Select(end => (end.Designator, !end.IsLandable))];
         IEnumerable<string> unlisted = approaches
             .Select(approach => approach.Runway)
-            .Where(runway => (runway.Length > 0) && !runways.Any(listed => ApproachPickerBuilder.SameRunway(runway, listed.Runway)))
+            .Where(runway => (runway.Length > 0) && !runways.Any(listed => ApproachChoices.SameRunway(runway, listed.Runway)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(RunwayDesignatorComparer.Instance);
         runways.AddRange(unlisted.Select(runway => (RunwayIdentifier.ToDisplayDesignator(runway), false)));
         return runways;
     }
 
-    private static RowSource VisualRow(ApproachFlyoutVerb verb, string runway, bool isShort, string? badge) =>
+    private static RowSource VisualRow(ApproachVerbSpec spec, string runway, bool isShort, string? badge) =>
         new()
         {
             Kind = ApproachRowKind.Visual,
@@ -403,7 +454,7 @@ public sealed class ApproachFlyoutModel
             Target = runway,
             Badge = badge,
             IsShort = isShort,
-            Needs = (verb == ApproachFlyoutVerb.Cleared) ? ApproachRowSight.Field : ApproachRowSight.None,
+            Needs = (spec.Visuals == ApproachVisualRows.Clearance) ? ApproachRowSight.Field : ApproachRowSight.None,
         };
 
     private static RowSource InstrumentRow(ApproachChoice approach, string name, bool isShort, string? badge) =>
@@ -452,17 +503,16 @@ public sealed class ApproachFlyoutModel
     /// the assigned runway's first approach; null with none. It carries the <c>default</c> badge and the runway's "short".
     /// </summary>
     private static RowSource? DefaultRow(
-        ApproachFlyoutVerb verb,
+        ApproachVerbSpec spec,
         bool visuals,
         IMenuAircraft? aircraft,
         List<ApproachChoice> approaches,
         List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs
     )
     {
-        string label = (verb == ApproachFlyoutVerb.Cleared) ? "Cleared" : "Expect";
-        if (ApproachPickerBuilder.Expected(aircraft, approaches) is { } expected)
+        if (ApproachChoices.Expected(aircraft, approaches) is { } expected)
         {
-            return InstrumentRow(expected, $"{label} {expected.ShortName}", IsShortRunway(tabs, expected.Runway), DefaultBadge) with
+            return InstrumentRow(expected, spec.DefaultLabel(expected.ShortName), IsShortRunway(tabs, expected.Runway), DefaultBadge) with
             {
                 DefaultOf = expected.Runway,
             };
@@ -475,15 +525,15 @@ public sealed class ApproachFlyoutModel
         )
         {
             string runway = tabs[tab].Tab.Runway;
-            return VisualRow(verb, runway, IsShortRunway(tabs, RunwayIdentifier.NormalizeDesignator(runway)), DefaultBadge) with
+            return VisualRow(spec, runway, IsShortRunway(tabs, RunwayIdentifier.NormalizeDesignator(runway)), DefaultBadge) with
             {
-                Name = $"{label} visual {runway}",
+                Name = spec.DefaultLabel($"visual {runway}"),
                 DefaultOf = RunwayIdentifier.NormalizeDesignator(runway),
             };
         }
 
-        return ApproachPickerBuilder.AssignedRunwayApproach(aircraft, approaches) is { } assigned
-            ? InstrumentRow(assigned, $"{label} {assigned.ShortName}", IsShortRunway(tabs, assigned.Runway), DefaultBadge) with
+        return ApproachChoices.AssignedRunwayApproach(aircraft, approaches) is { } assigned
+            ? InstrumentRow(assigned, spec.DefaultLabel(assigned.ShortName), IsShortRunway(tabs, assigned.Runway), DefaultBadge) with
             {
                 DefaultOf = assigned.Runway,
             }
@@ -496,7 +546,7 @@ public sealed class ApproachFlyoutModel
         int index = tabs.FindIndex(tab =>
             (runway.Length == 0)
                 ? (tab.Tab.Runway == CirclingTab)
-                : (tab.Tab.Runway != CirclingTab) && ApproachPickerBuilder.SameRunway(RunwayIdentifier.NormalizeDesignator(tab.Tab.Runway), runway)
+                : (tab.Tab.Runway != CirclingTab) && ApproachChoices.SameRunway(RunwayIdentifier.NormalizeDesignator(tab.Tab.Runway), runway)
         );
         return (index >= 0) ? index : null;
     }

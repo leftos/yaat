@@ -31,18 +31,18 @@ All Commands
   Approach
     Cleared approach
       approach flyout, built when it opens
-    Join ILS 28R
-    Join approach (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
-    Cleared straight-in ILS 28R
-    Cleared straight-in (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
-    Join straight-in ILS 28R
-    Join straight-in (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
-    Cleared ILS 28R (force)
-    Cleared approach (force) (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
-    Join ILS 28R (force)
-    Join approach (force) (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
-    Join final course ILS 28R
-    Join final approach course (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
+    Join approach
+      approach flyout, built when it opens
+    Cleared straight-in
+      approach flyout, built when it opens
+    Join straight-in
+      approach flyout, built when it opens
+    Cleared approach (force)
+      approach flyout, built when it opens
+    Join approach (force)
+      approach flyout, built when it opens
+    Join final approach course
+      approach flyout, built when it opens
     Expect approach
       approach flyout, built when it opens
     Cleared visual approach 28R

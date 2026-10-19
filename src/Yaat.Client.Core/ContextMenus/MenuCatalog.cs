@@ -19,11 +19,11 @@ namespace Yaat.Client.ContextMenus;
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
 /// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, runways, STARs, airways)
 /// and formats the pick into the command, choosing its form from the data present when the menu is built; an approach
-/// picker is a leaf naming the default approach with a grouped "(other)" submenu beside it, else the grouped submenu
-/// alone (<see cref="ApproachPickerBuilder"/>); a host leaf asks the host for the item itself, for the entries that open a host surface or act on the
-/// surface — the warp popup, the flight-plan editor, route and push-route drawing, and the ground's hold-short,
-/// follow, give-way, push-back-to and preset-taxi submenus over the choices the host answers (the pushback faces are
-/// flat items of a companion helper, <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn
+/// entry opens its verb's approach flyout (<see cref="ApproachFlyout"/>); a host leaf asks the host for the item itself,
+/// for the entries that open a host surface or act on the surface — the warp popup, the flight-plan editor, route and
+/// push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and preset-taxi submenus over the
+/// choices the host answers (the pushback faces are flat items of a companion helper, <see cref="BuildPushbackFaces"/>),
+/// and so is the delayed spawn's Change spawn
 /// delay submenu (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; and the Cleared for
 /// takeoff submenu is the same on every view: the default clearance and runway heading, the VFR departure instructions
 /// when the aircraft and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
@@ -38,10 +38,7 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public static class MenuCatalog
 {
-    /// <summary>
-    /// The approach picker entries, in Approach submenu order. Each one offers its "(other)" companion
-    /// (<see cref="BuildApproachOther"/>) beside a default approach, in the Approach submenu and in the quick list.
-    /// </summary>
+    /// <summary>The approach entries, in Approach submenu order, each opening its verb's approach flyout (<see cref="ApproachSpec"/>).</summary>
     internal static IReadOnlyList<string> ApproachPickerIds { get; } =
     [
         MenuIds.ApproachCleared,
@@ -2215,58 +2212,59 @@ public static class MenuCatalog
         return item;
     }
 
-    /// <summary>
-    /// An approach picker entry (<see cref="ApproachSpec"/>): Cleared approach and Expect approach open the approach flyout
-    /// (<see cref="ApproachFlyout.Build"/>), the other verbs are built by <see cref="ApproachPickerBuilder.Build"/>.
-    /// </summary>
+    /// <summary>An approach entry: its verb's approach flyout (<see cref="ApproachSpec"/>, <see cref="ApproachFlyout.Build"/>).</summary>
     private static MenuCatalogEntry ApproachPicker(string id)
     {
-        ApproachPickerSpec spec = ApproachSpec(id);
-        if (ApproachFlyoutVerbOf(id) is { } verb)
-        {
-            return new(
-                id,
-                spec.Label,
-                MenuFlightRules.Both,
-                Always,
-                (ac, context, host) => ApproachFlyout.Build(spec.Label, verb, ac, context, host)
-            );
-        }
-
-        return new(id, spec.Label, MenuFlightRules.Both, Always, (ac, context, host) => ApproachPickerBuilder.Build(spec, ac, context, host));
+        ApproachVerbSpec spec = ApproachSpec(id);
+        return new(id, spec.Label, MenuFlightRules.Both, Always, (ac, context, host) => ApproachFlyout.Build(spec, ac, context, host));
     }
 
-    /// <summary>The approach flyout's verb of entry <paramref name="id"/>; null for an entry the grouped picker builds.</summary>
-    private static ApproachFlyoutVerb? ApproachFlyoutVerbOf(string id) =>
+    /// <summary>
+    /// The verb of each approach entry's flyout: its label, its command, whether its rows are forced, its visual rows, Force
+    /// toggle and Cancel IFR, its glyph and its default row's label.
+    /// </summary>
+    internal static ApproachVerbSpec ApproachSpec(string id) =>
         id switch
         {
-            MenuIds.ApproachCleared => ApproachFlyoutVerb.Cleared,
-            MenuIds.ApproachExpect => ApproachFlyoutVerb.Expect,
-            _ => null,
-        };
-
-    /// <summary>The approach picker of each approach entry: its label, its command and its default-approach leaf label.</summary>
-    private static ApproachPickerSpec ApproachSpec(string id) =>
-        id switch
-        {
-            MenuIds.ApproachCleared => new("Cleared approach", "CAPP", name => $"Cleared {name}"),
-            MenuIds.ApproachJoin => new("Join approach", "JAPP", name => $"Join {name}"),
-            MenuIds.ApproachClearedStraightIn => new("Cleared straight-in", "CAPPSI", name => $"Cleared straight-in {name}"),
-            MenuIds.ApproachJoinStraightIn => new("Join straight-in", "JAPPSI", name => $"Join straight-in {name}"),
-            MenuIds.ApproachClearedForce => new("Cleared approach (force)", "CAPPF", name => $"Cleared {name} (force)"),
-            MenuIds.ApproachJoinForce => new("Join approach (force)", "JAPPF", name => $"Join {name} (force)"),
-            MenuIds.ApproachJoinFinalCourse => new("Join final approach course", "JFAC", name => $"Join final course {name}"),
-            MenuIds.ApproachExpect => new("Expect approach", "EAPP", name => $"Expect {name}"),
-            _ => throw new ArgumentOutOfRangeException(nameof(id), id, "Not an approach picker entry."),
+            MenuIds.ApproachCleared => ApproachVerb(id, "Cleared approach", "CAPP", name => $"Cleared {name}") with
+            {
+                Visuals = ApproachVisualRows.Clearance,
+                ForceToggleVerb = "CAPPF",
+                OffersCancelIfr = true,
+            },
+            MenuIds.ApproachJoin => ApproachVerb(id, "Join approach", "JAPP", name => $"Join {name}"),
+            MenuIds.ApproachClearedStraightIn => ApproachVerb(id, "Cleared straight-in", "CAPPSI", name => $"Cleared straight-in {name}"),
+            MenuIds.ApproachJoinStraightIn => ApproachVerb(id, "Join straight-in", "JAPPSI", name => $"Join straight-in {name}"),
+            MenuIds.ApproachClearedForce => ApproachVerb(id, "Cleared approach (force)", "CAPPF", name => $"Cleared {name} (force)") with
+            {
+                IsForced = true,
+            },
+            MenuIds.ApproachJoinForce => ApproachVerb(id, "Join approach (force)", "JAPPF", name => $"Join {name} (force)") with { IsForced = true },
+            MenuIds.ApproachJoinFinalCourse => ApproachVerb(id, "Join final approach course", "JFAC", name => $"Join final course {name}"),
+            MenuIds.ApproachExpect => ApproachVerb(id, "Expect approach", "EAPP", name => $"Expect {name}") with
+            {
+                Visuals = ApproachVisualRows.Expectation,
+                OffersCancelIfr = true,
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(id), id, "Not an approach entry."),
         };
 
     /// <summary>
-    /// An approach entry's companion, which shares its id: the grouped picker labelled "(other)", offered beside a
-    /// default approach; null without a default (<see cref="ApproachPickerBuilder.BuildOther"/>), and always for an entry that
-    /// opens the approach flyout, which lists every approach itself.
+    /// An approach verb with no visual rows, no Force toggle, no Cancel IFR and unforced rows, its glyph the entry
+    /// <paramref name="id"/>'s.
     /// </summary>
-    internal static MenuItem? BuildApproachOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        (ApproachFlyoutVerbOf(id) is null) ? ApproachPickerBuilder.BuildOther(ApproachSpec(id), aircraft, context, host) : null;
+    private static ApproachVerbSpec ApproachVerb(string id, string label, string verb, Func<string, string> defaultLabel) =>
+        new()
+        {
+            Label = label,
+            Verb = verb,
+            IsForced = false,
+            Visuals = ApproachVisualRows.None,
+            ForceToggleVerb = null,
+            OffersCancelIfr = false,
+            GlyphId = id,
+            DefaultLabel = defaultLabel,
+        };
 
     /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
     internal static IReadOnlyList<CifpApproachProcedure> DestinationApproaches(IMenuAircraft? aircraft) =>

@@ -28,16 +28,24 @@ public enum QuickCommandGlyphFamily
 /// <param name="Family">The family whose colour the glyph is drawn in.</param>
 /// <param name="RotationDegrees">The clockwise rotation about the view box's centre; 0 draws the path as it is.</param>
 /// <param name="MirroredTopToBottom">Whether the path is mirrored top to bottom about the view box's centre line before it is rotated.</param>
-public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily Family, double RotationDegrees, bool MirroredTopToBottom);
+public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily Family, double RotationDegrees, bool MirroredTopToBottom)
+{
+    /// <summary>
+    /// Whether the glyph carries the force mark, an amber disc with "!" over its lower right, drawn after the path: a forced
+    /// verb's glyph is its base verb's with the mark.
+    /// </summary>
+    public bool HasForceMark { get; init; }
+}
 
 /// <summary>
 /// The icon each glyph-bearing catalog action shows in a quick-command menu's strip, from the approved icon set, and the
 /// rule that splits a resolved quick-command list into the strip and the text entries below it: the first
 /// <see cref="StripCapacity"/> glyph-bearing entries in list order form the strip (two rows of five), and every other
 /// entry, a glyph-bearing one past the tenth included, is a text entry. Every default quick command has a glyph. An action
-/// pair the icon set draws as one glyph (left and right 360, left and right closed traffic) shares it, and so do Cancel
-/// landing clearance and Cancel takeoff, which no situation offers together. A pattern entry draws the traffic pattern for
-/// a runway landing west as a rounded rectangle, an arrowhead in the middle of its runway edge pointing west, with an
+/// pair the icon set draws as one glyph (left and right 360, left and right closed traffic, Cleared and Join straight-in)
+/// shares it, and so do Cancel landing clearance and Cancel takeoff, which no situation offers together; the forced approach
+/// verbs draw their base verb's glyph with the force mark (<see cref="QuickCommandGlyph.HasForceMark"/>). A pattern entry
+/// draws the traffic pattern for a runway landing west as a rounded rectangle, an arrowhead in the middle of its runway edge pointing west, with an
 /// arrow ending just short of the point of entry: a 45° arrow onto mid-downwind, an arrow along the base leg (the east
 /// side) toward the runway, or one along the extended runway line from the east. Left traffic has the runway on the top
 /// edge and right traffic on the bottom, so left and right entries mirror top to bottom; the straight-in final draws the
@@ -74,6 +82,18 @@ public static class QuickCommandGlyphs
     private const string Turn360Path = "M20 12a8 8 0 1 1-3-6.2 M20 4v5h-5";
 
     private const string RacetrackPath = "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z";
+
+    /// <summary>Cleared approach: three tracks converging on the runway end.</summary>
+    private const string ClearedApproachPath = "M3 12L21 5 M3 12L21 19 M3 12h18";
+
+    /// <summary>Join approach: a track curving onto the final approach course, the arrow on the course toward the runway end.</summary>
+    private const string JoinApproachPath = "M3 12h18 M20 20.5C18 15 15.5 12 11.5 12 M9.5 9l-3 3 3 3";
+
+    /// <summary>A straight-in approach: a straight track onto the runway bar.</summary>
+    private const string StraightInPath = "M3 7v10 M21 12H7 M10 9l-3 3 3 3";
+
+    /// <summary>Join final approach course: a level track above the runway, the course without the descent.</summary>
+    private const string JoinFinalCoursePath = "M2 20h9 M21 10H5 M8 7l-3 3 3 3";
 
     private const string ClosedTrafficPath = "M7 4h10a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z M7 12h10 M13 1l-3 3 3 3";
 
@@ -118,7 +138,13 @@ public static class QuickCommandGlyphs
             [MenuIds.SpeedFinalApproach] = Flight(SpeedPath),
             [MenuIds.NavigationDirectTo] = Flight("M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"),
             [MenuIds.HoldPattern] = Flight(RacetrackPath + " M8 18l-2 3"),
-            [MenuIds.ApproachCleared] = Flight("M3 12L21 5 M3 12L21 19 M3 12h18"),
+            [MenuIds.ApproachCleared] = Flight(ClearedApproachPath),
+            [MenuIds.ApproachJoin] = Flight(JoinApproachPath),
+            [MenuIds.ApproachClearedStraightIn] = Flight(StraightInPath),
+            [MenuIds.ApproachJoinStraightIn] = Flight(StraightInPath),
+            [MenuIds.ApproachClearedForce] = Flight(ClearedApproachPath) with { HasForceMark = true },
+            [MenuIds.ApproachJoinForce] = Flight(JoinApproachPath) with { HasForceMark = true },
+            [MenuIds.ApproachJoinFinalCourse] = Flight(JoinFinalCoursePath),
             [MenuIds.ApproachClearedVisual] = Flight("M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"),
             [MenuIds.ApproachExpect] = Flight(
                 "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19"
