@@ -33,7 +33,7 @@ Step 4b: Remove overlapping edges
     ↓
 Step 5: Detect runway crossings → insert hold-short nodes
     ↓
-Step 6: Connect parking/spots/helipads to nearest taxiway
+Step 6: Connect parking/helipads to a lead-in vertex or the nearest taxiway
     ↓
 Step 7: Wire up node adjacency lists
     ↓
@@ -199,16 +199,16 @@ This ensures that taxiways on opposite sides of a runway are connected through t
 
 ### Step 6: Connect Parking/Spots/Helipads
 
-**Function**: `ConnectParkingToTaxiway()` and `ConnectToNearestTaxiway()`
+**Functions**: `ConnectParkingToTaxiway()`, `ConnectStandLeadIn()`, `ConnectToNearestTaxiway()` and `FindNearestConnectorTarget()`
 
-For each parking/helipad/spot node:
+Spots are existing nodes (created in Step 2) and get no connector. For each parking and helipad node:
 
-1. Find the nearest non-parking, non-helipad, non-spot node (i.e., a taxiway intersection)
-2. Check distance:
-   - Parking: max 0.15 nm (~800ft)
-   - Helipad: max 0.3 nm (~1600ft)
-   - Spot: treated as existing nodes (created in Step 2)
-3. If within threshold, create a RAMP edge to the nearest taxiway node
+1. A parking stand its airport's sidecar lists in `standLeadIns` (`UsableStandLeadIns` keeps an entry that names exactly one parking stand) connects to the vertex nearest the entry's point among the nodes with an edge of the named taxiway that `CanConnectToEdge` allows, within 0.15 nm of the point; that vertex is the stand's foot. A bad entry warns and falls through to step 2. Helipads never take a lead-in.
+2. Otherwise find the taxiway edge nearest the node by perpendicular distance, among the edges `CanConnectToEdge` allows: never a RAMP-named line, a runway centreline, a runway crossing link, or an edge touching a parking or helipad node.
+3. Check the perpendicular distance: parking max 0.15 nm (~800ft), helipad max 0.3 nm (~1600ft).
+4. If within the threshold, create a RAMP edge (origin `GeoJson:parking-connector`) to that edge's nearer vertex, or its farther one when the nearer is within the fillet no-op distance of the node. No edge is split.
+
+A parking stand's departure (`StandDepartures.Classify`) is then classified from the foot of the perpendicular onto the edge its connector joined, or from the lead-in vertex. After all the parking nodes and helipads, `ConnectGateGroupsToAnchors()` adds `GeoJson:gate-group-connector` RAMP edges joining each gate to the connected anchor of its gate group. The layout build reads the sidecar's `standLeadIns` only; see [`standLeadIns`](../src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
 
 **RAMP edges**: Edges with `TaxiwayName = "RAMP"`. Used for parking connections, not part of normal taxi routes.
 

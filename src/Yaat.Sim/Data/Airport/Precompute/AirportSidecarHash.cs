@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -31,18 +32,60 @@ public static class AirportSidecarHash
             throw new DirectoryNotFoundException($"ARTCCs directory not found: {artccsBaseDir}");
         }
 
-        string wanted = NavigationDatabase.NormalizeAirport(airportId);
-        IEnumerable<string> files = AirportSidecarLoader
-            .SidecarFilesInLoadOrder(artccsBaseDir)
-            .Where(file => (SidecarAirport(file) is { } id) && (NavigationDatabase.NormalizeAirport(id) == wanted));
-
         var concatenated = new StringBuilder();
-        foreach (string file in files)
+        foreach (string file in SidecarFilesOf(artccsBaseDir, airportId))
         {
             concatenated.Append(Sha256Hex(File.ReadAllBytes(file)));
         }
 
         return Sha256Hex(Encoding.ASCII.GetBytes(concatenated.ToString()));
+    }
+
+    /// <summary>
+    /// The hash of the airport's stand lead-ins, the one sidecar section the layout build reads: the airport's sidecars
+    /// (the files <see cref="For"/> hashes) are loaded and their merged lead-ins hashed by <see cref="OfStandLeadIns"/>, so a
+    /// lead-in edit stales the layout half of a precompute entry while any other sidecar edit leaves it current.
+    /// </summary>
+    /// <param name="artccsBaseDir">The ARTCCs data directory.</param>
+    /// <param name="airportId">The airport, with or without its K prefix.</param>
+    /// <returns>The hash, lowercase hex.</returns>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="artccsBaseDir"/> does not exist.</exception>
+    public static string ForStandLeadIns(string artccsBaseDir, string airportId)
+    {
+        if (!Directory.Exists(artccsBaseDir))
+        {
+            throw new DirectoryNotFoundException($"ARTCCs directory not found: {artccsBaseDir}");
+        }
+
+        // The load's warnings are dropped here: the sidecar catalog's own load reports them.
+        var catalog = new AirportSidecarCatalog(AirportSidecarLoader.LoadFiles(SidecarFilesOf(artccsBaseDir, airportId)).Airports);
+        return OfStandLeadIns(catalog.GetStandLeadIns(airportId));
+    }
+
+    /// <summary>
+    /// The SHA-256 of a canonical form of <paramref name="leadIns"/>: one line per entry, in order, of its stand, taxiway,
+    /// latitude and longitude (round-trip invariant text), tab-separated. Notes are left out, since they do not shape the
+    /// layout. No entries give the SHA-256 of the empty string.
+    /// </summary>
+    /// <param name="leadIns">An airport's stand lead-ins (<see cref="AirportSidecarCatalog.GetStandLeadIns"/>).</param>
+    /// <returns>The hash, lowercase hex.</returns>
+    public static string OfStandLeadIns(IReadOnlyList<StandLeadIn> leadIns)
+    {
+        var canonical = new StringBuilder();
+        foreach (StandLeadIn leadIn in leadIns)
+        {
+            canonical.Append(CultureInfo.InvariantCulture, $"{leadIn.Stand}\t{leadIn.Taxiway}\t{leadIn.Point.Lat:R}\t{leadIn.Point.Lon:R}\n");
+        }
+
+        return Sha256Hex(Encoding.UTF8.GetBytes(canonical.ToString()));
+    }
+
+    private static IEnumerable<string> SidecarFilesOf(string artccsBaseDir, string airportId)
+    {
+        string wanted = NavigationDatabase.NormalizeAirport(airportId);
+        return AirportSidecarLoader
+            .SidecarFilesInLoadOrder(artccsBaseDir)
+            .Where(file => (SidecarAirport(file) is { } id) && (NavigationDatabase.NormalizeAirport(id) == wanted));
     }
 
     private static string? SidecarAirport(string file)

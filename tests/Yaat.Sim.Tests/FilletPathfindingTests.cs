@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -16,7 +17,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, []);
     }
 
     private static AirportGroundLayout? LoadSfo()
@@ -27,7 +28,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), null);
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestStandLeadIns.For("SFO"));
     }
 
     [Fact]

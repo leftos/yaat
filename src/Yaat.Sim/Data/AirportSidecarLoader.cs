@@ -70,6 +70,20 @@ public static class AirportSidecarLoader
         return result;
     }
 
+    /// <summary>Parses each of <paramref name="filePaths"/> into an <see cref="AirportSidecar"/>, in the order given.</summary>
+    /// <param name="filePaths">The sidecar files, as a rule a subset of <see cref="SidecarFilesInLoadOrder"/> in its order.</param>
+    /// <returns>The parsed sidecars and the warnings.</returns>
+    public static AirportSidecarLoadResult LoadFiles(IEnumerable<string> filePaths)
+    {
+        var result = new AirportSidecarLoadResult();
+        foreach (string file in filePaths)
+        {
+            LoadFile(file, result);
+        }
+
+        return result;
+    }
+
     private static void LoadFile(string filePath, AirportSidecarLoadResult result)
     {
         AirportSidecarFile? file;
@@ -115,8 +129,57 @@ public static class AirportSidecarLoader
                 NonMovementTaxilanes = ParsePavementClassNames(file.NonMovementTaxilanes, "nonMovementTaxilanes", filePath, result),
                 StandDepartureOverrides = ParseStandDepartures(file, filePath, result),
                 StandDepartureAreas = ParseStandDepartureAreas(file, filePath, result),
+                StandLeadIns = ParseStandLeadIns(file, filePath, result),
             }
         );
+    }
+
+    /// <summary>
+    /// The <c>standLeadIns</c> section, in file order: each stand trimmed, each taxiway trimmed and upper-cased, each
+    /// <c>[lon, lat]</c> point read as a <see cref="LatLon"/>. An entry missing its stand or taxiway, or whose point is not
+    /// two numbers, is warned and skipped; a second entry for the same stand (case-insensitive) warns and wins.
+    /// </summary>
+    private static List<StandLeadIn> ParseStandLeadIns(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var leadIns = new List<StandLeadIn>();
+        for (int i = 0; i < file.StandLeadIns.Count; i++)
+        {
+            StandLeadInEntry entry = file.StandLeadIns[i];
+            string location = $"{filePath}: standLeadIns[{i}]";
+            if (StandLeadInProblem(entry) is { } problem)
+            {
+                result.Warnings.Add($"{location} ({entry.Stand}): {problem}, skipping");
+                continue;
+            }
+
+            string stand = entry.Stand!.Trim();
+            int existing = leadIns.FindIndex(l => string.Equals(l.Stand, stand, StringComparison.OrdinalIgnoreCase));
+            if (existing >= 0)
+            {
+                result.Warnings.Add($"{location}: duplicate stand {stand} in this file, last entry wins");
+                leadIns.RemoveAt(existing);
+            }
+
+            leadIns.Add(new StandLeadIn(stand, entry.Taxiway!.Trim().ToUpperInvariant(), new LatLon(entry.Point![1], entry.Point[0]), entry.Notes));
+        }
+
+        return leadIns;
+    }
+
+    /// <summary>What is wrong with an authored stand lead-in, or null when it is usable.</summary>
+    private static string? StandLeadInProblem(StandLeadInEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry.Stand))
+        {
+            return "missing stand";
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.Taxiway))
+        {
+            return "missing taxiway";
+        }
+
+        return entry.Point is { Length: 2 } ? null : "point must be [lon, lat]";
     }
 
     /// <summary>The stand-departure names a sidecar may give, quoted, for a warning.</summary>

@@ -423,7 +423,7 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         string path = Path.Combine("TestData", "oak.geojson");
         Assert.True(File.Exists(path), $"{path} is missing from the test output");
-        return GeoJsonParser.Parse("oak", File.ReadAllText(path), null, FilletMode.Standard);
+        return GeoJsonParser.Parse("oak", File.ReadAllText(path), null, [], FilletMode.Standard);
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<string>> Active(string ends) =>

@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -27,7 +28,7 @@ public class BlockedTurnPathfinderTests
     private static AirportGroundLayout? LoadSfo()
     {
         string path = Path.Combine("TestData", "sfo.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestStandLeadIns.For("SFO")) : null;
     }
 
     private static BlockedTurnResult Blocked(AirportGroundLayout layout) =>

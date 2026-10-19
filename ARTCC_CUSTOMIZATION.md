@@ -121,6 +121,14 @@ Forbids one corner outright, in both directions: neither the auto-router nor an 
 ]
 ```
 
+### standLeadIns
+
+Joins a parking stand to a named taxiway's vertex, for a stand the map draws no lead-in line for and the nearest taxiway edge is the wrong one (SFO's D12 hung off T6B without it, so `TAXI K A @D12` went through spot 6B). The stand connects to the vertex of that taxiway nearest `point`, within 0.15 nm; a bad entry warns at load or layout build and the stand keeps its nearest-edge connector. Unlike every other section, an edit changes the layout, so the airport's precompute-cache entry must be regenerated. Details: [`standLeadIns`](src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
+
+```json
+"standLeadIns": [ { "stand": "D12", "taxiway": "A", "point": [-122.381946, 37.619622], "notes": "vNAS map draws no lead-in" } ]
+```
+
 ### adw
 
 Draws the two ends of a published Arrival/Departure Window as reference marks in Ground view. Nothing else acts on them: no separation logic, no pilot behaviour, no scoring. Ranges are measured from the displaced landing threshold, so the map's `threshold` property must be right. Author an entry only from a facility directive. Details: [`adw`](src/Yaat.Sim/Data/ARTCCs/README.md#adw).

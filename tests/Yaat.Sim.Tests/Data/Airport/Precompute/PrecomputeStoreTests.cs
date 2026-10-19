@@ -29,7 +29,7 @@ public class PrecomputeStoreTests
     public void RoundTrip_RealKoakLayout()
     {
         AirportGroundLayout layout = RealKoakLayout();
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash, AirportSidecarHash.OfStandLeadIns([]));
         var entry = new PrecomputeEntry(layout.AirportId, key, layout, []);
         string root = NewRoot();
 
@@ -71,7 +71,12 @@ public class PrecomputeStoreTests
             PushTargetPlannerTests.Sequential
         );
         Assert.Contains(targets, e => e.Targets.Count > 0);
-        var entry = new PrecomputeEntry(layout.AirportId, PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash), layout, targets);
+        var entry = new PrecomputeEntry(
+            layout.AirportId,
+            PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash, AirportSidecarHash.OfStandLeadIns([])),
+            layout,
+            targets
+        );
         string root = NewRoot();
 
         try
@@ -97,7 +102,7 @@ public class PrecomputeStoreTests
     {
         AirportGroundLayout first = ParseKoakLayout();
         AirportGroundLayout second = ParseKoakLayout();
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash, AirportSidecarHash.OfStandLeadIns([]));
         string firstRoot = NewRoot();
         string secondRoot = NewRoot();
 
@@ -125,7 +130,7 @@ public class PrecomputeStoreTests
     public void Write_ShuffledTargets_IsByteIdentical()
     {
         AirportGroundLayout layout = RealKoakLayout();
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
+        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash, AirportSidecarHash.OfStandLeadIns([]));
         PushTargetEntry[] targets = [new("A1", "II", []), new("A1", "I", []), new("B2", "III", [])];
         var first = new PrecomputeEntry(layout.AirportId, key, layout, [.. targets]);
         var second = new PrecomputeEntry(layout.AirportId, key, layout, [targets[2], targets[1], targets[0]]);
@@ -200,7 +205,7 @@ public class PrecomputeStoreTests
             Directory.CreateDirectory(root);
             var store = new PrecomputeStore(root);
             string path = store.PathFor(layout.AirportId);
-            var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash);
+            var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash, AirportSidecarHash.OfStandLeadIns([]));
             var document = new JsonObject
             {
                 ["AirportId"] = layout.AirportId,
@@ -236,7 +241,12 @@ public class PrecomputeStoreTests
     public void Write_AirportIdMismatch_Throws()
     {
         AirportGroundLayout layout = RealKoakLayout();
-        var entry = new PrecomputeEntry("KSFO", PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash), layout, []);
+        var entry = new PrecomputeEntry(
+            "KSFO",
+            PrecomputeKey.Current(GeoJsonMd5, 12_345, SidecarHash, AirportSidecarHash.OfStandLeadIns([])),
+            layout,
+            []
+        );
         var store = new PrecomputeStore(NewRoot());
 
         ArgumentException ex = Assert.Throws<ArgumentException>(() => store.Write(entry));
@@ -253,7 +263,7 @@ public class PrecomputeStoreTests
     {
         var groundData = new TestAirportGroundData();
         string geoJson = groundData.GetSourceGeoJson("KOAK") ?? throw new InvalidOperationException("The KOAK test GeoJSON is missing.");
-        return GeoJsonParser.Parse("OAK", geoJson, "OAK", FilletMode.Standard);
+        return GeoJsonParser.Parse("OAK", geoJson, "OAK", [], FilletMode.Standard);
     }
 
     private static string NewRoot() => Path.Combine(Path.GetTempPath(), "precompute-" + Guid.NewGuid());

@@ -37,7 +37,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
     private static AirportGroundLayout? LoadOakLayout()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, FilletMode.Standard) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
 
         Assert.NotNull(beforeTurn);
         Assert.NotNull(midTurn);
-        Assert.Equal(GraphLegs(beforeTurn!), GraphLegs(midTurn!));
+        Assert.Equal(GraphLegs((TaxiRoute)beforeTurn!), GraphLegs((TaxiRoute)midTurn!));
         Assert.Equal(tangentCut.Id, midTurn!.Segments[0].FromNodeId);
     }
 
@@ -391,7 +391,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
             MidCFacingH(tangentCut, farEnd, "C172", "C J", "", TaxiTurnAboutShape.FromFarEnd, MissingNodeId)
         );
 
-        Assert.Equal(none is null ? [] : GraphLegs(none), missing is null ? [] : GraphLegs(missing));
+        Assert.Equal(none is null ? [] : GraphLegs((TaxiRoute)none), missing is null ? [] : GraphLegs((TaxiRoute)missing));
         Assert.DoesNotContain(missing?.Segments ?? [], s => VirtualNode.IsVirtualEdge(s.Edge.Edge) && (s.ToNodeId == farEnd.Id));
     }
 
@@ -569,7 +569,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
         Assert.NotNull(junctionCB);
 
         double awayFromB = (GeoMath.BearingTo(junctionCH.Position, junctionCB.Position) + 180.0) % 360.0;
-        GroundNode tangentCut = NextAlongC(junctionCH, awayFromB);
+        GroundNode tangentCut = NextAlongC((GroundNode)junctionCH, awayFromB);
         GroundNode farEnd = NextAlongC(tangentCut, GeoMath.BearingTo(junctionCH.Position, tangentCut.Position));
         double edgeFt = GeoMath.DistanceNm(tangentCut.Position, farEnd.Position) * GeoMath.FeetPerNm;
         Assert.True(edgeFt > MinLongEdgeFt, $"C edge {tangentCut.Id}-{farEnd.Id} is {edgeFt:F0} ft, expected a long edge");

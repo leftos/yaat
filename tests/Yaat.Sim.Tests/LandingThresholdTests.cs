@@ -23,7 +23,7 @@ public class LandingThresholdTests
     }
 
     private static AirportGroundLayout Layout(string geojson, string airportId) =>
-        GeoJsonParser.Parse(airportId, File.ReadAllText(Path.Combine("TestData", geojson)), airportId);
+        GeoJsonParser.Parse(airportId, File.ReadAllText(Path.Combine("TestData", geojson)), airportId, []);
 
     private static RunwayInfo Runway(string airportId, string designator)
     {

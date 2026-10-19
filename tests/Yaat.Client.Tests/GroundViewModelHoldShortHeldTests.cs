@@ -212,7 +212,7 @@ public class GroundViewModelHoldShortHeldTests
     {
         string path = Path.Combine("TestData", "oak.geojson");
         Assert.True(File.Exists(path), $"{path} is missing from the test output");
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK", FilletMode.Standard);
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK", [], FilletMode.Standard);
     }
 
     /// <summary>The SFO layout, the airport the tail-over-runway poses are staged on.</summary>
@@ -220,7 +220,7 @@ public class GroundViewModelHoldShortHeldTests
     {
         string path = Path.Combine("TestData", "sfo.geojson");
         Assert.True(File.Exists(path), $"{path} is missing from the test output");
-        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", FilletMode.Standard);
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", [], FilletMode.Standard);
     }
 
     /// <summary>
@@ -344,6 +344,8 @@ public class GroundViewModelHoldShortHeldTests
         public AirportGroundLayout? GetLayout(string airportId) =>
             string.Equals(airportId.TrimStart('K'), layout.AirportId, StringComparison.OrdinalIgnoreCase) ? layout : null;
 
+#pragma warning disable IDE0060 // IAirportGroundData member: this one-layout stub has no source GeoJSON for any airport.
         public string? GetSourceGeoJson(string airportId) => null;
+#pragma warning restore IDE0060
     }
 }

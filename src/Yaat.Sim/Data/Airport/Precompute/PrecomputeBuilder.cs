@@ -182,7 +182,8 @@ public static class PrecomputeBuilder
         PrecomputeKey.Current(
             online is null ? committed.GeoJsonMd5 : (online.GeoJsonMd5ByAirport.GetValueOrDefault(faa) ?? ""),
             online?.NavDataSerial ?? committed.NavDataSerial,
-            AirportSidecarHash.For(artccsDir, faa)
+            AirportSidecarHash.For(artccsDir, faa),
+            AirportSidecarHash.ForStandLeadIns(artccsDir, faa)
         );
 
     private static IEnumerable<string> LayoutReasons(PrecomputeKey committed, PrecomputeKey current, bool noVnasMap)
@@ -195,6 +196,11 @@ public static class PrecomputeBuilder
         if (committed.LayoutSourceHash != current.LayoutSourceHash)
         {
             yield return "the layout source hash differs (a layout source file changed)";
+        }
+
+        if (committed.StandLeadInHash != current.StandLeadInHash)
+        {
+            yield return "the stand lead-in hash differs";
         }
 
         if (noVnasMap)

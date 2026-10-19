@@ -37,7 +37,7 @@ public class GroundViewModelApproachLegOverlayTests
     private static AirportGroundLayout? LoadOakLayout()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, FilletMode.Standard) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class GroundViewModelApproachLegOverlayTests
     private static AirportGroundLayout? LoadSfoLayout()
     {
         string path = Path.Combine("TestData", "sfo.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, FilletMode.Standard) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
     }
 
     /// <summary>The route the simulation assigns SKW5590 for <c>TAXI T7A $7A</c> from <paramref name="position"/>.</summary>

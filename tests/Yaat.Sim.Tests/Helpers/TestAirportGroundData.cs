@@ -60,7 +60,7 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
                 TestVnasData.EnsureInitialized();
                 string? runwayAirportCode = NavigationDatabase.InstanceOrNull is not null ? shortId.ToUpperInvariant() : null;
 
-                layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), runwayAirportCode, _filletMode);
+                layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), runwayAirportCode, TestStandLeadIns.For(shortId), _filletMode);
             }
 
             Cache[key] = layout;

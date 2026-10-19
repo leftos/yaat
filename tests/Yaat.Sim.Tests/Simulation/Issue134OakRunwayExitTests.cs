@@ -237,6 +237,6 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, []);
     }
 }

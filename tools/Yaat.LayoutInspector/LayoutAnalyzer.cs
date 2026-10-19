@@ -1,4 +1,5 @@
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using static Yaat.Sim.Data.Airport.AirportGroundLayout;
@@ -14,7 +15,13 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
     {
         string geoJson = File.ReadAllText(geoJsonPath);
         string airportId = Path.GetFileNameWithoutExtension(geoJsonPath).ToUpperInvariant();
-        AirportGroundLayout layout = GeoJsonParser.Parse(airportId, geoJson, airportCode, filletMode);
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            airportId,
+            geoJson,
+            airportCode,
+            (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(airportId),
+            filletMode
+        );
         return new LayoutAnalyzer(layout);
     }
 

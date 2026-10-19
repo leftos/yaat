@@ -475,11 +475,32 @@ Whether a stand is left by a push back, by taxiing out, or either way, overridin
 | `standDepartureAreas[].departure` | string | Yes | `"PushBack"`, `"TaxiOut"` or `"Either"` |
 | `standDepartureAreas[].notes` | string | No | Facility rationale. Informational only |
 
-Precedence is the per-name `standDeparture`, then the first matching area rule (files concatenate in load order), then the layout's geometry. A rule is applied when the answer is read, never at layout build.
+Precedence is the per-name `standDeparture`, then the first matching area rule (files concatenate in load order), then the layout's geometry. A rule is applied when the answer is read, never at layout build; the one sidecar section the layout build does read is [`standLeadIns`](#standleadins), whose vertex is the foot the geometry answer is classified from.
 
 Files load in the ordinal order of each file's path relative to `Data/ARTCCs`, written with forward slashes, so `ZOA/Airports/B.json` loads before `ZOA/Airports/a.json` — an upper-case name or folder sorts before a lower-case one. This is the same order on every OS, never the filesystem's own listing order. Where two files disagree, the last file wins for a per-name `standDeparture` entry, and the first file's rule comes first among `standDepartureAreas`.
 
 A blank stand name, a bad area entry or another value is skipped with a warning at load. A name that matches no stand on the airport's layout, or several, and an area rule naming no runway end on the layout, warn when the push targets are computed. Editing either section stales the airport's push-target cache entry. Worked example: [`ZOA/Airports/oak.json`](ZOA/Airports/oak.json) (North Field as an area, the MTN stands `Either`), and [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
+
+### `standLeadIns`
+
+The taxiway a parking stand's connector joins, for a stand the vNAS map draws no lead-in line for, so the nearest-edge connector hangs it off the wrong taxiway. SFO's D12 hung off T6B, so `TAXI K A @D12` went through spot 6B.
+
+```json
+"standLeadIns": [
+  { "stand": "D12", "taxiway": "A", "point": [-122.381946, 37.619622], "notes": "vNAS map draws no lead-in; D12 hangs off T6B without it" }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `standLeadIns[].stand` | string | Yes | The parking stand's name, matched case-insensitively. Only parking stands, never helipads or spots |
+| `standLeadIns[].taxiway` | string | Yes | The taxiway the lead-in joins |
+| `standLeadIns[].point` | number[2] | Yes | `[lon, lat]` (GeoJSON order) near the vertex to join |
+| `standLeadIns[].notes` | string | No | Facility rationale. Informational only |
+
+At layout build (before the gate-group connectors and the fillet pass) the stand connects to the vertex nearest `point` among the nodes with an edge of the named taxiway that a stand may connect to, within 0.15 nm of the point. A stand never connects to a runway centreline, a crossing link, or an edge touching a parking or helipad node. That connector (origin `GeoJson:parking-connector`) replaces the stand's nearest-edge one, and the vertex is the stand's foot for push classification.
+
+An entry that fails a check is skipped with a warning at load: a blank stand or taxiway, a `point` that is not two numbers, or a second entry for the same stand in one file (the last entry wins; across files the last file wins). An entry whose stand names no parking stand on the layout or several, finds no vertex of its taxiway within 0.15 nm, or joins the taxiway at a node on the stand warns at layout build and keeps the nearest-edge connector. Editing this section stales the airport's layout and push-target cache entries, while any other sidecar edit stales the push-target entry alone. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 
 ---
 

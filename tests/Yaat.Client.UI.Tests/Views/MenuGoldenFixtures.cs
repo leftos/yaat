@@ -53,7 +53,13 @@ internal static class MenuGoldenFixtures
 
     private static readonly Lazy<GroundLayoutDto> SfoLayoutDto = new(() =>
         ToGroundLayoutDto(
-            GeoJsonParser.Parse("SFO", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")), null, FilletMode.Standard)
+            GeoJsonParser.Parse(
+                "SFO",
+                File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")),
+                null,
+                [],
+                FilletMode.Standard
+            )
         )
     );
 
@@ -94,7 +100,7 @@ internal static class MenuGoldenFixtures
     private static AirportGroundLayout ParseOakLayout()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "TestData", "oak.geojson");
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, FilletMode.Standard);
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard);
     }
 
     /// <summary>Gate 25, a named parking node.</summary>

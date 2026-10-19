@@ -53,13 +53,13 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
     private static AirportGroundLayout? LoadSfo()
     {
         string path = Path.Combine("TestData", "sfo.geojson");
-        return !File.Exists(path) ? null : GeoJsonParser.Parse("SFO", File.ReadAllText(path), null);
+        return !File.Exists(path) ? null : GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestStandLeadIns.For("SFO"));
     }
 
     private static AirportGroundLayout? LoadOak()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return !File.Exists(path) ? null : GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
+        return !File.Exists(path) ? null : GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, []);
     }
 
     // ─── Plan B: SKW3078 taxi stall ───
@@ -200,7 +200,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
                 continue;
             }
 
-            AirportGroundLayout layout = GeoJsonParser.Parse(airport, File.ReadAllText(path), null);
+            AirportGroundLayout layout = GeoJsonParser.Parse(airport, File.ReadAllText(path), null, []);
             int badCount = 0;
             int genuineTurnCount = 0;
             int collinearExemptCount = 0;

@@ -147,7 +147,12 @@ public class PushTargetPlannerTests
 
         try
         {
-            var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, AirportSidecarHash.For(ArtccsDir, "KOAK"));
+            var key = PrecomputeKey.Current(
+                GeoJsonMd5,
+                12_345,
+                AirportSidecarHash.For(ArtccsDir, "KOAK"),
+                AirportSidecarHash.ForStandLeadIns(ArtccsDir, "KOAK")
+            );
             var firstStore = new PrecomputeStore(firstRoot);
             var secondStore = new PrecomputeStore(secondRoot);
             firstStore.Write(new PrecomputeEntry(layout.AirportId, key, layout, OakEntries.Value));
@@ -178,7 +183,12 @@ public class PushTargetPlannerTests
         IReadOnlySet<string> stands = NearestStandNames(layout, reference, 8);
         var envelopes = DesignGroupEnvelopes.LoadShipped();
         IReadOnlyList<PushTargetEntry> sequential = PushTargetPlanner.ComputeStands(layout, envelopes, Sidecars.Value, stands, Sequential);
-        var key = PrecomputeKey.Current(GeoJsonMd5, 12_345, AirportSidecarHash.For(ArtccsDir, airport));
+        var key = PrecomputeKey.Current(
+            GeoJsonMd5,
+            12_345,
+            AirportSidecarHash.For(ArtccsDir, airport),
+            AirportSidecarHash.ForStandLeadIns(ArtccsDir, airport)
+        );
         string sequentialRoot = NewRoot();
         string[] parallelRoots = [NewRoot(), NewRoot()];
 

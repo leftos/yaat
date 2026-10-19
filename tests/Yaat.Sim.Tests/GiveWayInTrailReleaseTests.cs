@@ -20,7 +20,8 @@ public class GiveWayInTrailReleaseTests(ITestOutputHelper output)
     [Fact]
     public void GiveWayBehindTrafficMergingAhead_ReleasesOnItsOwn()
     {
-        var groundData = RecordingGroundData.Evergreen("a GIVEWAY hold releasing on its own once the traffic has passed");
+        // Pinned to the recorded layout: the restored snapshot's saved routes name layout node ids.
+        var groundData = RecordingGroundData.VersionPinned(BundlePath, "a GIVEWAY hold releasing on its own once the traffic has passed");
         if (groundData.GetLayout("SFO") is null)
         {
             return;

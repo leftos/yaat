@@ -25,10 +25,27 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     private const int SfoTAfter28LCrossing = 855;
 
     private const double SfoTSouthboundHeading = 209.0;
-    private const int SfoTbArcEntry = 1394;
 
     /// <summary>The tangent cut on B where the right-hand T/B fillet ends (spot "32" shares the node).</summary>
     private const int SfoTbRightArcExit = 30;
+
+    /// <summary>
+    /// The tangent cut on T where the right-hand T/B fillet begins: the far end, nearer <see cref="SfoTAfter28LCrossing"/>, of a
+    /// T/B fillet arc ending at <see cref="SfoTbRightArcExit"/>. Found by what it is, since the fillet pass numbers it after
+    /// every node it mints earlier.
+    /// </summary>
+    private static int SfoTbRightArcEntry(AirportGroundLayout layout)
+    {
+        GroundNode exit = layout.Nodes[SfoTbRightArcExit];
+        GroundNode start = layout.Nodes[SfoTAfter28LCrossing];
+        GroundNode entry =
+            layout
+                .Arcs.Where(a => a.MatchesTaxiway("T") && a.MatchesTaxiway("B") && ((a.Nodes[0] == exit) || (a.Nodes[1] == exit)))
+                .Select(a => a.OtherNode(exit))
+                .MinBy(n => GeoMath.DistanceNm(n.Position, start.Position))
+            ?? throw new InvalidOperationException($"SFO layout has no T/B fillet arc ending at node {SfoTbRightArcExit}");
+        return entry.Id;
+    }
 
     private static readonly RoutePreference[] AllPreferences = [RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest];
 
@@ -97,7 +114,9 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         Dump(route);
 
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "SFO 855 T >B");
-        Assert.Contains(route.Segments, s => (s.Edge.Edge is GroundArc) && (s.FromNodeId == SfoTbArcEntry) && (s.ToNodeId == SfoTbRightArcExit));
+        int sfoTbArcEntry = SfoTbRightArcEntry(layout);
+        output.WriteLine($"T/B right arc entry: node {sfoTbArcEntry}");
+        Assert.Contains(route.Segments, s => (s.Edge.Edge is GroundArc) && (s.FromNodeId == sfoTbArcEntry) && (s.ToNodeId == SfoTbRightArcExit));
     }
 
     [Fact]

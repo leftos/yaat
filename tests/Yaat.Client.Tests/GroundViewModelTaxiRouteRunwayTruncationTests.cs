@@ -38,7 +38,7 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
     private static AirportGroundLayout? LoadOakLayout()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, FilletMode.Standard) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
     }
 
     /// <summary>The 28R hold-short node that sits on taxiway B.</summary>
@@ -85,7 +85,7 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
         GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
-        GroundNode holdShort = HoldShort28ROnB(layout);
+        GroundNode holdShort = HoldShort28ROnB((AirportGroundLayout)layout);
         GroundNode start = InteriorStartOnB(holdShort);
 
         var ac = new AircraftModel
@@ -125,7 +125,7 @@ public class GroundViewModelTaxiRouteRunwayTruncationTests
         GroundViewModel vm = MakeViewModel();
         vm.SetDomainLayoutForTesting(layout);
 
-        GroundNode holdShort = HoldShort28ROnB(layout);
+        GroundNode holdShort = HoldShort28ROnB((AirportGroundLayout)layout);
         GroundNode start = InteriorStartOnB(holdShort);
 
         var ac = new AircraftModel

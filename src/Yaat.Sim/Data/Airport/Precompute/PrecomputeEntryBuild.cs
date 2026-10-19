@@ -30,7 +30,12 @@ public static class PrecomputeEntryBuild
     /// <param name="navDataSerial">The serial of the loaded navdata.</param>
     /// <returns>The key.</returns>
     public static PrecomputeKey CurrentKey(string faa, string geoJson, string artccsDir, long navDataSerial) =>
-        PrecomputeKey.Current(GeoJsonMd5.Of(geoJson), navDataSerial, AirportSidecarHash.For(artccsDir, faa));
+        PrecomputeKey.Current(
+            GeoJsonMd5.Of(geoJson),
+            navDataSerial,
+            AirportSidecarHash.For(artccsDir, faa),
+            AirportSidecarHash.ForStandLeadIns(artccsDir, faa)
+        );
 
     /// <summary>
     /// Parses <paramref name="geoJson"/> as the server parses an airport's map, plans its push targets and writes the entry,
@@ -54,7 +59,7 @@ public static class PrecomputeEntryBuild
         ArgumentNullException.ThrowIfNull(context);
 
         PrecomputeKey key = CurrentKey(faa, geoJson, context.ArtccsDir, context.NavDataSerial);
-        AirportGroundLayout layout = GeoJsonParser.Parse(faa.ToLowerInvariant(), geoJson, faa);
+        AirportGroundLayout layout = GeoJsonParser.Parse(faa.ToLowerInvariant(), geoJson, faa, context.Sidecars.GetStandLeadIns(faa));
         IReadOnlyList<PushTargetEntry> targets = standNames is null
             ? PushTargetPlanner.Compute(layout, context.Envelopes, context.Sidecars, context.StandLoop)
             : PushTargetPlanner.ComputeStands(layout, context.Envelopes, context.Sidecars, standNames, context.StandLoop);

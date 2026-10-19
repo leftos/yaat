@@ -1,12 +1,15 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 
 /// <summary>
 /// The staleness of a <see cref="PrecomputeKey"/>: each of the four layout inputs (GeoJSON hash, navdata serial,
-/// layout format version, layout source hash) breaks both matches when it moves, and a push-target source change or an
-/// airport sidecar change breaks only the push half. One test per clause, so dropping any clause of
+/// layout format version, layout source hash, stand lead-in hash) breaks both matches when it moves, and a push-target source
+/// change or an airport sidecar change outside the lead-ins breaks only the push half. One test per clause, so dropping any clause of
 /// <see cref="PrecomputeKey.LayoutMatches"/> or <see cref="PrecomputeKey.PushTargetsMatch"/> fails a test.
 /// </summary>
 public class PrecomputeKeyTests
@@ -72,6 +75,36 @@ public class PrecomputeKeyTests
         Assert.False(current.PushTargetsMatch(stored));
     }
 
+    /// <summary>A stand lead-in edit reshapes the layout, so it stales the layout half and the push half with it.</summary>
+    [Fact]
+    public void StandLeadInChange_BreaksBothMatches()
+    {
+        PrecomputeKey stored = Stored();
+        PrecomputeKey current = Stored() with { StandLeadInHash = "other" };
+
+        Assert.False(current.LayoutMatches(stored));
+        Assert.False(current.PushTargetsMatch(stored));
+    }
+
+    /// <summary>
+    /// An entry written before the lead-in hash existed still reads, and reads as layout-stale against a key computed now,
+    /// even for an airport with no lead-ins.
+    /// </summary>
+    [Fact]
+    public void StoredKeyWithoutStandLeadInHash_ReadsAsLayoutStale()
+    {
+        var current = PrecomputeKey.Current("md5", 7, "sidecar", AirportSidecarHash.OfStandLeadIns([]));
+        JsonObject json = JsonSerializer.SerializeToNode(current, GroundLayoutSerializer.Options)!.AsObject();
+        string field = json.Select(property => property.Key)
+            .Single(key => key.Equals(nameof(PrecomputeKey.StandLeadInHash), StringComparison.OrdinalIgnoreCase));
+        json.Remove(field);
+
+        PrecomputeKey old = json.Deserialize<PrecomputeKey>(GroundLayoutSerializer.Options)!;
+
+        Assert.Equal(string.Empty, old.StandLeadInHash);
+        Assert.False(current.LayoutMatches(old));
+    }
+
     /// <summary>
     /// The offline comparison of a stored key with the key built for a client that has no vNAS ignores the two facts
     /// only the maintainer's run knows (the GeoJSON MD5 and the navdata serial, which the offline key leaves blank) and
@@ -80,7 +113,7 @@ public class PrecomputeKeyTests
     [Fact]
     public void PushTargetsMatchOffline_IgnoresMd5AndSerial_ButNotSourceHashes()
     {
-        var stored = PrecomputeKey.Current("md5", 7, "sidecar");
+        var stored = PrecomputeKey.Current("md5", 7, "sidecar", "lead-ins");
         var offline = PrecomputeKey.CurrentOffline("sidecar");
 
         Assert.NotEqual(stored.GeoJsonMd5, offline.GeoJsonMd5);
@@ -104,5 +137,6 @@ public class PrecomputeKeyTests
             LayoutSourceHash = "layout",
             PushTargetSourceHash = "push",
             PushSidecarHash = "sidecar",
+            StandLeadInHash = "lead-ins",
         };
 }

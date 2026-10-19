@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -22,7 +23,7 @@ public class ParkingRouteWarningsTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "sfo.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestStandLeadIns.For("SFO")) : null;
     }
 
     [Fact]

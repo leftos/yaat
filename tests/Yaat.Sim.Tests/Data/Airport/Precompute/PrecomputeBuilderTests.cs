@@ -27,7 +27,7 @@ public class PrecomputeBuilderTests
     private static readonly Lazy<string> SfoGeoJson = new(() => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")));
 
     /// <summary>KOAK parsed as a build parses it, for entries whose push targets the check never reads.</summary>
-    private static readonly Lazy<AirportGroundLayout> OakLayout = new(() => GeoJsonParser.Parse("oak", OakGeoJson.Value, "OAK"));
+    private static readonly Lazy<AirportGroundLayout> OakLayout = new(() => GeoJsonParser.Parse("oak", OakGeoJson.Value, "OAK", []));
 
     private static readonly IReadOnlySet<string> Gate26 = new HashSet<string>(StringComparer.Ordinal) { "26" };
 
@@ -47,7 +47,12 @@ public class PrecomputeBuilderTests
             PrecomputeEntry built = PrecomputeEntryBuild.Build(store, "OAK", OakGeoJson.Value, Context(PushTargetPlannerTests.Sequential), Gate26);
 
             string md5 = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(OakGeoJson.Value))).ToLowerInvariant();
-            var current = PrecomputeKey.Current(md5, NavDataSerial, AirportSidecarHash.For(ArtccsDir, "OAK"));
+            var current = PrecomputeKey.Current(
+                md5,
+                NavDataSerial,
+                AirportSidecarHash.For(ArtccsDir, "OAK"),
+                AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK")
+            );
             Assert.Equal(current, built.Key);
             Assert.Equal("OAK", built.AirportId);
             Assert.True(File.Exists(Path.Combine(root, "OAK.json.br")));
@@ -103,7 +108,7 @@ public class PrecomputeBuilderTests
         Dictionary<string, (string GeoJson, IReadOnlySet<string> Stands)> airports = new(StringComparer.Ordinal)
         {
             ["OAK"] = (OakGeoJson.Value, StandsNear(OakLayout.Value, "26", 3)),
-            ["SFO"] = (SfoGeoJson.Value, StandsNear(GeoJsonParser.Parse("sfo", SfoGeoJson.Value, "SFO"), "D2", 3)),
+            ["SFO"] = (SfoGeoJson.Value, StandsNear(GeoJsonParser.Parse("sfo", SfoGeoJson.Value, "SFO", []), "D2", 3)),
         };
         string sequentialRoot = NewRoot();
         string parallelRoot = NewRoot();
@@ -260,7 +265,10 @@ public class PrecomputeBuilderTests
         });
     }
 
-    /// <summary>A sidecar edit stales the push half alone, offline and online: the layout does not read sidecars.</summary>
+    /// <summary>
+    /// A sidecar edit outside the stand lead-ins stales the push half alone, offline and online: the layout build reads only
+    /// the lead-ins.
+    /// </summary>
     [Fact]
     public void Check_ChangedSidecar_FailsPushHalfOnly()
     {
@@ -272,7 +280,15 @@ public class PrecomputeBuilderTests
             File.Copy(Path.Combine(ArtccsDir, "ZOA", "Airports", "oak.json"), sidecar);
             WithStore(store =>
             {
-                WriteOak(store, PrecomputeKey.Current(Md5(), NavDataSerial, AirportSidecarHash.For(artccs, "OAK")));
+                WriteOak(
+                    store,
+                    PrecomputeKey.Current(
+                        Md5(),
+                        NavDataSerial,
+                        AirportSidecarHash.For(artccs, "OAK"),
+                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK")
+                    )
+                );
                 Assert.Equal(PrecomputeCheckStatus.Current, Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null)).Status);
 
                 File.AppendAllText(sidecar, "\n");
@@ -283,6 +299,45 @@ public class PrecomputeBuilderTests
                 Assert.Equal(PrecomputeCheckStatus.PushTargetsStale, online.Status);
                 Assert.StartsWith("OAK: push targets stale", offline.Describe(), StringComparison.Ordinal);
                 Assert.Contains("sidecar", offline.Describe(), StringComparison.Ordinal);
+            });
+        }
+        finally
+        {
+            DeleteRoot(artccs);
+        }
+    }
+
+    /// <summary>A stand lead-in edit stales the layout half, offline and online: the layout build reads the lead-ins.</summary>
+    [Fact]
+    public void Check_ChangedStandLeadIn_FailsLayoutHalf()
+    {
+        string artccs = NewRoot();
+        try
+        {
+            string sidecar = Path.Combine(artccs, "ZOA", "Airports", "oak.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(sidecar)!);
+            File.Copy(Path.Combine(ArtccsDir, "ZOA", "Airports", "oak.json"), sidecar);
+            WithStore(store =>
+            {
+                WriteOak(
+                    store,
+                    PrecomputeKey.Current(
+                        Md5(),
+                        NavDataSerial,
+                        AirportSidecarHash.For(artccs, "OAK"),
+                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK")
+                    )
+                );
+                Assert.Equal(PrecomputeCheckStatus.Current, Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null)).Status);
+
+                string leadIn = """{ "standLeadIns": [{ "stand": "26", "taxiway": "W", "point": [-122.2161, 37.7176] }], """;
+                File.WriteAllText(sidecar, leadIn + File.ReadAllText(sidecar).TrimStart()[1..]);
+
+                PrecomputeCheckResult offline = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null));
+                PrecomputeCheckResult online = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, Online(Md5(), NavDataSerial)));
+                Assert.Equal(PrecomputeCheckStatus.LayoutStale, offline.Status);
+                Assert.Equal(PrecomputeCheckStatus.LayoutStale, online.Status);
+                Assert.Contains("stand lead-in hash", offline.Describe(), StringComparison.Ordinal);
             });
         }
         finally
@@ -411,7 +466,8 @@ public class PrecomputeBuilderTests
 
     private static string Md5() => GeoJsonMd5.Of(OakGeoJson.Value);
 
-    private static PrecomputeKey FreshKey() => PrecomputeKey.Current(Md5(), NavDataSerial, AirportSidecarHash.For(ArtccsDir, "OAK"));
+    private static PrecomputeKey FreshKey() =>
+        PrecomputeKey.Current(Md5(), NavDataSerial, AirportSidecarHash.For(ArtccsDir, "OAK"), AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"));
 
     private static PrecomputeOnlineFacts Online(string md5, long navDataSerial) =>
         new(navDataSerial, new Dictionary<string, string?>(StringComparer.Ordinal) { ["OAK"] = md5 });

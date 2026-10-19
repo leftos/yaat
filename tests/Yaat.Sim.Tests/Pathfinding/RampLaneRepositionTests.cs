@@ -420,7 +420,7 @@ public class RampLaneRepositionTests
     {
         // Synthetic mini-airport: gate G leads onto lane M3; lane M9 runs parallel 200 ft away, but a lettered
         // taxiway K lies between them. The cut would cross K — a movement-area taxiway, not open apron.
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: true), "TST");
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: true), "TST", []);
         GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
         ExplicitPathOptions options = Options(null);
@@ -446,7 +446,7 @@ public class RampLaneRepositionTests
     [Fact]
     public void OpenApronBetweenTheLanes_Plans()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: false), "TST");
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(withTaxiwayBetween: false), "TST", []);
         GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
         ExplicitPathOptions options = Options(null);
@@ -484,7 +484,7 @@ public class RampLaneRepositionTests
     [InlineData(300.0, true)]
     public void ResolvedRouteCut_TurnsOnTheDetourRatio(double laneLengthFt, bool expectCut)
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST");
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST", []);
         GroundNode stand = layout.FindParkingByName("H")!;
         GroundNode start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();
         TaxiRoute? route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);

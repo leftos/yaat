@@ -17,4 +17,6 @@ Run from the repo; every command takes `--airport <id>` (repeatable) to work on 
 - `-- --refresh-airports` rewrites `airports.txt`.
 - `-- --refresh-envelopes` rewrites `design-group-envelopes.json` and the pinned test copy of the FAA data.
 
+An entry's key carries the airport's sidecar hash, which stales the push targets alone, and its stand lead-in hash (`StandLeadInHash`, the sidecar `standLeadIns` section), which stales the layout too, since the layout build connects those stands. `--check` names it "the stand lead-in hash differs"; an entry stored without the field reads as layout-stale.
+
 Regenerate at an AIRAC cycle and before a release, and commit the changed entries. The design is in [`docs/ground/pushback.md`](../../../../docs/ground/pushback.md) ("The push-target cache").

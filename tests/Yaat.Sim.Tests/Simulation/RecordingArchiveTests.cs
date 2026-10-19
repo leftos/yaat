@@ -442,7 +442,7 @@ public class RecordingArchiveTests
     [InlineData("SFO", "sfo.geojson")]
     public void ReadLayout_OfARealLayout_RoutesAndTurnsAsTheParsedOne(string airportId, string geoJsonFile)
     {
-        AirportGroundLayout parsed = GeoJsonParser.Parse(airportId, File.ReadAllText(Path.Combine("TestData", geoJsonFile)), null);
+        AirportGroundLayout parsed = GeoJsonParser.Parse(airportId, File.ReadAllText(Path.Combine("TestData", geoJsonFile)), null, []);
         AirportGroundLayout restored = WriteAndReadLayout(parsed);
 
         List<string> parsedRunwayEnds = RunwayEndKeys(parsed, end => end);

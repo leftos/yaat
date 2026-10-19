@@ -4,6 +4,7 @@
 
 ### Added
 
+- Airport sidecars can name the taxiway a stand's lead-in joins (`standLeadIns`), for stands the ground map draws no lead-in line to.
 - Load Live Weather fetches NOAA GFS winds aloft that vary across the airspace; saved files keep the grid, and the METAR window names the source.
 - The right-click menu offers Resume taxi for an aircraft held while taxiing or following.
 - A feed tool's room list shows each room's member count, aircraft count and whether it is paused.
@@ -33,6 +34,7 @@
 ### Fixed
 
 - An aircraft cleared onto a taxiway from a spot or the ramp no longer makes a U-turn through a fillet behind it to get there (SFO spot 10).
+- A taxi to SFO gate D12 off taxiway A comes straight in from A instead of through the spot 6B alley.
 - Taxiing traffic gives way to an aircraft still leaving a runway, unless it stands in that aircraft's way out; a held one blocks only head-on traffic.
 - An aircraft counts as clear of a runway only once every part of it, not just its main gear, is past the edge or hold line.
 - `CVA 28R OAK` keeps its airport, `CVA FOLLOW` no longer reads as a runway, and a visual approach clearance reads back its runway.

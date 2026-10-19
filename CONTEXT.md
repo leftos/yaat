@@ -246,6 +246,10 @@ _Avoid_: onto (both end on the taxiway)
 The movement-area taxiway a spot's lane joins, which a push or line-up onto the spot faces by default (`AirportGroundLayout.TryGetSpotOutboundTaxiway`); a `PUSH $spot` names it in its RPO note.
 _Avoid_: exit taxiway (an exit leaves a runway)
 
+**Stand lead-in**:
+A sidecar `standLeadIns` entry naming the taxiway vertex a parking stand's connector joins, for a stand the vNAS map draws no lead-in line for; it replaces the stand's nearest-edge connector at layout build and its vertex is the foot the stand's `StandDeparture` is classified from (SFO D12 joins A). A different thing from the implied lead-in, which is a route's uncleared approach taxiway.
+_Avoid_: implied lead-in
+
 **StandDeparture**:
 Whether a stand is left by a push back, by taxiing out, or either (`PushBack` / `TaxiOut` / `Either`). The layout build stores the geometric answer on each parking node; an airport sidecar's `standDeparture` map overrides it by stand name and its `standDepartureAreas` rules by runway side; `StandDepartures.StandDepartureOf` is the one place it is read.
 

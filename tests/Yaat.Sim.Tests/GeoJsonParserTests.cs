@@ -124,7 +124,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_MissingFeatureType_ReportsAnUnknownTypeWithNoType()
     {
-        (_, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("fll", MissingTypeGeoJson, null);
+        (_, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("fll", MissingTypeGeoJson, null, []);
 
         GroundMapIssue issue = Assert.Single(issues);
         Assert.Equal(GroundMapIssueKind.UnknownFeatureType, issue.Kind);
@@ -137,7 +137,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_MinimalGeoJson_ReportsNoIssues()
     {
-        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("oak", MinimalGeoJson, null);
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("oak", MinimalGeoJson, null, []);
 
         Assert.NotNull(layout.FindParkingByName("25"));
         Assert.Empty(issues);
@@ -146,7 +146,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_UnknownFeatureType_ReportsItsIndexTypeAndName()
     {
-        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("unv", UnknownTypeGeoJson, null);
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics("unv", UnknownTypeGeoJson, null, []);
 
         GroundMapIssue issue = Assert.Single(issues);
         Assert.Equal(GroundMapIssueKind.UnknownFeatureType, issue.Kind);
@@ -163,7 +163,8 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics(
             "oak",
             MalformedCoordinateGeoJson,
-            null
+            null,
+            []
         );
 
         GroundMapIssue issue = Assert.Single(issues);
@@ -178,7 +179,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_CreatesParkingNodes()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         GroundNode? spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
@@ -195,7 +196,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_CreatesSpotNode()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         bool foundSpot = false;
         foreach (GroundNode node in layout.Nodes.Values)
@@ -213,7 +214,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_CreatesTaxiwayEdges()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         // Should have edges for taxiway T and TC
         bool hasT = false;
@@ -238,7 +239,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_DetectsSharedEndpoint()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         // T and TC share an endpoint at [-122.215874, 37.708816]
         // After filleting, the intersection node is replaced by tangent points and arcs.
@@ -262,7 +263,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_ConnectsParkingToNearbyTaxiway()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         GroundNode? spot32 = layout.FindParkingByName("32");
         Assert.NotNull(spot32);
@@ -274,7 +275,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_SwapsLonLatToLatLon()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         GroundNode? spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
@@ -318,7 +319,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             }
             """;
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", json, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", json, null, []);
 
         // The taxiway B doesn't cross this runway geometrically in this test data
         // (they're at different positions) so this is a basic structural test
@@ -362,7 +363,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             }
             """;
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", json, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", json, null, []);
 
         // Should have hold-short nodes on both sides of the runway
         var hsNodes = new List<GroundNode>();
@@ -388,7 +389,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void FindNearestNode_ReturnsClosestNode()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         // Query near parking 25's position
         GroundNode? nearest = layout.FindNearestNode(37.7105, -122.2120);
@@ -398,7 +399,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void FindParkingByName_CaseInsensitive()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, []);
 
         Assert.NotNull(layout.FindParkingByName("25"));
         Assert.Null(layout.FindParkingByName("NONEXISTENT"));
@@ -419,7 +420,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         }
 
         string content = File.ReadAllText(geoJsonPath);
-        AirportGroundLayout layout = GeoJsonParser.Parse("oak", content, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("oak", content, null, []);
 
         // Collect hold-short nodes for each runway that are connected to taxiway B
         var bHs28R = new List<GroundNode>();
@@ -485,7 +486,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         }
 
         string content = File.ReadAllText(geoJsonPath);
-        AirportGroundLayout layout = GeoJsonParser.Parse("oak", content, null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("oak", content, null, []);
 
         var nodes = new List<object>();
         foreach ((int id, GroundNode? node) in layout.Nodes)
@@ -531,7 +532,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "oak.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK");
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK", []);
 
         // OAK 28L - 10R: turnoff=right (anchored to 28L's heading), holdShortDistance=250 (ignored),
         // patternSize=0.5, patternAltitude=600. Right of 28L (heading ~282°) = north (GA parking side).
@@ -555,7 +556,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", []);
 
         // SFO 10L - 28R: turnoff=right (anchored to 10L east), noTurnoff = [["Q", "T"], ["L", "P"]].
         // Right of 10L (~102°) = south = terminal side. Same physical side is LEFT of 28R (~282°).
@@ -577,7 +578,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         // SFO 28R: authored turnoff resolves to Left (same physical side as terminal-south of 10L).
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", []);
 
         GroundRunway rwy = layout.Runways.First(r => r.Name == "10L - 28R");
         Assert.Equal(ExitSide.Left, rwy.TurnoffForEnd("28R"));
@@ -623,7 +624,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         // SFO 28R noTurnoff = ['L', 'P']: landing 28R must not exit at L or P.
         // Default-search (no command-named taxiway) should never select L or P as the exit.
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", []);
 
         GroundRunway rwy = layout.Runways.First(r => r.Name == "10L - 28R");
         Assert.Contains("L", rwy.NoTurnoffForEnd("28R"));
@@ -651,7 +652,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         // Even though P is on noTurnoff for 28R, an explicit "EXIT P" command must still find P.
         // The forbidden filter applies only to default-search (preference.Taxiway == null).
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
+        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", []);
 
         GroundNode centerline28R = layout.Nodes.Values.First(n => n.Edges.Any(e => e.MatchesRunway("28R")));
         var heading = new TrueHeading(282);
@@ -694,7 +695,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         // sjc.geojson has turnoff but no patternAltitude/patternSize/noTurnoff
         string path = Path.Combine("TestData", "sjc.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SJC", File.ReadAllText(path), "SJC");
+        AirportGroundLayout layout = GeoJsonParser.Parse("SJC", File.ReadAllText(path), "SJC", []);
 
         foreach (GroundRunway rwy in layout.Runways)
         {
@@ -712,7 +713,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         string json = File.ReadAllText(Path.Combine("TestData", "CMH.geojson"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("CMH", json, "CMH");
+        AirportGroundLayout layout = GeoJsonParser.Parse("CMH", json, "CMH", []);
 
         Assert.NotNull(layout.FindParkingByName("A1"));
         Assert.Contains(layout.Nodes.Values, node => node.Type == GroundNodeType.Parking);
@@ -725,7 +726,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         string json = File.ReadAllText(Path.Combine("TestData", "LBB.geojson"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("LBB", json, "LBB");
+        AirportGroundLayout layout = GeoJsonParser.Parse("LBB", json, "LBB", []);
 
         for (int stand = 1; stand <= 9; stand++)
         {
@@ -740,7 +741,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         string json = File.ReadAllText(Path.Combine("TestData", "TTN.geojson"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TTN", json, "TTN");
+        AirportGroundLayout layout = GeoJsonParser.Parse("TTN", json, "TTN", []);
 
         GroundRunway? runway = layout.FindRunway("6");
         Assert.NotNull(runway);

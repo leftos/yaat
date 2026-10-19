@@ -34,6 +34,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, HashSet<string>> _nonMovementByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, StandDeparture>> _standDeparturesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<StandDepartureArea>> _standDepartureAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<StandLeadIn>> _standLeadInsByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly IReadOnlyDictionary<string, StandDeparture> NoStandDepartures = new Dictionary<string, StandDeparture>();
 
@@ -62,7 +63,45 @@ public sealed class AirportSidecarCatalog
             MergeNames(_nonMovementByAirport, key, airport.NonMovementTaxilanes);
             MergeStandDepartures(key, airport.StandDepartureOverrides);
             MergeStandDepartureAreas(key, airport.StandDepartureAreas);
+            MergeStandLeadIns(key, airport.StandLeadIns);
         }
+    }
+
+    private void MergeStandLeadIns(string key, IReadOnlyList<StandLeadIn> leadIns)
+    {
+        if (leadIns.Count == 0)
+        {
+            return;
+        }
+
+        if (!_standLeadInsByAirport.TryGetValue(key, out List<StandLeadIn>? list))
+        {
+            list = [];
+            _standLeadInsByAirport[key] = list;
+        }
+
+        // Last file wins on a per-stand clash, keeping one lead-in per stand.
+        foreach (StandLeadIn leadIn in leadIns)
+        {
+            list.RemoveAll(existing => string.Equals(existing.Stand, leadIn.Stand, StringComparison.OrdinalIgnoreCase));
+            list.Add(leadIn);
+        }
+    }
+
+    /// <summary>
+    /// The airport sidecar's stand lead-ins, one per stand, in load order. Never null — returns an empty list when the
+    /// airport has none. Passed to <see cref="GeoJsonParser"/>, which draws each listed stand's connector to the named
+    /// taxiway's vertex.
+    /// </summary>
+    public IReadOnlyList<StandLeadIn> GetStandLeadIns(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _standLeadInsByAirport.TryGetValue(key, out List<StandLeadIn>? list) ? list : [];
     }
 
     private void MergeStandDepartureAreas(string key, IReadOnlyList<StandDepartureArea> areas)

@@ -31,7 +31,7 @@ public class GroundViewModelRampLaneCrossingOverlayTests
     private static AirportGroundLayout? LoadLayout(string airportId, string file)
     {
         string path = Path.Combine("TestData", file);
-        return File.Exists(path) ? GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, FilletMode.Standard) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, [], FilletMode.Standard) : null;
     }
 
     [Fact]

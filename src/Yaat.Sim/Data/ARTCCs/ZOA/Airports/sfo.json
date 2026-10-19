@@ -138,5 +138,13 @@
     "CG2": "TaxiOut",
     "CG3": "TaxiOut",
     "CG4": "TaxiOut"
-  }
+  },
+  "standLeadIns": [
+    {
+      "stand": "D12",
+      "taxiway": "A",
+      "point": [-122.381946, 37.619622],
+      "notes": "vNAS map draws no lead-in; D12 hangs off T6B without it"
+    }
+  ]
 }

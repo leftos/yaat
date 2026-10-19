@@ -205,6 +205,40 @@ public sealed class StandDepartureAreaEntry
 public sealed record StandDepartureArea(string Runway, ExitSide Side, StandDeparture Departure, string? Notes);
 
 /// <summary>
+/// On-disk shape of one entry of the unified per-airport sidecar's <c>standLeadIns</c> section: the parking stand whose
+/// connector to the taxiway network the layout build draws to <see cref="Taxiway"/> instead of to the nearest taxiway edge,
+/// for a stand the vNAS map draws no lead-in line for.
+/// </summary>
+public sealed class StandLeadInEntry
+{
+    /// <summary>The parking stand's name, e.g. <c>"D12"</c>, matched case-insensitively.</summary>
+    [JsonPropertyName("stand")]
+    public string? Stand { get; set; }
+
+    /// <summary>The taxiway the stand's lead-in joins, e.g. <c>"A"</c>.</summary>
+    [JsonPropertyName("taxiway")]
+    public string? Taxiway { get; set; }
+
+    /// <summary>
+    /// <c>[lon, lat]</c> (GeoJSON order) near the taxiway vertex the lead-in joins: the vertex of <see cref="Taxiway"/> nearest
+    /// this point is chosen.
+    /// </summary>
+    [JsonPropertyName("point")]
+    public double[]? Point { get; set; }
+
+    /// <summary>Optional human-readable rationale. Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// One airport's validated stand lead-in, produced by <see cref="AirportSidecarLoader"/> from a
+/// <see cref="StandLeadInEntry"/>: <see cref="Stand"/> trimmed, <see cref="Taxiway"/> trimmed and upper-cased. Read by
+/// <see cref="GeoJsonParser"/> when it connects the stand to the taxiway network.
+/// </summary>
+public sealed record StandLeadIn(string Stand, string Taxiway, LatLon Point, string? Notes);
+
+/// <summary>
 /// On-disk shape of a unified per-airport ground sidecar: one airport per JSON file under
 /// <c>Data/ARTCCs/{ARTCC}/Airports/{airport}.json</c>. Consolidates the per-airport ground-routing
 /// overrides (avoided taxiways, preset taxi routes, implicit connectors) that were previously split
@@ -273,6 +307,10 @@ internal sealed class AirportSidecarFile
     /// <summary>Area rules giving every stand on one side of a runway end's centerline a departure, first match wins.</summary>
     [JsonPropertyName("standDepartureAreas")]
     public List<StandDepartureAreaEntry> StandDepartureAreas { get; set; } = [];
+
+    /// <summary>Stands whose connector the layout build draws to a named taxiway's vertex instead of the nearest edge.</summary>
+    [JsonPropertyName("standLeadIns")]
+    public List<StandLeadInEntry> StandLeadIns { get; set; } = [];
 }
 
 /// <summary>
@@ -319,4 +357,10 @@ public sealed record AirportSidecar(string AirportId)
     /// the first matching rule wins, below a per-name override (<see cref="StandDepartures.StandDepartureOf"/>).
     /// </summary>
     public IReadOnlyList<StandDepartureArea> StandDepartureAreas { get; init; } = [];
+
+    /// <summary>
+    /// Stands whose connector the layout build draws to a named taxiway's vertex, in file order, one entry per stand
+    /// (<see cref="GeoJsonParser"/>). The only section the layout build reads.
+    /// </summary>
+    public IReadOnlyList<StandLeadIn> StandLeadIns { get; init; } = [];
 }

@@ -1109,7 +1109,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void LiesOnRunwayPavementOnly_OnlyABarWhoseEveryEdgeIsCentreline()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "TestData", "oak.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, FilletMode.Standard);
+        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard);
         GroundNode junction = layout.Nodes.Values.First(n => n.Edges.Count(e => (e.IsRunwayCenterline) && (e.MatchesRunway("30"))) >= 2);
         var onPavement = new GroundNode
         {

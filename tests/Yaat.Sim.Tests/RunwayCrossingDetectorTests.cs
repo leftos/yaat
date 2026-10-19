@@ -464,7 +464,7 @@ public class RunwayCrossingDetectorTests
             return; // silently skip if TestData missing
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("KSFO", File.ReadAllText(path), "KSFO");
+        AirportGroundLayout layout = GeoJsonParser.Parse("KSFO", File.ReadAllText(path), "KSFO", []);
 
         var combinedId = RunwayIdentifier.Parse("10R/28L");
         GroundRunway rwy = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(combinedId));
@@ -516,7 +516,7 @@ public class RunwayCrossingDetectorTests
             return; // silently skip if TestData missing
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK");
+        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK", []);
 
         var combinedId = RunwayIdentifier.Parse("30/12");
         GroundRunway rwy = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(combinedId));
@@ -560,7 +560,7 @@ public class RunwayCrossingDetectorTests
             return; // silently skip if TestData missing
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK");
+        AirportGroundLayout layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK", []);
 
         GroundRunway rwy28R = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(RunwayIdentifier.Parse("28R/10L")));
         double hs28R = RunwayCrossingDetector.BuildRunwayRectangle(rwy28R).HoldShortNm * FeetPerNm;

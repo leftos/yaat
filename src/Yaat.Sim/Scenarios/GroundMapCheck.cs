@@ -31,7 +31,14 @@ public static class GroundMapCheck
 
         try
         {
-            IReadOnlyList<GroundMapIssue> issues = GeoJsonParser.ParseWithDiagnostics(faaId.ToLowerInvariant(), fetched.Content, faaId).Issues;
+            IReadOnlyList<GroundMapIssue> issues = GeoJsonParser
+                .ParseWithDiagnostics(
+                    faaId.ToLowerInvariant(),
+                    fetched.Content,
+                    faaId,
+                    (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaId)
+                )
+                .Issues;
             return new GroundMapCheckResult(faaId, GroundMapOutcome.Ok, Error: null, issues, Exception: null);
         }
         catch (Exception ex)

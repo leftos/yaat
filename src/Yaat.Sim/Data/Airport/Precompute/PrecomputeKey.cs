@@ -4,8 +4,9 @@ namespace Yaat.Sim.Data.Airport.Precompute;
 
 /// <summary>
 /// Identifies one airport's precomputed data, so a stored entry is recognised as stale. <see cref="LayoutMatches"/>
-/// covers everything the layout payload depends on; <see cref="PushTargetsMatch"/> adds the push-target sources and the
-/// airport's sidecar hash, so a precompute-planner-only or sidecar-only change invalidates the push half alone. The tug
+/// covers everything the layout payload depends on, the airport's stand lead-ins among them (the one sidecar section the
+/// layout build reads); <see cref="PushTargetsMatch"/> adds the push-target sources and the airport's whole sidecar hash, so
+/// a precompute-planner-only change, or a sidecar change outside the lead-ins, invalidates the push half alone. The tug
 /// planner's files (the <c>Tug*.cs</c> files under <c>Data/Airport</c>) are in the push-target set only, so an edit to
 /// one stales only the push half.
 /// </summary>
@@ -30,20 +31,27 @@ public sealed record PrecomputeKey
     public required string PushSidecarHash { get; init; }
 
     /// <summary>
+    /// The hash of the airport's stand lead-ins (<see cref="AirportSidecarHash.ForStandLeadIns"/>). Not required, so an entry
+    /// written before the field existed still reads, with an empty hash that matches no current key.
+    /// </summary>
+    public string StandLeadInHash { get; init; } = string.Empty;
+
+    /// <summary>
     /// The key of data computed now from the offline facts alone, for comparison through
     /// <see cref="PushTargetsMatchOffline"/>: its four offline fields (the layout format version and the three source
-    /// hashes) are current, its <see cref="GeoJsonMd5"/> is empty and its <see cref="NavDataSerial"/> zero, so
-    /// <see cref="LayoutMatches"/> and <see cref="PushTargetsMatch"/> must not be used to compare it.
+    /// hashes) are current, its <see cref="GeoJsonMd5"/> and <see cref="StandLeadInHash"/> are empty and its
+    /// <see cref="NavDataSerial"/> zero, so <see cref="LayoutMatches"/> and <see cref="PushTargetsMatch"/> must not be used to
+    /// compare it. The sidecar hash covers the lead-ins, so an offline comparison still sees a lead-in edit.
     /// </summary>
     /// <param name="pushSidecarHash">The airport's sidecar hash (<see cref="AirportSidecarHash.For"/>).</param>
     /// <returns>The key.</returns>
-    public static PrecomputeKey CurrentOffline(string pushSidecarHash) => Current(string.Empty, 0, pushSidecarHash);
+    public static PrecomputeKey CurrentOffline(string pushSidecarHash) => Current(string.Empty, 0, pushSidecarHash, string.Empty);
 
     /// <summary>
-    /// The key of data computed now, from the airport's GeoJSON hash, the loaded navdata serial and the airport's sidecar
-    /// hash (<see cref="AirportSidecarHash.For"/>).
+    /// The key of data computed now, from the airport's GeoJSON hash, the loaded navdata serial, the airport's sidecar hash
+    /// (<see cref="AirportSidecarHash.For"/>) and its stand lead-in hash (<see cref="AirportSidecarHash.ForStandLeadIns"/>).
     /// </summary>
-    public static PrecomputeKey Current(string geoJsonMd5, long navDataSerial, string pushSidecarHash) =>
+    public static PrecomputeKey Current(string geoJsonMd5, long navDataSerial, string pushSidecarHash, string standLeadInHash) =>
         new()
         {
             GeoJsonMd5 = geoJsonMd5,
@@ -52,6 +60,7 @@ public sealed record PrecomputeKey
             LayoutSourceHash = PrecomputeSourceHashes.Layout,
             PushTargetSourceHash = PrecomputeSourceHashes.PushTargets,
             PushSidecarHash = pushSidecarHash,
+            StandLeadInHash = standLeadInHash,
         };
 
     /// <summary>True when the layout payload computed under <paramref name="other"/> is still current.</summary>
@@ -61,7 +70,8 @@ public sealed record PrecomputeKey
         return (GeoJsonMd5 == other.GeoJsonMd5)
             && (NavDataSerial == other.NavDataSerial)
             && (LayoutFormatVersion == other.LayoutFormatVersion)
-            && (LayoutSourceHash == other.LayoutSourceHash);
+            && (LayoutSourceHash == other.LayoutSourceHash)
+            && (StandLeadInHash == other.StandLeadInHash);
     }
 
     /// <summary>True when the push targets computed under <paramref name="other"/> are still current.</summary>

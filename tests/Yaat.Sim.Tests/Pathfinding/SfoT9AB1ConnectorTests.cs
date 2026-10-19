@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
 
@@ -45,7 +46,7 @@ public class SfoT9AB1ConnectorTests
             return null;
         }
 
-        return GeoJsonParser.Parse("SFO", File.ReadAllText(FixturePath), null);
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(FixturePath), null, TestStandLeadIns.For("SFO"));
     }
 
     private static bool Traverses(TaxiRoute route, string twy) =>
