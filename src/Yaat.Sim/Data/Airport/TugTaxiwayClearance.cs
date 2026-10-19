@@ -59,6 +59,10 @@ internal sealed class TugTaxiwayClearance
     private readonly LayoutZones _zones;
     private readonly GroundOutlineSize _size;
 
+    // Working lists one scan fills and the next clears: an instance serves one plan's candidates, one at a time.
+    private readonly List<PushbackPose> _poses = [];
+    private readonly List<ReachablePiece> _pieces = [];
+
     internal TugTaxiwayClearance(AirportGroundLayout layout, MovementAreaClassification classification, AircraftFootprint footprint)
     {
         _zones = Cache.GetOrCreateValue(layout).GetValue(classification, c => new LayoutZones(layout, c));
@@ -72,11 +76,21 @@ internal sealed class TugTaxiwayClearance
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         GroundOutline outline = OutlineAt(pose);
-        foreach (Piece piece in Near([pose]).SelectMany(_zones.Clipped))
+        Box box = NearBox([pose]);
+        for (int index = 0; index < _zones.Pieces.Count; index++)
         {
-            if (Deepest(outline, piece).PenetrationFt > 0.0)
+            Piece near = _zones.Pieces[index];
+            if (!box.Touches(near.A, near.B))
             {
-                names.Add(piece.Name);
+                continue;
+            }
+
+            foreach (Piece piece in _zones.Clipped(index))
+            {
+                if (Deepest(outline, piece, _zones.HalfWidthFt(piece.Name)).PenetrationFt > 0.0)
+                {
+                    names.Add(piece.Name);
+                }
             }
         }
 
@@ -105,14 +119,8 @@ internal sealed class TugTaxiwayClearance
     /// <summary>The path's fouling, or — with <paramref name="firstFoulingOnly"/> — the first penetration found, its exposure unsummed.</summary>
     private TugTaxiwayFouling Scan(IReadOnlyList<TugMoveTrace> traces, IReadOnlySet<string> excluded, bool firstFoulingOnly)
     {
-        List<PushbackPose> poses = [.. traces.SelectMany(t => t.Samples)];
-        List<(Piece Piece, double ReachableFt)> pieces =
-        [
-            .. Near(poses)
-                .Where(p => !excluded.Contains(p.Name))
-                .SelectMany(_zones.Clipped)
-                .Select(p => (p, _zones.HalfWidthFt(p.Name) + ClearanceMarginFt + _size.ReachFt)),
-        ];
+        List<PushbackPose> poses = PosesOf(traces);
+        List<ReachablePiece> pieces = ProtectedNear(poses, excluded);
         if (pieces.Count == 0)
         {
             return TugTaxiwayFouling.Clear;
@@ -123,14 +131,20 @@ internal sealed class TugTaxiwayClearance
         PushbackPose? previous = null;
         foreach (PushbackPose pose in poses)
         {
-            GroundOutline outline = OutlineAt(pose);
             OutlinePoint centre = _zones.Frame.ToLocal(pose.Position);
+            var outline = GroundOutline.At(centre, pose.NoseTrueDeg, _size);
             double deepestHereFt = 0.0;
 
-            // A piece farther from the reference point than the outline's reach plus its zone cannot be reached into.
-            foreach ((Piece piece, _) in pieces.Where(p => PointToSegmentFt(centre, p.Piece.A, p.Piece.B) < p.ReachableFt))
+            foreach (ReachablePiece reachable in pieces)
             {
-                (double penetrationFt, TugFootprintPart part) = Deepest(outline, piece);
+                // A piece farther from the reference point than the outline's reach plus its zone cannot be reached into.
+                if (!(PointToSegmentFt(centre, reachable.Piece.A, reachable.Piece.B) < reachable.ReachableFt))
+                {
+                    continue;
+                }
+
+                Piece piece = reachable.Piece;
+                (double penetrationFt, TugFootprintPart part) = Deepest(outline, piece, reachable.HalfWidthFt);
                 deepestHereFt = Math.Max(deepestHereFt, penetrationFt);
                 if (penetrationFt > worst.PeakFt)
                 {
@@ -156,21 +170,77 @@ internal sealed class TugTaxiwayClearance
 
     private GroundOutline OutlineAt(PushbackPose pose) => GroundOutline.At(_zones.Frame.ToLocal(pose.Position), pose.NoseTrueDeg, _size);
 
-    /// <summary>The pieces that could come within their taxiway's half-width of the outline at any of the poses; none for no poses.</summary>
-    private IEnumerable<Piece> Near(IReadOnlyCollection<PushbackPose> poses)
+    /// <summary>Every flown sample, move by move, into the instance's working list.</summary>
+    private List<PushbackPose> PosesOf(IReadOnlyList<TugMoveTrace> traces)
     {
-        if (poses.Count == 0)
+        _poses.Clear();
+        foreach (TugMoveTrace trace in traces)
         {
-            return [];
+            IReadOnlyList<PushbackPose> samples = trace.Samples;
+            for (int i = 0; i < samples.Count; i++)
+            {
+                _poses.Add(samples[i]);
+            }
         }
 
-        double padFt = _size.ReachFt + AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(AirplaneDesignGroup.VI) + ClearanceMarginFt;
-        var box = Box.Around(poses.Select(p => _zones.Frame.ToLocal(p.Position)), padFt);
-        return _zones.Pieces.Where(p => box.Touches(p.A, p.B));
+        return _poses;
     }
 
-    /// <summary>How far the outline reaches into the piece's object-free area, feet (zero or less when clear), and with which part.</summary>
-    private (double PenetrationFt, TugFootprintPart Part) Deepest(GroundOutline outline, Piece piece)
+    /// <summary>
+    /// The clipped pieces of the protected taxiways but <paramref name="excluded"/> that could come within their
+    /// taxiway's half-width of the outline at any of the poses, each with that half-width and the distance from the
+    /// reference point inside which it can be reached into, into the instance's working list; none for no poses.
+    /// </summary>
+    private List<ReachablePiece> ProtectedNear(List<PushbackPose> poses, IReadOnlySet<string> excluded)
+    {
+        _pieces.Clear();
+        if (poses.Count == 0)
+        {
+            return _pieces;
+        }
+
+        Box box = NearBox(poses);
+        for (int index = 0; index < _zones.Pieces.Count; index++)
+        {
+            Piece near = _zones.Pieces[index];
+            if (!box.Touches(near.A, near.B) || excluded.Contains(near.Name))
+            {
+                continue;
+            }
+
+            foreach (Piece piece in _zones.Clipped(index))
+            {
+                double halfWidthFt = _zones.HalfWidthFt(piece.Name);
+                _pieces.Add(new ReachablePiece(piece, halfWidthFt, halfWidthFt + ClearanceMarginFt + _size.ReachFt));
+            }
+        }
+
+        return _pieces;
+    }
+
+    /// <summary>The box a piece must touch to come within its taxiway's half-width of the outline at any of the (non-empty) poses.</summary>
+    private Box NearBox(IReadOnlyList<PushbackPose> poses)
+    {
+        double padFt = _size.ReachFt + AirplaneDesignGroups.TaxiwayObjectFreeHalfWidthFt(AirplaneDesignGroup.VI) + ClearanceMarginFt;
+        OutlinePoint first = _zones.Frame.ToLocal(poses[0].Position);
+        (double minEast, double maxEast, double minNorth, double maxNorth) = (first.EastFt, first.EastFt, first.NorthFt, first.NorthFt);
+        for (int i = 1; i < poses.Count; i++)
+        {
+            OutlinePoint p = _zones.Frame.ToLocal(poses[i].Position);
+            minEast = p.EastFt < minEast ? p.EastFt : minEast;
+            maxEast = p.EastFt > maxEast ? p.EastFt : maxEast;
+            minNorth = p.NorthFt < minNorth ? p.NorthFt : minNorth;
+            maxNorth = p.NorthFt > maxNorth ? p.NorthFt : maxNorth;
+        }
+
+        return new Box(minEast - padFt, maxEast + padFt, minNorth - padFt, maxNorth + padFt);
+    }
+
+    /// <summary>
+    /// How far the outline reaches into the piece's object-free area, feet (zero or less when clear), and with which part;
+    /// <paramref name="halfWidthFt"/> is the piece's taxiway's object-free half-width.
+    /// </summary>
+    private static (double PenetrationFt, TugFootprintPart Part) Deepest(GroundOutline outline, Piece piece, double halfWidthFt)
     {
         (double fuselageFt, double fuselageT) = Closest(outline.Fuselage, piece);
         (double wingFt, double wingT) = Closest(outline.Wing, piece);
@@ -186,7 +256,7 @@ internal sealed class TugTaxiwayClearance
             (closestFt, part) = (tailplaneFt, TugFootprintPart.Tail);
         }
 
-        return (_zones.HalfWidthFt(piece.Name) + ClearanceMarginFt - closestFt, part);
+        return (halfWidthFt + ClearanceMarginFt - closestFt, part);
     }
 
     /// <summary>
@@ -237,6 +307,12 @@ internal sealed class TugTaxiwayClearance
     /// <summary>One straight piece of a protected taxiway's centreline, in the layout's frame.</summary>
     private readonly record struct Piece(string Name, OutlinePoint A, OutlinePoint B);
 
+    /// <summary>
+    /// A clipped piece near a path, its taxiway's object-free half-width, and how near the reference point must come to
+    /// reach into it, feet.
+    /// </summary>
+    private readonly record struct ReachablePiece(Piece Piece, double HalfWidthFt, double ReachableFt);
+
     /// <summary>An axis-aligned box in the flat frame.</summary>
     private readonly record struct Box(double MinX, double MaxX, double MinY, double MaxY)
     {
@@ -270,7 +346,7 @@ internal sealed class TugTaxiwayClearance
         private readonly AirportGroundLayout _layout;
         private readonly MovementAreaClassification _classification;
         private readonly ConcurrentDictionary<string, double> _halfWidthByName = new(StringComparer.OrdinalIgnoreCase);
-        private readonly ConcurrentDictionary<Piece, List<Piece>> _clippedByPiece = new();
+        private readonly List<Piece>?[] _clippedByIndex;
 
         internal LayoutZones(AirportGroundLayout layout, MovementAreaClassification classification)
         {
@@ -289,6 +365,7 @@ internal sealed class TugTaxiwayClearance
                     )
                     .SelectMany(a => ArcPieces(a, frame)),
             ];
+            _clippedByIndex = new List<Piece>?[Pieces.Count];
         }
 
         internal GroundOutlineFrame Frame { get; }
@@ -307,9 +384,20 @@ internal sealed class TugTaxiwayClearance
         /// (the midpoint of each <see cref="ClipStepFt"/> stretch judged), so a wider-zoned taxiway meeting or crossing
         /// another — SFO's D, ADG VI for want of a parallel, running up to and across A — protects nothing past that
         /// taxiway's own zone: the part inside A's zone is A's. A taxiway meeting one as narrow or wider is not cut: its
-        /// zone already stops at the other's edge. Computed once per piece; independent of the path measured.
+        /// zone already stops at the other's edge. Computed once per piece, by its index in <see cref="Pieces"/>; independent
+        /// of the path measured. Two threads may compute the same piece at once; both get the one list published first.
         /// </summary>
-        internal List<Piece> Clipped(Piece piece) => _clippedByPiece.GetOrAdd(piece, p => KeptStretches(p, NarrowerNear(p)));
+        internal List<Piece> Clipped(int index)
+        {
+            if (Volatile.Read(ref _clippedByIndex[index]) is { } held)
+            {
+                return held;
+            }
+
+            Piece piece = Pieces[index];
+            List<Piece> clipped = KeptStretches(piece, NarrowerNear(piece));
+            return Interlocked.CompareExchange(ref _clippedByIndex[index], clipped, null) ?? clipped;
+        }
 
         /// <summary>The pieces of other, narrower-zoned taxiways close enough to <paramref name="piece"/> to cut it.</summary>
         private List<Piece> NarrowerNear(Piece piece)

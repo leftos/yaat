@@ -502,9 +502,9 @@ public enum TugTaxiwayApproach
 /// pushed onto it. The side test (a pull when the stop is within 90° of the facing as seen from the aircraft, else a
 /// push; the push first within 5° of that boundary) only orders the two sides. Three templates are tried per side: the
 /// side move straight onto the line (a spot push stops at the staging point and creeps forward onto the mark); the
-/// other kind onto the line first; and, when the nose has to rotate more than 30°, a three-point turn first — the other kind turns the nose to 90°, 60° or 30° either side of
-/// the facing, six variants. The final pull onto a spot is always a creep. The fewest reversals win, then the
-/// shortest path, then the template order, then the side order.</para>
+/// other kind onto the line first; and, when the nose has to rotate more than 30°, a three-point turn first — the other
+/// kind turns the nose to 90°, 60° or 30° either side of the facing, six variants. The final pull onto a spot is always a
+/// creep. The fewest reversals win, then the shortest path, then the template order, then the side order.</para>
 ///
 /// <para><b>Back onto a taxiway.</b> A bare <c>PUSH &lt;taxiway&gt;</c> splits on one angle, 45°
 /// (<see cref="TugPlanBuilder.AcrossAngleDeg"/>), between a taxiway across the push and one alongside it. Across:
@@ -1161,17 +1161,20 @@ internal sealed class TugEmptyStands
         _pulling = GroundOutlineSize.Of(request.Footprint, towedNoseFirst: true);
         _reachFt = _pulling.ReachFt + _pushing.ReachFt + StandMarginFt;
         double rangeFt = TugMovePlanner.MaxGoalDistanceFt + _reachFt;
-        _stands =
-        [
-            .. layout
-                .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name is not null) && (n.TrueHeading is not null))
-                .Where(n => (GeoMath.DistanceNm(request.Start.Position, n.Position) * GeoMath.FeetPerNm) <= rangeFt)
-                .Where(n => !IsOccupied(n, request.ParkedNeighbours))
-                .OrderBy(n => n.Id)
-                .Select(n =>
-                    (n.Name!, _frame.ToLocal(n.Position), GroundOutline.At(_frame.ToLocal(n.Position), n.TrueHeading!.Value.Degrees, _pushing))
-                ),
-        ];
+        _stands = [];
+        foreach (GroundNode stand in TugLayoutIndex.For(layout).Stands)
+        {
+            if (
+                !((GeoMath.DistanceNm(request.Start.Position, stand.Position) * GeoMath.FeetPerNm) <= rangeFt)
+                || IsOccupied(stand, request.ParkedNeighbours)
+            )
+            {
+                continue;
+            }
+
+            OutlinePoint centre = _frame.ToLocal(stand.Position);
+            _stands.Add((stand.Name!, centre, GroundOutline.At(centre, stand.TrueHeading!.Value.Degrees, _pushing)));
+        }
     }
 
     /// <summary>The stands whose footprint the outline at <paramref name="pose"/> comes within <see cref="StandMarginFt"/> of.</summary>
@@ -1195,39 +1198,40 @@ internal sealed class TugEmptyStands
             IReadOnlyList<PushbackPose> samples = trace.Samples;
             for (int i = 0; i < samples.Count; i++)
             {
-                foreach (PushbackPose pose in PosesUpTo(samples, i))
+                if (i > 0)
                 {
-                    AddEntered(entered, pose, trace.Move.Kind, excluded);
+                    AddEnteredBetween(entered, (samples[i - 1], samples[i]), trace.Move.Kind, excluded);
                 }
+
+                AddEntered(entered, samples[i], trace.Move.Kind, excluded);
             }
         }
 
         return entered;
     }
 
-    /// <summary>Sample <paramref name="i"/>, preceded by the poses splitting the gap from the sample before it.</summary>
-    private IEnumerable<PushbackPose> PosesUpTo(IReadOnlyList<PushbackPose> samples, int i)
+    /// <summary>Checks the poses splitting the gap from one sample to the next, both samples left out.</summary>
+    private void AddEnteredBetween(
+        HashSet<string> entered,
+        (PushbackPose From, PushbackPose To) gap,
+        PushbackLegKind kind,
+        IReadOnlySet<string> excluded
+    )
     {
-        PushbackPose to = samples[i];
-        if (i > 0)
+        (PushbackPose from, PushbackPose to) = gap;
+        double turnDeg = new TrueHeading(from.NoseTrueDeg).SignedAngleTo(new TrueHeading(to.NoseTrueDeg));
+        double travelFt =
+            (GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm) + (_pulling.ReachFt * Math.Abs(turnDeg) * Math.PI / 180.0);
+        int steps = (int)Math.Ceiling(travelFt / CheckSpacingFt);
+        for (int step = 1; step < steps; step++)
         {
-            PushbackPose from = samples[i - 1];
-            double turnDeg = new TrueHeading(from.NoseTrueDeg).SignedAngleTo(new TrueHeading(to.NoseTrueDeg));
-            double travelFt =
-                (GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm) + (_pulling.ReachFt * Math.Abs(turnDeg) * Math.PI / 180.0);
-            int steps = (int)Math.Ceiling(travelFt / CheckSpacingFt);
-            for (int step = 1; step < steps; step++)
-            {
-                double fraction = (double)step / steps;
-                var position = new LatLon(
-                    from.Position.Lat + (fraction * (to.Position.Lat - from.Position.Lat)),
-                    from.Position.Lon + (fraction * (to.Position.Lon - from.Position.Lon))
-                );
-                yield return new PushbackPose(position, from.NoseTrueDeg + (fraction * turnDeg));
-            }
+            double fraction = (double)step / steps;
+            var position = new LatLon(
+                from.Position.Lat + (fraction * (to.Position.Lat - from.Position.Lat)),
+                from.Position.Lon + (fraction * (to.Position.Lon - from.Position.Lon))
+            );
+            AddEntered(entered, new PushbackPose(position, from.NoseTrueDeg + (fraction * turnDeg)), kind, excluded);
         }
-
-        yield return to;
     }
 
     private void AddEntered(HashSet<string> entered, PushbackPose pose, PushbackLegKind kind, IReadOnlySet<string> excluded)
@@ -1242,18 +1246,28 @@ internal sealed class TugEmptyStands
             }
 
             mover ??= GroundOutline.At(reference, pose.NoseTrueDeg, kind == PushbackLegKind.Pull ? _pulling : _pushing);
-            if (GroundOutline.Clearance(mover.Value, outline) < StandMarginFt)
+            if (TugOutlineClearance.Clearance(mover.Value, outline) < StandMarginFt)
             {
                 entered.Add(name);
             }
         }
     }
 
-    private static bool IsOccupied(GroundNode stand, IReadOnlyList<TugParkedNeighbour> neighbours) =>
-        neighbours.Any(n =>
-            string.Equals(n.StandName, stand.Name, StringComparison.OrdinalIgnoreCase)
-            || ((GeoMath.DistanceNm(n.Position, stand.Position) * GeoMath.FeetPerNm) <= OccupiedWithinFt)
-        );
+    private static bool IsOccupied(GroundNode stand, IReadOnlyList<TugParkedNeighbour> neighbours)
+    {
+        foreach (TugParkedNeighbour n in neighbours)
+        {
+            if (
+                string.Equals(n.StandName, stand.Name, StringComparison.OrdinalIgnoreCase)
+                || ((GeoMath.DistanceNm(n.Position, stand.Position) * GeoMath.FeetPerNm) <= OccupiedWithinFt)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 /// <summary>
@@ -1301,8 +1315,8 @@ internal sealed class TugPlanBuilder
     /// taxiway's end in its lead-in fillet's corner, measured against the straight edge at that end); below it the
     /// taxiway runs alongside the push and is captured in an S-curve (<see cref="AlongsideCandidate"/>). A judgement
     /// call (user, 2026-09-16), measured against the two cases that set it: OAK gate 25's <c>PUSH TE</c> meets TE
-    /// 645 ft back at 31.5° down an angled stand row — alongside, so the S-curve keeps it clear of the aircraft at gate 26 — while SFO B12's <c>PUSH A</c> meets A
-    /// 417 ft back at 76°, a square crossing the ZOA technique pushes straight onto.
+    /// 645 ft back at 31.5° down an angled stand row — alongside, so the S-curve keeps it clear of the aircraft at gate 26
+    /// — while SFO B12's <c>PUSH A</c> meets A 417 ft back at 76°, a square crossing the ZOA technique pushes straight onto.
     /// </summary>
     internal const double AcrossAngleDeg = 45.0;
 
@@ -1537,7 +1551,8 @@ internal sealed class TugPlanBuilder
             if (request.MovementArea is not { } area)
             {
                 throw new ArgumentException(
-                    $"A tug request planned on the {layout.AirportId} layout needs its MovementArea; build it with MovementAreaClassification.For or Build",
+                    $"A tug request planned on the {layout.AirportId} layout needs its MovementArea; "
+                        + $"build it with MovementAreaClassification.For or Build",
                     nameof(request)
                 );
             }
@@ -1545,7 +1560,8 @@ internal sealed class TugPlanBuilder
             if (!string.Equals(area.AirportId, layout.AirportId, StringComparison.OrdinalIgnoreCase))
             {
                 throw new ArgumentException(
-                    $"A tug request planned on the {layout.AirportId} layout carries the MovementArea of {area.AirportId}; build it for {layout.AirportId}",
+                    $"A tug request planned on the {layout.AirportId} layout carries the MovementArea of {area.AirportId}; "
+                        + $"build it for {layout.AirportId}",
                     nameof(request)
                 );
             }

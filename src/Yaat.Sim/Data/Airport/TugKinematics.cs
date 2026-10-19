@@ -380,7 +380,7 @@ public static class TugKinematics
         double budgetFt = TravelBudgetFt(start, move, radiusFt);
         var progress = TugMoveProgress.Begin(start, move);
         PushbackPose pose = start;
-        var samples = new List<PushbackPose> { start };
+        var samples = new List<PushbackPose>(SampleCapacity(budgetFt, stepFt)) { start };
         double sinceSampleFt = 0.0;
         bool completed = IsComplete(pose, move, progress);
         while (!completed && (progress.DistanceFt <= budgetFt))
@@ -427,6 +427,24 @@ public static class TugKinematics
             EndLineTravelErrorDeg = isLine ? AbsDiffDeg(pose.TravelTrueDeg(move.Kind), move.LineTravelTrueDeg) : null,
             EndOvershootFt = (isLine && (move.StopAt is { } stop)) ? AlongLineFt(pose.Position, stop, move) : null,
         };
+    }
+
+    /// <summary>
+    /// How many samples a move flown up to <paramref name="budgetFt"/> can record: the start, one per sample spacing (or
+    /// per step, when a step is longer), the step past the budget and the end pose. Capped, so a far goal cannot reserve
+    /// a large list up front, and at least one, so a negative budget (a straight of negative distance) still holds the start.
+    /// </summary>
+    private static int SampleCapacity(double budgetFt, double stepFt)
+    {
+        const int MaxCapacity = 1024;
+        double perSampleFt = Math.Max(stepFt, SampleSpacingFt - SampleSpacingSlackFt);
+        double samples = (budgetFt / perSampleFt) + 3.0;
+        if (!(samples >= 1.0))
+        {
+            return 1;
+        }
+
+        return samples < MaxCapacity ? (int)samples : MaxCapacity;
     }
 
     private static TugMoveTrace SkippedTrace(PushbackPose pose, TugMove move) =>

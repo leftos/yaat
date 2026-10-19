@@ -69,7 +69,18 @@ public sealed class TugPathCheck
     private readonly double _halfSpanFt;
     private readonly double _maxOvershootFt;
     private readonly List<RunwaySegment> _runways;
-    private readonly List<EdgeSegment> _edges;
+
+    /// <summary>Every edge of the layout as its chord in the local frame, by <see cref="TugLayoutIndex"/> edge index.</summary>
+    private readonly EdgeSegment[] _edges;
+
+    /// <summary>Each edge's movement-area name, or null for ramp, by edge index.</summary>
+    private readonly string?[] _movementAreaNames;
+
+    /// <summary>Each edge's names, by edge index.</summary>
+    private readonly string[][] _edgeNames;
+
+    /// <summary>The indices of the edges touching a runway holding position, in edge order.</summary>
+    private readonly int[] _holdShortEdges;
 
     /// <summary>Every runway holding position in the layout, in the local frame.</summary>
     private readonly List<Pt> _holdShorts;
@@ -77,18 +88,43 @@ public sealed class TugPathCheck
     /// <summary>Each runway's centreline and nearest hold-short distance, in the local frame (<see cref="HoldDistanceRefusal"/>).</summary>
     private readonly List<RunwayHoldBand> _holdBands;
 
+    /// <summary>Each goal taxiway's straight centreline edges (<see cref="TaxiwayOvershootRefusal"/>), found on first use.</summary>
+    private readonly Dictionary<string, List<EdgeSegment>> _centrelineByTaxiway = new(StringComparer.Ordinal);
+
+    // Working lists one check fills and the next clears: an instance serves one plan's candidates, one at a time.
+    private readonly List<LocalPose> _poses = [];
+    private readonly List<EdgeSegment> _holdEdges = [];
+    private readonly List<(Pt A, Pt B)> _nearPieces = [];
+    private readonly List<MovementEdge> _movementEdges = [];
+    private readonly HashSet<string> _named = new(StringComparer.OrdinalIgnoreCase);
+
     internal TugPathCheck(AirportGroundLayout layout, MovementAreaClassification movementArea, AircraftFootprint footprint, LatLon planStart)
     {
+        var index = TugLayoutIndex.For(layout);
         _pavement = new PavementClassifier(layout, movementArea);
         _origin = planStart;
         _eastFtPerDeg = 60.0 * GeoMath.FeetPerNm * Math.Cos(planStart.Lat * DegToRad);
         _halfLengthFt = footprint.LengthFt / 2.0;
         _halfSpanFt = footprint.WingspanFt / 2.0;
         _maxOvershootFt = MaxTaxiwayOvershootFt(footprint);
-        _runways = [.. layout.Runways.SelectMany(RunwaySegments)];
-        _edges = [.. layout.AllEdges.Select(EdgeSegmentOf)];
-        _holdShorts = [.. layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).Select(n => Local(n.Position))];
-        _holdBands = [.. HoldBandsOf(layout).Select(b => new RunwayHoldBand(b.Name, b.HoldFt, [.. b.Pieces.Select(p => (Local(p.A), Local(p.B)))]))];
+        _runways = RunwaySegmentsOf(layout);
+        _edges = new EdgeSegment[index.Edges.Length];
+        for (int i = 0; i < _edges.Length; i++)
+        {
+            IGroundEdge edge = index.Edges[i];
+            _edges[i] = new EdgeSegment(edge, Local(edge.Nodes[0].Position), Local(edge.Nodes[1].Position));
+        }
+
+        _movementAreaNames = index.MovementAreaNames(movementArea);
+        _edgeNames = index.EdgeNames;
+        _holdShortEdges = index.HoldShortEdges;
+        _holdShorts = new List<Pt>(index.HoldShorts.Length);
+        foreach (LatLon hold in index.HoldShorts)
+        {
+            _holdShorts.Add(Local(hold));
+        }
+
+        _holdBands = LocalHoldBands(HoldBandsOf(layout));
     }
 
     /// <summary>
@@ -148,7 +184,7 @@ public sealed class TugPathCheck
             ?? (
                 goalTaxiway is { } taxiway
                     ? TaxiwayOvershootRefusal(poses, box, exemptNames, taxiway, subject)
-                    : MovementAreaCrossings(poses, box, exemptNames, subject, markedPoint).Select(r => (TugPathRefusal?)r).FirstOrDefault()
+                    : MovementAreaCrossings(poses, box, exemptNames, (subject, markedPoint), all: null)
             );
     }
 
@@ -179,27 +215,35 @@ public sealed class TugPathCheck
         Box box = FootprintBox(poses);
         if (goalTaxiway is not { } taxiway)
         {
-            return [.. MovementAreaCrossings(poses, box, exemptNames, naming.Subject, naming.MarkedPoint)];
+            var hits = new List<TugPathRefusal>();
+            MovementAreaCrossings(poses, box, exemptNames, naming, hits);
+            return hits;
         }
 
         return TaxiwayOvershootRefusal(poses, box, exemptNames, taxiway, naming.Subject) is { } overshoot ? [overshoot] : [];
     }
 
-    private List<LocalPose> Poses(IReadOnlyList<TugMoveTrace> traces) =>
-        [
-            .. traces.SelectMany(
-                (t, move) =>
-                    t.Samples.Select(
-                        (p, sample) => new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad, move, sample, t.Move.Kind == PushbackLegKind.Pull)
-                    )
-            ),
-        ];
+    /// <summary>Every flown sample in the local frame, move by move, into the instance's working list.</summary>
+    private List<LocalPose> Poses(IReadOnlyList<TugMoveTrace> traces)
+    {
+        _poses.Clear();
+        for (int move = 0; move < traces.Count; move++)
+        {
+            TugMoveTrace trace = traces[move];
+            bool pulled = trace.Move.Kind == PushbackLegKind.Pull;
+            IReadOnlyList<PushbackPose> samples = trace.Samples;
+            for (int sample = 0; sample < samples.Count; sample++)
+            {
+                PushbackPose p = samples[sample];
+                _poses.Add(new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad, move, sample, pulled));
+            }
+        }
+
+        return _poses;
+    }
 
     /// <summary>The prefilter box around the poses, reaching as far as the footprint does.</summary>
     private Box FootprintBox(List<LocalPose> poses) => Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
-
-    private static bool TouchesHoldShort(IGroundEdge edge) =>
-        (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
 
     /// <summary>
     /// The nearest edge that the straight ray from <paramref name="from"/> along <paramref name="travelTrueDeg"/>
@@ -321,15 +365,20 @@ public sealed class TugPathCheck
             double alongFt = (offset.X * travel.X) + (offset.Y * travel.Y);
             double distanceFt = Distance(offset, default);
             double? lineTravel = AlongsideTravelDeg(edge, travelTrueDeg, window.MaxAngleDeg);
-            Log.LogDebug(
-                "Alongside search on {TravelDeg:F1}°: edge {NodeA}-{NodeB} nearest point {DistanceFt:F1} ft away, {AlongFt:F1} ft along; {Verdict}",
-                travelTrueDeg,
-                edge.Edge.Nodes[0].Id,
-                edge.Edge.Nodes[1].Id,
-                distanceFt,
-                alongFt,
-                lineTravel is { } deg ? $"runs on {deg:F1}°" : "runs across"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Alongside search on {TravelDeg:F1}°: edge {NodeA}-{NodeB} nearest point {DistanceFt:F1} ft away, "
+                        + "{AlongFt:F1} ft along; {Verdict}",
+                    travelTrueDeg,
+                    edge.Edge.Nodes[0].Id,
+                    edge.Edge.Nodes[1].Id,
+                    distanceFt,
+                    alongFt,
+                    lineTravel is { } deg ? $"runs on {deg:F1}°" : "runs across"
+                );
+            }
+
             if (lineTravel is not { } lineTravelDeg)
             {
                 continue;
@@ -372,16 +421,20 @@ public sealed class TugPathCheck
             double alongFt = ((offset.X * direction.X) + (offset.Y * direction.Y)) / lengthFt;
             double crossFt = Math.Abs(Cross(direction, offset)) / lengthFt;
             bool onEdge = (alongFt >= -ExtentSlackFt) && (alongFt <= (lengthFt + ExtentSlackFt)) && (crossFt <= toleranceFt);
-            Log.LogDebug(
-                "Extent check: edge {NodeA}-{NodeB} is {LengthFt:F1} ft long; "
-                    + "the point lies {AlongFt:F1} ft along it and {CrossFt:F1} ft off its line — {Verdict}",
-                edge.Edge.Nodes[0].Id,
-                edge.Edge.Nodes[1].Id,
-                lengthFt,
-                alongFt,
-                crossFt,
-                onEdge ? "on the edge" : "off it"
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "Extent check: edge {NodeA}-{NodeB} is {LengthFt:F1} ft long; "
+                        + "the point lies {AlongFt:F1} ft along it and {CrossFt:F1} ft off its line — {Verdict}",
+                    edge.Edge.Nodes[0].Id,
+                    edge.Edge.Nodes[1].Id,
+                    lengthFt,
+                    alongFt,
+                    crossFt,
+                    onEdge ? "on the edge" : "off it"
+                );
+            }
+
             if (onEdge)
             {
                 return true;
@@ -414,11 +467,16 @@ public sealed class TugPathCheck
 
     private TugPathRefusal? RunwayRefusal(List<LocalPose> poses, Box box, string subject)
     {
-        foreach (RunwaySegment? runway in _runways.Where(r => box.Padded(r.HalfWidthFt).Overlaps(r.A, r.B)))
+        foreach (RunwaySegment runway in _runways)
         {
+            if (!box.Padded(runway.HalfWidthFt).Overlaps(runway.A, runway.B))
+            {
+                continue;
+            }
+
             foreach (LocalPose pose in poses)
             {
-                if (FootprintSides(pose).Any(side => SegmentDistanceFt(side.A, side.B, runway.A, runway.B) <= runway.HalfWidthFt))
+                if (SideWithinRunway(FootprintSides(pose), runway))
                 {
                     return new TugPathRefusal(TugPathSeverity.Runway, $"Unable, {subject} would put the aircraft on runway {runway.Name}", null);
                 }
@@ -426,6 +484,53 @@ public sealed class TugPathCheck
         }
 
         return null;
+    }
+
+    /// <summary>Whether a side of the footprint comes within the runway's half-width of its centreline.</summary>
+    private static bool SideWithinRunway(Sides sides, RunwaySegment runway)
+    {
+        for (int s = 0; s < Sides.Count; s++)
+        {
+            (Pt A, Pt B) side = sides[s];
+            if (SegmentDistanceFt(side.A, side.B, runway.A, runway.B) <= runway.HalfWidthFt)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether a side of the footprint crosses one of <paramref name="edges"/>.</summary>
+    private static bool SideCrossesAny(Sides sides, List<EdgeSegment> edges)
+    {
+        for (int s = 0; s < Sides.Count; s++)
+        {
+            (Pt A, Pt B) side = sides[s];
+            foreach (EdgeSegment edge in edges)
+            {
+                if (Crosses(side.A, side.B, edge.A, edge.B))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether a side of the footprint crosses the segment from <paramref name="a"/> to <paramref name="b"/>.</summary>
+    private static bool SideCrosses(Sides sides, Pt a, Pt b)
+    {
+        for (int s = 0; s < Sides.Count; s++)
+        {
+            if (Crosses(sides[s].A, sides[s].B, a, b))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -436,16 +541,27 @@ public sealed class TugPathCheck
     private TugPathRefusal? HoldingPositionRefusal(List<LocalPose> poses, Box box, string subject)
     {
         LocalPose start = poses[0];
-        (Pt A, Pt B)[] startSides = FootprintSides(start);
-        var holdEdges = _edges.Where(e => e.TouchesHoldShort && box.Overlaps(e.A, e.B) && !LiesOver(start, startSides, e)).ToList();
+        Sides startSides = FootprintSides(start);
+        _holdEdges.Clear();
+        foreach (int e in _holdShortEdges)
+        {
+            EdgeSegment edge = _edges[e];
+            if (box.Overlaps(edge.A, edge.B) && !LiesOver(start, startSides, edge))
+            {
+                _holdEdges.Add(edge);
+            }
+        }
+
+        if (_holdEdges.Count == 0)
+        {
+            return null;
+        }
+
         foreach (LocalPose pose in poses)
         {
-            foreach ((Pt A, Pt B) side in FootprintSides(pose))
+            if (SideCrossesAny(FootprintSides(pose), _holdEdges))
             {
-                if (holdEdges.Any(e => Crosses(side.A, side.B, e.A, e.B)))
-                {
-                    return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} reaches a runway holding position", null);
-                }
+                return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} reaches a runway holding position", null);
             }
         }
 
@@ -464,16 +580,27 @@ public sealed class TugPathCheck
         foreach (RunwayHoldBand band in _holdBands)
         {
             Box padded = box.Padded(band.HoldFt);
-            List<(Pt A, Pt B)> near = [.. band.Pieces.Where(p => padded.Overlaps(p.A, p.B))];
-            if (near.Count == 0)
+            _nearPieces.Clear();
+            foreach ((Pt A, Pt B) piece in band.Pieces)
+            {
+                if (padded.Overlaps(piece.A, piece.B))
+                {
+                    _nearPieces.Add(piece);
+                }
+            }
+
+            if (_nearPieces.Count == 0)
             {
                 continue;
             }
 
-            double limitFt = Math.Min(band.HoldFt, NearestCornerFt(poses[0], near));
-            if (poses.Any(pose => NearestCornerFt(pose, near) < limitFt))
+            double limitFt = Math.Min(band.HoldFt, NearestCornerFt(poses[0], _nearPieces));
+            foreach (LocalPose pose in poses)
             {
-                return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} moves deeper toward runway {band.Name}", null);
+                if (NearestCornerFt(pose, _nearPieces) < limitFt)
+                {
+                    return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} moves deeper toward runway {band.Name}", null);
+                }
             }
         }
 
@@ -484,8 +611,8 @@ public sealed class TugPathCheck
     /// Whether the pose's footprint lies over the edge: one of its <paramref name="sides"/> crosses it, or an end of it
     /// lies inside.
     /// </summary>
-    private bool LiesOver(LocalPose pose, (Pt A, Pt B)[] sides, EdgeSegment edge) =>
-        sides.Any(side => Crosses(side.A, side.B, edge.A, edge.B)) || Inside(pose, edge.A) || Inside(pose, edge.B);
+    private bool LiesOver(LocalPose pose, Sides sides, EdgeSegment edge) =>
+        SideCrosses(sides, edge.A, edge.B) || Inside(pose, edge.A) || Inside(pose, edge.B);
 
     /// <summary>Whether <paramref name="point"/> lies inside the pose's footprint, its outline included.</summary>
     private bool Inside(LocalPose pose, Pt point)
@@ -497,8 +624,37 @@ public sealed class TugPathCheck
     }
 
     /// <summary>How far the footprint corner nearest the centreline <paramref name="pieces"/> lies from them, feet.</summary>
-    private double NearestCornerFt(LocalPose pose, List<(Pt A, Pt B)> pieces) =>
-        FootprintSides(pose).Min(side => pieces.Min(p => PointToSegmentFt(side.A, p.A, p.B)));
+    private double NearestCornerFt(LocalPose pose, List<(Pt A, Pt B)> pieces)
+    {
+        Sides sides = FootprintSides(pose);
+        double nearestFt = NearestPieceFt(sides[0].A, pieces);
+        for (int s = 1; s < Sides.Count; s++)
+        {
+            double cornerFt = NearestPieceFt(sides[s].A, pieces);
+            if (cornerFt < nearestFt)
+            {
+                nearestFt = cornerFt;
+            }
+        }
+
+        return nearestFt;
+    }
+
+    /// <summary>How far <paramref name="point"/> lies from the nearest of the (non-empty) <paramref name="pieces"/>, feet.</summary>
+    private static double NearestPieceFt(Pt point, List<(Pt A, Pt B)> pieces)
+    {
+        double nearestFt = PointToSegmentFt(point, pieces[0].A, pieces[0].B);
+        for (int p = 1; p < pieces.Count; p++)
+        {
+            double pieceFt = PointToSegmentFt(point, pieces[p].A, pieces[p].B);
+            if (pieceFt < nearestFt)
+            {
+                nearestFt = pieceFt;
+            }
+        }
+
+        return nearestFt;
+    }
 
     /// <summary>
     /// Each runway's centreline pieces (its runway-centreline edges, grouped by name) and the distance of its nearest
@@ -615,25 +771,30 @@ public sealed class TugPathCheck
     }
 
     /// <summary>
-    /// Each movement-area taxiway the fuselage crosses where it may not, as a refusal, once per taxiway, lazily and in
-    /// sample order: the first is the refusal of a plain tow. Pavement the goal names is exempt throughout, and the
+    /// Each movement-area taxiway the fuselage crosses where it may not, as a refusal, once per taxiway, in sample
+    /// order: the first is the refusal of a plain tow. Pavement the goal names is exempt throughout, and the
     /// pavement at either end over its end run — except at a marked point, which arrives on no pavement: its end
     /// footprint, wings included, must lie across no movement-area edge at all, and the taxiway it lies across comes first.
     /// </summary>
-    private IEnumerable<TugPathRefusal> MovementAreaCrossings(
+    /// <param name="poses">The flown samples.</param>
+    /// <param name="box">The prefilter box around them.</param>
+    /// <param name="exemptNames">Pavement the goal names.</param>
+    /// <param name="naming">How the move and its marked point are named, as for <see cref="Check"/>.</param>
+    /// <param name="all">Null to stop at the first crossing; otherwise every crossing is added to it.</param>
+    /// <returns>The first crossing, or null when there is none or <paramref name="all"/> collects them.</returns>
+    private TugPathRefusal? MovementAreaCrossings(
         List<LocalPose> poses,
         Box box,
         IReadOnlySet<string> exemptNames,
-        string subject,
-        string? markedPoint
+        (string Subject, string? MarkedPoint) naming,
+        List<TugPathRefusal>? all
     )
     {
-        var named = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if ((markedPoint is not null) && (FootprintOnMovementArea(poses[^1], MovementEdgesIn(box, NoExemptNames)) is { } under))
+        (string subject, string? markedPoint) = naming;
+        _named.Clear();
+        if ((MarkedPointCrossing(poses, box, naming) is { } onTaxiway) && StopsAt(onTaxiway, all))
         {
-            LogCrossing(subject, poses[^1], under);
-            named.Add(under.Name);
-            yield return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {markedPoint} is on taxiway {under.Name}", under.Name);
+            return onTaxiway;
         }
 
         List<MovementEdge> movementEdges = MovementEdgesIn(box, exemptNames);
@@ -646,35 +807,113 @@ public sealed class TugPathCheck
         var runs = new EndRuns(leaving, LeavingRunLength(poses, movementEdges, leaving), arriving, ArrivingRunStart(poses, movementEdges, arriving));
         for (int sample = 0; sample < poses.Count; sample++)
         {
-            (Pt nose, Pt tail) = Fuselage(poses[sample]);
-            for (int e = 0; e < movementEdges.Count; e++)
+            if (CrossingAt(poses, (sample, subject), (movementEdges, runs), all) is { } crossing)
             {
-                MovementEdge edge = movementEdges[e];
-                if (named.Contains(edge.Name) || runs.Exempts(sample, e) || !Crosses(nose, tail, edge.Segment.A, edge.Segment.B))
-                {
-                    continue;
-                }
-
-                LogCrossing(subject, poses[sample], edge);
-                named.Add(edge.Name);
-                yield return new TugPathRefusal(
-                    TugPathSeverity.MovementArea,
-                    $"Unable, {subject} would put the aircraft on taxiway {edge.Name}",
-                    edge.Name
-                );
+                return crossing;
             }
         }
+
+        return null;
     }
 
-    /// <summary>The movement-area edges inside <paramref name="box"/> that carry none of <paramref name="exemptNames"/>.</summary>
-    private List<MovementEdge> MovementEdgesIn(Box box, IReadOnlySet<string> exemptNames) =>
-        [
-            .. _edges
-                .Where(e => box.Overlaps(e.A, e.B) && !RampLaneReposition.EdgeNames(e.Edge).Any(exemptNames.Contains))
-                .Select(e => (Segment: e, Name: _pavement.MovementAreaName(e.Edge)))
-                .Where(e => e.Name is not null)
-                .Select(e => new MovementEdge(e.Segment, e.Name!)),
-        ];
+    /// <summary>
+    /// The taxiway a marked point's end footprint lies across, as a refusal, its name added to the names already met; null
+    /// for every other goal or when the footprint lies across no movement-area edge.
+    /// </summary>
+    private TugPathRefusal? MarkedPointCrossing(List<LocalPose> poses, Box box, (string Subject, string? MarkedPoint) naming)
+    {
+        (string subject, string? markedPoint) = naming;
+        if ((markedPoint is null) || (FootprintOnMovementArea(poses[^1], MovementEdgesIn(box, NoExemptNames)) is not { } under))
+        {
+            return null;
+        }
+
+        LogCrossing(subject, poses[^1], under);
+        _named.Add(under.Name);
+        return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {markedPoint} is on taxiway {under.Name}", under.Name);
+    }
+
+    /// <summary>
+    /// The crossings of one sample's fuselage over taxiways not yet met, each name added to the names met: the first
+    /// returned when <paramref name="all"/> is null, otherwise each added to it and null returned.
+    /// </summary>
+    private TugPathRefusal? CrossingAt(
+        List<LocalPose> poses,
+        (int Index, string Subject) sample,
+        (List<MovementEdge> Edges, EndRuns Runs) pavement,
+        List<TugPathRefusal>? all
+    )
+    {
+        (Pt nose, Pt tail) = Fuselage(poses[sample.Index]);
+        for (int e = 0; e < pavement.Edges.Count; e++)
+        {
+            MovementEdge edge = pavement.Edges[e];
+            if (_named.Contains(edge.Name) || pavement.Runs.Exempts(sample.Index, e) || !Crosses(nose, tail, edge.Segment.A, edge.Segment.B))
+            {
+                continue;
+            }
+
+            LogCrossing(sample.Subject, poses[sample.Index], edge);
+            _named.Add(edge.Name);
+            var crossing = new TugPathRefusal(
+                TugPathSeverity.MovementArea,
+                $"Unable, {sample.Subject} would put the aircraft on taxiway {edge.Name}",
+                edge.Name
+            );
+            if (StopsAt(crossing, all))
+            {
+                return crossing;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether the scan stops at <paramref name="refusal"/>: it does when nothing collects them; otherwise it is collected.</summary>
+    private static bool StopsAt(TugPathRefusal refusal, List<TugPathRefusal>? all)
+    {
+        if (all is null)
+        {
+            return true;
+        }
+
+        all.Add(refusal);
+        return false;
+    }
+
+    /// <summary>
+    /// The movement-area edges inside <paramref name="box"/> that carry none of <paramref name="exemptNames"/>, into the
+    /// instance's working list: the caller is done with the last call's edges before it asks again.
+    /// </summary>
+    private List<MovementEdge> MovementEdgesIn(Box box, IReadOnlySet<string> exemptNames)
+    {
+        _movementEdges.Clear();
+        for (int e = 0; e < _edges.Length; e++)
+        {
+            EdgeSegment edge = _edges[e];
+            if (!box.Overlaps(edge.A, edge.B) || CarriesAny(_edgeNames[e], exemptNames) || (_movementAreaNames[e] is not { } name))
+            {
+                continue;
+            }
+
+            _movementEdges.Add(new MovementEdge(edge, name));
+        }
+
+        return _movementEdges;
+    }
+
+    private static bool CarriesAny(string[] names, IReadOnlySet<string> exemptNames)
+    {
+        foreach (string name in names)
+        {
+            if (exemptNames.Contains(name))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// A push onto <paramref name="taxiway"/> whose centre — the reference point, the fuselage midpoint, at any sample
@@ -687,10 +926,7 @@ public sealed class TugPathCheck
     private TugPathRefusal? TaxiwayOvershootRefusal(List<LocalPose> poses, Box box, IReadOnlySet<string> exemptNames, string taxiway, string subject)
     {
         LogOtherTaxiwaysSwept(poses, box, exemptNames, subject);
-        List<EdgeSegment> centreline =
-        [
-            .. _edges.Where(e => (e.Edge is GroundEdge) && e.Edge.MatchesTaxiway(taxiway) && (Distance(e.A, e.B) > Epsilon)),
-        ];
+        List<EdgeSegment> centreline = CentrelineOf(taxiway);
         if (centreline.Count == 0)
         {
             Log.LogWarning("{Subject}: taxiway {Taxiway} has no straight edge to measure an overshoot from", subject, taxiway);
@@ -709,15 +945,20 @@ public sealed class TugPathCheck
         }
 
         double boundFt = _maxOvershootFt;
-        Log.LogDebug(
-            "{Subject}: the centre reaches {PastFt:F1} ft past {Taxiway}'s centreline (move {Move} sample {Sample}); the bound is {BoundFt:F1} ft",
-            subject,
-            farthest.PastFt,
-            taxiway,
-            farthest.Pose.MoveIndex + 1,
-            farthest.Pose.SampleIndex,
-            boundFt
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Subject}: the centre reaches {PastFt:F1} ft past {Taxiway}'s centreline (move {Move} sample {Sample}); "
+                    + "the bound is {BoundFt:F1} ft",
+                subject,
+                farthest.PastFt,
+                taxiway,
+                farthest.Pose.MoveIndex + 1,
+                farthest.Pose.SampleIndex,
+                boundFt
+            );
+        }
+
         return farthest.PastFt > boundFt
             ? new TugPathRefusal(
                 TugPathSeverity.TaxiwayOvershoot,
@@ -734,13 +975,44 @@ public sealed class TugPathCheck
     /// </summary>
     private static double PastCentrelineFt(Pt point, Pt start, List<EdgeSegment> centreline)
     {
-        EdgeSegment nearest = centreline.MinBy(e => PointToSegmentFt(point, e.A, e.B))!;
+        EdgeSegment nearest = centreline[0];
+        double nearestFt = PointToSegmentFt(point, nearest.A, nearest.B);
+        for (int e = 1; e < centreline.Count; e++)
+        {
+            double edgeFt = PointToSegmentFt(point, centreline[e].A, centreline[e].B);
+            if (edgeFt < nearestFt)
+            {
+                (nearest, nearestFt) = (centreline[e], edgeFt);
+            }
+        }
+
         Pt direction = nearest.B - nearest.A;
         double lengthFt = Distance(direction, default);
         double pointSideFt = Cross(direction, point - nearest.A) / lengthFt;
         double startSideFt = Cross(direction, start - nearest.A) / lengthFt;
         bool farSide = (Math.Abs(startSideFt) <= OnCentrelineFt) || (Math.Sign(pointSideFt) != Math.Sign(startSideFt));
         return farSide ? Math.Abs(pointSideFt) : 0.0;
+    }
+
+    /// <summary>The straight edges of <paramref name="taxiway"/> that have a length, in edge order; found once per name and kept.</summary>
+    private List<EdgeSegment> CentrelineOf(string taxiway)
+    {
+        if (_centrelineByTaxiway.TryGetValue(taxiway, out List<EdgeSegment>? held))
+        {
+            return held;
+        }
+
+        var centreline = new List<EdgeSegment>();
+        foreach (EdgeSegment edge in _edges)
+        {
+            if ((edge.Edge is GroundEdge) && edge.Edge.MatchesTaxiway(taxiway) && (Distance(edge.A, edge.B) > Epsilon))
+            {
+                centreline.Add(edge);
+            }
+        }
+
+        _centrelineByTaxiway[taxiway] = centreline;
+        return centreline;
     }
 
     /// <summary>Logs, for diagnostics only, the movement-area taxiways other than the goal's that a push onto a taxiway sweeps over.</summary>
@@ -888,7 +1160,15 @@ public sealed class TugPathCheck
     private bool CrossesAny(LocalPose pose, List<MovementEdge> edges, HashSet<int> among)
     {
         (Pt nose, Pt tail) = Fuselage(pose);
-        return among.Any(e => Crosses(nose, tail, edges[e].Segment.A, edges[e].Segment.B));
+        foreach (int e in among)
+        {
+            if (Crosses(nose, tail, edges[e].Segment.A, edges[e].Segment.B))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -953,10 +1233,10 @@ public sealed class TugPathCheck
     /// </summary>
     private MovementEdge? FootprintOnMovementArea(LocalPose pose, List<MovementEdge> edges)
     {
-        (Pt A, Pt B)[] sides = FootprintSides(pose);
+        Sides sides = FootprintSides(pose);
         foreach (MovementEdge edge in edges)
         {
-            if (InsideFootprint(pose, edge.Segment.A) || sides.Any(side => Crosses(side.A, side.B, edge.Segment.A, edge.Segment.B)))
+            if (InsideFootprint(pose, edge.Segment.A) || SideCrosses(sides, edge.Segment.A, edge.Segment.B))
             {
                 return edge;
             }
@@ -985,19 +1265,25 @@ public sealed class TugPathCheck
     internal string? MarkedPointRefusal(LatLon point, string reachName)
     {
         Pt p = Local(point);
-        if (_runways.FirstOrDefault(r => PointToSegmentFt(p, r.A, r.B) <= r.HalfWidthFt) is { } runway)
+        foreach (RunwaySegment runway in _runways)
         {
-            return $"Unable, {reachName} is on runway {runway.Name}";
+            if (PointToSegmentFt(p, runway.A, runway.B) <= runway.HalfWidthFt)
+            {
+                return $"Unable, {reachName} is on runway {runway.Name}";
+            }
         }
 
-        if (_holdShorts.Any(hold => Distance(p, hold) <= TugPlanBuilder.OnTaxiwayCorridorFt))
+        foreach (Pt hold in _holdShorts)
         {
-            return $"Unable, {reachName} is a runway holding position";
+            if (Distance(p, hold) <= TugPlanBuilder.OnTaxiwayCorridorFt)
+            {
+                return $"Unable, {reachName} is a runway holding position";
+            }
         }
 
-        foreach (EdgeSegment edge in _edges)
+        for (int e = 0; e < _edges.Length; e++)
         {
-            if ((_pavement.MovementAreaName(edge.Edge) is { } name) && (PointToSegmentFt(p, edge.A, edge.B) <= TugPlanBuilder.OnTaxiwayCorridorFt))
+            if ((_movementAreaNames[e] is { } name) && (PointToSegmentFt(p, _edges[e].A, _edges[e].B) <= TugPlanBuilder.OnTaxiwayCorridorFt))
             {
                 return $"Unable, {reachName} is on taxiway {name}";
             }
@@ -1006,7 +1292,7 @@ public sealed class TugPathCheck
         return null;
     }
 
-    private (Pt A, Pt B)[] FootprintSides(LocalPose pose)
+    private Sides FootprintSides(LocalPose pose)
     {
         Pt ahead = Ahead(pose);
         var right = new Pt(Math.Cos(pose.NoseRad) * _halfSpanFt, -Math.Sin(pose.NoseRad) * _halfSpanFt);
@@ -1014,7 +1300,7 @@ public sealed class TugPathCheck
         Pt noseLeft = pose.Position + ahead - right;
         Pt tailLeft = pose.Position - ahead - right;
         Pt tailRight = pose.Position - ahead + right;
-        return [(noseRight, noseLeft), (noseLeft, tailLeft), (tailLeft, tailRight), (tailRight, noseRight)];
+        return new Sides((noseRight, noseLeft), (noseLeft, tailLeft), (tailLeft, tailRight), (tailRight, noseRight));
     }
 
     private Pt Ahead(LocalPose pose) => new(Math.Sin(pose.NoseRad) * _halfLengthFt, Math.Cos(pose.NoseRad) * _halfLengthFt);
@@ -1024,18 +1310,40 @@ public sealed class TugPathCheck
     /// <summary>The inverse of <see cref="Local"/>.</summary>
     private LatLon Geo(Pt point) => new(_origin.Lat + (point.Y / (60.0 * GeoMath.FeetPerNm)), _origin.Lon + (point.X / _eastFtPerDeg));
 
-    private IEnumerable<RunwaySegment> RunwaySegments(GroundRunway runway)
+    /// <summary>Every runway's centreline, piece by piece, in the local frame.</summary>
+    private List<RunwaySegment> RunwaySegmentsOf(AirportGroundLayout layout)
     {
-        for (int i = 1; i < runway.Coordinates.Count; i++)
+        var segments = new List<RunwaySegment>();
+        foreach (GroundRunway runway in layout.Runways)
         {
-            (double Lat, double Lon) a = runway.Coordinates[i - 1];
-            (double Lat, double Lon) b = runway.Coordinates[i];
-            yield return new RunwaySegment(runway.Name, runway.WidthFt / 2.0, Local(new LatLon(a.Lat, a.Lon)), Local(new LatLon(b.Lat, b.Lon)));
+            for (int i = 1; i < runway.Coordinates.Count; i++)
+            {
+                (double Lat, double Lon) a = runway.Coordinates[i - 1];
+                (double Lat, double Lon) b = runway.Coordinates[i];
+                segments.Add(new RunwaySegment(runway.Name, runway.WidthFt / 2.0, Local(new LatLon(a.Lat, a.Lon)), Local(new LatLon(b.Lat, b.Lon))));
+            }
         }
+
+        return segments;
     }
 
-    private EdgeSegment EdgeSegmentOf(IGroundEdge edge) =>
-        new(edge, Local(edge.Nodes[0].Position), Local(edge.Nodes[1].Position), TouchesHoldShort(edge));
+    /// <summary>The layout's hold bands with their centreline pieces in the local frame.</summary>
+    private List<RunwayHoldBand> LocalHoldBands(List<GeoHoldBand> bands)
+    {
+        var local = new List<RunwayHoldBand>(bands.Count);
+        foreach (GeoHoldBand band in bands)
+        {
+            var pieces = new List<(Pt A, Pt B)>(band.Pieces.Count);
+            foreach ((LatLon a, LatLon b) in band.Pieces)
+            {
+                pieces.Add((Local(a), Local(b)));
+            }
+
+            local.Add(new RunwayHoldBand(band.Name, band.HoldFt, pieces));
+        }
+
+        return local;
+    }
 
     private static double Distance(Pt a, Pt b) => Math.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)));
 
@@ -1146,13 +1454,42 @@ public sealed class TugPathCheck
     private sealed record RunwayHoldBand(string Name, double HoldFt, List<(Pt A, Pt B)> Pieces);
 
     /// <summary>An edge as its chord in the local frame.</summary>
-    private sealed record EdgeSegment(IGroundEdge Edge, Pt A, Pt B, bool TouchesHoldShort);
+    private readonly record struct EdgeSegment(IGroundEdge Edge, Pt A, Pt B);
+
+    /// <summary>A footprint's four sides, nose, left, tail and right, each corner to corner.</summary>
+    private readonly record struct Sides((Pt A, Pt B) Nose, (Pt A, Pt B) Left, (Pt A, Pt B) Tail, (Pt A, Pt B) Right)
+    {
+        internal const int Count = 4;
+
+        internal (Pt A, Pt B) this[int index] =>
+            index switch
+            {
+                0 => Nose,
+                1 => Left,
+                2 => Tail,
+                _ => Right,
+            };
+    }
 
     /// <summary>An axis-aligned box in the local frame, used to skip pavement nowhere near the path.</summary>
     private readonly record struct Box(double MinX, double MinY, double MaxX, double MaxY)
     {
-        public static Box Around(List<LocalPose> poses) =>
-            new(poses.Min(p => p.Position.X), poses.Min(p => p.Position.Y), poses.Max(p => p.Position.X), poses.Max(p => p.Position.Y));
+        /// <summary>The box around the (non-empty) poses' positions.</summary>
+        public static Box Around(List<LocalPose> poses)
+        {
+            Pt first = poses[0].Position;
+            (double minX, double minY, double maxX, double maxY) = (first.X, first.Y, first.X, first.Y);
+            for (int i = 1; i < poses.Count; i++)
+            {
+                Pt p = poses[i].Position;
+                minX = p.X < minX ? p.X : minX;
+                minY = p.Y < minY ? p.Y : minY;
+                maxX = p.X > maxX ? p.X : maxX;
+                maxY = p.Y > maxY ? p.Y : maxY;
+            }
+
+            return new Box(minX, minY, maxX, maxY);
+        }
 
         public Box Padded(double byFt) => new(MinX - byFt, MinY - byFt, MaxX + byFt, MaxY + byFt);
 

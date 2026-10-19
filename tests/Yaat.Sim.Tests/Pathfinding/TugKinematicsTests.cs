@@ -34,6 +34,24 @@ public class TugKinematicsTests
         TestVnasData.EnsureInitialized();
     }
 
+    /// <summary>
+    /// A straight of negative distance (a move rebuilt from a DTO is not range-checked) is complete before it starts:
+    /// one sample, the start, and no travel; presizing its samples must not throw on its negative budget.
+    /// </summary>
+    [Fact]
+    public void NegativeStraight_IsOneSampleAtTheStart()
+    {
+        var start = new PushbackPose(new LatLon(37.7213, -122.2208), 90.0);
+        var move = TugMove.Straight(PushbackLegKind.Push, -50.0);
+
+        TugMoveTrace trace = Assert.Single(TugKinematics.Simulate(start, [move], AircraftFootprint.FromType(Narrowbody), StepFt).Moves);
+
+        Assert.Equal(start, Assert.Single(trace.Samples));
+        Assert.True(trace.Completed);
+        Assert.Equal(0.0, trace.PathLengthFt);
+        Assert.Equal(start, trace.End);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
