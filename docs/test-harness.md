@@ -214,7 +214,7 @@ parallelism settings; `showLiveOutput` there is the config-file equivalent of `-
 
 A probe compiles into a test project without touching tracked files via `-p:CustomAfterMicrosoftCommonTargets=<file>`: the MSBuild file adds the probe source to `Compile`, so nothing in the project or its sources is edited. Delete the file when done.
 
-The same targets file can swap a source file for a variant with `<Compile Remove>` / `<Compile Include>`, building the variant without touching tracked files. A probe run goes through the gate with `-Local`.
+The same targets file can swap a source file for a variant with `<Compile Remove>` / `<Compile Include>`, building the variant without touching tracked files. A probe run goes through the gate with `-Local -Reason "<why>"` (the gate refuses `-Local` without a reason).
 
 ### Linux runs: CI investigation and cross-platform verification
 
