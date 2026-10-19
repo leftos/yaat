@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Picker Flyouts</title>
+<style>
+  /* Layout: a settled note, today's popups, then one artboard per open decision; each has a header (question, situation, the strip) over lanes. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  /* The settled note: owner rulings and the recommendations this page does not draw as lanes. */
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 120ch; }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .rec { font: 500 11px var(--f-mono); color: var(--tag-a); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .side { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .recb { font: 600 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--panel); background: var(--tag-a); border-radius: 3px; padding: 1px 6px; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .cascade { display: flex; align-items: flex-start; width: max-content; }
+  .cascade > .menu + .menu, .cascade > .menu + div { margin-left: -4px; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.kfocus { background: rgba(255, 255, 255, .085); }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.boxed { cursor: default; }
+  .mi.boxed:hover { background: transparent; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; font-variant-numeric: tabular-nums; padding-left: 12px; white-space: nowrap; }
+  .mi.title .et { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .note { font-size: 12px; opacity: .75; white-space: nowrap; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.bad { color: #e08a8a; opacity: 1; }
+  .panel { max-height: 420px; overflow-y: auto; scrollbar-color: #555 transparent; position: relative; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+
+  /* Boxes. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; white-space: pre; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .bnote { font: 11px Inter, "Segoe UI", sans-serif; color: #e08a8a; min-height: 0; }
+
+  /* Today's popups (MenuPopups): the list, the rich list and the input popup. */
+  .oldpop { background: #222; border: 1px solid #555; border-radius: 2px; color: #ccc; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); width: max-content; }
+  .oldlist { width: 120px; max-height: 300px; overflow-y: auto; font: 12px "JetBrains Mono", Consolas, monospace; scrollbar-color: #555 transparent; }
+  .oldlist div { padding: 7px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .oldlist div:hover { background: rgba(255, 255, 255, .07); }
+  .oldlist div.sel { background: rgba(255, 255, 255, .16); }
+  .rich { width: 300px; }
+  .rich .rh { padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .rich .rt { font: 600 13px Inter, "Segoe UI", sans-serif; color: #ddd; }
+  .rich .rs { font: 12px Inter, "Segoe UI", sans-serif; color: #a8adb4; }
+  .rich .hair { height: 1px; background: #555; }
+  .rich .rl { max-height: 320px; overflow-y: auto; padding-bottom: 6px; scrollbar-color: #555 transparent; }
+  .rich .rr { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; padding: 3px 12px; font: 13px "JetBrains Mono", Consolas, monospace; cursor: pointer; border-left: 3px solid transparent; }
+  .rich .rr:hover { background: rgba(255, 255, 255, .07); }
+  .rich .rr .h { font: 11px Inter, "Segoe UI", sans-serif; color: #a8adb4; }
+  .rich .rr.now { background: #2f4a6e; border-left-color: #5b8def; font-weight: 500; }
+  .rich .rr.now .h { color: #ccc; }
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; gap: 4px; align-items: center; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+
+  /* The designed altitude rows: mark, value, note, command; the ● row filled as today's rich list draws it. */
+  .ar { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; align-items: center; min-height: 26px; padding: 1px 11px 1px 8px; border-radius: 4px;
+        cursor: pointer; font: 13px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; border-left: 3px solid transparent; }
+  .ar:hover { background: rgba(255, 255, 255, .085); }
+  .ar.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .ar .ag { font-size: 12px; text-align: center; color: #ccc; }
+  .ar.C .ag { color: #7fd1b9; } .ar.D .ag { color: #f2b880; } .ar.A .ag { color: #5b8def; }
+  .ar.now { background: #2f4a6e; border-left-color: #5b8def; font-weight: 600; }
+  .ar.now:hover { background: #355381; }
+  .ar.below, .ar.below .ag, .ar.below .an { color: #7d838b; }
+  .ar .an { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .ar .cmd { font-weight: 400; }
+  .ar.more { color: #a4adb8; font: 12px Inter, "Segoe UI", sans-serif; }
+  .mva { margin: 3px 12px 3px 11px; display: flex; flex-direction: column; gap: 2px; }
+  .mva i { display: block; height: 0; border-top: 1px dashed #e0a84a; }
+  .mva span { font: 11px Inter, "Segoe UI", sans-serif; color: #e0a84a; }
+
+  /* The heading grid: 72 cells, 5° apart, one row per 60°. */
+  .hgrid { display: grid; grid-template-columns: repeat(12, 34px); gap: 2px; padding: 4px 9px 6px; }
+  .hc { font: 12.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #33383f; border-radius: 3px; height: 26px; padding: 0; cursor: pointer; }
+  .hc.card { color: #ffffff; font-weight: 700; }
+  .hc:hover { background: #2e343b; border-color: #5a6573; }
+  .hc.now { background: #2f4a6e; border-color: #5b8def; color: #fff; }
+  .hc.kfocus { outline: 2px solid #8fc1ff; outline-offset: -1px; }
+  .hgrid.TL .hc:hover, .hgrid.TR .hc:hover { border-color: #A8CAFF; }
+  .seg { display: flex; margin: 4px 9px 2px; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; width: max-content; }
+  .seg button { font: 12px Inter, "Segoe UI", sans-serif; color: #e4e7eb; background: #23272c; border: 0; padding: 4px 10px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid #3a414b; }
+  .seg button[aria-pressed="true"] { background: #24406a; }
+  .seg button code { font: 11px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; margin-left: 5px; }
+  .seg button[aria-pressed="true"] code { color: #c9d6e8; }
+
+  /* Chips: degree turns, knots, Mach. */
+  .chiprow { display: flex; align-items: center; gap: 3px; padding: 3px 9px; }
+  .chiprow .cl { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; width: 56px; flex: 0 0 auto; }
+  .chip { font: 12px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #33383f; border-radius: 3px; height: 26px; min-width: 42px; padding: 0 4px; cursor: pointer; }
+  .chip:hover { background: #2e343b; border-color: #5a6573; }
+  .chip.now { background: #2f4a6e; border-color: #5b8def; color: #fff; }
+  .chips { display: grid; grid-template-columns: repeat(8, 46px); gap: 3px; padding: 2px 9px 6px; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 4px; }
+  .cols2 .mi { min-height: 28px; padding: 3px 9px; }
+  .cols2 .ch { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 4px 9px 0; }
+
+  /* The aircraft menu stub: bold title, the state line, Command…, the strip, the text items. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; min-height: 20px; white-space: nowrap; }
+  .strip { display: flex; gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; cursor: pointer; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  /* Mock-only annotations. */
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .demo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 10px 12px; color: #e4e7eb; font: 12px Inter, "Segoe UI", sans-serif; }
+  .demo button { font: 12px Inter, "Segoe UI", sans-serif; color: #fff; background: #24406a; border: 1px solid #4a6fa5; border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+  .demo .clock { font: 12px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part X5 · heading, altitude and speed pickers · mock for the owner's decisions</div>
+  <h1>Flight picker flyouts: heading, altitude, speed</h1>
+  <p class="lede">The strip's busiest buttons, <b>Fly heading</b>, <b>Maintain altitude</b> and <b>Assign speed</b>, still open popups drawn by <code>MenuPopups</code>: a 120 px list of 72 headings, the titled rich list of altitudes with its MVA line, and a 120 px list of speeds. Turn left / right and the degree turns are the same list popup in All Commands, and Speed…, Temporary altitude… and Cruise… are one-box input popups. This page draws each open decision as lanes A, B (and C), the recommended lane first and marked.</p>
+  <p class="lede">Every flyout draws the built parts: the Fluent dark menu, the title line and glyph rows of the approach flyouts, the boxes of the takeoff and approach flyouts, the <code>FlyoutTabStrip</code> tabs, the 480 px cap, the flight glyphs of <code>QuickCommandGlyphs</code>. The aircraft are <b>UAL455</b>, an A320 at <b>FL240</b>, 280 kt, heading <b>270</b>, and <b>N738SP</b>, a C172 at <b>3,500</b>, 100 kt, assigned 4,000, both bound for KOAK (field elevation 9 ft). Click a cell, a row, a chip or a tab, and type in the boxes, to see what each sends.</p>
+
+  <section class="note-box" aria-labelledby="note-h">
+    <h2 id="note-h">Settled by the owner (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>The family.</b> Fly heading; Turn left / Turn right and the degree turns; Maintain altitude with its rich list and MVA line; Assign speed. Their single-box inputs (Speed…, Temporary altitude…, Cruise…) become inline boxes inside these flyouts; which flyout holds the last two is decision 5.</li>
+      <li><b>All Commands.</b> Each All Commands entry opens the same flyout, built by the same builder.</li>
+    </ul>
+    <h2>Recommended, not drawn as lanes</h2>
+    <ul class="nl">
+      <li><b>Keyboard.</b> <span class="rec">recommended:</span> focus lands in the flyout's box on open, as Follow's filter box does, since a heading, an altitude or a speed is fastest typed; the ● cell or row is marked but not focused. Down moves from the box into the grid, the list or the chips at the ● mark; in the heading grid the arrows move one cell (5°) left or right and one row (60°) up or down; Up from the top row returns to the box; Enter sends the focused cell or row, or what the box holds; Escape closes the flyout back to its strip button. Where a flyout has tabs (decision 4 lane C), Left and Right switch tabs from the rows, as in X2b.</li>
+      <li><b>Glyphs.</b> <span class="rec">recommended:</span> the flyouts reuse the strip's flight glyphs: Fly heading's compass on heading rows and the heading box, Maintain's climbing step on altitude boxes, Assign speed's dial on speed rows. No new glyph, except the draft in decision 5.</li>
+      <li><b>Screen edge and width.</b> Already ruled (X2b ruling 5): FlipX | SlideY, no shrinking of lists, the 480 px cap.</li>
+      <li><b>Command text.</b> The grid and the heading box send three-digit headings (<code>FH 090</code>); today's list sends the bare number (<code>FH 90</code>), and the sim reads both. Altitude rows send bare feet as today (<code>CM 25000</code>); the Temporary altitude and Cruise boxes send hundreds as today (<code>TEMPALT 120</code>).</li>
+    </ul>
+  </section>
+  <nav class="index" id="index" aria-label="Decisions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">The aircraft menu follows the built quick-command menu: bold title, state line, Command…, the strip of 40 px cells with the corner notch when a button opens a flyout, then Track, Data Block and All Commands. Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px (rows) and 32 px (strip), stroke 1.9, in the flight blue <code>#A8CAFF</code> (Report traffic in sight in the tower amber). The altitude marks copy today's rich list: ● on the row nearest the current altitude (filled <code>#2F4A6E</code>, a 3 px <code>#5B8DEF</code> left border), ◆ assigned in <code>#5B8DEF</code>, ↑ teal and ↓ amber, rows under the MVA greyed <code>#7D838B</code>, the MVA line a dashed amber rule. Today's popups are drawn with <code>MenuPopups</code>' own sizes and colours. The dashed notes and the demo controls are mock annotations. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  /* ---------- Glyphs: QuickCommandGlyphs paths ---------- */
+  const FLIGHT = "#A8CAFF", TOWER = "#FFC062", SCOPE = "#DCE2E8";
+  const GL = {
+    FH: [FLIGHT, "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z"],
+    CM: [FLIGHT, "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+    SPD: [FLIGHT, "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    DCT: [FLIGHT, "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"],
+    HOLD: [FLIGHT, "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3"],
+    XFIX: [FLIGHT, "M12 7l5 9H7z M2 12h19 M18 9l3 3-3 3"],
+    EAPP: [FLIGHT, "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21"],
+    RTIS: [TOWER, "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"],
+    DB: [SCOPE, "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+  };
+  const LABEL = { FH: "Fly heading", CM: "Maintain altitude", SPD: "Assign speed", DCT: "Direct to…", HOLD: "Hold", XFIX: "Cross fix", EAPP: "Expect approach", RTIS: "Report traffic in sight…" };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${GL[id][1]}"/></svg>`;
+  const menu = (inner, cls = "w", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = (html, calm) => `<div class="callout${calm ? " calm" : ""}" role="note">${html}</div>`;
+  const send = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+  const titleLine = (html, right = "") => `<div class="mi title"><span class="et">${html}</span><span class="r">${esc(right)}</span></div>`;
+  const glyphRow = (g, label, cmd, o = {}) => `<div class="mi${o.focus ? " kfocus" : ""}" role="menuitem" ${send(cmd)}>${gl(g)}<span class="nm"><span class="n">${esc(label)}</span>${o.note ? `<span class="note">· ${esc(o.note)}</span>` : ""}</span><span></span><span class="cmd">${esc(cmd)}</span></div>`;
+  const plainRow = (label, o = {}) => `<div class="mi plain${o.hot ? " hot" : ""}${o.faint ? " faint" : ""}"${o.cmd ? ` ${send(o.cmd)}` : ""}><span>${esc(label)}</span><span>${o.cmd ? `<span class="cmd">${esc(o.cmd)}</span>` : ""}</span><span class="chev">${o.sub ? "›" : ""}</span></div>`;
+  let uidN = 0;
+  const uid = p => `${p}-${++uidN}`;
+  const fmtAlt = a => (a >= 18000 ? `FL${Math.round(a / 100)}` : a.toLocaleString("en-US"));
+  const p3 = h => String(h).padStart(3, "0");
+  const range = (a, b, s) => { const r = []; for (let v = a; v <= b; v += s) r.push(v); return r; };
+
+  /* ---------- Data ---------- */
+  const JET = { cs: "UAL455", type: "A320", state: "En route · KOAK · FL240 · 280 kt · hdg 270", alt: 24000, asg: 24000, hdg: 270, field: 9, ceil: 39000,
+                mva: { floor: 6000, sector: "30" }, ias: 280, mach: 66, rfas: 136, knots: range(140, 300, 10), machs: range(74, 80, 1) };
+  const PIS = { cs: "N738SP", type: "C172", state: "VFR flight following · KOAK · 3,500 · 100 kt", alt: 3500, asg: 4000, hdg: 270, field: 9, ceil: 14000,
+                mva: { floor: 4000, sector: "21" }, ias: 100, rfas: 62, knots: range(70, 120, 10), machs: [] };
+
+  /* ---------- Shared bits ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function turnText(now, h) {
+    const d = ((h - now + 540) % 360) - 180;
+    if (d === 0) return "the present heading";
+    if (Math.abs(d) === 180) return "a 180° turn, the pilot's choice of side";
+    return d < 0 ? `a left turn of ${-d}°` : `a right turn of ${d}°`;
+  }
+  const after = (now, mode, h) => {
+    if (mode === "TL") return `a left turn of ${((now - h + 360) % 360) || 360}°`;
+    if (mode === "TR") return `a right turn of ${((h - now + 360) % 360) || 360}°`;
+    return turnText(now, h);
+  };
+  const relHeading = (now, d) => (((now + d - 1) % 360) + 360) % 360 + 1;
+
+  /* ---------- The aircraft menu stub ---------- */
+  /** s: ac, strip [{id, notch, latched}] */
+  function stubMenu(s) {
+    const strip = s.strip.map(c => `<span class="cell${c.latched ? " latched" : ""}" title="${esc(LABEL[c.id])}" role="button" aria-label="${esc(LABEL[c.id])}" data-say="${esc(c.say || (c.notch ? `${LABEL[c.id]}: opens its flyout (drawn beside).` : `${LABEL[c.id]}: opens a popup (not in this part).`))}">${gl(c.id, 32)}${c.notch ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const faint = t => `<div class="mi plain faint"><span>${esc(t)}</span><span></span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">${esc(s.ac.cs)} · ${esc(s.ac.type)}</div><div class="mstate">${esc(s.ac.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span><span></span></div>${sep()}<div class="strip">${strip}</div>${sep()}${["Track", "Data Block", "All Commands"].map(faint).join("")}`, "", "Aircraft menu");
+  }
+  const JET_STRIP = (latch, notched = true) => ["FH", "CM", "DCT", "SPD", "HOLD", "XFIX"].map(id => ({ id, notch: notched && ["FH", "CM", "SPD"].includes(id), latched: id === latch }));
+  const stub = s => `<div class="stage stub-stage">${stubMenu(s)}</div>`;
+
+  /* ---------- Boxes ---------- */
+  /** o: g, label, ph, kind (hdg, alt, spd, tempalt, cruise), verb (preview while empty), now, focus, value, w */
+  function boxRow(o) {
+    const id = uid("box");
+    return `<div class="mi boxed" role="menuitem" data-boxrow="${id}">${gl(o.g)}<span class="nm col"><span class="n">${esc(o.label)}</span><span class="under"><input class="tbox${o.focus ? " focus" : ""}" type="text" id="${id}" data-box="${o.kind}" data-verb="${esc(o.verb)}" data-now="${o.now ?? ""}" placeholder="${esc(o.ph)}" value="${esc(o.value || "")}" aria-label="${esc(o.label)}" style="width:${o.w || 130}px" autocomplete="off" spellcheck="false"></span><span class="bnote" data-bnote="${id}"></span></span><span></span><span class="cmd" data-prev="${id}">${esc(o.verb)} ···</span></div>`;
+  }
+  /** The altitude the sim's resolver reads from typed text: hundreds for up to three digits, else feet; FL prefix allowed. */
+  function parseAlt(t) {
+    const s = t.trim().toUpperCase().replace(/^FL/, "");
+    if (!/^\d{1,3}(,\d{3})*$|^\d{1,5}$/.test(s)) return null;
+    const digits = s.replace(/,/g, "");
+    const n = parseInt(digits, 10);
+    const feet = (digits.length <= 3 && !s.includes(",")) ? n * 100 : n;
+    return (feet > 0 && feet <= 99900) ? feet : null;
+  }
+  /** The command a box sends for its text: null for empty, false for unreadable. */
+  function boxCommand(box) {
+    const t = box.value.trim();
+    if (!t) return null;
+    const kind = box.dataset.box;
+    const now = Number(box.dataset.now);
+    if (kind === "hdg") {
+      const m = /^([LR])?\s*(\d{1,3})$/i.exec(t);
+      if (!m) return false;
+      const h = parseInt(m[2], 10);
+      if (h < 1 || h > 360) return false;
+      const verb = m[1] ? (m[1].toUpperCase() === "L" ? "TL" : "TR") : (box.dataset.verb || "FH");
+      return { cmd: `${verb} ${p3(h)}`, why: `(from ${p3(now)}, ${after(now, verb, h)})` };
+    }
+    if (kind === "alt") {
+      const a = parseAlt(t);
+      if (!a) return false;
+      return { cmd: `${a > now || a === now ? "CM" : "DM"} ${a}`, why: `(${fmtAlt(a)})`, alt: a };
+    }
+    if (kind === "spd") {
+      if (!/^\d{2,3}$/.test(t) || parseInt(t, 10) <= 0) return false;
+      return { cmd: `SPD ${parseInt(t, 10)}`, why: "" };
+    }
+    const a = parseAlt(t);
+    if (!a) return false;
+    return { cmd: `${kind === "tempalt" ? "TEMPALT" : "CRUISE"} ${p3(Math.round(a / 100))}`, why: `(${fmtAlt(a)})` };
+  }
+  const BAD = { hdg: "Not a valid heading", alt: "Not a valid altitude", spd: "Not a valid speed", tempalt: "Not a valid altitude", cruise: "Not a valid altitude" };
+  function onBoxInput(box) {
+    const r = boxCommand(box);
+    const prev = document.querySelector(`[data-prev="${box.id}"]`);
+    const bn = document.querySelector(`[data-bnote="${box.id}"]`);
+    prev.classList.toggle("bad", r === false);
+    prev.textContent = r ? r.cmd : `${box.dataset.verb} ···`;
+    bn.textContent = "";
+    const fly = box.closest(".menu");
+    if (box.dataset.box === "alt" && fly) jumpAltitude(fly, r ? r.alt : null);
+    if (box.dataset.box === "hdg" && fly) {
+      fly.querySelectorAll(".hc.kfocus").forEach(c => c.classList.remove("kfocus"));
+      const m = r && /(\d{3})$/.exec(r.cmd);
+      if (m) { const c = fly.querySelector(`.hc[data-h="${parseInt(m[1], 10)}"]`); if (c) c.classList.add("kfocus"); }
+    }
+  }
+  function onBoxEnter(box) {
+    const r = boxCommand(box);
+    if (r === null) { say(box, "Empty: Enter sends nothing and the flyout stays open."); return; }
+    if (r === false) {
+      document.querySelector(`[data-bnote="${box.id}"]`).textContent = BAD[box.dataset.box];
+      say(box, `“${esc(BAD[box.dataset.box])}” under the box; sends nothing, the flyout stays open with the text as typed.`);
+      return;
+    }
+    say(box, `Sends <code>${esc(r.cmd)}</code> ${esc(r.why)} and closes the flyout and the menu.`);
+  }
+
+  /* ---------- Headings ---------- */
+  const HEADINGS = range(5, 360, 5);
+  function hgrid(now, mode = "FH") {
+    return `<div class="hgrid ${mode}" data-mode="${mode}" data-now="${now}" role="grid" aria-label="Headings">${HEADINGS.map(h => `<button type="button" class="hc${h === now ? " now" : ""}${h % 90 === 0 ? " card" : ""}" data-h="${h}" title="${p3(h)}${h === now ? " · now" : ""}">${p3(h)}</button>`).join("")}</div>`;
+  }
+  const hdgBox = (now, o = {}) => boxRow({ g: "FH", label: o.label || "Heading", ph: o.ph || "e.g. 250, or L180", kind: "hdg", verb: o.verb || "FH", now, focus: o.focus !== false, w: 150 });
+  const fphRow = now => glyphRow("FH", "Present heading", "FPH", { note: `${p3(now)} now` });
+  function hdgListRows(now, list) {
+    return list.map(h => {
+      const isNow = h === now;
+      const d = ((h - now + 540) % 360) - 180;
+      const nt = isNow ? "now" : (Math.abs(d) === 180 ? "180°, either side" : (d < 0 ? `left ${-d}°` : `right ${d}°`));
+      return `<div class="ar${isNow ? " now" : ""}" role="menuitem" ${send(`FH ${p3(h)}`)}${isNow ? " data-sel" : ""}><span class="ag">${isNow ? "●" : ""}</span><span class="av">${p3(h)}</span><span class="an">${nt}</span><span class="cmd">FH ${p3(h)}</span></div>`;
+    }).join("");
+  }
+  const degChips = (now, dir) => `<div class="chiprow"><span class="cl">${dir === "L" ? "Left by" : "Right by"}</span>${[5, 10, 15, 20, 30, 45, 60, 90].map(n => {
+    const res = relHeading(now, dir === "L" ? -n : n);
+    return `<button type="button" class="chip" data-send="${dir === "L" ? "LT" : "RT"} ${n}" data-res="${p3(res)}" title="${dir === "L" ? "LT" : "RT"} ${n} → ${p3(res)}">${n}°</button>`;
+  }).join("")}</div>`;
+  const seg = mode => `<div class="seg" role="group" aria-label="Turn direction">${[["FH", "Fly heading"], ["TL", "Turn left"], ["TR", "Turn right"]].map(([m, l]) => `<button type="button" data-mode="${m}" aria-pressed="${m === mode}">${l}<code>${m}</code></button>`).join("")}</div>`;
+
+  /* ---------- Altitudes (MenuCatalog.AltitudeValues / MaintainList) ---------- */
+  function altValues(field, ceil) {
+    const items = [];
+    const low = Math.trunc(field + 5000);
+    let r = Math.ceil(field / 100) * 100; if (r < 100) r = 100;
+    for (let a = r; a < low && a <= ceil; a += 100) items.push(a);
+    for (let a = Math.ceil(low / 500) * 500; a <= ceil; a += 500) items.push(a);
+    return items.reverse();
+  }
+  /** The Maintain rows for an aircraft state {alt, asg, mva}: the C# MaintainList, as data. */
+  function maintain(ac, st) {
+    const alts = altValues(ac.field, ac.ceil);
+    let ai = null;
+    if (st.asg != null) {
+      const a = Math.round(st.asg);
+      const i = alts.findIndex(x => x <= a);
+      if (i < 0) { alts.push(a); ai = alts.length - 1; } else { if (alts[i] !== a) alts.splice(i, 0, a); ai = i; }
+    }
+    let ni = 0;
+    alts.forEach((a, i) => { if (Math.abs(a - st.alt) < Math.abs(alts[ni] - st.alt)) ni = i; });
+    const rows = alts.map((a, i) => {
+      const isNow = i === ni, isAsg = i === ai;
+      const kind = isNow ? (isAsg ? "NA" : "N") : (isAsg ? "A" : (a > st.alt ? "C" : "D"));
+      const climb = (kind === "N" || kind === "NA") ? !(st.asg != null && st.asg < st.alt) : a > st.alt;
+      const below = st.mva ? a < st.mva.floor : false;
+      return { alt: a, kind, cmd: `${climb ? "CM" : "DM"} ${a}`, below };
+    });
+    let mvaAt = -1;
+    if (st.mva) { mvaAt = alts.findIndex(a => a < st.mva.floor); if (mvaAt < 0) mvaAt = alts.length; }
+    return { rows, sel: ai ?? ni, mvaAt, mva: st.mva };
+  }
+  const MARK = { N: ["●", "now"], NA: ["●", "now · assigned"], A: ["◆", "assigned"], C: ["↑", ""], D: ["↓", ""] };
+  function altRow(r, sel) {
+    const [g, mk] = MARK[r.kind];
+    const nt = r.below ? (mk ? `${mk} · below MVA` : "below MVA") : mk;
+    const now = (r.kind === "N" || r.kind === "NA") && !r.below;
+    return `<div class="ar ${r.kind}${now ? " now" : ""}${r.below ? " below" : ""}" role="menuitem" ${send(r.cmd)} data-alt="${r.alt}"${sel ? " data-sel" : ""}><span class="ag">${g}</span><span class="av">${fmtAlt(r.alt)}</span><span class="an">${esc(nt)}</span><span class="cmd">${esc(r.cmd)}</span></div>`;
+  }
+  const mvaLine = m => `<div class="mva" role="separator"><i></i><span>MVA ${m.floor.toLocaleString("en-US")} here (sector ${esc(m.sector)})</span></div>`;
+  function altRowsHtml(list, from = 0, to = list.rows.length) {
+    let h = "";
+    for (let i = from; i < to; i++) {
+      if (i === list.mvaAt) h += mvaLine(list.mva);
+      h += altRow(list.rows[i], i === list.sel);
+    }
+    if (to === list.rows.length && list.mvaAt === list.rows.length) h += mvaLine(list.mva);
+    return h;
+  }
+  const altPanel = (list, h = 320, centre) => `<div class="panel apanel" style="max-height:${h}px"${centre ? ` data-centre="${centre}"` : " data-centre=\"sel\""}>${altRowsHtml(list)}</div>`;
+  const stateOf = ac => ({ alt: ac.alt, asg: ac.asg, mva: ac.mva });
+  const altTitle = (ac, st) => titleLine(`<b>Maintain altitude</b>`, `now ${fmtAlt(Math.round(st.alt / 100) * 100)}${st.asg != null ? ` · assigned ${fmtAlt(st.asg)}` : ""}`);
+  const altBox = (ac, o = {}) => boxRow({ g: "CM", label: "Altitude", ph: "e.g. 230 or 23000", kind: "alt", verb: "CM", now: ac.alt, focus: o.focus !== false, w: 150 });
+  function jumpAltitude(fly, alt) {
+    fly.querySelectorAll(".ar.kfocus").forEach(r => r.classList.remove("kfocus"));
+    if (alt == null) return;
+    const rows = [...fly.querySelectorAll(".ar[data-alt]")];
+    if (!rows.length) return;
+    let best = rows[0];
+    rows.forEach(r => { if (Math.abs(Number(r.dataset.alt) - alt) < Math.abs(Number(best.dataset.alt) - alt)) best = r; });
+    best.classList.add("kfocus");
+    const p = best.closest(".panel");
+    if (p) p.scrollTop = best.offsetTop - p.clientHeight / 2 + best.offsetHeight / 2;
+  }
+
+  /* ---------- Speeds ---------- */
+  const nearest = (list, v) => list.reduce((b, x) => (Math.abs(x - v) < Math.abs(b - v) ? x : b), list[0]);
+  const spdTitle = ac => titleLine(`<b>Assign speed</b>`, `now ${ac.ias} kt${ac.machs.length ? ` · M.${ac.mach}` : ""}`);
+  const spdBox = (ac, o = {}) => boxRow({ g: "SPD", label: "Speed (knots)", ph: "e.g. 250", kind: "spd", verb: "SPD", now: ac.ias, focus: o.focus !== false, w: 110 });
+  const spdTop = ac => glyphRow("SPD", "Resume normal speed", "RNS") + glyphRow("SPD", "Final approach speed", "RFAS", { note: `${ac.rfas} kt` });
+  const knotChips = ac => { const n = nearest(ac.knots, ac.ias); return `<div class="chips">${ac.knots.map(k => `<button type="button" class="chip${k === n ? " now" : ""}" data-send="SPD ${k}" title="SPD ${k}${k === n ? " · now" : ""}">${k}</button>`).join("")}</div>`; };
+  const machChips = ac => `<div class="chips">${ac.machs.map(m => `<button type="button" class="chip" data-send="MACH .${m}" title="MACH .${m}">M.${m}</button>`).join("")}</div>`;
+  function spdListRows(ac) {
+    const n = nearest(ac.knots, ac.ias);
+    const row = (g, v, nt, cmd, o = {}) => `<div class="ar${o.now ? " now" : ""}" role="menuitem" ${send(cmd)}${o.now ? " data-sel" : ""}><span class="ag">${g}</span><span class="av">${esc(v)}</span><span class="an">${esc(nt)}</span><span class="cmd">${esc(cmd)}</span></div>`;
+    return ac.knots.map(k => row(k === n ? "●" : "", `${k} kt`, k === n ? "now" : "", `SPD ${k}`, { now: k === n })).join("")
+      + ac.machs.map(m => row("", `M.${m}`, "", `MACH .${m}`)).join("");
+  }
+
+  /* ---------- Tabs ---------- */
+  function tabbed(tabs, panels, sel) {
+    const gid = uid("tg");
+    const bar = `<div class="tabs" role="tablist">${tabs.map(t => `<button type="button" class="tab" role="tab" data-tab="${esc(t.k)}" aria-selected="${t.k === sel}">${esc(t.label)}${t.small ? `<small>${esc(t.small)}</small>` : ""}</button>`).join("")}</div>`;
+    const body = Object.entries(panels).map(([k, html]) => `<div class="panel" data-panel="${esc(k)}"${k === sel ? "" : " hidden"}>${html}</div>`).join("");
+    return `<div data-tabgroup="${gid}">${bar}${body}</div>`;
+  }
+
+  /* ---------- Lane and artboard ---------- */
+  function lane(l) {
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${l.rec ? `<span class="recb">recommended</span>` : ""}</div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Click a cell, a row or a chip, or type in a box, to see what it sends."}</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>${a.side ? `<div class="side">${a.side}</div>` : ""}</div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  /* ---------- 0. Today ---------- */
+  const oldList = (items, selIdx) => `<div class="oldpop"><div class="oldlist" data-centre="sel">${items.map((t, i) => `<div${i === selIdx ? " class=\"sel\" data-sel" : ""} data-say="${esc(t[1])}">${esc(t[0])}</div>`).join("")}</div></div>`;
+  const todayHeading = oldList(HEADINGS.map(h => [String(h), `Sends <code>FH ${h}</code> and closes the list.`]), HEADINGS.indexOf(270));
+  function todayRich(ac) {
+    const l = maintain(ac, stateOf(ac));
+    const rows = l.rows.map((r, i) => {
+      const [g, mk] = MARK[r.kind];
+      const hint = r.below ? (mk ? `${mk} · below MVA` : "below MVA") : (mk || r.cmd);
+      const now = (r.kind === "N" || r.kind === "NA") && !r.below;
+      const col = r.below ? "#7d838b" : ({ C: "#7fd1b9", D: "#f2b880", A: "#5b8def" }[r.kind] || "#ccc");
+      return (i === l.mvaAt ? mvaLine(l.mva) : "") + `<div class="rr${now ? " now" : ""}"${i === l.sel ? " data-sel" : ""} data-say="Sends <code>${esc(r.cmd)}</code> and closes the picker." style="${r.below ? "color:#7d838b" : ""}"><span style="color:${col}">${g}</span><span>${fmtAlt(r.alt)}</span><span class="h">${esc(hint)}</span></div>`;
+    }).join("");
+    const sub = `now ${fmtAlt(ac.alt)}${ac.asg != null ? ` · assigned ${fmtAlt(ac.asg)}` : ""} · type to jump`;
+    return `<div class="oldpop rich"><div class="rh"><span class="rt">${esc(ac.cs)} · Maintain</span><span class="rs">${esc(sub)}</span></div><div class="hair"></div><div class="rl" data-centre="sel">${rows}</div></div>`;
+  }
+  const spdItems = ac => [["Resume normal speed", "RNS"], [`Final approach speed (${ac.rfas})`, "RFAS"], ...ac.knots.map(k => [String(k), `SPD ${k}`]), ...ac.machs.map(m => [`M.${m}`, `MACH .${m}`])];
+  const todaySpeed = ac => oldList(spdItems(ac).map(([t, c]) => [t, `Sends <code>${c}</code> and closes the list.`]), 2 + Math.floor(ac.knots.length / 2));
+  const inputPopup = (ph) => `<div class="inpop m"><input class="tbox" type="text" placeholder="${esc(ph)}" style="width:160px" aria-label="${esc(ph)}" data-popup="spd" autocomplete="off" spellcheck="false"><span class="btn">OK</span><span class="btn">Clear</span></div>`;
+  const d0 = {
+    id: "d0-today", title: "Today · three popups and three input boxes", sends: "FH 270 · CM 24000 · SPD 280 · LT 30 · TEMPALT 120 · CRUISE 240",
+    intro: [
+      "UAL455's strip (IFR en route: Fly heading, Maintain altitude, Direct to, Assign speed, Hold, Cross fix). The three flight buttons carry no notch: each opens a popup at the pointer and the menu closes under it (<code>MenuPopups.ShowList</code>, <code>ShowRichList</code>).",
+      "Fly heading lists all 72 headings 5° apart in a 120 px, 300 px tall list opened on the heading rounded to 5 (<code>HeadingSeed</code>); Turn left and Turn right in All Commands are the same list sending <code>TL</code> / <code>TR</code>, and the degree turns a list of 5 to 90 sending <code>LT</code> / <code>RT</code>. Maintain is the rich list: every 100 ft up to 5,000 ft above the field, then every 500 ft to the type's ceiling, marked and centred on the assigned row, with the MVA line and type to jump. Assign speed lists RNS, RFAS, every tenth knot and, at or above FL240, the Mach rows (<code>SpeedValues</code>). Speed…, Temporary altitude… and Cruise… are the input popup.",
+    ],
+    side: stub({ ac: JET, strip: JET_STRIP(null, false) }),
+    lanes: [
+      { kind: "a", name: "As built (MenuPopups)", hint: "Click a list row to see what it sends.",
+        body: `<div class="pair">${frame("Fly heading › <b>list</b>", todayHeading)}${frame("Maintain altitude › <b>rich list</b>", todayRich(JET))}${frame("Assign speed › <b>list</b>", todaySpeed(JET))}</div>`
+          + frame("Speed… / Temporary altitude… / Cruise… › <b>input popup</b>", inputPopup("Speed (knots)")),
+        how: "Each popup closes the menu and opens at the pointer; a click on a row sends and closes. The rich list jumps as the controller types, with nothing on screen showing the typed text but its subtitle's “type to jump”.",
+        worst: "Fly heading for 095 from 270 is a scroll through a narrow list; the list popup has no Escape, only a click outside; nothing in any of the three popups says what a row will send before it is clicked." },
+    ],
+  };
+
+  /* ---------- 1. Fly heading layout ---------- */
+  const near = now => range(-15, 15, 5).map(d => relHeading(now, d));
+  const flyA = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270) + sep() + hgrid(270), "w", "Fly heading");
+  const flyB = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270) + sep() + `<div class="panel" style="max-height:300px" data-centre="sel">${hdgListRows(270, HEADINGS)}</div>`, "w", "Fly heading");
+  const flyC = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270) + sep() + `<div class="grp">Near the present heading</div>${hdgListRows(270, near(270))}` + sep() + `<div class="grp">Every heading</div>` + hgrid(270), "w", "Fly heading");
+  const d1 = {
+    id: "d1-heading", title: "1 · Fly heading: a grid of headings, a list, or both", sends: "FH 005 … FH 360, or the typed heading",
+    intro: [
+      "UAL455 at FL240, heading <b>270</b>. All three lanes keep today's 72 headings 5° apart, a title line naming the verb and the present heading, and the Heading box at the top, focused (the recommended keyboard model). The box takes <code>250</code> (sends <code>FH 250</code>) or <code>L180</code> / <code>R090</code> (sends <code>TL 180</code> / <code>TR 090</code>, the command bar's own forms). Typing a heading outlines its cell or row.",
+      "Clicking a heading tells you below the lane which way the pilot will turn from 270: <code>FH</code> takes the shorter way.",
+    ],
+    side: stub({ ac: JET, strip: JET_STRIP("FH") }),
+    lanes: [
+      { kind: "a", rec: true, name: "A grid: 12 columns, one row per 60°",
+        body: frame("Fly heading › <b>flyout</b>", flyA),
+        how: "All 72 headings at once in a 6 × 12 grid, 005 at the top left and 360 at the bottom right; each row spans 60°, so 270 sits mid-row five. The cardinal headings are bold and the present heading's cell is filled, as the ● row of the altitude list. 448 px wide, under the 480 px cap; nothing scrolls.",
+        worst: "Three-digit labels 34 px apart: a fast click can land on the neighbour, 5° off (265 for 270), and nothing but the sent line says so; an odd heading such as 095 is found by reading along its row." },
+      { kind: "b", name: "A list: one row per heading",
+        body: frame("Fly heading › <b>flyout</b>", flyB),
+        how: "Today's 72 values as rows (heading, which way and how far from the present heading, command), opened with 270 centred and marked ●, scrolling 300 px. Each row says the turn it causes before it is clicked.",
+        worst: "A heading more than 30° away is out of view: 090 from 270 is a 36-row scroll, the case today's list already has." },
+      { kind: "c", name: "Both: the near headings as rows, then the grid",
+        body: frame("Fly heading › <b>flyout</b>", flyC),
+        how: "Seven rows for the present heading ±15° (the turns most often given), each naming its turn, then every heading in the grid of lane A.",
+        worst: "The flyout is about 520 px tall, and each near heading is offered twice (row and cell), so the eye checks two places for 260." },
+    ],
+  };
+
+  /* ---------- 1b. Present heading ---------- */
+  const d1b = {
+    id: "d1b-fph", title: "1b · Present heading (FPH): a row in the flyout, or its own entry only", sends: "FPH",
+    intro: [
+      "<code>FPH</code> (fly present heading) is a leaf today: All Commands › Heading › Present heading. It is not on any strip. Drawn on lane 1A's grid.",
+    ],
+    lanes: [
+      { kind: "a", rec: true, name: "A row at the top of the Fly heading flyout",
+        body: frame("Fly heading › <b>flyout</b>", menu(titleLine("<b>Fly heading</b>", "now 270") + fphRow(270) + hdgBox(270, { focus: false }) + sep() + hgrid(270), "w", "Fly heading")),
+        how: "Present heading is the flyout's first row, its note naming the heading it holds; the All Commands leaf stays. From the strip, “stop the turn here” is one row away.",
+        worst: "The row sits right above the box: a click aimed at the box's top edge sends <code>FPH</code> and stops the turn the instructor was about to change." },
+      { kind: "b", name: "Not in the flyout: its own All Commands leaf, as today",
+        body: frame("All Commands › <b>Heading</b>", menu(plainRow("Present heading", { cmd: "FPH" }) + plainRow("Fly heading", { sub: true, hot: true }) + plainRow("Turn left", { sub: true }) + plainRow("Turn right", { sub: true }) + plainRow("Turn left (degrees)", { sub: true }) + plainRow("Turn right (degrees)", { sub: true }), "", "All Commands, Heading")),
+        how: "The flyout holds headings only; <code>FPH</code> stays the Heading group's first, plain item.",
+        worst: "From the strip, stopping a turn takes All Commands › Heading › Present heading, or typing; the flyout that is open on the turning aircraft cannot do it." },
+    ],
+  };
+
+  /* ---------- 2. Turns ---------- */
+  const turnsA = (mode, label) => menu(titleLine(`<b>${label}</b>`, "now 270") + seg(mode) + hdgBox(270, { verb: mode, focus: false }) + sep() + hgrid(270, mode) + sep() + `<div class="grp">Turn by degrees <code>LT n · RT n</code></div>` + degChips(270, "L") + degChips(270, "R"), "w", label);
+  const colRow = (dir, n) => { const res = relHeading(270, dir === "L" ? -n : n); const cmd = `${dir === "L" ? "LT" : "RT"} ${n}`; return `<div class="mi" role="menuitem" ${send(cmd)} data-res="${p3(res)}"><span class="nm"><span class="n">${dir === "L" ? "← " : ""}${n}°${dir === "R" ? " →" : ""}</span><span class="note">· ${p3(res)}</span></span><span></span><span class="cmd">${cmd}</span></div>`; };
+  const turnsB = menu(titleLine("<b>Fly heading</b>", "now 270") + hdgBox(270, { focus: false }) + sep() + hgrid(270) + sep()
+    + `<div class="cols2"><div><div class="ch">Turn left by</div>${[10, 20, 30, 45, 60, 90].map(n => colRow("L", n)).join("")}</div><div><div class="ch">Turn right by</div>${[10, 20, 30, 45, 60, 90].map(n => colRow("R", n)).join("")}</div></div>`, "w", "Fly heading");
+  const degList = dir => menu(titleLine(`<b>Turn ${dir === "L" ? "left" : "right"} (degrees)</b>`, "now 270") + [5, 10, 15, 20, 30, 45, 60, 90].map(n => { const res = relHeading(270, dir === "L" ? -n : n); const cmd = `${dir === "L" ? "LT" : "RT"} ${n}`; return `<div class="mi${n === 30 ? " kfocus" : ""}" role="menuitem" ${send(cmd)} data-res="${p3(res)}">${gl("FH")}<span class="nm"><span class="n">${n}°</span><span class="note">· to ${p3(res)}</span></span><span></span><span class="cmd">${cmd}</span></div>`; }).join(""), "w", "Turn left (degrees)");
+  const allHeading = hot => menu(plainRow("Present heading", { cmd: "FPH" }) + ["Fly heading", "Turn left", "Turn right", "Turn left (degrees)", "Turn right (degrees)"].map(l => plainRow(l, { sub: true, hot: l === hot })).join(""), "", "All Commands, Heading");
+  const d2 = {
+    id: "d2-turns", title: "2 · Turns: fold into the heading flyout, or stay separate flyouts", sends: "TL nnn · TR nnn · LT n · RT n",
+    intro: [
+      "Today All Commands › Heading has five pickers: Fly heading (<code>FH</code>), Turn left and Turn right (the same 72 headings, sending <code>TL</code> / <code>TR</code>), and Turn left / right (degrees) (5, 10, 15, 20, 30, 45, 60, 90, sending <code>LT</code> / <code>RT</code>, opened on 30). Only Fly heading is on a strip. UAL455, heading 270.",
+    ],
+    side: `<div class="stage stub-stage">${frame("All Commands › <b>Heading</b> today", allHeading("Turn left"))}</div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "One flyout: a direction toggle and degree chips",
+        hint: "Click the toggle, then a cell; or a degree chip.",
+        body: frame("Fly heading › <b>flyout</b>, toggle on Fly heading", turnsA("FH", "Fly heading"))
+          + frame("All Commands › Turn left › <b>the same flyout</b>, toggle on Turn left", turnsA("TL", "Turn left")),
+        how: "The heading flyout gains a three-way toggle (Fly heading <code>FH</code> / Turn left <code>TL</code> / Turn right <code>TR</code>) that sets what every cell sends, and two rows of degree chips sending <code>LT n</code> / <code>RT n</code> (the chip's tooltip names the heading it reaches). The toggle starts on Fly heading from the strip; each of the five All Commands entries opens this flyout with the toggle set to its verb (the degree entries focus their chip row). The box also reads <code>L180</code> / <code>R090</code>.",
+        worst: "The toggle is a mode: an instructor who opened it from All Commands › Turn left, or clicked Turn left a moment ago, sends <code>TL 300</code> (a 330° turn) when meaning <code>FH 300</code>; only the title and the pressed toggle say so." },
+      { kind: "b", name: "One flyout: the relative turns as two columns",
+        body: frame("Fly heading › <b>flyout</b>", turnsB),
+        how: "The grid always sends <code>FH</code>. Under it, two columns of relative turns, left and right, each row naming the heading it reaches (<code>← 30° · 240</code>, <code>LT 30</code>); 5° and 15° are dropped to keep six rows a side. Turn left / right to a heading (<code>TL</code> / <code>TR</code>) is typed in the box (<code>L180</code>); their two All Commands entries open this flyout with the box holding <code>L</code> or <code>R</code>.",
+        worst: "The explicit-direction turn, the one used when the short way is wrong (a 200° turn away from traffic), has no click at all: it must be typed, and an <code>FH</code> cell clicked instead turns the other way." },
+      { kind: "c", name: "Separate flyouts, one per entry (today's five)",
+        body: `<div class="pair">${frame("All Commands › Turn left › <b>flyout</b>", menu(titleLine("<b>Turn left</b>", "now 270") + hdgBox(270, { verb: "TL", label: "Turn left to", ph: "e.g. 180", focus: false }) + sep() + hgrid(270, "TL"), "w", "Turn left"))}${frame("All Commands › Turn left (degrees) › <b>flyout</b>", degList("L"))}</div>`,
+        how: "Each of the five entries keeps its own flyout: Fly heading (lane 1A), Turn left and Turn right (the same grid, every cell sending <code>TL</code> or <code>TR</code>, the title naming it), and the two degree lists as glyph rows naming the heading each reaches, opened on 30 as today.",
+        worst: "From the strip only <code>FH</code> is reachable; a 20° right turn is All Commands › Heading › Turn right (degrees) › 20°, three levels for the instruction given most often after a heading." },
+    ],
+  };
+
+  /* ---------- 3. Maintain altitude ---------- */
+  const jetList = () => maintain(JET, stateOf(JET));
+  const pisList = () => maintain(PIS, stateOf(PIS));
+  const altA = ac => menu(altTitle(ac, stateOf(ac)) + altBox(ac) + sep() + altPanel(maintain(ac, stateOf(ac)), 300), "w", "Maintain altitude");
+  const altB = ac => menu(altTitle(ac, stateOf(ac)) + altPanel(maintain(ac, stateOf(ac)), 300) + sep() + altBox(ac), "w", "Maintain altitude");
+  function altC(ac) {
+    const l = maintain(ac, stateOf(ac));
+    const from = Math.max(0, l.sel - 4), to = Math.min(l.rows.length, l.sel + 5);
+    const id = uid("lad");
+    return menu(altTitle(ac, stateOf(ac)) + altBox(ac) + sep() + `<div class="panel apanel" id="${id}" data-full="${ac === JET ? "jet" : "pis"}">${altRowsHtml(l, from, to)}<div class="ar more" role="menuitem" data-expand="${id}" tabindex="0"><span class="ag">⋯</span><span class="av">Show all ${l.rows.length} altitudes</span><span class="an"></span><span class="cmd"></span></div></div>`, "w", "Maintain altitude");
+  }
+  const d3 = {
+    id: "d3-altitude", title: "3 · Maintain altitude: the rich list in a flyout, and where its box sits", sends: "CM <feet> · DM <feet>",
+    intro: [
+      `UAL455 at FL240, assigned FL240: <b>${jetList().rows.length}</b> rows from FL390 (taken here as the A320's ceiling) down to 100 ft, the MVA ${JET.mva.floor.toLocaleString("en-US")} line far below. N738SP at 3,500, assigned 4,000, the MVA there: <b>${pisList().rows.length}</b> rows from 14,000, the list opens on the assigned row with the MVA line under it, every row below the line greyed (scroll down to the greyed ● 3,500 row). Every lane keeps today's rows (<code>MaintainList</code>: marks, MVA line, greyed rows that still send) and adds the command on every row, which today shows only on the ↑ and ↓ rows.`,
+      "Today the list jumps as you type with nothing visible; the flyout gives that text a box. Typing <code>230</code> or <code>23000</code> outlines the nearest row and the box shows the command it will send (<code>DM 23000</code>); an altitude between steps (<code>235</code>) is sent as typed. Try it.",
+    ],
+    side: stub({ ac: JET, strip: JET_STRIP("CM") }),
+    lanes: [
+      { kind: "a", rec: true, name: "The list in the flyout, the box on top",
+        body: frame("UAL455 · Maintain altitude › <b>flyout</b>", altA(JET)) + frame("N738SP · Maintain altitude › <b>flyout</b>", altA(PIS)),
+        how: "Title line (verb, now, assigned), the Altitude box focused, then the whole list in a 300 px scrolling panel opened with the assigned row (else the ● row) centred, as today. Rows show mark, altitude, note and command. The box and the list scroll apart, so the box never leaves view.",
+        worst: "Below the MVA the list still sends: N738SP's 3,700 row reads “below MVA” in grey and a click sends <code>CM 3700</code>; the grey is the only warning, as today." },
+      { kind: "b", name: "The list in the flyout, the box at the foot",
+        body: frame("UAL455 · Maintain altitude › <b>flyout</b>", altB(JET)) + frame("N738SP · Maintain altitude › <b>flyout</b>", altB(PIS)),
+        how: "As A, with the box after the list and a separator, where the approach flyout keeps its Approach box (X3). Focus still lands in the box, so typing works at once.",
+        worst: "The focused box sits about 360 px below the title, under the list: the eye starts at the top, reads the list and only then finds where the typing goes; on a short screen the slide upward (SlideY) can push the box over the strip." },
+      { kind: "c", name: "A short ladder around the aircraft, the rest on demand",
+        hint: "Click “Show all” to expand the ladder in place.",
+        body: frame("UAL455 · Maintain altitude › <b>flyout</b>", altC(JET)) + frame("N738SP · Maintain altitude › <b>flyout</b>", altC(PIS)),
+        how: "Only the nine rows around the assigned (else the ● ) row, the MVA line among them when it falls there, then “Show all n altitudes” expanding the list in place; the box on top reaches any altitude.",
+        worst: "The usual clearance is outside the window: UAL455's ladder ends at FL220 and FL260, so “descend and maintain FL110” is a typed <code>110</code>, or a click on Show all and a scroll of 26 rows." },
+    ],
+  };
+
+  /* ---------- 4. Assign speed ---------- */
+  const spdA = ac => menu(spdTitle(ac) + spdBox(ac) + sep() + spdTop(ac) + sep() + `<div class="grp">Knots <code>SPD n</code></div>` + knotChips(ac)
+    + (ac.machs.length ? `<div class="grp">Mach, at or above FL240 <code>MACH .nn</code></div>` + machChips(ac) : ""), "w", "Assign speed");
+  const spdB = ac => menu(spdTitle(ac) + spdTop(ac) + sep() + `<div class="panel" style="max-height:260px" data-centre="sel">${spdListRows(ac)}</div>` + sep() + spdBox(ac), "w", "Assign speed");
+  const spdC = ac => menu(spdTitle(ac) + spdBox(ac) + sep() + spdTop(ac) + tabbed(
+    [{ k: `${ac.cs}-kt`, label: "Knots", small: String(ac.knots.length) }, ...(ac.machs.length ? [{ k: `${ac.cs}-m`, label: "Mach", small: String(ac.machs.length) }] : [])],
+    Object.fromEntries([[`${ac.cs}-kt`, knotChips(ac)], ...(ac.machs.length ? [[`${ac.cs}-m`, machChips(ac)]] : [])]), `${ac.cs}-kt`), "w", "Assign speed");
+  const d4 = {
+    id: "d4-speed", title: "4 · Assign speed: knots, RNS / RFAS, Mach and the box", sends: "RNS · RFAS · SPD n · MACH .nn",
+    intro: [
+      `Today's rows (<code>SpeedValues</code>): Resume normal speed (<code>RNS</code>), Final approach speed with the type's speed (<code>RFAS</code>), every tenth knot from the approach speed up to the type's knots ceiling, then, at or above FL240, the Mach rows. UAL455 at FL240 and 280 kt: ${JET.knots.length} knots values ${JET.knots[0]}–${JET.knots[JET.knots.length - 1]} and Mach .${JET.machs[0]}–.${JET.machs[JET.machs.length - 1]}. N738SP at 3,500 and 100 kt: ${PIS.knots[0]}–${PIS.knots[PIS.knots.length - 1]}, no Mach.`,
+      "Every lane folds Speed… in as the Speed (knots) box (<code>SPD n</code>, digits only, as Speed… reads today); the All Commands Speed… entry opens this flyout with focus in the box. The present speed's knots value is marked; neither aircraft has a speed assigned.",
+    ],
+    side: stub({ ac: JET, strip: JET_STRIP("SPD") }),
+    lanes: [
+      { kind: "a", rec: true, name: "Rows for RNS and RFAS, chips for knots and Mach",
+        body: frame("UAL455 · Assign speed › <b>flyout</b>", spdA(JET)) + frame("N738SP · Assign speed › <b>flyout</b> (All Commands; not on its strip)", spdA(PIS)),
+        how: "Box on top, then the two named speeds as glyph rows with their commands, then the knots as a grid of chips, eight to a row, the present speed filled, and under its own heading the Mach chips, drawn only at or above FL240. Nothing scrolls: the jet's flyout is about 350 px tall.",
+        worst: "A chip shows only its value: the command (<code>SPD 250</code>) appears only in the tooltip and the sent line, and eight to a row puts 220 directly above 300, one row's slip apart." },
+      { kind: "b", name: "One list of rows, as today",
+        body: frame("UAL455 · Assign speed › <b>flyout</b>", spdB(JET)) + frame("N738SP · Assign speed › <b>flyout</b>", spdB(PIS)),
+        how: "The named speeds as rows, then every speed as a row (value, note, command) in a 260 px scrolling panel centred on the present speed, Mach rows after the knots, then the box at the foot.",
+        worst: "The jet's Mach rows sit below 300 kt at the end of a 24-row list: assigning M.78 at FL240 is a scroll past every knots row." },
+      { kind: "c", name: "Knots and Mach as tabs",
+        hint: "Click the Mach tab, then a chip.",
+        body: frame("UAL455 · Assign speed › <b>flyout</b>", spdC(JET)) + frame("N738SP · Assign speed › <b>flyout</b>, no Mach tab", spdC(PIS)),
+        how: "As A, but knots and Mach are tabs of the built tab strip (the count beside each); the Mach tab exists only at or above FL240 and the flyout opens on Knots.",
+        worst: "The tab bar appears and vanishes with altitude: a jet climbing through FL240 gains a Mach tab between two opens, and Mach, the speed a high jet is usually given, is always one click further." },
+    ],
+  };
+
+  /* ---------- 5. Temporary altitude and Cruise ---------- */
+  const dbMenu = hot => menu(["Scratchpad…", "Temporary altitude…", "Cruise…"].map(l => plainRow(l, { hot: l === hot })).join("") + plainRow("Annotate", { faint: true }), "", "All Commands, Data Block");
+  const oneBox = (title, kind, verb, label, ph) => menu(titleLine(`<b>${title}</b>`, "data block") + boxRow({ g: "DB", label, ph, kind, verb, now: 0, focus: true, w: 130 }), "w", title);
+  const altWithFoot = menu(altTitle(JET, stateOf(JET)) + altBox(JET, { focus: false }) + sep() + altPanel(jetList(), 230) + sep() + `<div class="grp">Data block</div>`
+    + boxRow({ g: "DB", label: "Temporary altitude", ph: "e.g. 120", kind: "tempalt", verb: "TEMPALT", now: 0, focus: true, w: 120 })
+    + boxRow({ g: "DB", label: "Cruise", ph: "e.g. 240", kind: "cruise", verb: "CRUISE", now: 0, focus: false, w: 120 }), "w", "Maintain altitude");
+  const d5 = {
+    id: "d5-tempalt-cruise", title: "5 · Temporary altitude and Cruise: their own small flyouts, or boxes in the altitude flyout", sends: "TEMPALT nnn · CRUISE nnn",
+    intro: [
+      "Both are All Commands › Data Block entries today, each a checked input popup (placeholder “Altitude”, refusing “Not a valid altitude”), sending the typed altitude in hundreds (<code>TEMPALT 120</code>, <code>CRUISE 240</code>; <code>FormatTemporaryAltitude</code>, <code>FormatCruiseAltitude</code>). Neither is on a strip. Neither instructs the pilot: they set the data block's temporary altitude and the flight plan's cruise altitude.",
+      "Neither has a glyph; the boxes here draw Maintain's step in the scope grey <code>#DCE2E8</code> as a draft. Type an altitude and press Enter; try a bad one.",
+    ],
+    side: `<div class="stage stub-stage">${frame("All Commands › <b>Data Block</b>", dbMenu("Temporary altitude…"))}</div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "Each its own one-box flyout",
+        body: frame("Data Block › Temporary altitude… › <b>flyout</b>", oneBox("Temporary altitude", "tempalt", "TEMPALT", "Altitude", "e.g. 120"))
+          + frame("Data Block › Cruise… › <b>flyout</b>", oneBox("Cruise", "cruise", "CRUISE", "Altitude", "e.g. 240")),
+        how: "Each entry opens a flyout of one titled box row, focused, showing the command it will send; Enter sends and closes; a bad altitude shows its refusal under the box and keeps the text, as the input popup does today. The entries stay in Data Block.",
+        worst: "Two flyouts that each hold a single box: a step up from a popup only in look and in the command preview." },
+      { kind: "b", name: "Two boxes at the foot of the Maintain altitude flyout",
+        body: frame("Data Block › Temporary altitude… › <b>the Maintain altitude flyout</b>, its box focused", altWithFoot),
+        how: "The Maintain altitude flyout (decision 3 lane A) ends with a Data block group holding both boxes. The Data Block entries open that flyout with their box focused; from the strip, the boxes are there under the list.",
+        worst: "Three altitude boxes in one flyout, one instructing the pilot and two not: Enter in the wrong one sends <code>TEMPALT 120</code> (a data block change) when <code>DM 12000</code> was meant, and the aircraft holds FL240." },
+    ],
+  };
+
+  /* ---------- 6. Live refill ---------- */
+  /* Sim time runs at 10×: the jet climbs from FL240 to its assigned FL280 at 2,000 fpm; the piston climbs from 3,500 to 4,000 at 500 fpm and crosses into the 4,000 ft MVA sector at 60 s. */
+  const SPEEDUP = 10, LOOP = 220;
+  const jetAt = t => ({ alt: Math.min(24000 + t * 2000 / 60, 28000), asg: 28000, mva: JET.mva });
+  const pisAt = t => ({ alt: Math.min(3500 + t * 500 / 60, 4000), asg: 4000, mva: t < 60 ? { floor: 3000, sector: "20" } : { floor: 4000, sector: "21" } });
+  const liveIds = [];
+  function liveFlyout(ac, at, mode) {
+    const id = uid("live");
+    liveIds.push({ id, ac, at, mode });
+    const st0 = at(0);
+    const centre = ac === JET ? 26000 : 3500;
+    const h = ac === JET ? 236 : 350;
+    return `<div data-live="${id}">${menu(`<div data-ltitle>${altTitle(ac, st0)}</div>` + sep() + `<div class="panel apanel" style="max-height:${h}px" data-centre="${centre}" data-lpanel>${altRowsHtml(maintain(ac, st0))}</div>`, "w", "Maintain altitude", `data-lmenu="${id}"`)}<div class="callout calm" style="margin-top:6px" data-lann><b>Aircraft now:</b> ${fmtAlt(Math.round(st0.alt / 100) * 100)}</div></div>`;
+  }
+  const d6 = {
+    id: "d6-live", title: "6 · While open: live marks every second, static, or live only while the pointer is outside", sends: "the row's command at the moment of the click",
+    intro: [
+      "The rows themselves never move: altitudes are fixed values. What changes is each row's mark and command (● now, ↑ / ↓ and <code>CM</code> / <code>DM</code> flip as the aircraft passes a row), the title's “now”, and the MVA line when the aircraft enters another sector. The same holds for the heading grid's and the knots chips' ● mark. <code>FlyoutLiveTick</code> already drives the once-a-second refill of the ground flyouts; All Commands stays static whichever lane wins (the 2026-10-13 ruling: live refill is strip-only).",
+      "The demo plays at 10×: UAL455 climbs from FL240 to its assigned FL280 at 2,000 fpm, and N738SP climbs from 3,500 to its assigned 4,000 at 500 fpm, crossing from a 3,000 ft MVA sector into a 4,000 ft one at 60 s. Point into a lane C flyout to freeze it.",
+    ],
+    side: `<div class="demo" role="group" aria-label="Demo clock"><button type="button" data-demo="toggle">Pause</button><button type="button" data-demo="reset">Restart</button><span class="clock" data-clock>t = 0 s</span><span>sim time, played at 10×</span></div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "Live in place, every second",
+        body: frame("UAL455 · Maintain altitude › <b>flyout</b> · live", liveFlyout(JET, jetAt, "live")) + frame("N738SP · <b>flyout</b> · live", liveFlyout(PIS, pisAt, "live")),
+        how: "Once a second the marks, the commands and the MVA line are recomputed and redrawn in place; the scroll position, the pointer row and the typed box keep their state. No order to freeze, since no row moves.",
+        worst: "A row's command can change under the pointer: the click lands on FL250 a moment after the jet passes it, and sends <code>DM 25000</code> where the row read <code>CM 25000</code> when the eye settled on it." },
+      { kind: "b", name: "Static: built at open, as today",
+        body: frame("UAL455 · <b>flyout</b> · built at t = 0", liveFlyout(JET, jetAt, "static")) + frame("N738SP · <b>flyout</b> · built at t = 0", liveFlyout(PIS, pisAt, "static")),
+        how: "The flyout is the aircraft at the moment it opened, as today's rich popup and the approach flyouts are; the title says “now” about that moment.",
+        worst: "A row's command goes stale: 30 s after opening, UAL455 is at FL250 and the FL250 row still reads ↑ <code>CM 25000</code>, a climb to its own altitude; after 60 s N738SP's flyout still draws the MVA line at 3,000, its rows from 3,900 down still white, though the aircraft is now in a 4,000 ft sector." },
+      { kind: "c", name: "Live only while the pointer is outside (the ground family's rule)",
+        hint: "Point into a flyout: it freezes; leave and it catches up.",
+        body: frame("UAL455 · <b>flyout</b> · frozen while pointed at", liveFlyout(JET, jetAt, "freeze")) + frame("N738SP · <b>flyout</b> · frozen while pointed at", liveFlyout(PIS, pisAt, "freeze")),
+        how: "Updates while the pointer is outside the flyout; frozen while it is inside, and catching up at once when it leaves: the rule Follow, Give way to and the exit flyouts use for rows that re-sort.",
+        worst: "Freezing protects an order that never changes here, and the frozen state is the stale state of lane B at the very moment a row is clicked." },
+    ],
+  };
+
+  const ARTS = [d0, d1, d1b, d2, d3, d4, d5, d6];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title.split(":")[0])}</a>`).join("");
+
+  /* ---------- Centre each list on its selected row (or a given value) ---------- */
+  function centre(p) {
+    const how = p.dataset.centre;
+    let el = null;
+    if (how === "sel") el = p.querySelector("[data-sel]");
+    else if (how) {
+      const rows = [...p.querySelectorAll("[data-alt]")];
+      el = rows.reduce((b, r) => (!b || Math.abs(Number(r.dataset.alt) - Number(how)) < Math.abs(Number(b.dataset.alt) - Number(how)) ? r : b), null);
+    }
+    if (el) p.scrollTop = el.offsetTop - p.clientHeight / 2 + el.offsetHeight / 2;
+  }
+  document.querySelectorAll("[data-centre]").forEach(p => { p.style.position = "relative"; centre(p); });
+
+  /* ---------- Live demo ---------- */
+  let t = 0, playing = true, last = performance.now();
+  const hovered = new Set();
+  function liveTitle(L, st) {
+    const html = altTitle(L.ac, st);
+    return L.mode === "static" ? html.replace(`<span class="r">now `, `<span class="r">at open: `) : html;
+  }
+  function redraw(L, st, force) {
+    const root = document.querySelector(`[data-live="${L.id}"]`);
+    root.querySelector("[data-lann]").innerHTML = `<b>Aircraft now:</b> ${fmtAlt(Math.round(st.alt / 100) * 100)}${st.alt < st.asg ? ", climbing" : ""} · MVA ${st.mva.floor.toLocaleString("en-US")}`;
+    if (L.mode === "static" && !force) return;
+    if (L.mode === "freeze" && hovered.has(L.id) && !force) return;
+    const panel = root.querySelector("[data-lpanel]");
+    const keep = panel.scrollTop;
+    panel.innerHTML = altRowsHtml(maintain(L.ac, st));
+    panel.scrollTop = keep;
+    root.querySelector("[data-ltitle]").innerHTML = liveTitle(L, st);
+  }
+  function tick() {
+    const now = performance.now();
+    if (playing) { t += (now - last) / 1000 * SPEEDUP; if (t > LOOP) t = 0; }
+    last = now;
+    document.querySelectorAll("[data-clock]").forEach(c => { c.textContent = `t = ${Math.floor(t)} s`; });
+    liveIds.forEach(L => redraw(L, L.at(t), false));
+  }
+  liveIds.forEach(L => {
+    document.querySelector(`[data-live="${L.id}"] [data-ltitle]`).innerHTML = liveTitle(L, L.at(0));
+    if (L.mode !== "freeze") return;
+    const m = document.querySelector(`[data-lmenu="${L.id}"]`);
+    m.addEventListener("mouseenter", () => hovered.add(L.id));
+    m.addEventListener("mouseleave", () => { hovered.delete(L.id); redraw(L, L.at(t), true); });
+  });
+  tick();
+  setInterval(tick, 1000);
+
+  /* ---------- Interaction ---------- */
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    const res = el.getAttribute("data-res");
+    say(el, `Sends <code>${esc(cmd)}</code>${res ? ` (to heading ${res})` : ""} and closes the flyout and the menu.`);
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const demo = e.target.closest("[data-demo]");
+    if (demo) {
+      if (demo.dataset.demo === "toggle") { playing = !playing; demo.textContent = playing ? "Pause" : "Play"; }
+      else { t = 0; liveIds.forEach(L => redraw(L, L.at(0), true)); tick(); }
+      return;
+    }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) {
+      const group = tab.closest("[data-tabgroup]");
+      group.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === tab)));
+      group.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.getAttribute("data-panel") !== tab.getAttribute("data-tab"); });
+      say(tab, `Shows the ${esc(tab.firstChild.textContent)} values; sends nothing.`);
+      return;
+    }
+    const segB = e.target.closest(".seg button");
+    if (segB) {
+      const fly = segB.closest(".menu");
+      const mode = segB.dataset.mode;
+      fly.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b === segB)));
+      fly.querySelectorAll(".hgrid").forEach(g => { g.dataset.mode = mode; g.className = `hgrid ${mode}`; });
+      const box = fly.querySelector("[data-box=hdg]");
+      if (box) { box.dataset.verb = mode; onBoxInput(box); }
+      say(segB, `Every cell now sends <code>${mode} nnn</code>; sends nothing.`);
+      return;
+    }
+    const hc = e.target.closest(".hc");
+    if (hc) {
+      const g = hc.closest(".hgrid");
+      const h = Number(hc.dataset.h), now = Number(g.dataset.now), mode = g.dataset.mode;
+      say(hc, `Sends <code>${mode} ${p3(h)}</code> (from ${p3(now)}, ${after(now, mode, h)}) and closes the flyout and the menu.`);
+      return;
+    }
+    const ex = e.target.closest("[data-expand]");
+    if (ex) {
+      const p = document.getElementById(ex.dataset.expand);
+      const l = p.dataset.full === "jet" ? jetList() : pisList();
+      p.style.maxHeight = "300px";
+      p.innerHTML = altRowsHtml(l);
+      p.dataset.centre = "sel";
+      centre(p);
+      say(p, "Expands the ladder into the whole list in place, centred on the assigned row; sends nothing.");
+      return;
+    }
+    const old = e.target.closest("[data-say]");
+    if (old) { say(old, old.getAttribute("data-say")); return; }
+    const s = e.target.closest("[data-send]");
+    if (s) sendFrom(s);
+  });
+  document.addEventListener("input", e => { if (e.target.matches("[data-box]")) onBoxInput(e.target); });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    const tg = e.target;
+    if (tg.matches("[data-box]")) { e.preventDefault(); onBoxEnter(tg); return; }
+    if (tg.matches("[data-popup]")) {
+      const v = tg.value.trim();
+      say(tg, !v ? "Empty: Enter closes the popup and sends nothing." : (/^\d+$/.test(v) && parseInt(v, 10) > 0
+        ? `Sends <code>SPD ${parseInt(v, 10)}</code> and closes the popup.` : "“Not a valid speed” under the box; the popup stays open."));
+      return;
+    }
+    if (tg.matches("[data-send]")) { e.preventDefault(); sendFrom(tg); }
+  });
+})();
+</script>
+</body>
+</html>
