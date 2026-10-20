@@ -285,6 +285,8 @@ It skips an aircraft a controller kept with `NODEL` (`Ground.NoDeleteRequested`,
 
 Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.TickTimings` and every spine step records under its `StepId` name, plus the segment rollups and one `Physics` bucket per sub-tick (the soak runner's `--timings`, `ReconstructionBenchmarkTests`, and an export's temp reconstruction room forwarding the live engine's sink; `docs/tick-loop.md` "The step trace" has the bucket list).
 
+Solo evaluation phases time the same way, per evaluator: attach a dictionary to `SoloTrainingEvaluator.DiagnosticPhaseTimings` (an instance property, never process-wide) and `Evaluate` records its `Solo.*` phases into it. An export's temp reconstruction room forwards the live evaluator's dictionary beside `TickTimings`. Neither dictionary is thread-safe, so share one only between engines that run on one thread.
+
 Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `BroadcastConflictAlerts`, `HandleAutoDeleted`'s CRC disconnect). A new broadcast from a tick-processor method must add the same guard or it leaks replay/snapshot-engine state to real clients.
 
 ## `AircraftChangeTracker` — the delta engine (`Simulation/AircraftChangeTracker.cs`)

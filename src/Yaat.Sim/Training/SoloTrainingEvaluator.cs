@@ -100,20 +100,20 @@ public sealed class SoloTrainingEvaluator
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
 
     /// <summary>
-    /// Opt-in diagnostic timing for <see cref="Evaluate"/>'s internal phases. <c>null</c> in production
-    /// (zero overhead). Single-threaded benchmark use only — not thread-safe.
+    /// Opt-in diagnostic timing for <see cref="Evaluate"/>'s phases; <c>null</c> in production (zero overhead). Scoped to this
+    /// evaluator. Not thread-safe: share one dictionary only between evaluators that run on one thread, as the reconstruction
+    /// replay does with the live room's.
     /// </summary>
-    public static Dictionary<string, (int Count, double Ms)>? DiagnosticPhaseTimings;
+    public Dictionary<string, (int Count, double Ms)>? DiagnosticPhaseTimings { get; set; }
 
-    private static void RecordPhase(string bucket, Stopwatch? sw)
+    private static void RecordPhase(string bucket, Stopwatch? sw, Dictionary<string, (int Count, double Ms)>? timings)
     {
-        if (sw is null)
+        if ((sw is null) || (timings is null))
         {
             return;
         }
 
         sw.Stop();
-        Dictionary<string, (int Count, double Ms)> timings = DiagnosticPhaseTimings!;
         double ms = sw.Elapsed.TotalMilliseconds;
         timings[bucket] = timings.TryGetValue(bucket, out (int Count, double Ms) entry) ? (entry.Count + 1, entry.Ms + ms) : (1, ms);
         sw.Restart();
@@ -263,7 +263,8 @@ public sealed class SoloTrainingEvaluator
         var observedThisTick = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var eligible = aircraft.Where(IsEligibleAirborneTarget).ToList();
 
-        Stopwatch? sw = DiagnosticPhaseTimings is null ? null : Stopwatch.StartNew();
+        Dictionary<string, (int Count, double Ms)>? timings = DiagnosticPhaseTimings;
+        Stopwatch? sw = timings is null ? null : Stopwatch.StartNew();
 
         for (int i = 0; i < eligible.Count; i++)
         {
@@ -320,7 +321,7 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        RecordPhase("Solo.Pairwise", sw);
+        RecordPhase("Solo.Pairwise", sw, timings);
 
         foreach (AircraftState? aircraftState in eligible)
         {
@@ -338,7 +339,7 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        RecordPhase("Solo.Visual", sw);
+        RecordPhase("Solo.Visual", sw, timings);
 
         foreach (TrainingEventSample overuseSample in SampleSafetyAlertOveruse(scenarioElapsedSeconds))
         {
@@ -360,7 +361,7 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        RecordPhase("Solo.SafetyOveruse", sw);
+        RecordPhase("Solo.SafetyOveruse", sw, timings);
 
         foreach (TrainingEventSample overrunSample in SampleRejectedTakeoffEvents(aircraft, scenarioElapsedSeconds))
         {
@@ -401,7 +402,7 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
-        RecordPhase("Solo.RunwayTracker", sw);
+        RecordPhase("Solo.RunwayTracker", sw, timings);
 
         foreach (TrackedEvent tracked in _events.Values)
         {

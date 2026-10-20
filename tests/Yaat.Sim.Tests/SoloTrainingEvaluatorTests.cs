@@ -45,6 +45,32 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void DiagnosticPhaseTimings_AreScopedToTheEvaluatorThatOwnsThem()
+    {
+        var timingsA = new Dictionary<string, (int Count, double Ms)>();
+        var evaluatorA = new SoloTrainingEvaluator { DiagnosticPhaseTimings = timingsA };
+        var evaluatorB = new SoloTrainingEvaluator();
+
+        evaluatorB.Evaluate([], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        Assert.Empty(timingsA);
+
+        evaluatorA.Evaluate([], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
+
+        Assert.Contains("Solo.Pairwise", timingsA.Keys);
+    }
+
+    [Fact]
+    public void Evaluate_WithNoDiagnosticTimings_RecordsNothingAndDoesNotThrow()
+    {
+        var evaluator = new SoloTrainingEvaluator();
+
+        Exception? thrown = Record.Exception(() => evaluator.Evaluate([], scenarioElapsedSeconds: 100, AirspaceDatabase.Default));
+
+        Assert.Null(thrown);
+    }
+
+    [Fact]
     public void Evaluate_ClassBVfrBehindTurbojet_UsesOnePointFiveMilesOrFiveHundredFeet()
     {
         AircraftState jet = CreateAircraft("SWA1", "B738", flightRules: "IFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
