@@ -42,6 +42,7 @@
 - A strip moved into a rack above an unused, empty rack shows in that rack on vStrips and CRC, not one rack lower.
 - An aircraft cleared onto a taxiway from a spot or the ramp no longer makes a U-turn through a fillet behind it to get there (SFO spot 10).
 - A taxi to SFO gate D12 off taxiway A comes straight in from A instead of through the spot 6B alley.
+- `TAXI C D F` at Oakland goes up D, holds short of 15/33 there, then crosses onto F, instead of detouring along C.
 - Taxiing traffic gives way to an aircraft still leaving a runway, unless it stands in that aircraft's way out; a held one blocks only head-on traffic.
 - A runway crossing keeps to an assigned `SPD` and speeds up under `EXP`, instead of always crossing at the normal taxi speed.
 - A new `TAXI` without `EXP`, or `NORM`, ends a ground expedite instead of leaving the aircraft taxiing fast.

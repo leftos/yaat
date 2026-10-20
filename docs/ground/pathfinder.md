@@ -439,6 +439,32 @@ The bridge is a bounded A* (capped at `MaxDetourExpansions = 5_000`) that **inhe
 
 The materialiser surfaces the inserted connector as an informative notification — *"A and B do not connect directly — taxi via A1"* — **not** an "unauthorized taxiway" warning, and suppresses the generic warning for those connector names.
 
+**Two taxiways that meet only across a runway are one runway crossing, tried before the detour.** In `RouteNamedToNamed`'s zero-candidate branch `TryRouteAcrossOffsetRunway` runs first, so a clearance like OAK `TAXI C D F @OLD1 HS 33` (D and F both join 15/33, from opposite sides, 100 ft apart along it) routes D, across 15/33, onto F instead of taking a connector detour that silently dropped D.
+
+`FindOffsetRunwayCrossing` finds the runway: one whose centreline touches `fromTaxiway`, with a join node of `fromTaxiway` and a join node of `toTaxiway` at most `MaxOffsetRunwayCrossingFt = 300` apart along it (a sim convention of about twice a runway's width; no FAA figure) and on **opposite sides** of the runway line (`SideOfRunway`). The closest qualifying pair wins, and the answer (null included) is cached per `SearchContext` and taxiway pair (`OffsetRunwayCrossingCache`), since every look-ahead probe of a zero-junction transition asks again.
+
+A pair never qualifies when:
+
+- **Same side.** Both joins on one side is taxiing along the runway, which the controller clears by naming it.
+- **No side.** A taxiway that runs through the runway or lies within 5° of its line is on neither side.
+- **Rule A2: a square crossing already exists.** A straight non-centreline edge leaves either join toward the opposite side (`HasStraightTaxiwayToward`), so a taxiway continues across the runway from that join and is the way over (SFO C3/S2 over 28R, where S1 crosses straight from C3's join).
+- **Rule B1: oblique join.** A straight edge of either taxiway meets the runway less than 60° off its line (`MeetsRunwayObliquely`): a high-speed exit, whose use is a reversal onto or off the runway, never a crossing (7110.65 §3-7-2.c NOTE; COS A2/C2 over 17R/35L, C2 30° off). The 60° is a sim convention.
+- **Longer offset.** The joins are further apart than 300 ft.
+
+A runway token as either end of the pair is skipped.
+
+The route is the two legs of the explicit `X RWY Y` form, but each is a **pinned local search** (`LocalSearchToJunction`) to the join node the check found: along fromTaxiway to its join, then along the runway's centreline to toTaxiway's join. Neither leg can detour or depends on look-ahead, so a probe resolves the crossing exactly as the top level does. The centreline run actually walked must also stay within 300 ft (`CenterlineLengthFt`: centreline edges only, so fillet arcs and taxiway edges do not count).
+
+The runway never enters the clearance's waypoint sequence. The materialiser therefore reads a crossing, not a runway cleared to taxi along: the route holds short at X's bar (with or without `HS`), and a later `CROSS` carries the aircraft across onto Y without stopping.
+
+The step runs at the top level and inside a look-ahead probe alike (it is tried before the `!enableLookahead` suppression, so a continuation that needs the crossing is not a negative signal). It returns null, leaving the detour or `DetourSuppressedFailure` as before, when no runway qualifies or either leg fails.
+
+`ExplicitPathOptions.DiagnosticLog` gets `[runway-crossing] X→Y across RWYnn/nn #a→#b offset=Nft` when a crossing is chosen. A rejected crossing logs `[runway-crossing] X→RWYnn/nn failed: no route along X to #a` (the onto leg), `RWYnn/nn→Y failed: no route along RWYnn/nn to #b` (the off leg), or `RWYnn/nn→Y failed: centreline run Nft` (over 300 ft).
+
+`TaxiRouteFormatter.TaxiwayLegs` drops a runway leg the route only crosses (`IsCrossingLeg`), so every readback and route summary reads OAK as `E C D F HS 15/33 at D @OLD1`, never "on 33".
+
+A leg counts as a crossing only when all hold: its centreline run is at most `MaxOffsetRunwayCrossingFt` (measured with the expander's own `CenterlineLengthFt`, so a far-side fillet the walk keeps under the runway's name does not count); the last hold-short bar on the previous leg and the first bar on the next leg are both this runway's, each scan bounded to those neighbouring legs' own segments; the entry bar carries one of the route's hold-short points; and the two bars stand on opposite sides of the leg. A runway cleared to taxi along keeps "on (runway)" even with an explicit entry hold short (`TAXI A 28L B HS 28L`), as does a leg that leaves on the side it entered from.
+
 **The bridge's landing node is ranked by pavement cost + a reversal charge, not by bridge length.** `PickDetourEntry` runs the bounded A\* once per candidate node on the far taxiway and scores each resulting bridge as `BridgePavementCost` + `ReversalAgainstPoseCost`.
 
 The pavement cost is the cost function's own view of the pavement the bridge threads — its length, a runway centreline ten times over (`RunwayCenterlineDistanceMultiplier`), and the `0.2 nm` `UnauthorizedTaxiwayFirstUseCostNm` for each unnamed letter taxiway it uses (first use only) — and *deliberately not* the turn budget, the per-transition charge or the per-crossing charge.
@@ -520,7 +546,7 @@ With no bias (single-taxiway with no known destination node) the score falls bac
      A fillet arc is judged by its net turn, i.e. its arrival bearing (`HintJudgedBearing`, #459), because an arc departs tangent to the incoming taxiway and its departure bearing reads as "no turn"; for the first taxiway, `FirstTaxiwayTurnHintPenalty` penalizes a candidate whose initial edge direction doesn't match the hint relative to `SearchContext.StartHeadingTrue` (the aircraft's heading).
 
      Both penalties are `< TailUnresolvablePenaltyNm`, so they only re-rank otherwise-feasible candidates — an unrealisable hint never strands the route (best-effort). The single-taxiway case biases `WalkToNaturalTerminus` via `ResolveTurnHintBias` instead. When the committed junction couldn't honor a hint, the top-level resolution records an advisory into `SearchContext.TurnHintAdvisories`, which `RouteMaterialiser` copies onto `route.Warnings` so the TAXI echo reports the unhonored turn.
-   The cheapest survivor is committed. Zero junction candidates → mandatory-connector detour at the top level, or `DetourSuppressedFailure` inside a probe.
+   The cheapest survivor is committed. Zero junction candidates → the offset runway crossing when the pair meets across a runway (see *Mandatory-connector insertion*), else the mandatory-connector detour at the top level, or `DetourSuppressedFailure` inside a probe.
 
 **5. Final named token — junction stop or terminus walk.**
 

@@ -19,7 +19,7 @@ Routes verified against `GroundCommandHandler.TryTaxi` with real parsed layout.
 | NEW7 parking | Pushback facing D | n/a | Success | PushbackPhase created |
 
 ### Key Observations
-- **D intersects but does not fully cross runway 15/33** — D meets the runway but doesn't continue on the other side. To cross 15/33, aircraft taxi D to the intersection then use F (which does fully cross). This is how `TAXI D F` works — the pathfinder bridges via the runway centerline edge to reach F on the other side.
+- **D intersects but does not fully cross runway 15/33** — D meets the runway but doesn't continue on the other side. To cross 15/33, aircraft taxi D to the intersection then use F (which does fully cross). This is how `TAXI D F` works: D and F join 15/33 from opposite sides about 100 ft apart along the centerline, so the pathfinder routes D, across the runway, onto F as one runway crossing held short at D's bar (an offset runway crossing, [pathfinder.md](../ground/pathfinder.md)). The readback never says "on 33" for it, e.g. `Taxi via E C D F HS 15/33 at D @OLD1`.
 - **F fully crosses runway 15/33** — use `["D", "K", "F"]` for runway crossing tests.
 - **D connects to C at its southern end** (lat 37.728). D does NOT connect to B, W, or any W variants.
 - **Route to runway 30 from NEW parking**: D→C→B→W (4 taxiways). No shortcut exists.

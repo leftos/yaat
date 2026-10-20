@@ -131,6 +131,8 @@ Two ways a `--pathfinder` probe lies about a runtime `[TryTaxi] … route resolu
 For a gate TAXI, always run the parking-node form with `--pf-dest-rwy` + `--pf-hold-shorts` first; only then read the `[bridge]`/`[segment]` lines.
 - **Always pass `--airport-code <ICAO>` with a positional GeoJSON path.** Without it the parser has no runway widths (defaults to 150 ft) and builds a *different* graph — node ids and edges then differ from `TestAirportGroundData`'s and a probe can leave a node through an edge the harness graph does not have.
 
+- **`--intersection D F` can report a node the expander does not treat as a D/F junction.** The inspector lists nodes both names touch, but `SegmentExpander` counts a junction only where `FindJunctionCandidates` finds an edge of the second taxiway at a node of the first. Read the `[segment] … junctions=N` line in the `--pathfinder` trace: `junctions=0` means the pair has no junction of its own (OAK D/F meet only across 15/33, which routes as an offset runway crossing, docs/ground/pathfinder.md), whatever `--intersection` printed.
+
 ### Tips
 
 - Always use `--json` for machine-readable output when analyzing programmatically.

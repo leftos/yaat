@@ -117,6 +117,142 @@ public class TaxiRouteFormatTests
         Assert.Equal("on 10L", eastbound.ToSummary());
     }
 
+    private static GroundNode Bar(int id, double lat, double lon, string runway) =>
+        new()
+        {
+            Id = id,
+            Position = new LatLon(lat, lon),
+            Type = GroundNodeType.RunwayHoldShort,
+            RunwayId = RunwayIdentifier.Parse(runway),
+        };
+
+    /// <summary>
+    /// A runway cleared to taxi along keeps an explicit hold short at its entry bar (<c>TAXI A 28L B HS 28L</c>), and its
+    /// exit bar stands on the far side: a 2,000 ft back-taxi is far longer than any crossing, so it still reads "on 28L".
+    /// </summary>
+    [Fact]
+    public void LongRunwayLegWithAnEntryHold_StillReadsOnTheRunway()
+    {
+        GroundNode a0 = Node(0, 37.7190, -122.2000);
+        GroundNode barSouth = Bar(1, 37.7195, -122.2000, "28L/10R");
+        GroundNode j1 = Node(2, 37.7200, -122.2000);
+        GroundNode j2 = Node(3, 37.7200, -122.2075);
+        GroundNode barNorth = Bar(4, 37.7205, -122.2075, "28L/10R");
+        GroundNode b1 = Node(5, 37.7210, -122.2075);
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                Seg(Straight(a0, barSouth, "A"), a0, barSouth),
+                Seg(Straight(barSouth, j1, "A"), barSouth, j1),
+                Seg(Straight(j1, j2, "RWY28L/10R"), j1, j2),
+                Seg(Straight(j2, barNorth, "B"), j2, barNorth),
+                Seg(Straight(barNorth, b1, "B"), barNorth, b1),
+            ],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = barSouth.Id,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "28L",
+                },
+            ],
+        };
+
+        Assert.Equal("A 28L B", route.FormatTaxiwaySequence());
+        Assert.Contains("on 28L", route.ToSummary());
+    }
+
+    /// <summary>
+    /// An earlier hold-short bar of the same runway, two legs back, is not the entry bar of a later runway leg the route
+    /// enters with no bar of its own: that leg is taxied along, not crossed, and keeps reading as the runway.
+    /// </summary>
+    [Fact]
+    public void EarlierCrossingBar_DoesNotMakeALaterHoldlessRunwayEntryACrossing()
+    {
+        GroundNode a0 = Node(0, 37.7180, -122.2000);
+        GroundNode earlierBar = Bar(1, 37.7185, -122.2000, "28L/10R");
+        GroundNode a1 = Node(2, 37.7190, -122.2000);
+        GroundNode a2 = Node(3, 37.7190, -122.2020);
+        GroundNode b1 = Node(4, 37.7200, -122.2020);
+        GroundNode r2 = Node(5, 37.7200, -122.2025);
+        GroundNode barNorth = Bar(6, 37.7205, -122.2025, "28L/10R");
+        GroundNode c1 = Node(7, 37.7210, -122.2025);
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                Seg(Straight(a0, earlierBar, "A"), a0, earlierBar),
+                Seg(Straight(earlierBar, a1, "A"), earlierBar, a1),
+                Seg(Straight(a1, a2, "A"), a1, a2),
+                Seg(Straight(a2, b1, "B"), a2, b1),
+                Seg(Straight(b1, r2, "RWY28L/10R"), b1, r2),
+                Seg(Straight(r2, barNorth, "C"), r2, barNorth),
+                Seg(Straight(barNorth, c1, "C"), barNorth, c1),
+            ],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = earlierBar.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L",
+                },
+            ],
+        };
+
+        Assert.Equal("A B 28L C", route.FormatTaxiwaySequence());
+    }
+
+    /// <summary>
+    /// A crossing whose centreline run is just under the 300 ft bound, leaving onto B through a far-side fillet arc that the
+    /// leg walk keeps on the runway's name: only the centreline counts toward the bound, the same measure the pathfinder
+    /// uses, so the leg still reads as a crossing and never as "on 28L".
+    /// </summary>
+    [Fact]
+    public void CrossingNearTheBound_CountsOnlyCenterline_NotTheFarSideFillet()
+    {
+        GroundNode a0 = Node(0, 37.7190, -122.2000);
+        GroundNode barSouth = Bar(1, 37.7195, -122.2000, "28L/10R");
+        GroundNode j1 = Node(2, 37.7200, -122.2000);
+        GroundNode j2 = Node(3, 37.7200, -122.200971);
+        GroundNode k = Node(4, 37.72012, -122.20110);
+        GroundNode barNorth = Bar(5, 37.7203, -122.20110, "28L/10R");
+        GroundNode b1 = Node(6, 37.7208, -122.20110);
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                Seg(Straight(a0, barSouth, "A"), a0, barSouth),
+                Seg(Straight(barSouth, j1, "A"), barSouth, j1),
+                Seg(Straight(j1, j2, "RWY28L/10R"), j1, j2),
+                Seg(Arc(j2, k, "B", "RWY28L/10R"), j2, k),
+                Seg(Straight(k, barNorth, "B"), k, barNorth),
+                Seg(Straight(barNorth, b1, "B"), barNorth, b1),
+            ],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = barSouth.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L",
+                },
+            ],
+        };
+
+        double centerlineFt = GeoMath.DistanceNm(j1.Position, j2.Position) * GeoMath.FeetPerNm;
+        double filletFt = GeoMath.DistanceNm(j2.Position, k.Position) * GeoMath.FeetPerNm;
+        Assert.InRange(centerlineFt, 250.0, 300.0);
+        Assert.True(centerlineFt + filletFt > 300.0, $"centreline {centerlineFt:F0} ft + fillet {filletFt:F0} ft does not pass the bound");
+
+        Assert.Equal("A B", route.FormatTaxiwaySequence());
+    }
+
     [Fact]
     public void KeepsSingleNameArcs()
     {

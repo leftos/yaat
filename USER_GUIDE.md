@@ -652,7 +652,7 @@ When the route you gave falls one taxiway short — `TAXI D @NEW1` to an aircraf
 
 `RES` and `CROSS` don't move it on from there; issue a new `TAXI` that includes the missing taxiway (`TAXI C D @NEW1`). A hold that would land on a runway is moved back to that runway's holding position. When no hold can be placed at all, the `TAXI` is refused with the taxiway it needs (`Unable, route to G from E needs C, not in clearance`).
 
-**The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named.
+**The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named. Nor is a runway the route only crosses: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33".
 
 Any other taxiway the route drives that you didn't clear is flagged: `[taxiing via T — not in the route issued]`. A ramp taxilane you name is driven, and from it the aircraft crosses the apron and rolls into the stand on the stand's heading — see [Command Reference](COMMANDS.md#taxi-to-a-stand-or-spot).
 

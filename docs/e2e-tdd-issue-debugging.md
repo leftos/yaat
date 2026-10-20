@@ -486,6 +486,12 @@ Assert.DoesNotContain(segments, s => s.TaxiwayName == "M2");
 
 **Examples:** Issue #53 (taxi overshoot into ramp), Issue #54 (wrong hold-short position)
 
+#### Probing an old revision
+
+To ask whether a ground bug is a regression, run the layout inspector's `--pathfinder` probe from the revision in question. Export it into a throwaway tree under `.tmp/` and run it through the gate with that tree as the working folder: `mkdir -p .tmp/<name> && git archive <sha> | tar -x -C .tmp/<name>`, then `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds 300 -Slot heavy -Cd .tmp/<name> -- dotnet run --project tools/Yaat.LayoutInspector -- <flags>` (the tree builds and runs in place, so the working tree stays untouched).
+
+The inspector's age limits what the probe can say: inspectors before `f8ceaf50d` call the V1 pathfinder directly, so they do not exercise the expander the runtime uses; inspectors from about v0.12 back lack `--pf-start-heading`, so their first-hop heading bias is off and a probe can pick a connector behind the aircraft. Read a result from either as "the old graph and search", not as a reproduction of the runtime route.
+
 ## Testing Without a Recording
 
 Not every bug needs a recording. For issues with command parsing, procedure resolution, or pathfinding, you can test the logic directly using real data.

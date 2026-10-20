@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport.Pathfinding;
@@ -1964,6 +1965,14 @@ public static class SegmentExpander
 
         if (junctionCandidates.Count == 0)
         {
+            // The two taxiways may meet only across a runway, one joining it a short way along the
+            // centreline from the other and from its far side (OAK D/F across 15/33): the clearance
+            // then means "cross the runway onto toTaxiway", which beats any connector detour.
+            if (TryRouteAcrossOffsetRunway(head, fromTaxiway, toTaxiway, ctx) is { } acrossRunway)
+            {
+                return acrossRunway;
+            }
+
             // No direct junction between the two cleared taxiways. Inside a look-ahead probe the
             // detour is suppressed (a continuation needing one is a negative signal). At the top
             // level we detour and — because zero junction candidates verifies there is genuinely
@@ -2083,6 +2092,307 @@ public static class SegmentExpander
 
         return (bestEdges, bestHead, null);
     }
+
+    /// <summary>
+    /// Longest distance along a runway's centreline between the node where one cleared taxiway joins the runway and the
+    /// node where the next cleared taxiway leaves it on the far side, for the pair to read as a crossing of that runway
+    /// (OAK D/F across 15/33: 100 ft). A sim convention of about twice a runway's width; no FAA figure exists. A longer
+    /// offset is taxiing along the runway, which the controller has to clear by naming the runway in the route.
+    /// <see cref="TaxiRouteFormatter"/> reads it too: a runway leg longer than this is never read as a crossing.
+    /// </summary>
+    internal const double MaxOffsetRunwayCrossingFt = 300.0;
+
+    /// <summary>
+    /// A runway that two taxiways with no junction of their own both join, from opposite sides, at nodes
+    /// <see cref="OffsetFt"/> apart along its centreline.
+    /// </summary>
+    private sealed record OffsetRunwayCrossing(string RunwayCenterline, int FromJoinNodeId, int ToJoinNodeId, double OffsetFt);
+
+    /// <summary>
+    /// <see cref="FindOffsetRunwayCrossing"/>'s answer per search and (fromTaxiway, toTaxiway) pair, null answers included:
+    /// every look-ahead probe of a zero-junction transition asks it again.
+    /// </summary>
+    private static readonly ConditionalWeakTable<
+        SearchContext,
+        Dictionary<(string From, string To), OffsetRunwayCrossing?>
+    > OffsetRunwayCrossingCache = [];
+
+    /// <summary>
+    /// Resolves <paramref name="fromTaxiway"/> → <paramref name="toTaxiway"/> across a runway when the two taxiways meet
+    /// only across it (<see cref="FindOffsetRunwayCrossing"/>), pinned to the join pair that check found: a local search
+    /// along fromTaxiway to its join, then along the runway's centreline to toTaxiway's join. Neither leg can detour, and
+    /// neither depends on look-ahead, so a probe resolves the crossing exactly as the top level does. The runway never
+    /// enters the clearance's waypoint sequence, so the route materialiser does not read it as a runway cleared to taxi
+    /// along: the crossing keeps its hold short at fromTaxiway's bar. Null when there is no such runway, a leg fails, or the
+    /// centreline run exceeds <see cref="MaxOffsetRunwayCrossingFt"/>, leaving the caller's no-junction handling unchanged.
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure)? TryRouteAcrossOffsetRunway(
+        PartialRoute head,
+        string fromTaxiway,
+        string toTaxiway,
+        SearchContext ctx
+    )
+    {
+        if (IsRunwayWaypoint(fromTaxiway) || IsRunwayWaypoint(toTaxiway))
+        {
+            return null;
+        }
+
+        OffsetRunwayCrossing? crossing = CachedOffsetRunwayCrossing(ctx, fromTaxiway, toTaxiway);
+        if (crossing is null)
+        {
+            return null;
+        }
+
+        string runway = crossing.RunwayCenterline;
+        ctx.DiagnosticLog?.Invoke(
+            $"[runway-crossing] {fromTaxiway}→{toTaxiway} across {runway} "
+                + $"#{crossing.FromJoinNodeId}→#{crossing.ToJoinNodeId} offset={crossing.OffsetFt:F0}ft"
+        );
+
+        (List<DirectionalEdge>? ontoEdges, PartialRoute? ontoHead, _) = LocalSearchToJunction(head, fromTaxiway, crossing.FromJoinNodeId, ctx);
+        if ((ontoEdges is null) || (ontoHead is null))
+        {
+            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {fromTaxiway}→{runway} failed: no route along {fromTaxiway} to #{crossing.FromJoinNodeId}");
+            return null;
+        }
+
+        PartialRoute onRunway = ontoHead with { VisitedNodeIds = VisitedNodeSet.Single(ontoHead.HeadNodeId) };
+        (List<DirectionalEdge>? offEdges, PartialRoute? offHead, _) = LocalSearchToJunction(onRunway, runway, crossing.ToJoinNodeId, ctx);
+        if ((offEdges is null) || (offHead is null))
+        {
+            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {runway}→{toTaxiway} failed: no route along {runway} to #{crossing.ToJoinNodeId}");
+            return null;
+        }
+
+        double centerlineFt = CenterlineLengthFt(offEdges.Select(e => e.Edge));
+        if (centerlineFt > MaxOffsetRunwayCrossingFt)
+        {
+            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {runway}→{toTaxiway} failed: centreline run {centerlineFt:F0}ft");
+            return null;
+        }
+
+        return ([.. ontoEdges, .. offEdges], offHead, null);
+    }
+
+    /// <summary>
+    /// Feet of runway centreline among <paramref name="edges"/>; fillet arcs and taxiway edges do not count. The one measure
+    /// <see cref="MaxOffsetRunwayCrossingFt"/> bounds, here and in <see cref="TaxiRouteFormatter"/>.
+    /// </summary>
+    public static double CenterlineLengthFt(IEnumerable<IGroundEdge> edges)
+    {
+        double nm = 0.0;
+        foreach (IGroundEdge edge in edges)
+        {
+            if (edge.IsRunwayCenterline)
+            {
+                nm += edge.DistanceNm;
+            }
+        }
+
+        return nm * GeoMath.FeetPerNm;
+    }
+
+    private static OffsetRunwayCrossing? CachedOffsetRunwayCrossing(SearchContext ctx, string fromTaxiway, string toTaxiway)
+    {
+        Dictionary<(string From, string To), OffsetRunwayCrossing?> answers = OffsetRunwayCrossingCache.GetOrCreateValue(ctx);
+        if (!answers.TryGetValue((fromTaxiway, toTaxiway), out OffsetRunwayCrossing? crossing))
+        {
+            crossing = FindOffsetRunwayCrossing(ctx.Layout, fromTaxiway, toTaxiway);
+            answers[(fromTaxiway, toTaxiway)] = crossing;
+        }
+
+        return crossing;
+    }
+
+    /// <summary>
+    /// The runway <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> meet across: both join its centreline,
+    /// from opposite sides, at nodes at most <see cref="MaxOffsetRunwayCrossingFt"/> apart. The closest such pair wins.
+    /// Null when the two join no runway that way; a same-side pair is taxiing along the runway, not crossing it, and a
+    /// pair where either join already has a taxiway continuing straight across the runway has a square crossing to use.
+    /// </summary>
+    private static OffsetRunwayCrossing? FindOffsetRunwayCrossing(AirportGroundLayout layout, string fromTaxiway, string toTaxiway)
+    {
+        OffsetRunwayCrossing? best = null;
+        foreach (string runway in RunwayCenterlinesJoinedBy(layout, fromTaxiway))
+        {
+            List<GroundNode> toJoins = FindJunctionCandidates(layout, runway, toTaxiway);
+            foreach (GroundNode fromJoin in FindJunctionCandidates(layout, fromTaxiway, runway))
+            {
+                OffsetRunwayCrossing? pair = ClosestOppositeSideJoin(fromJoin, fromTaxiway, toJoins, toTaxiway, runway);
+                if ((pair is not null) && ((best is null) || (pair.OffsetFt < best.OffsetFt)))
+                {
+                    best = pair;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>The runway centreline names whose straight edges touch a node on <paramref name="taxiway"/>, in first-seen order.</summary>
+    private static List<string> RunwayCenterlinesJoinedBy(AirportGroundLayout layout, string taxiway)
+    {
+        var runways = new List<string>();
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(taxiway))
+        {
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                if ((edge is GroundEdge { IsRunwayCenterline: true }) && !runways.Contains(edge.TaxiwayName, StringComparer.OrdinalIgnoreCase))
+                {
+                    runways.Add(edge.TaxiwayName);
+                }
+            }
+        }
+
+        return runways;
+    }
+
+    private static OffsetRunwayCrossing? ClosestOppositeSideJoin(
+        GroundNode fromJoin,
+        string fromTaxiway,
+        List<GroundNode> toJoins,
+        string toTaxiway,
+        string runway
+    )
+    {
+        if (RunwayBearingAt(fromJoin, runway) is not { } runwayBearing)
+        {
+            return null;
+        }
+
+        int fromSide = SideOfRunway(fromJoin, fromTaxiway, runwayBearing);
+        if (
+            (fromSide == 0)
+            || HasStraightTaxiwayToward(fromJoin, -fromSide, runwayBearing)
+            || MeetsRunwayObliquely(fromJoin, fromTaxiway, runwayBearing)
+        )
+        {
+            return null;
+        }
+
+        OffsetRunwayCrossing? best = null;
+        foreach (GroundNode toJoin in toJoins)
+        {
+            double offsetFt = GeoMath.DistanceNm(fromJoin.Position, toJoin.Position) * GeoMath.FeetPerNm;
+            if ((toJoin.Id == fromJoin.Id) || (offsetFt > MaxOffsetRunwayCrossingFt) || ((best is not null) && (offsetFt >= best.OffsetFt)))
+            {
+                continue;
+            }
+
+            int toSide = SideOfRunway(toJoin, toTaxiway, runwayBearing);
+            if (
+                (toSide == -fromSide)
+                && !HasStraightTaxiwayToward(toJoin, fromSide, runwayBearing)
+                && !MeetsRunwayObliquely(toJoin, toTaxiway, runwayBearing)
+            )
+            {
+                best = new OffsetRunwayCrossing(runway, fromJoin.Id, toJoin.Id, offsetFt);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The bearing of <paramref name="runway"/>'s centreline at <paramref name="join"/>, or null when no straight
+    /// centreline edge of it touches the node.
+    /// </summary>
+    private static double? RunwayBearingAt(GroundNode join, string runway)
+    {
+        foreach (IGroundEdge edge in join.Edges)
+        {
+            if ((edge is GroundEdge { IsRunwayCenterline: true }) && edge.MatchesTaxiway(runway))
+            {
+                return GeoMath.BearingTo(join.Position, edge.OtherNode(join).Position);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Sine of 5°: a taxiway edge within 5° of the runway line runs along it and is on neither side.</summary>
+    private static readonly double AlongRunwayLineSin = Math.Sin(5 * Math.PI / 180);
+
+    /// <summary>
+    /// Which side of the line through <paramref name="join"/> on <paramref name="runwayBearing"/> the edges of
+    /// <paramref name="taxiway"/> leave it toward: +1 right, -1 left, 0 when they leave toward both sides (the taxiway
+    /// runs through the runway) or run along the line.
+    /// </summary>
+    private static int SideOfRunway(GroundNode join, string taxiway, double runwayBearing)
+    {
+        int side = 0;
+        foreach (IGroundEdge edge in join.Edges)
+        {
+            if (!string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            int edgeSide = EdgeSide(join, edge, runwayBearing);
+            if ((edgeSide == 0) || ((side != 0) && (edgeSide != side)))
+            {
+                return 0;
+            }
+
+            side = edgeSide;
+        }
+
+        return side;
+    }
+
+    /// <summary>
+    /// True when a straight taxiway edge, any taxiway but a runway centreline, leaves <paramref name="join"/> toward
+    /// <paramref name="side"/> of the runway line: a taxiway continues square across the runway from this join, so the
+    /// offset pair is not the way across (SFO C3/S2 over 28R, where S1 crosses straight from C3's join).
+    /// </summary>
+    private static bool HasStraightTaxiwayToward(GroundNode join, int side, double runwayBearing)
+    {
+        foreach (IGroundEdge edge in join.Edges)
+        {
+            if ((edge is GroundEdge { IsRunwayCenterline: false }) && (EdgeSide(join, edge, runwayBearing) == side))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Sine of 60°: a taxiway meeting the runway less than 60° off its line is not nearly perpendicular to it.</summary>
+    private static readonly double NearlyPerpendicularSin = Math.Sin(60 * Math.PI / 180);
+
+    /// <summary>
+    /// True when a straight edge of <paramref name="taxiway"/> leaves <paramref name="join"/> less than 60° off the runway
+    /// line: a high-speed exit, whose use as one side of an offset pair is a reversal onto or off the runway, never a
+    /// crossing (7110.65 §3-7-2.c NOTE: avoid crossing points not nearly perpendicular, "reverse high speed taxiways";
+    /// COS A2/C2 over 17R/35L, C2 30° off). The 60° is a sim convention; no FAA figure exists.
+    /// </summary>
+    private static bool MeetsRunwayObliquely(GroundNode join, string taxiway, double runwayBearing)
+    {
+        foreach (IGroundEdge edge in join.Edges)
+        {
+            if ((edge is GroundEdge) && edge.MatchesTaxiway(taxiway) && (Math.Abs(OffLineSin(join, edge, runwayBearing)) < NearlyPerpendicularSin))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The side of the runway line through <paramref name="join"/> that <paramref name="edge"/> leaves toward: +1 right,
+    /// -1 left, 0 along the line.
+    /// </summary>
+    private static int EdgeSide(GroundNode join, IGroundEdge edge, double runwayBearing)
+    {
+        double offLineSin = OffLineSin(join, edge, runwayBearing);
+        return Math.Abs(offLineSin) < AlongRunwayLineSin ? 0 : Math.Sign(offLineSin);
+    }
+
+    private static double OffLineSin(GroundNode join, IGroundEdge edge, double runwayBearing) =>
+        Math.Sin((GeoMath.BearingTo(join.Position, edge.OtherNode(join).Position) - runwayBearing) * Math.PI / 180.0);
 
     /// <summary>
     /// Penalise junction candidates whose toTaxiway-side does not point toward

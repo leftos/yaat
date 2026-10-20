@@ -310,6 +310,10 @@ _Avoid_: S-turn, offset (the jog is a single arc, not a lateral shift)
 The straight after a turn about's reversal, held on the taxiway edge's bearing the reversal rolled out on, a turning radius off the centreline (a diameter for a helicopter) on the inside of the turn the route makes at the node, to abeam that node, instead of steering back out to the centreline first.
 `GroundNavigator.HoldsRollOutBearing` decides it and `TryLayTurnAboutRollOutLine` lays it (docs/ground/navigator.md). Among its conditions: a straight of at most six turning radii, no bar at the node, and the main gear inside the type's TDG half-width. The node turn from it is fitted to the offset so it exits on the outgoing centreline.
 
+**Offset runway crossing**:
+Two cleared taxiways with no junction of their own that both join one runway's centreline, from opposite sides, at most `MaxOffsetRunwayCrossingFt` (300 ft, a sim convention) apart along it, neither joining the runway at less than 60° off its line and neither join already having a taxiway straight across (OAK D and F across 15/33). `TAXI D F` routes D, across the runway, onto F as one crossing held short at D's bar (`SegmentExpander.TryRouteAcrossOffsetRunway`, docs/ground/pathfinder.md).
+_Avoid_: runway taxi, detour (a detour is the connector bridge the crossing replaces)
+
 **Operation** (solo scoring):
 A takeoff or landing the solo evaluator's runway tracker detects and judges: a departure's roll start, or a landing's threshold crossing (a touch-and-go, stop-and-go, option or low approach included). Not the public `Training.OperationKind` debrief label (docs/solo-training-evaluation.md).
 
