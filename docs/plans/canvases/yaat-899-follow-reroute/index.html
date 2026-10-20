@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-899: re-staging the follow reroute test</title>
+<style>
+  body { margin: 0; background: #f4f2ec; color: #1d1d1d; font: 15px/1.5 "Segoe UI", Arial, sans-serif; }
+  main { max-width: 1340px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 0 0 4px; }
+  .sub { color: #555; margin: 0 0 18px; }
+  section { background: #fff; border: 1px solid #d9d4c7; border-radius: 10px; padding: 18px 20px 20px; margin: 22px 0; }
+  img { display: block; max-width: 100%; border: 1px solid #ddd; border-radius: 6px; margin: 12px 0; }
+  .timeline { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; background: #f7f5ef; border-left: 4px solid #888; padding: 8px 12px; margin: 10px 0; }
+  .verdict { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 12px; font-size: 13px; }
+  .pass { background: #d8f0dc; color: #1c6b2c; }
+  .fail { background: #f8d7d7; color: #9b1c1c; }
+  .mixed { background: #fde7c7; color: #8a4b00; }
+  .note { background: #fff7e0; border: 1px solid #edd38a; border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1eee6; }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; background: #f1eee6; padding: 0 4px; border-radius: 3px; }
+  .measured { color: #1c6b2c; font-weight: 600; }
+  .drawn { color: #9b1c1c; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+<h1>YAAT-899: how to re-stage the red follow reroute test</h1>
+<p class="sub"><code>FollowGroundAtRunwayBarLeadTests.FollowingPastOneRight_LeaderReroutedThroughTheFollower_SaysUnableOnce</code>. FOL1 holds at the 1R bar on F1 with <code>FOLLOWG LED1</code>, gets <code>CROSS 1R</code>. LED1 was cleared <code>TAXI A L F 28L</code>. Once FOL1 drives its follow route, LED1 is rerouted along F1 through FOL1. The test expects FOL1 to hold for good and say once: "Unable to follow LED1, no taxi route to its path, request taxi instructions". All times are seconds after <code>CROSS 1R</code>.</p>
+
+<div class="note">
+<b>Two round-4 facts did not reproduce.</b>
+<br>(1) On base e52b72390 at the driving moment (t=31), <code>TAXI L F F1 A</code> is <b>refused</b> ("no room to turn around on LF"). The test passes on base through its second choice, <code>TAXI F F1 A</code>, accepted as <code>LF F P C L F1</code>: P, C and L are silent bridges, and the loop crosses 28L and 28R twice (lane 0). On base, none of the test's three reroutes resolved through T and B at any second from 0 to 45 (lane 2's sweep).
+<br>(2) In the item tree at t=31, <code>TAXI L F F1 A</code> is refused with "F and F1 do not connect", and <code>TAXI F F1 A</code> with "Cannot taxi via F from the aircraft's position". Only <code>TAXI A F1 F</code> and the three named detours get "no room to turn around on LF" (lane 1).
+</div>
+
+<table>
+<tr><th>Option</th><th>Red test's assertions</th><th>What else the measurement shows</th></tr>
+<tr><td>Lane 3: Option A, <code>HOLD</code> LED1 on L, reroute when FOL1 drives</td><td><span class="verdict pass">PASS</span> unable said once, follow unjoinable</td><td>After the 40 s window LED1 drives F1 head-on into the stopped FOL1 and holds short of 1R on top of it (centres 41 ft apart). Lane 2 shows the same overlap.</td></tr>
+<tr><td>Lane 1: reroute one second later (t=32) with the existing list</td><td><span class="verdict mixed">PASS at t=32 only</span></td><td><code>TAXI A F1 F</code> is accepted as <code>LF L A F1</code> (a turn about on LF, L silent) only at t=26, 29, 32 and 35. At the seconds between, it is refused for the same turn about. Acceptance depends on where LED1 stands within the second.</td></tr>
+<tr><td>Lane 2: reroute earlier (t=4)</td><td><span class="verdict fail">FAIL</span> no unable line</td><td>Accepted as <code>L F1</code>, but FOL1 has no follow route until t=31, so it takes the silent "route lost" hold.</td></tr>
+<tr><td>Lane 4: Option C, another leader taxi</td><td><span class="verdict fail">none of 4</span></td><td>No cheap candidate makes the two windows overlap (table in lane 4).</td></tr>
+</table>
+
+<section>
+<h2>Lane 0. Base (before YAAT-899) <span class="verdict pass">PASS on base</span></h2>
+<p><span class="measured">Measured</span> on base e52b72390, in a detached worktree running the test's own staging. Leader route before (pale blue band), route after (orange), the silent bridges P, C and L (magenta), and FOL1's follow route (green dashes).</p>
+<img src="lane0-base.png" alt="Lane 0 map: base reroute LF F P C L F1 with silent P, C, L">
+<div class="timeline">t=0 CROSS 1R · t=21-24 LED1 brakes for L to LF · t=25 LED1 on LF · t=31 FOL1 drives its follow route; reroute: L F F1 A refused (turn about on LF), F F1 A accepted as LF F P C L F1 · t=32 FOL1 unjoinable · t=71 check: unable said once, test passes</div>
+</section>
+
+<section>
+<h2>Lane 1. Why named reroutes fail now <span class="verdict fail">FAIL in the item tree</span></h2>
+<p><span class="measured">Measured</span> in the item tree at t=31, with LED1 on LF between #349 and #350, heading 52 at 17.5 kt, 23 ft from #350. Ahead, F does not connect to F1. Back, every route starts by reversing on LF, and that turn about is refused. The orange dots show the same turn about accepted one second later (direct run, LED1 7 ft from #350).</p>
+<img src="lane1-why-fail.png" alt="Lane 1 close-up: leader on LF, the refused turn about, readbacks">
+<table>
+<tr><th>Command at t=31 (item tree)</th><th>Readback</th></tr>
+<tr><td><code>TAXI L F F1 A</code></td><td>Unable, F and F1 do not connect, request taxi instructions</td></tr>
+<tr><td><code>TAXI F F1 A</code></td><td>Cannot taxi via F from the aircraft's position, it is unreachable without crossing a runway or leaving the movement area.</td></tr>
+<tr><td><code>TAXI A F1 F</code></td><td>Unable, no room to turn around on LF, request a route ahead</td></tr>
+<tr><td><code>TAXI L A T B F1</code></td><td>Unable, no room to turn around on LF, request a route ahead</td></tr>
+<tr><td><code>TAXI LF L A T B F1</code></td><td>Unable, no room to turn around on LF, request a route ahead</td></tr>
+<tr><td><code>TAXI #97 #1218 #1219 #1397 #1395 #152 F1</code></td><td>Unable, no room to turn around on LF, request a route ahead</td></tr>
+<tr><td><code>TAXI A F1 F</code> at t=32 (direct run)</td><td>Taxi via LF A F1 F [holding at the F1/F intersection, route ends at F, no destination given; taxiing via L, not in the route issued]. Route <code>LF L A F1</code>. FOL1 then says the unable line once (assertions pass). LED1 pivots from heading 52 to 247 between t=32 and t=35.</td></tr>
+</table>
+<p>The overview shows round 4's named detour. The red line is <span class="drawn">drawn</span> from round 4's node chain (349, 324, 97, 1218, 1219, 1397, 1395, 152, 66) as the shortest layout path per leg, not resolved by the pathfinder. Its first leg is the refused turn about.</p>
+<img src="lane1-overview.png" alt="Lane 1 overview: the round-4 T/B detour chain">
+<div class="timeline">t=0 CROSS 1R · t=25 LED1 on LF · t=31 FOL1 drives; all six reroutes refused · FOL1 keeps following LED1 onto F (still following at t=71) · Assert.True(follow.IsUnjoinable) fails</div>
+</section>
+
+<section>
+<h2>Lane 2. Reroute earlier (round 4 attempt 3) <span class="verdict fail">FAIL</span></h2>
+<p><span class="measured">Measured</span> in the item tree, reroute at t=4 with LED1 still on L at 30 kt and FOL1 crossing 1R at 4 kt. Accepted as <code>L F1</code>.</p>
+<img src="lane2-earlier.png" alt="Lane 2 map: reroute at t=4, route L F1">
+<p>The chart is a per-second sweep. For each t from 0 to 45, the run is copied by snapshot at t, rerouted with the test's list (<code>TAXI L F F1 A</code>, <code>TAXI F F1 A</code>, <code>TAXI A F1 F</code>), then ticked 40 s, for the item tree and base alike. <code>L F1</code> stops being accepted at t=25, when LED1 turns onto LF. FOL1 first drives a follow route at t=31. In the gap between, nothing works. Any acceptance before t=31 ends in the silent "route lost" hold.</p>
+<img src="lane2-timeline.png" alt="Lane 2 timeline: acceptance window vs drive window, item and base">
+<img src="lane2-end.png" alt="Lane 2 end state: LED1 holding short of 1R on top of FOL1, to scale">
+<div class="timeline">t=0 CROSS 1R · t=4 reroute: L F F1 A accepted as L F1 · t=31 FOL1 off 1R; first plan finds it ahead of LED1: "holding in position, route lost" (log only) · t=34 FOL1 at rest · t=45 LED1 turns onto F1 · t=60 LED1 holding short of 1R on top of FOL1 · no unable line: Assert.Equal fails</div>
+</section>
+
+<section>
+<h2>Lane 3. Option A: HOLD the leader on L, then reroute <span class="verdict pass">PASS</span></h2>
+<p><span class="measured">Measured</span> in the item tree, run as a temporary copy of the red test: <code>FOLLOWG LED1</code>, <code>CROSS 1R</code>, then <code>HOLD</code> to LED1 at t=0, already on L at 30 kt; it stops near #379 by t=6. Then tick until FOL1 drives a follow route (t=31), reroute with the test's list, tick 40 s, and check the original assertions.</p>
+<img src="lane3-option-a.png" alt="Lane 3 map: leader held on L, reroute L F1 at t=31">
+<table>
+<tr><th>Command</th><th>Readback</th></tr>
+<tr><td><code>HOLD</code> (LED1, t=0)</td><td>Hold position (on taxiway L)</td></tr>
+<tr><td><code>TAXI L F F1 A</code> (LED1, t=31)</td><td>Taxi via L F1 A [holding at the F1/A intersection, route ends at A, no destination given]. Route <code>L F1</code>, follow re-plan FollowerAhead.</td></tr>
+<tr><td>FOL1 (said once in the 40 s window)</td><td>Unable to follow LED1, no taxi route to its path, request taxi instructions</td></tr>
+</table>
+<p>Both assertions hold at t=71: FOL1 is following and unjoinable, and the unable list is exactly that one line. The close-up comes from 60 more seconds of the same run, outside the test window.</p>
+<img src="lane3-end.png" alt="Lane 3 after the window: LED1 holding short of 1R on top of FOL1, to scale">
+<div class="timeline">t=0 CROSS 1R, HOLD LED1 on L (30 kt) · t=6 LED1 at rest near #379 · t=31 FOL1 drives; reroute L F F1 A accepted as L F1 · t=32 FOL1 unjoinable · t=71 check: unable said once, passes · t=87 LED1 on F1 heading 277 at 11 kt, centres 9 ft from FOL1 · t=131 LED1 holding short of 1R, centres 41 ft apart</div>
+</section>
+
+<section>
+<h2>Lane 4. Option C: a different leader route <span class="verdict fail">omitted: no candidate works</span></h2>
+<p><span class="measured">Measured</span> in the item tree. Each candidate replaced the leader's <code>StageBehind</code> taxi, then ran the red test's flow: reroute with the test's list when FOL1 drives, tick 40 s. No map, since nothing opened the windows. Finding a working route would take a search over the layout, not a cheap swap.</p>
+<table>
+<tr><th>Leader taxi in StageBehind</th><th>Resolved as</th><th>Outcome</th></tr>
+<tr><td><code>TAXI A L F 28L</code> (today's)</td><td>M1 A L LF F RWY 28L</td><td>FOL1 drives at t=31; all three reroutes refused (as lane 1)</td></tr>
+<tr><td><code>TAXI A L LF F 28L</code></td><td>M1 A L LF F RWY 28L (the same)</td><td>Same as today's</td></tr>
+<tr><td><code>TAXI A F RWY 28L</code></td><td>M1 A T B F F2 RWY 28L</td><td>FOL1 never drives a follow route within 180 s</td></tr>
+<tr><td><code>TAXI A B F 28L</code></td><td>M1 B F RWY 28L, LED1 holds short of 1L on F</td><td>FOL1 never drives a follow route within 180 s</td></tr>
+</table>
+</section>
+
+<section>
+<h2>How this was measured</h2>
+<p>A temporary untracked test class, <code>Tmp899VizTests</code>, reused the red test's base class and staging. It recorded the per-second state of both aircraft, positions and routes at each moment, every readback, the follower's warnings and terminal lines, and the per-second snapshot sweep. It ran on the item tree (branch yaat-899, uncommitted work) and on a detached worktree of base e52b72390; both have since been deleted. The SFO graph is identical in both trees (2386 nodes, 2443 edges, 906 arcs, same ids and positions), so all maps share one geometry. Everything on the maps is measured except the red chain in lane 1's overview.</p>
+</section>
+</main>
+</body>
+</html>
