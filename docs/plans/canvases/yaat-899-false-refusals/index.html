@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-899: the bridge filter's suspected false refusals, on real layouts</title>
+<style>
+  body { margin: 0; background: #f4f2ec; color: #1d1d1d; font: 15px/1.5 "Segoe UI", Arial, sans-serif; }
+  main { max-width: 1340px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 0 0 4px; }
+  h3 { font-size: 17px; margin: 18px 0 4px; }
+  .sub { color: #555; margin: 0 0 18px; }
+  section { background: #fff; border: 1px solid #d9d4c7; border-radius: 10px; padding: 18px 20px 20px; margin: 22px 0; }
+  img { display: block; max-width: 100%; border: 1px solid #ddd; border-radius: 6px; margin: 12px 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .verdict { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 12px; font-size: 13px; }
+  .fail { background: #f8d7d7; color: #9b1c1c; }
+  .mixed { background: #fde7c7; color: #8a4b00; }
+  .note { background: #fff7e0; border: 1px solid #edd38a; border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1eee6; }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; background: #f1eee6; padding: 0 4px; border-radius: 3px; }
+  .chain { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; color: #444; word-break: break-all; }
+  .legend span { display: inline-block; margin-right: 18px; }
+  .sw { display: inline-block; width: 26px; height: 6px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<main>
+<h1>YAAT-899: the bridge filter's three suspected false refusals, found on real layouts</h1>
+<p class="sub">The item drops any detour bridge that runs along a runway (R1) or uses an unnamed lettered taxiway (R6). When it drops every bridge it finds, it refuses with "Unable, X and Y do not connect, request taxi instructions". The C# review suspected three ways this refuses a clearance it should not. All three happen on real test layouts. Every verdict below comes from <code>GroundCommandHandler.TryTaxi</code> on the item tree (branch yaat-899, uncommitted) and on a detached worktree of base e52b72390. Both trees ran the same temporary test file, since deleted.</p>
+
+<div class="legend">
+<span><i class="sw" style="background:#e08a00"></i>base e52b72390's resolved route</span>
+<span><i class="sw" style="background:#c81e1e"></i>item's dropped bridge (dashed), rebuilt</span>
+<span><i class="sw" style="background:#ff2d2d;height:10px"></i>its runway-centreline part</span>
+<span><i class="sw" style="background:#139a43"></i>a bridge the item's own rules allow</span>
+<span><i class="sw" style="background:#1f4fd1"></i>aircraft start and heading</span>
+</div>
+
+<table>
+<tr><th>Case</th><th>Verdict</th><th>How often, over 16 airports (19,939 probes, 6,499 refusals)</th><th>Shown</th></tr>
+<tr><td>1. A legal bridge is dropped together with the cheapest one</td><td><span class="verdict fail">REAL</span></td><td>107 "do not connect" refusals of two named taxiways with no junction, where a bridge with no runway pavement and no unnamed letter reaches Y without a first-edge reversal. In 40 of them the bridge uses only digit stubs, RAMP and junction arcs. The rest also use a lettered taxiway at the start node, which the item counts as named.</td><td>SFO <code>TAXI Z1 S2</code>, MIA <code>TAXI Q1 M1</code>, SFO <code>TAXI A2 B</code></td></tr>
+<tr><td>2. Junctions exist but the walk cannot reach one, and the message says "do not connect"</td><td><span class="verdict fail">REAL</span></td><td>190 refusals whose own <code>[segment]</code> line reports <code>junctions&ge;1</code>: 179 from an aircraft on a runway, 8 on a taxiway from its far end, 3 on a taxiway facing away from the junction</td><td>LAX <code>TAXI E W</code> (U-turn), CMH <code>TAXI B B1</code>, CMH <code>TAXI SR C1</code></td></tr>
+<tr><td>3a. The runway the aircraft stands on counts as "along a runway"</td><td><span class="verdict fail">REAL</span></td><td>1,018 refusals from a start on a runway where the only bridge left runs along that runway, without reversing. In 172 of them the bridge then drives X, and in 108 of those X and Y have a junction.</td><td>OAK <code>TAXI D G</code> on 15/33, MIA <code>TAXI Z M</code> on 12/30</td></tr>
+<tr><td>3b. A crossing stitched through centreline nodes counts as "along a runway"</td><td><span class="verdict mixed">REAL, NOT AT MIA S</span></td><td>106 dropped bridges that cross a runway through <code>:link</code> &rarr; centreline &rarr; <code>:link</code> (CMH 82, LAX 23, ATL 1). No refusal at MIA had a dropped bridge driving S over 12/30.</td><td>CMH <code>TAXI E4 F3</code> across 10L/28R</td></tr>
+</table>
+
+<div class="note"><b>Not searched: SJC, FAT, HWD, MER, RNO.</b> Their <code>TestData/*.geojson</code> are runway-only stubs (566 to 1,198 bytes). They parse to 0 nodes and 0 taxiways, so no TAXI can be probed there. The full vNAS layouts were not used, because the brief allows only TestData layouts.</div>
+
+<section>
+<h2>Case 1: the legal bridge to the same node is never tried</h2>
+<p><code>PickDetourEntry</code> (<code>SegmentExpander.cs:4205</code>) runs one bounded AutoRouter search per node of Y (<code>:4226</code>) and keeps only that search's cheapest route. <code>BridgeDropReason</code> (<code>:4273</code>) judges that one route afterwards. The search only charges an unnamed letter a penalty, it does not exclude it. So at each node the cheapest route can be the illegal one, while a legal route to the same node exists. The item never searches for the legal route. When every node's cheapest route is dropped, <code>TryDetour</code> refuses (<code>:4128</code>).</p>
+<p>The legal bridge was found by a test-only oracle: the same compiled search context, with every unnamed lettered taxiway and every runway edge (centreline and <code>:link</code>) hard-excluded. Its result is checked again against R1 and R6, and a route whose first edge turns more than 135&deg; off the start heading is dropped. In all three examples the base accepted the clearance, routed toward an unnamed letter (S, PAD, A) and held short of it, without ever reaching Y. In both trees, naming the stub explicitly resolves.</p>
+<table>
+<tr><th>Clearance (start)</th><th>Item</th><th>Base e52b72390</th><th>Item's dropped bridge to the legal bridge's node (rebuilt)</th><th>Legal bridge</th><th>Stub named, both trees</th></tr>
+<tr><td>SFO <code>TAXI Z1 S2</code><br>node #649 (Z/Z1), heading 28&deg;</td><td>Unable, Z1 and S2 do not connect, request taxi instructions<br>(5 of 5 bridges dropped, all "needs S")</td><td>Taxi via Z [Holding short of S: route to S2 needs S, not in clearance], 1,338 ft</td><td>to #676: Z S, 2,643 ft</td><td>to #676: Z1 S3, <b>889 ft</b>; crosses 10R/28L square, Z1 into S3<div class="chain">649 2110 859 2119 662 2118 685 684 860 683 682 681 680 2125 679 676</div></td><td><code>TAXI Z1 S3 S2</code>: Taxi via Z1 S3 S2</td></tr>
+<tr><td>MIA <code>TAXI Q1 M1</code><br>node #129 (Q1 at 12/30), heading 78&deg;</td><td>Unable, Q1 and M1 do not connect<br>(16 of 16 dropped, all "needs PAD")</td><td>Taxi via Q1 [Holding short of PAD: route to M1 needs PAD, not in clearance], 732 ft</td><td>to #319: Q1 PAD M1L, 1,569 ft</td><td>to #319: Q1 M1L, <b>818 ft</b><div class="chain">129 1081 519 518 2165 517 2168 593 1987 1981 1979 1978 1977 1976 321 319</div></td><td><code>TAXI Q1 M1L M1</code>: Taxi via Q1 M1L M1</td></tr>
+<tr><td>SFO <code>TAXI A2 B</code><br>node #506 (A1/A2), heading 334&deg;</td><td>Unable, A2 and B do not connect<br>(136 of 136 dropped, all "needs A")</td><td>Taxi via A1 [Holding short of A: route to B needs A, not in clearance], 468 ft</td><td>to #158: A1 A, 1,881 ft</td><td>to #158: A2 M1, <b>944 ft</b>; crosses 01L/19R square, A2 into M1<div class="chain">506 1942 515 514 513 512 511 510 509 508 1732 420 1731 18 884 1437 158</div></td><td><code>TAXI A2 M1 B</code>: Taxi via A2 M1 B</td></tr>
+</table>
+<div class="pair"><img src="c1-sfo-z1-s2.png" alt="SFO TAXI Z1 S2"><img src="c1-mia-q1-m1.png" alt="MIA TAXI Q1 M1"></div>
+<img src="c1-sfo-a2-b.png" alt="SFO TAXI A2 B" style="max-width:660px">
+<p><b>Fix sketch.</b> Exclude the dropped kinds inside the search, not after it. <code>BuildDetourContext</code> (<code>:4466</code>) would hard-exclude runway centreline and <code>:link</code> edges, arcs onto a centreline node, and the unnamed lettered taxiways <code>CountsAsNamed</code> rejects. Each node's search then returns its cheapest legal bridge. <code>BridgeDropReason</code> stays as the check. A search that then finds nothing is the "do not connect" case as ruled.</p>
+</section>
+
+<section>
+<h2>Case 2: X and Y do meet, but the item says they do not connect</h2>
+<p>When the local walk along X reaches none of the X/Y junctions, <code>SegmentExpander.cs:2081-2086</code> falls into <code>TryDetour</code>. There the dropped-bridge refusal now reads "X and Y do not connect", which is false for these pairs. The base resolved each pair, but its routes were bad: an 11,929 ft loop across 10R/28L twice, and a 580 ft run along 6R. That is the behaviour R1/R6 exists to stop. So the refusal itself may be right, and only its wording is wrong. In the LAX case the junction is behind the aircraft. In both CMH cases it is ahead, but the walk along X dead-ends before it.</p>
+<table>
+<tr><th>Clearance (start)</th><th>Why the walk fails (measured, <code>[local]</code>)</th><th>Item</th><th>Base e52b72390</th></tr>
+<tr><td>LAX <code>TAXI E W</code><br>node #1822 on E, heading 263&deg;</td><td>junctions=2 (#353, #2229), both about 850 ft behind; the walk west along E fails (31 expansions)</td><td>Unable, E and W do not connect (15 of 15 dropped: 6 run along 06L/24R, 9 along 06R/24L)</td><td>Taxi via E on 6R [... taxiing via Y — not in the route issued], 1,362 ft, <b>580 ft along 06R/24L</b></td></tr>
+<tr><td>CMH <code>TAXI B B1</code><br>node #210 on B, heading 94&deg;</td><td>junctions=1 (#243); the walk along B dead-ends at #668 after 4 hops (7 expansions)</td><td>Unable, B and B1 do not connect (6 of 6 dropped, "needs C")</td><td>Taxi via B B1 [... taxiing via C, B5, C9, C1 — not in the route issued], <b>11,929 ft</b>, crossing 10R/28L twice</td></tr>
+<tr><td>CMH <code>TAXI SR C1</code><br>node #426 on SR, heading 94&deg;</td><td>junctions=1 (#340); the walk along SR dead-ends at #396 (18 expansions)</td><td>Unable, SR and C1 do not connect (10 of 10 dropped, "needs C")</td><td>Taxi via SR C1 [... taxiing via C, D3], 5,739 ft</td></tr>
+</table>
+<div class="pair"><img src="c2-lax-e-w.png" alt="LAX TAXI E W"><img src="c2-cmh-sr-c1.png" alt="CMH TAXI SR C1"></div>
+<img src="c2-cmh-b-b1.png" alt="CMH TAXI B B1">
+<p><b>Fix sketch.</b> At <code>:2081</code> the pair is known to have junctions. If <code>TryDetour</code> then returns <code>TaxiwaysDoNotConnect</code>, re-label it as a reach failure naming X and its junction, rather than claiming the taxiways do not connect. Probe scope: a start 1 or 2 nodes from each X/Y junction, facing away, gave 3 refusals in 8,366 probes, all at LAX. The 8 CMH-style refusals came from far-end starts.</p>
+</section>
+
+<section>
+<h2>Case 3a: the runway the aircraft is on blocks its own exit</h2>
+<p><code>AlongRunwayName</code> (<code>SegmentExpander.cs:4355</code>) drops any bridge with a centreline segment, or an arc ending on a centreline node. It never reads <code>ctx.AllowedCenterlineNames</code>, which <code>SearchContext.Compile</code> fills with the runway at the start node (and any runway named in the path). From a runway node, the walk along X fails (OAK admitted 0 edges). Every bridge then starts with a few feet of the runway the aircraft is standing on, so every bridge is dropped. Both examples have X/Y junctions, so the message is also a case-2 one.</p>
+<table>
+<tr><th>Clearance (start)</th><th>Item</th><th>Base e52b72390</th></tr>
+<tr><td>OAK <code>TAXI D G</code><br>node #1256 on 15/33 (F and D joins), heading 164&deg;; allowed centreline RWY15/33</td><td>Unable, D and G do not connect (16 of 16 dropped, all "runs along RWY15/33"); junctions=3</td><td>Taxi via on 15 D G [holding at the D/G intersection ...], 5,308 ft, <b>33 ft on 15/33</b>, then D to G</td></tr>
+<tr><td>MIA <code>TAXI Z M</code><br>node #1156 on 12/30, 61 ft short of Z, heading 120&deg;; allowed centreline RWY12/30</td><td>Unable, Z and M do not connect (127 of 127 dropped, all "runs along RWY12/30"); junctions=4</td><td>Taxi via on 12 Z M [holding at the Z/M intersection ...], 1,776 ft, <b>61 ft on 12/30</b>, then Z to M</td></tr>
+</table>
+<div class="pair"><img src="c3-mia-z-m.png" alt="MIA TAXI Z M"><img src="c3-oak-d-g.png" alt="OAK TAXI D G"></div>
+<p>Many of the 1,018 scan hits are less clear cut: a back-taxi of hundreds of feet, up to about 1,900 ft, along the runway to a parallel stub (COS <code>TAXI C6 C7</code> on 17R/35L: 460 ft). Whether those should resolve is a ruling, not a bug. The two shown use 33 and 61 ft of the runway, to reach the very taxiway the clearance names first.</p>
+<p><b>Fix sketch.</b> <code>AlongRunwayName</code> skips centreline segments, and arcs onto centreline nodes, whose runway matches <code>ctx.AllowedCenterlineNames</code>. That is the rule <code>SearchContext.IsUnclearedCenterline</code> already uses.</p>
+</section>
+
+<section>
+<h2>Case 3b: a crossing stitched through centreline nodes</h2>
+<p>CMH E4 and F3 meet 10L/28R from opposite sides, 124 ft apart, each through a <code>:link</code> edge. The item logged no <code>[runway-crossing]</code> line for the pair, so the offset-crossing rule (<code>TryRouteAcrossOffsetRunway</code>, <code>:2129</code>) did not take it. All 4 bridges, the crossing included, were dropped as "runs along RWY10L/28R". The base crossed, though its readback was malformed: "Taxi via E4 on 10L on 10L on 28R:link F3", with the notice "taxi via RWY10L/28R:link, RWY10L/28R". That readback is the R7 defect the item fixes.</p>
+<table>
+<tr><th>Clearance (start)</th><th>Item</th><th>Base e52b72390</th></tr>
+<tr><td>CMH <code>TAXI E4 F3</code><br>node #82 (E/E4), heading 2&deg;</td><td>Unable, E4 and F3 do not connect (4 of 4 dropped, all "runs along RWY10L/28R"); junctions=0</td><td>accepted, 462 ft: E4, link, <b>124 ft on 10L/28R</b>, link<div class="chain">82 146 90 153 155 106</div></td></tr>
+</table>
+<img src="c3-cmh-e4-f3.png" alt="CMH TAXI E4 F3" style="max-width:660px">
+<p>Why the offset-crossing rule misses a <code>:link</code> join was not measured. One likely reason is that <code>FindJunctionCandidates(E4, runway)</code> finds no E4 edge at a centreline node. The pair would be a case-1/3b fix in <code>TryRouteAcrossOffsetRunway</code>, not in <code>AlongRunwayName</code>. MIA S over 12/30, the review's example, produced no refusal: no scanned clearance at MIA had a dropped bridge driving S across 12/30.</p>
+</section>
+
+<section>
+<h2>How the scan was run</h2>
+<ul>
+<li><b>Airports.</b> SFO, OAK, COS, CMH, MIA, ATL, AUS, FLL, HKY, IAH, LAX, LBB, MSY, SEA, SMF, TTN, using the committed <code>TestData</code> layouts and real NavData through <code>TestVnasData.EnsureInitialized()</code>. Plain taxiway names only: no junction-arc labels, no RWY, no <code>:link</code>, no RAMP.</li>
+<li><b>No-junction pairs (4,258 probes).</b> Every ordered pair X, Y that shares no node and comes within 1,000 ft. The aircraft starts at X's node farthest from Y, heading toward X's node nearest Y. 2,736 refusals.</li>
+<li><b>Junction pairs (8,366 probes).</b> Every pair sharing a node. For up to 3 junctions, the aircraft starts 1 and 2 nodes along X from the junction, facing away. 3 refusals.</li>
+<li><b>On-runway starts (7,315 probes).</b> The aircraft starts at the centreline node next to where X joins a runway, heading toward the join, for every Y within 1,000 ft of X. 3,760 refusals.</li>
+<li><b>Refusal.</b> <code>ResolveExplicitPathDetailed</code> failing with <code>TaxiwaysDoNotConnect</code> (Jet, Large). Each shown example was then re-run through <code>TryTaxi</code> with a B738 held in position at the start node, on both trees.</li>
+<li><b>Rebuilt bridges.</b> The red dashed routes are rebuilt by <code>AutoRouter.Run</code> on the item's own compiled context, with destination the dropped node and a 5,000-expansion bound. The item does the same, but passes the head as <code>startOverride</code>. They show the kind of route the item dropped and why, not necessarily its exact node chain. The drop reasons and counts are the item's own <code>[detour] drops</code> diag lines.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>
