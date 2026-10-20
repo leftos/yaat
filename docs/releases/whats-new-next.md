@@ -32,6 +32,14 @@ Down from the box goes to the current altitude's row, Up and Down walk the rows,
 
 ![The Maintain altitude flyout for a B764 at 10,000 ft, with the Altitude box over the list of altitudes](img/whats-new-altitude-flyout.png)
 
+## Assign speed
+
+Assign speed, in the quick-command strip and under All Commands › Speed (with Speed…), opens a flyout instead of a list or an input popup. The Speed box has focus: type `250` and its readout shows the command it would send, `SPD 250`, or "Not a valid speed". Below it are Resume normal speed and Final approach speed (with the type's approach speed), then a Knots grid of chips eight to a row, and at or above FL240 a Mach grid (`M.78` sends `MACH .78`).
+
+The present speed and Mach chips are filled, the assigned speed's chip and the chip the box names are outlined, and a chip's tooltip is its command. Down from the box walks Resume normal speed, Final approach speed and the grids, the arrow keys move within a grid, Enter sends and Escape goes back to the strip. The title and the marks follow the aircraft once a second.
+
+![The Assign speed flyout for a B764 at FL350, with the Speed box over the knots and Mach chips](img/whats-new-speed-flyout.png)
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

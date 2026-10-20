@@ -7,11 +7,10 @@ using Yaat.Client.ViewModels;
 namespace Yaat.Client.Views.Radar.Flyouts;
 
 /// <summary>
-/// EuroScope-style assigned-speed picker. ContextMenu of 80..350 kt in 10-kt steps plus
-/// "Resume Normal Speed" and "Final Approach Speed" entries. Selection routes through
-/// RadarViewModel.SpeedAsync / SpeedNormalAsync / ReduceFinalApproachSpeedAsync.
+/// The EuroScope tag's assigned-speed picker, opened by a click on the speed fields: Resume Normal Speed, 350 down to 80 kt in
+/// tens, then the Reduce to final approach speed entry; not the quick-command speed flyout.
 /// </summary>
-internal static class SpeedFlyout
+internal static class RadarSpeedFlyout
 {
     private const int MinSpeed = 80;
     private const int MaxSpeed = 350;

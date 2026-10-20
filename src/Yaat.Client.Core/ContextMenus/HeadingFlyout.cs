@@ -84,9 +84,6 @@ public static partial class HeadingFlyout
     /// <summary>The chip keyboard focus lands on when the flyout opens on a chip group.</summary>
     internal const int OpeningChip = 30;
 
-    /// <summary>The class of the menu row that holds the whole panel, kept at its resting background.</summary>
-    private const string PanelRowClass = "heading-flyout-panel";
-
     /// <summary>The entry <paramref name="preset"/> names: one menu row holding the flyout over <paramref name="aircraft"/>.</summary>
     /// <param name="preset">The entry's label, the verb the toggle starts on and where focus lands.</param>
     /// <param name="aircraft">The aircraft whose heading the flyout follows.</param>
@@ -95,7 +92,7 @@ public static partial class HeadingFlyout
     public static MenuItem Build(HeadingFlyoutPreset preset, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var entry = new MenuItem { Header = preset.Label };
-        QuickCommandStrip.FollowInFlyout(entry, new HeadingFlyoutContent(entry, preset, aircraft, context, host));
+        PanelFlyoutContent.Attach(entry, new HeadingFlyoutHost(), context, host, (choose, _) => new HeadingFlyoutPanel(preset, aircraft, choose));
         return entry;
     }
 
@@ -210,121 +207,16 @@ public static partial class HeadingFlyout
 
     [GeneratedRegex(@"^\s*([LR])?\s*(\d{1,3})\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BoxPattern();
-
-    /// <summary>
-    /// The flyout's content on whichever surface shows it: the panel, built at the first opening into its menu row's holder,
-    /// reset and refreshed at each opening, and the one-second refresh while open.
-    /// </summary>
-    private sealed class HeadingFlyoutContent : IStripFlyoutContent
-    {
-        private readonly MenuItem _entry;
-        private readonly HeadingFlyoutPreset _preset;
-        private readonly IMenuAircraft? _aircraft;
-        private readonly MenuContext _context;
-        private readonly IMenuHost _host;
-        private readonly HeadingFlyoutHost _holder = new();
-        private HeadingFlyoutPanel? _panel;
-        private FlyoutLiveTick? _tick;
-        private Action? _closeFlyout;
-        private bool _open;
-
-        public HeadingFlyoutContent(MenuItem entry, HeadingFlyoutPreset preset, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-        {
-            _entry = entry;
-            _preset = preset;
-            _aircraft = aircraft;
-            _context = context;
-            _host = host;
-            // A menu row takes keyboard focus back from whatever inside it gets it, so the row holding the panel is not focusable.
-            var panelRow = new MenuItem
-            {
-                Header = _holder,
-                StaysOpenOnClick = true,
-                Focusable = false,
-            };
-            panelRow.Classes.Add(PanelRowClass);
-            panelRow.Styles.Add(FlyoutPanelParts.PlainPanelRowStyle(PanelRowClass));
-            panelRow.Click += (_, e) => e.Handled = true;
-            entry.Items.Add(panelRow);
-            entry.PropertyChanged += (_, e) =>
-            {
-                if (e.Property != MenuItem.IsSubMenuOpenProperty)
-                {
-                    return;
-                }
-
-                if (entry.IsSubMenuOpen)
-                {
-                    Open(null);
-                }
-                else
-                {
-                    Closed();
-                }
-            };
-        }
-
-        /// <inheritdoc />
-        public void Opened(ItemCollection items, Action close) => Open(close);
-
-        /// <inheritdoc />
-        public void PointerInside(bool inside) { }
-
-        /// <inheritdoc />
-        public void Closed()
-        {
-            _tick?.Stop();
-            _open = false;
-            _closeFlyout = null;
-        }
-
-        private void Open(Action? close)
-        {
-            _open = true;
-            _closeFlyout = close;
-            if (_panel is null)
-            {
-                _panel = new HeadingFlyoutPanel(_preset, _aircraft, ChooseAsync);
-                _tick = new FlyoutLiveTick(_host.Clock, _panel.Refresh);
-                _holder.Child = _panel;
-            }
-
-            _panel.Reset();
-            _panel.Refresh();
-            _tick?.Start();
-            _panel.FocusOpeningLater(() => _open);
-        }
-
-        /// <summary>Sends <paramref name="command"/> and closes the strip's flyout and the menu, or the submenu's menu.</summary>
-        private async Task ChooseAsync(string command)
-        {
-            Task sending = _host.SendAsync(_context.Callsign, command, _context.Initials);
-            if (_closeFlyout is { } close)
-            {
-                close();
-            }
-            else
-            {
-                _entry.FindLogicalAncestorOfType<ContextMenu>()?.Close();
-            }
-
-            await sending;
-        }
-    }
 }
 
 /// <summary>The heading flyout's menu row header, which holds the <see cref="HeadingFlyoutPanel"/> once the flyout first opens.</summary>
-public sealed class HeadingFlyoutHost : Border
-{
-    /// <summary>The header as one line, for a menu outline, the same before and after the first opening.</summary>
-    public override string ToString() => "heading flyout";
-}
+public sealed class HeadingFlyoutHost() : FlyoutPanelHost("heading flyout", "heading-flyout-panel");
 
 /// <summary>
 /// The heading flyout's one menu row (<see cref="HeadingFlyout"/>): the title line, the Present heading row, the verb toggle,
 /// the heading box, a separator, the rose between the degree chips, and the readout.
 /// </summary>
-public sealed class HeadingFlyoutPanel : StackPanel
+public sealed class HeadingFlyoutPanel : StackPanel, IFlyoutPanel
 {
     private const double ChipColumnWidth = 56;
     private static readonly IImmutableSolidColorBrush ReadoutBrush = new ImmutableSolidColorBrush(Color.Parse("#CFD5DC"));
@@ -448,6 +340,14 @@ public sealed class HeadingFlyoutPanel : StackPanel
             $"Right by → {string.Join(" ", _rightChips.Select(chip => chip.Content))}",
             Readout.Text ?? "",
         ];
+
+    Control IFlyoutPanel.View => this;
+
+    void IFlyoutPanel.Reset() => Reset();
+
+    void IFlyoutPanel.Refresh() => Refresh();
+
+    void IFlyoutPanel.FocusOpeningLater(Func<bool> isOpen) => FocusOpeningLater(isOpen);
 
     /// <summary>Puts the flyout back as it opens: the toggle on the preset's verb, the box empty, nothing picked.</summary>
     internal void Reset()

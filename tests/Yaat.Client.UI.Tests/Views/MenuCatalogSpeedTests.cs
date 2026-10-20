@@ -11,8 +11,8 @@ using Yaat.Sim.Testing;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// Pins the Assign speed picker's rows. Every aircraft leads with <c>Resume normal speed</c> (<c>RNS</c>) and
-/// <c>Final approach speed</c> (<c>RFAS</c>, labelled with the filed type's approach speed rounded to the knot). An aircraft
+/// Pins the Assign speed flyout's speeds. Every aircraft leads with <c>Resume normal speed</c> (<c>RNS</c>) and
+/// <c>Final approach speed</c> (<c>RFAS</c>, noted with the filed type's approach speed rounded to the knot). An aircraft
 /// with a filed type then gets every tenth knot from its approach speed rounded up through its knots ceiling — the highest
 /// of its cruise, climb and descent speeds at the aircraft's altitude and the profile's FL150/FL240 climb and FL100 descent
 /// knots, plus 20 kt (10 for a piston), floored to ten and capped at 250 below 10,000 ft unless the type waives the limit —
@@ -39,17 +39,46 @@ public class MenuCatalogSpeedTests
             Altitude = altitude,
         };
 
-    /// <summary>The popup the Assign speed picker opens for <paramref name="aircraft"/>: its row texts and the highlighted row.</summary>
-    private static (IReadOnlyList<string> Items, object? Selected) SpeedPopup(AircraftModel aircraft)
+    /// <summary>The Assign speed flyout <paramref name="aircraft"/>'s entry opens, its panel built.</summary>
+    private static SpeedFlyoutPanel OpenFlyout(AircraftModel aircraft, RecordingMenuHost host)
     {
-        var host = new RecordingMenuHost("");
         MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
         Assert.NotNull(item);
-        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        return Assert.Single(host.ListPopups);
+        item.IsSubMenuOpen = true;
+        Assert.Empty(host.ListPopups);
+        return Assert.IsType<SpeedFlyoutPanel>(Assert.IsType<SpeedFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child);
     }
 
-    private static IReadOnlyList<string> SpeedItems(AircraftModel aircraft) => SpeedPopup(aircraft).Items;
+    /// <summary>
+    /// The speeds the flyout offers <paramref name="aircraft"/>, in the order it shows them: its two rows, Final approach speed with
+    /// <see cref="MenuCatalog.FinalApproachKnots"/> in brackets, then <see cref="MenuCatalog.SpeedValues"/>' knots and Mach values.
+    /// </summary>
+    private static IReadOnlyList<string> SpeedItems(AircraftModel aircraft)
+    {
+        MenuCatalog.SpeedChoices choices = MenuCatalog.SpeedValues(aircraft);
+        string finalApproach = (MenuCatalog.FinalApproachKnots(aircraft) is { } knots) ? $"Final approach speed ({knots})" : "Final approach speed";
+        return
+        [
+            "Resume normal speed",
+            finalApproach,
+            .. choices.Knots.Select(knots => $"{knots}"),
+            .. choices.MachHundredths.Select(SpeedFlyout.MachLabel),
+        ];
+    }
+
+    /// <summary>The flyout's chips show <see cref="MenuCatalog.SpeedValues"/>' values, the knots then the Mach labels, in order.</summary>
+    [AvaloniaFact]
+    public void FlyoutChips_ShowTheSpeedValues()
+    {
+        AircraftModel aircraft = Aircraft("B738", 35_000);
+        SpeedFlyoutPanel panel = OpenFlyout(aircraft, new RecordingMenuHost(""));
+
+        Assert.Equal(
+            [.. SpeedItems(aircraft).Skip(LeadingRows)],
+            [.. panel.KnotChips.Concat(panel.MachChips).Select(chip => chip.Content as string ?? "")]
+        );
+        Assert.Equal("144 kt", panel.FinalApproachNote.Text);
+    }
 
     private static IReadOnlyList<string> SpeedItems(string type, double altitude) => SpeedItems(Aircraft(type, altitude));
 
@@ -111,11 +140,11 @@ public class MenuCatalogSpeedTests
 
     /// <summary>C680 spans M.78 (0.82 - 0.04) through M.90 (its TAS cruise 510 at FL552 as M.889, + 0.01). At FL800 the top
     /// row's own IAS is 107.8 kt, so the Mach cap draws the knots ceiling below the 110 kt floor and no knots row is left:
-    /// the list is the two leading rows and the Mach rows, with nothing highlighted when no speed is assigned.</summary>
+    /// the flyout holds the two leading rows and the Mach chips.</summary>
     [AvaloniaFact]
-    public void CapsLeavingNoKnotsRows_KeepTheLeadingRowsAndMachRows_WithNoSeed()
+    public void CapsLeavingNoKnotsRows_KeepTheLeadingRowsAndMachRows()
     {
-        (IReadOnlyList<string> items, object? selected) = SpeedPopup(Aircraft("C680", 80_000));
+        IReadOnlyList<string> items = SpeedItems(Aircraft("C680", 80_000));
 
         Assert.Equal(
             [
@@ -136,23 +165,18 @@ public class MenuCatalogSpeedTests
             ],
             items
         );
-        Assert.Null(selected);
     }
 
     [AvaloniaFact]
     public void MachRow_SendsMachCommand_KnotsRowSendsSpd()
     {
-        var machHost = new RecordingMenuHost("M.78");
-        MenuItem? machItem = MenuCatalog.Get(MenuIds.SpeedAssign).Build(Aircraft("B738", 35_000), Context(), machHost);
-        Assert.NotNull(machItem);
-        machItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        var machHost = new RecordingMenuHost("");
+        Click(OpenFlyout(Aircraft("B738", 35_000), machHost).MachChip("M.78"));
 
         Assert.Equal([(Callsign, "MACH .78", "AB")], machHost.Sent);
 
-        var knotsHost = new RecordingMenuHost("250");
-        MenuItem? knotsItem = MenuCatalog.Get(MenuIds.SpeedAssign).Build(Aircraft("B738", 35_000), Context(), knotsHost);
-        Assert.NotNull(knotsItem);
-        knotsItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        var knotsHost = new RecordingMenuHost("");
+        Click(OpenFlyout(Aircraft("B738", 35_000), knotsHost).KnotChip(250));
 
         Assert.Equal([(Callsign, "SPD 250", "AB")], knotsHost.Sent);
     }
@@ -160,10 +184,8 @@ public class MenuCatalogSpeedTests
     [AvaloniaFact]
     public void PickingResumeNormalSpeed_SendsRns()
     {
-        var host = new RecordingMenuHost("Resume normal speed");
-        MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(Aircraft("B738", 35_000), Context(), host);
-        Assert.NotNull(item);
-        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        var host = new RecordingMenuHost("");
+        Click(OpenFlyout(Aircraft("B738", 35_000), host).ResumeRow);
 
         Assert.Equal([(Callsign, "RNS", "AB")], host.Sent);
     }
@@ -171,10 +193,8 @@ public class MenuCatalogSpeedTests
     [AvaloniaFact]
     public void PickingFinalApproachSpeed_SendsRfas()
     {
-        var host = new RecordingMenuHost("Final approach speed (144)");
-        MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(Aircraft("B738", 35_000), Context(), host);
-        Assert.NotNull(item);
-        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        var host = new RecordingMenuHost("");
+        Click(OpenFlyout(Aircraft("B738", 35_000), host).FinalApproachRow);
 
         Assert.Equal([(Callsign, "RFAS", "AB")], host.Sent);
     }
@@ -185,6 +205,8 @@ public class MenuCatalogSpeedTests
     [AvaloniaFact]
     public void WaivedType_Below10000Ft_KeepsItsCeilingAbove250() =>
         Assert.Equal([.. Leading("Final approach speed (160)"), .. Tens(160, 370)], SpeedItems("F16", 5_000));
+
+    private static void Click(Button target) => target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     [AvaloniaFact]
     public void NoFiledType_ListsTheLeadingRowsThen150To350() =>

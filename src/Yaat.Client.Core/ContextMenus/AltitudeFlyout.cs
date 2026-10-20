@@ -59,9 +59,6 @@ public static class AltitudeFlyout
     /// <summary>The highest altitude the Maintain list holds, and its cap for a type without a profile.</summary>
     private const int MaintainCapFeet = 60000;
 
-    /// <summary>The class of the menu row that holds a whole panel, kept at its resting background.</summary>
-    private const string PanelRowClass = "altitude-flyout-panel";
-
     /// <summary>
     /// The Maintain altitude entry: one menu row holding the flyout over <paramref name="aircraft"/>'s altitudes; null when no
     /// altitude is listed.
@@ -80,14 +77,13 @@ public static class AltitudeFlyout
 
         InsertAssignment(altitudes, aircraft?.AssignedAltitude);
         var entry = new MenuItem { Header = label };
-        var content = new AltitudeFlyoutContent(
+        PanelFlyoutContent.Attach(
             entry,
-            "maintain altitude flyout",
+            new AltitudeFlyoutHost("maintain altitude flyout"),
             context,
             host,
             (choose, _) => new MaintainAltitudePanel(altitudes, () => Read(aircraft, host), choose)
         );
-        QuickCommandStrip.FollowInFlyout(entry, content);
         return entry;
     }
 
@@ -100,14 +96,13 @@ public static class AltitudeFlyout
     public static MenuItem BuildBox(string label, AltitudeBoxKind kind, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var entry = new MenuItem { Header = label };
-        var content = new AltitudeFlyoutContent(
+        PanelFlyoutContent.Attach(
             entry,
-            (kind == AltitudeBoxKind.Cruise) ? "cruise flyout" : "temporary altitude flyout",
+            new AltitudeFlyoutHost((kind == AltitudeBoxKind.Cruise) ? "cruise flyout" : "temporary altitude flyout"),
             context,
             host,
             (choose, close) => new AltitudeBoxPanel(kind, aircraft, choose, close)
         );
-        QuickCommandStrip.FollowInFlyout(entry, content);
         return entry;
     }
 
@@ -330,167 +325,17 @@ public static class AltitudeFlyout
         items.Reverse();
         return items;
     }
-
-    /// <summary>The menu row holding an altitude flyout's panel, which no hover or selection repaints.</summary>
-    private static MenuItem PanelRow(AltitudeFlyoutHost holder)
-    {
-        // A menu row takes keyboard focus back from whatever inside it gets it, so the row holding the panel is not focusable.
-        var panelRow = new MenuItem
-        {
-            Header = holder,
-            StaysOpenOnClick = true,
-            Focusable = false,
-        };
-        panelRow.Classes.Add(PanelRowClass);
-        panelRow.Styles.Add(FlyoutPanelParts.PlainPanelRowStyle(PanelRowClass));
-        panelRow.Click += (_, e) => e.Handled = true;
-        return panelRow;
-    }
-
-    /// <summary>
-    /// An altitude flyout's content on whichever surface shows it: the panel, built at the first opening into its menu row's
-    /// holder, reset and refreshed at each opening, and the one-second refresh while open.
-    /// </summary>
-    private sealed class AltitudeFlyoutContent : IStripFlyoutContent
-    {
-        private readonly MenuItem _entry;
-        private readonly MenuContext _context;
-        private readonly IMenuHost _host;
-        private readonly Func<Func<string, Task>, Action, IAltitudeFlyoutPanel> _build;
-        private readonly AltitudeFlyoutHost _holder;
-        private IAltitudeFlyoutPanel? _panel;
-        private FlyoutLiveTick? _tick;
-        private Action? _closeFlyout;
-        private bool _open;
-
-        public AltitudeFlyoutContent(
-            MenuItem entry,
-            string outline,
-            MenuContext context,
-            IMenuHost host,
-            Func<Func<string, Task>, Action, IAltitudeFlyoutPanel> build
-        )
-        {
-            _entry = entry;
-            _context = context;
-            _host = host;
-            _build = build;
-            _holder = new AltitudeFlyoutHost(outline);
-            entry.Items.Add(PanelRow(_holder));
-            entry.PropertyChanged += (_, e) =>
-            {
-                if (e.Property != MenuItem.IsSubMenuOpenProperty)
-                {
-                    return;
-                }
-
-                if (entry.IsSubMenuOpen)
-                {
-                    Open(null);
-                }
-                else
-                {
-                    Closed();
-                }
-            };
-        }
-
-        /// <inheritdoc />
-        public void Opened(ItemCollection items, Action close) => Open(close);
-
-        /// <inheritdoc />
-        public void PointerInside(bool inside) { }
-
-        /// <inheritdoc />
-        public void Closed()
-        {
-            _tick?.Stop();
-            _open = false;
-            _closeFlyout = null;
-        }
-
-        private void Open(Action? close)
-        {
-            _open = true;
-            _closeFlyout = close;
-            if (_panel is null)
-            {
-                _panel = _build(ChooseAsync, Close);
-                _tick = new FlyoutLiveTick(_host.Clock, _panel.Refresh);
-                _holder.Child = _panel.View;
-            }
-
-            _panel.Reset();
-            _panel.Refresh();
-            _tick?.Start();
-            _panel.FocusOpeningLater(() => _open);
-        }
-
-        /// <summary>Sends <paramref name="command"/> and closes the strip's flyout and the menu, or the submenu's menu.</summary>
-        private async Task ChooseAsync(string command)
-        {
-            Task sending = _host.SendAsync(_context.Callsign, command, _context.Initials);
-            Close();
-            await sending;
-        }
-
-        /// <summary>Closes the strip's flyout and the menu, or the submenu's menu, sending nothing.</summary>
-        private void Close()
-        {
-            if (_closeFlyout is { } close)
-            {
-                close();
-            }
-            else
-            {
-                _entry.FindLogicalAncestorOfType<ContextMenu>()?.Close();
-            }
-        }
-    }
-}
-
-/// <summary>What the altitude flyout's content asks of its panel as it opens and on each beat.</summary>
-internal interface IAltitudeFlyoutPanel
-{
-    /// <summary>The panel itself, which the flyout's menu row holds.</summary>
-    Control View { get; }
-
-    /// <summary>Puts the panel back as it opens: the box empty.</summary>
-    void Reset();
-
-    /// <summary>Follows the aircraft: the present altitude and, in the Maintain list, the marks, the verbs and the MVA line.</summary>
-    void Refresh();
-
-    /// <summary>Focuses the box, once laid out and while <paramref name="isOpen"/> still holds.</summary>
-    void FocusOpeningLater(Func<bool> isOpen);
 }
 
 /// <summary>An altitude flyout's menu row header, which holds its panel once the flyout first opens.</summary>
 /// <param name="outline">The header as one line, for a menu outline, the same before and after the first opening.</param>
-public sealed class AltitudeFlyoutHost(string outline) : Border
-{
-    /// <inheritdoc />
-    public override string ToString() => outline;
-}
+public sealed class AltitudeFlyoutHost(string outline) : FlyoutPanelHost(outline, "altitude-flyout-panel");
 
 /// <summary>The altitude flyouts' shared looks.</summary>
 internal static class AltitudePanelParts
 {
     public static readonly IImmutableSolidColorBrush ValueBrush = new ImmutableSolidColorBrush(Color.Parse("#E4E7EB"));
     public static readonly IImmutableSolidColorBrush GreyedBrush = new ImmutableSolidColorBrush(Color.Parse("#7D838B"));
-    public static readonly IImmutableSolidColorBrush RefusalBrush = new ImmutableSolidColorBrush(Color.Parse("#E08A8A"));
-
-    /// <summary>The title line: <paramref name="title"/> left, <paramref name="now"/> right in the monospace font.</summary>
-    public static Grid TitleLine(TextBlock title, TextBlock now)
-    {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(11, 6, 11, 2) };
-        grid.Children.Add(title);
-        now.Margin = new Thickness(12, 0, 0, 0);
-        Mono(now);
-        Grid.SetColumn(now, 1);
-        grid.Children.Add(now);
-        return grid;
-    }
 
     /// <summary>A box row: the glyph, the <c>Altitude</c> label with <paramref name="box"/> under it, and <paramref name="command"/> right.</summary>
     public static Grid BoxRow(QuickCommandGlyph glyph, TextBox box, TextBlock command)
@@ -514,7 +359,7 @@ internal static class AltitudePanelParts
         command.Margin = new Thickness(16, 0, 0, 0);
         command.HorizontalAlignment = HorizontalAlignment.Right;
         command.VerticalAlignment = VerticalAlignment.Center;
-        Mono(command);
+        FlyoutPanelParts.Mono(command);
         Grid.SetColumn(command, 2);
         grid.Children.Add(command);
         return grid;
@@ -536,41 +381,17 @@ internal static class AltitudePanelParts
         return box;
     }
 
-    /// <summary>Draws <paramref name="text"/> in the monospace font.</summary>
-    public static void Mono(TextBlock text) => text.Bind(TextBlock.FontFamilyProperty, text.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-
     /// <summary>Maintain altitude's climbing step glyph.</summary>
     public static QuickCommandGlyph MaintainGlyph() =>
         QuickCommandGlyphs.For(MenuIds.AltitudeMaintain) ?? throw new InvalidOperationException($"No glyph for {MenuIds.AltitudeMaintain}.");
-
-    /// <summary>
-    /// Focuses <paramref name="box"/> once laid out and while <paramref name="isOpen"/> still holds, then runs
-    /// <paramref name="after"/>.
-    /// </summary>
-    public static void FocusLater(TextBox box, Func<bool> isOpen, Action after) =>
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (!isOpen())
-                {
-                    return;
-                }
-
-                box.Focus(NavigationMethod.Directional);
-                after();
-            },
-            DispatcherPriority.Loaded
-        );
 }
 
 /// <summary>
 /// The Maintain altitude flyout's one menu row (<see cref="AltitudeFlyout"/>): the title line, the Altitude box, a separator,
 /// and the list of altitude rows with the MVA line among them, <see cref="AltitudeFlyout.ListHeight"/> px tall at most.
 /// </summary>
-public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
+public sealed class MaintainAltitudePanel : StackPanel, IFlyoutPanel
 {
-    private static readonly IImmutableSolidColorBrush NowFill = new ImmutableSolidColorBrush(Color.Parse("#2F4A6E"));
-    private static readonly IImmutableSolidColorBrush NowEdge = new ImmutableSolidColorBrush(Color.Parse("#5B8DEF"));
     private static readonly IImmutableSolidColorBrush ClimbBrush = new ImmutableSolidColorBrush(Color.Parse("#7FD1B9"));
     private static readonly IImmutableSolidColorBrush DescendBrush = new ImmutableSolidColorBrush(Color.Parse("#F2B880"));
     private static readonly IImmutableSolidColorBrush PlainGlyphBrush = new ImmutableSolidColorBrush(Color.Parse("#CCCCCC"));
@@ -603,7 +424,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         _choose = choose;
         MaxWidth = MenuCommandRow.RowMaxWidth;
         MinWidth = 300;
-        Children.Add(AltitudePanelParts.TitleLine(_title, _titleNow));
+        Children.Add(FlyoutPanelParts.TitleLine(_title, _titleNow));
         Box = AltitudePanelParts.Box(AltitudeFlyout.BoxPlaceholder, 150);
         Box.PropertyChanged += (_, e) =>
         {
@@ -690,11 +511,11 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         return (index >= 0) ? _rows[index] : throw new ArgumentOutOfRangeException(nameof(altitude), altitude, "No row lists this altitude.");
     }
 
-    Control IAltitudeFlyoutPanel.View => this;
+    Control IFlyoutPanel.View => this;
 
-    void IAltitudeFlyoutPanel.Reset() => Box.Text = "";
+    void IFlyoutPanel.Reset() => Box.Text = "";
 
-    void IAltitudeFlyoutPanel.Refresh()
+    void IFlyoutPanel.Refresh()
     {
         _reading = _read();
         List = AltitudeFlyout.MaintainList(_altitudes, _reading);
@@ -702,7 +523,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         ShowBoxCommand();
     }
 
-    void IAltitudeFlyoutPanel.FocusOpeningLater(Func<bool> isOpen) => AltitudePanelParts.FocusLater(Box, isOpen, CentreSelected);
+    void IFlyoutPanel.FocusOpeningLater(Func<bool> isOpen) => FlyoutPanelParts.FocusLater(Box, isOpen, CentreSelected);
 
     /// <summary>The row the list's entry at <paramref name="listIndex"/> stands for, the MVA line skipped; null for the line.</summary>
     private int? AltitudeIndex(int listIndex)
@@ -788,8 +609,8 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         parts.Note.Text = note;
         parts.Note.Foreground = greyed ? AltitudePanelParts.GreyedBrush : FlyoutPanelParts.TitleBrush;
         parts.Command.Text = row.Command;
-        parts.Fill.Background = now ? NowFill : Brushes.Transparent;
-        parts.Fill.BorderBrush = now ? NowEdge : Brushes.Transparent;
+        parts.Fill.Background = now ? FlyoutPanelParts.NowFill : Brushes.Transparent;
+        parts.Fill.BorderBrush = now ? FlyoutPanelParts.NowEdge : Brushes.Transparent;
         MenuCommandText.SetCommand(_rows[index], row.Command);
         AutomationProperties.SetName(_rows[index], (note.Length > 0) ? $"{row.Label} · {note} — {row.Command}" : $"{row.Label} — {row.Command}");
     }
@@ -799,7 +620,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         {
             MenuRichRowKind.Climb => ClimbBrush,
             MenuRichRowKind.Descend => DescendBrush,
-            MenuRichRowKind.Assigned => NowEdge,
+            MenuRichRowKind.Assigned => FlyoutPanelParts.NowEdge,
             MenuRichRowKind.BelowMva => AltitudePanelParts.GreyedBrush,
             _ => PlainGlyphBrush,
         };
@@ -815,7 +636,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         grid.Children.Add(parts.Glyph);
         parts.Value.FontSize = 13;
         parts.Value.VerticalAlignment = VerticalAlignment.Center;
-        AltitudePanelParts.Mono(parts.Value);
+        FlyoutPanelParts.Mono(parts.Value);
         Grid.SetColumn(parts.Value, 1);
         grid.Children.Add(parts.Value);
         parts.Note.FontSize = 11.5;
@@ -827,7 +648,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
         parts.Command.Opacity = 0.7;
         parts.Command.Margin = new Thickness(14, 0, 0, 0);
         parts.Command.VerticalAlignment = VerticalAlignment.Center;
-        AltitudePanelParts.Mono(parts.Command);
+        FlyoutPanelParts.Mono(parts.Command);
         Grid.SetColumn(parts.Command, 3);
         grid.Children.Add(parts.Command);
         parts.Fill.Child = grid;
@@ -1007,7 +828,7 @@ public sealed class MaintainAltitudePanel : StackPanel, IAltitudeFlyoutPanel
 /// aircraft's present altitude, and the Altitude box with the command it sends beside it, or the refusal where the text is no
 /// altitude. Enter sends; Enter in the empty box closes the menu, sending nothing.
 /// </summary>
-public sealed class AltitudeBoxPanel : StackPanel, IAltitudeFlyoutPanel
+public sealed class AltitudeBoxPanel : StackPanel, IFlyoutPanel
 {
     private readonly AltitudeBoxKind _kind;
     private readonly IMenuAircraft? _aircraft;
@@ -1028,7 +849,7 @@ public sealed class AltitudeBoxPanel : StackPanel, IAltitudeFlyoutPanel
             FontSize = 11,
             Foreground = FlyoutPanelParts.TitleBrush,
         };
-        Children.Add(AltitudePanelParts.TitleLine(title, _titleNow));
+        Children.Add(FlyoutPanelParts.TitleLine(title, _titleNow));
         Box = AltitudePanelParts.Box((kind == AltitudeBoxKind.Cruise) ? "e.g. 240" : "e.g. 120", 130);
         Box.PropertyChanged += (_, e) =>
         {
@@ -1055,14 +876,13 @@ public sealed class AltitudeBoxPanel : StackPanel, IAltitudeFlyoutPanel
     /// <summary>The title line as text: <c>Temporary altitude · now FL240</c>.</summary>
     public string Title => (_titleNow.Text is { Length: > 0 } now) ? $"{AltitudeFlyout.Title(_kind)} · {now}" : AltitudeFlyout.Title(_kind);
 
-    Control IAltitudeFlyoutPanel.View => this;
+    Control IFlyoutPanel.View => this;
 
-    void IAltitudeFlyoutPanel.Reset() => Box.Text = "";
+    void IFlyoutPanel.Reset() => Box.Text = "";
 
-    void IAltitudeFlyoutPanel.Refresh() =>
-        _titleNow.Text = (_aircraft is { } aircraft) ? $"now {AltitudeFlyout.PresentText(aircraft.AltitudeFeet)}" : "";
+    void IFlyoutPanel.Refresh() => _titleNow.Text = (_aircraft is { } aircraft) ? $"now {AltitudeFlyout.PresentText(aircraft.AltitudeFeet)}" : "";
 
-    void IAltitudeFlyoutPanel.FocusOpeningLater(Func<bool> isOpen) => AltitudePanelParts.FocusLater(Box, isOpen, () => { });
+    void IFlyoutPanel.FocusOpeningLater(Func<bool> isOpen) => FlyoutPanelParts.FocusLater(Box, isOpen, () => { });
 
     private void ShowBoxCommand()
     {
@@ -1072,7 +892,7 @@ public sealed class AltitudeBoxPanel : StackPanel, IAltitudeFlyoutPanel
         BoxCommandText.Text = command ?? (blank ? $"{AltitudeFlyout.Verb(_kind)} {TakeoffFlyout.Unfilled}" : AltitudeFlyout.InvalidAltitude);
         if ((command is null) && !blank)
         {
-            BoxCommandText.Foreground = AltitudePanelParts.RefusalBrush;
+            BoxCommandText.Foreground = FlyoutPanelParts.RefusalBrush;
         }
         else
         {

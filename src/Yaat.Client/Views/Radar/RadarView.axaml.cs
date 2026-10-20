@@ -148,7 +148,7 @@ public partial class RadarView : UserControl
                 break;
             case TagFieldId.AssignedSpeed:
             case TagFieldId.CurrentSpeed:
-                ShowContextMenu(SpeedFlyout.Build(ac, radarVm, initials));
+                ShowContextMenu(RadarSpeedFlyout.Build(ac, radarVm, initials));
                 break;
             case TagFieldId.Destination:
                 radarVm.EnterDrawRoute(ac.Callsign);

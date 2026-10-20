@@ -17,10 +17,11 @@ namespace Yaat.Client.ContextMenus;
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
-/// the host's list popup over values the catalog computes (speeds, fixes, runways, STARs, airways) and formats the
+/// the host's list popup over values the catalog computes (fixes, runways, STARs, airways) and formats the
 /// pick into the command, choosing its form from the data present when the menu is built; a heading entry opens the heading
 /// flyout preset to its verb (<see cref="HeadingFlyout"/>); Maintain altitude, Temporary altitude and Cruise open the altitude
-/// flyouts (<see cref="AltitudeFlyout"/>); an approach entry opens its verb's approach flyout
+/// flyouts (<see cref="AltitudeFlyout"/>); Assign speed and Speed… open the speed flyout (<see cref="SpeedFlyout"/>); an
+/// approach entry opens its verb's approach flyout
 /// (<see cref="ApproachFlyout"/>); a host leaf asks the host for the item itself,
 /// for the entries that open a host surface or act on the surface — the warp popup, the flight-plan editor, route and
 /// push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and preset-taxi submenus over the
@@ -156,8 +157,8 @@ public static class MenuCatalog
             new HeadingFlyoutPreset("Turn right (degrees)", HeadingVerb.FlyHeading, HeadingFlyoutFocus.RightChips)
         ),
         Picker(MenuIds.AltitudeMaintain, "Maintain altitude", AltitudeFlyout.BuildMaintain),
-        Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed),
-        CheckedInputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, FormatAssignedSpeed, "Not a valid speed"),
+        Picker(MenuIds.SpeedAssign, "Assign speed", SpeedFlyout.Build),
+        Picker(MenuIds.SpeedCustom, "Speed…", SpeedFlyout.Build),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
         Picker(MenuIds.SpeedFinalApproach, "Reduce to final approach speed", BuildFinalApproachSpeed),
         FixPicker(MenuIds.NavigationDirectTo, "Direct to…", "DCT", Always, DirectToFixes),
@@ -1092,7 +1093,7 @@ public static class MenuCatalog
         ((input.Length == 4) && input.All(digit => digit is >= '0' and <= '7')) ? $"SQ {int.Parse(input)}" : null;
 
     /// <summary>The <c>SPD</c> command for a positive whole number of knots, or null for anything else.</summary>
-    private static string? FormatAssignedSpeed(string input) =>
+    internal static string? FormatAssignedSpeed(string input) =>
         (input.All(char.IsAsciiDigit) && int.TryParse(input, out int knots) && (knots > 0)) ? $"SPD {knots}" : null;
 
     /// <summary>
@@ -1546,53 +1547,23 @@ public static class MenuCatalog
 
     private const double MachRowMaximum = 0.92;
 
-    /// <summary>The picker's first row, above every speed: normal speed.</summary>
-    private const string ResumeNormalSpeedRow = "Resume normal speed";
-
-    /// <summary>The picker's second row, above every speed: the final approach speed the filed type flies.</summary>
-    private const string FinalApproachSpeedRow = "Final approach speed";
-
-    /// <summary>The Assign speed picker, highlighting the assigned speed rounded to ten knots, or the middle knots row.</summary>
-    private static MenuItem BuildAssignSpeed(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        List<object> speeds = SpeedValues(aircraft);
-        double? assigned = aircraft?.AssignedSpeed;
-        object? seed = assigned is > 0 ? (int)(Math.Round(assigned.Value / 10.0) * 10) : MiddleKnots(speeds);
-        return BuildList(label, speeds, seed, picked => Send(SpeedCommand(picked), context, host), host);
-    }
+    /// <summary>The knots chips and the Mach chips (in hundredths of a Mach) the Assign speed flyout offers.</summary>
+    /// <param name="Knots">Every tenth knot offered, lowest first.</param>
+    /// <param name="MachHundredths">Every Mach offered, in hundredths (78 for M.78), lowest first; empty below FL240.</param>
+    internal sealed record SpeedChoices(IReadOnlyList<int> Knots, IReadOnlyList<int> MachHundredths);
 
     /// <summary>
-    /// The middle knots row, which seeds the picker when no speed is assigned, or null when the caps leave no knots rows,
-    /// which the host reads as nothing to highlight. The leading and Mach rows are not counted.
+    /// The speeds the Assign speed flyout offers. A filed type gets every tenth knot from its approach speed rounded up through
+    /// its knots ceiling — the highest of its cruise, climb and descent speeds at the aircraft's altitude and the profile's
+    /// FL150/FL240 climb and FL100 descent knots, plus 20 kt (10 for a piston), floored to ten, capped at 250 below 10,000 ft
+    /// unless the type waives the limit — then, at or above FL240, the Mach values its profile spans. Without a filed type the
+    /// knots stay 150-350.
     /// </summary>
-    private static object? MiddleKnots(List<object> speeds)
+    internal static SpeedChoices SpeedValues(IMenuAircraft? aircraft)
     {
-        List<object> knots = [.. speeds.Where(speed => speed is int)];
-        return knots.Count > 0 ? knots[knots.Count / 2] : null;
-    }
-
-    /// <summary>The command a picked row sends: its own for a labelled row (<c>MACH .78</c>, <c>RNS</c>, <c>RFAS</c>), else <c>SPD 250</c>.</summary>
-    private static string SpeedCommand(object picked) => picked is MenuLabeledCommand row ? row.Command : $"SPD {picked}";
-
-    /// <summary>
-    /// The rows the Assign speed picker lists. Every list leads with Resume normal speed (<c>RNS</c>) and Final approach
-    /// speed (<c>RFAS</c>). A filed type then adds every tenth knot from its approach speed rounded up through its knots
-    /// ceiling — the highest of its cruise, climb and descent speeds at the aircraft's altitude and the profile's
-    /// FL150/FL240 climb and FL100 descent knots, plus 20 kt (10 for a piston), floored to ten, capped at 250 below
-    /// 10,000 ft unless the type waives the limit — then, at or above FL240, the Mach rows its profile spans. Without a
-    /// filed type the knots stay 150-350.
-    /// </summary>
-    private static List<object> SpeedValues(IMenuAircraft? aircraft)
-    {
-        var speeds = new List<object>
-        {
-            new MenuLabeledCommand(ResumeNormalSpeedRow, "RNS"),
-            new MenuLabeledCommand(FinalApproachSpeedRowLabel(aircraft), "RFAS"),
-        };
         if (aircraft is null || string.IsNullOrEmpty(aircraft.FiledAircraftType))
         {
-            speeds.AddRange(SpeedRange(150, 350));
-            return speeds;
+            return new SpeedChoices(SpeedRange(150, 350), []);
         }
 
         string type = aircraft.FiledAircraftType;
@@ -1606,33 +1577,20 @@ public static class MenuCatalog
         }
 
         int floor = (int)(Math.Ceiling(AircraftPerformance.ApproachSpeed(type, category) / 10.0) * 10);
-        speeds.AddRange(SpeedRange(floor, ceiling));
-        foreach (double mach in machs)
-        {
-            speeds.Add(MachRow(mach));
-        }
-
-        return speeds;
+        return new SpeedChoices(SpeedRange(floor, ceiling), [.. machs.Select(mach => (int)Math.Round(mach * 100, MidpointRounding.AwayFromZero))]);
     }
 
-    /// <summary>The final-approach-speed row's label: the filed type's approach speed rounded to the knot, else the bare label.</summary>
-    private static string FinalApproachSpeedRowLabel(IMenuAircraft? aircraft)
+    /// <summary>The filed type's final approach speed rounded to the knot; null without a filed type or a positive speed.</summary>
+    internal static int? FinalApproachKnots(IMenuAircraft? aircraft)
     {
         if (aircraft is null || string.IsNullOrEmpty(aircraft.FiledAircraftType))
         {
-            return FinalApproachSpeedRow;
+            return null;
         }
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.FiledAircraftType);
         int knots = (int)Math.Round(AircraftPerformance.ApproachSpeed(aircraft.FiledAircraftType, category), MidpointRounding.AwayFromZero);
-        return $"{FinalApproachSpeedRow} ({knots})";
-    }
-
-    /// <summary>A Mach row, listed <c>M.78</c> and sent as <c>MACH .78</c>.</summary>
-    private static MenuLabeledCommand MachRow(double mach)
-    {
-        int hundredths = (int)Math.Round(mach * 100, MidpointRounding.AwayFromZero);
-        return new MenuLabeledCommand($"M.{hundredths:00}", $"MACH .{hundredths:00}");
+        return (knots > 0) ? knots : null;
     }
 
     /// <summary>
@@ -1728,19 +1686,9 @@ public static class MenuCatalog
     /// <summary>The value floored to the previous ten, which the picker's knots floor and ceiling round to.</summary>
     private static int FloorToTen(double value) => (int)(Math.Floor(value / 10.0) * 10);
 
-    /// <summary>
-    /// A row of the Assign speed picker that carries its own command text: a Mach row (<c>M.78</c>, sent <c>MACH .78</c>)
-    /// or one of the two fixed rows every list leads with (<c>RNS</c>, <c>RFAS</c>). Its own type so the pick tells a
-    /// labelled row from a knots row, which is a bare int.
-    /// </summary>
-    private sealed record MenuLabeledCommand(string Label, string Command)
+    private static List<int> SpeedRange(int min, int max)
     {
-        public override string ToString() => Label;
-    }
-
-    private static List<object> SpeedRange(int min, int max)
-    {
-        var items = new List<object>(((max - min) / 10) + 1);
+        var items = new List<int>();
         for (int speed = min; speed <= max; speed += 10)
         {
             items.Add(speed);
@@ -1759,17 +1707,8 @@ public static class MenuCatalog
     /// </summary>
     /// <param name="label">The entry's catalog label (<see cref="MenuIds.SpeedFinalApproach"/>).</param>
     /// <param name="aircraft">The aircraft whose filed type gives the speed, or null for none.</param>
-    public static string FinalApproachSpeedLabel(string label, IMenuAircraft? aircraft)
-    {
-        if (aircraft is null || string.IsNullOrEmpty(aircraft.FiledAircraftType))
-        {
-            return label;
-        }
-
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.FiledAircraftType);
-        double fas = AircraftPerformance.ApproachSpeed(aircraft.FiledAircraftType, category);
-        return fas > 0 ? $"{label} - {fas:F0} kt" : label;
-    }
+    public static string FinalApproachSpeedLabel(string label, IMenuAircraft? aircraft) =>
+        (FinalApproachKnots(aircraft) is { } knots) ? $"{label} - {knots.ToString(CultureInfo.InvariantCulture)} kt" : label;
 
     /// <summary>
     /// A fix picker that sends <paramref name="command"/> with the picked fix. <paramref name="label"/> ends in an

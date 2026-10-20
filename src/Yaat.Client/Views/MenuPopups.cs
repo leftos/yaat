@@ -774,14 +774,9 @@ internal static class MenuPopups
         }
     }
 
-    /// <summary>The index of <paramref name="selected"/> in <paramref name="items"/>, else of the nearest integer item, else -1.</summary>
+    /// <summary>The index of <paramref name="selected"/> in <paramref name="items"/>, else -1.</summary>
     private static int SeedIndex(IReadOnlyList<object> items, object? selected)
     {
-        if (selected is null)
-        {
-            return -1;
-        }
-
         for (int i = 0; i < items.Count; i++)
         {
             if (Equals(items[i], selected))
@@ -790,32 +785,7 @@ internal static class MenuPopups
             }
         }
 
-        return FindClosestIndex(items, selected);
-    }
-
-    private static int FindClosestIndex(IReadOnlyList<object> items, object target)
-    {
-        if (target is not int targetInt)
-        {
-            return -1;
-        }
-
-        int bestIdx = -1;
-        int bestDiff = int.MaxValue;
-        for (int i = 0; i < items.Count; i++)
-        {
-            if (items[i] is int val)
-            {
-                int diff = Math.Abs(val - targetInt);
-                if (diff < bestDiff)
-                {
-                    bestDiff = diff;
-                    bestIdx = i;
-                }
-            }
-        }
-
-        return bestIdx;
+        return -1;
     }
 
     private static void FilterNames(TextBox textBox, ListBox listBox, string[] sortedNames)

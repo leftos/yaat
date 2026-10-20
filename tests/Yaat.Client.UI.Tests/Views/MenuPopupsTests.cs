@@ -303,7 +303,10 @@ public class MenuPopupsTests
 
     // --- The list, filtered-list and warp popups ------------------------------------------------
 
-    /// <summary>The list popup seeds the current value and hands back the item a click selects, then closes.</summary>
+    /// <summary>
+    /// The list popup opens on its seed, the first item as every caller passes it, and hands back the item a click selects, then
+    /// closes.
+    /// </summary>
     [AvaloniaFact]
     public void List_ClickPicksTheItem()
     {
@@ -311,8 +314,8 @@ public class MenuPopupsTests
         object? picked = null;
         MenuPopups.ShowList(
             anchor,
-            [3000, 4000, 5000],
-            4100,
+            ["SUNOL", "OAK", "EMZOH"],
+            "SUNOL",
             value =>
             {
                 picked = value;
@@ -324,13 +327,13 @@ public class MenuPopupsTests
         Popup popup = FindPopup(anchor);
         Assert.True(popup.IsOpen, "The list popup should open on its anchor.");
         ListBox list = FindListBox(anchor);
-        Assert.Equal<object?>(4000, list.SelectedItem);
+        Assert.Equal<object?>("SUNOL", list.SelectedItem);
         Assert.Null(picked);
 
         list.SelectedIndex = 2;
         HeadlessWindowExtensions.PumpDispatcher();
 
-        Assert.Equal<object?>(5000, picked);
+        Assert.Equal<object?>("EMZOH", picked);
         Assert.False(popup.IsOpen, "A pick should close the list popup.");
     }
 

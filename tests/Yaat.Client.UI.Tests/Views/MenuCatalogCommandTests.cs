@@ -81,8 +81,6 @@ public class MenuCatalogCommandTests
         (MenuIds.DataBlockAnnotate, "", "ANNOTATE"),
         (MenuIds.SimControlDelete, "", "DEL"),
         (MenuIds.HeadingPresent, "", "FPH"),
-        (MenuIds.SpeedAssign, "250", "SPD 250"),
-        (MenuIds.SpeedCustom, "210", "SPD 210"),
         (MenuIds.SpeedNormal, "", "RNS"),
         (MenuIds.SpeedFinalApproach, "", "RFAS"),
         (MenuIds.NavigationDirectTo, Fix, "DCT SUNOL"),
@@ -205,6 +203,9 @@ public class MenuCatalogCommandTests
         MenuIds.AltitudeMaintain,
         MenuIds.DataBlockTempAltitude,
         MenuIds.DataBlockCruise,
+        // Assign speed and Speed… open the speed flyout; SpeedFlyoutTests clicks its rows, chips and box.
+        MenuIds.SpeedAssign,
+        MenuIds.SpeedCustom,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -709,17 +710,25 @@ public class MenuCatalogCommandTests
 
     [AvaloniaTheory]
     [InlineData(213.0, 210, "Speed (→ 213)")]
-    [InlineData(null, 250, "Speed")]
-    public void AssignSpeed_SeedsPopupWithTheAssignedSpeed_OrTheListMiddle(double? assigned, int seed, string header)
+    [InlineData(null, null, "Speed")]
+    public void AssignSpeed_OutlinesTheAssignedSpeedsChip(double? assigned, int? outlined, string header)
     {
-        var host = new RecordingMenuHost("200");
+        var host = new RecordingMenuHost("");
         var aircraft = new FakeMenuAircraft { AssignedSpeed = assigned };
         MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
 
         Assert.NotNull(item);
-        Click((MenuItem)item);
+        item.IsSubMenuOpen = true;
+        Assert.Empty(host.ListPopups);
+        SpeedFlyoutPanel panel = Assert.IsType<SpeedFlyoutPanel>(
+            Assert.IsType<SpeedFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
+        );
+        Assert.Equal(
+            (outlined is { } knots) ? [panel.KnotChip(knots)] : [],
+            panel.KnotChips.Where(chip => chip.Classes.Contains(SpeedFlyout.AssignedClass))
+        );
+        panel.KnotChip(200).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal<object?>(seed, Assert.Single(host.ListPopups).Selected);
         Assert.Equal([(Callsign, "SPD 200", Initials)], host.Sent);
         Assert.Equal(header, SharedMenuGroups.Speed(aircraft, Context(), host).Header as string);
     }

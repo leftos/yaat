@@ -29,8 +29,10 @@ All Commands
     Maintain altitude
       maintain altitude flyout
   Speed
-    Assign speed picker:list [Resume normal speed, Final approach speed, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260, 270, 280, 290, 300, 310, 320, 330, 340, 350]
-    Speed… picker:input
+    Assign speed
+      speed flyout
+    Speed…
+      speed flyout
     Resume normal speed
     Reduce to final approach speed
   Navigation

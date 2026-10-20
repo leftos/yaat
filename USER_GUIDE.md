@@ -315,6 +315,14 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
   Type an altitude the way commands take one (`35`, `350`, `23000`, `FL350`): the nearest row is outlined and the box shows the command Enter would send, or `CM ···` faded while the text is not an altitude. Down from the box goes to the ● row; Up and Down walk the rows (the MVA line is skipped), Up from the top row returns to the box, Enter sends and Escape goes back to the strip button. Once a second the marks, the verbs, the MVA line and "now" follow the aircraft; the rows never move.
 
   **Temporary altitude…** and **Cruise…**, under All Commands › Data Block, each open a one-box flyout titled `Temporary altitude` or `Cruise` with `now 7,500` at the right. The box previews the command as you type (`TEMPALT 120`, `CRUISE 240`) and shows `Not a valid altitude` in red when the text cannot be read. Enter sends; Enter on an empty box closes the menu.
+
+  **Assign speed** (the strip button, and All Commands › Speed › Assign speed and Speed…) opens a flyout beside the menu, titled `Assign speed` with `now 250 kt` at the right, followed by ` · M.75` where the Mach chips show.
+
+  The **Speed (knots)** box ("e.g. 250") holds focus; its readout shows `SPD ···` faded while the box is empty, the command Enter would send (`SPD 250`) once it holds a speed, and `Not a valid speed` in red when the text cannot be read. Below it are **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed, `144 kt`).
+
+  A **Knots** grid follows, eight chips to a row (`SPD 250`), and at or above FL240 a **Mach** grid (`M.78` sends `MACH .78`). The chip of the present speed, and of the present Mach, is filled; the assigned speed's chip is outlined, and so is the chip the box names. Hover a chip to see its command in the readout and its tooltip.
+
+  Down from the box goes to Resume normal speed, then Final approach speed, then the grids; the arrow keys move within a grid, Enter sends, Enter on an empty box closes the menu, and Escape goes back to the strip button. Once a second the title, the marks and the final approach speed follow the aircraft.
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
 
   **Track** lists only what the track's own state calls for, the same items on every view: an untracked aircraft gets **Initiate Track**; an aircraft being tracked gets **Initiate handoff…**, **Point out…** and **Drop track**; a handoff in progress gets **Accept handoff** and **Cancel handoff**; and a pointout awaiting an answer gets **Acknowledge pointout**. States that overlap show both groups, separated.
@@ -387,7 +395,7 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
   A runway is short for the type when its landing distance available is under 1.15 times the type's landing distance. Such a row reads "Runway 28R · short" and is dimmed, but you can still click it. The icon on the strip turns to the aircraft's assigned runway the same way.
 
-**Typing into a menu popup.** The menu's Squawk… and Speed… popups check what you typed before sending it. A value that cannot be read or is out of range — a squawk with a digit outside 0–7, for one — is refused with a one-line message under the box, and the popup stays open with your text so you can correct it. In every menu text popup, Enter or OK sends once: a second press while the send is still under way does nothing.
+**Typing into a menu popup.** The menu's Squawk… popup checks what you typed before sending it. A value that cannot be read or is out of range — a squawk with a digit outside 0–7, for one — is refused with a one-line message under the box, and the popup stays open with your text so you can correct it. In every menu text popup, Enter or OK sends once: a second press while the send is still under way does nothing.
 
 The altitude boxes (Maintain altitude, Temporary altitude… and Cruise…) take `050`, `230`, `23000`, `FL230`, `fl 230`, `5,000` and above-ground altitudes such as `KOAK+010`. An altitude above FL999, `FL` with four or more digits, a malformed thousands group such as `2,30`, or an above-ground altitude while the navigation data is not loaded is not read: the box shows `CM ···` faded in Maintain altitude and `Not a valid altitude` in the other two.
 
@@ -902,7 +910,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   **Direct to…** for an aircraft navigating to a fix lists its route from that fix on: the fixes it is navigating through, then the filed route's fixes after them, then the destination, each once. An aircraft not navigating to a fix gets the free-text input instead.
 
-  **Assign speed** opens with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, showing the type's approach speed), then lists knots in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet's list continues with Mach numbers around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
+  **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
 
   Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
 

@@ -17,8 +17,8 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The four validated inputs, driven through the real client host: Squawk… and Speed… through the input popup, Temporary
-/// altitude… and Cruise… through their one-box flyouts. Text an input cannot read sends nothing, keeps the popup or the
+/// The four validated inputs, driven through the real client host: Squawk… through the input popup, Temporary altitude… and
+/// Cruise… through their one-box flyouts, and Speed… through the speed flyout's box. Text an input cannot read sends nothing, keeps the popup or the
 /// flyout open and shows its one-line reason (under the popup's box, in the flyout's command column), and every form it
 /// does read sends the command it should.
 /// </summary>
@@ -92,12 +92,12 @@ public class MenuInputValidationTests
         BoxFlyout open = OpenBox(MenuIds.DataBlockTempAltitude);
         try
         {
-            SubmitBox(open.Panel, "five thousand");
+            SubmitBox(open.Box, "five thousand");
 
             Assert.Empty(open.Sent.Sent);
-            Assert.Equal(BadAltitude, open.Panel.BoxCommandText.Text);
+            Assert.Equal(BadAltitude, open.Message);
 
-            SubmitBox(open.Panel, "FL230");
+            SubmitBox(open.Box, "FL230");
 
             Assert.Equal([(Callsign, "TEMPALT 230", "AB")], open.Sent.Sent);
             Assert.False(open.Menu.IsOpen);
@@ -123,14 +123,15 @@ public class MenuInputValidationTests
     // --- Speed… ---------------------------------------------------------------------------------
 
     [AvaloniaFact]
-    public void Speed_APositiveNumber_SendsIt() => AssertSends(MenuIds.SpeedCustom, "210", "SPD 210");
+    public void Speed_APositiveNumber_SendsIt() => AssertBoxSends(MenuIds.SpeedCustom, "210", "SPD 210");
 
     [AvaloniaTheory]
     [InlineData("fast")]
     [InlineData("2,10")]
     [InlineData("0")]
     [InlineData("-5")]
-    public void Speed_NotAPositiveWholeNumber_SendsNothingAndKeepsThePopupOpen(string typed) => AssertRefuses(MenuIds.SpeedCustom, typed, BadSpeed);
+    public void Speed_NotAPositiveWholeNumber_SendsNothingAndKeepsTheFlyoutOpen(string typed) =>
+        AssertBoxRefuses(MenuIds.SpeedCustom, typed, BadSpeed);
 
     // --- Fixtures -------------------------------------------------------------------------------
 
@@ -172,7 +173,7 @@ public class MenuInputValidationTests
         BoxFlyout open = OpenBox(id);
         try
         {
-            SubmitBox(open.Panel, typed);
+            SubmitBox(open.Box, typed);
 
             Assert.Equal([(Callsign, command, "AB")], open.Sent.Sent);
             Assert.False(open.Menu.IsOpen);
@@ -188,10 +189,10 @@ public class MenuInputValidationTests
         BoxFlyout open = OpenBox(id);
         try
         {
-            SubmitBox(open.Panel, typed);
+            SubmitBox(open.Box, typed);
 
             Assert.Empty(open.Sent.Sent);
-            Assert.Equal(message, open.Panel.BoxCommandText.Text);
+            Assert.Equal(message, open.Message);
             Assert.True(open.Menu.IsOpen, "A refused submit should leave the flyout open.");
         }
         finally
@@ -200,9 +201,28 @@ public class MenuInputValidationTests
         }
     }
 
-    /// <summary>A one-box altitude flyout opened under a context menu on a shown window, through the real client host.</summary>
-    private sealed record BoxFlyout(Window Window, ContextMenu Menu, AltitudeBoxPanel Panel, SendCapturingHost Sent)
+    /// <summary>
+    /// A one-box altitude flyout or the speed flyout opened under a context menu on a shown window, through the real client host:
+    /// its box, and the message its command column or readout shows.
+    /// </summary>
+    private sealed record BoxFlyout(Window Window, ContextMenu Menu, Control Panel, SendCapturingHost Sent)
     {
+        public TextBox Box =>
+            Panel switch
+            {
+                AltitudeBoxPanel altitude => altitude.Box,
+                SpeedFlyoutPanel speed => speed.Box,
+                _ => throw new InvalidOperationException($"unexpected panel {Panel.GetType().Name}"),
+            };
+
+        public string? Message =>
+            Panel switch
+            {
+                AltitudeBoxPanel altitude => altitude.BoxCommandText.Text,
+                SpeedFlyoutPanel speed => speed.Readout.Text,
+                _ => throw new InvalidOperationException($"unexpected panel {Panel.GetType().Name}"),
+            };
+
         public void Close()
         {
             Menu.Close();
@@ -230,14 +250,14 @@ public class MenuInputValidationTests
         HeadlessWindowExtensions.PumpDispatcher();
         entry.IsSubMenuOpen = true;
         HeadlessWindowExtensions.PumpDispatcher();
-        AltitudeFlyoutHost holder = Assert.IsType<AltitudeFlyoutHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header);
-        return new BoxFlyout(window, menu, Assert.IsType<AltitudeBoxPanel>(holder.Child), sent);
+        FlyoutPanelHost holder = Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header);
+        return new BoxFlyout(window, menu, Assert.IsAssignableFrom<Control>(holder.Child), sent);
     }
 
-    private static void SubmitBox(AltitudeBoxPanel panel, string typed)
+    private static void SubmitBox(TextBox box, string typed)
     {
-        panel.Box.Text = typed;
-        panel.Box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        box.Text = typed;
+        box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
         HeadlessWindowExtensions.PumpDispatcher();
     }
 

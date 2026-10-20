@@ -416,12 +416,11 @@ public class ContextMenuBuilderSeamTests
         Assert.Null(flyHeading.Tag);
         Assert.IsType<HeadingFlyoutHost>(Assert.Single(flyHeading.Items.OfType<MenuItem>()).Header);
 
-        // A free-text picker carries the input kind and no values.
+        // "Speed…" opens the speed flyout, a submenu holding its panel, and carries no popup descriptor.
         MenuItem speed = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed");
         MenuItem speedInput = speed.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed…");
-        MenuPickerDescriptor inputDescriptor = Assert.IsType<MenuPickerDescriptor>(speedInput.Tag);
-        Assert.Equal(MenuPickerDescriptor.Input, inputDescriptor.Kind);
-        Assert.Empty(inputDescriptor.Items);
+        Assert.Null(speedInput.Tag);
+        Assert.IsType<SpeedFlyoutHost>(Assert.Single(speedInput.Items.OfType<MenuItem>()).Header);
     }
 
     [AvaloniaFact]
