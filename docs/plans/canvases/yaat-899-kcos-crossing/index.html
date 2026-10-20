@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-899: why KCOS TAXI A2 C2 runs along 17R/35L</title>
+<style>
+  body { margin: 0; background: #f4f2ec; color: #1d1d1d; font: 15px/1.5 "Segoe UI", Arial, sans-serif; }
+  main { max-width: 1340px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 0 0 4px; }
+  h3 { font-size: 17px; margin: 18px 0 4px; }
+  .sub { color: #333; margin: 0 0 18px; }
+  section { background: #fff; border: 1px solid #d9d4c7; border-radius: 10px; padding: 18px 20px 20px; margin: 22px 0; }
+  img { display: block; max-width: 100%; border: 1px solid #ddd; border-radius: 6px; margin: 12px 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .lanes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .verdict { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 12px; font-size: 13px; }
+  .yes { background: #d7f0dc; color: #145a26; }
+  .no { background: #f8d7d7; color: #9b1c1c; }
+  .note { background: #fff7e0; border: 1px solid #edd38a; border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1eee6; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; background: #f1eee6; padding: 0 4px; border-radius: 3px; }
+  .chain { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; color: #333; }
+  .legend span { display: inline-block; margin-right: 18px; }
+  .sw { display: inline-block; width: 26px; height: 6px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<main>
+<h1>YAAT-899: why KCOS <code>TAXI A2 C2</code> drives along 17R/35L after <code>CROSS</code></h1>
+<p class="sub">A2 and C2 do not meet the runway at the same place. In the layout, A2 ends on the centreline at node #12 and C2 ends on it at #40, <b>255.2 ft further south</b>. Node #12 has no other edge except the runway itself, north and south, so the only pavement from A2 to C2 runs 255.4 ft down the centreline. At #40 the route then turns 149.5&deg; back onto C2, a high-speed exit built for 35L arrivals that leaves the runway 30.3&deg; off its line. C2 then climbs north-east and crosses A2's extended line 150 ft east of the centreline, before its own hold bar. That is why the two read as "facing each other" on a diagram. But the layout has no pavement along that line, so the "straight over" crossing has nothing to drive on.</p>
+
+<div class="legend">
+<span><i class="sw" style="background:#1f5fbf"></i>route the item resolves (graph)</span>
+<span><i class="sw" style="background:#e07b00"></i>what a C172 actually drove after <code>CROSS 35L</code>, one dot per second</span>
+<span><i class="sw" style="background:#c00000;height:10px"></i>17R/35L hold bars</span>
+<span><i class="sw" style="background:#9a9a9a;height:10px"></i>runway pavement, 150 ft wide</span>
+<span><i class="sw" style="background:#7d7d7d;height:2px"></i>dotted: fillet arcs the route does not use</span>
+</div>
+
+<section>
+<h2>1 &middot; <code>TAXI A2 C2 C</code> as it resolves today</h2>
+<p>Readback <code>Taxi via A2 C2 C</code>; with <code>HS 35L</code> it is <code>Taxi via A2 C2 C HS 17R/35L at A2</code>. One hold short, at A2's bar #84 (<code>RunwayCrossing</code>), and after <code>CROSS 35L</code> the aircraft never holds again. It stays in <code>CrossingRunwayPhase</code> until it is past C2's bar #90.</p>
+<p class="chain">#147 → #131 → #1 → #132 → <b>#84 A2 bar</b> → #149 → <b>#12 A2 join</b> ⟶ #151 ⟶ #253 ⟶ <b>#40 C2 join</b> → #252 → <b>#90 C2 bar</b> → #227 → #226 → #33 (C2/C)</p>
+<p>⟶ marks runway centreline edges: 82.1 + 50.0 + 123.3 = <b>255.4 ft</b>, the figure <code>SegmentExpander.CenterlineLengthFt</code> gives, under the 300 ft bound. The route turns 89.9&deg; at #12 and 149.5&deg; at #40, both as point turns: it uses neither fillet arc.</p>
+<img src="route-a2-c2.png" alt="TAXI A2 C2 C close-up: A2 bar #84, join #12, 255 ft down the centreline to #40, reversal onto C2, C2 bar #90">
+</section>
+
+<section>
+<h2>2 &middot; <code>TAXI C2 A2 A</code> as it resolves today</h2>
+<p>Readback <code>Taxi via C2 A2 A</code>; with <code>HS 35L</code> it is <code>Taxi via C2 A2 A HS 17R/35L at C2</code>. One hold short, at C2's bar #90. The route is the same pavement in reverse: 149.5&deg; at #40 onto the centreline northbound, 255.4 ft of centreline, then 89.9&deg; at #12 onto A2.</p>
+<p class="chain">#33 → #226 → #227 → <b>#90 C2 bar</b> → #252 → <b>#40 C2 join</b> ⟶ #253 ⟶ #151 ⟶ <b>#12 A2 join</b> → #149 → <b>#84 A2 bar</b> → #132 → #1 (A2/A)</p>
+<img src="route-c2-a2.png" alt="TAXI C2 A2 A close-up, the same pavement in reverse">
+</section>
+
+<section>
+<h2>3 &middot; Measured</h2>
+<p>Positions come from the runtime graph that <code>TestAirportGroundData</code> builds from <code>TestData/COS.geojson</code>. Along-track is feet north of #12 along the runway line (#40 → #150, 359.60&deg; true), and cross-track is feet east of the centreline.</p>
+<table>
+<tr><th>Quantity</th><th>Value</th><th>Source</th></tr>
+<tr><td>A2 join, node #12</td><td class="n">38.812600, &minus;104.715910 &middot; along 0.0 &middot; cross 0.0</td><td>graph node</td></tr>
+<tr><td>C2 join, node #40</td><td class="n">38.811900, &minus;104.715900 &middot; along &minus;255.2 &middot; cross +1.1</td><td>graph node</td></tr>
+<tr><td>Distance #12 → #40 along the centreline</td><td class="n">255.2 ft straight; 255.4 ft over the edges #12→#151→#253→#40</td><td><code>CenterlineLengthFt</code></td></tr>
+<tr><td>A2 hold bar #84, from the centreline</td><td class="n">248.5 ft west (along &minus;0.6)</td><td>graph node</td></tr>
+<tr><td>C2 hold bar #90, from the centreline</td><td class="n">252.6 ft east, 176.2 ft north of #12; 499.7 ft along C2 from #40</td><td>graph node</td></tr>
+<tr><td>Hold-short standoff</td><td class="n">not authored in the vNAS map; 250 ft from the width rule</td><td><code>HoldShortDistanceFt</code> = null, <code>HoldShortDistanceForWidth(150)</code></td></tr>
+<tr><td>Runway width</td><td class="n">150 ft</td><td><code>GroundRunway.WidthFt</code> (navdata)</td></tr>
+<tr><td>A2's angle to the runway</td><td class="n">90.1&deg; (square)</td><td>bearing #12→#149 vs runway line</td></tr>
+<tr><td>C2's angle to the runway</td><td class="n">30.3&deg; (C2 leaves #40 on 29.85&deg; true)</td><td>bearing #40→#252 vs runway line</td></tr>
+<tr><td>Route's turns between the bars</td><td class="n">89.9&deg; at #12, 149.5&deg; at #40, no arcs</td><td>route segments</td></tr>
+<tr><td>Route length, bar to bar</td><td class="n">1,003.1 ft</td><td>route polyline</td></tr>
+<tr><td><b>Feet of the run inside the runway pavement</b> (|cross| &le; 75 ft)</td><td class="n"><b>477.0 ft</b> (graph) &middot; <b>411.0 ft</b> (drive A2→C2) &middot; 411.4 ft (drive C2→A2)</td><td>route polyline / drive positions, sampled</td></tr>
+<tr><td>Time inside the runway edges</td><td class="n">about 21 s (A2→C2, samples t=53&ndash;73) &middot; about 20 s (C2→A2, t=62&ndash;81)</td><td>drive, 1 s ticks</td></tr>
+<tr><td>Along-runway travel in the drive</td><td class="n">221.6 ft (A2→C2) &middot; 224.6 ft (C2→A2)</td><td>drive: it cuts the 149.5&deg; corner 34 ft short of #40</td></tr>
+<tr><td>For comparison: a square crossing</td><td class="n">150 ft of pavement</td><td>runway width</td></tr>
+</table>
+<div class="note">The aviation review's ~255 ft is the graph's figure. The drive covers 222 ft along the runway because the navigator cuts the corner at #40, slowing to 8.7&ndash;11.2 kt through the reversal. Either way, the aircraft covers 2.7&ndash;3.2 times a square crossing's distance on the runway pavement (411&ndash;477 ft against 150 ft).</div>
+</section>
+
+<section>
+<h2>4 &middot; Lanes for the owner</h2>
+<div class="lanes">
+<div>
+<h3>A &middot; offset crossing (today) <span class="verdict yes">layout: supported</span></h3>
+<p>Hold at the entry bar, and on <code>CROSS</code> roll 255 ft down the centreline, reverse onto C2 and cross C2's bar without stopping. It is the only pavement path the layout has. Cost: 411&ndash;477 ft and about 20 s on 17R/35L, plus a reversal onto a high-speed exit, the use 7110.65 &sect;3-7-2.c NOTE tells controllers to avoid as a crossing point.</p>
+<img src="lane-a.png" alt="Lane A: accept as an offset crossing">
+</div>
+<div>
+<h3>B &middot; straight over <span class="verdict no">layout: not supported</span></h3>
+<p>Cross square from A2 and join C2 off the runway. A2's line meets C2's centreline 150.1 ft east of the runway centreline: 75 ft beyond the east edge, 295.8 ft up C2 from #40 and 204 ft short of C2's bar. The layout has no taxiway on those 75 ft. Its GeoJSON carries centrelines only, A2's LineString ends at the runway (&minus;104.71591), and #12 has no edge to the east. This lane needs a new segment in the layout, which this canvas does not invent. Whether real KCOS has pavement there was not checked.</p>
+<img src="lane-b.png" alt="Lane B: the straight-over line, absent from the layout">
+</div>
+<div>
+<h3>C &middot; refuse unless the runway is cleared <span class="verdict yes">layout: supported</span></h3>
+<p>Drop the sidecar pair, and <code>TAXI A2 C2 C</code> is refused with <code>Unable, A2 and C2 do not connect, request taxi instructions</code>. Spoken: <i>"november three six nine three six, unable, alpha two and charlie two don't connect, request taxi"</i>. The instructor then names the runway:</p>
+<ul>
+<li><code>TAXI A2 17R C2 C</code> reads back <code>Taxi via A2 on 17R C2 C</code>, with no hold at A2's bar because the runway is cleared. It runs 173.3 ft of centreline, entering on the #149→#151 fillet, and 436.6 ft of pavement.</li>
+<li><code>TAXI A2 17R C2 C HS 17R</code> reads back <code>Taxi via A2 C2 C HS 17R at A2</code>. The runway leg drops out of the readback because it is under 300 ft.</li>
+<li><code>TAXI C2 35L A2 A</code> reads back <code>Taxi via C2 on 35L A2 A</code>. It runs 50.0 ft of centreline, using the #252→#253 fillet.</li>
+</ul>
+<img src="lane-c.png" alt="Lane C: refused unless the runway is named">
+</div>
+</div>
+</section>
+
+<section>
+<h2>5 &middot; Side findings, not part of the ruling</h2>
+<ul>
+<li><b>The offset-crossing route takes no fillets.</b> Between the bars it turns as points at #12 (89.9&deg;) and #40 (149.5&deg;). The C172 drive cut the #40 corner, turning 221.6 ft south of #12 and slowing to 8.7 kt. Two arcs exist: #149→#151 (57 ft) and #253→#252 (18 ft). The pinned leg ends exactly at the join node, so the crossing route never uses them. How a jet would drive the 149.5&deg; point was not measured.</li>
+<li><b>The named-runway form is asymmetric.</b> <code>TAXI A2 17R C2 C</code> still pivots 149.5&deg; at #40, though the 18 ft fillet #253→#252 exists. <code>TAXI C2 35L A2 A</code> uses that fillet in the other direction.</li>
+<li><b>Lane C's refusal names the wrong pair for <code>C2 A2 A</code>.</b> With the pair undeclared, <code>TAXI C2 A2</code> refuses correctly ("C2 and A2 do not connect", all 7 bridges dropped). <code>TAXI C2 A2 A</code> instead logs <code>[detour] found detour C2→A2 via #12 segs=25</code>, a bridge that lands on a centreline node. It then refuses "Unable, A2 and A do not connect", although A2 and A meet at #1. The line responsible was not traced. This matters only if lane C removes the sidecar pair.</li>
+</ul>
+</section>
+
+<section>
+<h2>6 &middot; LayoutInspector's own render of route 1</h2>
+<p><code>--html-route 84,149,12,151,253,40,252,90</code>, screenshotted at a close-up view. The route stops are numbered 0&ndash;7 in that order. The inspector stretches its projection to the window, so east&ndash;west distances and angles look wrong: C2 appears near 45&deg;. Read angles from the to-scale figures above.</p>
+<img src="li-a2-c2.png" alt="LayoutInspector render of the A2 to C2 route, close-up">
+</section>
+
+<section>
+<h2>How it was measured</h2>
+<p>The data comes from a temporary test in the item tree (branch yaat-899, uncommitted; since deleted). It loaded KCOS through <code>TestAirportGroundData</code> and dumped every node and edge within 1,400 ft of #12. It resolved each route with <code>GroundCommandHandler.TryTaxi</code>, a C172 starting at the taxiway's far node and nosed toward its join, as <code>Issue899DetourConnectorTests</code> does.</p>
+<p>It then drove each route through <code>SimulationEngine</code>: <code>TAXI</code>, ticks until <code>HoldingShortPhase</code>, then <code>CROSS 35L</code>, with the position logged every second. Lane C's commands went through <code>SimulationEngine.SendCommand</code>. Its refusal was measured with <code>NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting())</code>, an empty sidecar catalogue, so the A2/C2 pair was undeclared without editing <code>cos.json</code>.</p>
+<p>The figures are drawn to scale, north up, from those node positions, edges and drive positions. Lane B's dashed line and the shaded 75 ft are the only drawn geometry not taken from the layout, and they are labelled as absent from it.</p>
+</section>
+</main>
+</body>
+</html>
