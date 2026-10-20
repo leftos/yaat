@@ -40,8 +40,6 @@ public static class PointTaxiFlyout
     /// <summary>The Taxi here flyout's scroll host's name for assistive technology.</summary>
     public const string TaxiHereRoutesName = "Taxi here routes";
 
-    private static readonly IImmutableSolidColorBrush TitleBrush = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
-
     /// <summary>The class of the menu row that holds the whole panel, kept at its resting background.</summary>
     private const string PanelRowClass = "point-taxi-panel";
 
@@ -284,7 +282,7 @@ public static class PointTaxiFlyout
         var text = new TextBlock
         {
             FontSize = 11.5,
-            Foreground = TitleBrush,
+            Foreground = FlyoutPanelParts.TitleBrush,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center,
             Inlines =
@@ -329,7 +327,7 @@ public static class PointTaxiFlyout
         {
             Text = distance,
             FontSize = 11.5,
-            Foreground = TitleBrush,
+            Foreground = FlyoutPanelParts.TitleBrush,
             Margin = new Thickness(12, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };

@@ -78,12 +78,9 @@ public class MenuCatalogCommandTests
         (MenuIds.CoordinationReleaseHeld, "", $"REL {Callsign}"),
         (MenuIds.CoordinationCheckReleaseWindow, "", "CFR CHECK"),
         (MenuIds.DataBlockScratchpad, BlockText, $"SP {BlockText}"),
-        (MenuIds.DataBlockTempAltitude, "050", "TEMPALT 50"),
-        (MenuIds.DataBlockCruise, "050", "CRUISE 50"),
         (MenuIds.DataBlockAnnotate, "", "ANNOTATE"),
         (MenuIds.SimControlDelete, "", "DEL"),
         (MenuIds.HeadingPresent, "", "FPH"),
-        (MenuIds.AltitudeMaintain, "FL350", "CM 35000"),
         (MenuIds.SpeedAssign, "250", "SPD 250"),
         (MenuIds.SpeedCustom, "210", "SPD 210"),
         (MenuIds.SpeedNormal, "", "RNS"),
@@ -204,6 +201,10 @@ public class MenuCatalogCommandTests
         MenuIds.HeadingTurnRight,
         MenuIds.HeadingTurnLeftDegrees,
         MenuIds.HeadingTurnRightDegrees,
+        // The altitude entries open the altitude flyouts; AltitudeFlyoutTests clicks their rows and boxes.
+        MenuIds.AltitudeMaintain,
+        MenuIds.DataBlockTempAltitude,
+        MenuIds.DataBlockCruise,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -463,14 +464,9 @@ public class MenuCatalogCommandTests
     [InlineData(10000.0, "10,000", "CM 10000")]
     public void MaintainAltitude_ClimbsAboveTheCurrentAltitude_DescendsBelowIt(double altitude, string pick, string command)
     {
-        var host = new RecordingMenuHost(pick);
-        MenuItem? item = MenuCatalog.Get(MenuIds.AltitudeMaintain).Build(new FakeMenuAircraft { AltitudeFeet = altitude }, Context(), host);
+        var host = new RecordingMenuHost("");
+        MenuRichList popup = OpenMaintainAndPick(new FakeMenuAircraft { AltitudeFeet = altitude }, host, pick);
 
-        Assert.NotNull(item);
-        Assert.Equal("Maintain altitude", item.Header as string);
-        Click((MenuItem)item);
-
-        MenuRichList popup = Assert.Single(host.RichListPopups);
         Assert.Equal("10,000", popup.Rows[popup.SelectedIndex].Label);
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
     }
@@ -478,9 +474,9 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void MaintainAltitude_ListsFromTheDestinationsFieldElevation_In100sThen500s()
     {
-        var host = new RecordingMenuHost("9,500") { FieldElevation = 4321 };
+        var host = new RecordingMenuHost("") { FieldElevation = 4321 };
         var aircraft = new FakeMenuAircraft { AltitudeFeet = 5000, Destination = "KXYZ" };
-        MenuRichList popup = OpenMaintain(aircraft, host);
+        MenuRichList popup = OpenMaintainAndPick(aircraft, host, "9,500");
 
         Assert.Equal(["KXYZ"], host.FieldElevationRequests);
         List<string> labels = [.. popup.Rows.Select(row => row.Label)];
@@ -494,19 +490,19 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_TitleAndSubtitleNameTheAircraft()
+    public void MaintainFlyout_TitleLineNamesTheVerbAndTheAltitudes()
     {
         MenuRichList assigned = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3040, AssignedAltitude = 5000 }, new RecordingMenuHost(""));
         MenuRichList unassigned = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 24960 }, new RecordingMenuHost(""));
 
-        Assert.Equal($"{Callsign} · Maintain", assigned.Title);
-        Assert.Equal("now 3,000 · assigned 5,000 · type to jump", assigned.Subtitle);
-        Assert.Equal($"{Callsign} · Maintain", unassigned.Title);
-        Assert.Equal("now FL250 · type to jump", unassigned.Subtitle);
+        Assert.Equal("Maintain altitude", assigned.Title);
+        Assert.Equal("now 3,000 · assigned 5,000", assigned.Subtitle);
+        Assert.Equal("Maintain altitude", unassigned.Title);
+        Assert.Equal("now FL250", unassigned.Subtitle);
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_OpensOnTheAssignedRow()
+    public void MaintainFlyout_OpensOnTheAssignedRow()
     {
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 35000 }, new RecordingMenuHost(""));
 
@@ -516,7 +512,7 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_OpensOnTheCurrentRowWhenUnassigned()
+    public void MaintainFlyout_OpensOnTheCurrentRowWhenUnassigned()
     {
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3040 }, new RecordingMenuHost(""));
 
@@ -526,16 +522,16 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_MarksNowAndAssignedRows()
+    public void MaintainFlyout_MarksNowAndAssignedRows()
     {
         MenuRichList apart = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 5000 }, new RecordingMenuHost(""));
         MenuRichList same = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 3000 }, new RecordingMenuHost(""));
 
-        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000", 3000, []), Row(apart, "3,000"));
-        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000", 5000, []), Row(apart, "5,000"));
-        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000", 4000, []), Row(apart, "4,000"));
-        Assert.Equal(new MenuRichRow("↓", "2,000", "DM 2000", MenuRichRowKind.Descend, "DM 2000", 2000, []), Row(apart, "2,000"));
-        Assert.Equal(new MenuRichRow("●", "3,000", "now · assigned", MenuRichRowKind.NowAssigned, "CM 3000", 3000, []), Row(same, "3,000"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000", []), Row(apart, "3,000"));
+        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000", []), Row(apart, "5,000"));
+        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000", []), Row(apart, "4,000"));
+        Assert.Equal(new MenuRichRow("↓", "2,000", "DM 2000", MenuRichRowKind.Descend, "DM 2000", []), Row(apart, "2,000"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now · assigned", MenuRichRowKind.NowAssigned, "CM 3000", []), Row(same, "3,000"));
         Assert.DoesNotContain(same.Rows, row => row.Kind is MenuRichRowKind.Assigned or MenuRichRowKind.Now);
     }
 
@@ -543,16 +539,16 @@ public class MenuCatalogCommandTests
     [InlineData(5000.0, "CM 3000")]
     [InlineData(1000.0, "DM 3000")]
     [InlineData(null, "CM 3000")]
-    public void MaintainPicker_NowRowSendsTowardTheAssignment(double? assigned, string command)
+    public void MaintainFlyout_NowRowSendsTowardTheAssignment(double? assigned, string command)
     {
-        var host = new RecordingMenuHost("3,000");
-        OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = assigned }, host);
+        var host = new RecordingMenuHost("");
+        OpenMaintainAndPick(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = assigned }, host, "3,000");
 
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_StopsAtTheTypeCeiling()
+    public void MaintainFlyout_StopsAtTheTypeCeiling()
     {
         TestVnasData.EnsureInitialized();
         double? ceiling = AircraftPerformance.Ceiling("C172");
@@ -562,12 +558,12 @@ public class MenuCatalogCommandTests
 
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, FiledAircraftType = "C172" }, new RecordingMenuHost(""));
 
-        Assert.Equal(highestStep, popup.Rows[0].Value);
-        Assert.All(popup.Rows, row => Assert.True(row.Value <= ceiling.Value, $"{row.Label} is above the ceiling {ceiling}"));
+        Assert.Equal(highestStep, AltitudeOf(popup.Rows[0]));
+        Assert.All(popup.Rows, row => Assert.True(AltitudeOf(row) <= ceiling.Value, $"{row.Label} is above the ceiling {ceiling}"));
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_TypeWithoutProfileKeepsTheSixtyThousandCap()
+    public void MaintainFlyout_TypeWithoutProfileKeepsTheSixtyThousandCap()
     {
         TestVnasData.EnsureInitialized();
         Assert.Null(AircraftPerformance.Ceiling("ZZZZ"));
@@ -578,7 +574,7 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_DrawsTheMvaLineBetweenTheRightRows()
+    public void MaintainFlyout_DrawsTheMvaLineBetweenTheRightRows()
     {
         var host = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000 }, host);
@@ -591,34 +587,37 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_RowsBelowTheMvaAreGreyedButSend()
+    public void MaintainFlyout_RowsBelowTheMvaAreGreyedButSend()
     {
-        var host = new RecordingMenuHost("2,500") { Mva = ("12", 2600) };
-        MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000 }, host);
+        var host = new RecordingMenuHost("") { Mva = ("12", 2600) };
+        MenuRichList popup = OpenMaintainAndPick(new FakeMenuAircraft { AltitudeFeet = 3000 }, host, "2,500");
 
-        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500", 2500, []), Row(popup, "2,500"));
-        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600", 2600, []), Row(popup, "2,600"));
-        Assert.All(popup.Rows.Where(row => row.Value < 2600), row => Assert.Equal(MenuRichRowKind.BelowMva, row.Kind));
+        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500", []), Row(popup, "2,500"));
+        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600", []), Row(popup, "2,600"));
+        Assert.All(
+            popup.Rows.Where(row => (row.Kind != MenuRichRowKind.MvaLine) && (AltitudeOf(row) < 2600)),
+            row => Assert.Equal(MenuRichRowKind.BelowMva, row.Kind)
+        );
         Assert.Equal([(Callsign, "DM 2500", Initials)], host.Sent);
 
         var lowHost = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList apart = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 2000, AssignedAltitude = 1500 }, lowHost);
-        Assert.Equal(new MenuRichRow("●", "2,000", "now · below MVA", MenuRichRowKind.BelowMva, "DM 2000", 2000, []), Row(apart, "2,000"));
-        Assert.Equal(new MenuRichRow("◆", "1,500", "assigned · below MVA", MenuRichRowKind.BelowMva, "DM 1500", 1500, []), Row(apart, "1,500"));
+        Assert.Equal(new MenuRichRow("●", "2,000", "now · below MVA", MenuRichRowKind.BelowMva, "DM 2000", []), Row(apart, "2,000"));
+        Assert.Equal(new MenuRichRow("◆", "1,500", "assigned · below MVA", MenuRichRowKind.BelowMva, "DM 1500", []), Row(apart, "1,500"));
         Assert.Equal("1,500", apart.Rows[apart.SelectedIndex].Label);
 
         var sameHost = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList same = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 2000, AssignedAltitude = 2000 }, sameHost);
-        Assert.Equal(new MenuRichRow("●", "2,000", "now · assigned · below MVA", MenuRichRowKind.BelowMva, "CM 2000", 2000, []), Row(same, "2,000"));
+        Assert.Equal(new MenuRichRow("●", "2,000", "now · assigned · below MVA", MenuRichRowKind.BelowMva, "CM 2000", []), Row(same, "2,000"));
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_OffStepAssignmentGetsItsOwnRow()
+    public void MaintainFlyout_OffStepAssignmentGetsItsOwnRow()
     {
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 12300 }, new RecordingMenuHost(""));
 
         MenuRichRow assigned = Row(popup, "12,300");
-        Assert.Equal(new MenuRichRow("◆", "12,300", "assigned", MenuRichRowKind.Assigned, "CM 12300", 12300, []), assigned);
+        Assert.Equal(new MenuRichRow("◆", "12,300", "assigned", MenuRichRowKind.Assigned, "CM 12300", []), assigned);
         int index = popup.Rows.ToList().IndexOf(assigned);
         Assert.Equal(index, popup.SelectedIndex);
         Assert.Equal("12,500", popup.Rows[index - 1].Label);
@@ -626,7 +625,7 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_AssignmentAboveTheCeilingGetsItsOwnRow()
+    public void MaintainFlyout_AssignmentAboveTheCeilingGetsItsOwnRow()
     {
         TestVnasData.EnsureInitialized();
         double? ceiling = AircraftPerformance.Ceiling("C172");
@@ -641,13 +640,13 @@ public class MenuCatalogCommandTests
 
         MenuRichList popup = OpenMaintain(aircraft, new RecordingMenuHost(""));
 
-        Assert.Equal(new MenuRichRow("◆", "FL250", "assigned", MenuRichRowKind.Assigned, "CM 25000", 25000, []), popup.Rows[0]);
+        Assert.Equal(new MenuRichRow("◆", "FL250", "assigned", MenuRichRowKind.Assigned, "CM 25000", []), popup.Rows[0]);
         Assert.Equal(0, popup.SelectedIndex);
-        Assert.Equal((int)(Math.Floor(ceiling.Value / 500) * 500), popup.Rows[1].Value);
+        Assert.Equal((int)(Math.Floor(ceiling.Value / 500) * 500), AltitudeOf(popup.Rows[1]));
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_NoMvaNoLine()
+    public void MaintainFlyout_NoMvaNoLine()
     {
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000 }, new RecordingMenuHost(""));
 
@@ -655,7 +654,7 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void MaintainPicker_LabelsUseCommasThenFlightLevels()
+    public void MaintainFlyout_LabelsUseCommasThenFlightLevels()
     {
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000 }, new RecordingMenuHost(""));
         List<string> labels = [.. popup.Rows.Select(row => row.Label)];
@@ -669,14 +668,33 @@ public class MenuCatalogCommandTests
         Assert.DoesNotContain("17500", labels);
     }
 
-    /// <summary>Builds and clicks the Maintain picker for <paramref name="aircraft"/> and returns the one rich list it showed.</summary>
-    private static MenuRichList OpenMaintain(FakeMenuAircraft aircraft, RecordingMenuHost host)
+    /// <summary>Builds and opens the Maintain altitude flyout for <paramref name="aircraft"/> and returns its list as it opened.</summary>
+    private static MenuRichList OpenMaintain(FakeMenuAircraft aircraft, RecordingMenuHost host) => OpenMaintainPanel(aircraft, host).List;
+
+    /// <summary>Opens the Maintain altitude flyout, clicks the row labelled <paramref name="label"/> and returns the list.</summary>
+    private static MenuRichList OpenMaintainAndPick(FakeMenuAircraft aircraft, RecordingMenuHost host, string label)
+    {
+        MaintainAltitudePanel panel = OpenMaintainPanel(aircraft, host);
+        panel.RowFor(AltitudeOf(Row(panel.List, label))).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        return panel.List;
+    }
+
+    private static MaintainAltitudePanel OpenMaintainPanel(FakeMenuAircraft aircraft, RecordingMenuHost host)
     {
         MenuItem? item = MenuCatalog.Get(MenuIds.AltitudeMaintain).Build(aircraft, Context(), host);
         Assert.NotNull(item);
-        Click((MenuItem)item);
-        return Assert.Single(host.RichListPopups);
+        Assert.Equal("Maintain altitude", item.Header as string);
+        item.IsSubMenuOpen = true;
+        Assert.Empty(host.RichListPopups);
+        AltitudeFlyoutHost holder = Assert.IsType<AltitudeFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header);
+        return Assert.IsType<MaintainAltitudePanel>(holder.Child);
     }
+
+    /// <summary>The altitude an altitude row's label names: <c>FL250</c> is 25,000 ft, <c>12,300</c> is 12,300 ft.</summary>
+    private static int AltitudeOf(MenuRichRow row) =>
+        row.Label.StartsWith("FL", StringComparison.Ordinal)
+            ? int.Parse(row.Label[2..], CultureInfo.InvariantCulture) * 100
+            : int.Parse(row.Label, NumberStyles.AllowThousands, CultureInfo.InvariantCulture);
 
     private static MenuRichRow Row(MenuRichList list, string label) => Assert.Single(list.Rows, row => row.Label == label);
 
@@ -955,7 +973,7 @@ public class MenuCatalogCommandTests
         Assert.Equal("Nearest traffic", list.Title);
         Assert.Equal(0, list.SelectedIndex);
         Assert.Equal(
-            new MenuRichRow("", "AAL601 · B738", "", MenuRichRowKind.Traffic, "RTIS AAL601", null, ["2 o'clock", "4 nm", "1,500 below"]),
+            new MenuRichRow("", "AAL601 · B738", "", MenuRichRowKind.Traffic, "RTIS AAL601", ["2 o'clock", "4 nm", "1,500 below"]),
             list.Rows[0]
         );
         Assert.Equal(["2 o'clock", "4 nm", "1,500 below"], list.Rows[0].Columns);

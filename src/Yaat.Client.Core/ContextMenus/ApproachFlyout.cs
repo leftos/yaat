@@ -156,7 +156,6 @@ public sealed class ApproachFlyoutHost : Border
 /// </summary>
 public sealed class ApproachFlyoutPanel : StackPanel
 {
-    private static readonly IImmutableSolidColorBrush TitleBrush = FlyoutPanelParts.TitleBrush;
     private static readonly IImmutableSolidColorBrush StripFill = new ImmutableSolidColorBrush(Color.Parse("#1F2226"));
     private static readonly IImmutableSolidColorBrush StripLine = new ImmutableSolidColorBrush(Color.Parse("#3A414B"));
     private static readonly IImmutableSolidColorBrush StripAccent = new ImmutableSolidColorBrush(Color.Parse("#E0A84A"));
@@ -352,7 +351,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
                 {
                     Text = _model.Title,
                     FontSize = 11,
-                    Foreground = TitleBrush,
+                    Foreground = FlyoutPanelParts.TitleBrush,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
             },
@@ -787,7 +786,6 @@ internal static class ApproachRowView
     private static readonly IImmutableSolidColorBrush ForceLine = new ImmutableSolidColorBrush(Color.Parse("#FFB259"));
     private static readonly IImmutableSolidColorBrush ForceText = new ImmutableSolidColorBrush(Color.Parse("#FFD08A"));
     private static readonly IImmutableSolidColorBrush ForcedCommand = new ImmutableSolidColorBrush(Color.Parse("#FFC062"));
-    private static readonly IImmutableSolidColorBrush KindBrush = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
 
     public static Grid Build(ApproachRow row, QuickCommandGlyph instrumentGlyph, QuickCommandGlyph visualGlyph)
     {
@@ -811,7 +809,7 @@ internal static class ApproachRowView
         {
             Text = row.KindText,
             FontSize = 11,
-            Foreground = KindBrush,
+            Foreground = FlyoutPanelParts.TitleBrush,
             Margin = new Thickness(14, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };

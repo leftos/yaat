@@ -80,7 +80,6 @@ public static class AirTaxiFlyout
 
     private static readonly ILogger Log = AppLog.CreateLogger("AirTaxiFlyout");
 
-    private static readonly IImmutableSolidColorBrush TitleBrush = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
     private static readonly IImmutableSolidColorBrush ChipLine = new ImmutableSolidColorBrush(Color.Parse("#3A414B"));
 
     /// <summary>
@@ -499,7 +498,7 @@ public static class AirTaxiFlyout
                 line = new TextBlock
                 {
                     FontSize = fontSize,
-                    Foreground = TitleBrush,
+                    Foreground = FlyoutPanelParts.TitleBrush,
                     TextWrapping = TextWrapping.Wrap,
                 };
                 _texts[key] = line;
@@ -595,7 +594,7 @@ public static class AirTaxiFlyout
                 {
                     Text = "at",
                     FontSize = 11.5,
-                    Foreground = TitleBrush,
+                    Foreground = FlyoutPanelParts.TitleBrush,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0, 0, 2, 0),
                 }

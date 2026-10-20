@@ -483,7 +483,7 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The Altitude submenu: the Maintain picker, under a header naming the assigned altitude.</summary>
+    /// <summary>The Altitude submenu: the Maintain altitude flyout, under a header naming the assigned altitude.</summary>
     public static MenuItem Altitude(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         string header = aircraft?.AssignedAltitude is { } assigned ? $"Altitude (→ {MenuCatalog.FormatAltitude((int)assigned)})" : "Altitude";

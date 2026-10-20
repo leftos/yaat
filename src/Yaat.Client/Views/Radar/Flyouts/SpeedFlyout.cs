@@ -21,7 +21,7 @@ internal static class SpeedFlyout
     {
         var menu = new ContextMenu();
         FlyoutAppearance.ApplyFontSize(menu);
-        AltitudeFlyout.ApplyScrollCap(menu);
+        RadarAltitudeFlyout.ApplyScrollCap(menu);
 
         menu.Items.Add(
             new MenuItem
@@ -65,7 +65,7 @@ internal static class SpeedFlyout
         menu.Items.Add(new Separator());
         menu.Items.Add(BuildFasItem(aircraft, radarVm, initials));
 
-        AltitudeFlyout.ScrollFocusItemIntoView(menu, focusItem);
+        RadarAltitudeFlyout.ScrollFocusItemIntoView(menu, focusItem);
 
         return menu;
     }

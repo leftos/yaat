@@ -427,6 +427,7 @@ public class HeadingFlyoutTests
         HidingTheStripFlyout,
         ClosingTheMenu,
         ClosingTheAllCommandsSubmenu,
+        ClosingTheMenuOverAllCommands,
     }
 
     /// <summary>Closing the flyout, on the strip or in All Commands, lets go of the tick's timer and moves the needle no more.</summary>
@@ -434,18 +435,26 @@ public class HeadingFlyoutTests
     [InlineData(CloseBy.HidingTheStripFlyout)]
     [InlineData(CloseBy.ClosingTheMenu)]
     [InlineData(CloseBy.ClosingTheAllCommandsSubmenu)]
+    [InlineData(CloseBy.ClosingTheMenuOverAllCommands)]
     public void Closing_StopsTheTick(CloseBy close)
     {
         var host = new RecordingMenuHost("");
         var aircraft = new AircraftModel { Callsign = Callsign, Heading = new TrueHeading(270) };
         int timersBeforeOpen = host.Clock.LiveTimerCount;
         HeadingFlyoutPanel panel;
-        if (close == CloseBy.ClosingTheAllCommandsSubmenu)
+        if (close is CloseBy.ClosingTheAllCommandsSubmenu or CloseBy.ClosingTheMenuOverAllCommands)
         {
             AllCommandsOpen open = OpenAllCommands(MenuIds.HeadingFly, aircraft, host);
             panel = open.Panel;
             Assert.Equal(timersBeforeOpen + 1, host.Clock.LiveTimerCount);
-            open.Entry.IsSubMenuOpen = false;
+            if (close == CloseBy.ClosingTheMenuOverAllCommands)
+            {
+                open.Menu.Close();
+            }
+            else
+            {
+                open.Entry.IsSubMenuOpen = false;
+            }
         }
         else
         {

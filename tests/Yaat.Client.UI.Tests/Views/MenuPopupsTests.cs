@@ -357,27 +357,6 @@ public class MenuPopupsTests
         Assert.False(popup.IsOpen, "A pick should close the rich list.");
     }
 
-    /// <summary>The MVA line is a disabled row, and selecting it hands nothing back and leaves the list open.</summary>
-    [AvaloniaFact]
-    public void RichList_MvaLineIsNotClickable()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        MenuRichRow? picked = null;
-        MenuPopups.ShowRichList(anchor, SampleRichList(), row => picked = row);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        ListBox list = FindListBox(anchor);
-        Control? line = list.ContainerFromIndex(SampleMvaLineIndex);
-        Assert.NotNull(line);
-        Assert.False(line.IsEnabled, "The MVA line should not take a click.");
-
-        list.SelectedIndex = SampleMvaLineIndex;
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Null(picked);
-        Assert.True(FindPopup(anchor).IsOpen, "Selecting the MVA line should leave the rich list open.");
-    }
-
     /// <summary>The rich list opens scrolled so the selected row's middle sits at the viewport's middle.</summary>
     [AvaloniaFact]
     public void RichList_OpensWithTheSelectedRowCentred()
@@ -403,33 +382,6 @@ public class MenuPopupsTests
         );
     }
 
-    /// <summary>Typing jumps the selection to the nearest row without picking it; Enter picks the selected row.</summary>
-    [AvaloniaFact]
-    public void RichList_TypingJumpsAndEnterPicks()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        MenuRichRow? picked = null;
-        MenuPopups.ShowRichList(anchor, SampleRichList(), row => picked = row);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        ListBox list = FindListBox(anchor);
-        RaiseText(list, "2");
-        RaiseText(list, "5");
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Equal(SampleMvaLineIndex + 1, list.SelectedIndex);
-        Assert.Null(picked);
-        Assert.True(popup.IsOpen, "Typing should not pick.");
-
-        RaiseKey(list, Key.Enter);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Equal("2,500", picked?.Label);
-        Assert.Equal("DM 2500", picked?.Command);
-        Assert.False(popup.IsOpen, "Enter should close the rich list.");
-    }
-
     /// <summary>Home, End, PageUp and PageDown (ten rows) move the selection, are handled, and never pick.</summary>
     [AvaloniaFact]
     public void RichList_NavigationKeysNeverSend()
@@ -450,40 +402,27 @@ public class MenuPopupsTests
         Assert.True(popup.IsOpen, "Navigation keys should not pick.");
     }
 
-    /// <summary>Up and Down step over the MVA line and never pick.</summary>
+    /// <summary>Up and Down step over a rule and never pick; Enter picks the selected row.</summary>
     [AvaloniaFact]
-    public void RichList_UpDownStepOverTheMvaLine()
+    public void RichList_UpDownStepOverARule_EnterPicks()
     {
-        (Popup popup, ListBox list, List<MenuRichRow> picks) = OpenRichList(SampleRichList());
-        RaiseText(list, "2");
-        RaiseText(list, "6");
-        Assert.Equal(SampleMvaLineIndex - 1, list.SelectedIndex);
+        MenuRichList sample = SampleRichList();
+        (Popup popup, ListBox list, List<MenuRichRow> picks) = OpenRichList(sample with { SelectedIndex = SampleRuleIndex - 1 });
+        Assert.Equal(SampleRuleIndex - 1, list.SelectedIndex);
 
         RaiseKey(list, Key.Down);
-        Assert.Equal(SampleMvaLineIndex + 1, list.SelectedIndex);
+        Assert.Equal(SampleRuleIndex + 1, list.SelectedIndex);
         RaiseKey(list, Key.Up);
-        Assert.Equal(SampleMvaLineIndex - 1, list.SelectedIndex);
-
+        Assert.Equal(SampleRuleIndex - 1, list.SelectedIndex);
         HeadlessWindowExtensions.PumpDispatcher();
         Assert.Empty(picks);
         Assert.True(popup.IsOpen, "Up and Down should not pick.");
-    }
 
-    /// <summary>Backspace takes the last typed key back and jumps to what is left.</summary>
-    [AvaloniaFact]
-    public void RichList_BackspaceEditsTheJump()
-    {
-        (Popup _, ListBox list, List<MenuRichRow> picks) = OpenRichList(SampleRichList());
-        RaiseText(list, "3");
-        RaiseText(list, "5");
-        Assert.Equal(65, list.SelectedIndex);
-        RaiseText(list, "0");
-        Assert.Equal(0, list.SelectedIndex);
+        RaiseKey(list, Key.Enter);
+        HeadlessWindowExtensions.PumpDispatcher();
 
-        RaiseKey(list, Key.Back);
-
-        Assert.Equal(65, list.SelectedIndex);
-        Assert.Empty(picks);
+        Assert.Equal("2,600", Assert.Single(picks).Label);
+        Assert.False(popup.IsOpen, "Enter should close the rich list.");
     }
 
     /// <summary>Escape closes the rich list without picking.</summary>
@@ -529,10 +468,10 @@ public class MenuPopupsTests
     /// <summary>The index of the sample's ● row, 3,000 ft.</summary>
     private const int SampleSelectedIndex = 70;
 
-    /// <summary>The index of the sample's MVA line, between 2,600 and 2,500 ft.</summary>
-    private const int SampleMvaLineIndex = 75;
+    /// <summary>The index of the sample's rule, between 2,600 and 2,500 ft.</summary>
+    private const int SampleRuleIndex = 75;
 
-    /// <summary>Every 100 ft from 10,000 down to 100 for an aircraft at 3,000 ft, with a 2,600 ft MVA line; longer than the viewport.</summary>
+    /// <summary>Every 100 ft from 10,000 down to 100 for an aircraft at 3,000 ft, with a rule under 2,600 ft; longer than the viewport.</summary>
     private static MenuRichList SampleRichList()
     {
         var rows = new List<MenuRichRow>();
@@ -541,16 +480,15 @@ public class MenuPopupsTests
             string label = altitude.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
             MenuRichRow row = altitude switch
             {
-                3000 => new MenuRichRow("●", label, "now", MenuRichRowKind.Now, "CM 3000", altitude, []),
-                > 3000 => new MenuRichRow("↑", label, $"CM {altitude}", MenuRichRowKind.Climb, $"CM {altitude}", altitude, []),
-                >= 2600 => new MenuRichRow("↓", label, $"DM {altitude}", MenuRichRowKind.Descend, $"DM {altitude}", altitude, []),
-                _ => new MenuRichRow("↓", label, "below MVA", MenuRichRowKind.BelowMva, $"DM {altitude}", altitude, []),
+                3000 => new MenuRichRow("●", label, "now", MenuRichRowKind.Now, "CM 3000", []),
+                > 3000 => new MenuRichRow("↑", label, $"CM {altitude}", MenuRichRowKind.Climb, $"CM {altitude}", []),
+                _ => new MenuRichRow("↓", label, $"DM {altitude}", MenuRichRowKind.Descend, $"DM {altitude}", []),
             };
             rows.Add(row);
         }
 
-        rows.Insert(SampleMvaLineIndex, new MenuRichRow("", "MVA 2,600 here (sector 12)", "", MenuRichRowKind.MvaLine, null, null, []));
-        return new MenuRichList("N123AB · Maintain", "now 3,000 · type to jump", rows, SampleSelectedIndex);
+        rows.Insert(SampleRuleIndex, new MenuRichRow("", "---", "", MenuRichRowKind.Separator, null, []));
+        return new MenuRichList("N123AB · Altitudes", "now 3,000", rows, SampleSelectedIndex);
     }
 
     private static void RaiseText(Control control, string text) =>

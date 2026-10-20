@@ -141,7 +141,7 @@ public partial class RadarView : UserControl
                 break;
             case TagFieldId.AssignedAltitude:
             case TagFieldId.CurrentAltitude:
-                ShowContextMenu(AltitudeFlyout.Build(ac, radarVm, initials));
+                ShowContextMenu(RadarAltitudeFlyout.Build(ac, radarVm, initials));
                 break;
             case TagFieldId.AssignedHeading:
                 _canvas?.EnterHeadingMode(ac.Callsign, pos);

@@ -13,7 +13,7 @@ namespace Yaat.Client.Views.Radar.Flyouts;
 /// around the current altitude; all other values remain reachable by scrolling.
 /// Opens with the current-altitude entry scrolled into view.
 /// </summary>
-internal static class AltitudeFlyout
+internal static class RadarAltitudeFlyout
 {
     private const int MinFlHundreds = 10;
     private const int MaxFlHundreds = 400;

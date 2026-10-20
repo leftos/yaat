@@ -175,7 +175,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     }
 
     /// <summary>The minimum vectoring altitude every position is answered with; none by default.</summary>
-    public (string Sector, int FloorFtMsl)? Mva { get; init; }
+    public (string Sector, int FloorFtMsl)? Mva { get; set; }
 
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => Mva;
 

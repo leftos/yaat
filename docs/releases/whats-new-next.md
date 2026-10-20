@@ -24,6 +24,14 @@ Click the rose, or drag across it and release, to send that heading; the readout
 
 ![The Fly heading flyout for a B764 heading 077, with the compass rose between the left and right turn chips](img/whats-new-heading-flyout.png)
 
+## Maintain altitude
+
+Maintain altitude, in the quick-command strip and under All Commands › Altitude, opens a flyout instead of a popup. The Altitude box has focus: type `230` or `23000` and the nearest row is outlined and the box shows the command it would send. Below it a list, at most 300 px tall, opens centred on the assigned altitude, else the current one; each row shows its mark (● now, ◆ assigned, ↑ climb, ↓ descend), the altitude and the command, with the MVA line among the rows and the altitudes under it greyed "below MVA" (they still send).
+
+Down from the box goes to the current altitude's row, Up and Down walk the rows, Enter sends and Escape goes back to the strip. The marks, the verbs, the MVA line and the "now" altitude follow the aircraft once a second while the rows stay put. Temporary altitude… and Cruise…, under All Commands › Data Block, open a one-box flyout too, previewing `TEMPALT 120` or `CRUISE 240`, or "Not a valid altitude" when the text cannot be read.
+
+![The Maintain altitude flyout for a B764 at 10,000 ft, with the Altitude box over the list of altitudes](img/whats-new-altitude-flyout.png)
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

@@ -70,12 +70,12 @@ internal static class SceneCatalog
         new WhatsNewRblLabelScene(),
         new WhatsNewQuickCommandsScene(),
         new WhatsNewPointMenuScene(),
-        new WhatsNewPickerScene(),
         new WhatsNewExitsAheadScene(),
         new WhatsNewPushBackScene(),
         new WhatsNewTaxiToRunwayTabsScene(),
         new WhatsNewTakeoffScene(),
         new WhatsNewHeadingFlyoutScene(),
+        new WhatsNewAltitudeFlyoutScene(),
         new WhatsNewGroundFollowScene(),
         new WhatsNewWindsAloftSourceScene(),
     ];

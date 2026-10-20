@@ -39,8 +39,10 @@ Track
   Initiate Track
 Data Block
   Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
+  Temporary altitude…
+    temporary altitude flyout
+  Cruise…
+    cruise flyout
   Annotate
 Squawk
   Squawk… picker:input

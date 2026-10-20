@@ -17,9 +17,10 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The four validated input pickers — Squawk…, Temporary altitude…, Cruise… and Speed… — driven through the real input
-/// popup: text the picker cannot read sends nothing, keeps the popup open and shows its one-line reason under the box,
-/// and every form the picker does read sends the command it should.
+/// The four validated inputs, driven through the real client host: Squawk… and Speed… through the input popup, Temporary
+/// altitude… and Cruise… through their one-box flyouts. Text an input cannot read sends nothing, keeps the popup or the
+/// flyout open and shows its one-line reason (under the popup's box, in the flyout's command column), and every form it
+/// does read sends the command it should.
 /// </summary>
 public class MenuInputValidationTests
 {
@@ -41,7 +42,7 @@ public class MenuInputValidationTests
     [InlineData("FL999", "TEMPALT 999")]
     [InlineData("99,900", "TEMPALT 999")]
     public void TemporaryAltitude_AcceptedForms_SendTheAltitude(string typed, string command) =>
-        AssertSends(MenuIds.DataBlockTempAltitude, typed, command);
+        AssertBoxSends(MenuIds.DataBlockTempAltitude, typed, command);
 
     [AvaloniaTheory]
     [InlineData("050", "CRUISE 50")]
@@ -49,12 +50,12 @@ public class MenuInputValidationTests
     [InlineData("FL230", "CRUISE 230")]
     [InlineData("5,000", "CRUISE 50")]
     [InlineData("23,000", "CRUISE 230")]
-    public void Cruise_AcceptedForms_SendTheAltitude(string typed, string command) => AssertSends(MenuIds.DataBlockCruise, typed, command);
+    public void Cruise_AcceptedForms_SendTheAltitude(string typed, string command) => AssertBoxSends(MenuIds.DataBlockCruise, typed, command);
 
     [AvaloniaTheory]
     [InlineData(MenuIds.DataBlockTempAltitude)]
     [InlineData(MenuIds.DataBlockCruise)]
-    public void Altitude_TextItCannotRead_SendsNothingAndKeepsThePopupOpen(string id) => AssertRefuses(id, "FL", BadAltitude);
+    public void Altitude_TextItCannotRead_SendsNothingAndKeepsTheFlyoutOpen(string id) => AssertBoxRefuses(id, "FL", BadAltitude);
 
     /// <summary>
     /// Text the picker reads as an altitude the sim cannot fly is refused too: past 99,900 ft the hundreds argument would
@@ -66,7 +67,7 @@ public class MenuInputValidationTests
     [InlineData(MenuIds.DataBlockTempAltitude, "2,30")]
     [InlineData(MenuIds.DataBlockCruise, "100000")]
     [InlineData(MenuIds.DataBlockCruise, "FL1200")]
-    public void Altitude_UnflyableText_SendsNothingAndKeepsThePopupOpen(string id, string typed) => AssertRefuses(id, typed, BadAltitude);
+    public void Altitude_UnflyableText_SendsNothingAndKeepsTheFlyoutOpen(string id, string typed) => AssertBoxRefuses(id, typed, BadAltitude);
 
     /// <summary>
     /// An AGL altitude keeps an airport code that starts with FL: the prefix comes off only in front of a flight level, so
@@ -81,29 +82,29 @@ public class MenuInputValidationTests
             ?? throw new InvalidOperationException("The test navigation data has no elevation for FLL");
         int hundreds = ((int)Math.Round(elevation) + 1000) / 100;
 
-        AssertSends(MenuIds.DataBlockTempAltitude, "FLL+010", $"TEMPALT {hundreds}");
+        AssertBoxSends(MenuIds.DataBlockTempAltitude, "FLL+010", $"TEMPALT {hundreds}");
     }
 
-    /// <summary>A refusal leaves the popup open and usable: the next, readable submit sends and closes it.</summary>
+    /// <summary>A refusal leaves the flyout open and usable: the next, readable submit sends and closes the menu.</summary>
     [AvaloniaFact]
     public void TemporaryAltitude_AfterARefusal_AReadableFormStillSends()
     {
-        (Window window, Control anchor, SendCapturingHost sent) = Open(MenuIds.DataBlockTempAltitude);
+        BoxFlyout open = OpenBox(MenuIds.DataBlockTempAltitude);
         try
         {
-            Submit(anchor, "five thousand");
+            SubmitBox(open.Panel, "five thousand");
 
-            Assert.Empty(sent.Sent);
-            Assert.Equal(BadAltitude, Message(anchor));
+            Assert.Empty(open.Sent.Sent);
+            Assert.Equal(BadAltitude, open.Panel.BoxCommandText.Text);
 
-            Submit(anchor, "FL230");
+            SubmitBox(open.Panel, "FL230");
 
-            Assert.Equal([(Callsign, "TEMPALT 230", "AB")], sent.Sent);
-            AssertNoPopup(anchor);
+            Assert.Equal([(Callsign, "TEMPALT 230", "AB")], open.Sent.Sent);
+            Assert.False(open.Menu.IsOpen);
         }
         finally
         {
-            window.Close();
+            open.Close();
         }
     }
 
@@ -166,8 +167,81 @@ public class MenuInputValidationTests
         }
     }
 
-    /// <summary>Opens the picker's input popup on a window's anchor, through the real client host under a send capturer.</summary>
-    private static (Window Window, Control Anchor, SendCapturingHost Sent) Open(string id)
+    private static void AssertBoxSends(string id, string typed, string command)
+    {
+        BoxFlyout open = OpenBox(id);
+        try
+        {
+            SubmitBox(open.Panel, typed);
+
+            Assert.Equal([(Callsign, command, "AB")], open.Sent.Sent);
+            Assert.False(open.Menu.IsOpen);
+        }
+        finally
+        {
+            open.Close();
+        }
+    }
+
+    private static void AssertBoxRefuses(string id, string typed, string message)
+    {
+        BoxFlyout open = OpenBox(id);
+        try
+        {
+            SubmitBox(open.Panel, typed);
+
+            Assert.Empty(open.Sent.Sent);
+            Assert.Equal(message, open.Panel.BoxCommandText.Text);
+            Assert.True(open.Menu.IsOpen, "A refused submit should leave the flyout open.");
+        }
+        finally
+        {
+            open.Close();
+        }
+    }
+
+    /// <summary>A one-box altitude flyout opened under a context menu on a shown window, through the real client host.</summary>
+    private sealed record BoxFlyout(Window Window, ContextMenu Menu, AltitudeBoxPanel Panel, SendCapturingHost Sent)
+    {
+        public void Close()
+        {
+            Menu.Close();
+            Window.Close();
+        }
+    }
+
+    private static BoxFlyout OpenBox(string id)
+    {
+        (MainViewModel main, AircraftModel aircraft) = MainWithAircraft();
+        var anchor = new Border();
+        var window = new Window
+        {
+            Width = 400,
+            Height = 200,
+            Content = anchor,
+        };
+        window.ShowAndRunLayout();
+
+        var sent = new SendCapturingHost(new ClientMenuHost(main, aircraft, anchor), "AB");
+        MenuContext context = TestMenuContext.Create(Callsign, "AB", null, false, VfrCommandsForIfr.None);
+        MenuItem entry = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, context, sent));
+        var menu = new ContextMenu { Items = { entry } };
+        menu.Open(window);
+        HeadlessWindowExtensions.PumpDispatcher();
+        entry.IsSubMenuOpen = true;
+        HeadlessWindowExtensions.PumpDispatcher();
+        AltitudeFlyoutHost holder = Assert.IsType<AltitudeFlyoutHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header);
+        return new BoxFlyout(window, menu, Assert.IsType<AltitudeBoxPanel>(holder.Child), sent);
+    }
+
+    private static void SubmitBox(AltitudeBoxPanel panel, string typed)
+    {
+        panel.Box.Text = typed;
+        panel.Box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        HeadlessWindowExtensions.PumpDispatcher();
+    }
+
+    private static (MainViewModel Main, AircraftModel Aircraft) MainWithAircraft()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var aircraft = new AircraftModel
@@ -178,7 +252,13 @@ public class MenuInputValidationTests
             IsOnGround = false,
         };
         main.Aircraft.Add(aircraft);
+        return (main, aircraft);
+    }
 
+    /// <summary>Opens the picker's input popup on a window's anchor, through the real client host under a send capturer.</summary>
+    private static (Window Window, Control Anchor, SendCapturingHost Sent) Open(string id)
+    {
+        (MainViewModel main, AircraftModel aircraft) = MainWithAircraft();
         var anchor = new Border();
         var window = new Window
         {

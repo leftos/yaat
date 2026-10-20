@@ -327,7 +327,6 @@ public sealed class HeadingFlyoutHost : Border
 public sealed class HeadingFlyoutPanel : StackPanel
 {
     private const double ChipColumnWidth = 56;
-    private static readonly IImmutableSolidColorBrush TitleBrush = FlyoutPanelParts.TitleBrush;
     private static readonly IImmutableSolidColorBrush ReadoutBrush = new ImmutableSolidColorBrush(Color.Parse("#CFD5DC"));
     private static readonly IImmutableSolidColorBrush ToggleLine = new ImmutableSolidColorBrush(Color.Parse("#3A414B"));
     private static readonly IImmutableSolidColorBrush ToggleFill = new ImmutableSolidColorBrush(Color.Parse("#23272C"));
@@ -338,8 +337,8 @@ public sealed class HeadingFlyoutPanel : StackPanel
     private readonly HeadingFlyoutPreset _preset;
     private readonly IMenuAircraft? _aircraft;
     private readonly Func<string, Task> _choose;
-    private readonly TextBlock _title = new() { FontSize = 11, Foreground = TitleBrush };
-    private readonly TextBlock _titleNow = new() { FontSize = 11, Foreground = TitleBrush };
+    private readonly TextBlock _title = new() { FontSize = 11, Foreground = FlyoutPanelParts.TitleBrush };
+    private readonly TextBlock _titleNow = new() { FontSize = 11, Foreground = FlyoutPanelParts.TitleBrush };
     private readonly TextBlock _presentNote = new()
     {
         FontSize = 12,
@@ -714,7 +713,7 @@ public sealed class HeadingFlyoutPanel : StackPanel
             {
                 Text = label,
                 FontSize = 11,
-                Foreground = TitleBrush,
+                Foreground = FlyoutPanelParts.TitleBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 1),
             }

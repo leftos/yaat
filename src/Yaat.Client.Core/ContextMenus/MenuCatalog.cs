@@ -17,9 +17,10 @@ namespace Yaat.Client.ContextMenus;
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
-/// the host's list popup over values the catalog computes (altitudes, speeds, fixes, runways, STARs, airways) and formats the
+/// the host's list popup over values the catalog computes (speeds, fixes, runways, STARs, airways) and formats the
 /// pick into the command, choosing its form from the data present when the menu is built; a heading entry opens the heading
-/// flyout preset to its verb (<see cref="HeadingFlyout"/>); an approach entry opens its verb's approach flyout
+/// flyout preset to its verb (<see cref="HeadingFlyout"/>); Maintain altitude, Temporary altitude and Cruise open the altitude
+/// flyouts (<see cref="AltitudeFlyout"/>); an approach entry opens its verb's approach flyout
 /// (<see cref="ApproachFlyout"/>); a host leaf asks the host for the item itself,
 /// for the entries that open a host surface or act on the surface — the warp popup, the flight-plan editor, route and
 /// push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and preset-taxi submenus over the
@@ -134,15 +135,8 @@ public static class MenuCatalog
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
         InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", "Text", BlankInput.Closes, input => $"SP {input}"),
-        CheckedInputLeaf(
-            MenuIds.DataBlockTempAltitude,
-            "Temporary altitude…",
-            "Altitude",
-            BlankInput.Closes,
-            FormatTemporaryAltitude,
-            "Not a valid altitude"
-        ),
-        CheckedInputLeaf(MenuIds.DataBlockCruise, "Cruise…", "Altitude", BlankInput.Closes, FormatCruiseAltitude, "Not a valid altitude"),
+        AltitudeBoxEntry(MenuIds.DataBlockTempAltitude, "Temporary altitude…", AltitudeBoxKind.TemporaryAltitude),
+        AltitudeBoxEntry(MenuIds.DataBlockCruise, "Cruise…", AltitudeBoxKind.Cruise),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
         HostLeaf(MenuIds.SimControlWarp, "Warp…", Always, BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
@@ -161,7 +155,7 @@ public static class MenuCatalog
             MenuIds.HeadingTurnRightDegrees,
             new HeadingFlyoutPreset("Turn right (degrees)", HeadingVerb.FlyHeading, HeadingFlyoutFocus.RightChips)
         ),
-        Picker(MenuIds.AltitudeMaintain, "Maintain altitude", BuildMaintainAltitude),
+        Picker(MenuIds.AltitudeMaintain, "Maintain altitude", AltitudeFlyout.BuildMaintain),
         Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed),
         CheckedInputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, FormatAssignedSpeed, "Not a valid speed"),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
@@ -1011,23 +1005,27 @@ public static class MenuCatalog
     }
 
     /// <summary>The <c>TEMPALT</c> command for the altitude the controller typed, or null when it is not one.</summary>
-    private static string? FormatTemporaryAltitude(string input) => AltitudeCommand("TEMPALT", input);
+    internal static string? FormatTemporaryAltitude(string input) => AltitudeCommand("TEMPALT", input);
 
     /// <summary>The <c>CRUISE</c> command for the altitude the controller typed, or null when it is not one.</summary>
-    private static string? FormatCruiseAltitude(string input) => AltitudeCommand("CRUISE", input);
+    internal static string? FormatCruiseAltitude(string input) => AltitudeCommand("CRUISE", input);
 
     /// <summary>The highest the sim's altitude commands take: one hundred above it would wrap the argument into feet.</summary>
     private const int MaxAltitudeHundreds = 999;
 
     /// <summary>
-    /// The <paramref name="verb"/> command for a typed altitude: <see cref="AltitudeResolver.Resolve"/> reads the
-    /// shorthand hundreds ("230", "050"), the full feet ("23000", "23,000") and the AGL notation ("KOAK+010") alike, and
-    /// the argument goes out in the hundreds the sim's altitude commands take (<c>AltitudeHundreds</c>). Null for text
-    /// that is not an altitude, one over 99,900 ft (whose hundreds the sim would read back as feet), a flight level of
-    /// more than three digits, a comma that does not group a whole thousand, or an AGL altitude while the navigation data
-    /// is not loaded.
+    /// The <paramref name="verb"/> command for a typed altitude (<see cref="ParseAltitudeFeet"/>), its argument in the hundreds
+    /// the sim's altitude commands take (<c>AltitudeHundreds</c>); null for text that is not an altitude.
     /// </summary>
-    private static string? AltitudeCommand(string verb, string input)
+    private static string? AltitudeCommand(string verb, string input) => (ParseAltitudeFeet(input) is { } feet) ? $"{verb} {feet / 100}" : null;
+
+    /// <summary>
+    /// The feet of a typed altitude: <see cref="AltitudeResolver.Resolve"/> reads the shorthand hundreds ("230", "050"), the
+    /// full feet ("23000", "23,000"), a flight level ("FL230") and the AGL notation ("KOAK+010") alike. Null for text that is
+    /// not an altitude, one over 99,900 ft (whose hundreds the sim would read back as feet), a flight level of more than three
+    /// digits, a comma that does not group a whole thousand, or an AGL altitude while the navigation data is not loaded.
+    /// </summary>
+    internal static int? ParseAltitudeFeet(string input)
     {
         string trimmed = input.Trim();
         if (StripFlightLevel(trimmed) is not { } text)
@@ -1041,12 +1039,7 @@ public static class MenuCatalog
         }
 
         int? feet = ResolveAltitude(text.Replace(",", "", StringComparison.Ordinal));
-        if ((feet is null) || (feet.Value / 100 > MaxAltitudeHundreds))
-        {
-            return null;
-        }
-
-        return $"{verb} {feet.Value / 100}";
+        return ((feet is null) || (feet.Value / 100 > MaxAltitudeHundreds)) ? null : feet;
     }
 
     /// <summary>
@@ -1304,7 +1297,7 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// An altitude as the Maintain picker and the Altitude header show it: feet with thousands commas below 18,000 ft
+    /// An altitude as the Maintain altitude flyout and the Altitude header show it: feet with thousands commas below 18,000 ft
     /// (<c>17,500</c>), a flight level from it (<c>FL180</c>).
     /// </summary>
     internal static string FormatAltitude(int altitude) =>
@@ -1461,6 +1454,12 @@ public static class MenuCatalog
     /// <summary>The display texts of a popup's values, as the popup itself shows them.</summary>
     private static List<string> PickerTexts(IReadOnlyList<object> values) => [.. values.Select(value => value.ToString() ?? "")];
 
+    /// <summary>
+    /// A data-block altitude entry: the one-box altitude flyout (<see cref="AltitudeFlyout.BuildBox"/>) of <paramref name="kind"/>.
+    /// </summary>
+    private static MenuCatalogEntry AltitudeBoxEntry(string id, string label, AltitudeBoxKind kind) =>
+        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => AltitudeFlyout.BuildBox(label, kind, ac, context, host));
+
     /// <summary>A heading entry: the heading flyout (<see cref="HeadingFlyout"/>) opening as <paramref name="preset"/> says.</summary>
     private static MenuCatalogEntry HeadingEntry(string id, HeadingFlyoutPreset preset) =>
         new(id, preset.Label, MenuFlightRules.Both, Always, (ac, context, host) => HeadingFlyout.Build(preset, ac, context, host));
@@ -1526,246 +1525,17 @@ public static class MenuCatalog
                 "",
                 MenuRichRowKind.Traffic,
                 $"RTIS {row.Callsign}",
-                null,
                 [
                     $"{row.ClockPosition} o'clock",
                     $"{RelativeGeometry.WholeNm(row.DistanceNm)} nm",
                     RelativeGeometry.AltitudeDeltaColumn(row.AltitudeDeltaFeet),
                 ]
             )),
-            new MenuRichRow("", "---", "", MenuRichRowKind.Separator, null, null, []),
-            new MenuRichRow("", "Any traffic (no target)", "RTIS", MenuRichRowKind.Action, "RTIS", null, []),
-            new MenuRichRow("", "Other callsign…", "", MenuRichRowKind.Prompt, null, null, []),
+            new MenuRichRow("", "---", "", MenuRichRowKind.Separator, null, []),
+            new MenuRichRow("", "Any traffic (no target)", "RTIS", MenuRichRowKind.Action, "RTIS", []),
+            new MenuRichRow("", "Other callsign…", "", MenuRichRowKind.Prompt, null, []),
         ];
         return new MenuRichList("Nearest traffic", $"{callsign} · report traffic in sight", rows, 0);
-    }
-
-    /// <summary>The highest altitude the Maintain picker lists, and its cap for a type without a profile.</summary>
-    private const int MaintainCapFeet = 60000;
-
-    /// <summary>
-    /// The Maintain picker: a titled list of every altitude from the destination's field elevation up to the type's
-    /// ceiling, highest first (<see cref="MaintainList"/>), opening on the assigned row, else on the row nearest the
-    /// aircraft's altitude. The item's descriptor carries every row's label. Null when no altitude is listed.
-    /// </summary>
-    private static MenuItem? BuildMaintainAltitude(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        List<int> altitudes = AltitudeValues(host.GetFieldElevation(aircraft?.Destination), AltitudeCeiling(aircraft));
-        if (altitudes.Count == 0)
-        {
-            return null;
-        }
-
-        (string Sector, int FloorFtMsl)? mva = aircraft is not null ? host.GetMva(aircraft.Position) : null;
-        MenuRichList list = MaintainList(context.Callsign, altitudes, aircraft?.AltitudeFeet ?? 0, aircraft?.AssignedAltitude, mva);
-        var item = new MenuItem
-        {
-            Header = label,
-            Tag = new MenuPickerDescriptor(MenuPickerDescriptor.RichList, [.. list.Rows.Select(row => row.Label)]),
-        };
-        item.Click += (_, _) =>
-            host.ShowRichListPopup(
-                list,
-                row =>
-                {
-                    if (row.Command is { } command)
-                    {
-                        _ = Send(command, context, host);
-                    }
-                }
-            );
-        return item;
-    }
-
-    /// <summary>
-    /// The type's service ceiling (<see cref="AircraftPerformance.Ceiling"/>) capped at 60,000 ft; 60,000 ft for a type
-    /// without a profile.
-    /// </summary>
-    private static int AltitudeCeiling(IMenuAircraft? aircraft)
-    {
-        string type = aircraft?.DisplayAircraftType ?? "";
-        double? ceiling = (type.Length > 0) ? AircraftPerformance.Ceiling(type) : null;
-        return (ceiling is { } feet) ? (int)Math.Min(feet, MaintainCapFeet) : MaintainCapFeet;
-    }
-
-    /// <summary>
-    /// The Maintain picker's rows for an aircraft at <paramref name="current"/> ft: one per altitude, marked ● for the row
-    /// nearest the current altitude, ◆ on the assigned altitude (its own row when it is off the steps or above the
-    /// ceiling), ↑ above the current altitude and ↓ below it, and, when <paramref name="mva"/> is known, the MVA line
-    /// between the lowest row at or above its floor and the highest row below it, with every row under the floor greyed.
-    /// Titled with <paramref name="callsign"/>; opens on the assigned row, else the ● row.
-    /// </summary>
-    private static MenuRichList MaintainList(
-        string callsign,
-        List<int> altitudes,
-        double current,
-        double? assigned,
-        (string Sector, int FloorFtMsl)? mva
-    )
-    {
-        int? assignedIndex = InsertAssignment(altitudes, assigned);
-        int nowIndex = NearestIndex(altitudes, current);
-        var rows = new List<MenuRichRow>(altitudes.Count + 1);
-        for (int i = 0; i < altitudes.Count; i++)
-        {
-            MenuRichRowKind kind = MaintainKind(i == nowIndex, i == assignedIndex, altitudes[i], current);
-            rows.Add(MaintainRow(altitudes[i], kind, MaintainCommand(altitudes[i], kind, current, assigned), mva?.FloorFtMsl));
-        }
-
-        int selected = assignedIndex ?? nowIndex;
-        if (mva is { } sector)
-        {
-            selected = InsertMvaLine(rows, altitudes, sector, selected);
-        }
-
-        return new MenuRichList($"{callsign} · Maintain", MaintainSubtitle(current, assigned), rows, selected);
-    }
-
-    /// <summary>
-    /// The index of the assigned altitude among <paramref name="altitudes"/> (highest first), added in its sorted place
-    /// when it is off the steps or above the ceiling; null without an assignment.
-    /// </summary>
-    private static int? InsertAssignment(List<int> altitudes, double? assigned)
-    {
-        if (assigned is not { } feet)
-        {
-            return null;
-        }
-
-        int altitude = (int)Math.Round(feet);
-        int index = altitudes.FindIndex(listed => listed <= altitude);
-        if (index < 0)
-        {
-            altitudes.Add(altitude);
-            return altitudes.Count - 1;
-        }
-
-        if (altitudes[index] != altitude)
-        {
-            altitudes.Insert(index, altitude);
-        }
-
-        return index;
-    }
-
-    /// <summary>
-    /// Inserts the MVA line before the first row under <paramref name="sector"/>'s floor (at the end when none is) and
-    /// returns <paramref name="selected"/> moved past it when it was at or after the line.
-    /// </summary>
-    private static int InsertMvaLine(List<MenuRichRow> rows, List<int> altitudes, (string Sector, int FloorFtMsl) sector, int selected)
-    {
-        int lineIndex = altitudes.FindIndex(altitude => altitude < sector.FloorFtMsl);
-        lineIndex = (lineIndex < 0) ? altitudes.Count : lineIndex;
-        string floor = sector.FloorFtMsl.ToString("N0", CultureInfo.InvariantCulture);
-        rows.Insert(lineIndex, new MenuRichRow("", $"MVA {floor} here (sector {sector.Sector})", "", MenuRichRowKind.MvaLine, null, null, []));
-        return (selected >= lineIndex) ? selected + 1 : selected;
-    }
-
-    /// <summary>
-    /// <c>now {current} · assigned {assigned} · type to jump</c>, the current altitude to the nearest 100 ft; without the
-    /// assignment when there is none.
-    /// </summary>
-    private static string MaintainSubtitle(double current, double? assigned)
-    {
-        string now = $"now {FormatAltitude((int)(Math.Round(current / 100, MidpointRounding.AwayFromZero) * 100))}";
-        return (assigned is { } feet) ? $"{now} · assigned {FormatAltitude((int)Math.Round(feet))} · type to jump" : $"{now} · type to jump";
-    }
-
-    /// <summary>The index of the altitude nearest <paramref name="target"/>; of two equally near, the higher (listed first).</summary>
-    private static int NearestIndex(List<int> altitudes, double target)
-    {
-        int best = 0;
-        for (int i = 1; i < altitudes.Count; i++)
-        {
-            if (Math.Abs(altitudes[i] - target) < Math.Abs(altitudes[best] - target))
-            {
-                best = i;
-            }
-        }
-
-        return best;
-    }
-
-    /// <summary>
-    /// A row's mark before the MVA greys it: ● for the current row, ◆ for the assigned one, else ↑ above the current
-    /// altitude and ↓ below.
-    /// </summary>
-    private static MenuRichRowKind MaintainKind(bool isNow, bool isAssigned, int altitude, double current) =>
-        (isNow, isAssigned) switch
-        {
-            (true, true) => MenuRichRowKind.NowAssigned,
-            (true, false) => MenuRichRowKind.Now,
-            (false, true) => MenuRichRowKind.Assigned,
-            _ => (altitude > current) ? MenuRichRowKind.Climb : MenuRichRowKind.Descend,
-        };
-
-    /// <summary>
-    /// The command a row sends: the ● row climbs unless the assignment is below the current altitude; every other row
-    /// climbs above the current altitude and descends otherwise. The value is bare feet (<c>CM 35000</c>).
-    /// </summary>
-    private static string MaintainCommand(int altitude, MenuRichRowKind kind, double current, double? assigned)
-    {
-        bool climb = (kind is MenuRichRowKind.Now or MenuRichRowKind.NowAssigned) ? !(assigned < current) : (altitude > current);
-        return climb ? $"CM {altitude}" : $"DM {altitude}";
-    }
-
-    /// <summary>
-    /// One altitude row with its glyph and hint: the ● and ◆ rows name their mark (<c>now</c>, <c>assigned</c>,
-    /// <c>now · assigned</c>), the ↑ and ↓ rows their command. Every row under <paramref name="mvaFloor"/> is greyed
-    /// (<see cref="MenuRichRowKind.BelowMva"/>), keeps its glyph, ends its hint with <c>below MVA</c> in place of the
-    /// command, and still sends <paramref name="command"/>.
-    /// </summary>
-    private static MenuRichRow MaintainRow(int altitude, MenuRichRowKind kind, string command, int? mvaFloor)
-    {
-        (string glyph, string mark) = MaintainMark(kind);
-        string label = FormatAltitude(altitude);
-        if (altitude < mvaFloor)
-        {
-            string hint = (mark.Length > 0) ? $"{mark} · below MVA" : "below MVA";
-            return new MenuRichRow(glyph, label, hint, MenuRichRowKind.BelowMva, command, altitude, []);
-        }
-
-        return new MenuRichRow(glyph, label, (mark.Length > 0) ? mark : command, kind, command, altitude, []);
-    }
-
-    /// <summary>A row's glyph and, for the ● and ◆ rows, the mark its hint names; the ↑ and ↓ rows have none.</summary>
-    private static (string Glyph, string Mark) MaintainMark(MenuRichRowKind kind) =>
-        kind switch
-        {
-            MenuRichRowKind.Now => ("●", "now"),
-            MenuRichRowKind.NowAssigned => ("●", "now · assigned"),
-            MenuRichRowKind.Assigned => ("◆", "assigned"),
-            MenuRichRowKind.Climb => ("↑", ""),
-            _ => ("↓", ""),
-        };
-
-    /// <summary>
-    /// Every 100 ft from the field up to 5,000 ft above it, then every 500 ft, up to <paramref name="ceiling"/>; highest first.
-    /// </summary>
-    private static List<int> AltitudeValues(double fieldElevation, int ceiling)
-    {
-        var items = new List<int>();
-        int lowThreshold = (int)(fieldElevation + 5000);
-
-        int roundedLow = (int)(Math.Ceiling(fieldElevation / 100.0) * 100);
-        if (roundedLow < 100)
-        {
-            roundedLow = 100;
-        }
-
-        for (int altitude = roundedLow; (altitude < lowThreshold) && (altitude <= ceiling); altitude += 100)
-        {
-            items.Add(altitude);
-        }
-
-        int start500 = (int)(Math.Ceiling(lowThreshold / 500.0) * 500);
-        for (int altitude = start500; altitude <= ceiling; altitude += 500)
-        {
-            items.Add(altitude);
-        }
-
-        items.Reverse();
-        return items;
     }
 
     /// <summary>The altitude at and above which the picker lists Mach rows (7110.65 5-7-1.g).</summary>
