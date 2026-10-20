@@ -102,16 +102,41 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   `DirectToFlyoutPanel` holds, top to bottom, the title `Direct to` or `Append direct to` (`→ {next fix}` beside it while the aircraft navigates to a fix), the `Direct to` / `Append to route` toggle (only while navigating to a fix), the Fix box (`DirectToFlyout.BoxName`, placeholder `Fix name or FRD`) with the command Enter sends beside it, and `Not a known fix` in red under it when the box can send nothing (no row shown and the text neither a fix nor an FRD, `FixList.IsKnownFix`).
 
-  Under a separator is the list. `Remaining route · next ●` holds the route as `DirectToFixRow`s (`FixList.DirectToRoute`, read once per opening in `Reset`, never per refresh: from the fix the aircraft navigates to on, the navigation route, then the filed route's fixes after it, then the destination, each once; the whole route when it navigates to no fix): the ● on the next fix, the fix, `31 NM · 184°` (distance, and bearing made magnetic by the declination at the aircraft, so it reads as the heading it would fly, `FixList.DistanceAndBearing`) and the command.
+  Under a separator is the list. `Remaining route · next ●` holds the route as `FixRow`s (`FixList.DirectToRoute`, read once per opening in `Reset`, never per refresh: from the fix the aircraft navigates to on, the navigation route, then the filed route's fixes after it, then the destination, each once; the whole route when it navigates to no fix): the ● on the next fix, the fix, `31 NM · 184°` (distance, and bearing made magnetic by the declination at the aircraft, so it reads as the heading it would fly, `FixList.DistanceAndBearing`) and the command.
 
   While the aircraft navigates to a route row's fix, the rows before it grey to `passed`, stay passed while the flyout is open, and still send; navigating nowhere (FH, vectors) or off the route passes no row and drops the ●.
 
   Typing hides the route rows that do not match, in place, and adds a typed FRD's own row (`FixList.IsFrd`: the FRD, its distance and bearing, its command) and then `All fixes · nearest first (N)`: every other fix whose name starts with the text (`FixList.Matches` over `NavigationDatabase.FixesNear`), nearest first however far, at most `FixList.MaxMatches` (50). With no text the hint reads `Type to search every fix, nearest first`.
 
   Typing outlines the first shown row (the one naming the text exactly, when one does), and Enter in the box sends it; with no row shown Enter sends the toggle's verb with the typed fix or FRD. The box holds focus at open; Down moves to the ● row (else the first shown row), Down and Up walk the route rows and the matches, Up from the top row returns to the box, Enter sends the focused row, and Escape closes the flyout back to the strip. A click sends a row's own command. Once a second on `FlyoutLiveTick` the rows' distances, bearings and marks follow the aircraft and never reorder. Tests: `tests/Yaat.Client.UI.Tests/Views/DirectToFlyoutTests.cs`, `FixListDirectToRouteTests.cs` (the route list), `tests/Yaat.Sim.Tests/NavigationDatabaseFixesNearTests.cs`.
-- **Panel flyouts share one base.** The heading, altitude, speed and Direct to flyouts are one-row live panels: `PanelFlyoutContent.Attach` gives the catalog entry its panel row, built on first open, reset and refreshed at each opening and refreshed on `FlyoutLiveTick` while open.
+- **Cross fix and Depart fix flyouts.** The strip's Cross fix and Depart fix and the same two entries under All Commands › Procedures (`MenuIds.ProceduresCrossFix`, `ProceduresDepartFix`) are one menu row each, `FixValueFlyout.BuildCross` and `BuildDepart` (registered through `PanelFlyoutContent.Attach`, headers `CrossFixFlyoutHost`, `DepartFixFlyoutHost`), over the shared `FixValueFlyoutPanel`.
 
-  A flyout supplies an `IFlyoutPanel` (`View`, `Reset`, `Refresh`, `FocusOpeningLater`) and a `FlyoutPanelHost` header (`HeadingFlyoutHost`, `AltitudeFlyoutHost`, `SpeedFlyoutHost`, `DirectToFlyoutHost`) that holds it; a choice sends and closes the strip's flyout and the menu, or the All Commands submenu's menu.
+  The route-fix list popups, the `(other)…` companions and the single-fix leaf are gone, and the menu no longer sends `CFIX {fix}` or `DEPART {fix}` alone. Depart fix has its own strip glyph (`QuickCommandGlyphs`).
+
+  `CrossFixFlyoutPanel` holds the title `Cross fix` (`→ {next fix}` beside it while the aircraft navigates to a fix), the Fix box (`FixValueFlyout.FixBoxName`, placeholder `Fix name`) with the whole command beside it and `Not a known fix` under it.
+
+  Under that come the `Cross at` toggle (`CrossFixAltitudeType`: `At`, `At or above` `A`, `At or below` `B`, opening on At), the Altitude box (`e.g. 230 or 23000`, read by `MenuCatalog.ParseAltitudeFeet`, at least 100 ft) and the optional `Speed (knots), optional` box (`e.g. 250`, multiples of 5), then a caption (`FixValueFlyout.CrossCaption`: `Cross SUNOL at or above 11,000 at 250 knots`) and the command (`CrossCommand`: `CFIX SUNOL A110 250`).
+
+  `DepartFixFlyoutPanel` holds the title `Depart fix`, the Fix box, the `Heading after the fix` box (`e.g. 200`, 001 to 360) and the caption `Depart SUNOL heading 200` for `DEPART SUNOL 200` (`DepartCommand`).
+
+  The Fix box takes a fix's own name only (`FixValueFlyout.TypedFix`; an FRD is `Not a known fix`, since the parser resolves no fix-radial-distance for these verbs).
+
+  A value box left empty or holding no value shows a red refusal: `Altitude required`, `Not a valid altitude`, `Speed in 5-knot steps`, `Not a valid speed`, `Heading required`, `Not a valid heading`.
+
+  The list is `Route · next ●` (`IMenuAircraft.RouteFixNames`, read once per opening in `Reset`) as `FixRow`s, each with `FixList.DistanceAndBearing`, the ● on the next fix and passed fixes greyed in place and still sending, then `All fixes · nearest first (N)` while typing (`FixList.Matches`, at most 50) or `Type to search every fix, nearest first`.
+
+  Each row shows the whole command it would send with the boxes' values (`CFIX SUNOL A110 250`), ending `···` while a value is missing.
+
+  A row click, or Enter, with the command incomplete (`FixValueFlyoutPanel.CommandFor` null) sends nothing: `SendOrAskAsync` puts the fix in the Fix box, turns the required state on and focuses the first missing box.
+
+  Typing outlines the row Enter in a box sends.
+
+  The Fix box holds focus at open; Down from a box moves to the ● row (else the first shown row), Down and Up walk the rows, Up from the top row returns to the Fix box.
+
+  Tab moves between the boxes, and Escape closes the flyout back to the strip. Once a second on `FlyoutLiveTick` the rows' distances, bearings and marks follow the aircraft and never reorder. Tests: `tests/Yaat.Client.UI.Tests/Views/CrossFixFlyoutTests.cs`, `DepartFixFlyoutTests.cs`; the showcase shot is the GuideCapture scene `whats-new-cross-fix-flyout`.
+- **Panel flyouts share one base.** The heading, altitude, speed, Direct to, Cross fix and Depart fix flyouts are one-row live panels: `PanelFlyoutContent.Attach` gives the catalog entry its panel row, built on first open, reset and refreshed at each opening and refreshed on `FlyoutLiveTick` while open.
+
+  A flyout supplies an `IFlyoutPanel` (`View`, `Reset`, `Refresh`, `FocusOpeningLater`) and a `FlyoutPanelHost` header (`HeadingFlyoutHost`, `AltitudeFlyoutHost`, `SpeedFlyoutHost`, `DirectToFlyoutHost`, `CrossFixFlyoutHost`, `DepartFixFlyoutHost`) that holds it; a choice sends and closes the strip's flyout and the menu, or the All Commands submenu's menu.
 - **Report traffic in sight… picker** (`MenuCatalog.BuildReportTrafficInSight`) lists the nearest 5 other airborne aircraft (`IMenuHost.GetNearbyTraffic`; never delayed spawns or live-traffic shadows) in the same rich-row popup, titled `Nearest traffic`. A traffic row (`MenuTrafficRow`, `MenuRichRowKind.Traffic`) reads `CALLSIGN · TYPE | N o'clock | D nm | altitude` (`RelativeGeometry.TrafficRow`; the clock from the aircraft's true heading, `same altitude` under 100 ft) and sends `RTIS {callsign}`.
 
   Below a rule come `Any traffic (no target)`, a bare `RTIS`, and `Other callsign…`, which opens the free-text box; with no traffic nearby the picker is the free-text box alone. The popup is at least 300 px wide and grows to fit its columns up to 420 px; columns share widths across rows and traffic rows have no glyph column.

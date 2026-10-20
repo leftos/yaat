@@ -587,8 +587,8 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The Procedures submenu: join STAR (with its "(other)" STAR picker beside a filed STAR), climb via SID and
-    /// descend via STAR, cross and depart fix and join airway (each with its "(other)" free text beside the values it
-    /// offers), PTAC, then the join-radial items.
+    /// descend via STAR, the cross and depart fix flyouts, PTAC, join airway (with its "(other)" free text beside the
+    /// airways it offers), then the join-radial items.
     /// </summary>
     public static MenuItem Procedures(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -598,9 +598,7 @@ public static class SharedMenuGroups
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
-        AddCompanion(menu.Items, MenuCatalog.BuildCrossFixOther(aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
-        AddCompanion(menu.Items, MenuCatalog.BuildDepartFixOther(aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresPtac, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinAirway, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildJoinAirwayOther(aircraft, context, host));

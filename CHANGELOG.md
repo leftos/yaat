@@ -39,6 +39,7 @@
 - Maintain altitude opens a live flyout: an altitude box over the marked altitude list with its MVA line; Temporary altitude and Cruise open one-box flyouts.
 - Assign speed and Speed… open one live flyout: a knots box, Resume normal and final approach speed, and knots and Mach chips.
 - Direct to and Append direct to open a live flyout: fix box, route ahead with distance and bearing, nearest matching fixes as you type.
+- Cross fix and Depart fix open live flyouts: a fix box with altitude and optional speed, or heading, sending complete `CFIX` and `DEPART` commands.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 
 ### Fixed

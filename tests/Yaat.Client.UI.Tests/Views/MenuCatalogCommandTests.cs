@@ -104,8 +104,6 @@ public class MenuCatalogCommandTests
         (MenuIds.ProceduresJoinStar, StarId, "JARR EMZOH4"),
         (MenuIds.ProceduresClimbViaSid, "", "CVIA"),
         (MenuIds.ProceduresDescendViaStar, "", "DVIA"),
-        (MenuIds.ProceduresCrossFix, Fix, "CFIX SUNOL"),
-        (MenuIds.ProceduresDepartFix, Fix, "DEPART SUNOL"),
         (MenuIds.ProceduresPtac, "280 025 I28R", "PTAC 280 025 I28R"),
         (MenuIds.ProceduresJoinAirway, "V25", "JAWY V25"),
         (MenuIds.ProceduresJoinRadialOutbound, "SUNOL 090", "JRADO SUNOL 090"),
@@ -207,6 +205,9 @@ public class MenuCatalogCommandTests
         // Direct to… and Append direct to… open the Direct to flyout; DirectToFlyoutTests clicks its rows, toggle and box.
         MenuIds.NavigationDirectTo,
         MenuIds.NavigationAppendDirectTo,
+        // Cross fix and Depart fix open their flyouts; CrossFixFlyoutTests and DepartFixFlyoutTests click their rows and boxes.
+        MenuIds.ProceduresCrossFix,
+        MenuIds.ProceduresDepartFix,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -1149,36 +1150,32 @@ public class MenuCatalogCommandTests
         Assert.Null(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host));
     }
 
-    [AvaloniaFact]
-    public void CrossFix_OneRouteFix_DirectItemPlusOther()
+    /// <summary>
+    /// What the Cross fix and Depart fix entries send over a route fix is a whole command the sim's parser accepts, never the
+    /// fix alone (YAAT-910).
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(MenuIds.ProceduresCrossFix)]
+    [InlineData(MenuIds.ProceduresDepartFix)]
+    public void CrossAndDepartFix_SendACommandTheParserAccepts(string id)
     {
-        var host = new RecordingMenuHost("ECA");
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost(Fix);
         var aircraft = new FakeMenuAircraft { RouteFixes = [Fix] };
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresCrossFix).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Assert.Equal("Cross fix SUNOL", item.Header as string);
-        Assert.Null(item.Tag);
-        Click((MenuItem)item);
-        Click(AssertPicker(MenuCatalog.BuildCrossFixOther(aircraft, Context(), host), "Cross fix (other)…", MenuPickerDescriptor.Input, []));
-
-        Assert.Equal(["Fix name"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "CFIX SUNOL", Initials), (Callsign, "CFIX ECA", Initials)], host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void CrossFix_NoRouteFixes_UsesInputTier()
-    {
-        var host = new RecordingMenuHost(Fix);
-        var aircraft = new FakeMenuAircraft();
-
-        Click(
-            AssertPicker(MenuCatalog.Get(MenuIds.ProceduresCrossFix).Build(aircraft, Context(), host), "Cross fix…", MenuPickerDescriptor.Input, [])
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, Context(), host));
+        item.IsSubMenuOpen = true;
+        FixValueFlyoutPanel panel = Assert.IsAssignableFrom<FixValueFlyoutPanel>(
+            Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
         );
+        TextBox value = (panel is CrossFixFlyoutPanel cross) ? cross.AltitudeBox : Assert.IsType<DepartFixFlyoutPanel>(panel).HeadingBox;
+        value.Text = "110";
+        panel.RouteRows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal(["Fix name"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "CFIX SUNOL", Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildCrossFixOther(aircraft, Context(), host));
+        Assert.Empty(host.InputPlaceholders);
+        (string _, string command, string _) = Assert.Single(host.Sent);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, $"{command}: {parsed.Reason}");
     }
 
     [AvaloniaFact]

@@ -110,129 +110,18 @@ public static class DirectToFlyout
 public sealed class DirectToFlyoutHost() : FlyoutPanelHost("direct to flyout", "direct-to-flyout-panel");
 
 /// <summary>
-/// One fix row of the Direct to flyout: the ● mark on the next fix, the fix, its distance and magnetic bearing (or
-/// <c>passed</c>), and the command a click sends, in the outline the box draws round the row Enter sends.
-/// </summary>
-public sealed class DirectToFixRow : Button
-{
-    private static readonly IImmutableSolidColorBrush OutlineBrush = new ImmutableSolidColorBrush(Color.Parse("#8FC1FF"));
-
-    private readonly Border _outline = new()
-    {
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(4),
-        BorderBrush = Brushes.Transparent,
-        Padding = new Thickness(10, 3),
-    };
-    private readonly TextBlock _mark = new() { Width = 14, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _note = new()
-    {
-        FontSize = 12,
-        Opacity = 0.8,
-        Margin = new Thickness(10, 0, 0, 0),
-        VerticalAlignment = VerticalAlignment.Center,
-    };
-    private readonly TextBlock _command = FlyoutPanelParts.CommandText("");
-
-    internal DirectToFixRow(string fix, Func<string, Task> choose)
-    {
-        Fix = fix;
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto") };
-        grid.Children.Add(_mark);
-        var name = new TextBlock { Text = fix, VerticalAlignment = VerticalAlignment.Center };
-        FlyoutPanelParts.Mono(name);
-        Grid.SetColumn(name, 1);
-        grid.Children.Add(name);
-        Grid.SetColumn(_note, 2);
-        grid.Children.Add(_note);
-        Grid.SetColumn(_command, 3);
-        grid.Children.Add(_command);
-        _outline.Child = grid;
-        Content = _outline;
-        Padding = new Thickness(0);
-        Background = Brushes.Transparent;
-        BorderThickness = new Thickness(3, 0, 0, 0);
-        BorderBrush = Brushes.Transparent;
-        CornerRadius = new CornerRadius(0);
-        HorizontalAlignment = HorizontalAlignment.Stretch;
-        HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        Click += async (_, e) =>
-        {
-            e.Handled = true;
-            await choose(SentCommand);
-        };
-    }
-
-    /// <summary>The fix the row sends.</summary>
-    public string Fix { get; }
-
-    /// <summary>The command a click sends now.</summary>
-    public string SentCommand { get; private set; } = "";
-
-    /// <summary>The distance and magnetic bearing, <c>passed</c>, or empty when the fix has no position.</summary>
-    public string Note => _note.Text ?? "";
-
-    /// <summary>Whether the row is the fix the aircraft navigates to, filled and marked ●.</summary>
-    public bool IsNext { get; private set; }
-
-    /// <summary>Whether the aircraft has passed the fix since the flyout opened: greyed, and still sending; once passed, it stays so.</summary>
-    public bool IsPassed { get; private set; }
-
-    /// <summary>Whether the row is outlined: the row Enter in the box sends.</summary>
-    public bool IsOutlined { get; private set; }
-
-    /// <summary>The row as one line: the mark, the fix, the note and the command.</summary>
-    public string Line => $"{(IsNext ? "●" : " ")} {Fix}{((Note.Length > 0) ? $" · {Note}" : "")} — {SentCommand}";
-
-    /// <inheritdoc />
-    protected override Type StyleKeyOverride => typeof(Button);
-
-    internal void SetVerb(DirectToVerb verb)
-    {
-        SentCommand = DirectToFlyout.Command(verb, Fix);
-        _command.Text = SentCommand;
-        MenuCommandText.SetCommand(this, SentCommand);
-        AutomationProperties.SetName(this, $"{Fix} — {SentCommand}");
-    }
-
-    /// <summary>Shows the row's state now: the ● when <paramref name="isNext"/>, and passed from now on once <paramref name="passes"/>.</summary>
-    internal void Show(bool isNext, bool passes, string? note)
-    {
-        IsPassed |= passes;
-        IsNext = isNext && !IsPassed;
-        _mark.Text = IsNext ? "●" : "";
-        _note.Text = IsPassed ? "passed" : (note ?? "");
-        Background = IsNext ? FlyoutPanelParts.NowFill : Brushes.Transparent;
-        BorderBrush = IsNext ? FlyoutPanelParts.NowEdge : Brushes.Transparent;
-        Opacity = IsPassed ? MenuGlyphRowTemplate.DimmedOpacity : 1;
-    }
-
-    internal void SetOutlined(bool outlined)
-    {
-        IsOutlined = outlined;
-        _outline.BorderBrush = outlined ? OutlineBrush : Brushes.Transparent;
-    }
-}
-
-/// <summary>
 /// The Direct to flyout's one menu row (<see cref="DirectToFlyout"/>): the title line, the verb toggle, the fix box with its
-/// refusal, a separator, the route rows and the matches.
+/// refusal, a separator, then the fix list (<see cref="FixListView"/>): the route rows and the matches.
 /// </summary>
 public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
 {
-    private const double ListMaxHeight = 300;
-
     private readonly DirectToVerb _preset;
     private readonly IMenuAircraft? _aircraft;
     private readonly Func<string, Task> _choose;
     private readonly TextBlock _title = new() { FontSize = 11, Foreground = FlyoutPanelParts.TitleBrush };
     private readonly TextBlock _titleNow = new() { FontSize = 11, Foreground = FlyoutPanelParts.TitleBrush };
     private readonly List<ToggleButton> _toggles = [];
-    private readonly StackPanel _list = new();
-    private readonly TextBlock _routeHeader = GroupHeader("Remaining route · next ●");
-    private readonly TextBlock _matchHeader = GroupHeader("");
-    private readonly List<DirectToFixRow> _routeRows = [];
-    private readonly List<DirectToFixRow> _matchRows = [];
+    private readonly FixListView _fixes;
 
     internal DirectToFlyoutPanel(DirectToVerb preset, IMenuAircraft? aircraft, Func<string, Task> choose)
     {
@@ -267,6 +156,12 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
         };
         AutomationProperties.SetName(Box, "Fix");
         TakeoffFlyout.KeepClicksInside(Box);
+        _fixes = new FixListView(
+            aircraft,
+            Box,
+            "Remaining route · next ●",
+            new FixListBehaviour(RowCommand, FrdRow, SendRowAsync, e => ReferenceEquals(e.Source, Box) || Box.IsKeyboardFocusWithin, SendBoxAsync)
+        );
         Box.PropertyChanged += (_, e) =>
         {
             if (e.Property == TextBox.TextProperty)
@@ -277,8 +172,8 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
         Children.Add(FlyoutPanelParts.BoxRow(glyph, "Fix", Box, BoxCommandText));
         Children.Add(BoxError);
         Children.Add(FlyoutPanelParts.SeparatorLine());
-        Children.Add(new ScrollViewer { MaxHeight = ListMaxHeight, Content = _list });
-        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        Children.Add(_fixes.View);
+        AddHandler(KeyDownEvent, _fixes.OnKeyDown, RoutingStrategies.Tunnel);
         SetVerb(preset);
         Refresh();
     }
@@ -313,13 +208,13 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
     public string? BoxCommand => OutlinedRow?.SentCommand ?? DirectToFlyout.BoxCommand(Box.Text ?? "", Verb);
 
     /// <summary>The remaining route's rows as the flyout opened, in route order; they never move while it stays open.</summary>
-    public IReadOnlyList<DirectToFixRow> RouteRows => _routeRows;
+    public IReadOnlyList<FixRow> RouteRows => _fixes.RouteRows;
 
     /// <summary>The rows the box's text adds: the typed FRD's own row first when it is one, then every other matching fix, nearest first.</summary>
-    public IReadOnlyList<DirectToFixRow> MatchRows => _matchRows;
+    public IReadOnlyList<FixRow> MatchRows => _fixes.MatchRows;
 
     /// <summary>The row Enter in the box sends, outlined: the first shown row while the box holds text; null otherwise.</summary>
-    public DirectToFixRow? OutlinedRow { get; private set; }
+    public FixRow? OutlinedRow => _fixes.OutlinedRow;
 
     /// <summary>
     /// The panel as text, one line per part: the title line, the toggle (the verb on in brackets) while shown, the box with its
@@ -342,11 +237,7 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
             }
 
             lines.Add("---");
-            foreach (Control part in _list.Children.Where(part => part.IsVisible))
-            {
-                lines.Add((part is DirectToFixRow row) ? row.Line : ((part as TextBlock)?.Text ?? ""));
-            }
-
+            lines.AddRange(_fixes.Lines);
             return lines;
         }
     }
@@ -368,12 +259,7 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
     /// </summary>
     public void Reset()
     {
-        _routeRows.Clear();
-        if (_aircraft is not null)
-        {
-            _routeRows.AddRange(FixList.DirectToRoute(_aircraft).Select(fix => new DirectToFixRow(fix, _choose)));
-        }
-
+        _fixes.Reset((_aircraft is null) ? [] : FixList.DirectToRoute(_aircraft));
         Box.Text = "";
         SetVerb(_preset);
         OnTyped();
@@ -381,8 +267,7 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
 
     /// <summary>
     /// Follows the aircraft, in place: the title's next fix, the toggle's presence, each row's distance and bearing, the ● and
-    /// the fixes passed since the flyout opened. Passing advances only while the aircraft navigates to a route row's fix: the
-    /// rows before it turn passed and stay so; when it navigates nowhere (or off the route) no row changes and the ● goes.
+    /// the fixes passed since the flyout opened (<see cref="FixListView.Refresh"/>).
     /// </summary>
     public void Refresh()
     {
@@ -395,28 +280,25 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
         }
 
         _titleNow.Text = navigating ? $"→ {next}" : "";
-        int nextIndex = navigating ? _routeRows.FindIndex(row => string.Equals(row.Fix, next, StringComparison.OrdinalIgnoreCase)) : -1;
-        for (int i = 0; i < _routeRows.Count; i++)
-        {
-            _routeRows[i].Show(i == nextIndex, i < nextIndex, Note(_routeRows[i].Fix));
-        }
-
-        foreach (DirectToFixRow row in _matchRows)
-        {
-            row.Show(false, false, Note(row.Fix));
-        }
+        _fixes.Refresh();
     }
 
-    private static TextBlock GroupHeader(string text) =>
-        new()
-        {
-            Text = text,
-            FontSize = 11,
-            Foreground = FlyoutPanelParts.TitleBrush,
-            Margin = new Thickness(11, 4, 11, 2),
-        };
+    private (string? Sent, string Shown) RowCommand(string fix)
+    {
+        string command = DirectToFlyout.Command(Verb, fix);
+        return (command, command);
+    }
 
-    private string? Note(string fix) => (_aircraft is null) ? null : FixList.DistanceAndBearing(_aircraft.Position, fix);
+    /// <summary>The typed text's own row when it is an FRD, upper-cased; none otherwise.</summary>
+    private static IReadOnlyList<string> FrdRow(string prefix)
+    {
+        string typed = prefix.ToUpperInvariant();
+        return ((typed.Length > 0) && FixList.IsFrd(typed)) ? [typed] : [];
+    }
+
+    private Task SendRowAsync(FixRow row) => (row.SentCommand is { } command) ? _choose(command) : Task.CompletedTask;
+
+    private Task SendBoxAsync() => (BoxCommand is { } command) ? _choose(command) : Task.CompletedTask;
 
     private string ToggleText(DirectToVerb verb)
     {
@@ -433,11 +315,7 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
         }
 
         _title.Text = DirectToFlyout.Title(verb);
-        foreach (DirectToFixRow row in _routeRows.Concat(_matchRows))
-        {
-            row.SetVerb(verb);
-        }
-
+        _fixes.UpdateCommands();
         ShowBoxCommand();
     }
 
@@ -450,137 +328,10 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
         MenuCommandText.SetCommand(Box, command);
     }
 
-    /// <summary>
-    /// Shows what the box now reads: the route rows that match (hidden in place otherwise), the typed FRD's own row and every
-    /// other match, nearest first, under a header naming their count; then outlines the row Enter sends and shows its command.
-    /// </summary>
+    /// <summary>Shows what the box now reads in the list (<see cref="FixListView.Filter"/>), then the box's command.</summary>
     private void OnTyped()
     {
-        string prefix = (Box.Text ?? "").Trim();
-        foreach (DirectToFixRow row in _routeRows)
-        {
-            row.IsVisible = (prefix.Length == 0) || row.Fix.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-        }
-
-        bool frd = FillMatches(prefix);
-        int fixMatches = _matchRows.Count - (frd ? 1 : 0);
-        _routeHeader.IsVisible = _routeRows.Any(row => row.IsVisible);
-        _matchHeader.IsVisible = !frd || (fixMatches > 0);
-        _matchHeader.Text =
-            (prefix.Length == 0) ? DirectToFlyout.SearchHint
-            : (fixMatches > 0) ? $"All fixes · nearest first ({fixMatches})"
-            : $"No other fix starts with {prefix.ToUpperInvariant()}";
-        _list.Children.Clear();
-        _list.Children.Add(_routeHeader);
-        _list.Children.AddRange(_routeRows);
-        _list.Children.Add(_matchHeader);
-        _list.Children.AddRange(_matchRows);
-        Outline(prefix);
-    }
-
-    /// <summary>
-    /// Lists the rows <paramref name="prefix"/> adds: its own row when it is an FRD, then every other matching fix; true for an FRD.
-    /// </summary>
-    private bool FillMatches(string prefix)
-    {
-        _matchRows.Clear();
-        string typed = prefix.ToUpperInvariant();
-        bool frd = (typed.Length > 0) && FixList.IsFrd(typed);
-        if (frd)
-        {
-            _matchRows.Add(new DirectToFixRow(typed, _choose));
-        }
-
-        if (_aircraft is not null)
-        {
-            IReadOnlyList<string> matches = FixList.Matches(prefix, _aircraft.Position, [.. _routeRows.Select(row => row.Fix)]);
-            _matchRows.AddRange(matches.Select(fix => new DirectToFixRow(fix, _choose)));
-        }
-
-        foreach (DirectToFixRow row in _matchRows)
-        {
-            row.SetVerb(Verb);
-            row.Show(false, false, Note(row.Fix));
-        }
-
-        return frd;
-    }
-
-    /// <summary>
-    /// Outlines the row Enter sends while the box holds text: the shown row naming <paramref name="prefix"/> exactly, else the
-    /// first shown row; then shows the box's command.
-    /// </summary>
-    private void Outline(string prefix)
-    {
-        List<DirectToFixRow> shown = ShownRows();
-        OutlinedRow =
-            (prefix.Length == 0)
-                ? null
-                : shown.FirstOrDefault(row => string.Equals(row.Fix, prefix, StringComparison.OrdinalIgnoreCase)) ?? shown.FirstOrDefault();
-        foreach (DirectToFixRow row in _routeRows.Concat(_matchRows))
-        {
-            row.SetOutlined(ReferenceEquals(row, OutlinedRow));
-        }
-
-        OutlinedRow?.BringIntoView();
+        _fixes.Filter();
         ShowBoxCommand();
-    }
-
-    /// <summary>The rows the list shows now, top to bottom: the route rows that match the box, then the rows it adds.</summary>
-    private List<DirectToFixRow> ShownRows() => [.. _routeRows.Where(row => row.IsVisible), .. _matchRows];
-
-    private async void OnKeyDown(object? sender, KeyEventArgs e)
-    {
-        List<DirectToFixRow> rows = ShownRows();
-        int focused = rows.FindIndex(row => row.IsKeyboardFocusWithin);
-        bool inBox = ReferenceEquals(e.Source, Box) || Box.IsKeyboardFocusWithin;
-        switch (e.Key)
-        {
-            case Key.Enter when inBox:
-                e.Handled = true;
-                if (BoxCommand is { } command)
-                {
-                    await _choose(command);
-                }
-
-                break;
-            case Key.Enter when focused >= 0:
-                e.Handled = true;
-                await _choose(rows[focused].SentCommand);
-                break;
-            case Key.Down or Key.Up:
-                OnWalkKey(e, rows, inBox, focused);
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Down from the box focuses the ● row (else the first shown row); Down and Up walk the rows; Up from the top row returns to
-    /// the box.
-    /// </summary>
-    private void OnWalkKey(KeyEventArgs e, List<DirectToFixRow> rows, bool inBox, int focused)
-    {
-        int? next = (inBox, focused, e.Key) switch
-        {
-            (true, _, Key.Down) when rows.Count > 0 => Math.Max(0, rows.FindIndex(row => row.IsNext)),
-            (false, 0, Key.Up) => -1,
-            (false, >= 0, Key.Up) => focused - 1,
-            (false, >= 0, Key.Down) => Math.Min(focused + 1, rows.Count - 1),
-            _ => null,
-        };
-        if (next is not { } target)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        if (target < 0)
-        {
-            Box.Focus(NavigationMethod.Directional);
-            return;
-        }
-
-        rows[target].Focus(NavigationMethod.Directional);
-        rows[target].BringIntoView();
     }
 }

@@ -48,6 +48,16 @@ Below it, "Remaining route" lists the fixes ahead with a ● on the next one, ea
 
 ![The Direct to flyout for a jet sent direct SUNOL, with SU typed in the Fix box over the route row and the nearest fixes starting with SU](img/whats-new-direct-to-flyout.png)
 
+## Cross fix and Depart fix
+
+Cross fix and Depart fix, in the quick-command strip and under All Commands › Procedures, open a flyout instead of a route-fix list and an "(other)…" box, and the menu no longer sends a bare `CFIX SUNOL` or `DEPART SUNOL`.
+
+The Fix box takes a fix name and the boxes under it take what the command needs. Cross fix has a "Cross at" toggle (At, At or above, At or below), an Altitude box (`230` or `23000`) and an optional Speed box in 5-knot steps, and a caption such as "Cross SUNOL at or above 11,000 at 250 knots" for `CFIX SUNOL A110 250`. Depart fix has a "Heading after the fix" box and sends `DEPART SUNOL 200`.
+
+Below the boxes, "Route" lists the aircraft's fixes with a ● on the next one, each with its distance and magnetic bearing, and typing adds the nearest other fixes starting with your text. Every row shows the whole command it would send, ending `···` while the altitude or heading is missing. Clicking a row, or pressing Enter, with a value missing sends nothing: it fills the Fix box and moves to the box that is missing, which says in red what it needs.
+
+![The Cross fix flyout for a jet sent direct SUNOL, with SUNOL, At or above, 110 and 250 filled in over the route rows](img/whats-new-cross-fix-flyout.png)
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

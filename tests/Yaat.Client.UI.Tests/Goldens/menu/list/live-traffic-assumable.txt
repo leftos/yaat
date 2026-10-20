@@ -81,10 +81,10 @@ All Commands
     Join STAR… picker:list [AANET1, EMZOH4, OAKES3, PIRAT3, PXN6, WNDSR2]
     Climb via SID
     Descend via STAR
-    Cross fix… picker:list [KOAK, KLAX]
-    Cross fix (other)… picker:input
-    Depart fix… picker:list [KOAK, KLAX]
-    Depart fix (other)… picker:input
+    Cross fix…
+      cross fix flyout
+    Depart fix…
+      depart fix flyout
     PTAC… picker:input
     Join airway… picker:input
     Join radial outbound… picker:input

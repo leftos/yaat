@@ -78,10 +78,10 @@ All Commands
     Join STAR… picker:list [ANJLL4, BASET5, BAYST1, BIGBR3, BOGET2, BRUEN2, DIRBY2, GOATZ2, HLYWD1, HUULL2, IRNMN2, KIMMO3, LEENA8, MDNYT2, MOOR4, OCEAN3, OLAAA2, RYDRR2, SADDE8, SEAVU2, SNSTT2, VISTA3, WAYVE1, ZUUMA4]
     Climb via SID
     Descend via STAR
-    Cross fix… picker:list [SUNOL, ALTAM, KLAX, KOAK]
-    Cross fix (other)… picker:input
-    Depart fix… picker:list [SUNOL, ALTAM, KLAX, KOAK]
-    Depart fix (other)… picker:input
+    Cross fix…
+      cross fix flyout
+    Depart fix…
+      depart fix flyout
     PTAC… picker:input
     Join airway Q126
     Join airway (other)… picker:input

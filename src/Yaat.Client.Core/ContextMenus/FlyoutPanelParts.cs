@@ -98,7 +98,7 @@ internal static class FlyoutPanelParts
 
     /// <summary>
     /// One button of a verb toggle strip (<see cref="ToggleStrip"/>): <paramref name="label"/> with the verb's <paramref name="code"/>
-    /// beside it, not focusable, running <paramref name="onClick"/> when clicked. Every button but the <paramref name="first"/>
+    /// beside it (none when it is empty), not focusable, running <paramref name="onClick"/> when clicked. Every button but the <paramref name="first"/>
     /// has a line on its left.
     /// </summary>
     public static ToggleButton VerbToggle(string label, string code, bool first, Action onClick)
@@ -112,17 +112,16 @@ internal static class FlyoutPanelParts
             VerticalAlignment = VerticalAlignment.Center,
         };
         Mono(codeText);
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        if (code.Length > 0)
+        {
+            content.Children.Add(codeText);
+        }
+
         var toggle = new ToggleButton
         {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Children =
-                {
-                    new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center },
-                    codeText,
-                },
-            },
+            Content = content,
             FontSize = 12,
             Padding = new Thickness(10, 4),
             CornerRadius = new CornerRadius(0),

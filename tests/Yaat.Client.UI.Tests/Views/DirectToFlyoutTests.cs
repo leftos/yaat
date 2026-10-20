@@ -347,7 +347,7 @@ public partial class DirectToFlyoutTests
 
         panel.Box.Text = "sa";
 
-        DirectToFixRow first = panel.MatchRows[0];
+        FixRow first = panel.MatchRows[0];
         Assert.Same(first, panel.OutlinedRow);
         Assert.True(first.IsOutlined);
         Assert.Single(panel.RouteRows.Concat(panel.MatchRows), row => row.IsOutlined);
@@ -378,7 +378,7 @@ public partial class DirectToFlyoutTests
 
         panel.Box.Text = "sunol090010";
 
-        DirectToFixRow frd = panel.MatchRows[0];
+        FixRow frd = panel.MatchRows[0];
         Assert.Equal("SUNOL090010", frd.Fix);
         Assert.Equal("DCT SUNOL090010", frd.SentCommand);
         Assert.Matches(DistanceAndBearing(), frd.Note);
@@ -403,7 +403,7 @@ public partial class DirectToFlyoutTests
         Press(open.Flyout, Key.Down);
         Assert.True(open.Panel.RouteRows[1].IsKeyboardFocusWithin, "Down from the box does not focus the first shown row");
         Press(open.Flyout, Key.Down);
-        DirectToFixRow match = open.Panel.MatchRows[0];
+        FixRow match = open.Panel.MatchRows[0];
         Assert.True(match.IsKeyboardFocusWithin, "Down does not walk from the route rows into the matches");
         Assert.Empty(host.Sent);
 

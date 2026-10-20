@@ -914,9 +914,21 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   The box has focus when the flyout opens. Typing outlines the first row, and Enter sends it (with no row, Enter sends the typed fix). Down moves from the box into the rows (onto the ● row when it shows), Up and Down walk them, Up from the top row returns to the box, Enter sends the focused row, and Escape goes back to the strip.
 
+  **Cross fix…** and **Depart fix…** (Procedures; Cross fix also a strip icon, Depart fix with its own glyph) each open one flyout, titled "Cross fix" or "Depart fix" with "→ {next fix}" while the aircraft navigates to a fix. The Fix box ("Fix name") takes a fix's own name; an FRD is "Not a known fix" for these two.
+
+  Cross fix adds a "Cross at" toggle (At, At or above `A`, At or below `B`, opening on At), an Altitude box ("e.g. 230 or 23000") and an optional "Speed (knots)" box ("e.g. 250"), and a caption such as "Cross SUNOL at or above 11,000 at 250 knots" for `CFIX SUNOL A110 250`. Depart fix adds a "Heading after the fix" box ("e.g. 200") and the caption "Depart SUNOL heading 200" for `DEPART SUNOL 200`.
+
+  Under the boxes, "Route · next ●" lists the aircraft's route fixes with the distance and magnetic bearing from the aircraft and a ● on the next one; a fix it has passed greys to "passed" while the flyout stays open. Typing adds "All fixes · nearest first (n)", the 50 nearest other fixes starting with your text; with no text it reads "Type to search every fix, nearest first".
+
+  Each row shows the whole command it would send with the boxes' values, `CFIX SUNOL A110 250`, or `CFIX SUNOL ···` while the altitude is missing.
+
+  A row click, or Enter, with the command incomplete sends nothing: it fills the Fix box with that fix and moves focus to the box that is missing, which shows a red refusal ("Altitude required", "Not a valid altitude", "Speed in 5-knot steps", "Not a valid speed", "Heading required", "Not a valid heading").
+
+  Down from a box goes into the rows (the ● row first), Up from the top row returns to the Fix box, Tab moves between the boxes, Enter sends the outlined or focused row, and Escape goes back to the strip. The menu never sends `CFIX {fix}` or `DEPART {fix}` without its values.
+
   **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
 
-  Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
+  Procedures offers the Cross fix and Depart fix flyouts, a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
 
   The Tower and Pattern submenus list only the commands valid for the aircraft's current state — departure clearances (Line up and wait, Cleared for takeoff) for aircraft on the ground, landing/option clearances while on approach or in the pattern, and runway exits after touchdown; the VFR-only items (touch-and-go, stop-and-go, low approach, the option, and pattern maneuvers) are hidden for IFR aircraft, and the submenu is dropped entirely when nothing applies.
 

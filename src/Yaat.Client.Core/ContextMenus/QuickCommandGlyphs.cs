@@ -154,6 +154,7 @@ public static class QuickCommandGlyphs
             [MenuIds.ProceduresClimbViaSid] = Flight("M3 20h5v-5h5v-5h5V5 M15 8l3-3 3 3"),
             [MenuIds.ProceduresDescendViaStar] = Flight("M3 4h5v5h5v5h5v5 M15 16l3 3 3-3"),
             [MenuIds.ProceduresCrossFix] = Flight("M12 7l5 9H7z M2 12h19 M18 9l3 3-3 3"),
+            [MenuIds.ProceduresDepartFix] = Flight("M7 8l4 7H3z M11 12h10 M18 9l3 3-3 3"),
             [MenuIds.NavigationOnCourse] = Flight("M3 21c0-6 3-9 9-9h9 M18 9l3 3-3 3"),
             [MenuIds.PatternEnterLeftDownwind] = Pattern(EnterLeftDownwindPath),
             [MenuIds.PatternEnterRightDownwind] = Pattern(EnterRightDownwindPath),

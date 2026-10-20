@@ -185,8 +185,8 @@ public static class MenuCatalog
         Picker(MenuIds.ProceduresJoinStar, JoinStarLabel, BuildJoinStar),
         Leaf(MenuIds.ProceduresClimbViaSid, "Climb via SID", "CVIA", Always),
         Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
-        RouteFixPicker(MenuIds.ProceduresCrossFix, CrossFixLabel, CrossFixCommand),
-        RouteFixPicker(MenuIds.ProceduresDepartFix, DepartFixLabel, DepartFixCommand),
+        FixValueEntry(MenuIds.ProceduresCrossFix, "Cross fix…", FixValueFlyout.BuildCross),
+        FixValueEntry(MenuIds.ProceduresDepartFix, "Depart fix…", FixValueFlyout.BuildDepart),
         InputLeaf(MenuIds.ProceduresPtac, "PTAC…", "PTAC arguments", BlankInput.Closes, input => $"PTAC {input}"),
         Picker(MenuIds.ProceduresJoinAirway, JoinAirwayLabel, BuildJoinAirway),
         RadialPicker(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", "JRADO", fix => $"Bearing from {fix} (0-360)"),
@@ -496,16 +496,6 @@ public static class MenuCatalog
 
     /// <summary>The Join STAR entry's label, which its filed-STAR leaf and its "(other)" companion extend.</summary>
     private const string JoinStarLabel = "Join STAR";
-
-    /// <summary>The Cross fix entry's label, which its single-fix leaf and its "(other)" companion extend.</summary>
-    private const string CrossFixLabel = "Cross fix";
-
-    private const string CrossFixCommand = "CFIX";
-
-    /// <summary>The Depart fix entry's label, which its single-fix leaf and its "(other)" companion extend.</summary>
-    private const string DepartFixLabel = "Depart fix";
-
-    private const string DepartFixCommand = "DEPART";
 
     /// <summary>The Join airway entry's label, which its single-airway leaf and its "(other)" companion extend.</summary>
     private const string JoinAirwayLabel = "Join airway";
@@ -1367,6 +1357,13 @@ public static class MenuCatalog
     private static MenuCatalogEntry DirectToEntry(string id, string label, DirectToVerb verb, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
         new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => DirectToFlyout.Build(label, verb, ac, context, host));
 
+    /// <summary>
+    /// A fix-and-value entry: the Cross fix or Depart fix flyout (<see cref="FixValueFlyout"/>) that <paramref name="build"/>
+    /// makes, its menu row reading <paramref name="label"/>, ellipsis included.
+    /// </summary>
+    private static MenuCatalogEntry FixValueEntry(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem> build) =>
+        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => build(label, ac, context, host));
+
     /// <summary>The Report traffic in sight… free-text box's placeholder, for a target callsign or none.</summary>
     private const string TrafficInSightPlaceholder = "Target callsign (optional)";
 
@@ -1903,34 +1900,6 @@ public static class MenuCatalog
     /// <summary>The non-blank tokens of a filed route, split on spaces and dots.</summary>
     private static IEnumerable<string> RouteTokens(string route) =>
         route.Split(RouteSeparators, StringSplitOptions.RemoveEmptyEntries).Select(token => token.Trim()).Where(token => token.Length > 0);
-
-    /// <summary>
-    /// A fix entry over the aircraft's route fixes that sends <paramref name="command"/> with the fix; its form is
-    /// <see cref="BuildOneManyOrInput"/>'s, and <see cref="BuildCrossFixOther"/> or <see cref="BuildDepartFixOther"/>
-    /// offers free text beside the route fixes.
-    /// </summary>
-    private static MenuCatalogEntry RouteFixPicker(string id, string label, string command) =>
-        new(
-            id,
-            label,
-            MenuFlightRules.Both,
-            Always,
-            (ac, context, host) => BuildOneManyOrInput(new(label, command, FixNamePlaceholder), RouteFixes(ac), context, host)
-        );
-
-    /// <summary>
-    /// The Cross fix item's companion, which shares its id: free text labelled "(other)" beside the route fixes; null
-    /// without any.
-    /// </summary>
-    internal static MenuItem? BuildCrossFixOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        BuildOtherInput(new(CrossFixLabel, CrossFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host);
-
-    /// <summary>
-    /// The Depart fix item's companion, which shares its id: free text labelled "(other)" beside the route fixes; null
-    /// without any.
-    /// </summary>
-    internal static MenuItem? BuildDepartFixOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        BuildOtherInput(new(DepartFixLabel, DepartFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host);
 
     /// <summary>The Join airway item over the airways the flight plan files; its form is <see cref="BuildOneManyOrInput"/>'s.</summary>
     private static MenuItem BuildJoinAirway(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>

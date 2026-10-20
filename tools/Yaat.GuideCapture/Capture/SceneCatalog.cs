@@ -78,6 +78,7 @@ internal static class SceneCatalog
         new WhatsNewAltitudeFlyoutScene(),
         new WhatsNewSpeedFlyoutScene(),
         new WhatsNewDirectToFlyoutScene(),
+        new WhatsNewCrossFixFlyoutScene(),
         new WhatsNewGroundFollowScene(),
         new WhatsNewWindsAloftSourceScene(),
     ];
