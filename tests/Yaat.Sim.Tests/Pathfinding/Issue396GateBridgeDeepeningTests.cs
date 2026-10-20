@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -49,6 +50,7 @@ public class Issue396GateBridgeDeepeningTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = destinationRunway,
 
                 StartHeadingTrue = gate.TrueHeading?.Degrees,

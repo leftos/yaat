@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -49,6 +50,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = runway,
                 DiagnosticLog = diag.Add,
             },

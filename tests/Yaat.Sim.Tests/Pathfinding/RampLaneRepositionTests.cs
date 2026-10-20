@@ -35,6 +35,7 @@ public class RampLaneRepositionTests
             DestinationRunway = destinationRunway,
             OccupiedTaxiway = null,
             ImpliedLeadTaxiway = null,
+            AircraftLengthFt = AircraftLength.ResolveFt("B738"),
         };
 
     /// <summary>Resolve from the graph node nearest <paramref name="position"/> the way TryTaxi does, returning the structured failure.</summary>

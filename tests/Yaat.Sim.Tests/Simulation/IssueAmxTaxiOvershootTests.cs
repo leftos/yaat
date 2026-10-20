@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -139,6 +140,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "1L",
 
                 DiagnosticLog = msg => output.WriteLine(msg),

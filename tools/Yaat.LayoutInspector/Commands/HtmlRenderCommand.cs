@@ -55,6 +55,7 @@ public sealed class HtmlRenderCommand : ICommand
                 {
                     OccupiedTaxiway = null,
                     ImpliedLeadTaxiway = null,
+                    AircraftLengthFt = QueryCommand.LongestFallbackLengthFt,
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,

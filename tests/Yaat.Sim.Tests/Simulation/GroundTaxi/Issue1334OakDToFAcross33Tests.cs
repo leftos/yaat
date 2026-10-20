@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -296,6 +297,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = "E",
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DestinationHintNode = old1,
                 StartHeadingTrue = N36936AfterExitPose.Heading.Degrees,
                 DiagnosticLog = diag.Add,

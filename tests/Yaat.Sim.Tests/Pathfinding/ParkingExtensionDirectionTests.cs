@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -56,6 +57,7 @@ public class ParkingExtensionDirectionTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DestinationHintNode = newParking,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
@@ -110,6 +112,7 @@ public class ParkingExtensionDirectionTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DestinationHintNode = newParking,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },

@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -193,6 +194,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
 

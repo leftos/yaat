@@ -661,6 +661,10 @@ The aircraft is never warned about the taxiway it is already on, and a `TAXI` is
 
 The echo tells you where it will hold (`[holding at the C/D intersection — route ends at D, no destination given]`); continue it with a follow-up `TAXI`, a destination (`RWY 28R`, `@GA1`), or a turn hint on the last taxiway (`TAXI C >D`).
 
+**Where a taxi across a runway stops.** When such a clearance crosses a runway on the way (KOAK `TAXI D F`, or KCOS `TAXI A2 C2` where the airport declares it a crossing), the aircraft does not stop on the runway centreline: it ends on the far taxiway with the whole aircraft clear of the runway, its tail and nose both 10 ft past the far hold line. The echo says so (`[holding short of 17R/35L at A2 — route ends on C2 clear of 17R/35L, no destination given]`, `crossing 17R/35L at A2 — …` once you `CROSS` it).
+
+If the taxiway has no room to clear the runway (a T, a runway centreline or another runway's hold line comes first) the pilot refuses `Unable, no room on C2 to clear 17R/35L, request taxi instructions` and stays put. A destination, a further taxiway or `HS` of the runway keeps the route as you gave it.
+
 Routes also never taxi **along** a runway you didn't name in the path — a clearance that can only reach its parking destination by dropping a contradictory taxiway does so with a warning, and one that can't resolve at all is rejected rather than routed over a runway.
 
 **When a clearance leaves out a taxiway.** The aircraft never drives a movement-area taxiway you didn't clear to reach its destination. There are two exceptions: a gate's or spot's own short lead-in, up to 1,000 ft, and one of the airport's one-way ramp lanes when the one-way rules leave it the only way in or out (SFO `TAXI T A @B2` enters the Terminal 1 ramp on M1, because M2 is outbound only).

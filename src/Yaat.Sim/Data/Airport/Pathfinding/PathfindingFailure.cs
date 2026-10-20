@@ -31,6 +31,14 @@ public enum FailureKind
     /// <see cref="TaxiwaysDoNotConnect"/>.
     /// </summary>
     CannotMakeTurn,
+
+    /// <summary>
+    /// A bare clearance crosses a runway onto a taxiway with no straight-ahead point where the whole aircraft clears the
+    /// runway's holding position (tail and nose both <see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/> past the
+    /// far hold line, measured square to it) before a T, a runway centreline or another runway's bar. Refused as issued, like
+    /// <see cref="TaxiwaysDoNotConnect"/>.
+    /// </summary>
+    NoRoomToClearRunway,
 }
 
 /// <summary>
@@ -57,12 +65,19 @@ public sealed record PathfindingFailure(
     public bool IntersectionOnlyBehind { get; init; }
 
     /// <summary>
+    /// For <see cref="FailureKind.NoRoomToClearRunway"/>: the runway crossed, as the controller reads it ("17R/35L"). Null for
+    /// every other failure.
+    /// </summary>
+    public string? UnclearedRunway { get; init; }
+
+    /// <summary>
     /// Whether this failure refuses the clearance as issued for its pair of named taxiways
     /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>, <see cref="FailureKind.NoRouteAhead"/>,
-    /// <see cref="FailureKind.CannotMakeTurn"/>): no recovery may rewrite it into a route the clearance never named, and the
-    /// aircraft stays put.
+    /// <see cref="FailureKind.CannotMakeTurn"/>, <see cref="FailureKind.NoRoomToClearRunway"/>): no recovery may rewrite it
+    /// into a route the clearance never named, and the aircraft stays put.
     /// </summary>
-    public bool RefusesPair => Kind is FailureKind.TaxiwaysDoNotConnect or FailureKind.NoRouteAhead or FailureKind.CannotMakeTurn;
+    public bool RefusesPair =>
+        Kind is FailureKind.TaxiwaysDoNotConnect or FailureKind.NoRouteAhead or FailureKind.CannotMakeTurn or FailureKind.NoRoomToClearRunway;
 }
 
 /// <summary>

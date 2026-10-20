@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Tests.Pathfinding;
 
@@ -71,6 +72,7 @@ public class FirstHopHeadingBiasTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = headingTrue,
             },
             AircraftCategory.Jet,
@@ -158,6 +160,7 @@ public class FirstHopHeadingBiasTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = 270.0,
             },
             AircraftCategory.Jet,

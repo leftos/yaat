@@ -1083,6 +1083,7 @@ public static class RampLaneReposition
         {
             OccupiedTaxiway = options.OccupiedTaxiway,
             ImpliedLeadTaxiway = null,
+            AircraftLengthFt = options.AircraftLengthFt,
             ExplicitHoldShorts = options.ExplicitHoldShorts,
             DestinationRunway = null,
 

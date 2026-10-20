@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Testing;
 
@@ -110,7 +111,12 @@ public class OakDrawRouteFidelityTests
             a.Id,
             densePath,
             out string? fail,
-            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
+            },
             cat,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -346,7 +352,12 @@ public class OakDrawRouteFidelityTests
                     a.Id,
                     path,
                     out string? fail,
-                    new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
+                    new ExplicitPathOptions
+                    {
+                        OccupiedTaxiway = null,
+                        ImpliedLeadTaxiway = null,
+                        AircraftLengthFt = AircraftLength.ResolveFt("B738"),
+                    },
                     cat,
                     WakeTurbulenceData.WakeClass.Large
                 );
@@ -410,6 +421,7 @@ public class OakDrawRouteFidelityTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parking,
             },
             cat,

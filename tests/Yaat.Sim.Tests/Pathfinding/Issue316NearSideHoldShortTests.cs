@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -62,6 +63,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
@@ -109,6 +111,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "28R",
             },
             AircraftCategory.Jet,
@@ -152,6 +155,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "28R",
             },
             AircraftCategory.Jet,
@@ -208,6 +212,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },

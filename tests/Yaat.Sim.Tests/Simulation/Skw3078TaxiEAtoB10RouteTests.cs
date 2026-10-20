@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -64,6 +65,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parkingNode,
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
@@ -161,6 +163,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parkingNode,
             },
             AircraftCategory.Jet,
@@ -260,6 +263,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parkingNode,
             },
             AircraftCategory.Jet,

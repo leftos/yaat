@@ -2154,7 +2154,23 @@ public static class PilotResponder
         string to = PhraseologyVerbalizer.SpellTaxiway(toTaxiway);
         return new PilotSpeechText(
             SegmentExpander.CannotMakeTurnReason(fromTaxiway, toTaxiway),
-            $"{spoken}, unable the turn onto {to}, request taxi"
+            $"{spoken}, unable the turn onto {to}, request taxi instructions"
+        );
+    }
+
+    /// <summary>
+    /// The refusal of a bare taxi clearance across <paramref name="runway"/> onto <paramref name="taxiway"/> when the taxiway
+    /// has no room straight ahead for the whole aircraft to clear the runway's holding position: it stays put, says it is
+    /// unable (P/CG "UNABLE") and asks for taxi instructions (AIM 4-3-18.d.3). The terminal line is the controller-facing
+    /// <see cref="SegmentExpander.NoRoomToClearRunwayReason"/>; the spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoRoomToClearRunway(AircraftState aircraft, string taxiway, string runway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string onto = PhraseologyVerbalizer.SpellTaxiway(taxiway);
+        return new PilotSpeechText(
+            SegmentExpander.NoRoomToClearRunwayReason(taxiway, runway),
+            $"{spoken}, unable, no room on {onto} to clear the runway, request taxi instructions"
         );
     }
 

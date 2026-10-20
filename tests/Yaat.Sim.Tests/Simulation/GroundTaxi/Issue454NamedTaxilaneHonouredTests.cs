@@ -210,6 +210,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
                 {
                     OccupiedTaxiway = "B",
                     ImpliedLeadTaxiway = null,
+                    AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                     StartHeadingTrue = Skw3398HeldShortOfKPose.Heading.Degrees,
                 },
                 Category = AircraftCategory.Jet,

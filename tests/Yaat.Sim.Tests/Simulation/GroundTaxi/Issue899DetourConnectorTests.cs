@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -86,6 +87,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = start.HeadingDeg,
                 DiagnosticLog = diag.Add,
             },
@@ -152,6 +154,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "1R",
                 ExplicitHoldShorts = [],
                 StartHeadingTrue = SfoYankeeRestHeadingDeg,
@@ -316,7 +319,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             null,
             diag.Add,
             null,
-            null
+            null,
+            aircraftLengthFt: AircraftLength.ResolveFt("C172")
         );
         var start = PartialRoute.StartAt(at252.Id);
         PartialRoute head = start with
@@ -446,6 +450,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                     {
                         OccupiedTaxiway = "C",
                         ImpliedLeadTaxiway = "C",
+                        AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                         StartHeadingTrue = alongC,
                         DiagnosticLog = diag.Add,
                     }
@@ -460,6 +465,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                     {
                         OccupiedTaxiway = null,
                         ImpliedLeadTaxiway = null,
+                        AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                         DestinationRunway = "28L",
                         StartHeadingTrue = stand.TrueHeading!.Value.Degrees,
                         DiagnosticLog = diag.Add,
@@ -479,6 +485,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = heading,
                 DiagnosticLog = diag.Add,
             }
@@ -523,7 +530,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             null,
             null,
             null,
-            null
+            null,
+            aircraftLengthFt: null
         );
         var rules = new BridgeRules(null, fromTaxiway, false, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { excluded });
 
@@ -734,6 +742,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = headingTrue,
                 DiagnosticLog = diag.Add,
             },
@@ -995,7 +1004,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// 179°, a 150° reversal onto the 30° high-speed exit that a B738 cannot turn, so the B738 is refused with a reason where
     /// the C172 of <see cref="CosA2C2_DeclaredPair_IsAnOffsetCrossing"/> crosses: terminal
     /// "Unable, can't make the turn from A2 onto C2, request taxi instructions", spoken "…, unable the turn onto charlie two,
-    /// request taxi", and no node id shown to the controller.
+    /// request taxi instructions", and no node id shown to the controller.
     /// </summary>
     [Fact]
     public void CosA2C2_DeclaredPair_DoesNotAdmitAB738ThroughTheReversalOntoC2()
@@ -1015,7 +1024,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
 
         Assert.False(result.Success, "TAXI A2 C2 C was accepted for a B738");
         Assert.Equal("Unable, can't make the turn from A2 onto C2, request taxi instructions", result.Message);
-        Assert.Equal($"{SpokenCallsign(aircraft)}, unable the turn onto charlie two, request taxi", result.PilotUnable?.Tts);
+        Assert.Equal($"{SpokenCallsign(aircraft)}, unable the turn onto charlie two, request taxi instructions", result.PilotUnable?.Tts);
         Assert.Equal(PilotResponder.BuildUnableCannotMakeTurn(aircraft, "A2", "C2"), result.PilotUnable);
         Assert.Null(aircraft.Ground.AssignedTaxiRoute);
         Assert.Equal(before, aircraft.Position);
@@ -1048,6 +1057,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 StartHeadingTrue = start.HeadingDeg,
                 DiagnosticLog = diag.Add,
             },

@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -69,6 +70,7 @@ public class SfoDetourHonorsNamedTaxiwayTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "28L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("1L")],
                 StartHeadingTrue = StandHeadingDeg,

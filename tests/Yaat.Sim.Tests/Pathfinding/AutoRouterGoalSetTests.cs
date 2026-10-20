@@ -288,7 +288,8 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,
             waypointTurnHints: null,
-            startHeadingTrue: null
+            startHeadingTrue: null,
+            aircraftLengthFt: null
         );
 
     private static double Dist(GroundNode a, GroundNode b) => GeoMath.DistanceNm(a.Position, b.Position);

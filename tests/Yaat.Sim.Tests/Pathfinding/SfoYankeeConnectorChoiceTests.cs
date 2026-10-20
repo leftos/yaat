@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -77,6 +78,7 @@ public class SfoYankeeConnectorChoiceTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "1R",
                 ExplicitHoldShorts = [],
                 StartHeadingTrue = StartHeadingDeg,

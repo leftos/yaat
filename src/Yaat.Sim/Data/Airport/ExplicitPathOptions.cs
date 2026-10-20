@@ -55,4 +55,12 @@ public sealed class ExplicitPathOptions
     /// never a connector the letter rule judges.
     /// </summary>
     public required string? ImpliedLeadTaxiway { get; init; }
+
+    /// <summary>
+    /// The aircraft's length in feet (<see cref="Faa.AircraftLength.ResolveFt"/> for its type). A bare taxi that crosses a
+    /// runway ends where the tail and nose (half this behind and ahead of the aircraft's centre) both stand
+    /// <see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/> past the far hold line, measured square to it. A caller
+    /// with no type passes the longest fallback length (any category).
+    /// </summary>
+    public required double AircraftLengthFt { get; init; }
 }

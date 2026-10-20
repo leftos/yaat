@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -80,6 +81,7 @@ public class SfoTaxiBToF1RampConnectorTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = f1,
                 ExplicitHoldShorts = [HoldShortTarget.Parse("B4")],
                 StartHeadingTrue = StartHeadingTrue,

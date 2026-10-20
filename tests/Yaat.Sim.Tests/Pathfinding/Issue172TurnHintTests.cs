@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -65,6 +66,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [hint],
                 StartHeadingTrue = AcrossWHeadingDeg,
             },
@@ -192,6 +194,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [null, bHint],
             },
             AircraftCategory.Jet,
@@ -269,6 +272,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [aHint, null],
                 StartHeadingTrue = 0.0,
             },
@@ -335,6 +339,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [aHint],
                 StartHeadingTrue = 0.0,
             },
@@ -405,6 +410,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [null, bHint],
             },
             AircraftCategory.Jet,

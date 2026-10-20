@@ -110,7 +110,8 @@ public static class TaxiPathfinder
             preference: null,
             diagnosticLog: options.DiagnosticLog,
             waypointTurnHints: options.PathTurnHints,
-            startHeadingTrue: options.StartHeadingTrue
+            startHeadingTrue: options.StartHeadingTrue,
+            aircraftLengthFt: options.AircraftLengthFt
         ) with
         {
             OccupiedTaxiway = options.OccupiedTaxiway,
@@ -458,7 +459,8 @@ public static class TaxiPathfinder
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,
             waypointTurnHints: null,
-            startHeadingTrue: null
+            startHeadingTrue: null,
+            aircraftLengthFt: null
         );
     }
 
@@ -585,7 +587,8 @@ public static class TaxiPathfinder
             preference: preference,
             diagnosticLog: null,
             waypointTurnHints: null,
-            startHeadingTrue: null
+            startHeadingTrue: null,
+            aircraftLengthFt: null
         );
 
         // authorizedTaxiways is not part of SearchContext.Compile's signature; use with-expression

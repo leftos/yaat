@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Tests.Helpers;
 
@@ -180,6 +181,7 @@ public class AirportSidecarCatalogTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = route.DestinationRunway,
             },
             AircraftCategory.Jet,
@@ -215,7 +217,12 @@ public class AirportSidecarCatalogTests
             startNode!.Id,
             bogus.GetPathTokens(),
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

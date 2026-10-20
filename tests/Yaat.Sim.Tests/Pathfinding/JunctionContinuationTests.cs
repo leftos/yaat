@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -61,6 +62,7 @@ public class JunctionContinuationTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
 
@@ -118,6 +120,7 @@ public class JunctionContinuationTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
             AircraftCategory.Jet,
@@ -188,6 +191,7 @@ public class JunctionContinuationTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
             AircraftCategory.Jet,
@@ -375,6 +379,7 @@ public class JunctionContinuationTests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
             AircraftCategory.Jet,

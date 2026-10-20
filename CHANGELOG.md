@@ -49,6 +49,7 @@
 
 ### Fixed
 
+- A `TAXI` across a runway with no destination ends on the far taxiway once the whole aircraft is past the hold line, not on the runway.
 - `HOLDP` flies the inbound course as the magnetic course it was issued, not as a true course several degrees off.
 - `HOLDP` without a leg flies the altitude standard, 1½-minute legs above 14,000 ft, and `1.5M` legs parse on comma-decimal systems.
 - Fix/radial/distance points, and `JRADO`, `JRADI` and `AT` radials, use the navaid's published magnetic variation, so `OAK135015` lands on SIWBI.

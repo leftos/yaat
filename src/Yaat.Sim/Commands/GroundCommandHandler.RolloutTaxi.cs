@@ -455,6 +455,7 @@ public static partial class GroundCommandHandler
         string? crossLabel = ClearLandingRunwayBar(inputs.Layout, route, landedRunway);
         ApplyAutoCrossExceptLandingRunway(route, inputs.Options.AutoCrossRunway, landedRunway);
         ApplyCrossKeywords(route, stored.Taxi);
+        PrefixClearOfRunwayAdvisory(route);
 
         // "Taxi without delay" on the rollout is exit and taxi without delay: the exit is flown at the expedite braking, and the
         // route expedite stands for the stored route, which TaxiingPhase reads once the route starts from the exit. A TAXI

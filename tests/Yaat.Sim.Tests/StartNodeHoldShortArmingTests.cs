@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
@@ -80,6 +81,7 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },

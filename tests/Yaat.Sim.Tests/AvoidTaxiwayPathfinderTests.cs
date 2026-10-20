@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -188,7 +189,8 @@ public class AvoidTaxiwayPathfinderTests
             RoutePreference.FewestTurns,
             null,
             null,
-            null
+            null,
+            aircraftLengthFt: null
         );
         Assert.Equal(AvoidTaxiwayMode.HardExclude, auto.AvoidMode);
         Assert.Contains("S", auto.AvoidedTaxiways);
@@ -208,7 +210,8 @@ public class AvoidTaxiwayPathfinderTests
             null,
             null,
             null,
-            null
+            null,
+            aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
         Assert.Equal(AvoidTaxiwayMode.Off, explicitCtx.AvoidMode);
     }

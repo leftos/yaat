@@ -224,7 +224,8 @@ public class StateAwarePruningNecessityTests
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,
             waypointTurnHints: null,
-            startHeadingTrue: null
+            startHeadingTrue: null,
+            aircraftLengthFt: null
         ) with
         {
             // This sweep proves state-aware-pruning soundness (production's node-id closed set vs the

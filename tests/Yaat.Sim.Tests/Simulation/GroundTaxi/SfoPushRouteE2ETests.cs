@@ -993,6 +993,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         {
             OccupiedTaxiway = null,
             ImpliedLeadTaxiway = null,
+            AircraftLengthFt = AircraftLength.ResolveFt("B738"),
             StartHeadingTrue = ac.TrueHeading.Degrees,
         };
         AircraftCategory category = AircraftCategorization.Categorize(ac.AircraftType);

@@ -434,6 +434,15 @@ The point past which an aircraft cleared across a runway is no longer held at th
 **Lost route**:
 The follow route a `FOLLOWG` follower keeps after a lead re-route joins nothing, while it brakes to rest along it rather than drive a clearing route (`FollowingPhase.IsBrakingLostRoute`, docs/ground/navigator.md).
 
+**Clear-of-runway end** (of a bare crossing):
+Where a `TAXI` that crosses a runway with no destination ends: on the far taxiway with the aircraft's tail and nose both `RunwayCrossingFarSideGate.MarginFt` past the far bar, instead of at the centreline join (`SegmentExpander.EndClearOfCrossedRunway`, `ClearOfRunwayEnds`, docs/ground/pathfinder.md).
+
+**Far bar**:
+The crossed runway's holding-position marking on the side the aircraft leaves by; a crossing is complete only when the whole aircraft is past it.
+
+**Tail clearance** (of a crossing):
+The distance past the far bar the crossing phase carries the aircraft so its tail is clear of the runway: half the aircraft's length (`CrossingRunwayPhase.AppendTailClearance`). A bare crossing's end adds the nose to that test and a 10 ft margin.
+
 **Near-line gate**:
 The hold that keeps an aircraft cleared across a runway at the near holding-position marking while the far side lacks room for it to clear the runway, releasing it by itself when the room opens (`RunwayCrossingFarSideGate`, docs/ground/navigator.md).
 

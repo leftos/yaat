@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
@@ -859,6 +860,13 @@ public static class SegmentExpander
             return RouteToSpecificNode(head, waypoint.ResolvedNodeId, ctx);
         }
 
+        // A bare final taxiway reached across a runway (an offset or declared crossing) ends past the far bar with the whole
+        // aircraft clear of the runway, never on the centreline join.
+        if (EndClearOfCrossedRunway(head, waypoint, precedingTaxiway, ctx) is { } clearOfRunway)
+        {
+            return clearOfRunway;
+        }
+
         // Destination-aware terminus: when the clearance ends on a named taxiway that leads to a
         // known parking/spot/helipad node, route to that node along the taxiway instead of walking
         // to the natural terminus. The greedy terminus walk is direction-blind — it picks the
@@ -1017,6 +1025,612 @@ public static class SegmentExpander
         ctx.DiagnosticLog?.Invoke($"[terminus-junction] {precedingTaxiway}/{finalTaxiway} stop={junctionHead.HeadNodeId} edges={edges.Count}");
         return (edges, junctionHead, null);
     }
+
+    /// <summary>
+    /// Largest turn, in degrees, the walk past a crossed runway's far bar takes as straight ahead where it has a choice (the
+    /// final taxiway forks, or the walk carries into another taxiway); a sharper one is a direction the clearance never gave. A
+    /// sim convention; no FAA figure.
+    /// </summary>
+    private const double StraightAheadMaxTurnDeg = 30.0;
+
+    /// <summary>
+    /// Sharpest bend, in degrees, the walk follows where the final taxiway simply continues (its one continuation): the bend
+    /// limit the pathfinder uses elsewhere, <see cref="ComputeDirectionReversalPenalty"/>'s threshold. A sim convention; no FAA
+    /// figure.
+    /// </summary>
+    private const double BendMaxTurnDeg = 90.0;
+
+    /// <summary>Farthest, in feet along the final taxiway from the crossing's far join, the walk looks for the far bar.</summary>
+    private const double FarBarSearchFt = 500.0;
+
+    /// <summary>Most edges the walk past a crossed runway's far bar takes, a bound against a malformed layout.</summary>
+    private const int MaxClearOfRunwayEdges = 64;
+
+    /// <summary>Most refinements <see cref="CutPast"/> makes to its closed-form cut point.</summary>
+    private const int MaxCutRefinements = 3;
+
+    /// <summary>Feet past the margin the refined cut point aims the tail at, so rounding never leaves it just short.</summary>
+    private const double CutRefinementSlackFt = 0.001;
+
+    /// <summary>
+    /// The walk from a crossing's far join straight ahead along the final taxiway: its edges and head, how far past the far
+    /// hold line the nearer of the aircraft's tail and nose stands at the end, the taxiway the end protrudes into (null when
+    /// none), and whether the whole aircraft clears.
+    /// </summary>
+    private sealed record ClearOfRunwayWalk(List<DirectionalEdge> Edges, PartialRoute Head, double ClearOfLineFt, string? CarriedInto, bool Clears);
+
+    /// <summary>
+    /// What the walk past a crossed runway's far bar measures against: the runway crossed, the aircraft's length, the far
+    /// hold line (through the far bar, across the final taxiway's axis there, <paramref name="AxisBearingDeg"/>) and the
+    /// search.
+    /// </summary>
+    private sealed record ClearOfRunwayProbe(RunwayIdentifier Crossed, double LengthFt, LatLon FarBar, double AxisBearingDeg, SearchContext Ctx)
+    {
+        /// <summary>How far, in feet, <paramref name="position"/> lies past the far hold line, measured perpendicular to it.</summary>
+        public double PastLineFt(LatLon position) => SegmentExpander.PastLineFt(FarBar, AxisBearingDeg, position);
+
+        /// <summary>
+        /// How far, in feet, the nearer of the tail and nose of an aircraft whose centre stands at <paramref name="position"/>,
+        /// nosed <paramref name="headingDeg"/>, lies past the far hold line (<see cref="FuselagePastLineFt"/>).
+        /// </summary>
+        public double ClearOfLineFt(LatLon position, double headingDeg) => FuselagePastLineFt(FarBar, AxisBearingDeg, position, headingDeg, LengthFt);
+    }
+
+    /// <summary>
+    /// How far, in feet, the nearer of the tail and the nose of an aircraft <paramref name="lengthFt"/> long, its centre at
+    /// <paramref name="centre"/> and nosed <paramref name="headingDeg"/>, lies past the hold line through
+    /// <paramref name="farBar"/> across the axis <paramref name="axisBearingDeg"/>, measured square to the line. The fuselage
+    /// is a straight segment, so its two ends bound every point of it: the whole aircraft is past the line by at least this.
+    /// </summary>
+    public static double FuselagePastLineFt(LatLon farBar, double axisBearingDeg, LatLon centre, double headingDeg, double lengthFt)
+    {
+        double tailFt = PastLineFt(farBar, axisBearingDeg, ProjectAlong(centre, headingDeg + 180.0, lengthFt / 2.0));
+        double noseFt = PastLineFt(farBar, axisBearingDeg, ProjectAlong(centre, headingDeg, lengthFt / 2.0));
+        return Math.Min(tailFt, noseFt);
+    }
+
+    /// <summary>
+    /// How far, in feet, <paramref name="position"/> lies past the hold line through <paramref name="farBar"/> across the axis
+    /// <paramref name="axisBearingDeg"/>, measured perpendicular to the line (negative short of it).
+    /// </summary>
+    private static double PastLineFt(LatLon farBar, double axisBearingDeg, LatLon position)
+    {
+        double distanceFt = GeoMath.DistanceNm(farBar, position) * GeoMath.FeetPerNm;
+        if (distanceFt <= 0.0)
+        {
+            return 0.0;
+        }
+
+        double offAxisRad = (GeoMath.BearingTo(farBar, position) - axisBearingDeg) * Math.PI / 180.0;
+        return distanceFt * Math.Cos(offAxisRad);
+    }
+
+    /// <summary><paramref name="from"/> moved <paramref name="alongFt"/> feet on <paramref name="bearingDeg"/>, as the walk's cuts project.</summary>
+    internal static LatLon ProjectAlong(LatLon from, double bearingDeg, double alongFt) =>
+        GeoMath.ProjectPointRaw(from, bearingDeg, alongFt / GeoMath.FeetPerNm);
+
+    /// <summary>
+    /// End a bare final taxiway reached across a runway (an offset crossing, or a pair the sidecar declares) with the whole
+    /// aircraft clear of the runway: straight ahead along the final taxiway from its join, to the first point where the tail
+    /// and the nose (half the aircraft's length behind and ahead of its centre, along its heading there) both stand
+    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far hold line, measured perpendicular to that line, carried
+    /// straight into a taxiway reached first (AIM 4-3-21.b, 2-3-5.a.1). On a straight taxiway that is half the length plus the
+    /// margin along it; past a bend the fuselage is measured where it actually lies. Refused
+    /// (<see cref="FailureKind.NoRoomToClearRunway"/>) when a T, a runway centreline or another runway's bar comes first, or
+    /// lies too close ahead of the end; null, leaving the junction stop, when the clearance is not bare
+    /// (<see cref="BareCrossingRunway"/>) or the final taxiway carries no bar of the runway near its join.
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure)? EndClearOfCrossedRunway(
+        PartialRoute head,
+        WaypointToken waypoint,
+        string? precedingTaxiway,
+        SearchContext ctx
+    )
+    {
+        if ((precedingTaxiway is null) || (BareCrossingRunway(head, waypoint, precedingTaxiway, ctx) is not { } crossed))
+        {
+            return null;
+        }
+
+        string final = waypoint.Name;
+        string runway = crossed.ToString();
+        double lengthFt =
+            ctx.AircraftLengthFt
+            ?? throw new InvalidOperationException($"a bare taxi {precedingTaxiway} {final} across {runway} was resolved with no aircraft length");
+        if (WalkClearOfRunway(head, final, crossed, lengthFt, ctx) is not { } walk)
+        {
+            ctx.DiagnosticLog?.Invoke($"[clear-of-runway] {precedingTaxiway}→{final} across {runway}: no {runway} bar near the join on {final}");
+            return null;
+        }
+
+        string trace =
+            $"{precedingTaxiway}→{final} across {runway}: end #{walk.Head.HeadNodeId}, tail and nose {walk.ClearOfLineFt:F1}ft past "
+            + $"the far line (need {RunwayCrossingFarSideGate.MarginFt:F0}ft) into {walk.CarriedInto ?? "-"}";
+        if (!walk.Clears)
+        {
+            ctx.DiagnosticLog?.Invoke($"[clear-of-runway] refused {trace}");
+            return (null, null, NoRoomToClearRunwayFailure(precedingTaxiway, final, runway));
+        }
+
+        string advisory = ClearOfRunwayAdvisory(final, runway, walk.CarriedInto);
+        ctx.ClearOfRunwayEnds.Record(walk.Head.HeadNodeId, new ClearOfRunwayEnd(runway, precedingTaxiway, walk.CarriedInto, advisory));
+        ctx.DiagnosticLog?.Invoke($"[clear-of-runway] {trace}");
+        return (walk.Edges, walk.Head, null);
+    }
+
+    /// <summary>
+    /// The runway a bare clearance ends across: the final taxiway <paramref name="waypoint"/> is reached across a runway from
+    /// <paramref name="precedingTaxiway"/>, the head stands at that crossing's far join, the waypoint carries no turn hint, and
+    /// the clearance gives nothing beyond the crossing (<see cref="IsBareCrossingClearance"/>). Null otherwise.
+    /// </summary>
+    private static RunwayIdentifier? BareCrossingRunway(PartialRoute head, WaypointToken waypoint, string precedingTaxiway, SearchContext ctx)
+    {
+        if (waypoint.TurnHint is not null)
+        {
+            return null;
+        }
+
+        OffsetRunwayCrossing? crossing = CachedOffsetRunwayCrossing(ctx, precedingTaxiway, waypoint.Name);
+        if ((crossing is null) || (head.HeadNodeId != crossing.ToJoinNodeId))
+        {
+            return null;
+        }
+
+        var crossed = RunwayIdentifier.Parse(RunwayWaypointDisplay(crossing.RunwayCenterline));
+        return IsBareCrossingClearance(head, crossed, precedingTaxiway, waypoint.Name, ctx) ? crossed : null;
+    }
+
+    /// <summary>The refusal of a bare crossing of <paramref name="runway"/> onto <paramref name="finalTaxiway"/> with no room to clear it.</summary>
+    private static PathfindingFailure NoRoomToClearRunwayFailure(string precedingTaxiway, string finalTaxiway, string runway) =>
+        new(
+            FailureKind.NoRoomToClearRunway,
+            NoRoomToClearRunwayReason(finalTaxiway, runway),
+            finalTaxiway,
+            $"{precedingTaxiway} → {finalTaxiway}",
+            null
+        )
+        {
+            UnconnectedFrom = precedingTaxiway,
+            UnconnectedTo = finalTaxiway,
+            UnclearedRunway = runway,
+        };
+
+    /// <summary>
+    /// The advisory a bare taxi across <paramref name="runway"/> carries: it ends on <paramref name="finalTaxiway"/> clear of
+    /// the runway, nosed into <paramref name="carriedInto"/> when the end protrudes into it. The TAXI handler prefixes how the
+    /// crossing's near bar stands once auto-cross and the CROSS keywords have applied.
+    /// </summary>
+    private static string ClearOfRunwayAdvisory(string finalTaxiway, string runway, string? carriedInto)
+    {
+        string nose = carriedInto is null ? "" : $", nose into {carriedInto}";
+        return $"route ends on {finalTaxiway} clear of {runway}{nose}, no destination given";
+    }
+
+    /// <summary>
+    /// Whether the clearance gives nothing beyond a crossing of <paramref name="crossed"/>: no destination but the CROSS
+    /// anchor at one of its bars, and every hold short either of the runway crossed (unlocated, or located on
+    /// <paramref name="precedingTaxiway"/>) or one the route has already passed (<see cref="HoldsShortBeforeCrossing"/>).
+    /// </summary>
+    private static bool IsBareCrossingClearance(
+        PartialRoute head,
+        RunwayIdentifier crossed,
+        string precedingTaxiway,
+        string finalTaxiway,
+        SearchContext ctx
+    )
+    {
+        bool bareDestination =
+            (ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
+            || (
+                (ctx.Destination.Kind == DestinationKind.Node)
+                && (ctx.Destination.TargetNodeId is { } targetId)
+                && ctx.Layout.Nodes.TryGetValue(targetId, out GroundNode? target)
+                && IsBarOf(target, crossed)
+            );
+        if (!bareDestination)
+        {
+            return false;
+        }
+
+        return ctx.ExplicitHoldShorts.All(hs =>
+            IsHoldShortOfCrossing(hs, crossed, precedingTaxiway) || HoldsShortBeforeCrossing(hs, head, precedingTaxiway, finalTaxiway, ctx)
+        );
+    }
+
+    /// <summary>
+    /// Whether <paramref name="hs"/> holds short of the runway crossed, unlocated or located on <paramref name="precedingTaxiway"/>.
+    /// </summary>
+    private static bool IsHoldShortOfCrossing(HoldShortTarget hs, RunwayIdentifier crossed, string precedingTaxiway) =>
+        !hs.IsSpot
+        && ((hs.OnTaxiway is null) || hs.OnTaxiway.Equals(precedingTaxiway, StringComparison.OrdinalIgnoreCase))
+        && crossed.Contains(hs.Target);
+
+    /// <summary>
+    /// Whether <paramref name="hs"/> binds on the route walked before the crossing (a runway bar or a taxiway the head has
+    /// already passed) and nowhere it would steer the end: never a spot, never of or on <paramref name="finalTaxiway"/> or of
+    /// <paramref name="precedingTaxiway"/>, and never one <see cref="ResolveTerminusBias"/> would aim the final walk at.
+    /// </summary>
+    private static bool HoldsShortBeforeCrossing(
+        HoldShortTarget hs,
+        PartialRoute head,
+        string precedingTaxiway,
+        string finalTaxiway,
+        SearchContext ctx
+    )
+    {
+        bool namesTheEnd =
+            hs.IsSpot
+            || hs.Target.Equals(finalTaxiway, StringComparison.OrdinalIgnoreCase)
+            || hs.Target.Equals(precedingTaxiway, StringComparison.OrdinalIgnoreCase)
+            || (hs.OnTaxiway?.Equals(finalTaxiway, StringComparison.OrdinalIgnoreCase) == true);
+        return !namesTheEnd
+            && (ResolveTerminusBias(head, finalTaxiway, ctx with { ExplicitHoldShorts = new HashSet<HoldShortTarget> { hs } }) is null)
+            && BindsOnWalkedRoute(hs, head, ctx);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="hs"/> binds at a node <paramref name="head"/> has already walked: a bar of its runway, or a node
+    /// on its taxiway, on its <see cref="HoldShortTarget.OnTaxiway"/> when located.
+    /// </summary>
+    private static bool BindsOnWalkedRoute(HoldShortTarget hs, PartialRoute head, SearchContext ctx)
+    {
+        bool isRunway = ctx.Layout.TryGetRunwayCenterlineName(hs.Target, out _);
+        for (PartialRoute? walked = head; walked is not null; walked = walked.Previous)
+        {
+            int id = walked.HeadNodeId;
+            if (!ctx.Layout.Nodes.TryGetValue(id, out GroundNode? node) || ((hs.OnTaxiway is { } on) && !node.Edges.Any(e => e.MatchesTaxiway(on))))
+            {
+                continue;
+            }
+
+            if (isRunway ? IsRunwayHoldShort(id, hs.Target, ctx) : node.Edges.Any(e => e.MatchesTaxiway(hs.Target)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsBarOf(GroundNode node, RunwayIdentifier runway) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && id.Contains(runway.End1);
+
+    /// <summary>
+    /// A bar of a runway other than <paramref name="crossed"/>, or a node on another runway's centreline: the walk from the
+    /// crossing never carries beyond it.
+    /// </summary>
+    private static bool IsOtherRunway(GroundNode node, RunwayIdentifier crossed) =>
+        ((node.Type == GroundNodeType.RunwayHoldShort) && !IsBarOf(node, crossed))
+        || node.Edges.Any(e =>
+            e.IsRunwayCenterline && !RunwayIdentifier.Parse(RunwayWaypointDisplay(RouteCostFunction.ResolveTaxiwayName(e, node.Id))).Overlaps(crossed)
+        );
+
+    /// <summary>
+    /// Walk straight ahead from the crossing's far join along <paramref name="finalTaxiway"/> to its bar of the runway
+    /// crossed (<see cref="FindFarBar"/>), then on past it until the aircraft stands clear of the runway
+    /// (<see cref="WalkPastFarBar"/>), its hold line across the taxiway's axis as the walk arrives at the bar. Null when the
+    /// final taxiway carries no such bar near its join.
+    /// </summary>
+    private static ClearOfRunwayWalk? WalkClearOfRunway(
+        PartialRoute head,
+        string finalTaxiway,
+        RunwayIdentifier crossed,
+        double lengthFt,
+        SearchContext ctx
+    )
+    {
+        if (FindFarBar(head, finalTaxiway, crossed, ctx) is not { } toBar)
+        {
+            return null;
+        }
+
+        GroundNode farBar = ctx.Layout.Nodes[toBar.Head.HeadNodeId];
+        var probe = new ClearOfRunwayProbe(crossed, lengthFt, farBar.Position, toBar.Head.ArrivalBearing, ctx);
+        ctx.DiagnosticLog?.Invoke($"[clear-of-runway] {finalTaxiway}'s far bar #{farBar.Id}, hold line across {probe.AxisBearingDeg:F1}°");
+        return WalkPastFarBar(toBar.Edges, toBar.Head, finalTaxiway, probe);
+    }
+
+    /// <summary>
+    /// The walk from the crossing's far join to <paramref name="finalTaxiway"/>'s bar of <paramref name="crossed"/>: along the
+    /// final taxiway only, within <see cref="FarBarSearchFt"/> of the join, before the taxiway's first junction and before
+    /// another runway. Null when no such bar lies there.
+    /// </summary>
+    private static (List<DirectionalEdge> Edges, PartialRoute Head)? FindFarBar(
+        PartialRoute head,
+        string finalTaxiway,
+        RunwayIdentifier crossed,
+        SearchContext ctx
+    )
+    {
+        GroundNode node = ctx.Layout.Nodes[head.HeadNodeId];
+        IGroundEdge? edge = StraightestEdgeOnto(node, finalTaxiway, head.ArrivalBearing);
+        var edges = new List<DirectionalEdge>();
+        PartialRoute current = head;
+        double walkedFt = 0.0;
+        while ((edge is not null) && (walkedFt < FarBarSearchFt))
+        {
+            GroundNode next = edge.OtherNode(node);
+            edges.Add(edge.Directed(node, next));
+            current = Advance(current, node, edge, next, ctx);
+            walkedFt += edge.DistanceNm * GeoMath.FeetPerNm;
+            if (IsBarOf(next, crossed))
+            {
+                return walkedFt <= FarBarSearchFt ? (edges, current) : null;
+            }
+
+            if (IsOtherRunway(next, crossed) || next.Edges.Any(e => !e.IsRunwayCenterline && !e.MatchesTaxiway(finalTaxiway)))
+            {
+                return null;
+            }
+
+            edge = StraightAheadEdge(next, current, finalTaxiway);
+            node = next;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Walk on from the far bar at <paramref name="atBar"/>'s head, straight ahead along <paramref name="finalTaxiway"/> and
+    /// carried straight into whatever taxiway it meets first, to the first point where the aircraft's tail and nose both stand
+    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far hold line (<see cref="ClearOfRunwayProbe.ClearOfLineFt"/>):
+    /// a straight edge is cut there by a virtual node, an arc taken whole, and the walk carries on past an end that falls
+    /// short. Stopped short (not clear) by a T, a dead end, a runway centreline or another runway's bar (<see cref="EndAtNode"/>).
+    /// </summary>
+    private static ClearOfRunwayWalk WalkPastFarBar(List<DirectionalEdge> edges, PartialRoute atBar, string finalTaxiway, ClearOfRunwayProbe probe)
+    {
+        GroundNode node = probe.Ctx.Layout.Nodes[atBar.HeadNodeId];
+        PartialRoute current = atBar;
+        IGroundEdge? edge = StraightAheadEdge(node, current, finalTaxiway);
+        string? carriedInto = CarriedInto(edge, finalTaxiway);
+        double clearFt = probe.ClearOfLineFt(node.Position, current.ArrivalBearing);
+        while ((edge is not null) && (edges.Count < MaxClearOfRunwayEdges))
+        {
+            string onTaxiway = carriedInto ?? finalTaxiway;
+            if (CutPast(node, edge, probe) is { } cut)
+            {
+                double cutClearFt = probe.ClearOfLineFt(cut.End.Position, cut.BearingDeg);
+                if (cutClearFt >= RunwayCrossingFarSideGate.MarginFt)
+                {
+                    bool roomAhead = !OtherRunwayAhead(current, edge, cut.AlongFt, onTaxiway, probe);
+                    edges.Add(cut.Edge.Directed(node, cut.End));
+                    current = Advance(current, node, cut.Edge, cut.End, probe.Ctx);
+                    return new ClearOfRunwayWalk(edges, current, cutClearFt, carriedInto, roomAhead);
+                }
+            }
+
+            GroundNode next = edge.OtherNode(node);
+            edges.Add(edge.Directed(node, next));
+            current = Advance(current, node, edge, next, probe.Ctx);
+            clearFt = probe.ClearOfLineFt(next.Position, current.ArrivalBearing);
+            if (StopsWalkAt(next, probe.Crossed, clearFt >= RunwayCrossingFarSideGate.MarginFt))
+            {
+                return EndAtNode(new ClearOfRunwayWalk(edges, current, clearFt, carriedInto, false), next, probe);
+            }
+
+            edge = StraightAheadEdge(next, current, onTaxiway);
+            carriedInto ??= CarriedInto(edge, finalTaxiway);
+            node = next;
+        }
+
+        return new ClearOfRunwayWalk(edges, current, clearFt, carriedInto, false);
+    }
+
+    /// <summary>
+    /// The walk <paramref name="walk"/> ended on the layout node <paramref name="end"/>, judged: clear only where
+    /// <see cref="EndClearsAt"/> allows it, with no other runway within half the aircraft's length straight ahead.
+    /// </summary>
+    private static ClearOfRunwayWalk EndAtNode(ClearOfRunwayWalk walk, GroundNode end, ClearOfRunwayProbe probe)
+    {
+        if (!EndClearsAt(end, probe.Crossed, walk.ClearOfLineFt))
+        {
+            return walk;
+        }
+
+        string taxiway = walk.CarriedInto ?? walk.Head.LastTaxiwayName;
+        IGroundEdge? ahead = StraightAheadEdge(end, walk.Head, taxiway);
+        bool roomAhead = (ahead is null) || !OtherRunwayAhead(walk.Head, ahead, 0.0, taxiway, probe);
+        return walk with { Clears = roomAhead };
+    }
+
+    /// <summary>
+    /// Whether a bare crossing of <paramref name="crossed"/> may end at the layout node <paramref name="end"/> with the nearer
+    /// of the aircraft's tail and nose <paramref name="clearOfLineFt"/> past the far hold line: never where
+    /// <see cref="RefusesClearOfRunwayEndAt"/> refuses the node, and only once that distance reaches
+    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/>.
+    /// </summary>
+    public static bool EndClearsAt(GroundNode end, RunwayIdentifier crossed, double clearOfLineFt) =>
+        !RefusesClearOfRunwayEndAt(end, crossed) && (clearOfLineFt >= RunwayCrossingFarSideGate.MarginFt);
+
+    /// <summary>
+    /// Whether a bare crossing of <paramref name="crossed"/> can never end at <paramref name="end"/>: a node on a runway
+    /// centreline, or another runway's bar, where the aircraft would stand nose at or past that runway's holding position and
+    /// auto-cross could clear the hold short there.
+    /// </summary>
+    public static bool RefusesClearOfRunwayEndAt(GroundNode end, RunwayIdentifier crossed) =>
+        AirportGroundLayout.HasRunwayCenterlineEdge(end) || IsOtherRunway(end, crossed);
+
+    /// <summary>
+    /// Whether another runway's bar or any runway centreline lies within half the aircraft's length straight ahead of a route
+    /// end <paramref name="startOffsetFt"/> along <paramref name="edge"/> from the head of <paramref name="atFrom"/>, walking
+    /// <paramref name="taxiway"/>: the nose would be past that bar.
+    /// </summary>
+    private static bool OtherRunwayAhead(PartialRoute atFrom, IGroundEdge edge, double startOffsetFt, string taxiway, ClearOfRunwayProbe probe)
+    {
+        double aheadFt = probe.LengthFt / 2.0;
+        double walkedFt = -startOffsetFt;
+        GroundNode node = probe.Ctx.Layout.Nodes[atFrom.HeadNodeId];
+        PartialRoute current = atFrom;
+        IGroundEdge? next = edge;
+        for (int steps = 0; (next is not null) && (steps < MaxClearOfRunwayEdges); steps++)
+        {
+            GroundNode other = next.OtherNode(node);
+            walkedFt += next.DistanceNm * GeoMath.FeetPerNm;
+            if (walkedFt >= aheadFt)
+            {
+                return false;
+            }
+
+            if (IsOtherRunway(other, probe.Crossed) || AirportGroundLayout.HasRunwayCenterlineEdge(other))
+            {
+                return true;
+            }
+
+            current = Advance(current, node, next, other, probe.Ctx);
+            next = StraightAheadEdge(other, current, taxiway);
+            node = other;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether the walk past the far bar ends at <paramref name="node"/>: once it lies <paramref name="clearDistanceReached"/>,
+    /// or at another runway's bar or any runway centreline, which it never carries beyond.
+    /// </summary>
+    private static bool StopsWalkAt(GroundNode node, RunwayIdentifier crossed, bool clearDistanceReached) =>
+        clearDistanceReached || IsOtherRunway(node, crossed) || AirportGroundLayout.HasRunwayCenterlineEdge(node);
+
+    /// <summary>The taxiway <paramref name="edge"/> carries the walk into off <paramref name="finalTaxiway"/>, or null when it stays on it.</summary>
+    private static string? CarriedInto(IGroundEdge? edge, string finalTaxiway) =>
+        (edge is GroundEdge { IsRunwayCenterline: false } onward) && !onward.MatchesTaxiway(finalTaxiway) ? onward.TaxiwayName : null;
+
+    /// <summary>
+    /// <paramref name="edge"/> from <paramref name="from"/> cut by a virtual node at the first point where the whole fuselage of
+    /// an aircraft centred there, nosed along the edge, stands <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far
+    /// hold line (<see cref="ClearOfRunwayProbe.ClearOfLineFt"/>), how far along the edge that lies and the edge's bearing,
+    /// when it is a straight edge with no shape points that runs toward the line's far side past that point; null otherwise
+    /// (an arc is taken whole), as <see cref="CrossingRunwayPhase"/>'s tail-clearance leg cuts. While the edge runs away from
+    /// the runway the tail is the fuselage's nearer end, so the cut is where the tail reaches the margin; it moves past the line
+    /// at the cosine of the edge's angle off the taxiway's axis at the bar, so the cut point is closed-form.
+    /// </summary>
+    private static (GroundEdge Edge, GroundNode End, double AlongFt, double BearingDeg)? CutPast(
+        GroundNode from,
+        IGroundEdge edge,
+        ClearOfRunwayProbe probe
+    )
+    {
+        if (edge is not GroundEdge { IntermediatePoints.Count: 0 })
+        {
+            return null;
+        }
+
+        GroundNode to = edge.OtherNode(from);
+        double bearing = GeoMath.BearingTo(from.Position, to.Position);
+        double towardLine = Math.Cos((bearing - probe.AxisBearingDeg) * Math.PI / 180.0);
+        if (towardLine <= 0.0)
+        {
+            return null;
+        }
+
+        double alongFt = (probe.LengthFt / 2.0) + ((RunwayCrossingFarSideGate.MarginFt - probe.PastLineFt(from.Position)) / towardLine);
+        double edgeFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
+        if ((alongFt <= 0.0) || (alongFt >= edgeFt))
+        {
+            return null;
+        }
+
+        // The projection is flat and the distances great-circle, so the closed form lands a few hundredths of a foot off. At
+        // most MaxCutRefinements steps move the cut until the tail lies within ±CutRefinementSlackFt/2 of
+        // MarginFt + CutRefinementSlackFt; the walk still checks the end it gets, so a cut that falls short is never taken.
+        double targetFt = RunwayCrossingFarSideGate.MarginFt + CutRefinementSlackFt;
+        LatLon endPos = ProjectAlong(from.Position, bearing, alongFt);
+        for (int step = 0; step < MaxCutRefinements; step++)
+        {
+            double offFt = targetFt - probe.ClearOfLineFt(endPos, bearing);
+            if (Math.Abs(offFt) <= (CutRefinementSlackFt / 2.0))
+            {
+                break;
+            }
+
+            alongFt += offFt / towardLine;
+            endPos = ProjectAlong(from.Position, bearing, alongFt);
+        }
+
+        if ((alongFt <= 0.0) || (alongFt >= edgeFt))
+        {
+            return null;
+        }
+
+        GroundNode end = VirtualNode.Create(endPos.Lat, endPos.Lon);
+        return (VirtualNode.CreateEdge(from, end, edge.TaxiwayName), end, alongFt, bearing);
+    }
+
+    /// <summary>
+    /// The straight, non-centreline edge of <paramref name="taxiway"/> leaving <paramref name="join"/> with the least turn off
+    /// <paramref name="arrivalBearing"/>.
+    /// </summary>
+    private static IGroundEdge? StraightestEdgeOnto(GroundNode join, string taxiway, double arrivalBearing)
+    {
+        IGroundEdge? best = null;
+        double bestTurn = double.MaxValue;
+        foreach (IGroundEdge edge in join.Edges)
+        {
+            if ((edge is not GroundEdge) || edge.IsRunwayCenterline || !edge.MatchesTaxiway(taxiway))
+            {
+                continue;
+            }
+
+            double turn = RouteCostFunction.HeadingDelta(arrivalBearing, GeoMath.BearingTo(join.Position, edge.OtherNode(join).Position));
+            if (turn < bestTurn)
+            {
+                best = edge;
+                bestTurn = turn;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The edge leaving <paramref name="node"/> straight ahead of the way <paramref name="current"/> arrives, an arc judged by
+    /// its net turn. Where <paramref name="preferredTaxiway"/> simply continues (one onward edge of it), that edge at any bend
+    /// up to <see cref="BendMaxTurnDeg"/>; otherwise (a fork, or a carry into another taxiway) the edge within
+    /// <see cref="StraightAheadMaxTurnDeg"/>, one of <paramref name="preferredTaxiway"/> first, then the least turn. Never a
+    /// runway centreline, the edge arrived on, or a node already walked.
+    /// </summary>
+    private static IGroundEdge? StraightAheadEdge(GroundNode node, PartialRoute current, string preferredTaxiway)
+    {
+        var onward = new List<(IGroundEdge Edge, double Turn, bool Preferred)>();
+        foreach (IGroundEdge edge in node.Edges)
+        {
+            GroundNode other = edge.OtherNode(node);
+            if (edge.IsRunwayCenterline || ReferenceEquals(edge, current.LastEdge) || current.VisitedNodeIds.Contains(other.Id))
+            {
+                continue;
+            }
+
+            double turn = RouteCostFunction.HeadingDelta(current.ArrivalBearing, HintJudgedBearing(edge.Directed(node, other)));
+            onward.Add((edge, turn, edge.MatchesTaxiway(preferredTaxiway)));
+        }
+
+        if (onward.Count(o => o.Preferred) == 1)
+        {
+            (IGroundEdge bend, double bendTurn, _) = onward.First(o => o.Preferred);
+            return bendTurn <= BendMaxTurnDeg ? bend : null;
+        }
+
+        return onward
+            .Where(o => o.Turn <= StraightAheadMaxTurnDeg)
+            .OrderByDescending(o => o.Preferred)
+            .ThenBy(o => o.Turn)
+            .Select(o => o.Edge)
+            .FirstOrDefault();
+    }
+
+    /// <summary><paramref name="current"/> extended by <paramref name="edge"/> from <paramref name="from"/> to <paramref name="to"/>.</summary>
+    private static PartialRoute Advance(PartialRoute current, GroundNode from, IGroundEdge edge, GroundNode to, SearchContext ctx) =>
+        current with
+        {
+            HeadNodeId = to.Id,
+            ArrivalBearing = GeometricAdmissibility.GetArrivalBearing(edge, from, to),
+            LastEdge = edge,
+            LastTaxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId),
+            Previous = current,
+            Depth = current.Depth + 1,
+            AccumulatedCost = current.AccumulatedCost + RouteCostFunction.IncrementalCost(current, edge, to, ctx),
+            VisitedNodeIds = current.VisitedNodeIds.Add(to.Id),
+        };
 
     /// <summary>
     /// Maximum candidate stop nodes evaluated by <see cref="SelectBestParkingStop"/>. The turn-off
@@ -4181,6 +4795,15 @@ public static class SegmentExpander
     /// </summary>
     public static string CannotMakeTurnReason(string fromTaxiway, string toTaxiway) =>
         $"Unable, can't make the turn from {fromTaxiway} onto {toTaxiway}, request taxi instructions";
+
+    /// <summary>
+    /// The refusal of a bare clearance that crosses <paramref name="runway"/> onto <paramref name="taxiway"/>, which has no
+    /// straight-ahead point where the aircraft's tail and nose both stand <see cref="RunwayCrossingFarSideGate.MarginFt"/> past
+    /// its far hold line, measured square to it, before a T, a runway centreline or another runway's bar
+    /// (<see cref="FailureKind.NoRoomToClearRunway"/>).
+    /// </summary>
+    public static string NoRoomToClearRunwayReason(string taxiway, string runway) =>
+        $"Unable, no room on {taxiway} to clear {runway}, request taxi instructions";
 
     /// <summary>
     /// Bridge <paramref name="fromTaxiway"/>, the clearance's <paramref name="transitionIndex"/>th token, to

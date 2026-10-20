@@ -1419,6 +1419,7 @@ public partial class GroundViewModel : ObservableObject
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
                 DestinationRunway = preset.DestinationRunway,
             },
             CategoryFor(ac),
@@ -3240,6 +3241,7 @@ public partial class GroundViewModel : ObservableObject
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
                 DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
                 DestinationHintNode = destination,
                 StartHeadingTrue = ac.Heading.Degrees,

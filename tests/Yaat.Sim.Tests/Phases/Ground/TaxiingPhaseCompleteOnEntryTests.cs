@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -94,6 +95,7 @@ public sealed class TaxiingPhaseCompleteOnEntryTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = destinationRunway,
             },
             AircraftCategory.Jet,

@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -164,6 +165,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = s => diagLines.Add(s),
             },
             AircraftCategory.Jet,

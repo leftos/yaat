@@ -5,6 +5,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.Tests;
 
@@ -93,7 +94,12 @@ public class GroundViewModelHoldShortMenuLocatedTests
             0,
             ["A", "B", "C"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

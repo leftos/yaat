@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
@@ -73,6 +74,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "30",
             },
             AircraftCategory.Jet,
@@ -108,6 +110,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [null, TurnDirection.Right],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },
@@ -143,6 +146,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [null, TurnDirection.Left],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },

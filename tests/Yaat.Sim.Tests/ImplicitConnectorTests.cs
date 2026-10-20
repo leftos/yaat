@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -140,7 +141,8 @@ public class ImplicitConnectorTests
             null,
             null,
             null,
-            null
+            null,
+            aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
 
         Assert.NotNull(ctx.AuthorizedTaxiways);
@@ -161,7 +163,8 @@ public class ImplicitConnectorTests
             null,
             null,
             null,
-            null
+            null,
+            aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
         Assert.NotNull(ctx2.AuthorizedTaxiways);
         Assert.DoesNotContain("LF", ctx2.AuthorizedTaxiways!);

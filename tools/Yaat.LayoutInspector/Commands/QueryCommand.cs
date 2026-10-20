@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 
 namespace Yaat.LayoutInspector.Commands;
@@ -13,6 +14,9 @@ namespace Yaat.LayoutInspector.Commands;
 /// </summary>
 public sealed class QueryCommand : ICommand
 {
+    /// <summary>The longest CWT fallback length (an A388's), the aircraft length for routes resolved with no aircraft type.</summary>
+    internal static readonly double LongestFallbackLengthFt = AircraftLength.CwtFallbackLengthFt("A388");
+
     public int Execute(LayoutAnalyzer analyzer, CliOptions options)
     {
         // --validate is run eagerly so warnings land on stderr before any query
@@ -178,6 +182,7 @@ public sealed class QueryCommand : ICommand
                 {
                     OccupiedTaxiway = null,
                     ImpliedLeadTaxiway = null,
+                    AircraftLengthFt = LongestFallbackLengthFt,
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,
@@ -477,6 +482,7 @@ public sealed class QueryCommand : ICommand
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = LongestFallbackLengthFt,
                 DiagnosticLog = msg => diag.Add(msg),
             },
             AircraftCategory.Jet,

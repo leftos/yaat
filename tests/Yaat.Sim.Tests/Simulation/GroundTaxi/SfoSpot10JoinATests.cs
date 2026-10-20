@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
 
@@ -104,6 +105,7 @@ public class SfoSpot10JoinATests
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = null,
                 StartHeadingTrue = StartHeadingTrue,
                 DiagnosticLog = diag.Add,

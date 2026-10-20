@@ -467,6 +467,21 @@ public sealed record SearchContext(
     public double? StartHeadingTrue { get; init; }
 
     /// <summary>
+    /// The aircraft's length in feet (<see cref="ExplicitPathOptions.AircraftLengthFt"/>), given to <see cref="Compile"/>: a
+    /// bare taxi that crosses a runway ends half of it plus <see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/> past
+    /// the far bar. Null for an auto route, whose search never ends a bare crossing; the explicit resolver refuses to end one
+    /// without it.
+    /// </summary>
+    public double? AircraftLengthFt { get; init; }
+
+    /// <summary>
+    /// Where the explicit resolver ended a bare taxi past a crossed runway's far bar, shared across <c>with</c> copies as
+    /// <see cref="ResolutionAdvisories"/> is: <see cref="RouteMaterialiser"/> keeps a route that ends on one of these nodes
+    /// whole, reports its advisory, and does not call the taxiway the end protrudes into a deviation.
+    /// </summary>
+    public ClearOfRunwayEnds ClearOfRunwayEnds { get; init; } = new();
+
+    /// <summary>
     /// Sink for advisories the explicit resolver appends while committing the route — a
     /// <c>&gt;</c>/<c>&lt;</c> turn hint it could not honor at the committed junction, or a bare final
     /// taxiway with no onward direction that makes the route hold at the transition junction. Mutable so
@@ -495,7 +510,8 @@ public sealed record SearchContext(
         RoutePreference? preference,
         Action<string>? diagnosticLog,
         IReadOnlyList<TurnDirection?>? waypointTurnHints,
-        double? startHeadingTrue
+        double? startHeadingTrue,
+        double? aircraftLengthFt
     )
     {
         IReadOnlySet<HoldShortTarget> holdShorts = explicitHoldShorts is { Count: > 0 }
@@ -576,6 +592,7 @@ public sealed record SearchContext(
             CrossingPairs = ResolveCrossingPairs(layout),
             WaypointTurnHints = waypointTurnHints,
             StartHeadingTrue = startHeadingTrue,
+            AircraftLengthFt = aircraftLengthFt,
             AllowedCenterlineNames = allowedCenterlines,
         };
     }

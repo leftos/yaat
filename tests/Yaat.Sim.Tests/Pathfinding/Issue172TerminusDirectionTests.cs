@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -56,7 +57,12 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -100,6 +106,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
             },
             AircraftCategory.Jet,

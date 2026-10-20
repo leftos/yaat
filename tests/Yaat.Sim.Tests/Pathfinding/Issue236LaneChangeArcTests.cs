@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -61,6 +62,7 @@ public class Issue236LaneChangeArcTests(ITestOutputHelper output)
             {
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
             AircraftCategory.Jet,

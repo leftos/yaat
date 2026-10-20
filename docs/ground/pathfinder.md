@@ -473,6 +473,8 @@ The ramp-lane recoveries (`RampLaneReposition`) get no letter allowance: the rem
 
 `FailureKind.NoRouteAhead` when they do share nodes but the walk reached none ahead: *"Unable, no route from {A} onto {B} ahead, request taxi instructions"* (`NoRouteAheadReason`), with *"(intersection only directly behind, would require turn-about)"* appended when every junction lies more than 90° off the aircraft's pose (`PathfindingFailure.IntersectionOnlyBehind`; with no pose no junction counts as behind, and the dead-end form has no parenthesis).
 
+`FailureKind.NoRoomToClearRunway` when a bare crossing's final taxiway has no room to end clear of the runway (see *Bare crossing end* below): *"Unable, no room on {twy} to clear {rwy}, request taxi instructions"* (`NoRoomToClearRunwayReason`; `PathfindingFailure.UnclearedRunway` names the runway). Like the others it refuses the pair as issued.
+
 `FailureKind.CannotMakeTurn` is the third pair refusal, raised by the declared-crossing path (below).
 
 `GroundCommandHandler.PairRefused` returns whichever it is as the refusal before any recovery can rewrite the clearance, for a controller-issued, scripted and `TAXIAUTO` taxi alike: the aircraft stays put, the pilot says `PilotResponder.BuildUnableTaxiwaysDoNotConnect`, `BuildUnableNoRouteAhead` or `BuildUnableCannotMakeTurn` (wording in [`pilot-phraseology.md`](../pilot-phraseology.md)), and the server log gets a `[TryTaxi] {Callsign}: TAXI {Taxi} refused` entry with the reason.
@@ -601,6 +603,16 @@ A **bare final taxiway** — no destination of any kind, no `>`/`<` turn hint on
 The clearance gave no onward direction, so the aircraft stops where it meets the final taxiway (OAK `TAXI C D` holds at C/D, whether D extends one way or both ways from it) and a `holding at the C/D intersection — route ends at D, no destination given` advisory is copied onto the route's warnings for the TAXI echo.
 
 A preceding **runway** token is exempt — stopping at the runway/taxiway "junction" would end the route on the runway surface with no crossing bar (MIA `TAXI M1 RWY08R/26L L1`), so the final taxiway is walked clear of the runway as before.
+
+**Bare crossing end.** A bare final taxiway reached *across a runway* (an offset crossing, or a pair the sidecar declares, KCOS `TAXI A2 C2`, KOAK `TAXI D F`) does not stop at the centreline join: `EndClearOfCrossedRunway` ends it where the whole aircraft is clear of the runway's holding position (AIM 4-3-21.b, "all parts of the aircraft"). Bare means `BareCrossingRunway`/`IsBareCrossingClearance`: no destination, no turn hint, no further taxiway, every hold short either of the runway crossed or already passed (an `HS` before the crossing still counts as bare; `TAXI … HS 35L` or a destination keeps the junction stop).
+
+The walk runs straight ahead from the far join along the final taxiway to the first point where the tail and the nose (half the aircraft's length behind and ahead of its centre, along its heading there) both stand `RunwayCrossingFarSideGate.MarginFt` (10 ft) past the far hold line, measured square to that line (`FuselagePastLineFt`).
+
+On a straight taxiway that is half the length plus 10 ft past the bar, and a straight edge is cut at that point (a virtual end node); an arc is taken whole. Same-taxiway bends are followed up to 90° (`BendMaxTurnDeg`), forks and carry-ins into another taxiway capped at 30° (`StraightAheadMaxTurnDeg`), both sim conventions. The far bar is searched only within 500 ft of the join (`FarBarSearchFt`); with none the old junction stop stands.
+
+It is refused (`NoRoomToClearRunway`) when a T, a runway centreline or another runway's bar comes first or lies too close ahead of the end. `ClearOfRunwayEnds` records each node the search ended a bare crossing on, shared across every probe, and only the route that ends on a recorded node carries the `ClearOfRunwayEnd` (`TaxiRoute.ClearOfRunwayEnd`) and its advisory *"route ends on C2 clear of 17R/35L, no destination given"*. `GroundCommandHandler.PrefixClearOfRunwayAdvisory` prefixes `holding short of 17R/35L at A2 — ` while the crossing's near bar stands, `crossing 17R/35L at A2 — ` once CROSS or auto-cross has cleared it; the landing-rollout `TAXI` reads back the same.
+
+`CrossingRunwayPhase.AppendTailClearance` (the crossing phase's own half-length tail clearance, YAAT-944) is a separate path and unchanged.
 
 Everything else falls to `WalkToNaturalTerminus` (`:2649`): walks forward along the taxiway one admissible edge at a time until none remain. **Requirement ①:** an exact **single-name** edge ranks *strictly above* a membership-taxiway junction arc (`IsMembershipTaxiwayJunctionArc: true` — multi-name and not a runway-crossing arc).
 

@@ -379,6 +379,7 @@ public static partial class GroundCommandHandler
 
         TaxiRouteAutoCross.Apply(route, options.AutoCrossRunway);
         ApplyCrossKeywords(route, taxi);
+        PrefixClearOfRunwayAdvisory(route);
 
         // Auto-detect runway from final node when no explicit destination runway
         RunwayInfo? detectedRunway = null;
@@ -605,6 +606,33 @@ public static partial class GroundCommandHandler
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Prefix a bare crossing's clear-of-runway advisory with how its near bar stands once the implicit cross, auto-cross and
+    /// the CROSS keywords have cleared what they clear: <c>holding short of {rwy} at {twy} — </c> while that crossing's hold
+    /// short stands, <c>crossing {rwy} at {twy} — </c> once it is cleared (7110.65 3-7-2.c, AIM 4-3-18.a.5). No prefix when the
+    /// crossing carries no plain runway-crossing hold short: the controller's own <c>HS</c> of it, which the summary reads back.
+    /// </summary>
+    private static void PrefixClearOfRunwayAdvisory(TaxiRoute route)
+    {
+        if (route.ClearOfRunwayEnd is not { } end)
+        {
+            return;
+        }
+
+        int at = route.Warnings.IndexOf(end.Advisory);
+        var crossed = RunwayIdentifier.Parse(end.Runway);
+        HoldShortPoint? nearBar = route.HoldShortPoints.FirstOrDefault(hs =>
+            (hs.Reason == HoldShortReason.RunwayCrossing) && (hs.TargetName is { } target) && RunwayIdentifier.Parse(target).Overlaps(crossed)
+        );
+        if ((at < 0) || (nearBar is null))
+        {
+            return;
+        }
+
+        string how = nearBar.IsCleared ? "crossing" : "holding short of";
+        route.Warnings[at] = $"{how} {end.Runway} at {end.NearTaxiway} — {end.Advisory}";
     }
 
     /// <summary>What a TAXI clearance resolves from, beyond the working command and the start node.</summary>
@@ -905,8 +933,10 @@ public static partial class GroundCommandHandler
     /// <summary>
     /// The refusal, terminal and spoken, of a clearance whose two named taxiways do not connect
     /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>), meet only where the route cannot reach ahead
-    /// (<see cref="FailureKind.NoRouteAhead"/>), or cross a runway by a turn the aircraft cannot make
-    /// (<see cref="FailureKind.CannotMakeTurn"/>), logged at the inputs' failure level naming the aircraft, the taxi and the refusal.
+    /// (<see cref="FailureKind.NoRouteAhead"/>), cross a runway by a turn the aircraft cannot make
+    /// (<see cref="FailureKind.CannotMakeTurn"/>), or cross one onto a taxiway with no room to clear it
+    /// (<see cref="FailureKind.NoRoomToClearRunway"/>), logged at the inputs' failure level naming the aircraft, the taxi and
+    /// the refusal.
     /// </summary>
     private static TaxiResolution PairRefused(TaxiResolveInputs inputs, TaxiCommand taxi, PathfindingFailure unconnected)
     {
@@ -927,6 +957,12 @@ public static partial class GroundCommandHandler
         {
             FailureKind.NoRouteAhead => PilotResponder.BuildUnableNoRouteAhead(aircraft, from, to, unconnected.IntersectionOnlyBehind),
             FailureKind.CannotMakeTurn => PilotResponder.BuildUnableCannotMakeTurn(aircraft, from, to),
+            FailureKind.NoRoomToClearRunway => PilotResponder.BuildUnableNoRoomToClearRunway(
+                aircraft,
+                to,
+                unconnected.UnclearedRunway
+                    ?? throw new InvalidOperationException($"a {unconnected.Kind} failure names no runway: '{unconnected.HumanMessage}'")
+            ),
             _ => PilotResponder.BuildUnableTaxiwaysDoNotConnect(aircraft, from, to),
         };
         return TaxiResolution.Refused(taxi, new CommandResult(false, unconnected.HumanMessage) { PilotUnable = unable }) with
@@ -1088,6 +1124,7 @@ public static partial class GroundCommandHandler
                     category,
                     wakeClass,
                     startHeadingTrueDeg,
+                    aircraftLengthFt,
                     StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
                 );
             }
@@ -1118,6 +1155,7 @@ public static partial class GroundCommandHandler
                 category,
                 wakeClass,
                 startHeadingTrueDeg,
+                aircraftLengthFt,
                 StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
             );
         }
@@ -1194,6 +1232,7 @@ public static partial class GroundCommandHandler
                     {
                         OccupiedTaxiway = occupiedTaxiway,
                         ImpliedLeadTaxiway = null,
+                        AircraftLengthFt = aircraftLengthFt,
                         ExplicitHoldShorts = taxi.HoldShorts,
                         DestinationRunway = taxi.DestinationRunway,
                         DestinationHintNode = destinationNode,
@@ -1237,6 +1276,7 @@ public static partial class GroundCommandHandler
                     {
                         OccupiedTaxiway = occupiedTaxiway,
                         ImpliedLeadTaxiway = null,
+                        AircraftLengthFt = aircraftLengthFt,
                         ExplicitHoldShorts = taxi.HoldShorts,
                         DestinationRunway = taxi.DestinationRunway,
                         PathTurnHints = taxi.PathTurnHints,
@@ -2425,6 +2465,7 @@ public static partial class GroundCommandHandler
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
+        double aircraftLengthFt,
         StartTaxiways startTaxiways
     )
     {
@@ -2459,6 +2500,7 @@ public static partial class GroundCommandHandler
             {
                 OccupiedTaxiway = startTaxiways.Occupied,
                 ImpliedLeadTaxiway = startTaxiways.ImpliedLead,
+                AircraftLengthFt = aircraftLengthFt,
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
 
@@ -3546,6 +3588,7 @@ public static partial class GroundCommandHandler
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
+        double aircraftLengthFt,
         StartTaxiways startTaxiways
     )
     {
@@ -3582,6 +3625,7 @@ public static partial class GroundCommandHandler
             {
                 OccupiedTaxiway = startTaxiways.Occupied,
                 ImpliedLeadTaxiway = startTaxiways.ImpliedLead,
+                AircraftLengthFt = aircraftLengthFt,
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
 

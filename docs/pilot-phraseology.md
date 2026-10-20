@@ -178,8 +178,9 @@ The spoken form is *…, unable, no route from {a} onto {b} ahead, request taxi*
 
 The aircraft stays put.
 
-A declared crossing the aircraft's type cannot turn out of (the turn from the runway onto the second taxiway exceeds the type's turn limit: KCOS A2 onto C2 for a B738) is refused by `BuildUnableCannotMakeTurn`: the terminal line *Unable, can't make the turn from A2 onto C2, request taxi instructions* and the spoken *{callsign}, unable the turn onto charlie two, request taxi*, only the taxiway turned onto spelled. The aircraft stays put.
+A declared crossing the aircraft's type cannot turn out of (the turn from the runway onto the second taxiway exceeds the type's turn limit: KCOS A2 onto C2 for a B738) is refused by `BuildUnableCannotMakeTurn`: the terminal line *Unable, can't make the turn from A2 onto C2, request taxi instructions* and the spoken *{callsign}, unable the turn onto charlie two, request taxi instructions*, only the taxiway turned onto spelled. The aircraft stays put.
 
+A bare TAXI across a runway onto a taxiway with no room straight ahead for the whole aircraft to clear the runway's holding position (a T, a runway centreline or another runway's bar comes first) is refused by `BuildUnableNoRoomToClearRunway`: the terminal line *Unable, no room on C2 to clear 17R/35L, request taxi instructions* and the spoken *{callsign}, unable, no room on charlie two to clear the runway, request taxi instructions* (AIM 4-3-18.d.3, taxiway spelled by `SpellTaxiway`). The aircraft stays put.
 A stop that is an overrun, a firm stop that still ends with a part past a hold line, names no runway and says the plain *request a route ahead* form; only an aircraft on no taxiway still names the runway, so the unable has something to name.
 
 That call goes through `RouteSoloOrRpoTransmission` like any unsolicited pilot call: queued for a GND or TWR student in solo training, otherwise a terminal warning, or pilot speech when the RPO shows it.

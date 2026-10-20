@@ -140,6 +140,7 @@ public static class RouteMaterialiser
             HoldShortPoints = holdShorts,
             Warnings = warnings,
             MandatoryConnectorCount = insertions.Count,
+            ClearOfRunwayEnd = segments.Count > 0 ? ctx.ClearOfRunwayEnds.At(segments[^1].ToNodeId) : null,
             CurrentSegmentIndex = 0,
             DestinationParking = ctx.Destination.ParkingName,
             DestinationSpot = ctx.Destination.SpotName,
@@ -500,6 +501,14 @@ public static class RouteMaterialiser
 
     private static int FindTruncationIndex(List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts, SearchContext ctx)
     {
+        // A bare taxi the resolver ended past a crossed runway's far bar is whole: beyond a hold short the route passed before
+        // the crossing, its only hold short is of the runway crossed (or a CROSS anchor at the far bar), and cutting at that
+        // one would leave the aircraft's tail over the runway.
+        if ((segments.Count > 0) && (ctx.ClearOfRunwayEnds.At(segments[^1].ToNodeId) is not null))
+        {
+            return segments.Count - 1;
+        }
+
         // Find last required stop: destination node or last explicit hold-short.
         int lastRequiredIdx = -1;
 
@@ -738,6 +747,12 @@ public static class RouteMaterialiser
             warnings.Add(advisory);
         }
 
+        // A bare crossing's end past the far bar, reported only by the route that ends there: every probe records its own.
+        if ((segments.Count > 0) && (ctx.ClearOfRunwayEnds.At(segments[^1].ToNodeId) is { } clearOfRunway))
+        {
+            warnings.Add(clearOfRunway.Advisory);
+        }
+
         // Mandatory connectors the resolver had to bridge between cleared taxiways with no direct
         // junction. Notify the controller of each insertion, and suppress the generic
         // "unauthorized" warning for those connector taxiways — they were not a deviation.
@@ -762,6 +777,7 @@ public static class RouteMaterialiser
 
         var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int bridgeEnd = OccupiedBridgeEnd(segments, ctx);
+        (int Start, string? Taxiway) protrusion = ClearOfRunwayProtrusion(segments, ctx);
         for (int i = 0; i < segments.Count; i++)
         {
             TaxiRouteSegment seg = segments[i];
@@ -774,7 +790,8 @@ public static class RouteMaterialiser
             }
 
             string name = seg.TaxiwayName;
-            if ((i < bridgeEnd) && name.Equals(ctx.OccupiedTaxiway, StringComparison.OrdinalIgnoreCase))
+            bool inProtrusion = (i >= protrusion.Start) && name.Equals(protrusion.Taxiway, StringComparison.OrdinalIgnoreCase);
+            if (inProtrusion || ((i < bridgeEnd) && name.Equals(ctx.OccupiedTaxiway, StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
@@ -793,6 +810,27 @@ public static class RouteMaterialiser
         }
 
         return warnings;
+    }
+
+    /// <summary>
+    /// Where a bare taxi ended past a crossed runway protrudes into a taxiway the clearance never named (AIM 4-3-21.b): the
+    /// index after the route's last segment on the final cleared taxiway, and that taxiway; (segment count, null) when the route
+    /// ends no such way. The protrusion is where the clearance left the aircraft, not a deviation from it.
+    /// </summary>
+    private static (int Start, string? Taxiway) ClearOfRunwayProtrusion(List<TaxiRouteSegment> segments, SearchContext ctx)
+    {
+        if (
+            (segments.Count == 0)
+            || (ctx.WaypointSequence.Count == 0)
+            || (ctx.ClearOfRunwayEnds.At(segments[^1].ToNodeId)?.CarriedInto is not { } taxiway)
+        )
+        {
+            return (segments.Count, null);
+        }
+
+        string final = ctx.WaypointSequence[^1];
+        int lastOnFinal = segments.FindLastIndex(s => s.TaxiwayName.Equals(final, StringComparison.OrdinalIgnoreCase));
+        return (lastOnFinal + 1, taxiway);
     }
 
     /// <summary>

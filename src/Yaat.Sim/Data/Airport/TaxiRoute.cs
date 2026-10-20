@@ -29,6 +29,13 @@ public sealed class TaxiRoute
     /// </summary>
     public int MandatoryConnectorCount { get; init; }
 
+    /// <summary>
+    /// The bare crossing this route ends clear of, past the crossed runway's far bar (null when it ends no such way): the TAXI
+    /// handler reads it to say in the readback whether the aircraft holds short of that runway or crosses it. Read when the
+    /// TAXI is issued; not snapshotted, like <see cref="Warnings"/>.
+    /// </summary>
+    public Pathfinding.ClearOfRunwayEnd? ClearOfRunwayEnd { get; init; }
+
     /// <summary>Parking destination name (@ prefix), if any.</summary>
     public string? DestinationParking { get; init; }
 
