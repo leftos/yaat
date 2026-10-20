@@ -424,8 +424,8 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Hold (360 left) | `HPPL` | — | — |
 | Hold (360 right) | `HPPR` | — | — |
 | Hold present pos | `HPP` | — | — |
-| Hold at fix (left) | `HFIXL SUNOL` | — | — |
-| Hold at fix (right) | `HFIXR SUNOL` | — | — |
+| Left 360s at fix | `HFIXL SUNOL` | — | — |
+| Right 360s at fix | `HFIXR SUNOL` | — | — |
 | Hold at fix | `HFIX SUNOL` | — | — |
 
 ### Approach / Procedures

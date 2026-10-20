@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -85,8 +86,6 @@ public class MenuCatalogCommandTests
         (MenuIds.SpeedFinalApproach, "", "RFAS"),
         (MenuIds.HoldPresentLeft, "", "HPPL"),
         (MenuIds.HoldPresentRight, "", "HPPR"),
-        (MenuIds.HoldFixLeft, Fix, "HFIXL SUNOL"),
-        (MenuIds.HoldFixRight, Fix, "HFIXR SUNOL"),
         (MenuIds.ApproachClearedVisual, "28R", "CVA 28R"),
         (MenuIds.ApproachReportFieldInSight, "", "RFIS"),
         (MenuIds.ApproachReportTrafficInSight, "AAL12", "RTIS AAL12"),
@@ -140,7 +139,6 @@ public class MenuCatalogCommandTests
         (MenuIds.PatternMakeRightTraffic, "", "MRT"),
         (MenuIds.PatternFollow, Fix, "FOLLOW SUNOL"),
         (MenuIds.NavigationOnCourse, "", "OC"),
-        (MenuIds.HoldPattern, Fix, "HOLDP SUNOL"),
         (MenuIds.GroundPushback, "", "PUSH"),
         (MenuIds.GroundHoldPosition, "", "HOLD"),
         (MenuIds.GroundResumeTaxi, "", "RES"),
@@ -208,6 +206,10 @@ public class MenuCatalogCommandTests
         // Cross fix and Depart fix open their flyouts; CrossFixFlyoutTests and DepartFixFlyoutTests click their rows and boxes.
         MenuIds.ProceduresCrossFix,
         MenuIds.ProceduresDepartFix,
+        // Hold at fix… opens the holding-pattern flyout and the two hold-at-fix entries the 360s flyout; HoldFlyoutTests clicks them.
+        MenuIds.HoldPattern,
+        MenuIds.HoldFixLeft,
+        MenuIds.HoldFixRight,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -786,22 +788,80 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], host.Sent);
     }
 
+    /// <summary>
+    /// Hold at fix… and the two 360s-at-fix entries send, from a flyout rather than a popup, a command with the row's fix that
+    /// the sim's parser accepts.
+    /// </summary>
     [AvaloniaTheory]
-    [InlineData(MenuIds.HoldFixLeft, "Hold at fix (left)…", "HFIXL")]
-    [InlineData(MenuIds.HoldFixRight, "Hold at fix (right)…", "HFIXR")]
-    public void HoldAtFix_FilteredListWithoutRouteFixes_ElseInput(string id, string label, string command)
+    [InlineData(MenuIds.HoldPattern, "HOLDP")]
+    [InlineData(MenuIds.HoldFixLeft, "HFIXL")]
+    [InlineData(MenuIds.HoldFixRight, "HFIXR")]
+    public void HoldAtFix_SendsACommandTheParserAccepts(string id, string verb)
     {
-        var routed = new FakeMenuAircraft { NavigatingTo = "ECA", RouteFixes = [Fix, "ECA"] };
+        string command = SendFromHoldRow(id);
 
-        var filteredHost = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix] };
-        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), filteredHost), label, MenuPickerDescriptor.FilteredList, []));
-        Assert.Null(Assert.Single(filteredHost.FilteredListPopups).Priority);
+        Assert.StartsWith($"{verb} {Fix}", command);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, $"{command}: {parsed.Reason}");
+    }
 
-        var inputHost = new RecordingMenuHost(Fix);
-        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), inputHost), label, MenuPickerDescriptor.Input, []));
+    /// <summary>Hold at fix… always sends four <c>HOLDP</c> tokens: fix, course, leg, turns.</summary>
+    [AvaloniaFact]
+    public void HoldAtFix_SendsAFourTokenHoldp()
+    {
+        string command = SendFromHoldRow(MenuIds.HoldPattern);
 
-        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], filteredHost.Sent);
-        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], inputHost.Sent);
+        Assert.Equal(5, command.Split(' ').Length);
+        Assert.IsType<HoldingPatternCommand>(CommandParser.Parse(command).Value);
+    }
+
+    /// <summary>
+    /// Opens the hold entry <paramref name="id"/> over an aircraft navigating to SUNOL, clicks its SUNOL row, returns what it sent.
+    /// </summary>
+    private static string SendFromHoldRow(string id)
+    {
+        TestVnasData.EnsureInitialized();
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("OAK")!.Value;
+        var host = new RecordingMenuHost(Fix);
+        var aircraft = new FakeMenuAircraft
+        {
+            Position = new LatLon(lat, lon),
+            NavigatingTo = Fix,
+            NavigationRoute = [Fix],
+            RouteFixes = [Fix],
+            AltitudeFeet = 5000,
+        };
+
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, Context(), host));
+        item.IsSubMenuOpen = true;
+        FlyoutPanelHost holder = Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header);
+        FixRow row = Assert.Single(holder.GetLogicalDescendants().OfType<FixRow>(), r => r.Fix == Fix);
+        row.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Empty(host.InputPlaceholders);
+        Assert.Empty(host.FilteredListPopups);
+        (string _, string command, string _) = Assert.Single(host.Sent);
+        return command;
+    }
+
+    /// <summary>The left / right 360s at a fix are VFR entries: an IFR aircraft gets them only under the full VFR-for-IFR setting.</summary>
+    [AvaloniaTheory]
+    [InlineData(MenuIds.HoldFixLeft, "Left 360s at fix…")]
+    [InlineData(MenuIds.HoldFixRight, "Right 360s at fix…")]
+    public void HoldAtFix360s_OfferedToAVfrAircraftOnly(string id, string label)
+    {
+        var host = new RecordingMenuHost("");
+        var vfr = new FakeMenuAircraft { FlightRules = "VFR" };
+        var ifr = new FakeMenuAircraft { FlightRules = "IFR" };
+        MenuCatalogEntry entry = MenuCatalog.Get(id);
+
+        Assert.Equal(MenuFlightRules.VfrOnly, entry.DefaultFlightRules);
+        Assert.True(entry.IsApplicable(vfr, Context()));
+        Assert.False(entry.IsApplicable(ifr, Context()));
+        Assert.True(entry.IsApplicable(ifr, Context(VfrCommandsForIfr.All)));
+        Assert.False(entry.IsApplicable(vfr with { IsOnGround = true }, Context()));
+        Assert.Contains(label, SharedMenuGroups.Hold(vfr, Context(), host).Items.OfType<MenuItem>().Select(m => m.Header as string));
+        Assert.DoesNotContain(label, SharedMenuGroups.Hold(ifr, Context(), host).Items.OfType<MenuItem>().Select(m => m.Header as string));
     }
 
     [AvaloniaFact]

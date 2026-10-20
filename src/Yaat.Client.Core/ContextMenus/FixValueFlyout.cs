@@ -162,7 +162,8 @@ public sealed class CrossFixFlyoutHost() : FlyoutPanelHost("cross fix flyout", "
 public sealed class DepartFixFlyoutHost() : FlyoutPanelHost("depart fix flyout", "depart-fix-flyout-panel");
 
 /// <summary>
-/// The panel the Cross fix and Depart fix flyouts share (<see cref="FixValueFlyout"/>): the title line, the fix box with its
+/// The panel the Cross fix, Depart fix and Hold at fix flyouts share (<see cref="FixValueFlyout"/>, <see cref="HoldFlyout"/>): the
+/// title line, the fix box with its
 /// refusal, the verb's value boxes, the caption of what Enter sends, a separator, then the fix list (<see cref="FixListView"/>).
 /// Each verb's panel adds its boxes and says what command a fix makes with them.
 /// </summary>
@@ -263,7 +264,7 @@ public abstract class FixValueFlyoutPanel : StackPanel, IFlyoutPanel
         }
     }
 
-    /// <summary>The verb the panel sends: <c>CFIX</c> or <c>DEPART</c>.</summary>
+    /// <summary>The verb the panel sends: <c>CFIX</c>, <c>DEPART</c> or <c>HOLDP</c>.</summary>
     protected string Verb { get; }
 
     /// <summary>Whether the panel shows the red state of a required box left empty, which a send that found it missing turns on.</summary>
@@ -298,14 +299,18 @@ public abstract class FixValueFlyoutPanel : StackPanel, IFlyoutPanel
 
     /// <summary>
     /// Follows the aircraft, in place: the title's next fix, each row's distance and bearing, the ● and the fixes passed since
-    /// the flyout opened (<see cref="FixListView.Refresh"/>).
+    /// the flyout opened (<see cref="FixListView.Refresh"/>), then whatever the verb's panel follows (<see cref="OnRefreshed"/>).
     /// </summary>
     public void Refresh()
     {
         string next = _aircraft?.NavigatingTo ?? "";
         _titleNow.Text = (next.Length > 0) ? $"→ {next}" : "";
         _fixes.Refresh();
+        OnRefreshed();
     }
+
+    /// <summary>What the verb's panel follows on each refresh after the list; nothing by default.</summary>
+    protected virtual void OnRefreshed() { }
 
     /// <summary>The command <paramref name="fix"/> makes with the boxes' values now; null while a value is missing or invalid.</summary>
     public abstract string? CommandFor(string fix);

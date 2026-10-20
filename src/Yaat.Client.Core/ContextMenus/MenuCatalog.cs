@@ -165,8 +165,8 @@ public static class MenuCatalog
         DirectToEntry(MenuIds.NavigationAppendDirectTo, "Append direct to…", DirectToVerb.AppendDirectTo, IsNavigatingToFix),
         Leaf(MenuIds.HoldPresentLeft, "Hold present position (left)", "HPPL", Always),
         Leaf(MenuIds.HoldPresentRight, "Hold present position (right)", "HPPR", Always),
-        FixPicker(MenuIds.HoldFixLeft, "Hold at fix (left)…", "HFIXL", Always, NoRouteFixes),
-        FixPicker(MenuIds.HoldFixRight, "Hold at fix (right)…", "HFIXR", Always, NoRouteFixes),
+        HoldTurnsEntry(MenuIds.HoldFixLeft, "Left 360s at fix…", HoldTurns.Left),
+        HoldTurnsEntry(MenuIds.HoldFixRight, "Right 360s at fix…", HoldTurns.Right),
         .. ApproachPickerIds.Select(ApproachPicker),
         Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
         Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
@@ -398,14 +398,14 @@ public static class MenuCatalog
             MenuIds.PatternMakeLeftTraffic,
             "Make left closed traffic",
             MenuFlightRules.VfrOnly,
-            CanMakeClosedTraffic,
+            CanFlyVfrManeuverAloft,
             (_, context, host) => BuildSend("Make left closed traffic", "MLT", context, host)
         ),
         new(
             MenuIds.PatternMakeRightTraffic,
             "Make right closed traffic",
             MenuFlightRules.VfrOnly,
-            CanMakeClosedTraffic,
+            CanFlyVfrManeuverAloft,
             (_, context, host) => BuildSend("Make right closed traffic", "MRT", context, host)
         ),
         new(
@@ -427,19 +427,17 @@ public static class MenuCatalog
             "Hold at fix…",
             MenuFlightRules.IfrOnly,
             (ac, _) => AircraftCommandApplicability.IsAirborneControllable(ac),
-            (_, context, host) => BuildInput("Hold at fix…", HoldPatternPlaceholder, BlankInput.Closes, input => $"HOLDP {input}", context, host)
+            (ac, context, host) => HoldFlyout.BuildPattern("Hold at fix…", ac, context, host)
         ),
     ];
 
-    /// <summary>The placeholder of the holding-pattern input, naming the <c>HOLDP</c> arguments in order.</summary>
-    private const string HoldPatternPlaceholder = "Fix, inbound course, legs, turns (e.g. SUNOL 180 1M R)";
-
     /// <summary>
-    /// Make closed traffic in the air (<c>MLT</c> / <c>MRT</c>), which puts the aircraft into the pattern: a VFR command,
-    /// offered to an IFR aircraft only under the controller's full VFR setting. On the ground the verb only records the
-    /// pattern side, which the takeoff clearance's closed-traffic modifiers already cover.
+    /// A VFR maneuver in the air: make closed traffic (<c>MLT</c> / <c>MRT</c>, which puts the aircraft into the pattern) and
+    /// left or right 360s at a fix (<c>HFIXL</c> / <c>HFIXR</c>). Offered to an IFR aircraft only under the controller's full VFR
+    /// setting. On the ground closed traffic only records the pattern side, which the takeoff clearance's closed-traffic
+    /// modifiers already cover.
     /// </summary>
-    private static Func<IMenuAircraft?, MenuContext, bool> CanMakeClosedTraffic =>
+    private static Func<IMenuAircraft?, MenuContext, bool> CanFlyVfrManeuverAloft =>
         (ac, context) => AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr) && (ac is { IsOnGround: false });
 
     /// <summary>
@@ -501,9 +499,6 @@ public static class MenuCatalog
     private const string JoinAirwayLabel = "Join airway";
 
     private const string JoinAirwayCommand = "JAWY";
-
-    /// <summary>The placeholder of the free-text fix inputs.</summary>
-    private const string FixNamePlaceholder = "Fix name";
 
     /// <summary>The placeholder of the free-text airway inputs.</summary>
     private const string AirwayIdPlaceholder = "Airway ID";
@@ -1294,12 +1289,6 @@ public static class MenuCatalog
     internal static string FormatAltitude(int altitude) =>
         (altitude >= 18000) ? $"FL{altitude / 100}" : altitude.ToString("N0", CultureInfo.InvariantCulture);
 
-    /// <summary>The aircraft's route fixes, which the navigation pickers offer first; none without an aircraft.</summary>
-    private static Func<IMenuAircraft?, IReadOnlyList<string>> RouteFixes => ac => ac?.RouteFixNames() ?? [];
-
-    /// <summary>No route fixes: the hold pickers offer every fix alike.</summary>
-    private static Func<IMenuAircraft?, IReadOnlyList<string>> NoRouteFixes => _ => [];
-
     /// <summary>Whether the aircraft is navigating to a fix, which an appended direct-to follows.</summary>
     private static Func<IMenuAircraft?, MenuContext, bool> IsNavigatingToFix => (ac, _) => !string.IsNullOrEmpty(ac?.NavigatingTo);
 
@@ -1363,6 +1352,19 @@ public static class MenuCatalog
     /// </summary>
     private static MenuCatalogEntry FixValueEntry(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem> build) =>
         new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => build(label, ac, context, host));
+
+    /// <summary>
+    /// A 360s-at-fix entry (<c>HFIXL</c> / <c>HFIXR</c>): the 360s flyout (<see cref="HoldFlyout.BuildTurns"/>) opening on
+    /// <paramref name="preset"/>, a VFR maneuver in the air (<see cref="CanFlyVfrManeuverAloft"/>).
+    /// </summary>
+    private static MenuCatalogEntry HoldTurnsEntry(string id, string label, HoldTurns preset) =>
+        new(
+            id,
+            label,
+            MenuFlightRules.VfrOnly,
+            CanFlyVfrManeuverAloft,
+            (ac, context, host) => HoldFlyout.BuildTurns(label, preset, ac, context, host)
+        );
 
     /// <summary>The Report traffic in sight… free-text box's placeholder, for a target callsign or none.</summary>
     private const string TrafficInSightPlaceholder = "Target callsign (optional)";
@@ -1608,53 +1610,6 @@ public static class MenuCatalog
     /// <param name="aircraft">The aircraft whose filed type gives the speed, or null for none.</param>
     public static string FinalApproachSpeedLabel(string label, IMenuAircraft? aircraft) =>
         (FinalApproachKnots(aircraft) is { } knots) ? $"{label} - {knots.ToString(CultureInfo.InvariantCulture)} kt" : label;
-
-    /// <summary>
-    /// A fix picker that sends <paramref name="command"/> with the picked fix. <paramref name="label"/> ends in an
-    /// ellipsis, which the plain route-fix list drops; a label without one throws.
-    /// </summary>
-    private static MenuCatalogEntry FixPicker(
-        string id,
-        string label,
-        string command,
-        Func<IMenuAircraft?, MenuContext, bool> isApplicable,
-        Func<IMenuAircraft?, IReadOnlyList<string>> routeFixes
-    )
-    {
-        if (!label.EndsWith(Ellipsis, StringComparison.Ordinal))
-        {
-            throw new ArgumentException($"Fix picker label '{label}' must end in '{Ellipsis}'", nameof(label));
-        }
-
-        return new(
-            id,
-            label,
-            MenuFlightRules.Both,
-            isApplicable,
-            (ac, context, host) => BuildFixPicker(label, command, routeFixes(ac), context, host)
-        );
-    }
-
-    /// <summary>
-    /// The fix picker's form, by the data present when the menu is built: the filtered list over every fix while the
-    /// host has fix names (the route fixes listed first), else a plain list of the route fixes when there are any,
-    /// else free text.
-    /// </summary>
-    private static MenuItem BuildFixPicker(string label, string command, IReadOnlyList<string> routeFixes, MenuContext context, IMenuHost host)
-    {
-        List<object> routeItems = [.. routeFixes];
-        if (host.FixNames is { } fixNames)
-        {
-            return BuildFilteredList(label, fixNames, routeItems.Count > 0 ? routeItems : null, fix => Send($"{command} {fix}", context, host), host);
-        }
-
-        if (routeItems.Count > 0)
-        {
-            return BuildList(label[..^Ellipsis.Length], routeItems, routeItems[0], fix => Send($"{command} {fix}", context, host), host);
-        }
-
-        return BuildInput(label, FixNamePlaceholder, BlankInput.Closes, input => $"{command} {input}", context, host);
-    }
 
     /// <summary>The Draw taxi route item, which puts the host into drawing a route for the aircraft.</summary>
     private static MenuItem BuildDrawRoute(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)

@@ -58,6 +58,12 @@ Below the boxes, "Route" lists the aircraft's fixes with a ● on the next one, 
 
 ![The Cross fix flyout for a jet sent direct SUNOL, with SUNOL, At or above, 110 and 250 filled in over the route rows](img/whats-new-cross-fix-flyout.png)
 
+## Hold at fix
+
+Hold at fix…, in the quick-command strip, opens a flyout instead of a free-text box. Under the Fix box it has an "Inbound course" box (empty sends the default course), the Legs chips (1 min, 1½ min, 5 NM, 10 NM, opening on 1½ min above 14,000 ft) and a Right or Left toggle, with a caption such as "Hold north of SUNOL on the 184 course inbound" and the whole `HOLDP SUNOL 184 1M R` on every row.
+
+With the course empty, a fix further along the route is held on the leg from the fix before it, and any other fix on the course arriving from the aircraft, magnetic and following the aircraft each second; at a VOR the radial shows beside the course. The old Hold at fix (left) and (right) entries under All Commands › Hold are now "Left 360s at fix…" and "Right 360s at fix…", which open a flyout with a Left 360s / Right 360s toggle and still send `HFIXL` and `HFIXR`.
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

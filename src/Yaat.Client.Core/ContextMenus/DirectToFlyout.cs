@@ -94,16 +94,7 @@ public static class DirectToFlyout
     /// The command the box sends for <paramref name="text"/>: one fix name or FRD, upper-cased, that the navigation data knows
     /// (<see cref="FixList.IsKnownFix"/>); null for a blank box, several words or an unknown fix.
     /// </summary>
-    public static string? BoxCommand(string text, DirectToVerb verb)
-    {
-        string fix = text.Trim().ToUpperInvariant();
-        if ((fix.Length == 0) || fix.Any(char.IsWhiteSpace) || !FixList.IsKnownFix(fix))
-        {
-            return null;
-        }
-
-        return Command(verb, fix);
-    }
+    public static string? BoxCommand(string text, DirectToVerb verb) => (FixList.TypedFixOrFrd(text) is { } fix) ? Command(verb, fix) : null;
 }
 
 /// <summary>The Direct to flyout's menu row header, which holds the <see cref="DirectToFlyoutPanel"/> once the flyout first opens.</summary>
@@ -160,7 +151,13 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
             aircraft,
             Box,
             "Remaining route · next ●",
-            new FixListBehaviour(RowCommand, FrdRow, SendRowAsync, e => ReferenceEquals(e.Source, Box) || Box.IsKeyboardFocusWithin, SendBoxAsync)
+            new FixListBehaviour(
+                RowCommand,
+                FixList.FrdRow,
+                SendRowAsync,
+                e => ReferenceEquals(e.Source, Box) || Box.IsKeyboardFocusWithin,
+                SendBoxAsync
+            )
         );
         Box.PropertyChanged += (_, e) =>
         {
@@ -287,13 +284,6 @@ public sealed class DirectToFlyoutPanel : StackPanel, IFlyoutPanel
     {
         string command = DirectToFlyout.Command(Verb, fix);
         return (command, command);
-    }
-
-    /// <summary>The typed text's own row when it is an FRD, upper-cased; none otherwise.</summary>
-    private static IReadOnlyList<string> FrdRow(string prefix)
-    {
-        string typed = prefix.ToUpperInvariant();
-        return ((typed.Length > 0) && FixList.IsFrd(typed)) ? [typed] : [];
     }
 
     private Task SendRowAsync(FixRow row) => (row.SentCommand is { } command) ? _choose(command) : Task.CompletedTask;

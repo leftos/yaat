@@ -35,8 +35,6 @@ All Commands
   Hold
     Hold present position (left)
     Hold present position (right)
-    Hold at fix (left)… picker:input
-    Hold at fix (right)… picker:input
   Approach
     Cleared approach
       approach flyout, built when it opens

@@ -520,14 +520,17 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The Hold submenu: hold at present position, then hold at a fix, each with left and right turns.</summary>
+    /// <summary>
+    /// The Hold submenu: hold at present position with left and right turns, then for an aircraft offered VFR maneuvers the
+    /// left and right 360s at a fix, each opening the 360s flyout.
+    /// </summary>
     public static MenuItem Hold(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Hold" };
         TryAdd(menu.Items, TryLeaf(MenuIds.HoldPresentLeft, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.HoldPresentRight, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.HoldFixLeft, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.HoldFixRight, aircraft, context, host));
+        AddIfApplicable(menu.Items, MenuIds.HoldFixLeft, aircraft, context, host);
+        AddIfApplicable(menu.Items, MenuIds.HoldFixRight, aircraft, context, host);
         return menu;
     }
 

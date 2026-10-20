@@ -35,8 +35,10 @@ All Commands
   Hold
     Hold present position (left)
     Hold present position (right)
-    Hold at fix (left)… picker:input
-    Hold at fix (right)… picker:input
+    Left 360s at fix…
+      360s at fix flyout
+    Right 360s at fix…
+      360s at fix flyout
   Approach
     Cleared approach
       approach flyout, built when it opens

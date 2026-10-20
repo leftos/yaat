@@ -97,6 +97,23 @@ public static class FixList
     }
 
     /// <summary>
+    /// The one fix or fix-radial-distance a fix box's <paramref name="text"/> names, trimmed and upper-cased, when the navigation
+    /// data knows it (<see cref="IsKnownFix"/>); null for a blank box, several words or an unknown fix.
+    /// </summary>
+    public static string? TypedFixOrFrd(string text)
+    {
+        string fix = text.Trim().ToUpperInvariant();
+        return ((fix.Length == 0) || fix.Any(char.IsWhiteSpace) || !IsKnownFix(fix)) ? null : fix;
+    }
+
+    /// <summary>The typed <paramref name="prefix"/>'s own list row when it is a fix-radial-distance, upper-cased; none otherwise.</summary>
+    public static IReadOnlyList<string> FrdRow(string prefix)
+    {
+        string typed = prefix.ToUpperInvariant();
+        return ((typed.Length > 0) && IsFrd(typed)) ? [typed] : [];
+    }
+
+    /// <summary>
     /// Whether <paramref name="text"/> is a fix-radial-distance (<c>RBL184031</c>) the direct-to parser resolves rather than a
     /// fix's own name; false without the navigation data.
     /// </summary>

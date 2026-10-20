@@ -40,6 +40,8 @@
 - Assign speed and Speed… open one live flyout: a knots box, Resume normal and final approach speed, and knots and Mach chips.
 - Direct to and Append direct to open a live flyout: fix box, route ahead with distance and bearing, nearest matching fixes as you type.
 - Cross fix and Depart fix open live flyouts: a fix box with altitude and optional speed, or heading, sending complete `CFIX` and `DEPART` commands.
+- Hold at fix opens a live flyout: inbound course defaulting to the arrival course, leg chips opening on the altitude standard, turns, and a spoken-style caption.
+- Left and right 360s at fix share one fix flyout with a side toggle, offered to VFR aircraft aloft.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 
 ### Fixed
