@@ -2678,7 +2678,7 @@ public static class CommandDescriber
 
     private static string FormatPtacNatural(PositionTurnAltitudeClearanceCommand cmd)
     {
-        string headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Maintain present heading";
+        string headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Keep the assigned heading, else present heading";
         string altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
         string clearedVerb = cmd.Forced ? "forced cleared" : "cleared";
         string approachPart = cmd.ApproachId is not null ? $", {clearedVerb} {cmd.ApproachId} approach" : $", {clearedVerb} approach";

@@ -417,7 +417,9 @@ internal static partial class ApproachCommandParser
 
     /// <summary>
     /// Parses PTAC/PTACF [heading|PH] [altitude|PA] [approachId].
-    /// Supports flexible token counts with PH (present heading) and PA (present altitude).
+    /// Supports flexible token counts with PH (present heading) and PA (present altitude). PH keeps
+    /// the last assigned heading while the aircraft is on no navigation route and still steering to
+    /// it, even mid-turn; otherwise it takes the present heading.
     /// Examples: "PTAC 280 025 ILS30", "PTAC PH PA ILS30", "PTAC PH PA", "PTAC 280 025", "PTAC".
     /// When <paramref name="forced"/> is true, error messages use the "PTACF" label.
     /// </summary>

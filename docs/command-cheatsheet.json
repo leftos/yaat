@@ -100,7 +100,7 @@
         { "verb": "JRADO", "aliases": ["jrad"], "description": "Join radial outbound (FIX + 3-digit radial, one token: SJC150)" },
         { "verb": "JRADI", "aliases": ["jicrs"], "description": "Join radial inbound (FIX + 3-digit radial, one token: SJC150)" },
         { "verb": "HOLDP", "aliases": [], "description": "Holding pattern (fix inbound [leg] L/R; no leg = altitude standard)" },
-        { "verb": "PTAC", "aliases": [], "description": "Pos/turn/alt/clearance [hdg alt app] (PTACF = force, bypass 30° gate)" },
+        { "verb": "PTAC", "aliases": [], "description": "Pos/turn/alt/clearance [hdg alt app], PH = keep assigned hdg else present (PTACF = force, bypass 30° gate)" },
         { "verb": "CVIA", "aliases": [], "description": "Climb via SID [except alt]" },
         { "verb": "DVIA", "aliases": [], "description": "Descend via STAR [except alt]" },
         { "verb": "CFIX", "aliases": ["cf"], "description": "Cross fix at altitude" },

@@ -41,6 +41,12 @@ public static class ApproachCommandHandler
     /// </summary>
     private const double PatternEntryCeilingMarginFt = 500.0;
 
+    /// <summary>
+    /// How closely the heading target must match the assigned heading for a vector to still count as
+    /// in force at a <c>PTAC PH</c>; beyond it a hold, procedure or pattern owns the heading.
+    /// </summary>
+    private const double PtacAssignedHeadingToleranceDeg = 1.0;
+
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
         ResolvedApproach resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
@@ -430,8 +436,9 @@ public static class ApproachCommandHandler
         FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
 
-        // Resolve heading: explicit or present
-        int heading = (int)Math.Round(cmd.MagneticHeading?.Degrees ?? aircraft.MagneticHeading.Degrees);
+        // Resolve heading: explicit, the assigned heading PH keeps in force, or present (7110.65 §5-9-4)
+        PtacHeading resolvedHeading = ResolvePtacHeading(cmd, aircraft);
+        int heading = resolvedHeading.Heading;
         // Resolve altitude: explicit or present
         int altitude = cmd.Altitude ?? (int)(aircraft.Targets.TargetAltitude ?? aircraft.Altitude);
 
@@ -443,7 +450,11 @@ public static class ApproachCommandHandler
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = new MagneticHeading(heading).ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(heading);
-        aircraft.Targets.PreferredTurnDirection = null;
+        if (!resolvedHeading.KeepTurnDirection)
+        {
+            aircraft.Targets.PreferredTurnDirection = null;
+        }
+
         aircraft.Targets.TargetAltitude = altitude;
 
         // Clear existing phases
@@ -489,13 +500,71 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        string ptacPrefix = cmd.Forced ? "Force: turn" : "Turn";
+        string ptacPrefix = (cmd.Forced, resolvedHeading.FromPh) switch
+        {
+            (true, true) => "Force: fly",
+            (true, false) => "Force: turn",
+            (false, true) => "Fly",
+            (false, false) => "Turn",
+        };
         string ptacRunway = RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "");
         return new CommandResult(
             true,
             $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {ptacRunway}"
         );
     }
+
+    /// <summary>
+    /// The heading a PTAC intercepts on (7110.65 §5-9-4). An explicit heading argument is used as
+    /// given. <c>PH</c> means "no new vector": while an assigned heading is in force and the aircraft
+    /// is still steering to it — on no navigation route, and its heading target is that vector rather
+    /// than a hold, procedure or pattern leg — the assigned heading stays in force, still turning to
+    /// it or already on it, and its turn direction stands so a long-way turn is not reversed.
+    /// Otherwise (direct, route, procedure, hold, or no assigned heading at all) PH takes the present
+    /// heading.
+    /// </summary>
+    private static PtacHeading ResolvePtacHeading(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft)
+    {
+        if (cmd.MagneticHeading is { } explicitHeading)
+        {
+            return new PtacHeading((int)Math.Round(explicitHeading.Degrees), FromPh: false, KeepTurnDirection: false);
+        }
+
+        if (SteeringAssignedHeading(aircraft) is { } steeringHeading)
+        {
+            return new PtacHeading((int)Math.Round(steeringHeading.Degrees), FromPh: true, KeepTurnDirection: true);
+        }
+
+        return new PtacHeading((int)Math.Round(aircraft.MagneticHeading.Degrees), FromPh: true, KeepTurnDirection: false);
+    }
+
+    /// <summary>
+    /// The assigned heading while the aircraft is still steering to it, else null: a vector is in
+    /// force only off any navigation route and while the heading target is that vector (within
+    /// <see cref="PtacAssignedHeadingToleranceDeg"/>), since a hold, procedure or pattern leg can own
+    /// the heading with the route empty and the last vector still on the books.
+    /// </summary>
+    private static MagneticHeading? SteeringAssignedHeading(AircraftState aircraft)
+    {
+        if (aircraft.Targets.AssignedMagneticHeading is not { } assignedHeading || aircraft.Targets.NavigationRoute.Count != 0)
+        {
+            return null;
+        }
+
+        if (aircraft.Targets.TargetTrueHeading is not { } targetHeading)
+        {
+            return null;
+        }
+
+        MagneticHeading targetMagnetic = targetHeading.ToMagnetic(aircraft.Declination);
+        return targetMagnetic.IsCloseTo(assignedHeading, PtacAssignedHeadingToleranceDeg) ? assignedHeading : null;
+    }
+
+    /// <summary>
+    /// <see cref="TryPtac"/>'s heading decision. <paramref name="FromPh"/> is true whenever the
+    /// heading came from PH rather than an explicit argument, which drives the "Fly heading" wording.
+    /// </summary>
+    private readonly record struct PtacHeading(int Heading, bool FromPh, bool KeepTurnDirection);
 
     public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
