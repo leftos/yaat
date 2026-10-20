@@ -785,7 +785,9 @@ internal static class ApproachRowView
     private static readonly IImmutableSolidColorBrush ForceFill = new ImmutableSolidColorBrush(Color.Parse("#4A3111"));
     private static readonly IImmutableSolidColorBrush ForceLine = new ImmutableSolidColorBrush(Color.Parse("#FFB259"));
     private static readonly IImmutableSolidColorBrush ForceText = new ImmutableSolidColorBrush(Color.Parse("#FFD08A"));
-    private static readonly IImmutableSolidColorBrush ForcedCommand = new ImmutableSolidColorBrush(Color.Parse("#FFC062"));
+
+    /// <summary>The amber of a forced command (a forced approach row's, the PTAC flyout's rows with Forced on).</summary>
+    internal static readonly IImmutableSolidColorBrush ForcedCommand = new ImmutableSolidColorBrush(Color.Parse("#FFC062"));
 
     public static Grid Build(ApproachRow row, QuickCommandGlyph instrumentGlyph, QuickCommandGlyph visualGlyph)
     {

@@ -521,12 +521,20 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Hold submenu: hold at present position with left and right turns, then for an aircraft offered VFR maneuvers the
-    /// left and right 360s at a fix, each opening the 360s flyout.
+    /// The Hold submenu: for an IFR aircraft in the air Hold at fix…, opening the holding-pattern flyout; hold at present
+    /// position with left and right turns; then for an aircraft offered VFR maneuvers the left and right 360s at a fix, each
+    /// opening the 360s flyout.
     /// </summary>
     public static MenuItem Hold(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Hold" };
+        // The entry's applicability says only "in the air"; its flight-rules default is applied here as the quick strip applies it.
+        MenuFlightRules holdPatternRules = MenuCatalog.Get(MenuIds.HoldPattern).DefaultFlightRules;
+        if ((aircraft is not null) && QuickCommandResolver.MatchesFlightRules(holdPatternRules, MenuIds.HoldPattern, aircraft, context))
+        {
+            AddIfApplicable(menu.Items, MenuIds.HoldPattern, aircraft, context, host);
+        }
+
         TryAdd(menu.Items, TryLeaf(MenuIds.HoldPresentLeft, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.HoldPresentRight, aircraft, context, host));
         AddIfApplicable(menu.Items, MenuIds.HoldFixLeft, aircraft, context, host);

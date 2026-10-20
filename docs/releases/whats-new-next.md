@@ -60,9 +60,11 @@ Below the boxes, "Route" lists the aircraft's fixes with a ● on the next one, 
 
 ## Hold at fix
 
-Hold at fix…, in the quick-command strip, opens a flyout instead of a free-text box. Under the Fix box it has an "Inbound course" box (empty sends the default course), the Legs chips (1 min, 1½ min, 5 NM, 10 NM, opening on 1½ min above 14,000 ft) and a Right or Left toggle, with a caption such as "Hold north of SUNOL on the 184 course inbound" and the whole `HOLDP SUNOL 184 1M R` on every row.
+Hold at fix…, in the quick-command strip and as the first entry of All Commands › Hold for an airborne IFR aircraft, opens a flyout instead of a free-text box. Under the Fix box it has an "Inbound course" box (empty sends the default course), the Legs chips (1 min, 1½ min, 5 NM, 10 NM, opening on 1½ min above 14,000 ft) and a Right or Left toggle, with a caption such as "Hold north of SUNOL on the 184 course inbound" and the whole `HOLDP SUNOL 184 1M R` on every row.
 
 With the course empty, a fix further along the route is held on the leg from the fix before it, and any other fix on the course arriving from the aircraft, magnetic and following the aircraft each second; at a VOR the radial shows beside the course. The old Hold at fix (left) and (right) entries under All Commands › Hold are now "Left 360s at fix…" and "Right 360s at fix…", which open a flyout with a Left 360s / Right 360s toggle and still send `HFIXL` and `HFIXR`.
+
+PTAC… under All Commands › Procedures opens a flyout too: a PTAC / Forced toggle, Heading and Altitude boxes (empty sends the present value, `PH` or `PA`) and the destination's approaches, each row showing the whole command such as `PTAC 280 025 I28R`. "The expected approach" row sends no approach id.
 
 ## GFS winds aloft
 

@@ -44,6 +44,8 @@
 - Join airway opens a live flyout: an airway box, the filed airways, then airways nearby, each naming the fix the aircraft joins after intercepting.
 - Join radial outbound and inbound open one flyout: nearby VORs with the radial the aircraft is on, a radial box and a compass rose.
 - Left and right 360s at fix share one fix flyout with a side toggle, offered to VFR aircraft aloft.
+- PTAC… opens a live flyout: a PTAC / Forced toggle, heading and altitude boxes that leave `PH` / `PA` when empty, and the destination's approaches.
+- All Commands › Hold offers Hold at fix… to IFR aircraft in the air, opening the same flyout as the quick command.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 - `PTAC PH` keeps an assigned heading the aircraft is still turning to, and its turn direction, reading back "Fly heading"; `FPH` is unchanged.
 

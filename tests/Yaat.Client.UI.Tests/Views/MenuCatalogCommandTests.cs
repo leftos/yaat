@@ -103,7 +103,6 @@ public class MenuCatalogCommandTests
         (MenuIds.ProceduresJoinStar, StarId, "JARR EMZOH4"),
         (MenuIds.ProceduresClimbViaSid, "", "CVIA"),
         (MenuIds.ProceduresDescendViaStar, "", "DVIA"),
-        (MenuIds.ProceduresPtac, "280 025 I28R", "PTAC 280 025 I28R"),
         (MenuIds.TowerLineUpAndWait, "", "LUAW"),
         (MenuIds.TowerCancelTakeoff, "", "CTOC"),
         (MenuIds.TowerClearedToLand, "", "CLAND"),
@@ -212,6 +211,8 @@ public class MenuCatalogCommandTests
         MenuIds.ProceduresJoinAirway,
         MenuIds.ProceduresJoinRadialOutbound,
         MenuIds.ProceduresJoinRadialInbound,
+        // PTAC… opens the PTAC flyout; PtacFlyoutTests clicks its rows and boxes.
+        MenuIds.ProceduresPtac,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -864,6 +865,33 @@ public class MenuCatalogCommandTests
         Assert.DoesNotContain(label, SharedMenuGroups.Hold(ifr, Context(), host).Items.OfType<MenuItem>().Select(m => m.Header as string));
     }
 
+    /// <summary>
+    /// All Commands › Hold offers Hold at fix… to an IFR aircraft in the air, opening the holding-pattern flyout; never to a VFR
+    /// one or on the ground.
+    /// </summary>
+    [AvaloniaFact]
+    public void HoldGroup_OffersHoldAtFixToAnIfrAirborneAircraftOnly()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var ifr = new FakeMenuAircraft { FlightRules = "IFR", AltitudeFeet = 5000 };
+
+        MenuItem item = Assert.Single(
+            SharedMenuGroups.Hold(ifr, Context(), host).Items.OfType<MenuItem>(),
+            m => m.Header as string == "Hold at fix…"
+        );
+        item.IsSubMenuOpen = true;
+        Assert.IsType<HoldPatternFlyoutPanel>(Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child);
+        Assert.DoesNotContain(
+            "Hold at fix…",
+            SharedMenuGroups.Hold(ifr with { FlightRules = "VFR" }, Context(), host).Items.OfType<MenuItem>().Select(m => m.Header as string)
+        );
+        Assert.DoesNotContain(
+            "Hold at fix…",
+            SharedMenuGroups.Hold(ifr with { IsOnGround = true }, Context(), host).Items.OfType<MenuItem>().Select(m => m.Header as string)
+        );
+    }
+
     [AvaloniaFact]
     public void NavigationGroup_OffersAppendDirectToOnlyWhileNavigating()
     {
@@ -1339,6 +1367,37 @@ public class MenuCatalogCommandTests
             _ => throw new InvalidOperationException($"{command} parsed as {parsed}"),
         };
         Assert.Equal(("RBL", int.Parse(radial, CultureInfo.InvariantCulture)), (fix, parsedRadial));
+    }
+
+    /// <summary>
+    /// PTAC… opens the PTAC flyout; a typed heading and altitude and a click on an approach row send one PTAC command the
+    /// parser reads, and no popup opens.
+    /// </summary>
+    [AvaloniaFact]
+    public void Ptac_SendsACommandTheParserAccepts()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport };
+
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ProceduresPtac).Build(aircraft, Context(), host));
+        Assert.Equal("PTAC…", item.Header as string);
+        item.IsSubMenuOpen = true;
+        PtacFlyoutPanel panel = Assert.IsType<PtacFlyoutPanel>(
+            Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
+        );
+        panel.HeadingBox.Text = "280";
+        panel.AltitudeBox.Text = "025";
+        Assert.Single(panel.Rows, row => row.ApproachId == ApproachId).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Empty(host.InputPlaceholders);
+        Assert.Equal([(Callsign, "PTAC 280 025 I28R", Initials)], host.Sent);
+        PositionTurnAltitudeClearanceCommand parsed = Assert.IsType<PositionTurnAltitudeClearanceCommand>(
+            CommandParser.Parse(host.Sent[0].Command).Value
+        );
+        Assert.Equal(280, parsed.MagneticHeading?.Degrees);
+        Assert.Equal(2500, parsed.Altitude);
+        Assert.Equal(ApproachId, parsed.ApproachId);
     }
 
     [AvaloniaFact]

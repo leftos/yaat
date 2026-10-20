@@ -197,6 +197,7 @@ public class QuickCommandDefaultsTests
     [InlineData(MenuIds.ApproachClearedForce, ClearedApproachPath, true)]
     [InlineData(MenuIds.ApproachJoinForce, JoinApproachPath, true)]
     [InlineData(MenuIds.ApproachJoinFinalCourse, JoinFinalCoursePath, false)]
+    [InlineData(MenuIds.ProceduresPtac, ClearedApproachPath, false)]
     public void ApproachVerbGlyphs_MatchTheApprovedMock(string id, string path, bool forceMark)
     {
         QuickCommandGlyph glyph = Assert.IsType<QuickCommandGlyph>(QuickCommandGlyphs.For(id));

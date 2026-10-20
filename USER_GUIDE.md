@@ -940,7 +940,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   Down from a box goes into the rows (the ● row first), Up from the top row returns to the Fix box, Tab moves between the boxes, Enter sends the outlined or focused row, and Escape goes back to the strip. The menu never sends `CFIX {fix}` or `DEPART {fix}` without its values.
 
-  **Hold at fix…** (a quick command for an airborne IFR aircraft; it sends `HOLDP`) opens a flyout titled "Hold at fix" with "→ {next fix}" while the aircraft navigates to a fix. The Fix box takes a fix's own name; an FRD is "Not a known fix". Under it are the "Inbound course (empty: default)" box, with the direction of holding beside it and, at a VOR, VORTAC or TACAN, the radial; the Legs chips 1 min, 1½ min, 5 NM and 10 NM; and the Turns toggle, Right or Left.
+  **Hold at fix…** (a quick command for an airborne IFR aircraft, and the first entry of All Commands › Hold for one; it sends `HOLDP`) opens a flyout titled "Hold at fix" with "→ {next fix}" while the aircraft navigates to a fix. The Fix box takes a fix's own name; an FRD is "Not a known fix". Under it are the "Inbound course (empty: default)" box, with the direction of holding beside it and, at a VOR, VORTAC or TACAN, the radial; the Legs chips 1 min, 1½ min, 5 NM and 10 NM; and the Turns toggle, Right or Left.
 
   The Legs chips open on 1 min at or below 14,000 ft MSL and on 1½ min above it (from the assigned altitude, else the present one), and follow the altitude each second until you pick a chip. A caption says the hold as a controller would, such as "Hold north of SUNOL on the 184 course inbound" or, at a VOR, "Hold north of SFO on the 004 radial", adding ", 1½-minute leg" for a picked or non-standard leg and ", left turns" for left. The command is always the four tokens, `HOLDP SUNOL 184 1M R` (legs `1M`, `1.5M`, `5`, `10`).
 
@@ -952,7 +952,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
 
-  Procedures offers the Cross fix and Depart fix flyouts, a Join STAR picker (smart-defaults to a filed STAR detected in the route), Join airway… and Join radial outbound… / inbound…, described next. Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
+  Procedures offers the Cross fix and Depart fix flyouts, a Join STAR picker (smart-defaults to a filed STAR detected in the route), Join airway…, Join radial outbound… / inbound… and PTAC…, described next. Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
 
   **Join airway…** (All Commands › Procedures) opens a flyout titled "Join airway" with an Airway box (focused on open; it filters the rows by what you type). The box says "unknown airway" in red for a name the navigation data lacks and "military route: use CMTR" for a military training route such as IR149.
 
@@ -963,6 +963,14 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
   The "Radial (empty: the aircraft's)" box takes 001 to 360 ("Not a valid radial" otherwise), and the caption reads `Intercept the RBL 184 radial outbound`. The rose below shows the navaid in its centre: press or drag on it to fill the Radial box, and releasing sends.
 
   The flyout opens on the nearest navaid of the aircraft's route within 130 NM, else the nearest VOR, VORTAC or TACAN. Radials are magnetic, by the station's published variation.
+
+  **PTAC…** (All Commands › Procedures, with the Cleared approach icon) opens a flyout titled "PTAC" with `hdg {hhh} · {alt}`, the aircraft's present heading and altitude, on the right. A PTAC / Forced toggle picks `PTAC` or `PTACF`; with Forced on the caption reads "skip the intercept-angle check" and the rows' commands turn amber.
+
+  The Heading and Altitude boxes can stay empty, which sends `PH` or `PA`: the placeholders say which value that is (`PH (assigned 250)` while a heading is assigned and the aircraft is on no route, else `PH (present 250)`; `PA (assigned 3,000)` or `PA (present 3,000)`). A bad value shows "Not a valid heading" or "Not a valid altitude".
+
+  Under the "Approach" line the first row is "The expected approach" (marked ●, with `{id} expected`), which sends no approach id so the aircraft's expected approach is used, and then each approach of the destination by name and kind. Every row shows its whole command, such as `PTAC 280 025 I28R`, or `PTAC ···` while a box is invalid, and a click sends it. A note says "No destination filed" or "No approaches at {airport}" when there is nothing to list.
+
+  Enter in a box sends `PTAC {heading} {altitude}` with no approach id (nothing when there are no approaches), Down from a box goes into the rows, Down and Up walk them, and Enter sends the focused row.
 
   The Tower and Pattern submenus list only the commands valid for the aircraft's current state — departure clearances (Line up and wait, Cleared for takeoff) for aircraft on the ground, landing/option clearances while on approach or in the pattern, and runway exits after touchdown; the VFR-only items (touch-and-go, stop-and-go, low approach, the option, and pattern maneuvers) are hidden for IFR aircraft, and the submenu is dropped entirely when nothing applies.
 

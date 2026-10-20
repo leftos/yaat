@@ -187,7 +187,7 @@ public static class MenuCatalog
         Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
         FlyoutEntry(MenuIds.ProceduresCrossFix, "Cross fix…", FixValueFlyout.BuildCross),
         FlyoutEntry(MenuIds.ProceduresDepartFix, "Depart fix…", FixValueFlyout.BuildDepart),
-        InputLeaf(MenuIds.ProceduresPtac, "PTAC…", "PTAC arguments", BlankInput.Closes, input => $"PTAC {input}"),
+        FlyoutEntry(MenuIds.ProceduresPtac, "PTAC…", PtacFlyout.Build),
         FlyoutEntry(MenuIds.ProceduresJoinAirway, "Join airway…", JoinAirwayFlyout.Build),
         JoinRadialEntry(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", RadialSide.Outbound),
         JoinRadialEntry(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound…", RadialSide.Inbound),

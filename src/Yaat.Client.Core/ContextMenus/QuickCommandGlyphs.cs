@@ -161,6 +161,7 @@ public static class QuickCommandGlyphs
             [MenuIds.ProceduresJoinAirway] = Flight("M2 6h20 M4 21c1.5-7 5.5-12 12-15 M13 3l3 3-3 3"),
             [MenuIds.ProceduresJoinRadialOutbound] = Flight(JoinRadialPath),
             [MenuIds.ProceduresJoinRadialInbound] = Flight(JoinRadialPath),
+            [MenuIds.ProceduresPtac] = Flight(ClearedApproachPath),
             [MenuIds.NavigationOnCourse] = Flight("M3 21c0-6 3-9 9-9h9 M18 9l3 3-3 3"),
             [MenuIds.PatternEnterLeftDownwind] = Pattern(EnterLeftDownwindPath),
             [MenuIds.PatternEnterRightDownwind] = Pattern(EnterRightDownwindPath),

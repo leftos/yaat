@@ -182,7 +182,7 @@ public static class QuickCommandResolver
     /// under the controller's "VFR commands for IFR aircraft" setting, as All Commands offers it: every one under
     /// <see cref="VfrCommandsForIfr.All"/>, straight-in final alone under <see cref="VfrCommandsForIfr.EnterFinalOnly"/>.
     /// </summary>
-    private static bool MatchesFlightRules(MenuFlightRules rules, string catalogId, IMenuAircraft aircraft, MenuContext context) =>
+    internal static bool MatchesFlightRules(MenuFlightRules rules, string catalogId, IMenuAircraft aircraft, MenuContext context) =>
         rules switch
         {
             MenuFlightRules.Both => true,
