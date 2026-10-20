@@ -2161,9 +2161,14 @@ public static class CommandRegistry
                 ["HOLDP"],
                 [
                     O(
-                        null,
+                        "Standard legs",
+                        [R("fix", "hold fix"), R("inbound", "inbound heading"), R("turn", "L/R turn direction")],
+                        "Enter holding pattern with the altitude-standard leg"
+                    ),
+                    O(
+                        "Leg given",
                         [R("fix", "hold fix"), R("inbound", "inbound heading"), R("leg", "leg length min"), R("turn", "L/R turn direction")],
-                        "Enter holding pattern"
+                        "Enter holding pattern with an explicit leg length"
                     ),
                 ]
             ),

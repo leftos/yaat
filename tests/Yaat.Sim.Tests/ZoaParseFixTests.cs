@@ -479,22 +479,71 @@ public class ZoaParseFixTests : IDisposable
         HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
         Assert.Equal("VPBCK", hold.FixName);
         Assert.Equal(80, hold.InboundCourse);
-        Assert.Equal(10, hold.LegLength);
+        Assert.Equal(10.0, hold.LegLength);
         Assert.Equal(TurnDirection.Right, hold.Direction);
     }
 
     [Fact]
-    public void Parse_Hold_3Tokens_Direction_DefaultsLeg1M()
+    public void Parse_Hold_3Tokens_Direction_LeavesLegOmitted()
     {
-        // HOLD RBL 341 RIGHT → fix=RBL, course=341, direction=Right, leg=1M (default)
+        // HOLD RBL 341 RIGHT → fix=RBL, course=341, direction=Right, leg omitted: the altitude standard, resolved at dispatch
         ParseResult<ParsedCommand> result = CommandParser.Parse("HOLD RBL 341 RIGHT");
         Assert.NotNull(result.Value);
         HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
         Assert.Equal("RBL", hold.FixName);
         Assert.Equal(341, hold.InboundCourse);
         Assert.Equal(TurnDirection.Right, hold.Direction);
-        Assert.Equal(1, hold.LegLength);
+        Assert.Null(hold.LegLength);
         Assert.True(hold.IsMinuteBased);
+    }
+
+    [Fact]
+    public void Parse_Hold_Course000_Fails()
+    {
+        // The inbound course is 001-360: 360 and 000 name the same course, and only 360 is accepted.
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLDP SUNOL 000 R");
+        Assert.False(result.IsSuccess);
+        Assert.Contains("invalid inbound course '000' (001-360)", result.Reason!);
+    }
+
+    [Fact]
+    public void Parse_Hold_Course360_Parses()
+    {
+        ParseResult<ParsedCommand> result = CommandParser.Parse("HOLDP SUNOL 360 R");
+        Assert.NotNull(result.Value);
+        HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
+        Assert.Equal(360, hold.InboundCourse);
+    }
+
+    [Fact]
+    public void Parse_Hold_DecimalLeg_UnderGermanCulture_ParsesInvariantly()
+    {
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+            ParseResult<ParsedCommand> result = CommandParser.Parse("HOLDP SUNOL 090 1.5M R");
+            Assert.NotNull(result.Value);
+            HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
+            Assert.Equal(1.5, hold.LegLength);
+            Assert.True(hold.IsMinuteBased);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Theory]
+    [InlineData("1e1")]
+    [InlineData("-1")]
+    [InlineData("INFINITY")]
+    [InlineData("INFINITYM")]
+    public void Parse_Hold_NonDecimalLeg_Fails(string leg)
+    {
+        ParseResult<ParsedCommand> result = CommandParser.Parse($"HOLDP SUNOL 090 {leg} R");
+        Assert.False(result.IsSuccess);
+        Assert.Contains("invalid hold leg length", result.Reason!);
     }
 
     [Fact]
@@ -506,7 +555,7 @@ public class ZoaParseFixTests : IDisposable
         HoldingPatternCommand hold = Assert.IsType<HoldingPatternCommand>(result.Value);
         Assert.Equal("SUNOL", hold.FixName);
         Assert.Equal(90, hold.InboundCourse);
-        Assert.Equal(10, hold.LegLength);
+        Assert.Equal(10.0, hold.LegLength);
         Assert.False(hold.IsMinuteBased);
         Assert.Equal(TurnDirection.Right, hold.Direction);
     }

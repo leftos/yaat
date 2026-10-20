@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -1128,8 +1129,25 @@ internal static class NavigationCommandHandler
         return (bestBehindIdx, bestAheadIdx);
     }
 
+    /// <summary>The altitude at and below which a hold's leg is 1 minute, in feet MSL (AIM 5-3-8(j)(4)(a)).</summary>
+    internal const double StandardHoldLegThresholdFt = 14000;
+
+    /// <summary>The leg of an altitude-standard hold at or below <see cref="StandardHoldLegThresholdFt"/>, in minutes.</summary>
+    internal const double StandardHoldLegMinutesAtOrBelow = 1.0;
+
+    /// <summary>The leg of an altitude-standard hold above <see cref="StandardHoldLegThresholdFt"/>, in minutes.</summary>
+    internal const double StandardHoldLegMinutesAbove = 1.5;
+
+    /// <summary>The leg length an omitted <c>HOLDP</c> leg flies at <paramref name="altitudeFt"/> MSL.</summary>
+    internal static double StandardHoldLegMinutes(double altitudeFt) =>
+        altitudeFt <= StandardHoldLegThresholdFt ? StandardHoldLegMinutesAtOrBelow : StandardHoldLegMinutesAbove;
+
     internal static CommandResult DispatchHoldingPattern(HoldingPatternCommand cmd, AircraftState aircraft)
     {
+        // An omitted leg is the altitude standard, fixed when the hold is issued: the assigned altitude, else the present one.
+        double legLength = cmd.LegLength ?? StandardHoldLegMinutes(aircraft.Targets.AssignedAltitude ?? aircraft.Altitude);
+        bool isMinuteBased = (cmd.LegLength is null) || cmd.IsMinuteBased;
+
         // The controller's holding course is magnetic (7110.65 1-2-1): referenced to the navaid's variation of record when the fix
         // is a navaid, else to the modelled variation at the fix. The phase flies a true course; the readback keeps the magnetic one.
         double declination = NavigationDatabase.Instance.GetPublishedCourseDeclination(cmd.FixName, string.Empty, new LatLon(cmd.FixLat, cmd.FixLon));
@@ -1141,8 +1159,8 @@ internal static class NavigationCommandHandler
             FixLat = cmd.FixLat,
             FixLon = cmd.FixLon,
             InboundCourse = (int)Math.Round(inboundTrue.Degrees) % 360,
-            LegLength = cmd.LegLength,
-            IsMinuteBased = cmd.IsMinuteBased,
+            LegLength = legLength,
+            IsMinuteBased = isMinuteBased,
             Direction = cmd.Direction,
             Entry = cmd.Entry,
         };
@@ -1161,7 +1179,7 @@ internal static class NavigationCommandHandler
         aircraft.Phases.Start(startCtx);
 
         string dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
-        string legStr = cmd.IsMinuteBased ? $"{cmd.LegLength}min" : $"{cmd.LegLength}nm";
+        string legStr = $"{legLength.ToString(CultureInfo.InvariantCulture)}{(isMinuteBased ? "min" : "nm")}";
         return CommandDispatcher.Ok($"Hold at {FixDisplay(cmd.FixName)}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
     }
 

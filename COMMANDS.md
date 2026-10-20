@@ -1753,10 +1753,14 @@ This applies only on final — departures, go-arounds, and missed approaches cli
 |---------|--------|
 | `HOLDP SUNOL 180 1M R` | Hold at SUNOL, 180° inbound, 1-minute legs, right turns |
 | `HOLDP SUNOL 090 5 L` | Hold at SUNOL, 090° inbound, 5nm legs, left turns |
-| `HOLDP SUNOL 180 R` | Hold at SUNOL, 180° inbound, right turns (default 1-minute legs) |
+| `HOLDP SUNOL 184 R` | Hold at SUNOL, 184° inbound, right turns, standard legs (1 minute at or below 14,000 ft, 1.5 minutes above) |
 | `HOLD SUNOL 180 1M R` | Same as HOLDP (parser detects holding pattern from arguments) |
 
-Hold format: `HOLDP {fix} {inbound_course} {leg_length} {L/R}` (three-token form: `HOLDP {fix} {inbound_course} {L/R|leg_length}`; direction defaults to right turns per 7110.65, leg to 1 minute). Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
+Hold format: `HOLDP {fix} {inbound_course} {leg_length} {L/R}` (three-token form: `HOLDP {fix} {inbound_course} {L/R|leg_length}`; direction defaults to right turns per 7110.65). Leg length ending in `M` is minutes; plain number is nautical miles. Legs are plain decimals read the same in every locale (`1.5M`); an exponent (`1e1`), a sign (`-1`) and `INFINITY` are refused. The inbound course is 001-360 (360 is north); `000` is refused.
+
+An omitted leg flies the altitude standard (AIM 5-3-8.j.4.a): 1 minute at or below 14,000 ft MSL, 1.5 minutes above. The altitude is the assigned altitude, else the present one, taken when the hold is issued and not revisited as the aircraft climbs or descends. The readback names the resolved leg ("Hold at SUNOL, 184 inbound, right turns, 1.5min legs").
+
+Any RPO command (heading, altitude, approach, etc.) exits the hold.
 
 The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern arguments (fix name + inbound course + direction/leg) is automatically recognized as a holding pattern rather than a ground hold-position command.
 

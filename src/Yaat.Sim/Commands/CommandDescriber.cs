@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
@@ -2310,8 +2311,15 @@ public static class CommandDescriber
 
     private static string FormatHoldCanonical(HoldingPatternCommand cmd)
     {
-        string unit = cmd.IsMinuteBased ? "M" : "";
         string dir = cmd.Direction == TurnDirection.Left ? "L" : "R";
+        if (cmd.LegLength is not { } leg)
+        {
+            // An omitted leg prints no leg token, so the canonical text re-parses to the command the controller typed. The entry
+            // is dropped with the leg: the parser produces a null leg only for the 3-token direction form, which never carries one.
+            return $"HOLDP {cmd.FixName} {cmd.InboundCourse:000} {dir}";
+        }
+
+        string unit = cmd.IsMinuteBased ? "M" : "";
         string entry = cmd.Entry switch
         {
             HoldingEntry.Direct => " D",
@@ -2319,13 +2327,15 @@ public static class CommandDescriber
             HoldingEntry.Parallel => " P",
             _ => "",
         };
-        return $"HOLDP {cmd.FixName} {cmd.InboundCourse:000} {cmd.LegLength}{unit} {dir}{entry}";
+        return $"HOLDP {cmd.FixName} {cmd.InboundCourse:000} {leg.ToString(CultureInfo.InvariantCulture)}{unit} {dir}{entry}";
     }
 
     private static string FormatHoldNatural(HoldingPatternCommand cmd)
     {
         string dir = cmd.Direction == TurnDirection.Left ? "left" : "right";
-        string unit = cmd.IsMinuteBased ? "minute" : "nm";
+        string leg = cmd.LegLength is { } length
+            ? $", {length.ToString(CultureInfo.InvariantCulture)} {(cmd.IsMinuteBased ? "minute" : "nm")} legs"
+            : "";
         string entry = cmd.Entry switch
         {
             HoldingEntry.Direct => ", direct entry",
@@ -2333,7 +2343,7 @@ public static class CommandDescriber
             HoldingEntry.Parallel => ", parallel entry",
             _ => "",
         };
-        return $"Hold at {cmd.FixName}, {cmd.InboundCourse:000} inbound, {cmd.LegLength}{unit} legs, {dir} turns{entry}";
+        return $"Hold at {cmd.FixName}, {cmd.InboundCourse:000} inbound{leg}, {dir} turns{entry}";
     }
 
     private static string FormatCfixCanonical(CrossFixCommand cmd)

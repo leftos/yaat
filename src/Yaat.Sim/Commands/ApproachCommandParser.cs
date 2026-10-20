@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -282,7 +283,8 @@ internal static partial class ApproachCommandParser
     ///   3 tokens: fix course direction OR fix course leg (defaults direction=Right)
     ///   4 tokens: fix course leg direction (standard) OR fix course leg numericLeg (defaults direction=Right)
     ///   5 tokens: fix course leg direction entry
-    /// Default direction is Right per 7110.65. Default leg is 1M.
+    /// Default direction is Right per 7110.65. An omitted leg is the altitude standard (AIM 5-3-8(j)(4)(a)), resolved when the
+    /// hold is dispatched.
     /// </summary>
     internal static PR ParseHold(string? arg)
     {
@@ -305,14 +307,18 @@ internal static partial class ApproachCommandParser
             return PR.Fail($"fix '{fixName}' not found");
         }
 
-        if (!int.TryParse(tokens[1], out int inboundCourse) || inboundCourse < 0 || inboundCourse > 360)
+        if (
+            !int.TryParse(tokens[1], NumberStyles.None, CultureInfo.InvariantCulture, out int inboundCourse)
+            || inboundCourse < 1
+            || inboundCourse > 360
+        )
         {
-            return PR.Fail($"invalid inbound course '{tokens[1]}'");
+            return PR.Fail($"invalid inbound course '{tokens[1]}' (001-360)");
         }
 
         // Defaults
         TurnDirection direction = TurnDirection.Right;
-        double legLength = 1;
+        double? legLength = null;
         bool isMinuteBased = true;
         HoldingEntry? entry = null;
 
@@ -336,10 +342,13 @@ internal static partial class ApproachCommandParser
         else if (tokens.Length >= 4)
         {
             // Token[2] is always leg
-            if (!TryParseLeg(tokens[2], out legLength, out isMinuteBased))
+            if (!TryParseLeg(tokens[2], out double explicitLeg, out bool explicitIsMinuteBased))
             {
                 return PR.Fail($"invalid hold leg length '{tokens[2]}'");
             }
+
+            legLength = explicitLeg;
+            isMinuteBased = explicitIsMinuteBased;
 
             // Token[3] is direction (or numeric → default direction Right)
             if (TryParseDirection(tokens[3], out TurnDirection dir4))
@@ -381,7 +390,11 @@ internal static partial class ApproachCommandParser
         string upper = token.ToUpperInvariant();
         isMinuteBased = upper.EndsWith('M');
         string valueStr = isMinuteBased ? upper[..^1] : upper;
-        if (double.TryParse(valueStr, out legLength) && legLength > 0)
+        if (
+            double.TryParse(valueStr, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out legLength)
+            && double.IsFinite(legLength)
+            && legLength > 0
+        )
         {
             return true;
         }

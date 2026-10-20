@@ -1181,12 +1181,17 @@ public record JoinRadialOutboundCommand(string FixName, double FixLat, double Fi
 
 public record JoinRadialInboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
 
+/// <summary>
+/// <c>HOLDP fix course [leg] [direction] [entry]</c>. <see cref="LegLength"/> is null when the controller omitted the leg: the
+/// altitude standard (AIM 5-3-8(j)(4)(a)), resolved when the hold is dispatched. <see cref="IsMinuteBased"/> is meaningful only
+/// for an explicit leg, and is true for an omitted one.
+/// </summary>
 public record HoldingPatternCommand(
     string FixName,
     double FixLat,
     double FixLon,
     int InboundCourse,
-    double LegLength,
+    double? LegLength,
     bool IsMinuteBased,
     TurnDirection Direction,
     HoldingEntry? Entry
