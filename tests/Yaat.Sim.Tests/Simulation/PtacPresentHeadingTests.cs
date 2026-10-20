@@ -190,8 +190,7 @@ public class PtacPresentHeadingTests
         _output.WriteLine($"HOLD {fix} -> {hold.Message}");
         Assert.True(hold.Success, hold.Message);
 
-        // The bug's setup: the hold leaves the cancelled vector assigned and the route empty.
-        Assert.Equal(250.0, AssignedMagneticHeading(harness));
+        // YAAT-951: the hold clears the cancelled vector at its start, so PTAC PH here takes the present heading.
 
         TickUntil(
             harness,
@@ -210,7 +209,7 @@ public class PtacPresentHeadingTests
         );
         Assert.IsType<HoldingPatternPhase>(holding.Phases?.CurrentPhase);
         Assert.Empty(holding.Targets.NavigationRoute);
-        Assert.Equal(250.0, AssignedMagneticHeading(harness));
+        Assert.Null(holding.Targets.AssignedMagneticHeading);
         Assert.True(
             AngleFrom(holdHeading, 250) > 30,
             $"Expected the aircraft flying the hold, away from the 250 vector; heading was {holdHeading:F1}"
