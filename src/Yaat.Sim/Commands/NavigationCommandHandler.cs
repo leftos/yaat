@@ -1111,12 +1111,17 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchHoldingPattern(HoldingPatternCommand cmd, AircraftState aircraft)
     {
+        // The controller's holding course is magnetic (7110.65 1-2-1): referenced to the navaid's variation of record when the fix
+        // is a navaid, else to the modelled variation at the fix. The phase flies a true course; the readback keeps the magnetic one.
+        double declination = NavigationDatabase.Instance.GetPublishedCourseDeclination(cmd.FixName, string.Empty, new LatLon(cmd.FixLat, cmd.FixLon));
+        TrueHeading inboundTrue = new MagneticHeading(cmd.InboundCourse).ToTrue(declination);
+
         var phase = new HoldingPatternPhase
         {
             FixName = cmd.FixName,
             FixLat = cmd.FixLat,
             FixLon = cmd.FixLon,
-            InboundCourse = cmd.InboundCourse,
+            InboundCourse = (int)Math.Round(inboundTrue.Degrees) % 360,
             LegLength = cmd.LegLength,
             IsMinuteBased = cmd.IsMinuteBased,
             Direction = cmd.Direction,
