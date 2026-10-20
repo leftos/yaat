@@ -13,7 +13,6 @@
 - [ ] YAAT-762 Parked aircraft squawking standby should offer SQNORM in quick commands
 - [ ] YAAT-761 Taxi quick command icon doesn't offer highlighted taxi path preview like the flyout does
 - [ ] YAAT-760 SCX8607 didn't offer Hold Short of T on Quick Commands
-- [ ] YAAT-917 Decide whether PTAC PH prefers the assigned heading mid-turn
 - [ ] YAAT-773 Extract one live-list helper for the quick-command flyouts that refill while open
 - [ ] YAAT-807 Show the empty-entries line when the Taxi to runway panel fails to render a landed search
 - [ ] YAAT-823 Leave the turn-off angle out of an exit row when the layout could not measure it
@@ -27,12 +26,13 @@
 - [ ] YAAT-930 Refuse unresolvable route rows and out-of-range speeds in the Cross fix flyout
 - [ ] YAAT-931 Fix the red ground-runway menu hover-preview automation test on main
 - [ ] YAAT-936 Steady the Hold at fix default course near the fix
-- [ ] YAAT-937 Offer Hold at fix (HOLDP) in All Commands › Hold
+- [ ] YAAT-937 Offer Hold at fix (HOLDP) in All Commands › Hold · release vNext
 - [ ] YAAT-945 Dim wrong-stratum airways in the Join airway flyout
 - [ ] YAAT-946 Share the flyouts' keyboard walk between the four flyout lists
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release v0.16.0-beta reels
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
@@ -44,8 +44,6 @@
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
-- [/] YAAT-905 End a bare taxi across a runway past the far bar, not on the centreline · release vNext
-  - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 
 ## Say again
 
@@ -645,3 +643,10 @@
 - [ ] YAAT-938 Default approach and missed-approach hold legs to the altitude standard
 - [ ] YAAT-940 Re-time a standard-leg hold when its altitude crosses 14,000 ft
 - [ ] YAAT-941 Stop UserPreferencesTaxiRouteDisplayTests sharing one preferences file
+- [ ] YAAT-948 Resolve PTAC PA to the assigned altitude and record it as assigned · release vNext
+- [ ] YAAT-949 Close the bare-crossing end's review windows (fillet-arc forks, shared probe ends, twice-crossed runway)
+- [ ] YAAT-950 Pass a clearance's hold shorts to the client's taxi route reconstruction
+- [ ] YAAT-952 Apply catalog entries' flight-rules default in All Commands
+- [ ] YAAT-953 Make GeoMath's point projection agree with its great-circle distance
+- [ ] YAAT-954 Refuse or round off-hundred altitudes typed into menu altitude boxes
+- [ ] YAAT-955 Clear the assigned heading at every other off-vector site (pattern, follow, go-around, departures)
