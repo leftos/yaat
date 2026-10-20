@@ -48,4 +48,11 @@ public sealed class ExplicitPathOptions
     /// "not in the route issued": the aircraft is already on it.
     /// </summary>
     public required string? OccupiedTaxiway { get; init; }
+
+    /// <summary>
+    /// The occupied taxiway when the handler put it in front of a clearance that did not name it first, or null when it put
+    /// none there or the caller prepends nothing. The way from it onto the clearance's first named taxiway is the start leg,
+    /// never a connector the letter rule judges.
+    /// </summary>
+    public required string? ImpliedLeadTaxiway { get; init; }
 }

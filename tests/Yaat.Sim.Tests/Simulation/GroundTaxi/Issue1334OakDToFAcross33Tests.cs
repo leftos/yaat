@@ -31,7 +31,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
     /// <summary>OAK D/J junction: D leaves it north toward 15/33.</summary>
     private const int OakDJJunctionNode = 375;
 
-    private const string Callsign = "N36936";
+    internal const string Callsign = "N36936";
 
     [Fact]
     public void TaxiCDF_DrivesDAndHoldsShortOf33OnD()
@@ -295,6 +295,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = "E",
+                ImpliedLeadTaxiway = null,
                 DestinationHintNode = old1,
                 StartHeadingTrue = N36936AfterExitPose.Heading.Degrees,
                 DiagnosticLog = diag.Add,
@@ -324,88 +325,38 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
     public void FllJ2J3_SameSideOfTheRunway_IsNotRoutedAlongIt() => AssertNotRoutedAlongRunway("FLL", "J2", "J3", "10R", "J");
 
     /// <summary>
-    /// CMH C8 and C9 join 10R/28L from opposite sides, but about 333 ft apart along it: past the crossing bound, so the route
-    /// is not a crossing, never uses the runway's centreline, and ends at the C connector it needs before the rule.
+    /// CMH C8 and C9 join 10R/28L from opposite sides, but about 333 ft apart along it: past the crossing bound, so the pair is
+    /// not a crossing and the route never uses the runway's centreline. The only other way between them is lettered C, which
+    /// the clearance leaves out, so the two do not connect (YAAT-899 R6): the taxi is refused and the aircraft stays put.
     /// </summary>
     [Fact]
-    public void CmhC8C9_OffsetPastTheCrossingBound_IsNotRoutedAlongTheRunway() => AssertNotRoutedAlongRunway("CMH", "C8", "C9", "10R", "C");
-
-    /// <summary>
-    /// SFO C3 and S2 join 28R/10L from opposite sides about 298 ft apart, but S1 continues straight across 28R from C3's join:
-    /// a square crossing exists there, so the pair means taxiing along the runway (7110.65 §3-7-2.c NOTE). The offset crossing
-    /// is refused and the transition falls through to the mandatory-connector detour.
-    /// </summary>
-    [Fact]
-    public void SfoC3S2_SquareCrossingAtTheJoin_IsNotAnOffsetCrossing()
+    public void CmhC8C9_OffsetPastTheCrossingBound_IsNotRoutedAlongTheRunway()
     {
         TestVnasData.EnsureInitialized();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("CMH");
         if (layout is null)
         {
             return;
         }
 
-        (GroundNode start, _) = StartAwayFromRunwayJoin(layout, "SFO", "C3", RunwayCenterline(layout, "28R"));
-        var diag = new List<string>();
-        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
-            layout,
-            start.Id,
-            ["C3", "S2"],
-            out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = diag.Add },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+        string runway = RunwayCenterline(layout, "10R");
+        (GroundNode start, GroundNode join) = StartAwayFromRunwayJoin(layout, "CMH", "C8", runway);
+        AircraftState aircraft = MakeAircraftAt(layout, "CMH", start, GeoMath.BearingTo(start.Position, join.Position));
+        LatLon before = aircraft.Position;
+
+        var taxi = new TaxiCommand(Path: ["C8", "C9"], HoldShorts: [], Expedite: false, DestinationParking: null);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
+        output.WriteLine($"result: {result.Success} — {result.Message}");
+
+        Assert.False(result.Success);
+        Assert.Equal("Unable, C8 and C9 do not connect, request taxi instructions", result.Message);
+        Assert.Equal(before, aircraft.Position);
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        Assert.True(
+            (route is null) || !route.Segments.Any(s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesTaxiway(runway)),
+            "the refused taxi left a route along the runway"
         );
-        Assert.Null(failReason);
-        Assert.NotNull(route);
-        output.WriteLine($"route: {route.FormatTaxiwaySequence()} ({route.Segments.Count} segments)");
-
-        GroundNode s2Join = StartAwayFromRunwayJoin(layout, "SFO", "S2", RunwayCenterline(layout, "28R")).Join;
-        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline && ((s.FromNodeId == s2Join.Id) || (s.ToNodeId == s2Join.Id)));
-        Assert.DoesNotContain(diag, line => line.StartsWith("[runway-crossing] C3→S2 across", StringComparison.Ordinal));
-        Assert.Contains(diag, line => line.StartsWith("[detour] found detour C3→S2", StringComparison.Ordinal));
-        Assert.True(route.MandatoryConnectorCount > 0, "the C3→S2 transition recorded no mandatory connector");
-    }
-
-    /// <summary>
-    /// COS A2 and C2 join 17R/35L from opposite sides about 255 ft apart, but C2 is a high-speed exit meeting the runway 30°
-    /// off its line: reaching it from A2's join is a 150° reversal (7110.65 §3-7-2.c NOTE, "reverse high speed taxiways").
-    /// Neither order is an offset crossing: the route takes no centreline segment at either join. (The connector detour it
-    /// falls through to may still cut along the runway between the two fillets; that detour is not this rule's.)
-    /// </summary>
-    [Theory]
-    [InlineData("A2", "C2")]
-    [InlineData("C2", "A2")]
-    public void CosA2C2_ReverseHighSpeedExit_IsNotAnOffsetCrossing(string fromTaxiway, string toTaxiway)
-    {
-        TestVnasData.EnsureInitialized();
-        SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("COS");
-        if (layout is null)
-        {
-            return;
-        }
-
-        string runway = RunwayCenterline(layout, "35L");
-        (GroundNode start, GroundNode fromJoin) = StartAwayFromRunwayJoin(layout, "COS", fromTaxiway, runway);
-        GroundNode toJoin = StartAwayFromRunwayJoin(layout, "COS", toTaxiway, runway).Join;
-        var diag = new List<string>();
-        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
-            layout,
-            start.Id,
-            [fromTaxiway, toTaxiway],
-            out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = diag.Add },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
-        );
-        output.WriteLine($"route: {route?.FormatTaxiwaySequence()} ({route?.Segments.Count} segments) fail={failReason}");
-        Assert.Null(failReason);
-        Assert.NotNull(route);
-
-        Assert.DoesNotContain(diag, line => line.StartsWith($"[runway-crossing] {fromTaxiway}→{toTaxiway} across", StringComparison.Ordinal));
-        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline && (IsEndOf(s, fromJoin) || IsEndOf(s, toJoin)));
     }
 
     /// <summary>
@@ -452,9 +403,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         Assert.Equal(centerlineFt, SegmentExpander.CenterlineLengthFt([.. centerline, .. fillets]), 6);
     }
 
-    private static bool IsEndOf(TaxiRouteSegment segment, GroundNode node) => (segment.FromNodeId == node.Id) || (segment.ToNodeId == node.Id);
-
-    private static bool IsAlongRunwayBetween(GroundNode node, GroundNode a, GroundNode b)
+    internal static bool IsAlongRunwayBetween(GroundNode node, GroundNode a, GroundNode b)
     {
         double viaNodeFt = (GeoMath.DistanceNm(a.Position, node.Position) + GeoMath.DistanceNm(node.Position, b.Position)) * GeoMath.FeetPerNm;
         return viaNodeFt - (GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm) < 1.0;
@@ -485,14 +434,27 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         Assert.Contains(route.Segments, s => s.Edge.ToNode.Edges.Any(e => e.MatchesTaxiway(detourTaxiway)));
     }
 
-    private static string RunwayCenterline(AirportGroundLayout layout, string designator)
+    internal static string RunwayCenterline(AirportGroundLayout layout, string designator)
     {
         Assert.True(layout.TryGetRunwayCenterlineName(designator, out string? centerline), $"no centreline for runway {designator}");
         return centerline;
     }
 
+    private (GroundNode Start, GroundNode Join) StartAwayFromRunwayJoin(
+        AirportGroundLayout layout,
+        string airportId,
+        string taxiway,
+        string runway
+    ) => StartAwayFromRunwayJoin(output, layout, airportId, taxiway, runway);
+
     /// <summary>The node where <paramref name="taxiway"/> joins <paramref name="runway"/>'s centreline, and its node farthest from there.</summary>
-    private (GroundNode Start, GroundNode Join) StartAwayFromRunwayJoin(AirportGroundLayout layout, string airportId, string taxiway, string runway)
+    internal static (GroundNode Start, GroundNode Join) StartAwayFromRunwayJoin(
+        ITestOutputHelper output,
+        AirportGroundLayout layout,
+        string airportId,
+        string taxiway,
+        string runway
+    )
     {
         List<GroundNode> nodes = layout.GetNodesOnTaxiway(taxiway);
         GroundNode join = Assert.Single(nodes, n => n.Edges.Any(e => (e is GroundEdge { IsRunwayCenterline: true }) && e.MatchesTaxiway(runway)));
@@ -509,7 +471,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         return double.Parse(junctionPick[from..to], System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static AircraftState MakeAircraftAt(AirportGroundLayout layout, string airportId, GroundNode start, double headingTrue)
+    internal static AircraftState MakeAircraftAt(AirportGroundLayout layout, string airportId, GroundNode start, double headingTrue)
     {
         var aircraft = new AircraftState
         {
@@ -529,7 +491,10 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         return aircraft;
     }
 
-    private AircraftState? TickUntil(SimulationEngine engine, Func<AircraftState, bool> until, int maxSeconds)
+    private AircraftState? TickUntil(SimulationEngine engine, Func<AircraftState, bool> until, int maxSeconds) =>
+        TickUntil(output, engine, until, maxSeconds);
+
+    internal static AircraftState? TickUntil(ITestOutputHelper output, SimulationEngine engine, Func<AircraftState, bool> until, int maxSeconds)
     {
         for (int t = 1; t <= maxSeconds; t++)
         {

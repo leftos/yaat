@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -1476,9 +1477,14 @@ public sealed class TaxiOnLandingRolloutRulingTests
     }
 
     /// <summary>
-    /// A rollout TAXI whose clearance does not lead with the exit taxiway drops only the leading mention in either text: OAK 28R B738
-    /// <c>ER J</c> then <c>TAXI C J W 30</c> — joined from the exit J, whose route drives J C F K J C A B W W1 — echoes "… taxi via
-    /// C J C W" (the route's leading J dropped, its later one kept) and reads back "… via C J W" (J not leading, kept).
+    /// A rollout TAXI whose clearance does not lead with the exit taxiway drops only the leading mention in either text: OAK 28R
+    /// B738 <c>ER J</c> then <c>TAXI C F K J A B W 30</c> — joined from the exit J, whose route drives J C F K J C A B W W1, the
+    /// J→A bridge through C, named earlier in the clearance. The echo follows the route driven: "Exit right at J, taxi via
+    /// C F K J C A B W RWY 30" (the route's leading J dropped, its later one kept, the second C the clearance left out shown).
+    /// The readback follows the clearance: "exit right at J, taxi to runway 30 via C F K J A B W". The two differ by that second
+    /// C, so neither text can stand in for the other. The clearance names each lettered taxiway of the route's bridges (C→J
+    /// through F and K, J→A through C, A→W through B): the shorter <c>TAXI C J W 30</c> leaves them out and is refused as not
+    /// connecting (YAAT-899 R6), and from the exit J every J/D junction lies behind the aircraft.
     /// </summary>
     [Fact]
     public void RolloutTaxi_ExitTaxiwayNotFirst_DropsOnlyTheLeadingMention()
@@ -1490,14 +1496,38 @@ public sealed class TaxiOnLandingRolloutRulingTests
 
         CommandResult er = spawned.Engine.SendCommand(Arrival, "ER J");
         Assert.True(er.Success, er.Message);
-        CommandResult taxi = spawned.Engine.SendCommand(Arrival, "TAXI C J W 30");
+        CommandResult taxi = spawned.Engine.SendCommand(Arrival, "TAXI C F K J A B W 30");
         PilotSpeechText? speech = taxi.PilotReadback?.Speech;
-        _output.WriteLine($"TAXI C J W 30 -> {taxi.Success} {taxi.Message} | {speech?.Terminal} | {speech?.Tts}");
+        _output.WriteLine($"TAXI C F K J A B W 30 -> {taxi.Success} {taxi.Message} | {speech?.Terminal} | {speech?.Tts}");
         Assert.True(taxi.Success, taxi.Message);
         Assert.Equal("J", spawned.Aircraft.Phases!.RequestedExit?.Taxiway, StringComparer.OrdinalIgnoreCase);
 
-        Assert.Contains("via C J C W", taxi.Message ?? "", StringComparison.Ordinal);
-        Assert.Contains("via C J W", speech?.Terminal ?? "", StringComparison.Ordinal);
+        Assert.Equal("Exit right at J, taxi via C F K J C A B W RWY 30", taxi.Message);
+        Assert.Equal("exit right at J, taxi to runway 30 via C F K J A B W", speech?.Terminal);
+    }
+
+    /// <summary>
+    /// A rollout TAXI whose two cleared taxiways do not connect passes that refusal through rather than "unable to exit": OAK 28R
+    /// B738 <c>ER J</c> then <c>TAXI C J W 30</c>, where J and W meet only through lettered taxiways the clearance left out
+    /// (YAAT-899 R6). The refusal names J and W, the pair the first refusing exit's route could not bridge, as its pilot's
+    /// spoken refusal does.
+    /// </summary>
+    [Fact]
+    public void RolloutTaxi_WhoseClearedTaxiwaysDoNotConnect_PassesTheRefusalThrough()
+    {
+        if (RolloutOak28RAtSixSeconds(withTaxi: false) is not { } spawned)
+        {
+            return;
+        }
+
+        CommandResult er = spawned.Engine.SendCommand(Arrival, "ER J");
+        Assert.True(er.Success, er.Message);
+        CommandResult taxi = spawned.Engine.SendCommand(Arrival, "TAXI C J W 30");
+        _output.WriteLine($"TAXI C J W 30 -> {taxi.Success} {taxi.Message} | {taxi.PilotUnable?.Tts}");
+
+        Assert.False(taxi.Success, taxi.Message);
+        Assert.Equal(SegmentExpander.TaxiwaysDoNotConnectReason("J", "W"), taxi.Message);
+        Assert.Equal(PilotResponder.BuildUnableTaxiwaysDoNotConnect(spawned.Aircraft, "J", "W"), taxi.PilotUnable);
     }
 
     /// <summary>

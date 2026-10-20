@@ -95,6 +95,18 @@ A short connector taxiway (such as `LF` between L and F) is normally flagged as 
 "implicitConnectors": [ { "connector": "LF", "between": ["L", "F"] } ]
 ```
 
+### crossingPairs
+
+Two taxiways that face each other across a runway, declared a crossing from the airport diagram. Without the declaration the pair is refused when one taxiway is a high-speed exit meeting the runway at a shallow angle: KCOS A2 and C2 across 17R/35L (C2 is 30° off the runway) refuse `Unable, A2 and C2 do not connect, request taxi instructions`, and YAAT ships no declaration for them.
+
+With the entry below in a KCOS sidecar, `TAXI A2 C2` holds short of the runway on A2 and crosses onto C2 for an aircraft that can make the turn: the crossing still needs a turn the aircraft's type can make from the runway onto the second taxiway, and a type whose turn limit forbids it (a B738 onto C2, a 150° reversal onto the high-speed exit) refuses `Unable, can't make the turn from A2 onto C2, request taxi instructions`.
+
+The runway is required, the pair is unordered, and only that one refusal is waived, for that pair across that runway. Details: [`crossingPairs`](src/Yaat.Sim/Data/ARTCCs/README.md#crossingpairs).
+
+```json
+"crossingPairs": [ { "taxiways": ["A2", "C2"], "runway": "17R/35L" } ]
+```
+
 ### oneWayEdges
 
 Marks taxiway stretches that may be taxied one way only. The allowed direction is the order of the points (first to last). Auto-routing never goes against it unless the destination is reachable no other way; an explicit `TAXI` that does is allowed with a warning. `exemptWakeClasses` lets a wake class ignore the restriction. These are local conventions, so source them from an SOP or LOA. Details: [`oneWayEdges`](src/Yaat.Sim/Data/ARTCCs/README.md#onewayedges).

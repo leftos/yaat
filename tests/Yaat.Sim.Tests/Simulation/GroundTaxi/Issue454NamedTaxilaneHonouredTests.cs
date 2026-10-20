@@ -206,7 +206,12 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
                 StartNodeId = KOnBJunctionNode,
                 Path = ["B", "K", "A", "T5A"],
                 Destination = d1,
-                Options = new ExplicitPathOptions { OccupiedTaxiway = "B", StartHeadingTrue = Skw3398HeldShortOfKPose.Heading.Degrees },
+                Options = new ExplicitPathOptions
+                {
+                    OccupiedTaxiway = "B",
+                    ImpliedLeadTaxiway = null,
+                    StartHeadingTrue = Skw3398HeldShortOfKPose.Heading.Degrees,
+                },
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
                 AircraftLengthFt = fuselageFt,

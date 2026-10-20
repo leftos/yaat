@@ -50,6 +50,8 @@
 - `HOLDP` without a leg flies the altitude standard, 1½-minute legs above 14,000 ft, and `1.5M` legs parse on comma-decimal systems.
 - Fix/radial/distance points, and `JRADO`, `JRADI` and `AT` radials, use the navaid's published magnetic variation, so `OAK135015` lands on SIWBI.
 - A strip moved into a rack above an unused, empty rack shows in that rack on vStrips and CRC, not one rack lower.
+- A `TAXI` between taxiways that do not meet refuses "do not connect" instead of detouring along a runway or an unnamed lettered taxiway (SFO `TAXI C3 S2`).
+- A `TAXI` whose only junction is behind the aircraft refuses "no route … ahead", and a declared runway crossing a type cannot turn onto refuses "can't make the turn".
 - An aircraft cleared onto a taxiway from a spot or the ramp no longer makes a U-turn through a fillet behind it to get there (SFO spot 10).
 - A taxi to SFO gate D12 off taxiway A comes straight in from A instead of through the spot 6B alley.
 - `TAXI C D F` at Oakland goes up D, holds short of 15/33 there, then crosses onto F, instead of detouring along C.

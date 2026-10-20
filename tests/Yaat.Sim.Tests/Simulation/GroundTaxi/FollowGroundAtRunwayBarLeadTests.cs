@@ -162,6 +162,9 @@ public class FollowGroundAtRunwayBarLeadTests(ITestOutputHelper output) : Follow
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
         AssertSent(ground, Follower, $"FOLLOWG {Leader}");
         AssertSent(ground, Follower, "CROSS 1R");
+        // The leader is held on L: the reroute must come while the follower drives its follow route, and a route ahead onto F1
+        // exists only from L, before the L/LF junction.
+        AssertSent(ground, Leader, "HOLD");
         int drivingAt = SfoGroundHarness.TickUntil(
             ground.Engine,
             () => (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute.IsComplete: false }) && (follower.GroundSpeed > 3.0),
@@ -181,7 +184,7 @@ public class FollowGroundAtRunwayBarLeadTests(ITestOutputHelper output) : Follow
 
         ground.Engine.WarningEmitted += Note;
         ground.Engine.TerminalEntryEmitted += entry => Note(entry.Callsign, entry.Message);
-        AssertRerouted(ground, leader, follower, ["TAXI L F F1 A", "TAXI F F1 A", "TAXI A F1 F"]);
+        AssertRerouted(ground, leader, follower, ["TAXI L F F1 A"]);
         for (int second = 1; second <= HeldSeconds * 2; second++)
         {
             ground.Engine.TickOneSecond();

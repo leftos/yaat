@@ -138,6 +138,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = "1L",
 
                 DiagnosticLog = msg => output.WriteLine(msg),

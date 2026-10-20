@@ -335,8 +335,9 @@ public static class AutoRouter
         // unsound: onward-edge admissibility depends on arrival bearing, so a cheaper arrival with a
         // dead-end bearing must not suppress the only admissible (different-bearing) arrival
         // (see GeometricAdmissibility.PruningStateKey). The heuristic is bearing-independent, so
-        // A* optimality is preserved within the (node, bucket) state space.
-        var bestGScore = new Dictionary<(int Node, int Bucket, string Taxiway), double>();
+        // A* optimality is preserved within the (node, bucket) state space. A bridge search keys on its
+        // carried progress too (see ClosedSetKey).
+        var bestGScore = new Dictionary<(int Node, int Bucket, string Taxiway, BridgeProgress? Bridge), double>();
 
         int expansions = 0;
         PartialRoute? deepestViable = null;
@@ -344,10 +345,10 @@ public static class AutoRouter
         // When startOverride is provided, inherit its LastEdge + ArrivalBearing so the first
         // expansion goes through GeometricAdmissibility against the prior heading. Otherwise
         // the search starts cold (admissibility skips the first edge).
-        PartialRoute startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
+        PartialRoute seed = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
+        PartialRoute startRoute = seed with { BridgeProgress = ctx.BridgeProgressAtStart(seed) };
         double startHeuristic = goals.Heuristic(startNode);
-        bestGScore[GeometricAdmissibility.PruningStateKey(startRoute.HeadNodeId, startRoute.ArrivalBearing, startRoute.LastTaxiwayName)] =
-            startRoute.AccumulatedCost;
+        bestGScore[ClosedSetKey(startRoute)] = startRoute.AccumulatedCost;
         openSet.Enqueue(startRoute, startRoute.AccumulatedCost + startHeuristic);
 
         if (ctx.DiagnosticLog is { } startLog)
@@ -384,13 +385,8 @@ public static class AutoRouter
                 );
             }
 
-            // Skip stale queue entries: a cheaper path to this (node, bearing-bucket) state was already expanded.
-            if (
-                bestGScore.TryGetValue(
-                    GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing, current.LastTaxiwayName),
-                    out double recordedBest
-                ) && (current.AccumulatedCost > recordedBest + 1e-9)
-            )
+            // Skip stale queue entries: a cheaper path to this state (see ClosedSetKey) was already expanded.
+            if (bestGScore.TryGetValue(ClosedSetKey(current), out double recordedBest) && (current.AccumulatedCost > recordedBest + 1e-9))
             {
                 continue;
             }
@@ -478,6 +474,14 @@ public static class AutoRouter
                     continue;
                 }
 
+                // A connector detour's bridge rules, applied inside the search so each entry node offers its cheapest
+                // legal bridge (see SearchContext.IsForbiddenBridgeMove).
+                if (ctx.IsForbiddenBridgeMove(current, edge, nextNode))
+                {
+                    rejected++;
+                    continue;
+                }
+
                 // The goal-set caller's forbidden moves, and centerline moves banned by a prior same-side-shortcut retry (see Run).
                 if (bannedMoves is not null && bannedMoves.Contains((current.HeadNodeId, nextNode.Id)))
                 {
@@ -514,9 +518,15 @@ public static class AutoRouter
                     ? current.ArrivalBearing
                     : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
 
-                // Skip if we already have a cheaper or equal path to this (node, bearing-bucket, taxiway) state.
+                // Skip if we already have a cheaper or equal path to this (node, bearing-bucket, taxiway, bridge progress) state.
                 string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
-                (int Node, int Bucket, string Taxiway) nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrivalBearing, taxiwayName);
+                BridgeProgress? bridgeProgress = ctx.BridgeProgressAfter(current, headNode, edge);
+                (int Node, int Bucket, string Taxiway, BridgeProgress? Bridge) nextKey = ClosedSetKey(
+                    nextNode.Id,
+                    arrivalBearing,
+                    taxiwayName,
+                    bridgeProgress
+                );
                 if (bestGScore.TryGetValue(nextKey, out double existingBest) && (newGScore >= existingBest - 1e-9))
                 {
                     rejected++;
@@ -536,6 +546,7 @@ public static class AutoRouter
                     Depth = current.Depth + 1,
                     AccumulatedCost = newGScore,
                     VisitedNodeIds = current.VisitedNodeIds.Add(nextNode.Id),
+                    BridgeProgress = bridgeProgress,
                 };
 
                 double heuristic = goals.Heuristic(nextNode);
@@ -571,6 +582,27 @@ public static class AutoRouter
             0.0
         );
     }
+
+    /// <summary>
+    /// The closed-set key of a search state: <see cref="GeometricAdmissibility.PruningStateKey"/>, plus, in a connector detour's
+    /// bridge search, the bridge progress its next move is judged on (<see cref="PartialRoute.BridgeProgress"/>). The letter rule
+    /// depends on the path: a cheaper arrival that has touched <see cref="BridgeRules.FromTaxiway"/> may not take an excluded
+    /// letter a dearer one that has not still may, so the two are distinct states. Null in every other search, whose key is
+    /// unchanged.
+    /// </summary>
+    private static (int Node, int Bucket, string Taxiway, BridgeProgress? Bridge) ClosedSetKey(
+        int nodeId,
+        double arrivalBearing,
+        string lastTaxiwayName,
+        BridgeProgress? bridge
+    )
+    {
+        (int node, int bucket, string taxiway) = GeometricAdmissibility.PruningStateKey(nodeId, arrivalBearing, lastTaxiwayName);
+        return (node, bucket, taxiway, bridge);
+    }
+
+    private static (int Node, int Bucket, string Taxiway, BridgeProgress? Bridge) ClosedSetKey(PartialRoute route) =>
+        ClosedSetKey(route.HeadNodeId, route.ArrivalBearing, route.LastTaxiwayName, route.BridgeProgress);
 
     /// <summary>
     /// The goal nodes of one search. Every goal is a node — a runway destination is resolved to its full-length line-up

@@ -56,7 +56,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null },
+            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -96,7 +96,12 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             fromNodeId: f1bIntersection.Id,
             taxiwayNames: ["B", "K"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, ExplicitHoldShorts = [HoldShortTarget.Parse("10R")] },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

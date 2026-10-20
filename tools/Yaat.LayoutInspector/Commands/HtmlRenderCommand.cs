@@ -54,6 +54,7 @@ public sealed class HtmlRenderCommand : ICommand
                 new ExplicitPathOptions
                 {
                     OccupiedTaxiway = null,
+                    ImpliedLeadTaxiway = null,
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,

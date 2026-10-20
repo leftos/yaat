@@ -117,6 +117,7 @@ public static class AirportSidecarLoader
                 AvoidTaxiways = ParseAvoidTaxiways(file, filePath, result),
                 TaxiRoutes = ParseTaxiRoutes(file, filePath, airportId, result),
                 ImplicitConnectors = ParseImplicitConnectors(file, filePath, result),
+                CrossingPairs = ParseCrossingPairs(file, filePath, result),
                 OneWayEdges = ParseOneWayEdges(file, filePath, result),
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
                 Adw = ParseAdw(file, filePath, result),
@@ -785,6 +786,59 @@ public static class AirportSidecarLoader
 
         return connectors;
     }
+
+    /// <summary>
+    /// The <c>crossingPairs</c> section, in file order. An entry whose taxiways are not two distinct non-blank names, or whose
+    /// runway does not name both ends (<c>17R/35L</c>, <see cref="IsRunwayPair"/>), is skipped with a warning.
+    /// </summary>
+    private static List<CrossingPair> ParseCrossingPairs(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var pairs = new List<CrossingPair>();
+        for (int i = 0; i < file.CrossingPairs.Count; i++)
+        {
+            CrossingPairEntry entry = file.CrossingPairs[i];
+            List<string> taxiways = [.. entry.Taxiways.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim().ToUpperInvariant())];
+            if ((entry.Taxiways.Count != 2) || (taxiways.Count != 2) || (taxiways[0] == taxiways[1]))
+            {
+                result.Warnings.Add($"{filePath}: crossingPairs[{i}] requires exactly 2 distinct non-blank taxiways, skipping");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Runway))
+            {
+                result.Warnings.Add($"{filePath}: crossingPairs[{i}] ({taxiways[0]}/{taxiways[1]}) missing runway, skipping");
+                continue;
+            }
+
+            string runway = entry.Runway.Trim().ToUpperInvariant();
+            if (!IsRunwayPair(runway))
+            {
+                result.Warnings.Add(
+                    $"{filePath}: crossingPairs[{i}] ({taxiways[0]}/{taxiways[1]}) runway '{entry.Runway}' must name both ends "
+                        + "(e.g. 17R/35L), skipping"
+                );
+                continue;
+            }
+
+            pairs.Add(new CrossingPair(taxiways[0], taxiways[1], runway, entry.Notes));
+        }
+
+        return pairs;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="runway"/> names both ends of a runway, <c>17R/35L</c> or <c>9/27</c>: two designators joined by a slash.
+    /// </summary>
+    private static bool IsRunwayPair(string runway)
+    {
+        string[] ends = runway.Split('/');
+        return (ends.Length == 2) && ends.All(IsRunwayDesignator);
+    }
+
+    private static bool IsRunwayDesignator(string end) =>
+        (end.Length is >= 1 and <= 3)
+        && end.TakeWhile(char.IsDigit).Count() is var digits and (1 or 2)
+        && (digits == end.Length || ((digits == end.Length - 1) && (end[^1] is 'L' or 'C' or 'R')));
 
     private static List<AvoidTaxiwayEntry> ParseAvoidTaxiways(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
     {

@@ -48,6 +48,7 @@ public class Issue396GateBridgeDeepeningTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = destinationRunway,
 
                 StartHeadingTrue = gate.TrueHeading?.Degrees,

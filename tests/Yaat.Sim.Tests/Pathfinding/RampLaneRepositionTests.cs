@@ -29,7 +29,13 @@ public class RampLaneRepositionTests
 
     private static AirportGroundLayout? OakLayout() => TestVnasData.NavigationDb is null ? null : new TestAirportGroundData().GetLayout("OAK");
 
-    private static ExplicitPathOptions Options(string? destinationRunway) => new() { DestinationRunway = destinationRunway, OccupiedTaxiway = null };
+    private static ExplicitPathOptions Options(string? destinationRunway) =>
+        new()
+        {
+            DestinationRunway = destinationRunway,
+            OccupiedTaxiway = null,
+            ImpliedLeadTaxiway = null,
+        };
 
     /// <summary>Resolve from the graph node nearest <paramref name="position"/> the way TryTaxi does, returning the structured failure.</summary>
     private static PathfindingFailure? FailureFor(
@@ -172,7 +178,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
@@ -216,7 +223,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
@@ -256,7 +264,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
@@ -295,7 +304,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         )!;
 
         // The free-space leg's virtual start is not a layout node; restore rebuilds it from the recorded position.
@@ -347,7 +357,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.Null(plan);
     }
@@ -378,7 +389,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Piston,
                 WakeClass = WakeTurbulenceData.WakeClass.Small,
             },
-            failure
+            failure,
+            out _
         );
         Assert.Null(plan);
     }
@@ -410,7 +422,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.Null(plan);
     }
@@ -438,7 +451,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.Null(plan);
     }
@@ -464,7 +478,8 @@ public class RampLaneRepositionTests
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
-            failure
+            failure,
+            out _
         );
         Assert.NotNull(plan);
         Assert.Equal("M9", plan.Lane);

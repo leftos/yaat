@@ -61,6 +61,54 @@ public sealed class ImplicitConnectorEntry
 }
 
 /// <summary>
+/// Two taxiways that face each other across a runway, declared a crossing of it from the airport diagram, as a section of
+/// the unified per-airport sidecar (<see cref="AirportSidecarFile"/>). A clearance naming them adjacent (either order) crosses
+/// the runway from one onto the other even where one meets the runway obliquely, as a high-speed exit does (KCOS A2 and C2
+/// across 17R/35L). The declaration waives only the oblique-join rule; the two must still join the runway from opposite sides
+/// within the offset-crossing bound.
+/// </summary>
+public sealed class CrossingPairEntry
+{
+    /// <summary>The two taxiways (exactly 2, unordered), e.g. <c>["A2", "C2"]</c>.</summary>
+    [JsonPropertyName("taxiways")]
+    public List<string> Taxiways { get; set; } = [];
+
+    /// <summary>The runway they cross, both ends as the layout names it, e.g. <c>"17R/35L"</c>.</summary>
+    [JsonPropertyName("runway")]
+    public string Runway { get; set; } = "";
+
+    /// <summary>Optional human-readable rationale (airport diagram reference). Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// One validated <see cref="CrossingPairEntry"/>, produced by <see cref="AirportSidecarLoader"/>: taxiway names trimmed and
+/// upper-cased, the runway trimmed and upper-cased.
+/// </summary>
+public sealed record CrossingPair(string FirstTaxiway, string SecondTaxiway, string Runway, string? Notes)
+{
+    /// <summary>
+    /// True when this pair is <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> (either order) across the runway
+    /// whose centreline is <paramref name="runwayCenterline"/> (<c>RWY17R/35L</c>): every end this pair's runway names is one
+    /// of the centreline's ends.
+    /// </summary>
+    public bool Matches(string fromTaxiway, string toTaxiway, string runwayCenterline)
+    {
+        bool samePair =
+            (
+                FirstTaxiway.Equals(fromTaxiway, StringComparison.OrdinalIgnoreCase)
+                && SecondTaxiway.Equals(toTaxiway, StringComparison.OrdinalIgnoreCase)
+            )
+            || (
+                FirstTaxiway.Equals(toTaxiway, StringComparison.OrdinalIgnoreCase)
+                && SecondTaxiway.Equals(fromTaxiway, StringComparison.OrdinalIgnoreCase)
+            );
+        return samePair && Runway.Split('/').All(end => IGroundEdge.RunwayNameContainsDesignator(runwayCenterline, end));
+    }
+}
+
+/// <summary>
 /// One Arrival/Departure Window (ADW) a facility directive publishes for a converging arrival/departure
 /// runway pair, as a section of the unified per-airport sidecar (<see cref="AirportSidecarFile"/>). An
 /// ADW is one of the facility aids 7110.65 §3-9-9.b permits in lieu of applying the §3-9-8
@@ -258,6 +306,9 @@ internal sealed class AirportSidecarFile
     [JsonPropertyName("implicitConnectors")]
     public List<ImplicitConnectorEntry> ImplicitConnectors { get; set; } = [];
 
+    [JsonPropertyName("crossingPairs")]
+    public List<CrossingPairEntry> CrossingPairs { get; set; } = [];
+
     [JsonPropertyName("oneWayEdges")]
     public List<OneWayConstraintEntry> OneWayEdges { get; set; } = [];
 
@@ -322,6 +373,10 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<AvoidTaxiwayEntry> AvoidTaxiways { get; init; } = [];
     public IReadOnlyList<TaxiRouteDefinition> TaxiRoutes { get; init; } = [];
     public IReadOnlyList<ImplicitConnectorEntry> ImplicitConnectors { get; init; } = [];
+
+    /// <summary>Taxiway pairs declared a crossing of a runway, in file order.</summary>
+    public IReadOnlyList<CrossingPair> CrossingPairs { get; init; } = [];
+
     public IReadOnlyList<OneWayConstraint> OneWayEdges { get; init; } = [];
     public IReadOnlyList<BlockedTurn> BlockedTurns { get; init; } = [];
     public IReadOnlyList<AdwWindow> Adw { get; init; } = [];

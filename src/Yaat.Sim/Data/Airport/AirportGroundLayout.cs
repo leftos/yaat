@@ -323,6 +323,37 @@ public sealed class GroundArc : IGroundEdge
     }
 
     /// <summary>
+    /// The corner this arc cuts: the node both of its ends reach by a straight edge (the junction the fillet rounds), with the
+    /// two straight edges from it to the arc's ends; null for an arc built without one.
+    /// </summary>
+    public (GroundNode Node, IGroundEdge ToFirst, IGroundEdge ToSecond)? Corner()
+    {
+        GroundNode a = Nodes[0];
+        GroundNode b = Nodes[1];
+        foreach (IGroundEdge fromA in a.Edges)
+        {
+            if (fromA is GroundArc)
+            {
+                continue;
+            }
+
+            GroundNode candidate = fromA.OtherNode(a);
+            if (candidate.Id == b.Id)
+            {
+                continue;
+            }
+
+            IGroundEdge? fromB = b.Edges.FirstOrDefault(e => (e is not GroundArc) && (e.OtherNode(b).Id == candidate.Id));
+            if (fromB is not null)
+            {
+                return (candidate, fromA, fromB);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Construct a <see cref="CubicBezier"/> from this arc's control points and node positions.
     /// </summary>
     public CubicBezier ToBezier() =>

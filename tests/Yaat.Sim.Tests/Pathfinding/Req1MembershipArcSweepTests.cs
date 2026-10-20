@@ -104,7 +104,7 @@ public class Req1MembershipArcSweepTests
                         startId,
                         [x, y],
                         out _,
-                        new ExplicitPathOptions { OccupiedTaxiway = null },
+                        new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
                         AircraftCategory.Jet,
                         WakeTurbulenceData.WakeClass.Large
                     );

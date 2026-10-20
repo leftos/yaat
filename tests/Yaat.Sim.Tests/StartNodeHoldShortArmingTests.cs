@@ -79,6 +79,7 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },

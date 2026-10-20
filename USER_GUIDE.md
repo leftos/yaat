@@ -673,6 +673,16 @@ When the route you gave falls one taxiway short — `TAXI D @NEW1` to an aircraf
 
 **The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named. Nor is a runway the route only crosses: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33".
 
+**Two taxiways that do not connect.** When two taxiways you name in a row meet nowhere the aircraft may join them, the pilot refuses with `Unable, C3 and S2 do not connect, request taxi instructions` (SFO `TAXI C3 S2`) and stays where it is; issue a `TAXI` that names the taxiway between them.
+
+A connector between two named taxiways is only ever a numbered stub or ramp lane, or a taxiway you cleared, never a lettered taxiway you did not clear, and it crosses an uncleared runway only straight across, never along or turning on it, so a scenario's scripted `TAXI` and `TAXIAUTO` get the same refusal.
+
+Two taxiways that do meet but nowhere the aircraft can reach ahead are refused `Unable, no route from E onto W ahead, request taxi instructions` (with a note when the only junction is behind it, where it would have to turn around).
+
+Two taxiways that face each other across a runway where one is a high-speed exit (KCOS A2 and C2 over 17R/35L) are refused the same way: name the runway between them (`TAXI A2 17R C2 C`), and the aircraft holds short of it on A2 and, once cleared, taxis along it onto C2.
+
+An ARTCC's airport sidecar can declare such a pair a crossing, after which `TAXI A2 C2` holds short and crosses, if the aircraft's type can make the turn from the runway onto the second taxiway (a B738 onto C2 cannot and is refused `Unable, can't make the turn from A2 onto C2, request taxi instructions`; a C172 can); YAAT ships no such declaration.
+
 Any other taxiway the route drives that you didn't clear is flagged: `[taxiing via T — not in the route issued]`. A ramp taxilane you name is driven, and from it the aircraft crosses the apron and rolls into the stand on the stand's heading — see [Command Reference](COMMANDS.md#taxi-to-a-stand-or-spot).
 
 **A gate or spot with no taxiways named.** `TAXI $1` or `TAXI @B2` to an aircraft inside the ramp (at a gate, or pushed back) keeps it inside the ramp: it follows the ramp taxilanes, may cut once straight across the apron between them when that stays clear of other aircraft and occupied stands, and may take one one-way ramp lane (flagged as above).

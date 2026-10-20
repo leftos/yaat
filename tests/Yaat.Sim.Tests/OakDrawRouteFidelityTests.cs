@@ -110,7 +110,7 @@ public class OakDrawRouteFidelityTests
             a.Id,
             densePath,
             out string? fail,
-            new ExplicitPathOptions { OccupiedTaxiway = null },
+            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
             cat,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -346,7 +346,7 @@ public class OakDrawRouteFidelityTests
                     a.Id,
                     path,
                     out string? fail,
-                    new ExplicitPathOptions { OccupiedTaxiway = null },
+                    new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
                     cat,
                     WakeTurbulenceData.WakeClass.Large
                 );
@@ -406,7 +406,12 @@ public class OakDrawRouteFidelityTests
             start.Id,
             path,
             out string? fail,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationHintNode = parking },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DestinationHintNode = parking,
+            },
             cat,
             WakeTurbulenceData.WakeClass.Large
         );

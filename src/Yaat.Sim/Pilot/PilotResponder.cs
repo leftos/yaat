@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -2102,6 +2103,58 @@ public static class PilotResponder
         return new PilotSpeechText(
             $"unable, no room to turn around{onTaxiway}, request a route ahead.",
             $"{spoken}, unable, no room to turn around{onSpokenTaxiway}, request a route ahead."
+        );
+    }
+
+    /// <summary>
+    /// The refusal of a taxi clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, two taxiways that
+    /// meet nowhere the aircraft may join them: it stays put and asks for taxi instructions. The terminal line is the
+    /// controller-facing <see cref="SegmentExpander.TaxiwaysDoNotConnectReason"/>; the spoken form spells
+    /// both taxiways (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableTaxiwaysDoNotConnect(AircraftState aircraft, string fromTaxiway, string toTaxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string from = PhraseologyVerbalizer.SpellTaxiway(fromTaxiway);
+        string to = PhraseologyVerbalizer.SpellTaxiway(toTaxiway);
+        return new PilotSpeechText(
+            SegmentExpander.TaxiwaysDoNotConnectReason(fromTaxiway, toTaxiway),
+            $"{spoken}, unable, {from} and {to} don't connect, request taxi"
+        );
+    }
+
+    /// <summary>
+    /// The refusal of a taxi clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, two taxiways that
+    /// meet only where the route cannot reach ahead of the aircraft: it stays put and asks for taxi instructions. The terminal
+    /// line is the controller-facing <see cref="SegmentExpander.NoRouteAheadReason"/>; the spoken form spells both taxiways
+    /// (AIM 4-2-7) and, with <paramref name="intersectionOnlyBehind"/>, says the intersection is behind and would take a turn-about.
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoRouteAhead(AircraftState aircraft, string fromTaxiway, string toTaxiway, bool intersectionOnlyBehind)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string from = PhraseologyVerbalizer.SpellTaxiway(fromTaxiway);
+        string to = PhraseologyVerbalizer.SpellTaxiway(toTaxiway);
+        string behind = intersectionOnlyBehind ? ", the intersection is behind us, we'd have to turn around" : "";
+        return new PilotSpeechText(
+            SegmentExpander.NoRouteAheadReason(fromTaxiway, toTaxiway, intersectionOnlyBehind),
+            $"{spoken}, unable, no route from {from} onto {to} ahead{behind}, request taxi"
+        );
+    }
+
+    /// <summary>
+    /// The refusal of a taxi clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, a crossing the
+    /// airport declares that this aircraft cannot turn onto: the turn from the runway onto the second taxiway exceeds its
+    /// type's turn limit (KCOS A2 onto C2, a 150° reversal onto a high-speed exit, for a B738). It stays put and asks for taxi
+    /// instructions. The terminal line is the controller-facing <see cref="SegmentExpander.CannotMakeTurnReason"/>; the spoken
+    /// form spells the taxiway turned onto (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableCannotMakeTurn(AircraftState aircraft, string fromTaxiway, string toTaxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string to = PhraseologyVerbalizer.SpellTaxiway(toTaxiway);
+        return new PilotSpeechText(
+            SegmentExpander.CannotMakeTurnReason(fromTaxiway, toTaxiway),
+            $"{spoken}, unable the turn onto {to}, request taxi"
         );
     }
 

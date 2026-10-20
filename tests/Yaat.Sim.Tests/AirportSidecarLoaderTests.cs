@@ -191,6 +191,55 @@ public class AirportSidecarLoaderTests
         }
     }
 
+    /// <summary>
+    /// A <c>crossingPairs</c> entry loads trimmed and upper-cased only when it names two distinct taxiways and a runway with both
+    /// ends; one with a wrong taxiway count, a duplicated name, no runway or a one-ended runway is warned and skipped.
+    /// </summary>
+    [Fact]
+    public void LoadAll_CrossingPairs_RequireTwoDistinctTaxiwaysAndATwoEndedRunway()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(categoryDir, "cos.json"),
+                """
+                {
+                  "airportId": "KCOS",
+                  "crossingPairs": [
+                    { "taxiways": [" a2 ", "c2"], "runway": "17r/35l", "notes": "declared" },
+                    { "taxiways": ["A2"], "runway": "17R/35L" },
+                    { "taxiways": ["A2", "a2"], "runway": "17R/35L" },
+                    { "taxiways": ["A3", "C3"] },
+                    { "taxiways": ["A4", "C4"], "runway": "17R" },
+                    { "taxiways": ["A5", "C5"], "runway": "17R/35L/35R" }
+                  ]
+                }
+                """
+            );
+
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
+
+            AirportSidecar airport = Assert.Single(result.Airports);
+            CrossingPair pair = Assert.Single(airport.CrossingPairs);
+            Assert.Equal(("A2", "C2", "17R/35L"), (pair.FirstTaxiway, pair.SecondTaxiway, pair.Runway));
+            Assert.Collection(
+                result.Warnings,
+                w => Assert.Contains("crossingPairs[1] requires exactly 2 distinct non-blank taxiways", w, StringComparison.Ordinal),
+                w => Assert.Contains("crossingPairs[2] requires exactly 2 distinct non-blank taxiways", w, StringComparison.Ordinal),
+                w => Assert.Contains("crossingPairs[3] (A3/C3) missing runway", w, StringComparison.Ordinal),
+                w => Assert.Contains("crossingPairs[4] (A4/C4) runway '17R' must name both ends", w, StringComparison.Ordinal),
+                w => Assert.Contains("crossingPairs[5] (A5/C5) runway '17R/35L/35R' must name both ends", w, StringComparison.Ordinal)
+            );
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     [Fact]
     public void LoadAll_SkipsRouteWithConflictingDestinations_WithWarning()
     {

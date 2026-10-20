@@ -79,6 +79,7 @@ public class SfoTaxiBToF1RampConnectorTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationHintNode = f1,
                 ExplicitHoldShorts = [HoldShortTarget.Parse("B4")],
                 StartHeadingTrue = StartHeadingTrue,

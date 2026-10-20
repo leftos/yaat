@@ -301,11 +301,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Detour_LetterTaxiwayOnlyBridge_ResolvesAndNotifies()
+    public void Detour_LetterTaxiwayOnlyBridge_IsRefused()
     {
-        // When the only physical bridge between two cleared taxiways is an unauthorized letter
-        // taxiway, the soft policy still resolves the route (never fails a resolvable clearance)
-        // and surfaces the insertion as an informative connector notification — not a deviation warning.
+        // When the only physical bridge between two cleared taxiways is a letter-only taxiway the
+        // clearance left out, the two do not connect (YAAT-899 R6): the transition is refused with
+        // TaxiwaysDoNotConnect naming both taxiways, and no route is returned.
         GroundNode n0 = Node(0, 37.7000, -122.2000);
         GroundNode n1 = Node(1, 37.7010, -122.2000);
         GroundNode nB = Node(2, 37.7010, -122.1990);
@@ -319,13 +319,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         SearchContext ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
         (TaxiRoute? route, PathfindingFailure? failure) = SegmentExpander.Run(ctx);
 
-        Assert.Null(failure);
-        Assert.NotNull(route);
-        Assert.Contains(route.Segments, s => s.TaxiwayName == "Q");
-        Assert.Contains(
-            route.Warnings,
-            w => w.Contains("do not connect directly", StringComparison.OrdinalIgnoreCase) && w.Contains("Q", StringComparison.OrdinalIgnoreCase)
-        );
+        Assert.Null(route);
+        Assert.NotNull(failure);
+        Assert.Equal(FailureKind.TaxiwaysDoNotConnect, failure.Kind);
+        Assert.Equal("A", failure.UnconnectedFrom);
+        Assert.Equal("B", failure.UnconnectedTo);
     }
 
     // -----------------------------------------------------------------------

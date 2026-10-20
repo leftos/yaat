@@ -19,6 +19,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, HashSet<string>> _avoidByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TaxiRouteDefinition>> _routesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ImplicitConnectorEntry>> _connectorsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<CrossingPair>> _crossingPairsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<OneWayConstraint>> _oneWayByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AdwWindow>> _adwByAirport = new(StringComparer.OrdinalIgnoreCase);
@@ -51,6 +52,7 @@ public sealed class AirportSidecarCatalog
             MergeAvoidedTaxiways(key, airport.AvoidTaxiways);
             MergeTaxiRoutes(key, airport.TaxiRoutes);
             MergeImplicitConnectors(key, airport.ImplicitConnectors);
+            MergeCrossingPairs(key, airport.CrossingPairs);
             MergeOneWayConstraints(key, airport.OneWayEdges);
             MergeBlockedTurns(key, airport.BlockedTurns);
             MergeAdw(key, airport.Adw);
@@ -397,6 +399,22 @@ public sealed class AirportSidecarCatalog
         list.AddRange(connectors);
     }
 
+    private void MergeCrossingPairs(string key, IReadOnlyList<CrossingPair> pairs)
+    {
+        if (pairs.Count == 0)
+        {
+            return;
+        }
+
+        if (!_crossingPairsByAirport.TryGetValue(key, out List<CrossingPair>? list))
+        {
+            list = [];
+            _crossingPairsByAirport[key] = list;
+        }
+
+        list.AddRange(pairs);
+    }
+
     private void MergeOneWayConstraints(string key, IReadOnlyList<OneWayConstraint> constraints)
     {
         if (constraints.Count == 0)
@@ -473,6 +491,21 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _connectorsByAirport.TryGetValue(key, out List<ImplicitConnectorEntry>? list) ? list : [];
+    }
+
+    /// <summary>
+    /// Taxiway pairs declared a crossing of a runway at the given airport. Never null — returns an empty list when the
+    /// airport has none. The offset-crossing rule reads them (<see cref="Yaat.Sim.Data.Airport.Pathfinding.SearchContext.CrossingPairs"/>).
+    /// </summary>
+    public IReadOnlyList<CrossingPair> GetCrossingPairs(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _crossingPairsByAirport.TryGetValue(key, out List<CrossingPair>? list) ? list : [];
     }
 
     /// <summary>

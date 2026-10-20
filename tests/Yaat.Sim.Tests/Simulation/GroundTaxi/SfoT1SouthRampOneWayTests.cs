@@ -115,7 +115,12 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
             start.Id,
             ["B"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = "B", DestinationHintNode = spot35 },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = "B",
+                ImpliedLeadTaxiway = null,
+                DestinationHintNode = spot35,
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -553,7 +558,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
             start.Id,
             ["M5"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null },
+            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

@@ -1415,7 +1415,12 @@ public partial class GroundViewModel : ObservableObject
             start.Id,
             path,
             out _,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = preset.DestinationRunway },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DestinationRunway = preset.DestinationRunway,
+            },
             CategoryFor(ac),
             WakeClassFor(ac)
         );
@@ -3234,6 +3239,7 @@ public partial class GroundViewModel : ObservableObject
             Options = new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
                 DestinationHintNode = destination,
                 StartHeadingTrue = ac.Heading.Degrees,
@@ -3298,7 +3304,7 @@ public partial class GroundViewModel : ObservableObject
         // While the pilot cuts across a ramp onto a parallel lane the map does not connect (SFO M3 → M4),
         // the nearest graph node is still on the old lane and the named route does not resolve from it.
         // Reconstruct the same free-space leg the server planned so the overlay follows the crossing.
-        if ((failure is not null) && (RampLaneReposition.TryPlan(request.Layout, request.RepositionFor(ac), failure) is { } plan))
+        if ((failure is not null) && (RampLaneReposition.TryPlan(request.Layout, request.RepositionFor(ac), failure, out _) is { } plan))
         {
             return plan.Route;
         }

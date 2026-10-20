@@ -15,6 +15,13 @@ public sealed record PartialRoute(
 )
 {
     /// <summary>
+    /// What a connector detour's bridge has driven up to <see cref="HeadNodeId"/>, carried move by move in a search with
+    /// <see cref="SearchContext.Bridge"/> rules (<see cref="SearchContext.BridgeProgressAfter"/>) and part of its closed-set
+    /// key; null in every other search.
+    /// </summary>
+    public BridgeProgress? BridgeProgress { get; init; }
+
+    /// <summary>
     /// Starting route — no edges yet, arrival bearing unknown (0).
     /// </summary>
     public static PartialRoute StartAt(int nodeId) =>

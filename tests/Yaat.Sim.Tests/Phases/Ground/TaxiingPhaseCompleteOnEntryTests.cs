@@ -90,7 +90,12 @@ public sealed class TaxiingPhaseCompleteOnEntryTests(ITestOutputHelper output)
             fromNodeId: stand.Id,
             taxiwayNames: taxiways,
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = destinationRunway },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DestinationRunway = destinationRunway,
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

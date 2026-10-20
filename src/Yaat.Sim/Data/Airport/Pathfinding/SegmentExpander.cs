@@ -836,7 +836,7 @@ public static class SegmentExpander
         if (current.IsNodeRef)
         {
             // Current is a node-ref, next is a named taxiway: walk onto the next taxiway from current node.
-            return RouteFromNodeRefToTaxiway(head, current.ResolvedNodeId, next.Name, ctx);
+            return RouteFromNodeRefToTaxiway(head, current.ResolvedNodeId, next.Name, index, ctx);
         }
 
         // Named taxiway → named taxiway: find junction nodes and pick best. Lookahead only
@@ -1983,7 +1983,13 @@ public static class SegmentExpander
                 return (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
             }
 
-            (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) detour = TryDetour(head, fromTaxiway, toTaxiway, ctx);
+            (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) detour = TryDetour(
+                head,
+                fromTaxiway,
+                toTaxiway,
+                index,
+                ctx
+            );
             if (detour.Failure is null && detour.Edges is not null)
             {
                 RecordConnectorInsertion(insertions, fromTaxiway, toTaxiway, detour.Edges, tokens);
@@ -2082,7 +2088,7 @@ public static class SegmentExpander
         {
             // All junction candidates failed: attempt detour (suppressed inside a probe).
             return enableLookahead
-                ? TryDetour(head, fromTaxiway, toTaxiway, ctx)
+                ? TryDetour(head, fromTaxiway, toTaxiway, index, ctx)
                 : (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
         }
 
@@ -2172,7 +2178,58 @@ public static class SegmentExpander
             return null;
         }
 
+        if (TurnOntoBeyondLimit(offHead, crossing.ToJoinNodeId, toTaxiway, ctx) is { } turnDeg)
+        {
+            ctx.DiagnosticLog?.Invoke(
+                $"[runway-crossing] {runway}→{toTaxiway} refused: the {turnDeg:F0}° turn onto {toTaxiway} at #{crossing.ToJoinNodeId} "
+                    + $"exceeds the {ctx.Category} limit"
+            );
+            return (
+                null,
+                null,
+                new PathfindingFailure(
+                    FailureKind.CannotMakeTurn,
+                    CannotMakeTurnReason(fromTaxiway, toTaxiway),
+                    toTaxiway,
+                    $"{fromTaxiway} → {toTaxiway}",
+                    null
+                )
+                {
+                    UnconnectedFrom = fromTaxiway,
+                    UnconnectedTo = toTaxiway,
+                }
+            );
+        }
+
         return ([.. ontoEdges, .. offEdges], offHead, null);
+    }
+
+    /// <summary>
+    /// The turn, in degrees, from the bearing <paramref name="onRunway"/> arrives at its join on onto the straightest edge of
+    /// <paramref name="toTaxiway"/> leaving the join (KCOS A2→C2 for a B738: 150° off 17R/35L's 180° onto C2's 030°), when it
+    /// exceeds the category's limit (<see cref="CategoryLimits.MaxHeadingChangeDeg"/>); null when the aircraft can make it or
+    /// no straight edge of the taxiway leaves the join.
+    /// </summary>
+    private static double? TurnOntoBeyondLimit(PartialRoute onRunway, int joinNodeId, string toTaxiway, SearchContext ctx)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(joinNodeId, out GroundNode? join))
+        {
+            return null;
+        }
+
+        double? gentlest = null;
+        foreach (IGroundEdge edge in join.Edges)
+        {
+            if ((edge is not GroundEdge) || edge.IsRunwayCenterline || !edge.MatchesTaxiway(toTaxiway))
+            {
+                continue;
+            }
+
+            double turn = RouteCostFunction.HeadingDelta(onRunway.ArrivalBearing, GeoMath.BearingTo(join.Position, edge.OtherNode(join).Position));
+            gentlest = (gentlest is { } best) && (best <= turn) ? best : turn;
+        }
+
+        return (gentlest is { } turnDeg) && (turnDeg > CategoryLimits.MaxHeadingChangeDeg(ctx.Category)) ? turnDeg : null;
     }
 
     /// <summary>
@@ -2198,7 +2255,7 @@ public static class SegmentExpander
         Dictionary<(string From, string To), OffsetRunwayCrossing?> answers = OffsetRunwayCrossingCache.GetOrCreateValue(ctx);
         if (!answers.TryGetValue((fromTaxiway, toTaxiway), out OffsetRunwayCrossing? crossing))
         {
-            crossing = FindOffsetRunwayCrossing(ctx.Layout, fromTaxiway, toTaxiway);
+            crossing = FindOffsetRunwayCrossing(ctx.Layout, fromTaxiway, toTaxiway, ctx.CrossingPairs);
             answers[(fromTaxiway, toTaxiway)] = crossing;
         }
 
@@ -2210,16 +2267,24 @@ public static class SegmentExpander
     /// from opposite sides, at nodes at most <see cref="MaxOffsetRunwayCrossingFt"/> apart. The closest such pair wins.
     /// Null when the two join no runway that way; a same-side pair is taxiing along the runway, not crossing it, and a
     /// pair where either join already has a taxiway continuing straight across the runway has a square crossing to use.
+    /// A pair the airport's sidecar declares a crossing of that runway (<paramref name="declaredPairs"/>) is exempt from the
+    /// oblique-join rule only (<see cref="MeetsRunwayObliquely"/>); every other rule still holds.
     /// </summary>
-    private static OffsetRunwayCrossing? FindOffsetRunwayCrossing(AirportGroundLayout layout, string fromTaxiway, string toTaxiway)
+    private static OffsetRunwayCrossing? FindOffsetRunwayCrossing(
+        AirportGroundLayout layout,
+        string fromTaxiway,
+        string toTaxiway,
+        IReadOnlyList<CrossingPair> declaredPairs
+    )
     {
         OffsetRunwayCrossing? best = null;
         foreach (string runway in RunwayCenterlinesJoinedBy(layout, fromTaxiway))
         {
+            bool declared = declaredPairs.Any(p => p.Matches(fromTaxiway, toTaxiway, runway));
             List<GroundNode> toJoins = FindJunctionCandidates(layout, runway, toTaxiway);
             foreach (GroundNode fromJoin in FindJunctionCandidates(layout, fromTaxiway, runway))
             {
-                OffsetRunwayCrossing? pair = ClosestOppositeSideJoin(fromJoin, fromTaxiway, toJoins, toTaxiway, runway);
+                OffsetRunwayCrossing? pair = ClosestOppositeSideJoin(fromJoin, fromTaxiway, toJoins, toTaxiway, (runway, declared));
                 if ((pair is not null) && ((best is null) || (pair.OffsetFt < best.OffsetFt)))
                 {
                     best = pair;
@@ -2253,10 +2318,10 @@ public static class SegmentExpander
         string fromTaxiway,
         List<GroundNode> toJoins,
         string toTaxiway,
-        string runway
+        (string Centerline, bool DeclaredPair) runway
     )
     {
-        if (RunwayBearingAt(fromJoin, runway) is not { } runwayBearing)
+        if (RunwayBearingAt(fromJoin, runway.Centerline) is not { } runwayBearing)
         {
             return null;
         }
@@ -2265,7 +2330,7 @@ public static class SegmentExpander
         if (
             (fromSide == 0)
             || HasStraightTaxiwayToward(fromJoin, -fromSide, runwayBearing)
-            || MeetsRunwayObliquely(fromJoin, fromTaxiway, runwayBearing)
+            || (!runway.DeclaredPair && MeetsRunwayObliquely(fromJoin, fromTaxiway, runwayBearing))
         )
         {
             return null;
@@ -2284,10 +2349,10 @@ public static class SegmentExpander
             if (
                 (toSide == -fromSide)
                 && !HasStraightTaxiwayToward(toJoin, fromSide, runwayBearing)
-                && !MeetsRunwayObliquely(toJoin, toTaxiway, runwayBearing)
+                && (runway.DeclaredPair || !MeetsRunwayObliquely(toJoin, toTaxiway, runwayBearing))
             )
             {
-                best = new OffsetRunwayCrossing(runway, fromJoin.Id, toJoin.Id, offsetFt);
+                best = new OffsetRunwayCrossing(runway.Centerline, fromJoin.Id, toJoin.Id, offsetFt);
             }
         }
 
@@ -2361,6 +2426,45 @@ public static class SegmentExpander
 
     /// <summary>Sine of 60°: a taxiway meeting the runway less than 60° off its line is not nearly perpendicular to it.</summary>
     private static readonly double NearlyPerpendicularSin = Math.Sin(60 * Math.PI / 180);
+
+    /// <summary>
+    /// The most a route may bend at a runway centreline node and still be crossing the runway rather than turning onto it: a
+    /// sim convention between a taxiway's own bend at a crossing (SFO H over 1L/19R at #384, 25°) and a high-speed exit turning
+    /// onto the taxiway across the runway (KCOS C3 onto A3 at #14, 64°).
+    /// </summary>
+    internal const double MaxStraightCrossingTurnDeg = 45.0;
+
+    /// <summary>
+    /// Whether a route through <paramref name="node"/>, a runway centreline node, in along <paramref name="arrival"/> and out along
+    /// <paramref name="departure"/>, crosses the runway straight: both are straight edges, they lie on opposite sides of the
+    /// runway's line (neither along it, <see cref="EdgeSide"/>), and the route bends at most
+    /// <see cref="MaxStraightCrossingTurnDeg"/> between them (OAK C over the 33 end at #354, 52° off the line, bends 0.3°). Anything
+    /// else — a turn onto or along the runway, a high-speed exit in and another taxiway out (KCOS C3 onto A3), an arc, or a
+    /// same-side exit — is a turn at the runway.
+    /// </summary>
+    internal static bool IsStraightRunwayCrossing(GroundNode node, IGroundEdge arrival, IGroundEdge departure)
+    {
+        if (
+            (arrival is not GroundEdge)
+            || (departure is not GroundEdge)
+            || node.Edges.FirstOrDefault(e => e.IsRunwayCenterline) is not { } centreline
+        )
+        {
+            return false;
+        }
+
+        double runwayBearing = GeoMath.BearingTo(node.Position, centreline.OtherNode(node).Position);
+        int inSide = EdgeSide(node, arrival, runwayBearing);
+        int outSide = EdgeSide(node, departure, runwayBearing);
+        if ((inSide == 0) || (outSide == 0) || (inSide == outSide))
+        {
+            return false;
+        }
+
+        double headingIn = (GeoMath.BearingTo(node.Position, arrival.OtherNode(node).Position) + 180.0) % 360.0;
+        double headingOut = GeoMath.BearingTo(node.Position, departure.OtherNode(node).Position);
+        return RouteCostFunction.HeadingDelta(headingIn, headingOut) <= MaxStraightCrossingTurnDeg;
+    }
 
     /// <summary>
     /// True when a straight edge of <paramref name="taxiway"/> leaves <paramref name="join"/> less than 60° off the runway
@@ -3223,6 +3327,7 @@ public static class SegmentExpander
         PartialRoute head,
         int nodeRefId,
         string nextTaxiway,
+        int transitionIndex,
         SearchContext ctx
     )
     {
@@ -3241,7 +3346,7 @@ public static class SegmentExpander
         List<GroundNode> junctionCandidates = FindJunctionCandidates(nodeRefNode, nextTaxiway);
         if (junctionCandidates.Count == 0)
         {
-            return TryDetour(head, $"#{nodeRefId}", nextTaxiway, ctx);
+            return TryDetour(head, $"#{nodeRefId}", nextTaxiway, transitionIndex, ctx);
         }
 
         (List<DirectionalEdge>? bestEdges, PartialRoute? bestHead, double bestCost) = (null, null, double.MaxValue);
@@ -3264,7 +3369,7 @@ public static class SegmentExpander
 
         if (bestEdges is null)
         {
-            return TryDetour(head, $"#{nodeRefId}", nextTaxiway, ctx);
+            return TryDetour(head, $"#{nodeRefId}", nextTaxiway, transitionIndex, ctx);
         }
 
         return (bestEdges, bestHead, null);
@@ -3995,8 +4100,9 @@ public static class SegmentExpander
     /// the detour bridged them via one or more connectors. The connector names are the distinct
     /// single-name (non-junction-arc) taxiways the detour traversed other than from/to and other
     /// than any taxiway already named in the clearance (<paramref name="tokens"/>) — only a
-    /// taxiway the controller did not name counts as an inserted connector worth flagging. When
-    /// the bridge uses no such taxiway, nothing is recorded.
+    /// taxiway the controller did not name counts as an inserted connector worth flagging. A runway
+    /// centreline is never a connector: the notice never reads "taxi via" a runway. When the bridge
+    /// uses no such taxiway, nothing is recorded.
     /// </summary>
     private static void RecordConnectorInsertion(
         List<ConnectorInsertion> insertions,
@@ -4018,7 +4124,7 @@ public static class SegmentExpander
         var connectors = new List<string>();
         foreach (DirectionalEdge edge in detourEdges)
         {
-            if (edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
+            if ((edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 }) || edge.Edge.IsRunwayCenterline)
             {
                 continue;
             }
@@ -4052,10 +4158,43 @@ public static class SegmentExpander
             null
         );
 
+    /// <summary>
+    /// The refusal of a clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, two taxiways that
+    /// meet nowhere the aircraft may join them (<see cref="FailureKind.TaxiwaysDoNotConnect"/>).
+    /// </summary>
+    public static string TaxiwaysDoNotConnectReason(string fromTaxiway, string toTaxiway) =>
+        $"Unable, {fromTaxiway} and {toTaxiway} do not connect, request taxi instructions";
+
+    /// <summary>
+    /// The refusal of a clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, two taxiways that meet
+    /// only where the route cannot reach ahead (<see cref="FailureKind.NoRouteAhead"/>); with
+    /// <paramref name="intersectionOnlyBehind"/>, every junction lies directly behind the aircraft.
+    /// </summary>
+    public static string NoRouteAheadReason(string fromTaxiway, string toTaxiway, bool intersectionOnlyBehind) =>
+        $"Unable, no route from {fromTaxiway} onto {toTaxiway} ahead, request taxi instructions"
+        + (intersectionOnlyBehind ? " (intersection only directly behind, would require turn-about)" : "");
+
+    /// <summary>
+    /// The refusal of a clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, a declared runway
+    /// crossing whose turn from the runway onto <paramref name="toTaxiway"/> exceeds the aircraft's turn limit
+    /// (<see cref="FailureKind.CannotMakeTurn"/>).
+    /// </summary>
+    public static string CannotMakeTurnReason(string fromTaxiway, string toTaxiway) =>
+        $"Unable, can't make the turn from {fromTaxiway} onto {toTaxiway}, request taxi instructions";
+
+    /// <summary>
+    /// Bridge <paramref name="fromTaxiway"/>, the clearance's <paramref name="transitionIndex"/>th token, to
+    /// <paramref name="toTaxiway"/> through the best connector <see cref="PickDetourEntry"/> keeps. When it keeps none, the
+    /// transition fails: with the pair refusal (<see cref="PairRefusal"/>: <see cref="FailureKind.TaxiwaysDoNotConnect"/>, or
+    /// <see cref="FailureKind.NoRouteAhead"/> when the pair's junctions exist) when two named taxiways had bridges and every
+    /// one was dropped (it ran along a runway, turned at one, or needed a lettered taxiway the clearance left out), with
+    /// <see cref="FailureKind.TransitionInfeasible"/> when no bridge existed at all or the transition starts at a node reference.
+    /// </summary>
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) TryDetour(
         PartialRoute head,
         string fromTaxiway,
         string toTaxiway,
+        int transitionIndex,
         SearchContext ctx
     )
     {
@@ -4100,7 +4239,19 @@ public static class SegmentExpander
             );
         }
 
-        (GroundNode? bestEntry, TaxiRoute? bestRoute, double bestScore) = PickDetourEntry(head, fromTaxiway, toTaxiway, ctx);
+        (GroundNode? bestEntry, TaxiRoute? bestRoute, double bestScore, int droppedBridges) = PickDetourEntry(
+            head,
+            fromTaxiway,
+            toTaxiway,
+            transitionIndex,
+            ctx
+        );
+
+        if ((bestRoute is null) && !fromTaxiway.StartsWith('#') && (droppedBridges > 0))
+        {
+            ctx.DiagnosticLog?.Invoke($"[detour] {fromTaxiway}→{toTaxiway}: all {droppedBridges} bridges dropped; refused");
+            return (null, null, PairRefusal(head, fromTaxiway, toTaxiway, ctx));
+        }
 
         if (bestRoute is null)
         {
@@ -4123,6 +4274,53 @@ public static class SegmentExpander
 
         PartialRoute newHead = BuildHeadFromRoute(head, bestRoute);
         return ([.. bestRoute.Segments.Select(s => s.Edge)], newHead, null);
+    }
+
+    /// <summary>
+    /// The refusal of a named pair whose every bridge was dropped: <see cref="FailureKind.TaxiwaysDoNotConnect"/> when the two
+    /// taxiways share no node of the layout, <see cref="FailureKind.NoRouteAhead"/> when they do (the junctions exist, but the
+    /// walk reached none ahead), noting whether every junction lies directly behind the pose the aircraft holds at
+    /// <paramref name="head"/> — the prior segment's arrival bearing, or <see cref="SearchContext.StartHeadingTrue"/> — so
+    /// reaching one would take a turn-about. With no pose, no junction counts as behind.
+    /// </summary>
+    private static PathfindingFailure PairRefusal(PartialRoute head, string fromTaxiway, string toTaxiway, SearchContext ctx)
+    {
+        List<GroundNode> junctions = [.. ctx.Layout.GetNodesOnTaxiway(fromTaxiway).Where(n => NodeIncidentToTaxiway(n, toTaxiway))];
+        if (junctions.Count == 0)
+        {
+            return new PathfindingFailure(
+                FailureKind.TaxiwaysDoNotConnect,
+                TaxiwaysDoNotConnectReason(fromTaxiway, toTaxiway),
+                fromTaxiway,
+                $"{fromTaxiway} → {toTaxiway}",
+                null
+            )
+            {
+                UnconnectedFrom = fromTaxiway,
+                UnconnectedTo = toTaxiway,
+            };
+        }
+
+        double? pose = head.LastEdge is not null ? head.ArrivalBearing : ctx.StartHeadingTrue;
+        bool onlyBehind =
+            (pose is { } heading)
+            && ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? at)
+            && junctions.All(j => RouteCostFunction.HeadingDelta(heading, GeoMath.BearingTo(at.Position, j.Position)) > 90.0);
+        ctx.DiagnosticLog?.Invoke(
+            $"[detour] {fromTaxiway}→{toTaxiway}: {junctions.Count} junction(s) exist but none was reached ahead; only behind={onlyBehind}"
+        );
+        return new PathfindingFailure(
+            FailureKind.NoRouteAhead,
+            NoRouteAheadReason(fromTaxiway, toTaxiway, onlyBehind),
+            fromTaxiway,
+            $"{fromTaxiway} → {toTaxiway}",
+            null
+        )
+        {
+            UnconnectedFrom = fromTaxiway,
+            UnconnectedTo = toTaxiway,
+            IntersectionOnlyBehind = onlyBehind,
+        };
     }
 
     /// <summary>
@@ -4153,19 +4351,135 @@ public static class SegmentExpander
     /// reaches the taxiway at all, the clearance is one the resolver is supposed to fail (gate B20S's
     /// <c>TAXI M5 …</c> across the ramp, issue #396, whose free-space cut keys on exactly that failure), and
     /// hunting down a far-side bridge that touches M5 would take the failure away.</para>
+    ///
+    /// <para>A bridge never runs along a runway, however short the run, and between two named taxiways it uses no lettered
+    /// taxiway the clearance left out (<see cref="BridgeDropReason"/>): a candidate that does is dropped before ranking, and
+    /// <c>DroppedBridges</c> counts them. Two taxiways that meet only across a runway are a crossing, resolved before the
+    /// detour (<see cref="TryRouteAcrossOffsetRunway"/>), never a bridge.</para>
     /// </summary>
-    private static (GroundNode? Entry, TaxiRoute? Route, double Score) PickDetourEntry(
+    private static (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) PickDetourEntry(
         PartialRoute head,
         string fromTaxiway,
         string toTaxiway,
+        int transitionIndex,
         SearchContext ctx
     )
     {
+        BridgeRules rules = BridgeRulesFor(head, fromTaxiway, toTaxiway, transitionIndex, ctx);
+        (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) legal = RankBridges(
+            head,
+            toTaxiway,
+            ctx,
+            rules,
+            ctx with
+            {
+                Bridge = rules,
+            }
+        );
+        if ((legal.Route is not null) || fromTaxiway.StartsWith('#'))
+        {
+            return legal;
+        }
+
+        // No legal bridge: today's unrestricted search classifies the refusal. Bridges it finds are the ones the post-hoc filter
+        // drops (logged, counted: the pair does not connect); none at all is a transition with no bridge. A bridge that survives
+        // the filter here is one the restricted search did not find, so the two judges disagree: it is refused, counted as
+        // dropped, and the disagreement is warned about naming both verdicts.
+        ctx.DiagnosticLog?.Invoke(
+            $"[detour] {fromTaxiway}→{toTaxiway}: no legal bridge from any entry node; classifying with the unrestricted search"
+        );
+        (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) unrestricted = RankBridges(head, toTaxiway, ctx, rules, ctx);
+        if (unrestricted is not { Route: { } bridge, Entry: { } entry })
+        {
+            return unrestricted;
+        }
+
+        (string? search, string? filter) = JudgeBridge(head, bridge, rules, ctx);
+        Log.LogWarning(
+            "[detour] {From}→{To} from #{Head}: the unrestricted search found a bridge via #{Entry} the restricted search did not; "
+                + "refused — search: {Search}; filter: {Filter}",
+            fromTaxiway,
+            toTaxiway,
+            head.HeadNodeId,
+            entry.Id,
+            search ?? "legal",
+            filter ?? "legal"
+        );
+        ctx.DiagnosticLog?.Invoke(
+            $"[detour] {fromTaxiway}→{toTaxiway}: refuses the bridge via #{entry.Id} only the unrestricted search found; "
+                + $"search={search ?? "legal"}; filter={filter ?? "legal"}"
+        );
+        return (null, null, double.MaxValue, unrestricted.DroppedBridges + 1);
+    }
+
+    /// <summary>
+    /// The rules the bridge from <paramref name="head"/> obeys
+    /// (<see cref="SearchContext.BridgeMoveRefusal(BridgeRules, BridgeProgress, GroundNode, IGroundEdge, GroundNode)"/>, in the search and
+    /// the post-hoc filter alike): the runway the aircraft stands on, usable only to leave it, when the bridge starts where the
+    /// aircraft stands; whether the bridge starts on <paramref name="fromTaxiway"/>; and the letter-only taxiways the connector
+    /// may not use — every one the clearance left out (<see cref="CountsAsNamed"/>), ramp taxilanes excepted — for a named pair
+    /// whose transition is not the implied lead's. The transition is the clearance's <paramref name="transitionIndex"/>th, and
+    /// only the first (index 0) may lean on where the aircraft starts: a later transition off the same taxiway as the lead is
+    /// no first transition.
+    /// </summary>
+    internal static BridgeRules BridgeRulesFor(PartialRoute head, string fromTaxiway, string toTaxiway, int transitionIndex, SearchContext ctx)
+    {
+        string? startRunway = null;
+        if ((head.HeadNodeId == ctx.StartNodeId) && ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? start))
+        {
+            startRunway = start.Edges.FirstOrDefault(e => e.IsRunwayCenterline) is { } centreline
+                ? RouteCostFunction.ResolveTaxiwayName(centreline, start.Id)
+                : null;
+        }
+
+        bool headOnFromTaxiway = HeadHasReachedTaxiway(head, fromTaxiway, ctx);
+        bool firstTransition = transitionIndex == 0;
+        bool judgeLetters = !fromTaxiway.StartsWith('#') && !(firstTransition && IsImpliedLeadTransition(fromTaxiway, ctx));
+        if (!judgeLetters)
+        {
+            return new BridgeRules(startRunway, fromTaxiway, headOnFromTaxiway, NoExcludedTaxiways);
+        }
+
+        var classification = MovementAreaClassification.For(ctx.Layout);
+        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string name in ctx.Layout.AllTaxiwayNames)
+        {
+            if (
+                SearchContext.IsLetterOnlyTaxiway(name)
+                && !classification.IsRampTaxilane(name)
+                && !CountsAsNamed(name, fromTaxiway, toTaxiway, firstTransition, ctx)
+            )
+            {
+                excluded.Add(name);
+            }
+        }
+
+        return new BridgeRules(startRunway, fromTaxiway, headOnFromTaxiway, excluded);
+    }
+
+    private static readonly IReadOnlySet<string> NoExcludedTaxiways = new HashSet<string>();
+
+    /// <summary>
+    /// One bounded search per node of <paramref name="toTaxiway"/> on <paramref name="template"/>, each surviving bridge ranked
+    /// as <see cref="PickDetourEntry"/> describes; <c>DroppedBridges</c> counts the ones <see cref="BridgeDropReason"/> refused.
+    /// With a diagnostic log, every bridge found is also judged by the search predicate (<see cref="JudgeBridge"/>) and logged as
+    /// <c>[detour] judged …</c>.
+    /// </summary>
+    private static (GroundNode? Entry, TaxiRoute? Route, double Score, int DroppedBridges) RankBridges(
+        PartialRoute head,
+        string toTaxiway,
+        SearchContext ctx,
+        BridgeRules rules,
+        SearchContext template
+    )
+    {
+        string fromTaxiway = rules.FromTaxiway;
         bool rankByPose = (head.LastEdge is not null) || (ctx.StartHeadingTrue is not null);
-        bool guardFromTaxiway = rankByPose && !fromTaxiway.StartsWith('#') && !HeadHasReachedTaxiway(head, fromTaxiway, ctx);
+        bool guardFromTaxiway = rankByPose && !fromTaxiway.StartsWith('#') && !rules.HeadOnFromTaxiway;
 
         (GroundNode? Entry, TaxiRoute? Route, double Score) best = (null, null, double.MaxValue);
         (GroundNode? Entry, TaxiRoute? Route, double Score) shortest = (null, null, double.MaxValue);
+        int droppedBridges = 0;
 
         foreach (GroundNode entryNode in ctx.Layout.GetNodesOnTaxiway(toTaxiway))
         {
@@ -4174,9 +4488,23 @@ public static class SegmentExpander
                 continue;
             }
 
-            (TaxiRoute? route, PathfindingFailure? _) = RunBoundedDetour(BuildDetourContext(ctx, head.HeadNodeId, entryNode.Id), head);
+            (TaxiRoute? route, PathfindingFailure? _) = RunBoundedDetour(BuildDetourContext(template, head.HeadNodeId, entryNode.Id), head);
             if (route is null)
             {
+                continue;
+            }
+
+            string? filter = BridgeDropReason(head, route.Segments.Select(s => s.Edge), rules, ctx);
+            if (ctx.DiagnosticLog is { } log)
+            {
+                string? search = SearchVerdict(head, route, rules, ctx);
+                log($"[detour] judged {fromTaxiway}→{toTaxiway} bridge via #{entryNode.Id}: search={search ?? "legal"}; filter={filter ?? "legal"}");
+            }
+
+            if (filter is { } dropReason)
+            {
+                ctx.DiagnosticLog?.Invoke($"[detour] drops {fromTaxiway}→{toTaxiway} bridge via #{entryNode.Id}: {dropReason}");
+                droppedBridges++;
                 continue;
             }
 
@@ -4202,10 +4530,146 @@ public static class SegmentExpander
         )
         {
             ctx.DiagnosticLog?.Invoke($"[detour] cost pick drops {fromTaxiway}; keeping the shortest bridge via #{shortest.Entry!.Id}");
-            return shortest;
+            return (shortest.Entry, shortest.Route, shortest.Score, droppedBridges);
         }
 
-        return best;
+        return (best.Entry, best.Route, best.Score, droppedBridges);
+    }
+
+    /// <summary>
+    /// Both judgements of one bridge from <paramref name="head"/>: the search predicate's
+    /// (<see cref="SearchContext.BridgeMoveRefusal(PartialRoute, IGroundEdge, GroundNode)"/>, replayed move by move from the
+    /// head) and the post-hoc filter's (<see cref="BridgeDropReason"/>); null is legal. Both call the one judgement
+    /// (<see cref="SearchContext.BridgeMoveRefusal(BridgeRules, BridgeProgress, GroundNode, IGroundEdge, GroundNode)"/>) and so
+    /// agree on every bridge, which the agreement tests assert.
+    /// </summary>
+    internal static (string? Search, string? Filter) JudgeBridge(PartialRoute head, TaxiRoute route, BridgeRules rules, SearchContext ctx) =>
+        (SearchVerdict(head, route, rules, ctx), BridgeDropReason(head, route.Segments.Select(s => s.Edge), rules, ctx));
+
+    /// <summary>
+    /// The search predicate's judgement of the bridge <paramref name="route"/> from <paramref name="head"/>, replayed move by move
+    /// with the progress the search carries (<see cref="SearchContext.BridgeProgressAtStart"/>,
+    /// <see cref="SearchContext.BridgeProgressAfter"/>), or null when it allows every move.
+    /// </summary>
+    private static string? SearchVerdict(PartialRoute head, TaxiRoute route, BridgeRules rules, SearchContext ctx)
+    {
+        SearchContext search = ctx with { Bridge = rules };
+        PartialRoute current = head with { BridgeProgress = search.BridgeProgressAtStart(head) };
+        foreach (TaxiRouteSegment seg in route.Segments)
+        {
+            if (search.BridgeMoveRefusal(current, seg.Edge.Edge, seg.Edge.ToNode) is { } refusal)
+            {
+                return refusal;
+            }
+
+            BridgeProgress? after = search.BridgeProgressAfter(current, seg.Edge.FromNode, seg.Edge.Edge);
+            current = Advance(current, seg.Edge, seg.TaxiwayName) with { BridgeProgress = after };
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Why the bridge <paramref name="edges"/> from <paramref name="head"/> may not be driven under <paramref name="rules"/>, or
+    /// null when it may: the post-hoc filter, the one judgement
+    /// (<see cref="SearchContext.BridgeMoveRefusal(BridgeRules, BridgeProgress, GroundNode, IGroundEdge, GroundNode)"/>) applied
+    /// to each move in turn with the progress the moves before it made (<see cref="BridgeProgress.After"/>), the first move judged
+    /// against the head's own last edge as the search judges it.
+    /// </summary>
+    private static string? BridgeDropReason(PartialRoute head, IEnumerable<DirectionalEdge> edges, BridgeRules rules, SearchContext ctx)
+    {
+        var progress = BridgeProgress.AtStart(head.LastEdge, rules);
+        foreach (DirectionalEdge move in edges)
+        {
+            if (ctx.BridgeMoveRefusal(rules, progress, move.FromNode, move.Edge, move.ToNode) is { } refusal)
+            {
+                return refusal;
+            }
+
+            progress = progress.After(move.FromNode, move.Edge, rules);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="fromTaxiway"/> is the occupied taxiway the handler put in front of the clearance
+    /// (<see cref="SearchContext.ImpliedLeadTaxiway"/>): the bridge off it is the start leg, which the letter rule never judges.
+    /// </summary>
+    private static bool IsImpliedLeadTransition(string fromTaxiway, SearchContext ctx) =>
+        (ctx.ImpliedLeadTaxiway is { } lead) && fromTaxiway.Equals(lead, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the clearance names <paramref name="name"/> for the transition, explicitly or by implication: an end of the
+    /// transition, a token of the clearance before <paramref name="toTaxiway"/> (taxiways are flown in clearance order, so a
+    /// later one is no licence for an earlier connector: KCOS <c>TAXI C2 A2 A</c> may not bridge C2 to A2 along A), the pair's
+    /// curated connector, or — on the clearance's first transition only — a taxiway the aircraft is on. The aircraft is on the
+    /// taxiway the caller found it occupying (<see cref="SearchContext.OccupiedTaxiway"/>) and on every taxiway an edge at the
+    /// route's start node carries (<see cref="StartIsOnTaxiway"/>, the resolver's own sense of where the taxi starts): an
+    /// aircraft pushed off a gate whose stored current taxiway is stale still starts on the taxiway it was pushed onto.
+    /// </summary>
+    private static bool CountsAsNamed(string name, string fromTaxiway, string toTaxiway, bool firstTransition, SearchContext ctx)
+    {
+        if (name.Equals(fromTaxiway, StringComparison.OrdinalIgnoreCase) || name.Equals(toTaxiway, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (firstTransition)
+        {
+            return name.Equals(ctx.OccupiedTaxiway, StringComparison.OrdinalIgnoreCase)
+                || StartIsOnTaxiway(ctx, name)
+                || NamedBefore(name, fromTaxiway, toTaxiway, ctx);
+        }
+
+        // Past the first transition only the clearance as issued counts: the occupied taxiway the handler prepended as the
+        // implied lead names itself once, at the front, and that mention is the handler's, not the controller's.
+        bool impliedLead = (ctx.ImpliedLeadTaxiway is { } lead) && name.Equals(lead, StringComparison.OrdinalIgnoreCase);
+        return impliedLead
+            ? ClearedBefore(name, fromTaxiway, toTaxiway, [.. ctx.WaypointSequence.Skip(1)])
+            : NamedBefore(name, fromTaxiway, toTaxiway, ctx);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="name"/> is the pair's curated connector (<see cref="SearchContext.GetImplicitConnectorName"/>) or a
+    /// token of the clearance before the transition (<see cref="ClearedBefore"/>).
+    /// </summary>
+    private static bool NamedBefore(string name, string fromTaxiway, string toTaxiway, SearchContext ctx) =>
+        name.Equals(ctx.GetImplicitConnectorName(fromTaxiway, toTaxiway), StringComparison.OrdinalIgnoreCase)
+        || ClearedBefore(name, fromTaxiway, toTaxiway, ctx.WaypointSequence);
+
+    /// <summary>
+    /// Whether <paramref name="sequence"/> names <paramref name="name"/> before the transition from <paramref name="fromTaxiway"/>
+    /// to <paramref name="toTaxiway"/>: among the tokens up to the pair's own mention (the first mention of
+    /// <paramref name="toTaxiway"/> right after one of <paramref name="fromTaxiway"/>), or, when the pair is nowhere adjacent in
+    /// it, up to the first mention of <paramref name="toTaxiway"/>. A later mention of <paramref name="toTaxiway"/> licenses
+    /// nothing named between the two.
+    /// </summary>
+    internal static bool ClearedBefore(string name, string fromTaxiway, string toTaxiway, IReadOnlyList<string> sequence)
+    {
+        int first = -1;
+        int adjacent = -1;
+        for (int i = 0; i < sequence.Count; i++)
+        {
+            if (!sequence[i].Equals(toTaxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (first < 0)
+            {
+                first = i;
+            }
+
+            if ((i > 0) && sequence[i - 1].Equals(fromTaxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                adjacent = i;
+                break;
+            }
+        }
+
+        int end = adjacent >= 0 ? adjacent : (first >= 0 ? first : sequence.Count);
+        return sequence.Take(end).Contains(name, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -4290,15 +4754,15 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// Build a detour SearchContext for bridging two cleared taxiways that have no direct junction.
-    /// Inherits the original <see cref="SearchContext.AuthorizedTaxiways"/> so the cost function still
-    /// prefers numbered connectors and RAMP edges over unnamed letter taxiways (the soft policy:
-    /// an unauthorized letter taxiway is penalized but usable as a last resort, then surfaced in the
-    /// connector notification — never silently free, never hard-failing a resolvable clearance).
+    /// Build a detour SearchContext for bridging two cleared taxiways that have no direct junction, from
+    /// <paramref name="template"/>: the outer context, with <see cref="SearchContext.Bridge"/> set for the restricted
+    /// search and null for the classification pass (<see cref="PickDetourEntry"/>). Inherits the original
+    /// <see cref="SearchContext.AuthorizedTaxiways"/> so the cost function still prefers numbered connectors and RAMP
+    /// edges over the letter taxiways the rules leave usable.
     /// </summary>
-    private static SearchContext BuildDetourContext(SearchContext ctx, int fromNodeId, int toNodeId)
+    private static SearchContext BuildDetourContext(SearchContext template, int fromNodeId, int toNodeId)
     {
-        return ctx with
+        return template with
         {
             StartNodeId = fromNodeId,
             Destination = new DestinationDescriptor(toNodeId, null, null, null, DestinationKind.Node),
@@ -4662,6 +5126,20 @@ public static class SegmentExpander
     // Helpers
     // -----------------------------------------------------------------------
 
+    /// <summary><paramref name="current"/> extended over <paramref name="edge"/>, driven as <paramref name="taxiwayName"/>.</summary>
+    private static PartialRoute Advance(PartialRoute current, DirectionalEdge edge, string taxiwayName) =>
+        current with
+        {
+            HeadNodeId = edge.ToNodeId,
+            ArrivalBearing = edge.ArrivalBearing,
+            LastEdge = edge.Edge,
+            LastTaxiwayName = taxiwayName,
+            Previous = current,
+            Depth = current.Depth + 1,
+            AccumulatedCost = current.AccumulatedCost + edge.DistanceNm,
+            VisitedNodeIds = current.VisitedNodeIds.Add(edge.ToNodeId),
+        };
+
     /// <summary>
     /// Build a <see cref="PartialRoute"/> head that reflects the state after traversing
     /// <paramref name="route"/> from <paramref name="startHead"/>.
@@ -4676,17 +5154,7 @@ public static class SegmentExpander
         PartialRoute current = startHead;
         foreach (TaxiRouteSegment seg in route.Segments)
         {
-            current = current with
-            {
-                HeadNodeId = seg.ToNodeId,
-                ArrivalBearing = seg.Edge.ArrivalBearing,
-                LastEdge = seg.Edge.Edge,
-                LastTaxiwayName = seg.TaxiwayName,
-                Previous = current,
-                Depth = current.Depth + 1,
-                AccumulatedCost = current.AccumulatedCost + seg.Edge.DistanceNm,
-                VisitedNodeIds = current.VisitedNodeIds.Add(seg.ToNodeId),
-            };
+            current = Advance(current, seg.Edge, seg.TaxiwayName);
         }
 
         return current;

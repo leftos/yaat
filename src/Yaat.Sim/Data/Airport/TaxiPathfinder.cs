@@ -114,6 +114,7 @@ public static class TaxiPathfinder
         ) with
         {
             OccupiedTaxiway = options.OccupiedTaxiway,
+            ImpliedLeadTaxiway = options.ImpliedLeadTaxiway,
         };
 
         (TaxiRoute? route, failure) = SegmentExpander.Run(ctx);

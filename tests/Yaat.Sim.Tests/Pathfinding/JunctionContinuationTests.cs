@@ -60,6 +60,7 @@ public class JunctionContinuationTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
 
@@ -113,7 +114,12 @@ public class JunctionContinuationTests
             startNode.Id,
             ["A"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -178,7 +184,12 @@ public class JunctionContinuationTests
             d8.Id,
             instructed,
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -360,7 +371,12 @@ public class JunctionContinuationTests
             startId,
             [x, y],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

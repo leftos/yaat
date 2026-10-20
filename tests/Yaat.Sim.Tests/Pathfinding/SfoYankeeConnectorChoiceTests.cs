@@ -76,6 +76,7 @@ public class SfoYankeeConnectorChoiceTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = "1R",
                 ExplicitHoldShorts = [],
                 StartHeadingTrue = StartHeadingDeg,

@@ -55,6 +55,7 @@ public class ParkingExtensionDirectionTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationHintNode = newParking,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
@@ -108,6 +109,7 @@ public class ParkingExtensionDirectionTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationHintNode = newParking,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },

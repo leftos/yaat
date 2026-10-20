@@ -310,7 +310,19 @@ public sealed class NavigationDatabase
     /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.SearchContext"/> for auto-routes only) and preset
     /// taxi routes (consumed by the client's aircraft right-click menu).
     /// </summary>
-    public AirportSidecarCatalog AirportSidecars { get; }
+    public AirportSidecarCatalog AirportSidecars { get; private set; }
+
+    /// <summary>
+    /// A copy of this database that reads <paramref name="sidecars"/> in place of its own airport sidecars and shares everything
+    /// else: for a test that declares a sidecar entry in itself (a <c>crossingPairs</c> pair over a real layout) and installs the
+    /// copy with <see cref="ScopedOverride"/>.
+    /// </summary>
+    public NavigationDatabase WithAirportSidecars(AirportSidecarCatalog sidecars)
+    {
+        var copy = (NavigationDatabase)MemberwiseClone();
+        copy.AirportSidecars = sidecars;
+        return copy;
+    }
 
     /// <summary>
     /// ARTCC-specific pilot initial-contact transfer exceptions, indexed by ARTCC, airport,

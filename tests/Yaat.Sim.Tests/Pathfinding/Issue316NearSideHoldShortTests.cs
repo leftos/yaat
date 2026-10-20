@@ -61,6 +61,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
@@ -104,7 +105,12 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "28R" },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DestinationRunway = "28R",
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -142,7 +148,12 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "28R" },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DestinationRunway = "28R",
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -196,6 +207,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },

@@ -48,6 +48,165 @@ public sealed record SearchContext(
     /// </summary>
     public string? OccupiedTaxiway { get; init; }
 
+    /// <summary>
+    /// The occupied taxiway the handler put in front of the clearance (<see cref="ExplicitPathOptions.ImpliedLeadTaxiway"/>),
+    /// or null. The bridge from it onto the next taxiway is the start leg, not a connector between two named taxiways.
+    /// </summary>
+    public string? ImpliedLeadTaxiway { get; init; }
+
+    /// <summary>
+    /// The rules a connector detour's bridge obeys inside the search (<see cref="IsForbiddenBridgeMove"/>), or null for every other
+    /// search. Set by <see cref="SegmentExpander"/> for each bridge it searches, so every entry node offers its cheapest legal
+    /// bridge rather than a cheaper one the post-hoc filter then drops.
+    /// </summary>
+    public BridgeRules? Bridge { get; init; }
+
+    /// <summary>
+    /// Longest run along the runway the aircraft stands on that a bridge may take to leave it: about the distance to the first
+    /// taxiway (OAK D/G off 15/33: 33 ft; MIA Z/M off 12/30: 61 ft), well short of a back-taxi (COS C6/C7: 460 ft).
+    /// </summary>
+    public const double MaxStartRunwayExitFt = 150.0;
+
+    /// <summary>
+    /// True when extending <paramref name="current"/> with <paramref name="edge"/> would give a bridge something
+    /// <see cref="Bridge"/> forbids (<see cref="BridgeMoveRefusal(PartialRoute, IGroundEdge, GroundNode)"/>).
+    /// </summary>
+    public bool IsForbiddenBridgeMove(PartialRoute current, IGroundEdge edge, GroundNode nextNode) =>
+        BridgeMoveRefusal(current, edge, nextNode) is not null;
+
+    /// <summary>
+    /// Why <see cref="Bridge"/> refuses extending <paramref name="current"/> with <paramref name="edge"/>, or null when it allows
+    /// it or this search has no bridge rules: the search's call of the one judgement
+    /// (<see cref="BridgeMoveRefusal(BridgeRules, BridgeProgress, GroundNode, IGroundEdge, GroundNode)"/>), its inputs the
+    /// progress the partial route carries (<see cref="PartialRoute.BridgeProgress"/>).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">This search has bridge rules and <paramref name="current"/> carries no progress.</exception>
+    public string? BridgeMoveRefusal(PartialRoute current, IGroundEdge edge, GroundNode nextNode)
+    {
+        if ((Bridge is not { } rules) || !Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? head))
+        {
+            return null;
+        }
+
+        if (current.BridgeProgress is not { } progress)
+        {
+            throw new InvalidOperationException(
+                $"The bridge search's route at #{current.HeadNodeId} carries no bridge progress: seed its start with "
+                    + $"{nameof(BridgeProgressAtStart)} and each move with {nameof(BridgeProgressAfter)}."
+            );
+        }
+
+        return BridgeMoveRefusal(rules, progress, head, edge, nextNode);
+    }
+
+    /// <summary>
+    /// The progress a bridge search starts with from <paramref name="start"/> (<see cref="BridgeProgress.AtStart"/>, judged
+    /// against the start's own last edge), or null when this search has no bridge rules.
+    /// </summary>
+    public BridgeProgress? BridgeProgressAtStart(PartialRoute start) => Bridge is { } rules ? BridgeProgress.AtStart(start.LastEdge, rules) : null;
+
+    /// <summary>
+    /// The progress <paramref name="current"/> carries after driving <paramref name="edge"/> out of <paramref name="from"/>, its
+    /// head (<see cref="BridgeProgress.After"/>), or null when this search has no bridge rules.
+    /// </summary>
+    public BridgeProgress? BridgeProgressAfter(PartialRoute current, GroundNode from, IGroundEdge edge) =>
+        (Bridge is { } rules) && (current.BridgeProgress is { } progress) ? progress.After(from, edge, rules) : null;
+
+    /// <summary>
+    /// The one judgement of one bridge move, for the search and the post-hoc filter alike: why <paramref name="rules"/> refuse
+    /// driving <paramref name="edge"/> out of <paramref name="from"/> to <paramref name="next"/> after <paramref name="before"/>,
+    /// or null when they allow it. The move "runs along" a runway centreline, unless it is the runway the aircraft stands on and
+    /// the bridge has driven nothing else since its start, within <see cref="MaxStartRunwayExitFt"/>; "turns at" a centreline
+    /// node of a runway the clearance does not name (<see cref="IsTurnAtUnclearedRunway"/>, judged against the edge the bridge
+    /// arrives on: a runway entry or reversal, where a straight crossing on one taxiway is the route's own runway crossing);
+    /// "turns onto" a runway by an arc ending on a centreline node; or, once the bridge's connector has begun, "needs" an excluded
+    /// taxiway (<see cref="BridgeRules.ExcludedTaxiways"/>, an arc carrying two names excepted).
+    /// </summary>
+    public string? BridgeMoveRefusal(BridgeRules rules, BridgeProgress before, GroundNode from, IGroundEdge edge, GroundNode next) =>
+        RunwayUseRefusal(rules, before, from, edge, next) ?? ExcludedTaxiwayRefusal(rules, before, from, edge);
+
+    private string? RunwayUseRefusal(BridgeRules rules, BridgeProgress before, GroundNode from, IGroundEdge edge, GroundNode next)
+    {
+        if (edge.IsRunwayCenterline)
+        {
+            return IsLeavingStartRunway(rules, before, edge) ? null : $"runs along {edge.TaxiwayName}";
+        }
+
+        if (IsTurnAtUnclearedRunway(before.Arrival, from, edge))
+        {
+            return TurnedRunway(from, edge) is { } turned
+                ? $"turns at {turned.Runway} (#{turned.Node.Id} onto {edge.TaxiwayName})"
+                : $"turns at a runway (#{from.Id} onto {edge.TaxiwayName})";
+        }
+
+        return (edge is GroundArc) && next.Edges.FirstOrDefault(e => e.IsRunwayCenterline) is { } centreline
+            ? $"turns onto {centreline.TaxiwayName}"
+            : null;
+    }
+
+    private static bool IsLeavingStartRunway(BridgeRules rules, BridgeProgress before, IGroundEdge edge) =>
+        (rules.StartRunway is { } startRunway)
+        && edge.MatchesTaxiway(startRunway)
+        && (before.StartRunwayFt is { } runFt)
+        && (runFt + (edge.DistanceNm * GeoMath.FeetPerNm) <= MaxStartRunwayExitFt);
+
+    private static string? ExcludedTaxiwayRefusal(BridgeRules rules, BridgeProgress before, GroundNode from, IGroundEdge edge)
+    {
+        bool onConnector = before.OnConnector || from.Edges.Any(e => e.MatchesTaxiway(rules.FromTaxiway));
+        if ((rules.ExcludedTaxiways.Count == 0) || !onConnector || (edge is GroundArc { TaxiwayNames.Length: >= 2 }))
+        {
+            return null;
+        }
+
+        string name = RouteCostFunction.ResolveTaxiwayName(edge, from.Id);
+        return rules.ExcludedTaxiways.Contains(name) ? $"needs {name}, not in the clearance" : null;
+    }
+
+    /// <summary>The centreline node <paramref name="edge"/> turns at, the arc's corner else <paramref name="from"/>, and its runway.</summary>
+    private static (GroundNode Node, string Runway)? TurnedRunway(GroundNode from, IGroundEdge edge)
+    {
+        GroundNode at =
+            (edge is GroundArc arc) && (arc.Corner() is { } corner) && corner.Node.Edges.Any(e => e.IsRunwayCenterline) ? corner.Node : from;
+        return at.Edges.FirstOrDefault(e => e.IsRunwayCenterline) is { } runway ? (at, runway.TaxiwayName) : null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="node"/> lies on the centreline of a runway the clearance does not name
+    /// (<see cref="AllowedCenterlineNames"/>).
+    /// </summary>
+    public bool TouchesUnclearedRunway(GroundNode node) => node.Edges.Any(IsUnclearedCenterline);
+
+    /// <summary>
+    /// True when driving <paramref name="edge"/> from <paramref name="head"/>, reached along <paramref name="arrival"/> (null at the
+    /// walk's start), turns at a centreline node of a runway the clearance does not name: the edge is an arc cutting such a
+    /// corner whose two straight edges are no straight crossing (the fillet around KCOS A3/C3's join on 17R/35L; SFO H's own
+    /// 25° bend at its 1L/19R crossing, #384, is one), it leaves such a node by an arc, or it leaves such a node other than
+    /// straight across (<see cref="SegmentExpander.IsStraightRunwayCrossing"/>: in on one side, out on the other, bending at
+    /// most <see cref="SegmentExpander.MaxStraightCrossingTurnDeg"/>). A straight crossing, the taxiway changing name at the
+    /// runway or not (SFO Z1 onto S3 over 10R/28L at #662), is the route's own runway crossing and not a turn, and so is leaving
+    /// the node by a stitched <c>RWY…:link</c> crossing edge whatever the arrival angle (SFO H onto 1R/19L's link at #358, 25°
+    /// off the runway).
+    /// </summary>
+    public bool IsTurnAtUnclearedRunway(IGroundEdge? arrival, GroundNode head, IGroundEdge edge)
+    {
+        if ((edge is GroundArc arc) && (arc.Corner() is { } corner) && TouchesUnclearedRunway(corner.Node))
+        {
+            return !SegmentExpander.IsStraightRunwayCrossing(corner.Node, corner.ToFirst, corner.ToSecond);
+        }
+
+        if (!TouchesUnclearedRunway(head) || edge.TaxiwayName.Contains(":link", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if ((arrival is null) || arrival.IsRunwayCenterline)
+        {
+            return edge is GroundArc;
+        }
+
+        return !SegmentExpander.IsStraightRunwayCrossing(head, arrival, edge);
+    }
+
     private static readonly IReadOnlySet<string> EmptyAvoidedTaxiways = new HashSet<string>();
     private static readonly IReadOnlySet<(int, int)> EmptyForbiddenMoves = new HashSet<(int, int)>();
     private static readonly IReadOnlySet<(int, int, int)> EmptyBlockedTurns = new HashSet<(int, int, int)>();
@@ -272,6 +431,13 @@ public sealed record SearchContext(
     public IReadOnlyList<ImplicitConnectorEntry> ImplicitConnectors { get; init; } = [];
 
     /// <summary>
+    /// The airport's taxiway pairs declared a crossing of a runway (KCOS A2/C2 across 17R/35L), resolved from
+    /// <see cref="NavigationDatabase.AirportSidecars"/>. The offset-crossing rule waives its oblique-join test for them.
+    /// Empty when the airport has none.
+    /// </summary>
+    public IReadOnlyList<CrossingPair> CrossingPairs { get; init; } = [];
+
+    /// <summary>
     /// The connector taxiway bridging <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> (unordered), or null when none.
     /// </summary>
     public string? GetImplicitConnectorName(string fromTaxiway, string toTaxiway)
@@ -407,6 +573,7 @@ public sealed record SearchContext(
             BlockedTurnTriples = blocked.ForbiddenTurns,
             BlockedArcMoves = blocked.ForbiddenArcMoves,
             ImplicitConnectors = implicitConnectors,
+            CrossingPairs = ResolveCrossingPairs(layout),
             WaypointTurnHints = waypointTurnHints,
             StartHeadingTrue = startHeadingTrue,
             AllowedCenterlineNames = allowedCenterlines,
@@ -449,6 +616,16 @@ public sealed record SearchContext(
     {
         NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         return db is null ? [] : db.AirportSidecars.GetImplicitConnectors(layout.AirportId);
+    }
+
+    /// <summary>
+    /// Looks up the taxiway pairs declared a crossing for <paramref name="layout"/>'s airport from the global
+    /// <see cref="NavigationDatabase"/>. Best-effort: empty when no database is initialized or the airport is unconfigured.
+    /// </summary>
+    private static IReadOnlyList<CrossingPair> ResolveCrossingPairs(AirportGroundLayout layout)
+    {
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
+        return db is null ? [] : db.AirportSidecars.GetCrossingPairs(layout.AirportId);
     }
 
     /// <summary>

@@ -52,7 +52,7 @@ public class GroundViewModelHoldShortMenuLocatedTests
         GroundNode c1 = Node(7, 37.702, -122.206);
 
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        foreach (GroundNode? n in new[] { n0, n1, n2, n3, n4, x1, x2, c1 })
+        foreach (GroundNode n in new[] { n0, n1, n2, n3, n4, x1, x2, c1 })
         {
             layout.Nodes[n.Id] = n;
         }
@@ -93,7 +93,7 @@ public class GroundViewModelHoldShortMenuLocatedTests
             0,
             ["A", "B", "C"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null },
+            new ExplicitPathOptions { OccupiedTaxiway = null, ImpliedLeadTaxiway = null },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

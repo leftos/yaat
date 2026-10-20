@@ -160,7 +160,12 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
             fromNodeId: startNode,
             taxiwayNames: ["A", "E", "B", "B3", "A", "B1", "Z", "S"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = s => diagLines.Add(s) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = s => diagLines.Add(s),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

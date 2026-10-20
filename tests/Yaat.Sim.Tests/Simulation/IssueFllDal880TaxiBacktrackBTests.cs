@@ -192,6 +192,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
 

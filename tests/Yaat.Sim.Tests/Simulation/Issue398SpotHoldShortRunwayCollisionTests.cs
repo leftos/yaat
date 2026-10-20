@@ -98,6 +98,7 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
             var options = new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 ExplicitHoldShorts = holdShortTarget is null ? null : [HoldShortTarget.Parse(holdShortTarget)],
                 DestinationHintNode = destAcross,
             };

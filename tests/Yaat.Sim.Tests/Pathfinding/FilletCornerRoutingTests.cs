@@ -69,7 +69,12 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             OakTeStart,
             ["TE", "U", "W", "W1"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "30" },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DestinationRunway = "30",
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -102,6 +107,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 PathTurnHints = [null, TurnDirection.Right],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },
@@ -136,6 +142,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 PathTurnHints = [null, TurnDirection.Left],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },

@@ -1,5 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -218,9 +220,12 @@ public static partial class GroundCommandHandler
                 : null;
         }
 
+        CommandResult? pairRefusal = null;
         foreach (ResolvedExitInfo exit in exits)
         {
-            if (RouteFromExit(inputs, working, exit, runway.Designator) is { } fromExit)
+            TaxiResolution? fromExit = ResolveFromExit(inputs, working, exit);
+            pairRefusal ??= PairRefusalOf(fromExit);
+            if (JoinsFromExit(fromExit, exit, runway.Designator))
             {
                 Log.LogDebug("[TryTaxi] {Callsign}: TAXIAUTO via {Exit}, the first makeable exit with a route", aircraft.Callsign, exit.TaxiwayName);
                 var chosen = new ExitPreference { Taxiway = exit.TaxiwayName, Side = exit.Side };
@@ -234,7 +239,30 @@ public static partial class GroundCommandHandler
             }
         }
 
-        return NoMakeableExitRefusal(landing, inputs, fromAircraft);
+        return pairRefusal is not null ? PassedThrough(inputs, pairRefusal) : NoMakeableExitRefusal(landing, inputs, fromAircraft);
+    }
+
+    /// <summary>
+    /// The refusal of a route from an exit whose two cleared taxiways are refused as a pair (<see cref="PathfindingFailure.RefusesPair"/>),
+    /// or null: it stands in for "unable to exit", since no exit can make the clearance resolvable.
+    /// </summary>
+    private static CommandResult? PairRefusalOf(TaxiResolution? fromExit) =>
+        fromExit is { Route: null, Failure.RefusesPair: true } ? fromExit.Refusal : null;
+
+    /// <summary>
+    /// <paramref name="pairRefusal"/>, a pair refusal reached through an exit's route (<see cref="ResolveFromExit"/>, which
+    /// resolves at Debug), logged once at the inputs' failure level as the refusal of the clearance.
+    /// </summary>
+    private static CommandResult PassedThrough(TaxiResolveInputs inputs, CommandResult pairRefusal)
+    {
+        Log.Log(
+            inputs.FailureLogLevel,
+            "[TryTaxi] {Callsign}: TAXI {Taxi} refused from every exit — {Reason}",
+            inputs.Aircraft.Callsign,
+            string.Join(" ", inputs.AsCleared.Path),
+            pairRefusal.Message
+        );
+        return pairRefusal;
     }
 
     /// <summary>
@@ -277,10 +305,14 @@ public static partial class GroundCommandHandler
         }
 
         ExitSide? controllerSide = ControllerExitSide(aircraft);
+        CommandResult? pairRefusal = null;
         foreach (ResolvedExitInfo exit in rollout.Exits.OrderBy(e => JoinSideRank(e.Side, controllerSide, towardRoute)))
         {
+            TaxiResolution? fromExit = ResolveFromExit(inputs, working, exit);
+            pairRefusal ??= PairRefusalOf(fromExit);
             if (
-                (RouteFromExit(inputs, working, exit, rollout.Runway.Designator) is { Route: { } route } fromExit)
+                JoinsFromExit(fromExit, exit, rollout.Runway.Designator)
+                && (fromExit.Route is { } route)
                 && (route.Segments.FindIndex(s => string.Equals(s.TaxiwayName, first, StringComparison.OrdinalIgnoreCase)) is var onFirst and >= 0)
                 && (JoinStoredRoute(Spliced(route, [], onFirst), JoinAt(exit, rollout.Runway.Designator)) is not null)
             )
@@ -296,6 +328,11 @@ public static partial class GroundCommandHandler
                 ExitPreference? announced = ControllerNamedTheExit(aircraft, picked);
                 return AcceptImpliedExit(inputs, StoredFrom(inputs, fromExit), (Exit: picked, rollout.Expedite), announced);
             }
+        }
+
+        if (pairRefusal is not null)
+        {
+            return PassedThrough(inputs, pairRefusal);
         }
 
         PilotSpeechText unable = PilotResponder.BuildUnableToExit(aircraft, first);
@@ -323,20 +360,15 @@ public static partial class GroundCommandHandler
         return side == towardRoute ? 1 : 2;
     }
 
-    /// <summary>
-    /// The clearance resolved from <paramref name="exit"/>'s hold-short node, when its route leaves the exit ahead
-    /// (<see cref="JoinStoredRoute"/> joins it there); null when no route resolves or it turns back toward the runway.
-    /// </summary>
-    private static TaxiResolution? RouteFromExit(TaxiResolveInputs inputs, TaxiCommand working, ResolvedExitInfo exit, string runwayId)
-    {
-        if (exit.Path.Count < 2)
-        {
-            return null;
-        }
+    /// <summary>The clearance resolved from <paramref name="exit"/>'s hold-short node, route or refusal; null for an exit with no path.</summary>
+    private static TaxiResolution? ResolveFromExit(TaxiResolveInputs inputs, TaxiCommand working, ResolvedExitInfo exit) =>
+        exit.Path.Count < 2 ? null : ResolveTaxiRouteFromStart(inputs with { FailureLogLevel = LogLevel.Debug }, working, exit.HoldShortNode);
 
-        TaxiResolution fromExit = ResolveTaxiRouteFromStart(inputs with { FailureLogLevel = LogLevel.Debug }, working, exit.HoldShortNode);
-        return (fromExit.Route is { } route) && (JoinStoredRoute(route, JoinAt(exit, runwayId)) is not null) ? fromExit : null;
-    }
+    /// <summary>
+    /// Whether <paramref name="fromExit"/> carries a route that joins from <paramref name="exit"/> (<see cref="JoinStoredRoute"/>).
+    /// </summary>
+    private static bool JoinsFromExit([NotNullWhen(true)] TaxiResolution? fromExit, ResolvedExitInfo exit, string runwayId) =>
+        (fromExit?.Route is { } route) && (JoinStoredRoute(route, JoinAt(exit, runwayId)) is not null);
 
     /// <summary>Where <paramref name="exit"/> ends, for joining a route from it.</summary>
     private static StoredRouteJoin JoinAt(ResolvedExitInfo exit, string runwayId) =>

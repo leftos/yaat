@@ -80,7 +80,12 @@ public class RunwaySegmentRoutingTests
             start.Id,
             ["28R", "G", "D"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Piston,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -121,7 +126,12 @@ public class RunwaySegmentRoutingTests
             start.Id,
             ["28R", "W"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Piston,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -153,7 +163,12 @@ public class RunwaySegmentRoutingTests
             start.Id,
             ["28R", "G", "D"],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Piston,
             WakeTurbulenceData.WakeClass.Large
         );

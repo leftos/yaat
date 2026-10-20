@@ -64,6 +64,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 PathTurnHints = [hint],
                 StartHeadingTrue = AcrossWHeadingDeg,
             },
@@ -187,7 +188,12 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: 1,
             taxiwayNames: ["A", "B"],
             out failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, PathTurnHints = [null, bHint] },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                PathTurnHints = [null, bHint],
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );
@@ -262,6 +268,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 PathTurnHints = [aHint, null],
                 StartHeadingTrue = 0.0,
             },
@@ -327,6 +334,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 PathTurnHints = [aHint],
                 StartHeadingTrue = 0.0,
             },
@@ -393,7 +401,12 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: 1,
             taxiwayNames: ["A", "B"],
             out failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, PathTurnHints = [null, bHint] },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                PathTurnHints = [null, bHint],
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

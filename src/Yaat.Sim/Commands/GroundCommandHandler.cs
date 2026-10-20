@@ -662,6 +662,12 @@ public static partial class GroundCommandHandler
         /// <summary>The refusal, or null when a route resolved.</summary>
         public required CommandResult? Refusal { get; init; }
 
+        /// <summary>
+        /// The pathfinding failure behind a refusal the recoveries may not rewrite (<see cref="PathfindingFailure.RefusesPair"/>),
+        /// or null for a route or any other refusal.
+        /// </summary>
+        public PathfindingFailure? Failure { get; init; }
+
         public static TaxiResolution Refused(TaxiCommand command, CommandResult refusal) =>
             new()
             {
@@ -897,6 +903,39 @@ public static partial class GroundCommandHandler
         );
 
     /// <summary>
+    /// The refusal, terminal and spoken, of a clearance whose two named taxiways do not connect
+    /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>), meet only where the route cannot reach ahead
+    /// (<see cref="FailureKind.NoRouteAhead"/>), or cross a runway by a turn the aircraft cannot make
+    /// (<see cref="FailureKind.CannotMakeTurn"/>), logged at the inputs' failure level naming the aircraft, the taxi and the refusal.
+    /// </summary>
+    private static TaxiResolution PairRefused(TaxiResolveInputs inputs, TaxiCommand taxi, PathfindingFailure unconnected)
+    {
+        if ((unconnected.UnconnectedFrom is not { } from) || (unconnected.UnconnectedTo is not { } to))
+        {
+            throw new InvalidOperationException($"a {unconnected.Kind} failure names no taxiway pair: '{unconnected.HumanMessage}'");
+        }
+
+        AircraftState aircraft = inputs.Aircraft;
+        Log.Log(
+            inputs.FailureLogLevel,
+            "[TryTaxi] {Callsign}: TAXI {Taxi} refused — {Reason}",
+            aircraft.Callsign,
+            string.Join(" ", taxi.Path),
+            unconnected.HumanMessage
+        );
+        PilotSpeechText unable = unconnected.Kind switch
+        {
+            FailureKind.NoRouteAhead => PilotResponder.BuildUnableNoRouteAhead(aircraft, from, to, unconnected.IntersectionOnlyBehind),
+            FailureKind.CannotMakeTurn => PilotResponder.BuildUnableCannotMakeTurn(aircraft, from, to),
+            _ => PilotResponder.BuildUnableTaxiwaysDoNotConnect(aircraft, from, to),
+        };
+        return TaxiResolution.Refused(taxi, new CommandResult(false, unconnected.HumanMessage) { PilotUnable = unable }) with
+        {
+            Failure = unconnected,
+        };
+    }
+
+    /// <summary>
     /// The refusal a type whose gear does not fit a turn about gives when the only route that avoids reversing over its
     /// taxiway needs it to turn about there.
     /// </summary>
@@ -1049,7 +1088,7 @@ public static partial class GroundCommandHandler
                     category,
                     wakeClass,
                     startHeadingTrueDeg,
-                    occupiedTaxiway
+                    StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
                 );
             }
 
@@ -1079,7 +1118,7 @@ public static partial class GroundCommandHandler
                 category,
                 wakeClass,
                 startHeadingTrueDeg,
-                occupiedTaxiway
+                StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
             );
         }
 
@@ -1119,6 +1158,13 @@ public static partial class GroundCommandHandler
         PathfindingFailure? failure = start.Failure;
         string? failReason = failure?.HumanMessage;
 
+        // Two named taxiways that meet nowhere the aircraft may join them: refused as issued, controller-issued, scripted or
+        // TAXIAUTO alike. No recovery below may rewrite it into a route the clearance never named; the aircraft stays put.
+        if ((route is null) && (failure is { RefusesPair: true } unconnected))
+        {
+            return PairRefused(inputs, taxi, unconnected);
+        }
+
         // A route kept inside the ramp either resolved or is refused as it stands: every recovery below would have the
         // aircraft drive taxiways the clearance never named.
         if (confineToRamp && (route is null))
@@ -1147,6 +1193,7 @@ public static partial class GroundCommandHandler
                     Options = new ExplicitPathOptions
                     {
                         OccupiedTaxiway = occupiedTaxiway,
+                        ImpliedLeadTaxiway = null,
                         ExplicitHoldShorts = taxi.HoldShorts,
                         DestinationRunway = taxi.DestinationRunway,
                         DestinationHintNode = destinationNode,
@@ -1155,13 +1202,18 @@ public static partial class GroundCommandHandler
                     Category = category,
                     WakeClass = wakeClass,
                 },
-                failure
+                failure,
+                out PathfindingFailure? tailRefusal
             );
             if (plan is not null)
             {
                 route = plan.Route;
                 failure = null;
                 failReason = null;
+            }
+            else if (tailRefusal is { RefusesPair: true } unconnectedTail)
+            {
+                return PairRefused(inputs, taxi, unconnectedTail);
             }
         }
 
@@ -1184,6 +1236,7 @@ public static partial class GroundCommandHandler
                     Options = new ExplicitPathOptions
                     {
                         OccupiedTaxiway = occupiedTaxiway,
+                        ImpliedLeadTaxiway = null,
                         ExplicitHoldShorts = taxi.HoldShorts,
                         DestinationRunway = taxi.DestinationRunway,
                         PathTurnHints = taxi.PathTurnHints,
@@ -1860,6 +1913,25 @@ public static partial class GroundCommandHandler
     }
 
     /// <summary>
+    /// The taxiways a route resolution starts from: the one the aircraft occupies, counted as named, and the same taxiway
+    /// again as the implied lead of the clearance resolved when the handler put it in front of a clearance that did not name
+    /// it first (<see cref="CurrentTaxiwayPrepend"/>).
+    /// </summary>
+    /// <param name="Occupied">The taxiway the aircraft occupies, or null.</param>
+    /// <param name="ImpliedLead">The occupied taxiway when it leads the resolved clearance only by the handler's prepend, else null.</param>
+    private sealed record StartTaxiways(string? Occupied, string? ImpliedLead);
+
+    private static StartTaxiways StartTaxiwaysOf(TaxiCommand command, TaxiCommand asCleared, string? occupiedTaxiway)
+    {
+        bool prepended =
+            (occupiedTaxiway is not null)
+            && (command.Path.Count > 0)
+            && command.Path[0].Equals(occupiedTaxiway, StringComparison.OrdinalIgnoreCase)
+            && ((asCleared.Path.Count == 0) || !asCleared.Path[0].Equals(occupiedTaxiway, StringComparison.OrdinalIgnoreCase));
+        return new StartTaxiways(occupiedTaxiway, prepended ? occupiedTaxiway : null);
+    }
+
+    /// <summary>
     /// The taxiway the aircraft occupies, prepended to the cleared path — the fallback start when the path as
     /// cleared does not resolve. Null unless the start node lies on <see cref="AircraftGroundOps.CurrentTaxiway"/>
     /// (a stale value never injects a phantom leg) and that taxiway joins the first cleared one.
@@ -2353,7 +2425,7 @@ public static partial class GroundCommandHandler
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
-        string? occupiedTaxiway
+        StartTaxiways startTaxiways
     )
     {
         // Empty path + destination runway → A* to nearest hold-short node
@@ -2385,7 +2457,8 @@ public static partial class GroundCommandHandler
             out failure,
             new ExplicitPathOptions
             {
-                OccupiedTaxiway = occupiedTaxiway,
+                OccupiedTaxiway = startTaxiways.Occupied,
+                ImpliedLeadTaxiway = startTaxiways.ImpliedLead,
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
 
@@ -3473,7 +3546,7 @@ public static partial class GroundCommandHandler
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
-        string? occupiedTaxiway
+        StartTaxiways startTaxiways
     )
     {
         failure = null;
@@ -3507,7 +3580,8 @@ public static partial class GroundCommandHandler
             out failure,
             new ExplicitPathOptions
             {
-                OccupiedTaxiway = occupiedTaxiway,
+                OccupiedTaxiway = startTaxiways.Occupied,
+                ImpliedLeadTaxiway = startTaxiways.ImpliedLead,
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
 

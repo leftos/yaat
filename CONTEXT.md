@@ -354,6 +354,9 @@ An aircraft taking off, landing, rolling out, lined up on the pavement, or cross
 **Vacating** (a runway):
 The pilot sense, not the controller's: an aircraft on the ground leaving a runway whose tail is still over the strict paved half-width or inside the hold line (`RunwayOccupancy.IsVacating`), moving or stopped, until the tail is out. Moving, it has right of way over taxiing traffic; held, only against traffic coming head-on into its way out.
 
+**Bridge progress** (of a detour connector):
+What a connector search carries along a partial route so each bridge rule can judge the next move: the edge it arrived on, the feet used of the start runway, and whether it has touched the transition's first taxiway (`BridgeProgress` on `PartialRoute`). The search and the post-hoc filter judge with the same progress, and the search's closed-set key includes it.
+
 **Continuation past a short bar**:
 An uninstructed runway exit whose own bar is a dead-end fallback inside the holding distance carries on to the same runway's bar on the joining taxiway, e.g. OAK P → J's 28R bar (docs/landing-and-runway-exit.md).
 

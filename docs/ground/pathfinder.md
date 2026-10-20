@@ -435,9 +435,49 @@ When nothing qualifies the extension fails, and `GroundCommandHandler` holds the
 
 When two consecutive cleared taxiways have **no direct junction** (zero junction candidates), the resolver bridges them and records a `ConnectorInsertion`.
 
-The bridge is a bounded A* (capped at `MaxDetourExpansions = 5_000`) that **inherits the authorized set** (soft policy): numbered connectors and RAMP are free, an unnamed letter taxiway carries the `0.2 nm` unauthorized penalty so it loses to a numbered connector but is still usable as a last resort — the detour never fails a resolvable clearance.
+The bridge is a bounded A* (capped at `MaxDetourExpansions = 5_000`) that **inherits the authorized set** (soft policy): numbered connectors and RAMP are free, an unnamed letter taxiway carries the `0.2 nm` unauthorized penalty so it loses to a numbered connector when ranking. `PickDetourEntry` ranks only the bridges the bridge rules allow (next paragraphs).
 
-The materialiser surfaces the inserted connector as an informative notification — *"A and B do not connect directly — taxi via A1"* — **not** an "unauthorized taxiway" warning, and suppresses the generic warning for those connector names.
+The materialiser surfaces the inserted connector as an informative notification — *"A and B do not connect directly — taxi via A1"* — **not** an "unauthorized taxiway" warning, and suppresses the generic warning for those connector names. A runway centreline is never a connector: `RecordConnectorInsertion` skips it, so the notice never reads "taxi via" a runway.
+
+**A bridge never runs along a runway, and between two named taxiways it silently uses only a digit-named stub or RAMP.**
+
+A candidate bridge is dropped when it drives a runway centreline edge, turns at a centreline node of a runway the clearance does not name, or drives an arc ending on a centreline node (the turn onto the runway), however short the run; the diagnostic says `runs along`, `turns at` or `turns onto` the runway. The only allowance is up to `MaxStartRunwayExitFt` (150 ft) along the runway the aircraft stands on, to leave it.
+
+A turn at an uncleared runway (`SearchContext.IsTurnAtUnclearedRunway`) is an arc whose corner is that node, as the C3/A3 fillet on KCOS 17R/35L, or leaving the node other than straight across (`SegmentExpander.IsStraightRunwayCrossing`): in on one side of the runway line and out on the other, neither edge along it, the route bending at most `MaxStraightCrossingTurnDeg` (45°, a sim convention: OAK C over the 33 end bends 0.3°, SFO H's own bend over 1L/19R 25°, KCOS C3 onto A3 64°).
+
+A high-speed exit in and another taxiway out is a runway entry or reversal.
+
+A straight crossing, whether or not the taxiway changes name at the runway as SFO Z1 does onto S3 at #662 on 10R/28L, is the route's own runway crossing and is kept, and so is leaving the centreline node by a stitched `RWY…:link` crossing edge whatever the arrival angle (SFO H reaches 1R/19L's node #358 at 25° and crosses by the link onto GL).
+
+Between two named taxiways it is also dropped once its connector (the part from `fromTaxiway` on) drives a letter-only taxiway (no digit) that is not a ramp taxilane (`MovementAreaClassification.IsRampTaxilane`) and that the clearance left out, so the connector is silent only through digit-named stubs, RAMP, non-movement taxilanes and taxiways the clearance names.
+
+These count as named (`CountsAsNamed`): the transition's two ends, the first mention of a taxiway in the clearance before the transition's second taxiway (taxiways are flown in clearance order, so KCOS `TAXI C2 A2 A` may not bridge C2 to A2 along A; an adjacent one in the clearance wins), and the pair's curated `implicitConnectors` connector.
+
+On the clearance's first transition only, the taxiway the aircraft occupies (`SearchContext.OccupiedTaxiway`) and every taxiway an edge at the route's start node carries (`StartIsOnTaxiway`).
+
+The first transition is decided by its index (`BridgeRulesFor`'s `transitionIndex` 0), not by the taxiway's name, so a lead taxiway repeated later in the clearance gets no exemption (OAK `TAXI F K J C W` from C refuses).
+
+**Every bridge rule is one judgement, `SearchContext.BridgeMoveRefusal`.** It takes the move and the inputs `BridgeRules` (start runway, `fromTaxiway`, whether the head is on it, the excluded letter taxiways; built by `BridgeRulesFor`) and `BridgeProgress` (the edge the bridge arrives on, feet driven along the start runway, whether the connector has begun), and returns why a move is refused or null.
+
+The A* search calls it per move, carrying the progress on `PartialRoute.BridgeProgress` and keying its closed set on `(node, bearing bucket, taxiway, bridge progress)` in a bridge search, so two arrivals that differ in what the bridge has driven are not merged. The post-hoc filter (`BridgeDropReason`) calls it over a finished bridge's edges with the same inputs, so the two agree on every bridge.
+
+The restricted search runs first; when it finds no bridge an unrestricted pass runs only to classify the refusal, and a bridge only that pass finds is refused with a Warning in the server log naming the search and filter verdicts.
+
+The connector is judged from `fromTaxiway` on. An aircraft that has not reached `fromTaxiway` yet (on a stand or ramp), and the occupied taxiway the handler prepended in front of a clearance that did not name it first (`ExplicitPathOptions.ImpliedLeadTaxiway`, set by `GroundCommandHandler.StartTaxiwaysOf`), is on its start leg, which is noted as a taxiway not in the route issued, never a connector. A node-reference transition obeys the runway rule alone.
+
+The ramp-lane recoveries (`RampLaneReposition`) get no letter allowance: the remainder they re-resolve is judged as any clearance is.
+
+**When no legal bridge exists for two named taxiways, the clearance is refused.** `TryDetour` fails with a pair refusal (`PathfindingFailure.RefusesPair`, carrying `UnconnectedFrom`/`UnconnectedTo`) when bridges existed and all were dropped, or the restricted search found none and the unrestricted pass classified the refusal; with no bridge at all it stays `TransitionInfeasible`. `PairRefusal` picks the kind.
+
+`FailureKind.TaxiwaysDoNotConnect` when the two taxiways share no node of the layout: *"Unable, {A} and {B} do not connect, request taxi instructions"* (`SegmentExpander.TaxiwaysDoNotConnectReason`).
+
+`FailureKind.NoRouteAhead` when they do share nodes but the walk reached none ahead: *"Unable, no route from {A} onto {B} ahead, request taxi instructions"* (`NoRouteAheadReason`), with *"(intersection only directly behind, would require turn-about)"* appended when every junction lies more than 90° off the aircraft's pose (`PathfindingFailure.IntersectionOnlyBehind`; with no pose no junction counts as behind, and the dead-end form has no parenthesis).
+
+`FailureKind.CannotMakeTurn` is the third pair refusal, raised by the declared-crossing path (below).
+
+`GroundCommandHandler.PairRefused` returns whichever it is as the refusal before any recovery can rewrite the clearance, for a controller-issued, scripted and `TAXIAUTO` taxi alike: the aircraft stays put, the pilot says `PilotResponder.BuildUnableTaxiwaysDoNotConnect`, `BuildUnableNoRouteAhead` or `BuildUnableCannotMakeTurn` (wording in [`pilot-phraseology.md`](../pilot-phraseology.md)), and the server log gets a `[TryTaxi] {Callsign}: TAXI {Taxi} refused` entry with the reason.
+
+`ExplicitPathOptions.DiagnosticLog` gets `[detour] drops A→B bridge via #n: runs along RWY17R/35L` (or `turns at RWY17R/35L (#14 onto A3)`, `turns onto RWY17R/35L`) or `needs C, not in the clearance` per dropped bridge, and `[detour] judged …` lines with the search and filter verdicts.
 
 **Two taxiways that meet only across a runway are one runway crossing, tried before the detour.** In `RouteNamedToNamed`'s zero-candidate branch `TryRouteAcrossOffsetRunway` runs first, so a clearance like OAK `TAXI C D F @OLD1 HS 33` (D and F both join 15/33, from opposite sides, 100 ft apart along it) routes D, across 15/33, onto F instead of taking a connector detour that silently dropped D.
 
@@ -448,7 +488,13 @@ A pair never qualifies when:
 - **Same side.** Both joins on one side is taxiing along the runway, which the controller clears by naming it.
 - **No side.** A taxiway that runs through the runway or lies within 5° of its line is on neither side.
 - **Rule A2: a square crossing already exists.** A straight non-centreline edge leaves either join toward the opposite side (`HasStraightTaxiwayToward`), so a taxiway continues across the runway from that join and is the way over (SFO C3/S2 over 28R, where S1 crosses straight from C3's join).
-- **Rule B1: oblique join.** A straight edge of either taxiway meets the runway less than 60° off its line (`MeetsRunwayObliquely`): a high-speed exit, whose use is a reversal onto or off the runway, never a crossing (7110.65 §3-7-2.c NOTE; COS A2/C2 over 17R/35L, C2 30° off). The 60° is a sim convention.
+- **Rule B1: oblique join.** A straight edge of either taxiway meets the runway less than 60° off its line (`MeetsRunwayObliquely`): a high-speed exit, whose use is a reversal onto or off the runway, never a crossing (7110.65 §3-7-2.c NOTE; KCOS A2/C2 over 17R/35L, C2 30° off: a bare `TAXI A2 C2` is refused as not connecting, and `TAXI A2 17R C2 C` names the runway and reads back "Taxi via A2 on 17R C2 C"). The 60° is a sim convention.
+
+  YAAT ships no declared pair; an ARTCC's airport sidecar may declare one (`crossingPairs`, e.g. `{ "taxiways": ["A2", "C2"], "runway": "17R/35L" }`; `CrossingPair.Matches`, resolved into `SearchContext.CrossingPairs`), and that pair across that runway alone is exempt from this rule; every other rule still holds.
+
+  The declared crossing runs along the runway centreline between the two joins and ends in a turn onto the second taxiway, which `TurnOntoBeyondLimit` checks against `CategoryLimits.MaxHeadingChangeDeg` for the aircraft's type: KCOS A2 onto C2 is a 150° reversal, so a B738 gets `FailureKind.CannotMakeTurn` (*"Unable, can't make the turn from A2 onto C2, request taxi instructions"*, `CannotMakeTurnReason`) while a C172 crosses.
+
+  KCOS ships no `crossingPairs` entry, so a bare `TAXI A2 C2` is refused as not connecting for every type.
 - **Longer offset.** The joins are further apart than 300 ft.
 
 A runway token as either end of the pair is skipped.

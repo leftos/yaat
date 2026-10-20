@@ -74,6 +74,7 @@ public class Issue235SfoTaxiBKAParkingLoopTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationHintNode = f10,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },

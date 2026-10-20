@@ -48,6 +48,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = runway,
                 DiagnosticLog = diag.Add,
             },

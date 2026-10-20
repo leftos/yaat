@@ -206,6 +206,28 @@ Short named connector taxiways that should be treated as authorized **only when 
 
 Authorization is scoped to explicit `TAXI` clearances (it has no effect on auto-routes). Names are case-insensitive. An entry whose `between` is not exactly two non-blank names is skipped with a warning.
 
+### `crossingPairs`
+
+Two taxiways that face each other across a runway, declared a crossing of it from the airport diagram.
+
+A clearance naming them adjacent (`TAXI A2 C2` or `TAXI C2 A2`) then holds short at the first taxiway's entry bar, runs along the runway centreline between the two joins (at most 300 ft) and turns onto the other, provided the aircraft can make the turn from the runway onto the second taxiway: a type whose turn limit forbids it (a B738 onto KCOS C2, a 150° reversal onto the high-speed exit) refuses `Unable, can't make the turn from A2 onto C2, request taxi instructions`.
+
+Without the declaration the pathfinder refuses such a pair when either taxiway meets the runway less than 60° off its line (a high-speed exit), since it cannot tell a crossing from a reversal onto the runway; the declaration waives that one test. The example is hypothetical: YAAT ships no declaration, and KCOS A2/C2 across 17R/35L, where C2 is a 30° high-speed exit, refuses `Unable, A2 and C2 do not connect, request taxi instructions` until an ARTCC declares it.
+
+```json
+"crossingPairs": [
+  { "taxiways": ["A2", "C2"], "runway": "17R/35L", "notes": "A2 and C2 face each other across 17R/35L." }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `crossingPairs[].taxiways` | string[] | Yes | Exactly two distinct taxiway names (unordered) |
+| `crossingPairs[].runway` | string | Yes | The runway they cross, both ends as the layout names it, e.g. `"17R/35L"` |
+| `crossingPairs[].notes` | string | No | Human-readable rationale. Informational only |
+
+The declaration waives only the oblique-join rule: the two taxiways must still join the runway from opposite sides, within the offset-crossing bound (300 ft along the runway), with no square crossing already available. Names are case-insensitive. An entry whose `taxiways` are not two distinct non-blank names, whose `runway` is missing, or whose `runway` does not name both ends (`17R` alone, or three ends) is skipped with a warning.
+
 ### `oneWayEdges`
 
 Taxiway segments that may only be taxied in one direction. Each constraint is an ordered `path` of waypoints; the **allowed travel direction is the order of the path** (first → last). `point` is `[lon, lat]` (GeoJSON order — copy-pasteable straight from the airport map), and `taxiway` is the taxiway you *expect* that vertex to land on (a validation hint — a warning is logged if a future map shifts the vertex off it).

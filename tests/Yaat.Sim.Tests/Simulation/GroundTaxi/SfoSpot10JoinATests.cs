@@ -103,6 +103,7 @@ public class SfoSpot10JoinATests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = null,
                 StartHeadingTrue = StartHeadingTrue,
                 DiagnosticLog = diag.Add,

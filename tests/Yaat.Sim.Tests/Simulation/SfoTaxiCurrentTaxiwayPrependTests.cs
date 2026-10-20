@@ -358,7 +358,12 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             start.Id,
             ["K"],
             out string? asClearedFailure,
-            new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = Skw3398OnBPose.Heading.Degrees },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                StartHeadingTrue = Skw3398OnBPose.Heading.Degrees,
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

@@ -57,6 +57,7 @@ public class RunwayDestinationJunctionTests
             new ExplicitPathOptions
             {
                 OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
                 DestinationRunway = "33",
 
                 DiagnosticLog = msg => _output.WriteLine(msg),

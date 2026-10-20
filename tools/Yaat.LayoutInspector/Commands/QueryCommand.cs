@@ -177,6 +177,7 @@ public sealed class QueryCommand : ICommand
                 new ExplicitPathOptions
                 {
                     OccupiedTaxiway = null,
+                    ImpliedLeadTaxiway = null,
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,
@@ -472,7 +473,12 @@ public sealed class QueryCommand : ICommand
             nodeId,
             [taxiway],
             out string? failReason,
-            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => diag.Add(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                DiagnosticLog = msg => diag.Add(msg),
+            },
             AircraftCategory.Jet,
             WakeTurbulenceData.WakeClass.Large
         );

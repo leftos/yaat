@@ -254,10 +254,18 @@ public static class RampLaneReposition
     /// Plan a lane switch for a clearance whose first taxiway the resolver reported as not connected. Null when
     /// the failure is something else, the taxiway is not a sibling ramp lane of the aircraft's current lane, no
     /// lane node lies within <see cref="MaxCrossingFt"/> across open apron, or the graph route from that node
-    /// does not resolve — the caller then falls through to its other recoveries.
+    /// does not resolve — the caller then falls through to its other recoveries. The cut is the only leg that may leave the
+    /// clearance: the route from the lane node is resolved as issued, and when two of its named taxiways do not connect
+    /// (<see cref="PathfindingFailure.RefusesPair"/>) that refusal is <paramref name="tailRefusal"/> and no other lane node is tried.
     /// </summary>
-    public static RampLaneRepositionPlan? TryPlan(AirportGroundLayout layout, RampLaneRepositionRequest request, PathfindingFailure failure)
+    public static RampLaneRepositionPlan? TryPlan(
+        AirportGroundLayout layout,
+        RampLaneRepositionRequest request,
+        PathfindingFailure failure,
+        out PathfindingFailure? tailRefusal
+    )
     {
+        tailRefusal = null;
         LatLon position = request.Position;
         TrueHeading heading = request.Heading;
         string? currentTaxiway = request.CurrentTaxiway;
@@ -306,6 +314,12 @@ public static class RampLaneReposition
             if (tail is null)
             {
                 Log.LogDebug("[Reposition] route from {Lane} node {Node} does not resolve: {Reason}", lane, target.Id, tailFailure?.HumanMessage);
+                if (tailFailure is { RefusesPair: true })
+                {
+                    tailRefusal = tailFailure;
+                    return null;
+                }
+
                 continue;
             }
 
@@ -1068,6 +1082,7 @@ public static class RampLaneReposition
         var headOptions = new ExplicitPathOptions
         {
             OccupiedTaxiway = options.OccupiedTaxiway,
+            ImpliedLeadTaxiway = null,
             ExplicitHoldShorts = options.ExplicitHoldShorts,
             DestinationRunway = null,
 
