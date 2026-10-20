@@ -134,8 +134,8 @@ Do **not** run bare `dotnet format` — its whitespace rules conflict with CShar
 Tests live in `tests/` mirroring the source project structure. Run the relevant subset before committing:
 
 ```bash
-dotnet test tests/Yaat.Sim.Tests
-dotnet test tests/Yaat.Client.Tests
+dotnet test --project tests/Yaat.Sim.Tests
+dotnet test --project tests/Yaat.Client.Tests
 ```
 
 ## Contributing ARTCC data

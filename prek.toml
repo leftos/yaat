@@ -83,7 +83,7 @@ stages = ["pre-commit"]
 [[repos.hooks]]
 id = "dotnet-build"
 name = "dotnet build (warnings as errors)"
-entry = "dotnet build -p:TreatWarningsAsErrors=true"
+entry = "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/prek-dotnet-build.log -TimeoutSeconds 900 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true"
 language = "system"
 files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
 pass_filenames = false

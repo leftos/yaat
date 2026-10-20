@@ -201,8 +201,8 @@ Every test project uses xunit.v3 on the Microsoft.Testing.Platform runner (`UseM
 
 | Want | Command |
 |------|---------|
-| One test / substring of `Namespace.Class.Method` | `dotnet test tests/Yaat.Sim.Tests -- --filter-method "*MyTaxiExitTests*"` |
-| One class | `dotnet test tests/Yaat.Sim.Tests -- --filter-class "*.MyTaxiExitTests"` |
+| One test / substring of `Namespace.Class.Method` | `dotnet test --project tests/Yaat.Sim.Tests -- --filter-method "*MyTaxiExitTests*"` |
+| One class | `dotnet test --project tests/Yaat.Sim.Tests -- --filter-class "*.MyTaxiExitTests"` |
 | Several patterns | `-- --filter-method "*Verbalizer*" "*PhraseologyMapperTrace*"` (repeat values after one switch) |
 | Exclude / include a trait | `-- --filter-not-trait "Category=Nightly"` / `-- --filter-trait "Category=Nightly"` |
 | TRX report | `-- --report-xunit-trx --report-xunit-trx-filename results.trx` (lands in `bin/<cfg>/net10.0/TestResults/`) |

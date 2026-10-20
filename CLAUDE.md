@@ -274,7 +274,9 @@ When invoking aviation-sim-expert, always include:
 
   Ensure zero warnings and all tests pass before committing. The log, the ceiling, the slot kind and the command are all required: the gate names each one a call is missing, prints its usage and exits 2 before anything runs.
 
-  The ceiling is not a wall clock: `tools/gate.ps1` (a copy of the canonical `~/.claude/tools/gate/gate.ps1`) counts it on a load-adjusted clock, which keeps wall time on an idle machine and slows while other agents load it. The kill line says why a run died, always exit 124.
+  `tools/gate.ps1` is the gate wrapper: it hands every call to the installed `gate.exe` (install it from the gate repo with `pwsh tools/install.ps1`), and on a machine without one runs the command directly, with no log, slot or watchdog.
+
+  The ceiling is not a wall clock: `gate.exe` counts it on a load-adjusted clock, which keeps wall time on an idle machine and slows while other agents load it. The kill line says why a run died, always exit 124.
 
   `STALLED` (no output and no CPU for 120 s, `-StallSeconds <s>` to change it) has hung; read the log. `TIMED OUT` kept working past the ceiling even allowing for load: a busy loop, or a ceiling set too tight, so read the log before raising it.
 
@@ -290,7 +292,7 @@ When invoking aviation-sim-expert, always include:
   Catches signature changes in `Yaat.Sim` that break the sibling repo — bare `dotnet test` only sees yaat. By default it excludes the heavy `Nightly` (per-spot taxi-coverage grid) and `PathfinderGrid` (state-aware-pruning necessity oracle sweep) categories to stay fast; pass `-Full` to include them (CI/nightly run the full set).
 - **Warnings are errors**: Build with `dotnet build -p:TreatWarningsAsErrors=true` before committing.
 - **No `-q` flag**: Never pass `-q` to any dotnet command — causes spurious errors.
-- **Pre-commit**: Automated via `prek` (`prek.toml`). Runs: trailing-whitespace + EOF-newline fix (auto-staged), merge conflict check, private key detection, large file check, `ruff check --fix` + `ruff format` (Python), `dotnet format style --severity info`, `dotnet format analyzers`, `dotnet csharpier format` (C# + `.axaml`), the command-cheatsheet sync check, `dotnet build -p:TreatWarningsAsErrors=true`.
+- **Pre-commit**: Automated via `prek` (`prek.toml`). Runs: trailing-whitespace + EOF-newline fix (auto-staged), merge conflict check, private key detection, large file check, `ruff check --fix` + `ruff format` (Python), `dotnet format style --severity info`, `dotnet format analyzers`, `dotnet csharpier format` (C# + `.axaml`), the command-cheatsheet sync check, `dotnet build -p:TreatWarningsAsErrors=true` (run through the gate wrapper, `tools/gate.ps1`, with its log at `.tmp/prek-dotnet-build.log`).
 
   Run bare `prek run` manually to check; hooks fire automatically on `git commit`. Do NOT run bare `dotnet format`. Do NOT pass `-v q`, `--nologo`, or extra flags to `dotnet format`.
 - **Python tooling**: `pyproject.toml` at the repo root configures ruff (150-char lines, py313, complexity ≤8) for the scripts in `tools/` and `docs/`. Lint with `uvx ruff check tools`, format with `uvx ruff format tools`. Pre-config complexity debt is grandfathered via per-file ignores in `pyproject.toml` — new scripts must meet the limits.

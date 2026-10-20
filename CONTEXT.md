@@ -740,7 +740,7 @@ A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never s
 A recording test that pins behaviour which only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids). It runs on the archive's bundled layout through `RecordingGroundData.VersionPinned(archivePath, why)`, and its fixture's ids are never remapped.
 
 **Gate**:
-`tools/gate.ps1` (a copy of the canonical `~/.claude/tools/gate/gate.ps1`, called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
+`tools/gate.ps1` (the gate wrapper, which hands every call to the installed `gate.exe` and on a machine without one runs the command directly; called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
 
 **Stall**:
 A gate run whose log has not grown and whose processes (with any MSBuild or compiler server started during the run) have used no CPU for 120 s (`-StallSeconds`); the gate kills it as hung (`gate: STALLED`).
