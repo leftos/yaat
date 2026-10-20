@@ -22,8 +22,9 @@
 - [ ] YAAT-888 Point menu Taxi here answers an empty group when every route drops out
 - [ ] YAAT-892 Make Taxi here titles skip the destination runway like the variants do
 - [ ] YAAT-908 Move the approach flyout onto the shared flyout base; mark the assigned Mach
-- [ ] YAAT-910 Make Cross fix, Depart fix and Join radial quick commands send commands the parser accepts
 - [ ] YAAT-922 Collect route fix names without throwing when navdata is not loaded
+- [ ] YAAT-930 Refuse unresolvable route rows and out-of-range speeds in the Cross fix flyout
+- [ ] YAAT-931 Fix the red ground-runway menu hover-preview automation test on main
 
 ## Bug reports and feature requests
 
@@ -373,6 +374,7 @@
 - [ ] YAAT-875 Split TaxiRoute.ToSummary under the complexity limit
 - [ ] YAAT-879 Move the shared push-planner test helpers into PushTargetPlannerFixtures
 - [ ] YAAT-893 Prove the navigation database loader's concurrency rulings with tests
+- [ ] YAAT-928 Raise the test-all.ps1 ceiling to match its measured runtime
 
 ## Singles
 
@@ -616,6 +618,12 @@
 - [ ] YAAT-902 Make ExitFlyoutTests initialise the navigation database itself (4 fail when the class runs alone)
 - [ ] YAAT-903 Stop the bounded taxi detour charging a runway-exit holding bar as a second crossing (SFO S1 bar #840)
 - [ ] YAAT-904 Make AutomationPointerTests.GroundRunwayMenu_HoverPreviewsRoute pass locally (fails alone here, passes on the builder)
+- [ ] YAAT-923 Convert FRD radials with the station's variation in FrdResolver · release vNext
+- [ ] YAAT-924 Track a JRADO radial with wind correction after the intercept
+- [ ] YAAT-925 Log exceptions from the flyouts' async key handlers
+- [ ] YAAT-926 Convert CR/VR departure-leg radials with the navaid's variation
+- [ ] YAAT-927 Select the nearest 50 fixes in FixesNear without sorting every prefix match
+- [ ] YAAT-929 Migrate aircraft snapshots on the synthetic-spawn and recorded-action paths
 
 ## No project
 
@@ -627,7 +635,6 @@
 - [ ] YAAT-915 Keep the route to the fix for HOLDP and DEPART instead of going direct
 - [ ] YAAT-916 Default an omitted HOLDP leg to the altitude standard; parse legs invariantly
 - [ ] YAAT-917 Decide whether PTAC PH prefers the assigned heading mid-turn
-- [ ] YAAT-918 Intercept and fly JRADO/JRADI radials with the station's magnetic variation · release vNext
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
 - [ ] YAAT-920 Track a hold's inbound course to the fix instead of flying direct
 - [ ] YAAT-921 Treat a runway crossing stitched through :link edges as a crossing
