@@ -31,7 +31,8 @@ that is neither an option nor an option's value, a -name: word split from its va
 it, are used; a GATE_ name is refused with exit 2. There is no log, no tail, no failure markers, no slot and no
 watchdog. The launcher exits with the command's status: a program's own, 0 for a PowerShell command that succeeded and
 1 for one that failed. -StopTree and stop-tree cannot run without gate.exe: they say so and exit 1. With no command
-words the launcher prints its usage and exits 2.
+words the launcher prints its usage and exits 2. -Reason/--reason "<why>" is required by gate.exe with -Local/--local,
+-Slot critical/--slot critical and -Alone/--alone; the launcher passes it through and checks nothing itself.
 
 The options are read by hand out of $args rather than declared in a param block: a declared block sends the bare -- of
 a caller's command through PowerShell's parameter binder, which reads it as a parameter name and stops. A caller that
@@ -39,8 +40,9 @@ starts this launcher with -File gives the binder a -name:value word to split in 
 whole, so the words are read from the argv in that case.
 
 Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>]
-           [-NoMarkers] [-Local] [-Alone] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]
-       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [--alone] [options] -- <command> [args...]
+           [-NoMarkers] [-Local] [-Alone] [-Reason "<why>"] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]
+       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [--alone] [--reason "<why>"]
+           [options] -- <command> [args...]
        pwsh tools/gate.ps1 -StopTree <pid>
        pwsh tools/gate.ps1 stop-tree <pid>
 #>
@@ -52,8 +54,9 @@ $PSNativeCommandUseErrorActionPreference = $false
 
 $usage = @(
     'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical|none [-StallSeconds <n>] [-Tail <n>] ' +
-    '[-NoMarkers] [-Local] [-Alone] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]'
-    '       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [--alone] [options] -- <command> [args...]'
+    '[-NoMarkers] [-Local] [-Alone] [-Reason "<why>"] [-Cd <folder>] [-Env NAME=value] -- <command> [args...]'
+    '       pwsh tools/gate.ps1 run --log <path> --timeout <n> --slot heavy|light|critical|none [--alone] [--reason "<why>"] ' +
+    '[options] -- <command> [args...]'
     '       pwsh tools/gate.ps1 -StopTree <pid>'
     '       pwsh tools/gate.ps1 stop-tree <pid>'
 )
@@ -64,13 +67,13 @@ $spellings = @{
     Compat = @{
         Prefix = '-'
         Joiner = ':'
-        Values = @('Log', 'TimeoutSeconds', 'Slot', 'StallSeconds', 'Tail', 'Cd', 'Env')
+        Values = @('Log', 'TimeoutSeconds', 'Slot', 'StallSeconds', 'Tail', 'Reason', 'Cd', 'Env')
         Flags = @('NoMarkers', 'Local', 'Alone')
     }
     Cli = @{
         Prefix = '--'
         Joiner = '='
-        Values = @('log', 'timeout', 'slot', 'stall', 'tail', 'cd', 'env', 'bring-tracked', 'state-dir')
+        Values = @('log', 'timeout', 'slot', 'stall', 'tail', 'reason', 'cd', 'env', 'bring-tracked', 'state-dir')
         Flags = @('no-markers', 'local', 'alone')
     }
 }
@@ -207,7 +210,7 @@ function Find-CommandStart {
     param([object[]]$Words, [System.Collections.Generic.List[string]]$Problems)
     $options = @{
         Log = ''; TimeoutSeconds = ''; Slot = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false; Local = $false; Alone = $false
-        Cd = ''; Env = ''
+        Reason = ''; Cd = ''; Env = ''
     }
     $read = 0
     while ($read -lt $Words.Count) {
