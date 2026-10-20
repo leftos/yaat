@@ -17,9 +17,10 @@ namespace Yaat.Client.ContextMenus;
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
-/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, runways, STARs, airways)
-/// and formats the pick into the command, choosing its form from the data present when the menu is built; an approach
-/// entry opens its verb's approach flyout (<see cref="ApproachFlyout"/>); a host leaf asks the host for the item itself,
+/// the host's list popup over values the catalog computes (altitudes, speeds, fixes, runways, STARs, airways) and formats the
+/// pick into the command, choosing its form from the data present when the menu is built; a heading entry opens the heading
+/// flyout preset to its verb (<see cref="HeadingFlyout"/>); an approach entry opens its verb's approach flyout
+/// (<see cref="ApproachFlyout"/>); a host leaf asks the host for the item itself,
 /// for the entries that open a host surface or act on the surface — the warp popup, the flight-plan editor, route and
 /// push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and preset-taxi submenus over the
 /// choices the host answers (the pushback faces are flat items of a companion helper, <see cref="BuildPushbackFaces"/>),
@@ -149,11 +150,17 @@ public static class MenuCatalog
         HostLeaf(MenuIds.AircraftCommand, "Command…", Always, BuildCommand),
         HostLeaf(MenuIds.AircraftNote, "Note…", Always, BuildNote),
         Leaf(MenuIds.HeadingPresent, "Present heading", "FPH", Always),
-        HeadingList(MenuIds.HeadingFly, "Fly heading", "FH"),
-        HeadingList(MenuIds.HeadingTurnLeft, "Turn left", "TL"),
-        HeadingList(MenuIds.HeadingTurnRight, "Turn right", "TR"),
-        RelativeTurnList(MenuIds.HeadingTurnLeftDegrees, "Turn left (degrees)", "LT"),
-        RelativeTurnList(MenuIds.HeadingTurnRightDegrees, "Turn right (degrees)", "RT"),
+        HeadingEntry(MenuIds.HeadingFly, new HeadingFlyoutPreset("Fly heading", HeadingVerb.FlyHeading, HeadingFlyoutFocus.Box)),
+        HeadingEntry(MenuIds.HeadingTurnLeft, new HeadingFlyoutPreset("Turn left", HeadingVerb.TurnLeft, HeadingFlyoutFocus.Box)),
+        HeadingEntry(MenuIds.HeadingTurnRight, new HeadingFlyoutPreset("Turn right", HeadingVerb.TurnRight, HeadingFlyoutFocus.Box)),
+        HeadingEntry(
+            MenuIds.HeadingTurnLeftDegrees,
+            new HeadingFlyoutPreset("Turn left (degrees)", HeadingVerb.FlyHeading, HeadingFlyoutFocus.LeftChips)
+        ),
+        HeadingEntry(
+            MenuIds.HeadingTurnRightDegrees,
+            new HeadingFlyoutPreset("Turn right (degrees)", HeadingVerb.FlyHeading, HeadingFlyoutFocus.RightChips)
+        ),
         Picker(MenuIds.AltitudeMaintain, "Maintain altitude", BuildMaintainAltitude),
         Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed),
         CheckedInputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, FormatAssignedSpeed, "Not a valid speed"),
@@ -519,7 +526,7 @@ public static class MenuCatalog
     /// <summary>The separators a filed route's tokens are split on.</summary>
     private static readonly char[] RouteSeparators = [' ', '.'];
 
-    /// <summary>The headings the heading pickers list, 005 to 360 in fives.</summary>
+    /// <summary>The step the point menu's Fly heading rounds to.</summary>
     private const int HeadingStep = 5;
 
     /// <summary>The trailing ellipsis a picker label carries while it opens a popup that is not the plain route-fix list.</summary>
@@ -1454,46 +1461,9 @@ public static class MenuCatalog
     /// <summary>The display texts of a popup's values, as the popup itself shows them.</summary>
     private static List<string> PickerTexts(IReadOnlyList<object> values) => [.. values.Select(value => value.ToString() ?? "")];
 
-    /// <summary>A heading picker that sends <paramref name="command"/> with the picked heading, highlighting the aircraft's own.</summary>
-    private static MenuCatalogEntry HeadingList(string id, string label, string command) =>
-        new(
-            id,
-            label,
-            MenuFlightRules.Both,
-            Always,
-            (ac, context, host) => BuildList(label, HeadingValues(), HeadingSeed(ac), picked => Send($"{command} {picked}", context, host), host)
-        );
-
-    /// <summary>A relative-turn picker that sends <paramref name="command"/> with the picked number of degrees, highlighting 30.</summary>
-    private static MenuCatalogEntry RelativeTurnList(string id, string label, string command) =>
-        new(
-            id,
-            label,
-            MenuFlightRules.Both,
-            Always,
-            (_, context, host) => BuildList(label, [5, 10, 15, 20, 30, 45, 60, 90], 30, picked => Send($"{command} {picked}", context, host), host)
-        );
-
-    private static List<object> HeadingValues()
-    {
-        var items = new List<object>(360 / HeadingStep);
-        for (int heading = HeadingStep; heading <= 360; heading += HeadingStep)
-        {
-            items.Add(heading);
-        }
-
-        return items;
-    }
-
-    /// <summary>
-    /// The heading the heading pickers highlight: the aircraft's magnetic heading rounded to the nearest five, so it
-    /// lands on a listed value, with north (and no aircraft) as 360.
-    /// </summary>
-    private static int HeadingSeed(IMenuAircraft? aircraft)
-    {
-        int heading = aircraft is not null ? (int)(Math.Round(aircraft.MagneticHeadingDegrees / HeadingStep) * HeadingStep) : 360;
-        return heading <= 0 ? 360 : heading;
-    }
+    /// <summary>A heading entry: the heading flyout (<see cref="HeadingFlyout"/>) opening as <paramref name="preset"/> says.</summary>
+    private static MenuCatalogEntry HeadingEntry(string id, HeadingFlyoutPreset preset) =>
+        new(id, preset.Label, MenuFlightRules.Both, Always, (ac, context, host) => HeadingFlyout.Build(preset, ac, context, host));
 
     /// <summary>The Report traffic in sight… free-text box's placeholder, for a target callsign or none.</summary>
     private const string TrafficInSightPlaceholder = "Target callsign (optional)";

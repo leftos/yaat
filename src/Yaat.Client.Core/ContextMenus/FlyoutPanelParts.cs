@@ -14,6 +14,9 @@ internal static class FlyoutPanelParts
 {
     private static readonly IImmutableSolidColorBrush SeparatorBrush = new ImmutableSolidColorBrush(Color.Parse("#3D3D3D"));
 
+    /// <summary>The grey of a panel flyout's title line and its other quiet labels.</summary>
+    public static IImmutableSolidColorBrush TitleBrush { get; } = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
+
     /// <summary>
     /// Keeps a menu row of class <paramref name="panelClass"/> at its resting background while it is selected or under the
     /// pointer.

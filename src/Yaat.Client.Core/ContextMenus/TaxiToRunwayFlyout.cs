@@ -50,7 +50,7 @@ public static class TaxiToRunwayFlyout
     private static readonly ILogger Log = AppLog.CreateLogger("TaxiToRunwayFlyout");
 
     private static readonly IImmutableSolidColorBrush RunwayBadgeBrush = new ImmutableSolidColorBrush(Color.Parse("#E8A33D"));
-    private static readonly IImmutableSolidColorBrush TitleBrush = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
+    private static readonly IImmutableSolidColorBrush TitleBrush = FlyoutPanelParts.TitleBrush;
     private static readonly IImmutableSolidColorBrush NameBrush = new ImmutableSolidColorBrush(Color.Parse("#E4E7EB"));
 
     private static readonly FuncDataTemplate<MenuTwoLineRow> RowTemplate = new((row, _) => MenuTwoLineRowTemplate.Build(row));

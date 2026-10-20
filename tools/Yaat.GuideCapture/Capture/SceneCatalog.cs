@@ -75,6 +75,7 @@ internal static class SceneCatalog
         new WhatsNewPushBackScene(),
         new WhatsNewTaxiToRunwayTabsScene(),
         new WhatsNewTakeoffScene(),
+        new WhatsNewHeadingFlyoutScene(),
         new WhatsNewGroundFollowScene(),
         new WhatsNewWindsAloftSourceScene(),
     ];

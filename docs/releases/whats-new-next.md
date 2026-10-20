@@ -16,6 +16,14 @@ Cleared approach and Expect approach, in the quick-command strip or under All Co
 
 Each tab starts with a Visual row, greyed "field not in sight" until the field is reported, and a runway too short for the aircraft's type is dimmed "short". At an untowered airport a "Visual approach to" row clears the aircraft to the airport. The Force toggle in Cleared approach turns every row into its forced form; an Approach box takes an id and sends the top match on Enter; and an IFR aircraft airborne below FL180 gets a "Cancel IFR…" row with an inline confirmation.
 
+## Fly heading
+
+Fly heading in the quick-command strip, and Fly heading, Turn left, Turn right and the two degree turns under All Commands › Heading, open one flyout instead of a list of 72 headings. It has a toggle between Fly heading, Turn left and Turn right (the turn entries open it on their verb), a Heading box that also takes `L180` or `R090`, and a north-up compass rose with its needle on the aircraft's heading, between columns of 5° to 90° chips for a turn left or right by that much.
+
+Click the rose, or drag across it and release, to send that heading; the readout names the heading, the turn it makes and the command (`300 · a right turn of 30° · FH 300`). The arrow keys step the rose by 5°, 30° with Shift, and Enter sends. The needle, the present heading and the chip tooltips follow the aircraft once a second.
+
+![The Fly heading flyout for a B764 heading 077, with the compass rose between the left and right turn chips](img/whats-new-heading-flyout.png)
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

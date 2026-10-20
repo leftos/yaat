@@ -462,8 +462,8 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Heading submenu: present heading, the heading pickers and the relative-turn pickers. The header names the
-    /// fix the aircraft is navigating to, else its assigned magnetic heading.
+    /// The Heading submenu: present heading and the heading flyout's entries (Fly heading, Turn left, Turn right and the two
+    /// degree turns). The header names the fix the aircraft is navigating to, else its assigned magnetic heading.
     /// </summary>
     public static MenuItem Heading(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {

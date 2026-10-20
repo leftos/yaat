@@ -83,11 +83,6 @@ public class MenuCatalogCommandTests
         (MenuIds.DataBlockAnnotate, "", "ANNOTATE"),
         (MenuIds.SimControlDelete, "", "DEL"),
         (MenuIds.HeadingPresent, "", "FPH"),
-        (MenuIds.HeadingFly, "270", "FH 270"),
-        (MenuIds.HeadingTurnLeft, "270", "TL 270"),
-        (MenuIds.HeadingTurnRight, "270", "TR 270"),
-        (MenuIds.HeadingTurnLeftDegrees, "30", "LT 30"),
-        (MenuIds.HeadingTurnRightDegrees, "30", "RT 30"),
         (MenuIds.AltitudeMaintain, "FL350", "CM 35000"),
         (MenuIds.SpeedAssign, "250", "SPD 250"),
         (MenuIds.SpeedCustom, "210", "SPD 210"),
@@ -203,6 +198,12 @@ public class MenuCatalogCommandTests
         MenuIds.ApproachJoinForce,
         MenuIds.ApproachJoinFinalCourse,
         MenuIds.ApproachExpect,
+        // The heading entries open the heading flyout; HeadingFlyoutTests clicks its rose, box and chips.
+        MenuIds.HeadingFly,
+        MenuIds.HeadingTurnLeft,
+        MenuIds.HeadingTurnRight,
+        MenuIds.HeadingTurnLeftDegrees,
+        MenuIds.HeadingTurnRightDegrees,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -397,39 +398,22 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaTheory]
-    [InlineData(92.0, 90)]
-    [InlineData(1.0, 360)]
-    public void FlyHeading_SeedsPopupWithTheHeadingRoundedToFive(double heading, int seed)
-    {
-        var host = new RecordingMenuHost("270");
-        MenuItem? item = MenuCatalog.Get(MenuIds.HeadingFly).Build(new FakeMenuAircraft { HeadingDegrees = heading }, Context(), host);
-
-        Assert.NotNull(item);
-        Click((MenuItem)item);
-
-        (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
-        Assert.Equal<object?>(seed, popup.Selected);
-        Assert.Equal(72, popup.Items.Count);
-        Assert.Equal([(Callsign, "FH 270", Initials)], host.Sent);
-    }
-
-    [AvaloniaTheory]
     [InlineData(MenuIds.HeadingFly)]
     [InlineData(MenuIds.HeadingTurnLeft)]
     [InlineData(MenuIds.HeadingTurnRight)]
-    public void HeadingPickers_SeedWithTheMagneticHeadingRoundedToFive_NotTheTrueOne(string id)
+    public void HeadingFlyout_ShowsTheMagneticHeading_NotTheTrueOne(string id)
     {
         AircraftModel aircraft = OverKoakOnTrueHeading100();
         double magnetic = aircraft.Heading.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position)).Degrees;
-        int seed = (int)(Math.Round(magnetic / 5) * 5);
-        Assert.NotEqual(100, seed);
-        var host = new RecordingMenuHost("270");
+        Assert.NotEqual(100, (int)(Math.Round(magnetic / 5) * 5));
+        var host = new RecordingMenuHost("");
 
-        MenuItem? item = MenuCatalog.Get(id).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Click((MenuItem)item);
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, Context(), host));
+        item.IsSubMenuOpen = true;
+        HeadingFlyoutPanel panel = HeadingFlyoutTests.PanelOf(item);
 
-        Assert.Equal<object?>(seed, Assert.Single(host.ListPopups).Selected);
+        Assert.Equal(magnetic, panel.Rose.PresentHeading, 6);
+        Assert.Empty(host.ListPopups);
     }
 
     [AvaloniaFact]
@@ -695,20 +679,6 @@ public class MenuCatalogCommandTests
     }
 
     private static MenuRichRow Row(MenuRichList list, string label) => Assert.Single(list.Rows, row => row.Label == label);
-
-    [AvaloniaFact]
-    public void RelativeTurn_PreselectsThirtyDegrees()
-    {
-        var host = new RecordingMenuHost("30");
-        MenuItem? item = MenuCatalog.Get(MenuIds.HeadingTurnLeftDegrees).Build(null, Context(), host);
-
-        Assert.NotNull(item);
-        Click((MenuItem)item);
-
-        (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
-        Assert.Equal<object?>(30, popup.Selected);
-        Assert.Equal(["5", "10", "15", "20", "30", "45", "60", "90"], popup.Items);
-    }
 
     [AvaloniaTheory]
     [InlineData(35000.0, "Altitude (→ FL350)")]

@@ -410,14 +410,11 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
-        // "Fly heading" lists every 5-degree heading the popup would list, in the same order.
+        // "Fly heading" opens the heading flyout, a submenu holding its panel, and carries no popup descriptor.
         MenuItem heading = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Heading");
         MenuItem flyHeading = heading.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Fly heading");
-        MenuPickerDescriptor headingDescriptor = Assert.IsType<MenuPickerDescriptor>(flyHeading.Tag);
-        Assert.Equal(MenuPickerDescriptor.List, headingDescriptor.Kind);
-        Assert.Equal(72, headingDescriptor.Items.Count);
-        Assert.Equal("5", headingDescriptor.Items[0]);
-        Assert.Equal("360", headingDescriptor.Items[^1]);
+        Assert.Null(flyHeading.Tag);
+        Assert.IsType<HeadingFlyoutHost>(Assert.Single(flyHeading.Items.OfType<MenuItem>()).Header);
 
         // A free-text picker carries the input kind and no values.
         MenuItem speed = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed");

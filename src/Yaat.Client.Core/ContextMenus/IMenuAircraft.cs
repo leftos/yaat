@@ -114,8 +114,8 @@ public interface IMenuAircraft
     double HeadingDegrees { get; }
 
     /// <summary>
-    /// The current heading in magnetic degrees, as the datablock shows it, which the heading pickers and the warp popup
-    /// seed with.
+    /// The current heading in magnetic degrees, as the datablock shows it, which the heading flyout follows and the warp
+    /// popup seeds with.
     /// </summary>
     double MagneticHeadingDegrees { get; }
 
