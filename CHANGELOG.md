@@ -50,6 +50,7 @@
 ### Fixed
 
 - A `TAXI` across a runway with no destination ends on the far taxiway once the whole aircraft is past the hold line, not on the runway.
+- A hold (`HOLDP`, `HPP`, `HFIX`) clears the assigned heading when it starts, so the data block drops it and a later `CAPP` flies the procedure.
 - `HOLDP` flies the inbound course as the magnetic course it was issued, not as a true course several degrees off.
 - `HOLDP` without a leg flies the altitude standard, 1½-minute legs above 14,000 ft, and `1.5M` legs parse on comma-decimal systems.
 - Fix/radial/distance points, and `JRADO`, `JRADI` and `AT` radials, use the navaid's published magnetic variation, so `OAK135015` lands on SIWBI.

@@ -1466,7 +1466,7 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 
 **CFIX altitude prefixes:** `A034` = at or above 3,400, `B034` = at or below 3,400, `034` = at 3,400.
 
-**Heading intercept (implied PTAC):** When an aircraft is being vectored (has an assigned heading **and no nav route**) and you issue a bare `CAPP` (no AT/DCT fix), the aircraft maintains its present heading and intercepts the final approach course — equivalent to an implied PTAC. If the aircraft has a nav route (e.g. you previously issued `DCT FIX`), CAPP builds the published procedure instead. AT/DCT fixes always override heading intercept.
+**Heading intercept (implied PTAC):** When an aircraft is being vectored (has an assigned heading **and no nav route**) and you issue a bare `CAPP` (no AT/DCT fix), the aircraft maintains its present heading and intercepts the final approach course — equivalent to an implied PTAC. A hold clears the assigned heading when it starts, so an aircraft in a hold has no vector to intercept from. If the aircraft has a nav route (e.g. you previously issued `DCT FIX`), CAPP builds the published procedure instead. AT/DCT fixes always override heading intercept.
 
 **In-trail speed restated with the clearance:** An approach clearance cancels previously assigned speeds (7110.65 §5-7-1.d).
 
@@ -1762,7 +1762,7 @@ Hold format: `HOLDP {fix} {inbound_course} {leg_length} {L/R}` (three-token form
 
 An omitted leg flies the altitude standard (AIM 5-3-8.j.4.a): 1 minute at or below 14,000 ft MSL, 1.5 minutes above. The altitude is the assigned altitude, else the present one, taken when the hold is issued and not revisited as the aircraft climbs or descends. The readback names the resolved leg ("Hold at SUNOL, 184 inbound, right turns, 1.5min legs").
 
-Any RPO command (heading, altitude, approach, etc.) exits the hold.
+The hold takes the aircraft off its vector: the assigned heading is cleared when the hold starts (a queued hold keeps the vector until then), so a later `CAPP` builds the published procedure rather than an implied PTAC. Any RPO command (heading, altitude, approach, etc.) exits the hold.
 
 The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern arguments (fix name + inbound course + direction/leg) is automatically recognized as a holding pattern rather than a ground hold-position command.
 
@@ -1775,7 +1775,7 @@ The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern argume
 | `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right 360s |
 | `HFIX {fix}` | Fly to fix, then hover — **helicopters only**; fixed-wing aircraft are rejected and should use `HFIXL`/`HFIXR` |
 
-Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. Any heading, altitude, or speed command clears the hold.
+Starting any of these holds clears the assigned heading. Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. Any heading, altitude, or speed command clears the hold.
 
 ### Track Operations
 

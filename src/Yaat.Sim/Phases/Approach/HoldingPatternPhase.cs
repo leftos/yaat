@@ -59,6 +59,8 @@ public sealed class HoldingPatternPhase : Phase
     {
         _outboundHeading = new TrueHeading(InboundCourse + 180);
 
+        // The hold takes the aircraft off its vector.
+        ctx.Targets.AssignedMagneticHeading = null;
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat, FixLon) });
 

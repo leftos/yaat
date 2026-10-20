@@ -87,7 +87,10 @@ public class ControlTargets
     /// <summary>Maximum IAS in knots (speed ceiling, "do not exceed X"). Enforced continuously.</summary>
     public double? SpeedCeiling { get; set; }
 
-    /// <summary>Controller-assigned heading in magnetic (FH/TL/TR/FPH/PTAC). Null when not explicitly vectored.</summary>
+    /// <summary>
+    /// Controller-assigned heading in magnetic degrees, set by the heading commands; cleared when the aircraft
+    /// leaves the vector (direct, route and procedure joins, approach clearances, holds). Null when not on a vector.
+    /// </summary>
     public MagneticHeading? AssignedMagneticHeading { get; set; }
 
     /// <summary>Controller-assigned altitude (CM/DM). Null when not explicitly assigned.</summary>

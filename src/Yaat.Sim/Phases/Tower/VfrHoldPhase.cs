@@ -97,6 +97,10 @@ public sealed class VfrHoldPhase : Phase
         _lastHeading = ctx.Aircraft.TrueHeading;
         _speed.Capture(ctx);
 
+        // Either branch — navigate to the fix, or hold here — takes the aircraft off its vector:
+        // a holding clearance ends the vector (7110.65 §4-6-1 / §5-6-2).
+        ctx.Targets.AssignedMagneticHeading = null;
+
         if (FixName is not null)
         {
             // Navigate to the fix first
