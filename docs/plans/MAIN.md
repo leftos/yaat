@@ -21,6 +21,7 @@
 - [ ] YAAT-845 Tidy the approach flyout after X3a: scroller keys, shared refusal wording
 - [ ] YAAT-888 Point menu Taxi here answers an empty group when every route drops out
 - [ ] YAAT-892 Make Taxi here titles skip the destination runway like the variants do
+- [ ] YAAT-908 Move the approach flyout onto the shared flyout base; mark the assigned Mach
 
 ## Bug reports and feature requests
 
@@ -35,6 +36,7 @@
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
+- [ ] YAAT-905 End a bare taxi across a runway past the far bar, not on the centreline · release vNext
 
 ## Say again
 
@@ -612,3 +614,8 @@
 - [ ] YAAT-902 Make ExitFlyoutTests initialise the navigation database itself (4 fail when the class runs alone)
 - [ ] YAAT-903 Stop the bounded taxi detour charging a runway-exit holding bar as a second crossing (SFO S1 bar #840)
 - [ ] YAAT-904 Make AutomationPointerTests.GroundRunwayMenu_HoverPreviewsRoute pass locally (fails alone here, passes on the builder)
+
+## No project
+
+- [ ] YAAT-907 Route the heavy pre-commit build hook through the gate (GATE-449)
+- [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
