@@ -149,7 +149,7 @@ The exploration against the code and vEDST's source (`vFlightDataSystems/VATSIM_
 - **B1 rulings (shipped):** fields read through the primary are `_roomEngine`, `_artccId`, `_currentPositionId` and `_displayName` (a joiner never reaches `_realName`, `_role` or `_isActive`); identity lookups use the primary's client id; the session-log redaction skips joined connections only (a room-bound direct connection keeps its own redaction).
 
   The join ack and its two pushes go out in one buffer; switching primaries clears subscriptions; a direct connection's disconnect only leaves its session.
-- **B3 rulings:** `HandleGenerateFrd` (`CrcClientState.Session.cs` ~:713, a stub returning `""` today) answers `FrdResolver.ToFrd(lat, lon, _navDb.GetFixTuples())` with the default 50 nm radius the ERAM route code uses (`CrcClientState.Eram.Route.cs` ~:282), `""` when no fix is in range (CRC and vEDST both treat `""` as failure).
+- **B3 rulings:** `HandleGenerateFrd` (`CrcClientState.Session.cs` ~:713, a stub returning `""` today) answers `FrdResolver.ToFrd(lat, lon, _navDb.GetFixTuples(), _navDb)` with the default 50 nm radius the ERAM route code uses (`CrcClientState.Eram.Route.cs` ~:282), `""` when no fix is in range (CRC and vEDST both treat `""` as failure).
 
   It reads no room, so a room-less direct connection gets an answer, and CRC gets a real FRD too (changelog it). vEDST calls it from its route, previous-route and template menus (`..\_ext\vFlightDataSystems\VATSIM_EDST_frontend\src\hooks\useHubActions.ts` ~:61).
 

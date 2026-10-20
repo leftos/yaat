@@ -1,11 +1,18 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
-public class FrdResolverToFrdTests
+public class FrdResolverToFrdTests(ITestOutputHelper output)
 {
+    private readonly ITestOutputHelper _output = output;
+
     private static readonly IReadOnlyList<(string Name, double Lat, double Lon)> TestFixes =
     [
         ("OAK", 37.7213, -122.2208),
@@ -17,7 +24,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_AtFixPosition_ReturnsBareFixName()
     {
-        string? result = FrdResolver.ToFrd(37.7213, -122.2208, TestFixes);
+        string? result = FrdResolver.ToFrd(37.7213, -122.2208, TestFixes, StubNavDb());
 
         Assert.Equal("OAK", result);
     }
@@ -26,7 +33,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_NearFixPosition_ReturnsBareFixName()
     {
         // Within 0.1nm of OAK
-        string? result = FrdResolver.ToFrd(37.7214, -122.2207, TestFixes);
+        string? result = FrdResolver.ToFrd(37.7214, -122.2207, TestFixes, StubNavDb());
 
         Assert.Equal("OAK", result);
     }
@@ -35,7 +42,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_AwayFromFix_ReturnsFrdString()
     {
         // ~10nm north of OAK
-        string? result = FrdResolver.ToFrd(37.8880, -122.2208, TestFixes);
+        string? result = FrdResolver.ToFrd(37.8880, -122.2208, TestFixes, StubNavDb());
 
         Assert.NotNull(result);
         Assert.StartsWith("OAK", result);
@@ -45,7 +52,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_NoFixesInRange_ReturnsNull()
     {
-        string? result = FrdResolver.ToFrd(0.0, 0.0, TestFixes, maxNm: 1.0);
+        string? result = FrdResolver.ToFrd(0.0, 0.0, TestFixes, StubNavDb(), maxNm: 1.0);
 
         Assert.Null(result);
     }
@@ -53,7 +60,7 @@ public class FrdResolverToFrdTests
     [Fact]
     public void ToFrd_EmptyFixList_ReturnsNull()
     {
-        string? result = FrdResolver.ToFrd(37.7213, -122.2208, []);
+        string? result = FrdResolver.ToFrd(37.7213, -122.2208, [], StubNavDb());
 
         Assert.Null(result);
     }
@@ -65,7 +72,7 @@ public class FrdResolverToFrdTests
         double lat = 37.7213;
         double lon = -122.0500;
 
-        string? frdString = FrdResolver.ToFrd(lat, lon, TestFixes);
+        string? frdString = FrdResolver.ToFrd(lat, lon, TestFixes, StubNavDb());
         Assert.NotNull(frdString);
 
         // Resolve it back
@@ -94,7 +101,7 @@ public class FrdResolverToFrdTests
         double magBrg = MagneticDeclination.TrueToMagnetic(trueBrg, oakLat, oakLon);
         int expectedRadial = (int)Math.Round(magBrg);
 
-        string? frd = FrdResolver.ToFrd(lat, lon, TestFixes);
+        string? frd = FrdResolver.ToFrd(lat, lon, TestFixes, StubNavDb());
         Assert.NotNull(frd);
         (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(frd);
         Assert.NotNull(parsed);
@@ -128,7 +135,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_PicksNearestFix()
     {
         // Position much closer to SUNOL than OAK
-        string? result = FrdResolver.ToFrd(37.59, -121.88, TestFixes);
+        string? result = FrdResolver.ToFrd(37.59, -121.88, TestFixes, StubNavDb());
 
         Assert.NotNull(result);
         Assert.StartsWith("SUNOL", result);
@@ -138,7 +145,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_RadialFormattedThreeDigits()
     {
         // Position north of OAK — radial should be zero-padded
-        string? result = FrdResolver.ToFrd(37.9, -122.2208, TestFixes);
+        string? result = FrdResolver.ToFrd(37.9, -122.2208, TestFixes, StubNavDb());
 
         Assert.NotNull(result);
         // The string after the fix name should be 6 digits: radial(3) + distance(3)
@@ -176,7 +183,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_NearFrdNamedFix_AnchorsOnRealFixInstead()
     {
         // ~3 nm south of the OAK169001 adapted fix — that fix is the nearest, but it must not anchor.
-        string? result = FrdResolver.ToFrd(37.6553, -122.2166, FrdNamedFixes);
+        string? result = FrdResolver.ToFrd(37.6553, -122.2166, FrdNamedFixes, TestNavDbFactory.WithFixes([.. FrdNamedFixes]));
 
         Assert.NotNull(result);
         Assert.Matches(@"^OAK\d{6}$", result);
@@ -186,7 +193,7 @@ public class FrdResolverToFrdTests
     public void ToFrd_OnTopOfFrdNamedFix_ReturnsBareIdentifier()
     {
         // Within 0.1 nm: the identifier itself is a real, resolvable fix, so naming it is correct.
-        string? result = FrdResolver.ToFrd(37.7054, -122.2165, FrdNamedFixes);
+        string? result = FrdResolver.ToFrd(37.7054, -122.2165, FrdNamedFixes, TestNavDbFactory.WithFixes([.. FrdNamedFixes]));
 
         Assert.Equal("OAK169001", result);
     }
@@ -224,7 +231,7 @@ public class FrdResolverToFrdTests
 
             probesWhereFrdFixIsNearest++;
 
-            string? result = FrdResolver.ToFrd(lat, lon, allFixes);
+            string? result = FrdResolver.ToFrd(lat, lon, allFixes, navDb);
             Assert.NotNull(result);
             string? anchor = FrdResolver.ParseFrd(result)?.Fix;
             Assert.NotNull(anchor);
@@ -232,5 +239,142 @@ public class FrdResolverToFrdTests
         }
 
         Assert.True(probesWhereFrdFixIsNearest > 0, "no probe had an FRD-named fix as its nearest entry — the test proves nothing");
+    }
+
+    // CIFP theta/rho legs define these fixes as FRDs read against the anchor VOR's station declination of record, so
+    // resolving the FRD with that declination lands on the published fix; the live model at the VOR misses it by a mile or more.
+    [Theory]
+    [InlineData("OAK135015", "SIWBI")]
+    [InlineData("RBL357019", "HOMAN")]
+    public void Resolve_VorAnchoredFrd_LandsOnTheCifpFixItDefines(string frd, string publishedFix)
+    {
+        NavigationDatabase navDb = RealNavDb();
+        string anchor = Assert.NotNull(FrdResolver.ParseFrd(frd)).Fix;
+        (double Lat, double Lon) anchorPosition = Assert.NotNull(navDb.GetFixPosition(anchor));
+        double stationDeclination = Assert.NotNull(navDb.GetStationDeclination(anchor));
+        double modelledDeclination = MagneticDeclination.GetDeclination(anchorPosition.Lat, anchorPosition.Lon);
+        Assert.True(
+            Math.Abs(stationDeclination - modelledDeclination) > 3,
+            $"{anchor} station declination {stationDeclination:F2} is within 3 deg of the modelled {modelledDeclination:F2}: test is vacuous"
+        );
+
+        (double Lat, double Lon) fixPosition = Assert.NotNull(navDb.GetFixPosition(publishedFix));
+        LatLon resolved = Assert.NotNull(FrdResolver.Resolve(frd, navDb));
+
+        double missNm = GeoMath.DistanceNm(resolved.Lat, resolved.Lon, fixPosition.Lat, fixPosition.Lon);
+        Assert.True(missNm < 0.3, $"{frd} resolved {missNm:F2} nm from {publishedFix}, expected < 0.3");
+    }
+
+    [Fact]
+    public void Resolve_NonNavaidAnchor_KeepsTheModelledDeclinationAtTheFix()
+    {
+        NavigationDatabase navDb = RealNavDb();
+        Assert.Null(navDb.GetStationDeclination("SUNOL"));
+        (double Lat, double Lon) sunol = Assert.NotNull(navDb.GetFixPosition("SUNOL"));
+
+        LatLon resolved = Assert.NotNull(FrdResolver.Resolve("SUNOL090010", navDb));
+
+        double trueRadial = MagneticDeclination.MagneticToTrue(90, sunol.Lat, sunol.Lon);
+        LatLon expected = GeoMath.ProjectPoint(new LatLon(sunol.Lat, sunol.Lon), new TrueHeading(trueRadial), 10);
+        double offsetNm = GeoMath.DistanceNm(expected, resolved);
+        Assert.True(offsetNm < 0.02, $"SUNOL090010 resolved {offsetNm:F3} nm from the modelled-declination point");
+    }
+
+    [Fact]
+    public void ToFrd_RealNavData_RoundTripsThroughResolveAtAnOakAnchoredPoint()
+    {
+        NavigationDatabase navDb = RealNavDb();
+        (double Lat, double Lon) oak = Assert.NotNull(navDb.GetFixPosition("OAK"));
+        double stationDeclination = Assert.NotNull(navDb.GetStationDeclination("OAK"));
+
+        // 12 nm out on OAK's 090 radial, which lies on true bearing 090 plus the station's declination of record.
+        LatLon point = GeoMath.ProjectPoint(new LatLon(oak.Lat, oak.Lon), new TrueHeading(90 + stationDeclination), 12);
+        string? frd = FrdResolver.ToFrd(point.Lat, point.Lon, [("OAK", oak.Lat, oak.Lon)], navDb);
+        Assert.NotNull(frd);
+        Assert.Equal("OAK090012", frd);
+
+        LatLon resolved = Assert.NotNull(FrdResolver.Resolve(frd, navDb));
+        double offsetNm = GeoMath.DistanceNm(point, resolved);
+        Assert.True(offsetNm < 0.05, $"{frd} resolved {offsetNm:F3} nm from the point it was built from");
+    }
+
+    // The DCT target comes from FrdResolver and the AT condition's point from the AT command's station-variation radial;
+    // when the two read the same FRD differently, the aircraft flies to one point and misses the condition at the other.
+    [Fact]
+    public void DctThenAtTheSameVorFrd_ConditionFiresAtTheDirectToPoint()
+    {
+        NavigationDatabase navDb = RealNavDb();
+        (double Lat, double Lon) oak = Assert.NotNull(navDb.GetFixPosition("OAK"));
+        double stationDeclination = Assert.NotNull(navDb.GetStationDeclination("OAK"));
+        var radial = new TrueHeading(90 + stationDeclination);
+        LatLon frdPoint = GeoMath.ProjectPoint(new LatLon(oak.Lat, oak.Lon), radial, 25);
+
+        SimulationEngine engine = BuildEngine();
+        // 10 nm short of the point on the radial, flying outbound along it.
+        var ac = new AircraftState
+        {
+            Callsign = "FRD01",
+            AircraftType = "B738",
+            Position = GeoMath.ProjectPoint(frdPoint, new TrueHeading(radial.Degrees + 180), 10),
+            TrueHeading = radial,
+            Altitude = 5000,
+            IndicatedAirspeed = 210,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK", Destination = "MEM" },
+        };
+        engine.World.AddAircraft(ac);
+
+        var warnings = new List<string>();
+        engine.WarningEmitted += (callsign, warning) =>
+        {
+            if (callsign == ac.Callsign)
+            {
+                warnings.Add(warning);
+            }
+        };
+
+        CommandResult result = engine.SendCommand(ac.Callsign, "DCT OAK090025; AT OAK090025 FH 360");
+        Assert.True(result.Success, result.Message);
+
+        for (int t = 0; t < 300; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        _output.WriteLine($"warnings: [{string.Join(" | ", warnings)}], assigned {ac.Targets.AssignedMagneticHeading?.Degrees}");
+        Assert.DoesNotContain(warnings, w => w.Contains("Missed condition", StringComparison.Ordinal));
+        Assert.Equal(new MagneticHeading(360), ac.Targets.AssignedMagneticHeading);
+    }
+
+    /// <summary>The stub fixes as a nav database: no station declinations, so radials read against the modelled declination.</summary>
+    private static NavigationDatabase StubNavDb() => TestNavDbFactory.WithFixes([.. TestFixes]);
+
+    private static NavigationDatabase RealNavDb()
+    {
+        TestVnasData.EnsureInitialized();
+        return NavigationDatabase.Instance;
+    }
+
+    private SimulationEngine BuildEngine()
+    {
+        var groundData = new TestAirportGroundData();
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
+        Assert.NotNull(layout);
+        SimLogBuilder.CreateForTest(_output).InitializeSimLog();
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "t",
+                ScenarioName = "t",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+            },
+        };
+        engine.World.GroundLayout = layout;
+        engine.World.ReactionDelayRng = new SerializableRandom(42);
+        return engine;
     }
 }

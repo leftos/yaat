@@ -242,7 +242,7 @@ public partial class RadarView
     private List<Control> BuildMapPointSection(RadarViewModel vm, LatLon position, Point screenPos, bool withFrdRow)
     {
         List<Control> items = [];
-        string? frdString = (vm.Fixes is { } fixes) ? FrdResolver.ToFrd(position.Lat, position.Lon, fixes) : null;
+        string? frdString = RadarViewModel.TryToFrd(vm.Fixes, position.Lat, position.Lon);
         if (frdString is not null)
         {
             AddFrdItems(items, vm, position, frdString, withFrdRow);

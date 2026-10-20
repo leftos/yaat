@@ -12,7 +12,7 @@ public static class FrdResolver
             return null;
         }
 
-        (string? fixName, int? radial, int? distance) = parsed.Value;
+        (string fixName, int? radial, int? distance) = parsed.Value;
 
         (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
         if (fixPos is null)
@@ -25,9 +25,9 @@ public static class FrdResolver
             return new LatLon(fixPos.Value.Lat, fixPos.Value.Lon);
         }
 
-        // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2); project along the equivalent true bearing.
-        double trueRadial = MagneticDeclination.MagneticToTrue(radial.Value, fixPos.Value.Lat, fixPos.Value.Lon);
-        return ProjectPosition(fixPos.Value.Lat, fixPos.Value.Lon, trueRadial, distance.Value);
+        // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2), referenced to the anchor's variation of record.
+        TrueHeading trueRadial = RadialConversion.ToTrue(navDb, fixName, new LatLon(fixPos.Value.Lat, fixPos.Value.Lon), radial.Value);
+        return ProjectPosition(fixPos.Value.Lat, fixPos.Value.Lon, trueRadial.Degrees, distance.Value);
     }
 
     public static (string Fix, int? Radial, int? Distance)? ParseFrd(string frdString)
@@ -114,7 +114,23 @@ public static class FrdResolver
         return radial is >= 1 and <= 360;
     }
 
-    public static string? ToFrd(double lat, double lon, IReadOnlyList<(string Name, double Lat, double Lon)> fixes, double maxNm = 50.0)
+    /// <summary>
+    /// Names a point as the nearest non-FRD fix within <paramref name="maxNm"/>: the fix itself within 0.1 nm, else
+    /// <c>{FIX}{radial:D3}{distance:D3}</c> with the radial read against the anchor's variation of record, so
+    /// <see cref="Resolve"/> over the same <paramref name="navDb"/> maps the string back to the point.
+    /// </summary>
+    /// <param name="lat">The point's latitude.</param>
+    /// <param name="lon">The point's longitude.</param>
+    /// <param name="fixes">The candidate anchors.</param>
+    /// <param name="navDb">The navigation database the anchor's declination of record comes from.</param>
+    /// <param name="maxNm">The farthest an anchor may be.</param>
+    public static string? ToFrd(
+        double lat,
+        double lon,
+        IReadOnlyList<(string Name, double Lat, double Lon)> fixes,
+        NavigationDatabase navDb,
+        double maxNm = 50.0
+    )
     {
         // Sitting on a fix, name it directly — including an FRD-shaped identifier, which is a real,
         // resolvable fix. Building a *new* FRD on one is what must never happen.
@@ -154,9 +170,10 @@ public static class FrdResolver
             return null;
         }
 
-        // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2); convert the true bearing at the fix.
-        double trueBearing = GeoMath.BearingTo(anchorLat, anchorLon, lat, lon);
-        int radial = (int)Math.Round(MagneticDeclination.TrueToMagnetic(trueBearing, anchorLat, anchorLon));
+        // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2), referenced to the anchor's variation of record.
+        var trueBearing = new TrueHeading(GeoMath.BearingTo(anchorLat, anchorLon, lat, lon));
+        MagneticHeading magneticRadial = RadialConversion.ToMagnetic(navDb, anchorName, new LatLon(anchorLat, anchorLon), trueBearing);
+        int radial = (int)Math.Round(magneticRadial.Degrees);
         if (radial <= 0)
         {
             radial = 360;

@@ -16,15 +16,11 @@ internal static class NavigationCommandHandler
     private static string FixDisplay(string fix) => PhraseologyVerbalizer.FixDisplayTextUpper(fix);
 
     /// <summary>
-    /// The variation a controller-issued radial from <paramref name="fixName"/> is referenced to (P/CG RADIAL; AIM 1-1-17b.5(j)(1)):
-    /// the station's declination of record when the fix is a navaid, else the modelled declination at the fix.
+    /// Converts a controller-issued magnetic radial from <paramref name="fixName"/> to the true bearing from the fix, with the
+    /// station's variation of record (<see cref="RadialConversion.ToTrue"/>).
     /// </summary>
-    private static double RadialDeclination(string fixName, double fixLat, double fixLon) =>
-        NavigationDatabase.Instance.GetPublishedCourseDeclination(fixName, string.Empty, new LatLon(fixLat, fixLon));
-
-    /// <summary>Converts a controller-issued magnetic radial from <paramref name="fixName"/> to the true bearing from the fix.</summary>
     internal static TrueHeading RadialToTrueBearing(string fixName, double fixLat, double fixLon, int magneticRadial) =>
-        new MagneticHeading(magneticRadial).ToTrue(RadialDeclination(fixName, fixLat, fixLon));
+        RadialConversion.ToTrue(NavigationDatabase.Instance, fixName, new LatLon(fixLat, fixLon), magneticRadial);
 
     /// <summary>
     /// <see cref="RadialToTrueBearing"/> rounded to whole degrees, which is what a <see cref="BlockTrigger.TrueRadial"/> holds.
@@ -57,7 +53,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static CommandBlock BuildJradoInterceptBlock(JoinRadialOutboundCommand cmd)
     {
-        double stationDeclination = RadialDeclination(cmd.FixName, cmd.FixLat, cmd.FixLon);
+        TrueHeading trueRadial = RadialToTrueBearing(cmd.FixName, cmd.FixLat, cmd.FixLon, cmd.Radial);
         var block = new CommandBlock
         {
             Trigger = new BlockTrigger
@@ -73,7 +69,7 @@ internal static class NavigationCommandHandler
             {
                 var magneticHdg = new MagneticHeading(cmd.Radial);
                 ac.Targets.NavigationRoute.Clear();
-                ac.Targets.TargetTrueHeading = magneticHdg.ToTrue(stationDeclination);
+                ac.Targets.TargetTrueHeading = trueRadial;
                 ac.Targets.AssignedMagneticHeading = magneticHdg;
                 ac.Targets.PreferredTurnDirection = null;
                 return new CommandResult(true);

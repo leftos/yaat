@@ -410,17 +410,17 @@ radar-vectors departure (`RvSidHoldRunwayHeading: true`) and retains the expande
 length/suffix-driven with only a `>= 2` minimum fix-name length, a short fix name with trailing digits can be misparsed — keep fix
 names ≥ 2 chars and be wary of digit-suffixed names.
 
-**FRD radials are magnetic** (AIM §4-2-10 — all bearings are magnetic unless "true" is stated; 7110.65 §4-4-3.a.1.2 — degree-distance "azimuth in degrees magnetic"). Both directions apply the WMM declination
-at the **fix (origin)** position via `MagneticDeclination`: `ToFrd` converts the true bearing to magnetic before formatting, and
-`Resolve` converts the parsed magnetic radial back to true before projecting. The two are exact inverses (modulo the 1° radial
-rounding), so `ToFrd`→`Resolve` round-trips to the original point. Every FRD string in the app — ATCTrainer scenario `FixOrFrd`
-spawns, custom-fix `frd` definitions, user-typed direct-to, the ERAM QU/RD present-position anchor — is interpreted as magnetic.
+**FRD radials are magnetic** (AIM §4-2-10 — all bearings are magnetic unless "true" is stated; 7110.65 §4-4-3.a.1.2 — degree-distance "azimuth in degrees magnetic"), read against the **anchor's variation of record**: the station declination of a navaid anchor from its CIFP record, else the modelled declination at the anchor (`RadialConversion`, over `GetPublishedCourseDeclination(anchor, "", anchorPosition)`).
 
-`FrdResolver` uses the modelled WMM declination for all of these. An `AT {fix}{radial}{dist}` condition (and `JRADO`, `JRADI`, `AT {fix}{radial}`) instead converts with the station's variation of record (`GetPublishedCourseDeclination`); see [flight-physics.md](flight-physics.md#the-command-queue-half-updatecommandqueue--summary-only).
+`ToFrd` converts the true bearing to magnetic before formatting, and `Resolve` converts the parsed magnetic radial back to true before projecting. Both use the same declination, so they are exact inverses (modulo the 1° radial and 1 nm distance rounding), and `ToFrd`→`Resolve` round-trips to the original point.
 
-`ToFrd(lat, lon, fixes, maxNm = 50.0)` is the reverse: find the nearest fix within the cap (default **50 nm**), compute
-the magnetic radial, and format `{FIX}{radial:D3}{distance:D3}`. It returns the bare fix name when within 0.1 nm, and **`null`
-when the rounded distance exceeds 999 nm** (can't fit the 3-digit field).
+FAA CIFP theta/rho legs and vNAS's FRD-named NavData fixes read their radials against the station declination, not the live model: e.g. `OAK135015` lands on SIWBI and `RBL357019` on HOMAN, where the model at the VOR misses them by 1.1 and 1.6 nm.
+
+Every FRD string in the app — ATCTrainer scenario `FixOrFrd` spawns, custom-fix `frd` definitions, user-typed direct-to, the ERAM QU/RD present-position anchor, the SAY POSITION text, the point menu's FRD and CRC/vEDST `GenerateFrd` — goes through this conversion.
+
+An `AT {fix}{radial}{dist}` condition (and `JRADO`, `JRADI`, `AT {fix}{radial}`) converts with the same `RadialConversion`, so a `DCT` and an `AT` naming the same FRD meet at one point; see [flight-physics.md](flight-physics.md#the-command-queue-half-updatecommandqueue--summary-only).
+
+`ToFrd(lat, lon, fixes, navDb, maxNm = 50.0)` is the reverse: find the nearest fix within the cap (default **50 nm**), compute the magnetic radial with `navDb`'s declination for that anchor, and format `{FIX}{radial:D3}{distance:D3}`. It returns the bare fix name when within 0.1 nm, and **`null` when the rounded distance exceeds 999 nm** (can't fit the 3-digit field).
 
 ### FRD-named fixes are never FRD anchors
 

@@ -60,8 +60,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task<string?>> onSubmit) =>
         MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, blank, onSubmit);
 
-    /// <summary>The point as the primary radar view model's fixes name it (<see cref="FrdResolver.ToFrd"/>); null before they load.</summary>
-    public string? DescribePoint(LatLon position) => main.Radar.Fixes is { } fixes ? FrdResolver.ToFrd(position.Lat, position.Lon, fixes) : null;
+    /// <summary>
+    /// The point as the primary radar view model's fixes name it (<see cref="FrdResolver.ToFrd"/>); null before the fixes and the
+    /// nav database load.
+    /// </summary>
+    public string? DescribePoint(LatLon position) => RadarViewModel.TryToFrd(main.Radar.Fixes, position.Lat, position.Lon);
 
     /// <summary>
     /// The primary ground view model's routes from the aircraft's nearest node to <paramref name="node"/>, with the

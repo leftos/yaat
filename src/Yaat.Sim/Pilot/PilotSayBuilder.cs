@@ -160,7 +160,7 @@ public static class PilotSayBuilder
             var airportAnchors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             List<(string Name, double Lat, double Lon)> candidates = BuildPositionCandidates(aircraft, navDb, airportAnchors);
 
-            string? primary = candidates.Count > 0 ? FrdResolver.ToFrd(aircraft.Position.Lat, aircraft.Position.Lon, candidates) : null;
+            string? primary = candidates.Count > 0 ? FrdResolver.ToFrd(aircraft.Position.Lat, aircraft.Position.Lon, candidates, navDb) : null;
 
             if (primary is null)
             {
@@ -177,6 +177,7 @@ public static class PilotSayBuilder
                     aircraft.Position.Lat,
                     aircraft.Position.Lon,
                     [(fallback.Value.Id, fallback.Value.Lat, fallback.Value.Lon)],
+                    navDb,
                     SizeableAirportMaxRangeNm
                 );
                 return fallbackFrd is null ? "Unable to determine position" : FormatFrd(fallbackFrd, navDb, anchorIsAirport: true);
@@ -206,6 +207,7 @@ public static class PilotSayBuilder
                 aircraft.Position.Lat,
                 aircraft.Position.Lon,
                 [(nearbyAirport.Value.Id, nearbyAirport.Value.Lat, nearbyAirport.Value.Lon)],
+                navDb,
                 SizeableAirportMaxRangeNm
             );
             return airportFrd is null ? primaryText : $"{primaryText}, {FormatFrd(airportFrd, navDb, anchorIsAirport: true)}";

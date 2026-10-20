@@ -878,8 +878,8 @@ public partial class RadarViewModel(
 
     partial void OnMapSearchTextChanged(string value)
     {
-        var filter = value.Trim();
-        foreach (var toggle in MapToggles)
+        string filter = value.Trim();
+        foreach (VideoMapToggleItem toggle in MapToggles)
         {
             toggle.IsVisible =
                 filter.Length == 0
@@ -1350,6 +1350,13 @@ public partial class RadarViewModel(
         IsDrawingRoute = true;
     }
 
+    /// <summary>
+    /// The point named by <see cref="FrdResolver.ToFrd"/> over <paramref name="fixes"/> and the loaded nav database; null when
+    /// the fixes or the nav database are not loaded yet, or no fix is in range.
+    /// </summary>
+    public static string? TryToFrd(IReadOnlyList<(string Name, double Lat, double Lon)>? fixes, double lat, double lon) =>
+        (fixes is not null) && (NavigationDatabase.InstanceOrNull is { } navDb) ? FrdResolver.ToFrd(lat, lon, fixes, navDb) : null;
+
     public void PlaceRouteWaypoint(double lat, double lon)
     {
         if (!IsDrawingRoute)
@@ -1357,8 +1364,7 @@ public partial class RadarViewModel(
             return;
         }
 
-        string? name = Fixes is not null ? FrdResolver.ToFrd(lat, lon, Fixes) : null;
-        name ??= $"{lat:F3},{lon:F3}";
+        string name = TryToFrd(Fixes, lat, lon) ?? $"{lat:F3},{lon:F3}";
 
         _drawnWaypointsMutable.Add(new DrawnWaypoint(name, lat, lon));
         DrawnWaypoints = [.. _drawnWaypointsMutable];

@@ -1073,7 +1073,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         (double lat, double lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
-        string label = (Fixes is not null ? FrdResolver.ToFrd(lat, lon, Fixes) : null) ?? "";
+        string label = RadarViewModel.TryToFrd(Fixes, lat, lon) ?? "";
         return RblEndpoint.AtPoint(new LatLon(lat, lon), label);
     }
 
@@ -1103,10 +1103,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             (double Lat, double Lon) cursorLatLon = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
             drawRouteCursorLatLon = cursorLatLon;
-            if (Fixes is not null)
-            {
-                drawRouteCursorLabel = FrdResolver.ToFrd(cursorLatLon.Lat, cursorLatLon.Lon, Fixes);
-            }
+            drawRouteCursorLabel = RadarViewModel.TryToFrd(Fixes, cursorLatLon.Lat, cursorLatLon.Lon);
         }
 
         (string Text, SKPoint Pos)? mvaHover = null;
