@@ -292,6 +292,38 @@ public class SnapshotRoundTripTests
         Assert.Equal(InitialCallupPlan.AfterPush, Assert.Single(snapshot.Aircraft).Ground.InitialCallup);
     }
 
+    [Fact]
+    public void BlockTrigger_V33Radial_MigratesToTrueRadial_AndToIssuedRadialForAnFrdTrigger()
+    {
+        static string Block(BlockTriggerType type, int radial) =>
+            $"{{ \"Trigger\": {{ \"Type\": {(int)type}, \"FixName\": \"OAK\", \"FixLat\": 37.72, \"FixLon\": -122.22, \"Radial\": {radial} }},"
+            + " \"Commands\": [], \"IsApplied\": false, \"TriggerMet\": false, \"TriggerClosestApproach\": 0, \"TriggerMissed\": false }";
+        string json =
+            "{ \"SchemaVersion\": 33, \"ElapsedSeconds\": 10, \"Rng\": { \"S0\": 1, \"S1\": 2, \"S2\": 3, \"S3\": 4 },"
+            + " \"Aircraft\": [ { \"Callsign\": \"AAL1\", \"AircraftType\": \"B738\", \"Queue\": { \"CurrentBlockIndex\": 0, \"Blocks\": [ "
+            + Block(BlockTriggerType.InterceptRadial, 90)
+            + ", "
+            + Block(BlockTriggerType.ReachFrdPoint, 120)
+            + " ] } } ],"
+            + " \"Scenario\": { \"ScenarioId\": \"t\", \"ScenarioName\": \"T\", \"RngSeed\": 1, \"ElapsedSeconds\": 10, \"SimRate\": 1 } }";
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        List<CommandBlockDto> blocks = Assert.Single(snapshot.Aircraft).Queue.Blocks;
+        BlockTriggerDto intercept = blocks[0].Trigger!;
+        BlockTriggerDto frd = blocks[1].Trigger!;
+        Assert.Equal(90, intercept.TrueRadial);
+        Assert.Null(intercept.IssuedRadial);
+        Assert.Equal(120, frd.TrueRadial);
+        Assert.Equal(120, frd.IssuedRadial);
+        Assert.Null(intercept.LegacyRadial);
+        Assert.Null(frd.LegacyRadial);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+        // The legacy key is read once and dropped, so a rewritten snapshot no longer carries it.
+        Assert.DoesNotContain("\"Radial\"", JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default), StringComparison.Ordinal);
+    }
+
     private static AircraftHoldAnnotation RoundTripThroughJson(AircraftHoldAnnotation annotation)
     {
         string json = JsonSerializer.Serialize(annotation.ToSnapshot(), RecordingJsonOptions.Default);

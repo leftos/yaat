@@ -45,7 +45,19 @@ public class BlockTrigger
     public string? FixName { get; init; }
     public double? FixLat { get; init; }
     public double? FixLon { get; init; }
-    public int? Radial { get; init; }
+
+    /// <summary>
+    /// For <see cref="BlockTriggerType.InterceptRadial"/> and <see cref="BlockTriggerType.ReachFrdPoint"/> triggers: the true
+    /// bearing from the fix in whole degrees. A controller-issued magnetic radial is converted to true with the station's
+    /// variation when the block is built.
+    /// </summary>
+    public int? TrueRadial { get; init; }
+
+    /// <summary>
+    /// The magnetic radial as the controller issued it (JRADO, JRADI, <c>AT {fix}{radial}</c>, <c>AT {fix}{radial}{dist}</c>),
+    /// for messages that name it back. Null on a trigger no controller radial produced (JAWY's segment course).
+    /// </summary>
+    public int? IssuedRadial { get; init; }
     public int? DistanceNm { get; init; }
     public double? TargetLat { get; init; }
     public double? TargetLon { get; init; }
@@ -71,7 +83,8 @@ public class BlockTrigger
             FixName = FixName,
             FixLat = FixLat,
             FixLon = FixLon,
-            Radial = Radial,
+            TrueRadial = TrueRadial,
+            IssuedRadial = IssuedRadial,
             DistanceNm = DistanceNm,
             TargetLat = TargetLat,
             TargetLon = TargetLon,
@@ -91,7 +104,8 @@ public class BlockTrigger
             FixName = dto.FixName,
             FixLat = dto.FixLat,
             FixLon = dto.FixLon,
-            Radial = dto.Radial,
+            TrueRadial = dto.TrueRadial,
+            IssuedRadial = dto.IssuedRadial,
             DistanceNm = dto.DistanceNm,
             TargetLat = dto.TargetLat,
             TargetLon = dto.TargetLon,

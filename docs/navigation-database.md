@@ -416,6 +416,8 @@ at the **fix (origin)** position via `MagneticDeclination`: `ToFrd` converts the
 rounding), so `ToFrd`→`Resolve` round-trips to the original point. Every FRD string in the app — ATCTrainer scenario `FixOrFrd`
 spawns, custom-fix `frd` definitions, user-typed direct-to, the ERAM QU/RD present-position anchor — is interpreted as magnetic.
 
+`FrdResolver` uses the modelled WMM declination for all of these. An `AT {fix}{radial}{dist}` condition (and `JRADO`, `JRADI`, `AT {fix}{radial}`) instead converts with the station's variation of record (`GetPublishedCourseDeclination`); see [flight-physics.md](flight-physics.md#the-command-queue-half-updatecommandqueue--summary-only).
+
 `ToFrd(lat, lon, fixes, maxNm = 50.0)` is the reverse: find the nearest fix within the cap (default **50 nm**), compute
 the magnetic radial, and format `{FIX}{radial:D3}{distance:D3}`. It returns the bare fix name when within 0.1 nm, and **`null`
 when the rounded distance exceeds 999 nm** (can't fit the 3-digit field).

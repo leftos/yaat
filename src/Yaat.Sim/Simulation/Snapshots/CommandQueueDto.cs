@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class CommandQueueDto
@@ -61,7 +63,28 @@ public sealed class BlockTriggerDto
     public string? FixName { get; init; }
     public double? FixLat { get; init; }
     public double? FixLon { get; init; }
-    public int? Radial { get; init; }
+
+    /// <summary>
+    /// The trigger's true bearing from the fix in whole degrees (<see cref="BlockTrigger.TrueRadial"/>). <c>set</c> so the
+    /// V33→V34 migration step can fill it from <see cref="LegacyRadial"/>.
+    /// </summary>
+    public int? TrueRadial { get; set; }
+
+    /// <summary>
+    /// The magnetic radial as the controller issued it, null for a trigger no controller radial produced
+    /// (<see cref="BlockTrigger.IssuedRadial"/>). <c>set</c> so the V33→V34 migration step can fill it from <see cref="LegacyRadial"/>.
+    /// </summary>
+    public int? IssuedRadial { get; set; }
+
+    /// <summary>
+    /// Before V34: the trigger's radial, as the engine then compared it (a true bearing from the fix). Read only by
+    /// <see cref="SnapshotSchemaMigrator"/> to fill <see cref="TrueRadial"/> (and <see cref="IssuedRadial"/> for an FRD trigger),
+    /// which then nulls it so a rewritten snapshot drops it; never written.
+    /// </summary>
+    [JsonPropertyName("Radial")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LegacyRadial { get; set; }
+
     public int? DistanceNm { get; init; }
     public double? TargetLat { get; init; }
     public double? TargetLon { get; init; }

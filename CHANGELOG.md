@@ -44,6 +44,7 @@
 ### Fixed
 
 - `HOLDP` flies the inbound course as the magnetic course it was issued, not as a true course several degrees off.
+- `JRADO`, `JRADI` and `AT` radial conditions intercept the radial with the navaid's published magnetic variation, not several degrees off.
 - A strip moved into a rack above an unused, empty rack shows in that rack on vStrips and CRC, not one rack lower.
 - An aircraft cleared onto a taxiway from a spot or the ramp no longer makes a U-turn through a fillet behind it to get there (SFO spot 10).
 - A taxi to SFO gate D12 off taxiway A comes straight in from A instead of through the spot 6B alley.

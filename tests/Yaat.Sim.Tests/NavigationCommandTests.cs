@@ -55,7 +55,17 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(2, aircraft.Queue.Blocks.Count); // the applied JRADO, then its intercept block
         CommandBlock intercept = TriggerBlock(aircraft);
         Assert.Equal(BlockTriggerType.InterceptRadial, intercept.Trigger!.Type);
-        Assert.Equal(180, intercept.Trigger!.Radial);
+        Assert.Equal((int)Math.Round(180 + OakRadialDeclination()), intercept.Trigger!.TrueRadial);
+    }
+
+    /// <summary>
+    /// The variation a radial from OAK (37.72/-122.22) is referenced to under this class's navdata, which carries no station
+    /// record for OAK: the modelled declination at the fix.
+    /// </summary>
+    private static double OakRadialDeclination()
+    {
+        Assert.Null(NavigationDatabase.Instance.GetStationDeclination("OAK"));
+        return MagneticDeclination.GetDeclination(new LatLon(37.72, -122.22));
     }
 
     [Fact]
@@ -70,7 +80,11 @@ public class NavigationCommandTests : IDisposable
         CommandBlock block = TriggerBlock(aircraft);
         block.ApplyAction?.Invoke(aircraft, true);
 
-        Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
+        Assert.Equal(
+            new TrueHeading(270 + OakRadialDeclination()).Degrees,
+            Assert.IsType<TrueHeading>(aircraft.Targets.TargetTrueHeading).Degrees,
+            6
+        );
         Assert.Empty(aircraft.Targets.NavigationRoute);
     }
 

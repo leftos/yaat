@@ -129,7 +129,7 @@ public class CommandQueueTests
                     Type = BlockTriggerType.InterceptRadial,
                     FixLat = 37.5,
                     FixLon = -122.2,
-                    Radial = 001,
+                    TrueRadial = 001,
                 }
             )
         );
@@ -151,7 +151,7 @@ public class CommandQueueTests
                     Type = BlockTriggerType.InterceptRadial,
                     FixLat = 37.5,
                     FixLon = -122.2,
-                    Radial = 090,
+                    TrueRadial = 090,
                 }
             )
         );

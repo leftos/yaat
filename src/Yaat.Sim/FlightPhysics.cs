@@ -1974,7 +1974,7 @@ public static class FlightPhysics
                 && GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.FixLat.Value, trigger.FixLon.Value)) < NavArrivalNm,
             BlockTriggerType.InterceptRadial => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
-                && trigger.Radial.HasValue
+                && trigger.TrueRadial.HasValue
                 && IsRadialIntercepted(aircraft, trigger),
             BlockTriggerType.ReachFrdPoint => trigger.TargetLat.HasValue
                 && trigger.TargetLon.HasValue
@@ -2302,7 +2302,7 @@ public static class FlightPhysics
     private static bool IsRadialIntercepted(AircraftState aircraft, BlockTrigger trigger)
     {
         double bearing = GeoMath.BearingTo(new LatLon(trigger.FixLat!.Value, trigger.FixLon!.Value), aircraft.Position);
-        double diff = Math.Abs(NormalizeAngle(bearing - trigger.Radial!.Value));
+        double diff = Math.Abs(NormalizeAngle(bearing - trigger.TrueRadial!.Value));
         return diff < RadialInterceptDeg;
     }
 
@@ -2328,7 +2328,7 @@ public static class FlightPhysics
         {
             block.TriggerMissed = true;
             string fixName = block.Trigger.FixName ?? "?";
-            string radial = block.Trigger.Radial?.ToString("D3") ?? "???";
+            string radial = block.Trigger.IssuedRadial?.ToString("D3") ?? "???";
             string distNm = block.Trigger.DistanceNm?.ToString("D3") ?? "???";
             aircraft.PendingWarnings.Add($"Missed condition at {fixName} R{radial} D{distNm} " + $"(closest: {block.TriggerClosestApproach:F1} NM)");
         }

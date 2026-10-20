@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 33;
+    public const int CurrentSchemaVersion = 34;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -241,7 +241,44 @@ public static class SnapshotSchemaMigrator
             }
         }
 
+        // V33→V34: BlockTriggerDto.Radial renamed TrueRadial, and IssuedRadial (the magnetic radial as issued) added. The old
+        //   engine compared Radial as a true bearing from the fix, so it carries into TrueRadial and old replays fire where they
+        //   did. Only an FRD trigger's Radial was surely the issued radial (every ReachFrdPoint came from AT {fix}{radial}{dist});
+        //   an InterceptRadial's may be JAWY's true segment course, so its IssuedRadial stays null.
+        if (snapshot.SchemaVersion < 34)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                MigrateLegacyRadials(ac.Queue);
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    /// <summary>Moves each trigger's pre-V34 <c>Radial</c> into <see cref="BlockTriggerDto.TrueRadial"/>; a legacy queue may be null.</summary>
+    private static void MigrateLegacyRadials(CommandQueueDto? queue)
+    {
+        if (queue?.Blocks is not { } blocks)
+        {
+            return;
+        }
+
+        foreach (CommandBlockDto block in blocks)
+        {
+            if (block.Trigger is not { LegacyRadial: { } legacyRadial } trigger)
+            {
+                continue;
+            }
+
+            trigger.TrueRadial = legacyRadial;
+            if (trigger.Type == (int)BlockTriggerType.ReachFrdPoint)
+            {
+                trigger.IssuedRadial = legacyRadial;
+            }
+
+            trigger.LegacyRadial = null;
+        }
     }
 
     private static InitialCallupPlan LegacyInitialCallup(AircraftGroundOpsDto ground, bool atParking)

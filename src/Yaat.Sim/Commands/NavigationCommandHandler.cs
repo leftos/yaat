@@ -15,6 +15,26 @@ internal static class NavigationCommandHandler
     /// an authored display name (e.g. "LAKE CHABOT (VPCBT)"), or the bare identifier otherwise.</summary>
     private static string FixDisplay(string fix) => PhraseologyVerbalizer.FixDisplayTextUpper(fix);
 
+    /// <summary>
+    /// The variation a controller-issued radial from <paramref name="fixName"/> is referenced to (P/CG RADIAL; AIM 1-1-17b.5(j)(1)):
+    /// the station's declination of record when the fix is a navaid, else the modelled declination at the fix.
+    /// </summary>
+    private static double RadialDeclination(string fixName, double fixLat, double fixLon) =>
+        NavigationDatabase.Instance.GetPublishedCourseDeclination(fixName, string.Empty, new LatLon(fixLat, fixLon));
+
+    /// <summary>Converts a controller-issued magnetic radial from <paramref name="fixName"/> to the true bearing from the fix.</summary>
+    internal static TrueHeading RadialToTrueBearing(string fixName, double fixLat, double fixLon, int magneticRadial) =>
+        new MagneticHeading(magneticRadial).ToTrue(RadialDeclination(fixName, fixLat, fixLon));
+
+    /// <summary>
+    /// <see cref="RadialToTrueBearing"/> rounded to whole degrees, which is what a <see cref="BlockTrigger.TrueRadial"/> holds.
+    /// </summary>
+    internal static int RadialToTrue(string fixName, double fixLat, double fixLon, int magneticRadial) =>
+        ToWholeTrueRadial(RadialToTrueBearing(fixName, fixLat, fixLon, magneticRadial));
+
+    /// <summary>A true bearing rounded to whole degrees in 0-359, the form a <see cref="BlockTrigger.TrueRadial"/> holds.</summary>
+    internal static int ToWholeTrueRadial(TrueHeading bearing) => (int)Math.Round(bearing.Degrees) % 360;
+
     internal static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
@@ -23,7 +43,7 @@ internal static class NavigationCommandHandler
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
-        // Block 1: on radial intercept, fly outbound heading (radial is magnetic)
+        // Block 1: on radial intercept, fly outbound heading (the radial is magnetic, referenced to the station's variation)
         aircraft.Queue.Blocks.Add(BuildJradoInterceptBlock(cmd));
 
         return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial outbound");
@@ -37,6 +57,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static CommandBlock BuildJradoInterceptBlock(JoinRadialOutboundCommand cmd)
     {
+        double stationDeclination = RadialDeclination(cmd.FixName, cmd.FixLat, cmd.FixLon);
         var block = new CommandBlock
         {
             Trigger = new BlockTrigger
@@ -45,13 +66,14 @@ internal static class NavigationCommandHandler
                 FixName = cmd.FixName,
                 FixLat = cmd.FixLat,
                 FixLon = cmd.FixLon,
-                Radial = cmd.Radial,
+                TrueRadial = RadialToTrue(cmd.FixName, cmd.FixLat, cmd.FixLon, cmd.Radial),
+                IssuedRadial = cmd.Radial,
             },
             ApplyAction = (ac, _) =>
             {
                 var magneticHdg = new MagneticHeading(cmd.Radial);
                 ac.Targets.NavigationRoute.Clear();
-                ac.Targets.TargetTrueHeading = magneticHdg.ToTrue(ac.Declination);
+                ac.Targets.TargetTrueHeading = magneticHdg.ToTrue(stationDeclination);
                 ac.Targets.AssignedMagneticHeading = magneticHdg;
                 ac.Targets.PreferredTurnDirection = null;
                 return new CommandResult(true);
@@ -93,7 +115,8 @@ internal static class NavigationCommandHandler
                 FixName = cmd.FixName,
                 FixLat = cmd.FixLat,
                 FixLon = cmd.FixLon,
-                Radial = cmd.Radial,
+                TrueRadial = RadialToTrue(cmd.FixName, cmd.FixLat, cmd.FixLon, cmd.Radial),
+                IssuedRadial = cmd.Radial,
             },
             ApplyAction = (ac, _) =>
             {
@@ -789,7 +812,7 @@ internal static class NavigationCommandHandler
                 FixName = plan.InterceptFixName,
                 FixLat = plan.InterceptFixLat,
                 FixLon = plan.InterceptFixLon,
-                Radial = plan.SegmentRadial,
+                TrueRadial = plan.SegmentRadial,
             },
             ApplyAction = (ac, _) =>
             {
@@ -919,7 +942,7 @@ internal static class NavigationCommandHandler
 
             // The serialized trigger is never re-derived, so the plan carries its own origin and radial only to keep
             // the plan's shape uniform with the live one's.
-            yield return new AirwayInterceptPlan(originName, originLat, originLon, trigger.Radial ?? 0, navTargets, remainingFixes);
+            yield return new AirwayInterceptPlan(originName, originLat, originLon, trigger.TrueRadial ?? 0, navTargets, remainingFixes);
         }
     }
 

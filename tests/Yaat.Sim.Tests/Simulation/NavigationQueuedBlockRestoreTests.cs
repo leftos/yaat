@@ -39,9 +39,9 @@ public class NavigationQueuedBlockRestoreTests
     [Fact]
     public void JradoInterceptBlock_RestoredFromSnapshot_FliesTheRadial()
     {
-        // On the OAK 090 radial (the trigger compares the true bearing from the fix to the aircraft),
+        // On the OAK 090 radial (the trigger holds the true radial, converted with the station's variation),
         // heading north so the block has a heading of its own to fly once it fires.
-        AircraftState aircraft = AircraftAt(Project(Fix("OAK"), 90, 10), 360);
+        AircraftState aircraft = AircraftAt(Project(Fix("OAK"), OakTrueRadial090(), 10), 360);
 
         SimulationEngine live = NewEngine();
         live.World.AddAircraft(aircraft);
@@ -55,11 +55,13 @@ public class NavigationQueuedBlockRestoreTests
 
         // The same follow-up fires twice: live on the engine that queued it, and after a restore.
         TickUntil(live, () => aircraft.Targets.AssignedMagneticHeading?.Degrees == 90, "the live radial heading");
+        double liveTargetTrueHeading = Assert.IsType<TrueHeading>(aircraft.Targets.TargetTrueHeading).Degrees;
 
         (SimulationEngine restored, AircraftState restoredAircraft) = Restore(snapshot);
         restored.TickOneSecond();
 
         Assert.Equal(90, restoredAircraft.Targets.AssignedMagneticHeading?.Degrees);
+        Assert.Equal(liveTargetTrueHeading, Assert.IsType<TrueHeading>(restoredAircraft.Targets.TargetTrueHeading).Degrees, 6);
         Assert.Empty(restoredAircraft.Targets.NavigationRoute);
         AssertSameQueueAs(aircraft, restoredAircraft);
     }
@@ -67,7 +69,8 @@ public class NavigationQueuedBlockRestoreTests
     [Fact]
     public void JradiInterceptBlock_RestoredFromSnapshot_NavigatesToTheFix()
     {
-        AircraftState aircraft = AircraftAt(Project(Fix("OAK"), 90, 10), 360);
+        // On the OAK 090 radial, as above.
+        AircraftState aircraft = AircraftAt(Project(Fix("OAK"), OakTrueRadial090(), 10), 360);
 
         SimulationEngine live = NewEngine();
         live.World.AddAircraft(aircraft);
@@ -196,7 +199,7 @@ public class NavigationQueuedBlockRestoreTests
         CommandBlock queued = QueuedFollowUpBlock(aircraft);
         Assert.Equal($"JAWY {Airway}", queued.SourceCommandText);
         Assert.Equal(fixes[originIdx], queued.Trigger!.FixName);
-        Assert.Equal((int)Math.Round(course) % 360, queued.Trigger!.Radial);
+        Assert.Equal((int)Math.Round(course) % 360, queued.Trigger!.TrueRadial);
         Assert.Empty(aircraft.Targets.NavigationRoute);
 
         TickFor(live, InterceptPreTickSeconds);
@@ -311,7 +314,7 @@ public class NavigationQueuedBlockRestoreTests
                 FixName = "ZZZZZ",
                 FixLat = trigger.FixLat,
                 FixLon = trigger.FixLon,
-                Radial = trigger.Radial,
+                TrueRadial = trigger.TrueRadial,
             }
         );
 
@@ -419,6 +422,10 @@ public class NavigationQueuedBlockRestoreTests
         (double Lat, double Lon) position = NavigationDatabase.Instance.GetFixPosition(name)!.Value;
         return new LatLon(position.Lat, position.Lon);
     }
+
+    /// <summary>The true bearing of the OAK 090 radial: 090 magnetic plus OAK's station declination.</summary>
+    private static double OakTrueRadial090() =>
+        new TrueHeading(90 + Assert.IsType<double>(NavigationDatabase.Instance.GetStationDeclination("OAK"))).Degrees;
 
     /// <summary>The pinned airway's fix sequence, asserting the pinned id still exists in this navdata.</summary>
     private static IReadOnlyList<string> AirwayFixes(string airwayId) =>

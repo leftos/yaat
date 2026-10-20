@@ -3923,7 +3923,8 @@ public static class CommandDispatcher
                 FixName = at.FixName,
                 FixLat = at.Lat,
                 FixLon = at.Lon,
-                Radial = radial,
+                TrueRadial = NavigationCommandHandler.RadialToTrue(at.FixName, at.Lat, at.Lon, radial),
+                IssuedRadial = radial,
             },
             AtFixCondition at => new BlockTrigger
             {
@@ -4029,14 +4030,16 @@ public static class CommandDispatcher
 
     private static BlockTrigger ConvertFrdCondition(AtFixCondition at, int radial, int dist)
     {
-        (double targetLat, double targetLon) = GeoMath.ProjectPointRaw(at.Lat, at.Lon, radial, dist);
+        TrueHeading trueBearing = NavigationCommandHandler.RadialToTrueBearing(at.FixName, at.Lat, at.Lon, radial);
+        (double targetLat, double targetLon) = GeoMath.ProjectPointRaw(at.Lat, at.Lon, trueBearing.Degrees, dist);
         return new BlockTrigger
         {
             Type = BlockTriggerType.ReachFrdPoint,
             FixName = at.FixName,
             FixLat = at.Lat,
             FixLon = at.Lon,
-            Radial = radial,
+            TrueRadial = NavigationCommandHandler.ToWholeTrueRadial(trueBearing),
+            IssuedRadial = radial,
             DistanceNm = dist,
             TargetLat = targetLat,
             TargetLon = targetLon,
