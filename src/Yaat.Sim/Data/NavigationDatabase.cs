@@ -538,6 +538,29 @@ public sealed class NavigationDatabase
     public IReadOnlyList<(string Name, double Lat, double Lon)> GetFixTuples() =>
         _fixTuples ??= [.. _navDb.Select(kv => (kv.Key, kv.Value.Lat, kv.Value.Lon))];
 
+    /// <summary>
+    /// Every fix whose name starts with <paramref name="namePrefix"/> (ignoring case; an empty prefix matches every fix), nearest
+    /// to <paramref name="position"/> first, however far. Reads the same fixes as <see cref="GetFixTuples"/>, so military route
+    /// points are never listed.
+    /// </summary>
+    /// <param name="position">Where distances are measured from.</param>
+    /// <param name="namePrefix">The start every listed name has; empty for every fix.</param>
+    public IReadOnlyList<NearbyFix> FixesNear(LatLon position, string namePrefix)
+    {
+        List<NearbyFix> near = [];
+        foreach ((string name, double lat, double lon) in GetFixTuples())
+        {
+            if (name.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var fixPosition = new LatLon(lat, lon);
+                near.Add(new NearbyFix(name, fixPosition, GeoMath.DistanceNm(position, fixPosition)));
+            }
+        }
+
+        near.Sort((a, b) => (a.DistanceNm != b.DistanceNm) ? a.DistanceNm.CompareTo(b.DistanceNm) : string.CompareOrdinal(a.Name, b.Name));
+        return near;
+    }
+
     public int Count => _navDb.Count;
 
     /// <summary>

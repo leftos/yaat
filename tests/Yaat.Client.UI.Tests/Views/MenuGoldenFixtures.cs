@@ -293,6 +293,7 @@ internal static class MenuGoldenFixtures
         [
             new("departing-ifr", AirborneJet("AAL201", "InitialClimb", AircraftSituation.Departing, new LatLon(37.7500, -122.2800), 3000), null),
             new("ifr-enroute", IfrEnroute(), null),
+            new("ifr-enroute-direct", IfrEnrouteDirect(), null),
             new("ifr-arrival", IfrArrival(), null),
             new("approach-ifr", AirborneJet("AAL204", "ApproachNav", AircraftSituation.Approach, new LatLon(37.6200, -122.0500), 3000), null),
             new("holding-ifr", AirborneJet("AAL205", "HoldingPattern", AircraftSituation.Holding, new LatLon(37.5500, -122.0000), 5000), null),
@@ -339,6 +340,16 @@ internal static class MenuGoldenFixtures
             Destination = "KLAX",
             Route = "SUNOL Q126 ALTAM",
         };
+
+    /// <summary>The enroute B738 flying direct SUNOL then ALTAM, so the menu offers Append direct to….</summary>
+    private static AircraftModel IfrEnrouteDirect()
+    {
+        AircraftModel ac = IfrEnroute();
+        ac.Callsign = "AAL209";
+        ac.NavigatingTo = "SUNOL";
+        ac.NavigationRoute = ["SUNOL", "ALTAM"];
+        return ac;
+    }
 
     /// <summary>An IFR arrival to KOAK on the EMZOH4 STAR, filed via J6.</summary>
     private static AircraftModel IfrArrival() =>

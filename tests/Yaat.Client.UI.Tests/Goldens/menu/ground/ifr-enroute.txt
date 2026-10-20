@@ -30,7 +30,8 @@ All Commands
     Resume normal speed
     Reduce to final approach speed
   Navigation
-    Direct to picker:list [SUNOL, ALTAM, KLAX, KOAK]
+    Direct to…
+      direct to flyout
   Hold
     Hold present position (left)
     Hold present position (right)

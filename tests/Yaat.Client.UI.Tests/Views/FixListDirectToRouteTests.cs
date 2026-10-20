@@ -1,25 +1,23 @@
-using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// Pins the Direct-to picker's fix list: the aircraft's route from the fix it is navigating to on — the navigation
-/// route from that fix, then the filed route's fixes after the last of them, then the destination, each fix once and
-/// in order, ignoring case, with the departure airport never listed. Without a navigating-to fix the whole route
-/// (<see cref="IMenuAircraft.RouteFixNames"/>) comes back unchanged.
+/// Pins the Direct to flyout's route rows (<see cref="FixList.DirectToRoute"/>): the aircraft's route from the fix it is
+/// navigating to on — the navigation route from that fix, then the filed route's fixes after the last of them, then the
+/// destination, each fix once and in order, ignoring case, with the departure airport never listed. Without a navigating-to fix
+/// the whole route (<see cref="IMenuAircraft.RouteFixNames"/>) comes back unchanged.
 /// </summary>
-public class MenuCatalogDirectToTests
+public class FixListDirectToRouteTests
 {
     private const string Callsign = "N1AA";
 
     /// <summary>Real navigation data, so the list's filed-route expansion runs against the real database.</summary>
-    public MenuCatalogDirectToTests() => TestVnasData.EnsureInitialized();
+    public FixListDirectToRouteTests() => TestVnasData.EnsureInitialized();
 
     private static AircraftModel Aircraft(string navigatingTo, string[] navRoute, string route, string destination, string departure) =>
         new()
@@ -32,16 +30,8 @@ public class MenuCatalogDirectToTests
             Departure = departure,
         };
 
-    private static MenuContext Context() => TestMenuContext.Create(Callsign, "AB", null, false, VfrCommandsForIfr.None);
-
-    /// <summary>The fixes the Direct-to picker lists for <paramref name="aircraft"/>, read off the built item's picker descriptor.</summary>
-    private static IReadOnlyList<string> DirectToFixes(AircraftModel aircraft)
-    {
-        MenuItem? item = MenuCatalog.Get(MenuIds.NavigationDirectTo).Build(aircraft, Context(), new RecordingMenuHost(""));
-        MenuPickerDescriptor descriptor = Assert.IsType<MenuPickerDescriptor>(item?.Tag);
-        Assert.Equal(MenuPickerDescriptor.List, descriptor.Kind);
-        return descriptor.Items;
-    }
+    /// <summary>The fixes the Direct to flyout's route rows list for <paramref name="aircraft"/>.</summary>
+    private static IReadOnlyList<string> DirectToFixes(AircraftModel aircraft) => FixList.DirectToRoute(aircraft);
 
     [AvaloniaFact]
     public void NavigatingToMidRoute_ListsFromItOnThenTheRestOfTheFiledRouteThenTheDestination()

@@ -40,6 +40,14 @@ The present speed and Mach chips are filled, the assigned speed's chip and the c
 
 ![The Assign speed flyout for a B764 at FL350, with the Speed box over the knots and Mach chips](img/whats-new-speed-flyout.png)
 
+## Direct to
+
+Direct to… and Append direct to…, in the quick-command strip and under All Commands › Navigation, open one flyout instead of a list or an input popup. The title says which verb it is, with "→ {next fix}" while the aircraft navigates to a fix, and then a toggle switches between Direct to (`DCT`) and Append to route (`ADCT`). The Fix box has focus, takes a fix name or an FRD, shows the command Enter would send, and says "Not a known fix" in red when it can send nothing.
+
+Below it, "Remaining route" lists the fixes ahead with a ● on the next one, each with its distance and magnetic bearing from the aircraft (`31 NM · 184°`, the heading it would fly) and its command; a fix the aircraft has passed greys to "passed" for as long as the flyout stays open but still sends. Type a few letters and the route rows narrow and "All fixes · nearest first" lists the 50 nearest other fixes starting with them, however far; an FRD such as `RBL184031` gets its own row. The first row is outlined and Enter sends it. Down moves from the box into the rows, Up walks back to it, and Enter sends the focused row. The rows follow the aircraft once a second and stay put.
+
+![The Direct to flyout for a jet sent direct SUNOL, with SU typed in the Fix box over the route row and the nearest fixes starting with SU](img/whats-new-direct-to-flyout.png)
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

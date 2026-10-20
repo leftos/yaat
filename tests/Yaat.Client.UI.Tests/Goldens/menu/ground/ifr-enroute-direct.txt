@@ -1,0 +1,150 @@
+# ground ifr-enroute-direct
+AAL209 · B738 [disabled]
+33,000 ft · 280 kt [disabled]
+SUNOL ALTAM [disabled]
+---
+strip: [heading.fly, altitude.maintain, navigation.direct-to, speed.assign, hold.pattern, procedures.cross-fix]
+---
+Command…
+Note…
+All Commands
+  Heading (→ SUNOL)
+    Present heading
+    Fly heading
+      heading flyout
+    Turn left
+      heading flyout
+    Turn right
+      heading flyout
+    Turn left (degrees)
+      heading flyout
+    Turn right (degrees)
+      heading flyout
+  Altitude
+    Maintain altitude
+      maintain altitude flyout
+  Speed
+    Assign speed
+      speed flyout
+    Speed…
+      speed flyout
+    Resume normal speed
+    Reduce to final approach speed
+  Navigation (→ SUNOL)
+    Direct to…
+      direct to flyout
+    Append direct to…
+      direct to flyout
+  Hold
+    Hold present position (left)
+    Hold present position (right)
+    Hold at fix (left)… picker:input
+    Hold at fix (right)… picker:input
+  Approach
+    Cleared approach
+      approach flyout, built when it opens
+    Join approach
+      approach flyout, built when it opens
+    Cleared straight-in
+      approach flyout, built when it opens
+    Join straight-in
+      approach flyout, built when it opens
+    Cleared approach (force)
+      approach flyout, built when it opens
+    Join approach (force)
+      approach flyout, built when it opens
+    Join final approach course
+      approach flyout, built when it opens
+    Expect approach
+      approach flyout, built when it opens
+    Cleared visual approach… picker:list [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
+    ---
+    Report field in sight
+    Report traffic in sight… picker:input
+    ---
+    Report when…
+      Turning base
+      Turning final
+      Turning crosswind
+      Turning downwind
+      At N-mile final… picker:input
+      At fix… picker:input
+      ---
+      Stop reporting
+        Base
+        Final
+        Crosswind
+        Downwind
+        ---
+        All reports
+  Procedures
+    Join STAR… picker:list [ANJLL4, BASET5, BAYST1, BIGBR3, BOGET2, BRUEN2, DIRBY2, GOATZ2, HLYWD1, HUULL2, IRNMN2, KIMMO3, LEENA8, MDNYT2, MOOR4, OCEAN3, OLAAA2, RYDRR2, SADDE8, SEAVU2, SNSTT2, VISTA3, WAYVE1, ZUUMA4]
+    Climb via SID
+    Descend via STAR
+    Cross fix… picker:list [SUNOL, ALTAM, KLAX, KOAK]
+    Cross fix (other)… picker:input
+    Depart fix… picker:list [SUNOL, ALTAM, KLAX, KOAK]
+    Depart fix (other)… picker:input
+    PTAC… picker:input
+    Join airway Q126
+    Join airway (other)… picker:input
+    Join radial outbound… picker:input
+    Join radial inbound… picker:input
+  Pattern
+    Make straight-in
+      Runway 6L — EF 6L
+      Runway 6R — EF 6R
+      Runway 7L — EF 7L
+      Runway 7R — EF 7R
+      Runway 24L — EF 24L
+      Runway 24R — EF 24R
+      Runway 25L — EF 25L
+      Runway 25R — EF 25R
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude…
+    temporary altitude flyout
+  Cruise…
+    cruise flyout
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from AAL209
+---
+Delete

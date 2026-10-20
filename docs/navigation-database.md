@@ -527,6 +527,8 @@ Airports are indexed into a 1°×1° (~60 nm) spatial grid at build time, dedupl
 
 Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
 
+`FixesNear(position, namePrefix)` is the fix lookup: every fix of `GetFixTuples()` (so never a military route point) whose name starts with the prefix (ignoring case; an empty prefix matches all), however far, as `NearbyFix` records (`Name`, `Position`, `DistanceNm`), nearest first and ties by name. It scans the whole fix list rather than the airport grid; the Direct to flyout's search (`FixList.Matches`, which keeps the nearest 50) is its caller.
+
 ## Adding a lookup / extending
 
 1. If the lookup is keyed by airport, route the key through `NormalizeAirport` (or use `AirportIdsMatch`) **and** implement the

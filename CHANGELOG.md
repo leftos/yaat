@@ -38,6 +38,7 @@
 - Fly heading and the turn commands open one flyout with a compass rose, a heading box, left and right degree chips and Present heading.
 - Maintain altitude opens a live flyout: an altitude box over the marked altitude list with its MVA line; Temporary altitude and Cruise open one-box flyouts.
 - Assign speed and Speed… open one live flyout: a knots box, Resume normal and final approach speed, and knots and Mach chips.
+- Direct to and Append direct to open a live flyout: fix box, route ahead with distance and bearing, nearest matching fixes as you type.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 
 ### Fixed

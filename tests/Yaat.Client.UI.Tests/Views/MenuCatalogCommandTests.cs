@@ -83,8 +83,6 @@ public class MenuCatalogCommandTests
         (MenuIds.HeadingPresent, "", "FPH"),
         (MenuIds.SpeedNormal, "", "RNS"),
         (MenuIds.SpeedFinalApproach, "", "RFAS"),
-        (MenuIds.NavigationDirectTo, Fix, "DCT SUNOL"),
-        (MenuIds.NavigationAppendDirectTo, Fix, "ADCT SUNOL"),
         (MenuIds.HoldPresentLeft, "", "HPPL"),
         (MenuIds.HoldPresentRight, "", "HPPR"),
         (MenuIds.HoldFixLeft, Fix, "HFIXL SUNOL"),
@@ -206,6 +204,9 @@ public class MenuCatalogCommandTests
         // Assign speed and Speed… open the speed flyout; SpeedFlyoutTests clicks its rows, chips and box.
         MenuIds.SpeedAssign,
         MenuIds.SpeedCustom,
+        // Direct to… and Append direct to… open the Direct to flyout; DirectToFlyoutTests clicks its rows, toggle and box.
+        MenuIds.NavigationDirectTo,
+        MenuIds.NavigationAppendDirectTo,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -766,31 +767,22 @@ public class MenuCatalogCommandTests
     [AvaloniaTheory]
     [InlineData(MenuIds.NavigationDirectTo, "Direct to", "DCT")]
     [InlineData(MenuIds.NavigationAppendDirectTo, "Append direct to", "ADCT")]
-    public void DirectTo_FilteredListWithRouteFixesFirst_ElseRouteFixList_ElseInput(string id, string label, string command)
+    public void DirectTo_OpensTheDirectToFlyoutOnItsVerb_NoPopup(string id, string label, string command)
     {
-        var routed = new FakeMenuAircraft
-        {
-            NavigatingTo = Fix,
-            NavigationRoute = [Fix, "ECA"],
-            RouteFixes = [Fix, "ECA"],
-        };
+        TestVnasData.EnsureInitialized();
+        var routed = new FakeMenuAircraft { NavigatingTo = Fix, NavigationRoute = [Fix, "ECA"] };
+        var host = new RecordingMenuHost(Fix);
 
-        var filteredHost = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix] };
-        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), filteredHost), $"{label}…", MenuPickerDescriptor.FilteredList, [Fix, "ECA"]));
-        (string[] Names, IReadOnlyList<string>? Priority) filteredPopup = Assert.Single(filteredHost.FilteredListPopups);
-        Assert.Equal(["ECA", "OAK", Fix], filteredPopup.Names);
-        Assert.Equal([Fix, "ECA"], filteredPopup.Priority);
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(routed, Context(), host));
+        Assert.Equal($"{label}…", item.Header as string);
+        item.IsSubMenuOpen = true;
+        DirectToFlyoutPanel panel = DirectToFlyoutTests.PanelOf(item);
+        panel.RouteRows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        var listHost = new RecordingMenuHost("ECA");
-        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), listHost), label, MenuPickerDescriptor.List, [Fix, "ECA"]));
-        Assert.Equal<object?>(Fix, Assert.Single(listHost.ListPopups).Selected);
-
-        var inputHost = new RecordingMenuHost(Fix);
-        Click(AssertPicker(MenuCatalog.Get(id).Build(new FakeMenuAircraft(), Context(), inputHost), $"{label}…", MenuPickerDescriptor.Input, []));
-
-        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], filteredHost.Sent);
-        Assert.Equal([(Callsign, $"{command} ECA", Initials)], listHost.Sent);
-        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], inputHost.Sent);
+        Assert.Equal(command, DirectToFlyout.VerbText(panel.Verb));
+        Assert.Empty(host.ListPopups);
+        Assert.Empty(host.FilteredListPopups);
+        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], host.Sent);
     }
 
     [AvaloniaTheory]
@@ -821,9 +813,7 @@ public class MenuCatalogCommandTests
         Assert.Equal("Navigation", idle.Header as string);
         Assert.Equal(["Direct to…"], idle.Items.Select(Describe));
         Assert.Equal("Navigation (→ SUNOL)", navigating.Header as string);
-
-        // Direct to lists SUNOL alone, so it is a one-item list rather than a free-text input: the list branch drops the ellipsis.
-        Assert.Equal(["Direct to", "Append direct to…"], navigating.Items.Select(Describe));
+        Assert.Equal(["Direct to…", "Append direct to…"], navigating.Items.Select(Describe));
     }
 
     /// <summary>A circling approach id splits into its kind, its full published kind and its variant letter.</summary>

@@ -220,11 +220,6 @@ public sealed class HeadingFlyoutPanel : StackPanel, IFlyoutPanel
 {
     private const double ChipColumnWidth = 56;
     private static readonly IImmutableSolidColorBrush ReadoutBrush = new ImmutableSolidColorBrush(Color.Parse("#CFD5DC"));
-    private static readonly IImmutableSolidColorBrush ToggleLine = new ImmutableSolidColorBrush(Color.Parse("#3A414B"));
-    private static readonly IImmutableSolidColorBrush ToggleFill = new ImmutableSolidColorBrush(Color.Parse("#23272C"));
-    private static readonly IImmutableSolidColorBrush ToggleOnFill = new ImmutableSolidColorBrush(Color.Parse("#24406A"));
-    private static readonly IImmutableSolidColorBrush ChipLine = new ImmutableSolidColorBrush(Color.Parse("#33383F"));
-    private static readonly IImmutableSolidColorBrush CodeBrush = new ImmutableSolidColorBrush(Color.Parse("#9AA3AD"));
 
     private readonly HeadingFlyoutPreset _preset;
     private readonly IMenuAircraft? _aircraft;
@@ -471,7 +466,7 @@ public sealed class HeadingFlyoutPanel : StackPanel, IFlyoutPanel
         };
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
-        TextBlock command = CommandText("FPH");
+        TextBlock command = FlyoutPanelParts.CommandText("FPH");
         Grid.SetColumn(command, 2);
         grid.Children.Add(command);
         var row = new Button
@@ -494,91 +489,23 @@ public sealed class HeadingFlyoutPanel : StackPanel, IFlyoutPanel
     /// <summary>The Fly heading / Turn left / Turn right toggle: one button per verb, the verb's command beside its label.</summary>
     private Border ToggleStrip()
     {
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (HeadingVerb verb in Enum.GetValues<HeadingVerb>())
         {
-            var code = new TextBlock
-            {
-                Text = HeadingFlyout.VerbText(verb),
-                FontSize = 11,
-                Foreground = CodeBrush,
-                Margin = new Thickness(5, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            code.Bind(TextBlock.FontFamilyProperty, code.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-            var toggle = new ToggleButton
-            {
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Children =
-                    {
-                        new TextBlock { Text = HeadingFlyout.Label(verb), VerticalAlignment = VerticalAlignment.Center },
-                        code,
-                    },
-                },
-                FontSize = 12,
-                Padding = new Thickness(10, 4),
-                CornerRadius = new CornerRadius(0),
-                BorderThickness = new Thickness((verb == HeadingVerb.FlyHeading) ? 0 : 1, 0, 0, 0),
-                BorderBrush = ToggleLine,
-                Background = ToggleFill,
-                Focusable = false,
-            };
-            toggle.Resources["ToggleButtonBackgroundChecked"] = ToggleOnFill;
-            toggle.Resources["ToggleButtonBackgroundCheckedPointerOver"] = ToggleOnFill;
-            toggle.Resources["ToggleButtonBackgroundCheckedPressed"] = ToggleOnFill;
-            toggle.Resources["ToggleButtonForegroundChecked"] = Brushes.White;
-            toggle.Resources["ToggleButtonForegroundCheckedPointerOver"] = Brushes.White;
-            AutomationProperties.SetName(toggle, HeadingFlyout.Label(verb));
-            toggle.Click += (_, e) =>
-            {
-                e.Handled = true;
-                SetVerb(verb);
-            };
-            _toggles.Add(toggle);
-            buttons.Children.Add(toggle);
+            _toggles.Add(
+                FlyoutPanelParts.VerbToggle(
+                    HeadingFlyout.Label(verb),
+                    HeadingFlyout.VerbText(verb),
+                    verb == HeadingVerb.FlyHeading,
+                    () => SetVerb(verb)
+                )
+            );
         }
 
-        return new Border
-        {
-            BorderBrush = ToggleLine,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            ClipToBounds = true,
-            Margin = new Thickness(11, 4, 11, 2),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Child = buttons,
-        };
+        return FlyoutPanelParts.ToggleStrip(_toggles);
     }
 
     /// <summary>The heading box's row: the heading glyph, the label with the box under it, and the command it sends.</summary>
-    private Grid BoxRow(QuickCommandGlyph glyph)
-    {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(11, 4) };
-        Viewbox icon = QuickCommandStrip.GlyphIcon(glyph);
-        icon.Margin = new Thickness(0, 0, 8, 0);
-        grid.Children.Add(icon);
-        var name = new StackPanel
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                new TextBlock { Text = "Heading" },
-                Box,
-            },
-        };
-        Grid.SetColumn(name, 1);
-        grid.Children.Add(name);
-        BoxCommandText.FontSize = 12;
-        BoxCommandText.Margin = new Thickness(16, 0, 0, 0);
-        BoxCommandText.HorizontalAlignment = HorizontalAlignment.Right;
-        BoxCommandText.VerticalAlignment = VerticalAlignment.Center;
-        BoxCommandText.Bind(TextBlock.FontFamilyProperty, BoxCommandText.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-        Grid.SetColumn(BoxCommandText, 2);
-        grid.Children.Add(BoxCommandText);
-        return grid;
-    }
+    private Grid BoxRow(QuickCommandGlyph glyph) => FlyoutPanelParts.BoxRow(glyph, "Heading", Box, BoxCommandText);
 
     /// <summary>The rose between the left and right chip columns.</summary>
     private Grid Compass()
@@ -626,44 +553,12 @@ public sealed class HeadingFlyoutPanel : StackPanel, IFlyoutPanel
     private Button Chip(string verb, int degrees)
     {
         string command = $"{verb} {degrees.ToString(CultureInfo.InvariantCulture)}";
-        var chip = new Button
-        {
-            Content = $"{degrees.ToString(CultureInfo.InvariantCulture)}°",
-            FontSize = 12,
-            Height = 24,
-            Padding = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Background = ToggleFill,
-            BorderBrush = ChipLine,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
-        };
-        chip.Bind(TemplatedControl.FontFamilyProperty, chip.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-        MenuCommandText.SetCommand(chip, command);
-        AutomationProperties.SetName(chip, $"{((verb == "LT") ? "Left" : "Right")} by {degrees}° — {command}");
-        chip.Click += async (_, e) =>
-        {
-            e.Handled = true;
-            await _choose(command);
-        };
-        return chip;
-    }
-
-    private static TextBlock CommandText(string text)
-    {
-        var command = new TextBlock
-        {
-            Text = text,
-            FontSize = 12,
-            Opacity = 0.7,
-            Margin = new Thickness(16, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        command.Bind(TextBlock.FontFamilyProperty, command.GetResourceObservable(QuickCommandStrip.MonoFontKey));
-        return command;
+        return FlyoutPanelParts.Chip(
+            $"{degrees.ToString(CultureInfo.InvariantCulture)}°",
+            command,
+            $"{((verb == "LT") ? "Left" : "Right")} by {degrees}° — {command}",
+            _choose
+        );
     }
 
     /// <summary>Every control Up, Down and Tab walk, in order: the Present heading row, the box, the rose, the left chips, the right chips.</summary>

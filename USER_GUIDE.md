@@ -908,7 +908,11 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway.
 
-  **Direct to…** for an aircraft navigating to a fix lists its route from that fix on: the fixes it is navigating through, then the filed route's fixes after them, then the destination, each once. An aircraft not navigating to a fix gets the free-text input instead.
+  **Direct to…** and **Append direct to…** (Navigation; also strip icons, each with its own glyph) open one flyout, titled "Direct to" or "Append direct to" with "→ {next fix}" while the aircraft navigates to a fix. While it does, a toggle switches between Direct to (`DCT`) and Append to route (`ADCT`); Append direct to is only offered then. The Fix box (placeholder "Fix name or FRD") shows the command Enter sends, or a red "Not a known fix".
+
+  Under the box, "Remaining route" lists the aircraft's route from the fix it is navigating to on (● marks the next fix): the fixes it is navigating through, then the filed route's fixes after them, then the destination, each once, with the distance and magnetic bearing from the aircraft ("31 NM · 184°", the heading it would fly) and the command. A fix the aircraft has passed greys to "passed" for as long as the flyout stays open but still sends; with no navigating-to fix the list is the whole route. Typing narrows the route rows and adds "All fixes · nearest first": the 50 nearest other fixes starting with your text, however far; an FRD (`RBL184031`) gets its own row with its distance and bearing.
+
+  The box has focus when the flyout opens. Typing outlines the first row, and Enter sends it (with no row, Enter sends the typed fix). Down moves from the box into the rows (onto the ● row when it shows), Up and Down walk them, Up from the top row returns to the box, Enter sends the focused row, and Escape goes back to the strip.
 
   **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
 
