@@ -1,0 +1,1123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fix Picker Flyouts</title>
+<style>
+  /* Layout: a settled note, today's popups, then one artboard per open decision; each has a header (question, situation, the strip) over lanes. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 120ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .rec { font: 500 11px var(--f-mono); color: var(--tag-a); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .side { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane.wide { grid-column: 1 / -1; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .recb { font: 600 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--panel); background: var(--tag-a); border-radius: 3px; padding: 1px 6px; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark;
+           display: flex; flex-direction: column; gap: 14px; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { min-width: 340px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.boxed { cursor: default; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .mi.title .et { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .note { font-size: 12px; opacity: .75; white-space: nowrap; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .cmd.bad { color: #e08a8a; opacity: 1; }
+  .panel { max-height: 420px; overflow-y: auto; scrollbar-color: #555 transparent; position: relative; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .hint { font: 12px Inter, "Segoe UI", sans-serif; color: #8f969e; padding: 6px 11px 8px; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+         padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+
+  /* Boxes. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; white-space: pre; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .bnote { font: 11px Inter, "Segoe UI", sans-serif; color: #e08a8a; }
+
+  /* Rows: mark, name, note (distance and bearing), command. */
+  .ar { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; align-items: center; min-height: 26px; padding: 1px 11px 1px 8px; border-radius: 4px;
+        cursor: pointer; font: 13px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; border-left: 3px solid transparent; }
+  .ar:hover { background: rgba(255, 255, 255, .085); }
+  .ar:focus-visible, .ar.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .ar .ag { font-size: 12px; text-align: center; color: #5b8def; }
+  .ar.now { background: #2f4a6e; border-left-color: #5b8def; font-weight: 600; }
+  .ar.now:hover { background: #355381; }
+  .ar.passed, .ar.passed .an { color: #7d838b; }
+  .ar.picked { box-shadow: inset 0 0 0 1px #A8CAFF; }
+  .ar.picked .ag { color: #A8CAFF; }
+  .ar .an { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .ar .an i { font-style: normal; color: #7fd1b9; }
+  .ar .cmd { font-weight: 400; }
+  .ar.aw .av { min-width: 52px; }
+
+  /* Toggles and chips. */
+  .seg { display: flex; margin: 4px 11px 2px; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; width: max-content; max-width: calc(100% - 22px); }
+  .seg button { font: 12px Inter, "Segoe UI", sans-serif; color: #e4e7eb; background: #23272c; border: 0; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+  .seg button + button { border-left: 1px solid #3a414b; }
+  .seg button[aria-pressed="true"] { background: #24406a; }
+  .seg button code { font: 11px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; margin-left: 5px; }
+  .seg button[aria-pressed="true"] code { color: #c9d6e8; }
+  .seg.inl { margin: 3px 0 0; }
+  .chiprow { display: flex; align-items: center; gap: 3px; padding: 3px 11px; flex-wrap: wrap; }
+  .chiprow .cl { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; width: 92px; flex: 0 0 auto; }
+  .chip { font: 12px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #33383f; border-radius: 3px; height: 26px; min-width: 42px; padding: 0 7px; cursor: pointer; white-space: nowrap; }
+  .chip:hover { background: #2e343b; border-color: #5a6573; }
+  .chip[aria-pressed="true"] { background: #24406a; border-color: #4a6fa5; color: #fff; }
+  .chip.soft { font-family: Inter, "Segoe UI", sans-serif; font-size: 11.5px; }
+
+  /* The aircraft menu stub. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; min-height: 20px; white-space: nowrap; }
+  .strip { display: flex; gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; cursor: pointer; }
+  .cell.latched { background: #24406a; }
+  .cell .gly { margin: 0; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+
+  /* Today's popups (MenuPopups). */
+  .oldpop { background: #222; border: 1px solid #555; border-radius: 2px; color: #ccc; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); width: max-content; }
+  .oldpop.fl { width: 210px; padding: 4px; display: flex; flex-direction: column; gap: 4px; }
+  .oldpop .obox { font: 12px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom: 2px solid #8fc1ff; border-radius: 4px; padding: 4px 8px; height: 28px; width: 100%; }
+  .oldpop .obox::placeholder { color: #8f969e; }
+  .oldlist { width: 120px; max-height: 250px; overflow-y: auto; font: 12px "JetBrains Mono", Consolas, monospace; scrollbar-color: #555 transparent; }
+  .oldpop.fl .oldlist { width: auto; min-height: 8px; }
+  .oldlist div { padding: 7px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .oldlist div:hover { background: rgba(255, 255, 255, .07); }
+  .oldlist div.sel { background: rgba(255, 255, 255, .16); }
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; gap: 4px; align-items: center; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+
+  /* The radial rose (decision 5): HeadingRose reused, the fix in its centre. */
+  .rosewrap { display: flex; justify-content: center; padding: 6px 9px 2px; }
+  .dial { display: block; flex: 0 0 auto; cursor: crosshair; touch-action: none; border-radius: 50%; }
+  .dial:focus { outline: none; }
+  .dial:focus-visible { outline: 2px solid #8fc1ff; outline-offset: 2px; }
+  .dread { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; padding: 4px 11px 7px; text-align: center; min-height: 26px; width: 0; min-width: 100%; }
+  .dread b { font: 700 13px "JetBrains Mono", Consolas, monospace; color: #fff; }
+  .dread code { font: 12px "JetBrains Mono", Consolas, monospace; color: #A8CAFF; }
+  .dread .k { color: #8f969e; }
+
+  /* Mock-only annotations. */
+  .callout { max-width: 480px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout.calm { border-color: #5fd0bf; }
+  .callout.calm b { color: #6ee0ce; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .demo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 10px 12px; color: #e4e7eb; font: 12px Inter, "Segoe UI", sans-serif; }
+  .demo button { font: 12px Inter, "Segoe UI", sans-serif; color: #fff; background: #24406a; border: 1px solid #4a6fa5; border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+  .demo .clock { font: 12px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .measure { font: 12px var(--f-mono); color: var(--muted); white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 0 0 18px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part B · the fix pickers · mock for the owner's decisions</div>
+  <h1>Fix picker flyouts: direct to, hold, cross, depart, airways, radials, PTAC</h1>
+  <p class="lede">The strip's <b>Direct to…</b>, <b>Hold at fix…</b> and <b>Cross fix</b> buttons, and their All Commands siblings (Append direct to, Hold at fix left / right, Depart fix, Join airway, Join radial outbound / inbound, PTAC), still open popups drawn by <code>MenuPopups</code>: a 200 px type-to-filter list over every fix with the route fixes listed until you type, a 120 px list of route fixes, a leaf beside an “(other)” input popup, a filter list followed by a bearing popup, and one-box input popups for the holding pattern and PTAC. This page draws each decision as lanes A, B (and C), the recommended lane first.</p>
+  <p class="lede">Every flyout draws the built parts: the Fluent dark menu, the title line and glyph rows, the boxes with their command column, the <code>FlyoutTabStrip</code> tabs, the toggle and chips of the heading flyout, the 480 px cap, and, for the radial, the heading flyout's <code>HeadingRose</code>. The aircraft is <b>UAL455</b>, an A320 from KGEG to KOAK on <code>GEG J3 IMB J3 LKV J3 RBL SPAMY WNDSR2</code>, at <b>FL240</b>, 280 kt, heading <b>184</b>, 31 NM past Red Bluff (RBL) and navigating to <b>SPAMY</b>. Click a row, a chip, a toggle or a tab, and type in the boxes, to see what each sends.</p>
+
+  <section class="note-box" aria-labelledby="note-h">
+    <h2 id="note-h">Settled by the owner before the mock (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Every quick command gets a designed flyout.</b> No fix picker stays a popup or a nested context submenu.</li>
+      <li><b>Single-box inputs become inline boxes.</b> The “(other)” fix and airway inputs, the radial bearing, the holding pattern and PTAC become boxes inside these flyouts.</li>
+      <li><b>All Commands opens the same flyout, from one builder.</b> Each All Commands entry opens its flyout preset to its verb.</li>
+      <li><b>Flyouts live-refill</b> (X5 decision 6, lane A): every second in place; rows never move. Here the distance and bearing columns, the ● next-fix mark and the aircraft's radial follow the aircraft; a fix the aircraft passes greys to “passed” and keeps its place until the flyout opens again. Decision 1 lane A plays it at 10×.</li>
+    </ul>
+    <h2>Recommended, not drawn as lanes</h2>
+    <ul class="nl">
+      <li><b>Keyboard.</b> <span class="rec">recommended:</span> focus lands in the fix box on open (as today's filter popup and Follow's filter box do). Typing filters; the first match is outlined and Enter sends it, else the typed name upper-cased, as today. Down moves into the rows from the box, Up from the first row returns to it; Tab walks the extra boxes and chips; Escape closes the flyout back to its strip button.</li>
+      <li><b>FRD in the box.</b> <span class="rec">recommended:</span> the fix box reads a fix-radial-distance (<code>RBL184031</code>) as DCT does, naming the point under the box before Enter sends it.</li>
+      <li><b>Glyphs.</b> <span class="rec">recommended:</span> reuse Direct to's, Hold's and Cross fix's strip glyphs, the point menu's Hold left / right racetracks for the 360s at a fix, Cleared approach's for PTAC, and the heading, altitude and speed glyphs on the boxes. Append direct to, Depart fix, Join airway and Join radial have no glyph; the page draws drafts.</li>
+      <li><b>Screen edge and width.</b> Already ruled (X2b ruling 5): FlipX | SlideY, no shrinking of lists, the 480 px cap.</li>
+    </ul>
+  </section>
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found in the code while drawing this (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>Cross fix and Depart fix send half a command.</b> Their route-fix list and leaf send <code>CFIX SPAMY</code> and <code>DEPART SPAMY</code> (<code>BuildOneManyOrInput</code>; <code>MenuCatalogCommandTests</code> asserts <code>CFIX SUNOL</code>), while <code>ApproachCommandParser.ParseCfix</code> refuses a fix alone (“CFIX requires fix name and altitude”) and <code>ParseDepart</code> wants exactly a fix and a heading. Decision 6 gives both their second value.</li>
+      <li><b>Join radial sends a spaced bearing.</b> The bearing popup sends <code>JRADO RBL 184</code>; <code>ParseRadialCommand</code> reads one token whose last three characters are the radial (<code>RBL184</code>), so the fix it looks up is “RBL ” with a space. The popup also passes a typed <code>90</code> unpadded. COMMANDS.md documents the spaced form (<code>JRADO SJC 150</code>). The flyouts on this page send the parser's form, <code>JRADO RBL184</code>.</li>
+      <li><b>No distances to draw yet.</b> <code>IMenuAircraft</code> carries no position, so a distance and bearing column needs one added (client side; the fix positions come from <code>NavigationDatabase.GetFixPosition</code>). “Nearby” lists need a scan of <code>GetFixTuples</code>, and airways through a fix need a fix-to-airway index over <code>GetAirwayFixes</code>; neither query exists.</li>
+    </ul>
+  </section>
+  <div id="measure"></div>
+  <nav class="index" id="index" aria-label="Decisions"></nav>
+  <div id="arts"></div>
+  <footer class="foot">The aircraft menu follows the built quick-command menu (bold title, state line, Command…, the strip of 40 px cells with the corner notch on a button that opens a flyout). Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px (rows) and 32 px (strip), stroke 1.9, in the flight blue <code>#A8CAFF</code>; the drafts for Append direct to, Depart fix, Join airway and Join radial are the page's. Rows copy the rich list's marks: ● and the filled <code>#2F4A6E</code> row with a 3 px <code>#5B8DEF</code> edge on the next fix, passed fixes greyed <code>#7D838B</code>, a picked fix outlined in the flight blue. Fix positions, airways and names come from the repo's <code>FAACIFP18.gz</code>; the page embeds the 1,054 fixes within 150 NM of the aircraft, where the app searches every fix. Bearings are magnetic with a fixed 13° east variation. The dashed notes and the demo controls are mock annotations. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script id="fixdata" type="application/json">[["AAAME",37.7709,-122.0828,"F"],["AANET",38.5308,-122.4972,"F"],["ACOVY",39.8615,-119.9921,"F"],["ACV",40.9814,-124.1083,"V"],["ADAFE",39.6529,-123.3466,"F"],["ADMIF",38.0302,-120.6256,"F"],["ADUGE",38.84,-122.5698,"F"],["AGEKE",39.1594,-121.4469,"F"],["AGUIA",38.5898,-122.5953,"F"],["AHART",39.3313,-121.4899,"F"],["AHC",40.2679,-120.152,"V"],["AHURI",39.2794,-120.1073,"F"],["AJAVI",40.9127,-124.1544,"F"],["AJUHO",40.4623,-122.3045,"F"],["AJUYU",37.2934,-121.8517,"F"],["AKAPY",39.4177,-122.2215,"F"],["AKEVE",37.7584,-122.2795,"F"],["AKYEP",38.7908,-123.5205,"F"],["ALCAT",37.8491,-122.4364,"F"],["ALELE",38.8366,-121.3388,"F"],["ALLXX",37.7296,-122.0643,"F"],["ALOIN",37.758,-122.2821,"F"],["ALRIC",38.3343,-121.8249,"F"],["ALTAM",37.8122,-121.7471,"F"],["ALVAR",37.609,-122.076,"F"],["AMAKR",39.0,-123.75,"F"],["AMNOT",38.2876,-121.8906,"F"],["ANAHO",39.9611,-119.4156,"F"],["ANAJE",41.4574,-124.3556,"F"],["ANDEE",37.5534,-120.7285,"F"],["ANMIL",38.0,-122.4167,"F"],["ARDEN",38.5524,-121.3783,"F"],["ARGGG",37.3924,-122.2816,"F"],["ARITE",39.8175,-119.762,"F"],["AROWN",39.1833,-123.35,"F"],["ARPAW",39.3791,-119.8776,"F"],["ARRBR",39.2889,-123.2083,"F"],["ASAYE",40.7784,-122.3882,"F"],["ASEYO",39.1073,-122.892,"F"],["ASOKE",39.5111,-119.7692,"F"],["ASTLY",39.7142,-122.05,"F"],["AUDIO",38.9459,-121.0481,"F"],["AWALI",37.6287,-120.5527,"F"],["BAARB",41.1576,-120.1137,"F"],["BACAT",39.0794,-121.412,"F"],["BACHS",41.2618,-121.0012,"F"],["BAHLA",37.8312,-122.3317,"F"],["BAKDE",39.2045,-123.2145,"F"],["BANND",37.7599,-121.0618,"F"],["BATRY",38.4619,-121.9643,"F"],["BBEEZ",39.2494,-121.4694,"F"],["BBUBB",37.6707,-121.8385,"F"],["BEEEJ",37.8656,-122.3439,"F"],["BEIRA",40.5107,-122.4076,"F"],["BENKZ",38.5097,-122.8129,"F"],["BERKS",37.8609,-122.2117,"F"],["BESSA",38.5886,-122.1467,"F"],["BINNZ",40.1837,-119.8369,"F"],["BIRAW",39.6112,-119.769,"F"],["BLURZ",37.3777,-121.845,"F"],["BMBER",37.9536,-120.8812,"F"],["BMBOO",38.893,-122.233,"F"],["BOARS",38.2271,-123.127,"F"],["BOCYA",38.6617,-121.4522,"F"],["BONNS",37.4364,-121.4789,"F"],["BORDY",41.0008,-121.0949,"F"],["BORED",37.3095,-121.4634,"F"],["BOVGE",38.3097,-122.3439,"F"],["BOWER",37.6741,-121.9238,"F"],["BOWTY",39.2942,-121.5042,"F"],["BOYYS",38.02,-122.3779,"F"],["BRIXX",37.6178,-122.3745,"F"],["BRNDT",38.6751,-123.3793,"F"],["BROWW",39.2729,-120.1232,"F"],["BRRZI",37.8459,-121.7504,"F"],["BRUCH",39.1289,-121.0816,"F"],["BUDVE",38.9122,-122.622,"F"],["BUMPN",38.7347,-121.3775,"F"],["BURDE",38.1054,-122.5931,"F"],["BURRS",40.161,-122.4459,"F"],["BUSHY",37.3914,-121.5589,"F"],["BUSST",40.0639,-119.9085,"F"],["BWMEN",39.2984,-120.09,"F"],["BYRON",37.8229,-121.4694,"F"],["CABEX",38.8012,-123.0652,"F"],["CAPTO",38.6722,-121.6243,"F"],["CASJO",38.6294,-122.8738,"F"],["CATTY",37.6492,-121.689,"F"],["CAXIN",37.7318,-122.2356,"F"],["CBRNA",40.0425,-122.248,"F"],["CCAPS",41.4778,-121.8144,"F"],["CCHUK",40.5284,-124.0711,"F"],["CCR",38.0449,-122.0452,"V"],["CEBES",39.498,-121.5483,"F"],["CEBSO",38.7124,-123.4488,"F"],["CEDAY",40.3326,-120.5515,"F"],["CEDES",37.5508,-121.6246,"F"],["CEKUG",41.831,-121.6121,"F"],["CENIL",37.3789,-122.0301,"F"],["CESOG",38.914,-122.0589,"F"],["CFAFG",38.542,-122.9076,"F"],["CFBBP",38.4187,-122.83,"F"],["CFDTX",37.8833,-122.2928,"F"],["CFDTZ",37.8108,-122.3095,"F"],["CFDXQ",38.6906,-122.8863,"F"],["CFECE",40.4075,-122.3304,"F"],["CFFDC",39.324,-120.1279,"F"],["CFFKN",39.5611,-119.7035,"F"],["CFFKT",37.842,-122.262,"F"],["CFFKV",37.8479,-122.2703,"F"],["CFFPB",37.7108,-122.0381,"F"],["CFFPC",37.6592,-122.0431,"F"],["CFFQL",39.4555,-123.3701,"F"],["CFFVX",37.5816,-122.3583,"F"],["CFKKH",39.2913,-120.1252,"F"],["CFLEZ",37.2514,-121.8038,"F"],["CFLOG",37.2422,-121.7972,"F"],["CFVSP",38.1473,-122.5605,"F"],["CHAWZ",37.1135,-122.3527,"F"],["CHBLI",38.564,-122.5388,"F"],["CHERA",37.4811,-122.1583,"F"],["CHIDE",41.5968,-124.2398,"F"],["CHIME",39.3523,-119.429,"F"],["CHSTR",37.3329,-122.0561,"F"],["CICRO",40.6891,-124.1647,"F"],["CIDOM",38.7541,-122.6255,"F"],["CIGCA",41.611,-124.291,"F"],["CIKMO",39.3016,-120.1043,"F"],["CIMSU",38.6896,-123.3406,"F"],["CIMVO",39.7113,-119.7687,"F"],["CIRBA",38.6852,-122.9265,"F"],["CISUL",39.2764,-120.1389,"F"],["CITRU",38.8686,-121.2704,"F"],["CIVOR",39.4524,-123.8848,"F"],["CLITN",38.4453,-121.9628,"F"],["CNBPS",39.3389,-120.1717,"F"],["CNDEL",37.7833,-122.3368,"F"],["CNLDF",39.2969,-120.2186,"F"],["CNSCL",39.361,-120.1341,"F"],["CNTRA",39.3016,-120.097,"F"],["CNTRB",39.2715,-120.118,"F"],["CNTRC",39.2858,-120.15,"F"],["CNTRD",39.2974,-120.1757,"F"],["COBUV",39.3309,-121.9549,"F"],["COKGA",40.239,-119.9301,"F"],["COLFA",37.1766,-122.0083,"F"],["COLLI",37.863,-122.0835,"F"],["COLOM",38.839,-120.87,"F"],["COLSO",38.9117,-121.2953,"F"],["COLUR",40.2007,-119.8375,"F"],["COMBS",39.2966,-120.1757,"F"],["COMKU",39.217,-121.0513,"F"],["COMMO",37.8742,-122.492,"F"],["COMOT",39.1634,-123.2052,"F"],["CONYO",39.2298,-120.7593,"F"],["CORDD",38.2115,-122.1806,"F"],["CORKK",37.7336,-122.4976,"F"],["CORLY",38.7218,-121.0735,"F"],["COSBA",37.4435,-122.1698,"F"],["COTES",38.3623,-121.7857,"F"],["COUPS",38.3163,-121.6526,"F"],["COXEP",39.4319,-122.0087,"F"],["CROIT",38.0562,-122.1944,"F"],["CRSEN",37.6951,-122.0081,"F"],["CRTER",37.4526,-121.8413,"F"],["CULDU",41.1673,-124.2373,"F"],["CUNEX",39.295,-123.7477,"F"],["CURIE",38.323,-122.2021,"F"],["CUVSA",37.6963,-122.1167,"F"],["CYMBL",37.5709,-121.8436,"F"],["DALKE",39.1639,-123.2026,"F"],["DALON",39.0688,-122.2664,"F"],["DAMYN",38.5499,-121.4676,"F"],["DATTS",37.8309,-122.4133,"F"],["DECOT",37.606,-122.0487,"F"],["DEDHD",38.3355,-122.1128,"F"],["DEEAN",38.3492,-123.3023,"F"],["DENYY",39.031,-123.1385,"F"],["DGAME",37.7667,-121.5,"F"],["DIBLE",40.2228,-122.2954,"F"],["DIMGE",41.613,-122.477,"F"],["DINSE",40.5112,-123.6603,"F"],["DIYEB",37.3987,-122.0403,"F"],["DLANI",39.1261,-120.061,"F"],["DMEZG",39.9367,-122.1856,"F"],["DMYSU",40.4896,-122.3555,"F"],["DNOLD",40.4442,-121.1076,"F"],["DOITS",38.0034,-121.1241,"F"],["DOKKS",37.5738,-122.0516,"F"],["DOMAC",37.3557,-121.9222,"F"],["DOPKY",38.5241,-122.9784,"F"],["DOPVE",38.7725,-121.2597,"F"],["DOTTR",37.4769,-122.1698,"F"],["DRANK",37.5802,-122.7819,"F"],["DRAXE",38.759,-122.389,"F"],["DUBRY",37.8824,-122.8678,"F"],["DUCCS",41.0892,-119.9511,"F"],["DUDES",38.7181,-120.2076,"F"],["DUGLE",37.865,-120.6679,"F"],["DUHJY",41.2342,-124.4344,"F"],["DURHA",39.6636,-121.7567,"F"],["DUXBY",37.6959,-122.4553,"F"],["DYKEE",38.0591,-122.4289,"F"],["DZERT",40.6125,-123.3831,"F"],["EAGGL",41.5893,-121.5263,"F"],["EBBLS",40.4261,-124.0857,"F"],["ECINU",39.309,-120.1174,"F"],["ECOBU",38.0582,-120.5732,"F"],["ECUBE",37.6677,-121.7913,"F"],["EDZUT",38.7509,-122.9687,"F"],["EELLS",39.5477,-123.6738,"F"],["EGHEP",38.8687,-122.3607,"F"],["EGUYO",39.1125,-121.4262,"F"],["EHPUG",41.7833,-122.5184,"F"],["EKECE",37.3049,-121.9923,"F"],["ELEGY",38.8563,-122.0807,"F"],["ELENN",41.6194,-123.2187,"F"],["ELKHN",38.1568,-120.3732,"F"],["ELLYS",40.5102,-124.007,"F"],["EMAAA",37.3185,-121.3611,"F"],["EMBER",38.2797,-121.8251,"F"],["ENCOL",37.7832,-122.327,"F"],["ENI",39.0532,-123.2743,"V"],["ENVIE",41.3358,-123.2089,"F"],["EOBDO",38.6593,-123.4966,"F"],["EPIYE",38.9156,-121.1638,"F"],["EPOGE",38.7915,-123.143,"F"],["ERNIF",38.6272,-121.1702,"F"],["ESSIX",40.9126,-124.0638,"F"],["ESSOH",38.7198,-120.6364,"F"],["ETCHY",39.0911,-123.1347,"F"],["ETDEL",38.7624,-123.5207,"F"],["ETIYO",39.4771,-119.9223,"F"],["EVEMY",40.2901,-122.4913,"F"],["EVETT",38.01,-121.13,"F"],["EYPOF",38.8677,-121.6868,"F"],["FAMSI",39.2929,-121.9964,"F"],["FARMI",41.9115,-121.6409,"F"],["FARRO",40.8237,-121.9915,"F"],["FEBIR",38.6236,-123.5152,"F"],["FENTI",37.2034,-121.7526,"F"],["FENUK",39.0063,-122.6838,"F"],["FEPUS",38.5794,-121.8569,"F"],["FESIK",37.8361,-122.111,"F"],["FFIST",37.6157,-121.6868,"F"],["FFMTR",40.4895,-122.3554,"F"],["FIARS",38.9239,-122.6218,"F"],["FIDAT",38.1723,-122.0555,"F"],["FIDUM",38.7843,-121.2348,"F"],["FIMPI",39.5219,-123.223,"F"],["FIMUV",39.8181,-120.188,"F"],["FINER",41.3358,-123.0292,"F"],["FIPVO",39.3072,-120.1134,"F"],["FIRKA",37.3556,-121.4084,"F"],["FITKI",37.6957,-122.115,"F"],["FITUN",39.8181,-119.8735,"F"],["FJS",41.4497,-122.8064,"V"],["FLEAT",38.1173,-122.0939,"F"],["FLUEN",39.5466,-123.5619,"F"],["FMG",39.5313,-119.6561,"V"],["FOBRO",41.9569,-122.6159,"F"],["FOGAD",38.1947,-121.6885,"F"],["FOLDS",40.7379,-122.503,"F"],["FOLLY",38.6921,-121.1249,"F"],["FOLNO",38.3379,-121.8199,"F"],["FOLRO",39.4618,-121.5742,"F"],["FOOTO",37.6916,-121.5709,"F"],["FORIK",38.8833,-121.0724,"F"],["FOT",40.6713,-124.2345,"V"],["FOTON",38.5647,-122.8391,"F"],["FOWND",39.0961,-122.9633,"F"],["FOYTE",40.8402,-124.2941,"F"],["FREEM",37.9206,-122.2957,"F"],["FREES",38.3871,-122.9224,"F"],["FRNNY",37.5578,-121.9994,"F"],["FROGO",38.2307,-120.6818,"F"],["FROSH",38.6138,-123.1955,"F"],["FRUGS",38.3861,-122.6431,"F"],["FTBAL",38.7785,-121.4522,"F"],["FUELL",39.5067,-121.475,"F"],["FULLP",39.1565,-121.2147,"F"],["GABNN",38.551,-122.8633,"F"],["GALTS",38.2706,-121.2935,"F"],["GAMDE",38.5983,-123.4736,"F"],["GAROW",37.5254,-122.0825,"F"],["GARSA",40.7016,-122.0241,"F"],["GEEGY",37.6167,-122.3833,"F"],["GENNE",38.7151,-119.6352,"F"],["GERYU",37.8369,-122.2804,"F"],["GETER",38.7083,-122.9799,"F"],["GGASR",39.4058,-121.5539,"F"],["GHEER",38.7878,-121.8551,"F"],["GIFME",38.2007,-121.5865,"F"],["GIMMY",39.7068,-121.6766,"F"],["GINJU",37.5441,-121.9791,"F"],["GIVEE",37.7333,-121.7,"F"],["GLDDD",37.7381,-120.663,"F"],["GLDIS",39.6942,-119.6489,"F"],["GOBBS",37.7713,-122.6581,"F"],["GOMKE",39.7354,-119.8307,"F"],["GONGS",39.7434,-122.0504,"F"],["GOYBE",37.5269,-122.1698,"F"],["GRENA",41.7254,-122.486,"F"],["GRENY",39.7912,-122.4037,"F"],["GRIDD",39.3274,-121.8354,"F"],["GRIJO",38.1933,-122.5263,"F"],["GRIME",39.0137,-121.7338,"F"],["GROVE",37.6553,-121.991,"F"],["GRTFL",38.3522,-122.2315,"F"],["GRUDG",37.7954,-120.858,"F"],["GUCNE",39.5406,-123.7996,"F"],["GULLS",38.1304,-121.4557,"F"],["HABAL",38.0935,-122.1646,"F"],["HABAP",38.2947,-122.5259,"F"],["HABXU",37.8679,-120.6186,"F"],["HADLY",37.4024,-122.5756,"F"],["HAGAN",38.8881,-121.1065,"F"],["HAGTO",37.3796,-121.9452,"F"],["HAIRE",37.9071,-121.4804,"F"],["HAKMI",39.2845,-120.1034,"F"],["HALIK",39.2498,-120.3151,"F"],["HALLE",39.9198,-119.9511,"F"],["HALSU",38.0806,-121.1921,"F"],["HAMMS",39.2297,-121.4772,"F"],["HAPAK",39.3891,-121.5451,"F"],["HARTT",40.8359,-120.0212,"F"],["HARWK",38.9934,-122.5954,"F"],["HAVAX",39.5219,-123.3371,"F"],["HAYZE",37.6744,-122.046,"F"],["HEBEK",39.0092,-122.9436,"F"],["HEDAS",38.237,-121.9657,"F"],["HEDBO",38.8754,-122.6228,"F"],["HEDER",37.668,-122.0389,"F"],["HEGOP",39.1594,-121.4467,"F"],["HEIDY",38.165,-122.0623,"F"],["HEKGO",37.895,-120.151,"F"],["HELOT",38.6668,-121.6017,"F"],["HELTO",37.5286,-122.0441,"F"],["HENLE",39.888,-122.449,"F"],["HEPMO",37.6139,-122.0474,"F"],["HEPUB",39.1822,-123.2035,"F"],["HETRY",39.2087,-120.0971,"F"],["HEVNA",39.0133,-123.1119,"F"],["HEWPR",40.1508,-119.7925,"F"],["HEXIT",40.8847,-124.2358,"F"],["HEYSO",38.0997,-120.6086,"F"],["HHOPE",39.4823,-119.6566,"F"],["HIBUV",38.4986,-122.9574,"F"],["HIDAK",40.4626,-124.1078,"F"],["HIDMU",38.6715,-123.4448,"F"],["HILLT",38.4002,-121.7321,"F"],["HIMKO",38.3272,-121.8391,"F"],["HIRMO",37.9276,-122.1484,"F"],["HISIS",37.687,-122.1925,"F"],["HITBA",38.9904,-122.9133,"F"],["HITBU",38.8535,-121.1721,"F"],["HITGO",38.6237,-121.5814,"F"],["HIVEG",41.8412,-122.5509,"F"],["HLHRS",37.702,-122.3447,"F"],["HLLER",37.5211,-122.2326,"F"],["HNNRY",38.391,-121.6287,"F"],["HNW",38.7247,-120.7493,"V"],["HOCUT",40.9763,-124.2362,"F"],["HOFED",37.7756,-120.4478,"F"],["HOGSI",39.2546,-122.0382,"F"],["HOKOP",39.3869,-121.98,"F"],["HOLLI",39.8224,-121.6141,"F"],["HOMAN",40.405,-122.1291,"F"],["HOMDA",39.3262,-123.3202,"F"],["HOMEG",41.3358,-122.8514,"F"],["HONEZ",37.7885,-120.7135,"F"],["HOPOL",37.852,-122.4394,"F"],["HOPTA",37.785,-122.154,"F"],["HORBL",38.7018,-122.9833,"F"],["HUBKO",38.6617,-121.3671,"F"],["HUBOS",39.3849,-121.7973,"F"],["HUBRT",39.0402,-122.5683,"F"],["HUKIP",38.7156,-123.5235,"F"],["HUNII",38.6151,-122.683,"F"],["HUPTU",39.5,-122.7442,"F"],["HUSSH",37.7495,-122.3386,"F"],["HUVIP",37.785,-122.3695,"F"],["HUYJO",39.2491,-119.849,"F"],["ICASA",37.4165,-122.0533,"F"],["ICELA",37.9806,-122.0957,"F"],["ICEYY",38.6354,-119.7506,"F"],["IGABE",38.691,-123.4469,"F"],["IGGEY",38.5073,-121.7895,"F"],["IGUCU",38.1968,-122.0835,"F"],["ILA",39.0712,-122.0273,"V"],["ILATE",37.7576,-122.2985,"F"],["ILAWI",37.6594,-122.0533,"F"],["IMCUS",38.8861,-122.5948,"F"],["INJIT",38.8481,-121.2888,"F"],["IPARY",38.2065,-122.5141,"F"],["IRBBY",40.3435,-122.3403,"F"],["IRUDE",38.5986,-122.8894,"F"],["ITINE",38.5847,-122.9584,"F"],["ITMOR",40.5979,-122.0609,"F"],["IVUPE",39.25,-123.1447,"F"],["IYABU",39.2588,-123.273,"F"],["IYELE",40.3469,-119.7646,"F"],["IYPUN",39.7114,-119.8767,"F"],["IZPUH",40.5456,-124.1184,"F"],["JABON",38.1185,-122.13,"F"],["JAMAV",39.0659,-123.0745,"F"],["JAMIN",37.8547,-122.67,"F"],["JANYY",37.5568,-122.1796,"F"],["JAPSO",37.7066,-122.1484,"F"],["JARLA",39.4719,-123.3371,"F"],["JATIP",37.4627,-122.1758,"F"],["JEBED",40.2269,-119.8323,"F"],["JEDAK",38.3363,-121.8518,"F"],["JEDHI",39.9711,-122.097,"F"],["JEDOK",39.3511,-121.957,"F"],["JEHFY",39.9674,-122.3698,"F"],["JEMAD",38.2841,-121.895,"F"],["JENAY",37.8889,-122.3394,"F"],["JENNI",39.7697,-124.0286,"F"],["JEPAG",37.7336,-122.2319,"F"],["JEPIT",40.3807,-123.7072,"F"],["JEPTO",38.5757,-123.3265,"F"],["JETET",38.8193,-122.5174,"F"],["JEVGY",40.4035,-123.788,"F"],["JEVSY",40.4845,-123.9383,"F"],["JEWPE",40.4848,-123.766,"F"],["JIDUB",38.9348,-123.7885,"F"],["JIGDA",39.4427,-123.7996,"F"],["JIKDE",37.9278,-120.2403,"F"],["JIMPA",38.9726,-119.6906,"F"],["JINES",37.361,-122.0347,"F"],["JINGO",39.6502,-122.0019,"F"],["JINWO",39.2995,-120.2956,"F"],["JIPUR",37.8595,-122.3664,"F"],["JIRAG",38.3595,-121.6214,"F"],["JITIM",39.7433,-122.3094,"F"],["JITNI",38.9595,-122.3644,"F"],["JLENE",39.7335,-119.7454,"F"],["JOBMI",38.4885,-122.4373,"F"],["JOLMA",39.4211,-123.7991,"F"],["JONUG",39.3255,-121.5189,"F"],["JORAT",38.331,-121.8347,"F"],["JOSBA",37.9956,-121.2421,"F"],["JOSHH",39.3333,-121.0648,"F"],["JOTKU",38.3512,-121.8097,"F"],["JOVDA",37.2756,-121.9773,"F"],["JTULL",39.2675,-121.1186,"F"],["JUBEK",39.0935,-122.8436,"F"],["JUDSO",40.9566,-124.1552,"F"],["JUGET",38.814,-121.1952,"F"],["JUKEK",38.4881,-121.6182,"F"],["JUMPS",39.197,-121.4563,"F"],["JUNEJ",41.0017,-120.9183,"F"],["JUNUX",38.73,-123.4872,"F"],["JUPAP",37.6404,-121.954,"F"],["JUPGU",39.5027,-119.7572,"F"],["JUPKI",38.2168,-122.4121,"F"],["JUTIB",39.2864,-120.3132,"F"],["JUZPI",39.0821,-121.562,"F"],["KAGYE",41.4825,-121.7431,"F"],["KATFH",37.4521,-122.0475,"F"],["KATSO",38.3518,-120.6385,"F"],["KAVBE",39.4111,-123.7987,"F"],["KEELY",37.3178,-122.0635,"F"],["KEENR",37.8974,-121.7361,"F"],["KENDL",40.4557,-122.3846,"F"],["KEPLR",37.5642,-122.2981,"F"],["KEVRE",39.1456,-123.192,"F"],["KICKK",39.017,-122.834,"F"],["KIKRR",37.8242,-122.3942,"F"],["KIMME",38.4872,-121.7979,"F"],["KIMZY",37.4706,-121.218,"F"],["KLAUS",37.5547,-122.3507,"F"],["KLOGE",38.6101,-122.6701,"F"],["KLSTR",38.3241,-122.3109,"F"],["KNEES",40.7524,-123.9554,"F"],["KNETH",39.2675,-120.1211,"F"],["KNUTT",41.2181,-122.2833,"F"],["KNZIE",41.55,-121.9667,"F"],["KO45E",37.5,-122.0,"F"],["KO48E",38.0,-122.0,"F"],["KO48G",38.0,-120.0,"F"],["KO51E",38.5,-122.0,"F"],["KO51G",38.5,-120.0,"F"],["KO54E",39.0,-122.0,"F"],["KO54G",39.0,-120.0,"F"],["KO57E",39.5,-122.0,"F"],["KO57G",39.5,-120.0,"F"],["KO60C",40.0,-124.0,"F"],["KO60E",40.0,-122.0,"F"],["KO60G",40.0,-120.0,"F"],["KO63E",40.5,-122.0,"F"],["KO63G",40.5,-120.0,"F"],["KO66E",41.0,-122.0,"F"],["KO66G",41.0,-120.0,"F"],["KOAK",37.7213,-122.2212,"A"],["KORAI",37.9764,-121.2766,"F"],["KRAPZ",39.6771,-119.7687,"F"],["KS63C",40.5,-124.0,"F"],["KS66C",41.0,-124.0,"F"],["KS69C",41.5,-124.0,"F"],["KS69E",41.5,-122.0,"F"],["KS72E",42.0,-122.0,"F"],["KUWAF",37.837,-122.418,"F"],["KUZIE",38.4702,-121.3599,"F"],["LAPED",39.0617,-122.794,"F"],["LAVNE",38.2971,-121.8362,"F"],["LAVVA",41.0,-121.25,"F"],["LEANN",41.9484,-122.8576,"F"],["LEJAY",37.7617,-122.3047,"F"],["LEYDO",38.3949,-122.886,"F"],["LIBBS",37.9017,-121.9867,"F"],["LIBGE",39.9372,-119.7682,"F"],["LIN",38.0746,-121.0039,"V"],["LINEC",38.1939,-122.0538,"F"],["LINNN",39.2296,-120.1042,"F"],["LLETT",37.7333,-121.9,"F"],["LODDI",38.0667,-121.3158,"F"],["LOHGN",37.9152,-121.9594,"F"],["LOKEY",41.0878,-119.894,"F"],["LOLLA",39.4205,-120.3669,"F"],["LOSZY",39.1772,-121.065,"F"],["LOWDG",39.1832,-120.0848,"F"],["LUDEC",38.1981,-122.0147,"F"],["LUNES",39.2345,-121.3914,"F"],["LUNIZ",41.0333,-121.5333,"F"],["LUYTA",37.2949,-122.2046,"F"],["MABJO",39.1255,-123.2017,"F"],["MABRY",37.4312,-121.7954,"F"],["MACFE",38.2041,-122.2992,"F"],["MACHL",40.4433,-122.3102,"F"],["MACZA",37.7336,-122.2374,"F"],["MAFNO",38.5861,-122.4067,"F"],["MAGHA",37.6313,-122.366,"F"],["MAGXY",37.7,-121.4255,"F"],["MAHEG",39.7213,-122.1464,"F"],["MAIDN",41.3333,-122.5294,"F"],["MAJAZ",38.6752,-121.8723,"F"],["MAJUJ",38.6786,-121.6016,"F"],["MAJUK",38.6765,-121.5829,"F"],["MAJVI",41.7712,-122.4693,"F"],["MAPVV",37.6547,-122.1206,"F"],["MARBK",41.7714,-122.4704,"F"],["MARDL",37.7004,-121.4258,"F"],["MARPP",39.5096,-119.7601,"F"],["MARRI",38.7631,-119.7001,"F"],["MARRS",39.3998,-123.3371,"F"],["MAUVE",38.5525,-122.8405,"F"],["MAYFO",38.4381,-122.7713,"F"],["MCC",38.6674,-121.4042,"V"],["MCOVY",37.3555,-122.0136,"F"],["MELIC",39.2775,-123.2411,"F"],["MELNY",39.7467,-119.6767,"F"],["MELTS",38.1656,-120.4886,"F"],["MENSE",39.4511,-122.884,"F"],["MEQXY",39.2194,-121.1284,"F"],["MERPH",38.0339,-120.3729,"F"],["MERRI",39.2965,-123.4155,"F"],["METRE",38.7948,-121.5996,"F"],["MICRA",37.9574,-122.6435,"F"],["MIFGA",38.2103,-120.7032,"F"],["MIMGE",39.2544,-123.2088,"F"],["MINNG",39.359,-120.1401,"F"],["MISON",37.4968,-121.8903,"F"],["MITAE",39.57,-119.4687,"F"],["MITOE",37.6364,-122.1169,"F"],["MMOSA",38.05,-122.4333,"F"],["MNNTY",37.8161,-122.3533,"F"],["MOD",37.6274,-120.9579,"V"],["MOGEE",38.3361,-121.3897,"F"],["MOHOK",38.7696,-121.1613,"F"],["MOLBE",39.5728,-119.8107,"F"],["MOLEN",37.9979,-123.0868,"F"],["MOONE",41.0,-120.5,"F"],["MOSTY",40.907,-122.5744,"F"],["MOVDD",37.6614,-121.4482,"F"],["MOWVY",38.7286,-123.6071,"F"],["MRGGO",39.2223,-121.2787,"F"],["MRLET",39.127,-119.8253,"F"],["MUREQ",38.484,-120.8441,"F"],["MUREX",41.8697,-121.7341,"F"],["MYCAF",37.5461,-121.8995,"F"],["MYFUT",38.8058,-121.0383,"F"],["MYHIP",37.4399,-121.6143,"F"],["MYNEE",37.481,-121.6862,"F"],["MYRIB",37.3761,-121.5414,"F"],["MYSHN",37.5315,-121.7748,"F"],["MYV",39.0986,-121.5731,"V"],["NACKI",38.7299,-123.098,"F"],["NADME",38.7757,-121.2405,"F"],["NAGVY",37.6357,-121.9308,"F"],["NAKPT",39.0607,-122.3293,"F"],["NANEY",38.674,-121.0887,"F"],["NAQRA",39.4458,-121.5856,"F"],["NATIC",38.8715,-123.2415,"F"],["NEKIE",37.7337,-122.2625,"F"],["NICER",39.7205,-119.4974,"F"],["NIECE",39.0974,-122.8777,"F"],["NIITE",37.8452,-122.3869,"F"],["NIKDE",37.6206,-122.5633,"F"],["NIRPY",37.8798,-122.4828,"F"],["NIWBA",38.9168,-122.6115,"F"],["NIXDE",37.6827,-122.0749,"F"],["NOKVE",39.3292,-123.795,"F"],["NORCL",37.5174,-121.7196,"F"],["NOVIY",40.9374,-124.1912,"F"],["NRTHM",37.9121,-122.4779,"F"],["OAK",37.7259,-122.2236,"V"],["OAKES",37.8814,-120.3507,"F"],["OAKEY",38.0566,-121.6718,"F"],["OAKKS",42.0897,-122.5347,"F"],["OBGEE",39.9671,-122.3694,"F"],["ODICA",38.4072,-121.7229,"F"],["ODKAC",40.8726,-124.0366,"F"],["OGDAE",38.8905,-122.6225,"F"],["OGLUY",39.2234,-121.0213,"F"],["OHOSO",39.5217,-119.213,"F"],["OKUGE",39.5871,-119.3854,"F"],["OLIPH",38.2707,-121.242,"F"],["OLJEK",41.4752,-124.2391,"F"],["OLRIO",40.5199,-124.1426,"F"],["OLUDE",37.3782,-122.0936,"F"],["ONNIT",37.8167,-121.3167,"F"],["ONVOE",37.7005,-121.8548,"F"],["OOMEN",37.4769,-121.9336,"F"],["OOWEN",37.707,-121.2748,"F"],["OPLIE",37.7818,-122.3906,"F"],["ORANG",37.9835,-121.2642,"F"],["ORRCA",38.4437,-121.5516,"F"],["OSI",37.3925,-122.2813,"V"],["OSUDE",39.4329,-123.9723,"F"],["OVICU",40.6679,-122.2946,"F"],["OVRRR",38.5374,-119.7726,"F"],["OXJEF",37.7698,-121.0343,"F"],["OYODU",38.1412,-120.644,"F"],["OYXOB",38.6097,-122.7625,"F"],["OZCAJ",38.7166,-122.7116,"F"],["OZVUD",38.0884,-122.0167,"F"],["PALPS",39.0135,-121.1507,"F"],["PARBB",37.6076,-121.945,"F"],["PARSH",37.2511,-122.4153,"F"],["PATYY",37.4916,-121.05,"F"],["PAULZ",37.6644,-122.1755,"F"],["PEATS",38.7999,-121.3836,"F"],["PEDCE",39.2351,-121.4795,"F"],["PEDJU",38.638,-122.4574,"F"],["PEENO",38.5703,-123.6155,"F"],["PEERE",37.858,-122.3198,"F"],["PEGBR",38.9507,-121.129,"F"],["PELAE",39.3285,-121.5202,"F"],["PEREZ",41.6083,-121.4476,"F"],["PIDPE",39.1749,-123.2078,"F"],["PINKI",38.1336,-122.1805,"F"],["PITTS",38.0499,-121.8914,"F"],["PITVE",41.0039,-120.4158,"F"],["PIVSE",38.452,-121.6998,"F"],["PLAZA",37.7838,-122.3379,"F"],["PLYAT",40.3391,-123.6933,"F"],["POLOC",38.8247,-120.7968,"F"],["POOBR",38.5618,-122.5242,"F"],["POOKY",40.111,-119.342,"F"],["POPES",38.4859,-122.3459,"F"],["PORTE",37.4898,-122.4746,"F"],["POYSN",38.2884,-120.0692,"F"],["PREEN",40.2411,-120.0261,"F"],["PRFCT",37.6069,-121.818,"F"],["PRING",37.8546,-121.9808,"F"],["PRUFE",39.0677,-121.3952,"F"],["PUKIE",38.8507,-121.1517,"F"],["PUVUE",39.5614,-119.5104,"F"],["PWWDR",39.462,-120.115,"F"],["PXTON",37.9974,-123.222,"F"],["PYE",38.0798,-122.8678,"V"],["PYNUN",39.9441,-121.4836,"F"],["PYRAM",39.8933,-119.756,"F"],["PYXIS",37.893,-122.4614,"F"],["QEXFA",37.2747,-121.8932,"F"],["QUAKK",38.5092,-120.9359,"F"],["RAAAF",38.0547,-121.6718,"F"],["RACED",39.2222,-123.2053,"F"],["RADRE",39.0745,-121.4099,"F"],["RAGGS",38.4764,-122.1568,"F"],["RAGTE",38.8127,-121.1514,"F"],["RAIDR",38.0325,-122.5575,"F"],["RAILE",39.189,-121.4456,"F"],["RAMND",37.4359,-122.1225,"F"],["RAMRE",39.0313,-119.6848,"F"],["RANGO",39.256,-121.1077,"F"],["RAPHE",38.0035,-121.2277,"F"],["RAROC",39.9492,-119.9736,"F"],["RATKE",39.4055,-121.5223,"F"],["RATTO",37.5839,-121.6292,"F"],["RBL",40.0989,-122.2364,"V"],["RBLEW",37.8972,-121.5084,"F"],["RBUCL",39.0701,-122.0262,"F"],["RDD",40.5046,-122.2917,"V"],["REBAS",37.9407,-122.3837,"F"],["REEVR",38.2472,-122.841,"F"],["REJOY",38.1664,-121.7709,"F"],["REPUE",39.4522,-123.6859,"F"],["RETSO",37.1795,-122.2185,"F"],["REYOR",38.3016,-122.2403,"F"],["RICHY",38.9978,-120.0192,"F"],["RIJTU",39.43,-119.7694,"F"],["RIKPE",37.3924,-122.1427,"F"],["RIKRL",41.15,-121.95,"F"],["RISTI",37.6081,-121.5333,"F"],["ROAGG",42.0552,-122.4915,"F"],["ROBME",39.0438,-121.3967,"F"],["ROBOE",38.3971,-121.7482,"F"],["ROMAE",41.9352,-122.7002,"F"],["ROWLY",37.6,-122.0995,"F"],["ROWWN",38.4155,-121.7833,"F"],["ROXXY",38.3454,-121.9539,"F"],["ROZZA",38.5082,-122.8106,"F"],["ROZZY",38.7451,-121.2505,"F"],["RRUNN",38.0167,-123.0333,"F"],["RUCOC",39.4306,-119.7444,"F"],["RUDDI",39.3379,-120.1686,"F"],["RUDME",38.7601,-123.5275,"F"],["RUENZ",39.0775,-121.4113,"F"],["RUKDE",39.3274,-123.8596,"F"],["RULTT",39.7012,-119.7181,"F"],["RUMSY",38.876,-122.3009,"F"],["RURSE",37.2172,-121.9475,"F"],["RUXEE",38.0846,-122.1767,"F"],["RYANN",39.2338,-119.2795,"F"],["RYMAR",38.11,-121.8292,"F"],["SABBY",39.2922,-123.0407,"F"],["SABLO",37.9908,-122.2002,"F"],["SAC",38.4437,-121.5517,"V"],["SACJU",37.7834,-122.3374,"F"],["SAFCO",38.8575,-121.5986,"F"],["SAFFO",38.7506,-122.969,"F"],["SAFYR",38.945,-121.1513,"F"],["SAILA",38.4619,-121.9643,"F"],["SAKEE",39.1984,-121.4636,"F"],["SALAD",37.7739,-121.9602,"F"],["SAMML",37.5757,-122.2378,"F"],["SAMPS",38.8496,-121.5161,"F"],["SAPID",37.1913,-122.1797,"F"],["SAPLY",37.2577,-122.5882,"F"],["SARRA",39.7677,-120.8189,"F"],["SASSU",38.3679,-122.3905,"F"],["SATNE",39.972,-122.0956,"F"],["SAU",37.8553,-122.5228,"V"],["SAVOE",40.9211,-122.609,"F"],["SAWNA",38.8685,-122.4018,"F"],["SCION",38.5654,-121.4522,"F"],["SCUPY",40.9233,-124.3027,"F"],["SEAPO",38.1467,-122.4704,"F"],["SECUR",39.5406,-123.8643,"F"],["SEDTO",40.1245,-119.8204,"F"],["SEEMS",37.5927,-122.6572,"F"],["SEGVE",40.8096,-124.2353,"F"],["SEITZ",37.9252,-122.3843,"F"],["SETSE",38.1904,-122.008,"F"],["SEVLY",40.972,-124.3409,"F"],["SFO",37.6195,-122.3739,"V"],["SGD",38.1794,-122.3732,"V"],["SHARR",37.7968,-121.2753,"F"],["SHATA",40.6533,-122.4674,"F"],["SHERI",39.0456,-121.3825,"F"],["SHIMR",38.2331,-120.0965,"F"],["SHIZM",37.9044,-120.5192,"F"],["SHLTR",39.3896,-121.2806,"F"],["SHNGL",37.8159,-122.3863,"F"],["SIGNA",39.3471,-120.6391,"F"],["SIMGY",38.7609,-122.5601,"F"],["SITJI",37.6039,-122.0134,"F"],["SIWBI",37.5049,-122.0761,"F"],["SIXDY",37.647,-122.1461,"F"],["SIZXO",37.3573,-121.9782,"F"],["SJC",37.3747,-121.9447,"V"],["SKYLN",37.6455,-121.9609,"F"],["SLAAK",41.9559,-121.5212,"F"],["SLUCE",38.869,-121.7801,"F"],["SMONE",37.5362,-121.3585,"F"],["SMURA",38.1167,-119.9963,"F"],["SNGIT",39.3486,-121.8167,"F"],["SNUPY",38.5017,-122.6715,"F"],["SOBTE",39.3794,-123.7973,"F"],["SONYS",38.2918,-122.3848,"F"],["SOROC",39.0798,-121.4048,"F"],["SOWEL",39.421,-121.4261,"F"],["SOYOK",37.7411,-122.2644,"F"],["SPAMY",39.2007,-122.591,"F"],["SPHER",40.4588,-123.8697,"F"],["SPOOK",38.6325,-120.2643,"F"],["SPOTS",38.0222,-123.8357,"F"],["SPYKE",39.1683,-121.3683,"F"],["SQIRL",37.5944,-122.3889,"F"],["STEEV",37.4266,-121.5507,"F"],["STIKM",38.5333,-122.65,"F"],["STINS",37.8237,-122.7567,"F"],["STLER",37.7014,-122.7111,"F"],["STNDR",38.7997,-121.3133,"F"],["SULRR",37.8601,-121.3859,"F"],["SUNBE",41.0039,-120.7422,"F"],["SUNNE",37.4382,-122.0128,"F"],["SUNOL",37.6055,-121.8103,"F"],["SUTRO",37.712,-122.5468,"F"],["SWR",39.1803,-120.2696,"V"],["SYRAH",37.9911,-121.1031,"F"],["TAGNE",38.4225,-121.5848,"F"],["TAHOE",39.5162,-120.1458,"F"],["TAILS",37.2729,-122.5204,"F"],["TALON",38.8437,-121.5379,"F"],["TALOY",37.5172,-121.6197,"F"],["TALUM",39.4136,-121.8797,"F"],["TAMMM",37.9882,-122.1479,"F"],["TANKK",38.4203,-121.7585,"F"],["TAUKE",38.8387,-121.5953,"F"],["TAYTO",40.6074,-122.4481,"F"],["TEDBY",38.2664,-120.7516,"F"],["TENCO",38.8911,-121.3874,"F"],["TENIE",37.7022,-122.1439,"F"],["TERAI",38.9446,-123.0908,"F"],["TEVAE",38.3813,-122.7878,"F"],["THHEO",37.7485,-122.6152,"F"],["THORN",38.3256,-121.0655,"F"],["TIBKE",40.9136,-124.2359,"F"],["TILTS",38.6347,-119.5269,"F"],["TIMMS",39.6083,-119.2821,"F"],["TIPRE",38.2058,-121.0358,"F"],["TIPUE",38.8208,-122.6241,"F"],["TMACC",38.6674,-123.5191,"F"],["TOCOS",39.959,-123.1746,"F"],["TOMAD",40.2544,-122.7641,"F"],["TOOOL",37.7135,-121.3273,"F"],["TRACY",37.7314,-121.4593,"F"],["TRDOW",37.4938,-121.9855,"F"],["TRIAL",41.0629,-124.2367,"F"],["TRIPN",40.9767,-119.8893,"F"],["TRNTY",40.2167,-123.8333,"F"],["TROHL",41.2167,-122.1667,"F"],["TRUCK",39.4377,-120.1618,"F"],["TRZAN",38.8352,-121.09,"F"],["TULIP",41.9117,-121.5284,"F"],["TUNEY",37.5533,-122.1419,"F"],["TUNGS",40.6108,-124.1977,"F"],["TUYUS",37.639,-122.4179,"F"],["TWETT",38.7059,-120.793,"F"],["UGUYA",38.7225,-123.3971,"F"],["ULLRR",40.9814,-124.1631,"F"],["UNUWY",37.5255,-122.1486,"F"],["URZAF",37.6699,-122.0358,"F"],["USAFA",41.8419,-121.567,"F"],["USIKY",37.6532,-122.1419,"F"],["UTOOB",37.4116,-122.3389,"F"],["UVLEW",38.4536,-122.6596,"F"],["UWDON",38.8987,-123.0655,"F"],["VEINY",39.1836,-123.223,"F"],["VELAN",37.7864,-122.6111,"F"],["VERDI",39.4833,-119.917,"F"],["VIKES",39.2907,-119.5892,"F"],["VINCO",37.3764,-121.7165,"F"],["VISTO",38.1941,-121.6293,"F"],["VNYRD",37.9588,-122.5161,"F"],["VOCAL",38.0322,-121.1758,"F"],["VODSY",37.6859,-122.0939,"F"],["VOXNO",38.9683,-122.2894,"F"],["VPAAQ",37.5715,-122.3975,"F"],["VPALT",37.7392,-121.5903,"F"],["VPANT",38.0241,-121.7504,"F"],["VPBAB",37.8569,-121.9328,"F"],["VPBAM",37.3753,-121.8681,"F"],["VPBAN",37.4422,-121.7639,"F"],["VPBAP",37.4861,-121.7511,"F"],["VPBAS",37.5648,-121.7803,"F"],["VPBAT",37.5483,-121.8524,"F"],["VPBAV",37.4736,-121.8235,"F"],["VPBAX",37.4032,-121.9321,"F"],["VPBBR",38.0416,-122.1241,"F"],["VPBBS",37.6588,-122.8548,"F"],["VPBBV",37.4935,-122.4548,"F"],["VPBBW",37.3827,-122.3267,"F"],["VPBBX",37.3343,-122.1298,"F"],["VPBBZ",37.4718,-121.9637,"F"],["VPBCB",37.5425,-121.9327,"F"],["VPBCC",37.6972,-121.9607,"F"],["VPBCD",37.8865,-122.1577,"F"],["VPBCK",37.8598,-122.4922,"F"],["VPBCL",37.8507,-122.34,"F"],["VPBCM",37.7996,-122.2177,"F"],["VPBCN",37.7449,-122.2535,"F"],["VPBCQ",37.7048,-122.194,"F"],["VPBCR",37.6648,-122.1919,"F"],["VPBCS",37.5807,-122.0661,"F"],["VPBCT",37.4529,-122.1274,"F"],["VPBCV",37.4406,-122.1772,"F"],["VPBDA",37.4776,-122.2196,"F"],["VPBDB",37.5387,-122.3649,"F"],["VPBDC",37.677,-122.6515,"F"],["VPBDD",37.7778,-122.787,"F"],["VPBDF",37.7343,-122.8582,"F"],["VPBDI",37.8395,-122.6852,"F"],["VPBDJ",37.7429,-122.598,"F"],["VPBDK",37.6945,-122.4865,"F"],["VPBDL",37.6857,-122.4961,"F"],["VPBDM",37.6902,-122.5064,"F"],["VPBDN",37.6677,-122.5207,"F"],["VPBDO",37.6569,-122.4946,"F"],["VPBDP",37.7088,-122.4687,"F"],["VPBDQ",37.7376,-122.4698,"F"],["VPBDR",37.7866,-122.3087,"F"],["VPBDS",37.7593,-122.2439,"F"],["VPBDU",37.5863,-122.187,"F"],["VPBDV",37.57,-122.1355,"F"],["VPBDW",37.5337,-122.1517,"F"],["VPBDX",37.4916,-122.1392,"F"],["VPBDZ",37.4838,-122.1879,"F"],["VPBEB",37.5148,-122.2439,"F"],["VPBED",37.5606,-122.2968,"F"],["VPBEG",37.5923,-122.2349,"F"],["VPBEH",37.6725,-122.2368,"F"],["VPBEL",37.7111,-122.2785,"F"],["VPBEM",37.6966,-122.6277,"F"],["VPBEP",37.5608,-122.282,"F"],["VPBER",37.55,-122.2566,"F"],["VPBES",37.5248,-122.2188,"F"],["VPBET",37.5469,-122.2042,"F"],["VPCAL",37.4694,-121.8155,"F"],["VPCBT",37.7281,-122.1156,"F"],["VPCOL",37.7518,-122.1975,"F"],["VPCOY",37.5416,-122.0844,"F"],["VPCQZ",38.061,-122.2254,"F"],["VPCRL",37.1833,-121.6844,"F"],["VPCRY",37.5094,-122.3516,"F"],["VPCSH",37.6587,-122.0587,"F"],["VPDAM",37.6151,-121.7464,"F"],["VPDSH",37.4086,-122.1797,"F"],["VPDUB",37.701,-121.9227,"F"],["VPEMB",37.4347,-121.8919,"F"],["VPGGF",37.8845,-122.3119,"F"],["VPKBG",38.9792,-119.8867,"F"],["VPKGO",37.5263,-122.1017,"F"],["VPLEX",37.1944,-121.9863,"F"],["VPMID",37.6047,-122.1968,"F"],["VPMIN",37.5696,-121.8738,"F"],["VPMOR",37.8077,-122.1991,"F"],["VPOYS",37.6615,-122.3936,"F"],["VPPAC",37.6333,-122.5344,"F"],["VPPRU",37.2888,-121.9336,"F"],["VPRHV",37.3329,-121.8198,"F"],["VPSAN",37.1166,-122.3364,"F"],["VPSBT",37.7367,-122.4072,"F"],["VPSCS",37.6118,-122.426,"F"],["VPSHB",37.5135,-122.5021,"F"],["VPSLA",37.4124,-122.2392,"F"],["VPSLM",37.7251,-122.5029,"F"],["VPSLT",37.52,-122.03,"F"],["VPSPT",37.5529,-122.2958,"F"],["VPSSP",37.6407,-122.4945,"F"],["VPSSR",37.9748,-122.5326,"F"],["VPSTB",37.9076,-122.6734,"F"],["VPTES",37.4927,-121.943,"F"],["VPWAL",37.8963,-122.0717,"F"],["VPWAM",37.5047,-122.1667,"F"],["VPWFR",37.5147,-122.2044,"F"],["VPXES",37.6917,-122.0933,"F"],["VULPX",38.7688,-119.6826,"F"],["VYYDA",37.5492,-122.0817,"F"],["WACHN",38.55,-121.5667,"F"],["WACIZ",38.4632,-122.6217,"F"],["WADDS",39.7165,-119.3235,"F"],["WADIL",38.237,-121.9632,"F"],["WAGGE",39.2618,-119.7699,"F"],["WAKLO",39.6126,-119.2603,"F"],["WAKSO",37.8098,-122.3571,"F"],["WAPNA",39.4513,-123.3723,"F"],["WATAP",37.6506,-122.4511,"F"],["WATRZ",39.0648,-122.791,"F"],["WEBGO",39.4667,-120.35,"F"],["WEBMA",40.2491,-120.0128,"F"],["WEBRR",38.2439,-122.4121,"F"],["WEDAL",38.3336,-121.8258,"F"],["WEEDE",41.3339,-122.58,"F"],["WEKUR",39.5769,-121.5518,"F"],["WELBA",38.1708,-122.0577,"F"],["WELPA",38.1747,-122.2049,"F"],["WELRI",39.5029,-123.9984,"F"],["WEPLO",39.2377,-123.0939,"F"],["WETIP",37.892,-122.3052,"F"],["WHEEL",41.0974,-124.237,"F"],["WHYEE",37.9207,-122.0434,"F"],["WIDUT",40.5175,-119.9308,"F"],["WIGIK",39.5219,-123.4017,"F"],["WIKAN",39.4074,-121.34,"F"],["WILLO",38.7999,-121.3834,"F"],["WIMBA",38.2123,-121.9421,"F"],["WIPOK",39.3784,-121.3145,"F"],["WISVU",39.4043,-122.0871,"F"],["WNDEL",40.3936,-120.3162,"F"],["WNDML",37.5051,-121.4658,"F"],["WNDSR",38.6818,-122.4787,"F"],["WONOL",40.9277,-124.074,"F"],["WOVES",39.418,-121.6055,"F"],["WRAPS",37.8579,-120.7837,"F"],["WUGNA",39.2792,-120.1372,"F"],["WUKYY",39.4905,-123.7996,"F"],["WUNBO",40.8978,-124.0537,"F"],["WUNSU",38.3226,-121.8465,"F"],["WUSMO",38.2333,-121.9657,"F"],["WUVON",37.6127,-122.0814,"F"],["XCOLO",38.4666,-123.2285,"F"],["YAGER",40.5574,-123.8243,"F"],["YARKU",39.1397,-119.6803,"F"],["YAWNS",37.3922,-121.7119,"F"],["YEGGU",37.7336,-122.2374,"F"],["YESUY",40.244,-119.9709,"F"],["YEWUP",38.8022,-121.7769,"F"],["YICPU",37.6286,-122.1052,"F"],["YOBUN",41.603,-124.3039,"F"],["YOGIE",38.2637,-121.9264,"F"],["YUBBA",39.1238,-121.7694,"F"],["YUDWN",38.8631,-121.985,"F"],["YYOUU",41.3333,-123.4,"F"],["ZABTI",38.9163,-123.0576,"F"],["ZAGET",38.1835,-122.0158,"F"],["ZAKUL",38.9074,-122.068,"F"],["ZALNO",39.0654,-121.1322,"F"],["ZANUM",39.2533,-123.2617,"F"],["ZAPUX",39.1124,-121.4263,"F"],["ZARAG",39.4132,-121.5105,"F"],["ZAREL",37.4244,-122.1763,"F"],["ZAVLU",38.9237,-121.0576,"F"],["ZEBTI",39.4636,-121.933,"F"],["ZEGSO",39.0438,-121.3967,"F"],["ZENEB",38.2563,-122.4658,"F"],["ZEPIL",39.4236,-123.3371,"F"],["ZEPTA",38.8902,-121.1046,"F"],["ZERMO",37.7695,-122.3429,"F"],["ZEROX",39.179,-121.9933,"F"],["ZEYCA",37.7783,-122.2667,"F"],["ZIKNO",41.5295,-124.2394,"F"],["ZIKTI",39.2977,-120.1031,"F"],["ZIMYU",37.6308,-122.3648,"F"],["ZINNN",38.0624,-122.5219,"F"],["ZINUX",39.2298,-121.4645,"F"],["ZODOV",40.915,-124.1589,"F"],["ZOGNA",39.0299,-122.8477,"F"],["ZOKMM",37.9302,-120.7102,"F"],["ZOLAS",38.4076,-123.1634,"F"],["ZOLUM",37.6057,-122.0191,"F"],["ZOMER",37.5453,-120.6314,"F"],["ZOMET",38.414,-121.7716,"F"],["ZOVAR",38.1638,-122.1172,"F"],["ZUBVI",40.9652,-124.1184,"F"],["ZUKEK",37.7584,-122.2822,"F"],["ZUKOG",37.7694,-122.3772,"F"],["ZUNAS",41.8595,-122.8484,"F"],["ZUNRI",38.6117,-121.4522,"F"],["ZUTUK",38.8988,-121.3342,"F"]]</script>
+<script>
+(() => {
+  "use strict";
+  /* ---------- Glyphs: QuickCommandGlyphs paths; the drafts are marked ---------- */
+  const FLIGHT = "#A8CAFF", SCOPE = "#DCE2E8";
+  const RACE = "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z";
+  const GL = {
+    FH: [FLIGHT, "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z"],
+    CM: [FLIGHT, "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+    SPD: [FLIGHT, "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    DCT: [FLIGHT, "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"],
+    HOLD: [FLIGHT, RACE + " M8 18l-2 3"],
+    HOLDL: [FLIGHT, RACE + " M14 3l-3 3 3 3"],
+    HOLDR: [FLIGHT, RACE + " M10 3l3 3-3 3"],
+    XFIX: [FLIGHT, "M12 7l5 9H7z M2 12h19 M18 9l3 3-3 3"],
+    CAPP: [FLIGHT, "M3 12L21 5 M3 12L21 19 M3 12h18"],
+    ADCT: [FLIGHT, "M3 21L13 11 M8 11h5v5 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M18 14v6 M15 17h6", true],
+    DEP: [FLIGHT, "M7 8l4 7H3z M11 12h10 M18 9l3 3-3 3", true],
+    JAWY: [FLIGHT, "M2 6h20 M4 21c1.5-7 5.5-12 12-15 M13 3l3 3-3 3", true],
+    JRAD: [FLIGHT, "M8 10a3 3 0 1 0 0 6a3 3 0 1 0 0-6 M10.4 11.3L20 4 M15 4h5v5", true],
+    JSTAR: [FLIGHT, "M3 4h5v5h5v5h5v5 M15 16l3 3 3-3"],
+    CVIA: [FLIGHT, "M3 20h5v-5h5v-5h5V5 M15 8l3-3 3 3"],
+    TRACK: [SCOPE, "M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 9v6 M9 12h6"],
+  };
+  const LABEL = { FH: "Fly heading", CM: "Maintain altitude", SPD: "Assign speed", DCT: "Direct to…", HOLD: "Hold at fix…", XFIX: "Cross fix" };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${GL[id][2] ? ` stroke-dasharray="3 1.6"` : ""}><path d="${GL[id][1]}"/></svg>`;
+  const menu = (inner, cls = "w", label = "", attrs = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""} ${attrs}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = (html, calm) => `<div class="callout${calm ? " calm" : ""}" role="note">${html}</div>`;
+  const titleLine = (html, right = "", attrs = "") => `<div class="mi title"><span class="et">${html}</span><span class="r" ${attrs}>${right}</span></div>`;
+  const plainRow = (label, o = {}) => `<div class="mi plain${o.hot ? " hot" : ""}${o.faint ? " faint" : ""}"${o.cmd ? ` data-send="${esc(o.cmd)}" tabindex="0"` : ""}${o.say ? ` data-say="${esc(o.say)}"` : ""}><span>${esc(label)}</span><span>${o.cmd ? `<span class="cmd">${esc(o.cmd)}</span>` : ""}</span><span class="chev">${o.sub ? "›" : ""}</span></div>`;
+  let uidN = 0;
+  const uid = p => `${p}-${++uidN}`;
+  const p3 = h => String(h).padStart(3, "0");
+
+  /* ---------- Data: the CIFP fix set, the aircraft and its route ---------- */
+  const FIXES = JSON.parse(document.getElementById("fixdata").textContent);
+  const POS = new Map(FIXES.map(f => [f[0], f]));
+  const NAMES = FIXES.map(f => f[0]);
+  const VAR = 13;
+  const AC = { cs: "UAL455", type: "A320", state: "Arrival · KGEG–KOAK · FL240 · 280 kt · hdg 184 · → SPAMY", hdg: 184, alt: 24000, start: [39.6049, -122.4314] };
+  const ROUTE = ["SPAMY", "HUBRT", "WNDSR", "WEBRR", "BOYYS", "HOPTA", "ALLXX", "CRSEN", "KOAK"];
+  const ROUTE_ALL = [...ROUTE.slice(0, 8), "GEG", "IMB", "LKV", "RBL", "KOAK", "KGEG"];
+  const PATH = ["RBL", ...ROUTE.slice(0, 8)];
+  const AIRWAYS = [
+    { id: "J3", filed: true, fixes: ["OAK", "RBL", "LKV", "IMB", "GEG"] },
+    { id: "J1", fixes: ["AVE", "OAK", "RBL", "HANDY", "OED"] },
+    { id: "J65", fixes: ["EHF", "SAC", "RBL", "LMT", "SEA"] },
+    { id: "J126", fixes: ["SNS", "SAC", "RBL", "HANDY", "OED"] },
+    { id: "V23", fixes: ["TALUM", "JINGO", "GONGS", "RBL", "BEIRA"] },
+    { id: "V25", fixes: ["LAPED", "GRENY", "RBL", "HOMAN", "ITMOR"] },
+    { id: "V195", fixes: ["ILA", "JINGO", "GONGS", "RBL", "BURRS"] },
+    { id: "V199", fixes: ["MENSE", "HENLE", "OBGEE", "RBL"] },
+    { id: "Q5", fixes: ["HISKU", "HARPR", "HOMEG", "HUPTU", "STIKM"] },
+  ];
+
+  /* ---------- Geometry and the moving aircraft ---------- */
+  const rad = d => d * Math.PI / 180;
+  function distBrg(a, b) {
+    const [la1, lo1, la2, lo2] = [rad(a[0]), rad(a[1]), rad(b[0]), rad(b[1])];
+    const h = Math.sin((la2 - la1) / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin((lo2 - lo1) / 2) ** 2;
+    const d = 2 * Math.asin(Math.sqrt(h)) * 3440.065;
+    const y = Math.sin(lo2 - lo1) * Math.cos(la2), x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(lo2 - lo1);
+    const t = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    let m = Math.round((t - VAR + 360) % 360);
+    if (m === 0) m = 360;
+    return [d, m];
+  }
+  const pt = f => [POS.get(f)[1], POS.get(f)[2]];
+  /* The route course into each route fix, from the fix before it. */
+  const COURSE = {};
+  PATH.forEach((f, i) => { if (i > 0) COURSE[f] = distBrg(pt(PATH[i - 1]), pt(f))[1]; });
+  let acPos = AC.start.slice(), legIndex = 0, simT = 0, playing = true;
+  const SPEEDUP = 10, GS = 380, LOOP = 70;
+  function placeAircraft(t) {
+    let left = t * GS / 3600 * SPEEDUP;
+    let at = AC.start.slice(), i = 1;
+    while (i < PATH.length) {
+      const next = pt(PATH[i]);
+      const [d] = distBrg(at, next);
+      if (left <= d) { const k = left / d; acPos = [at[0] + k * (next[0] - at[0]), at[1] + k * (next[1] - at[1])]; legIndex = i - 1; return; }
+      left -= d; at = next; i++;
+    }
+    acPos = at; legIndex = PATH.length - 1;
+  }
+  const passed = f => { const i = ROUTE.indexOf(f); return i >= 0 && i < legIndex; };
+  const nextFix = () => ROUTE[Math.min(legIndex, ROUTE.length - 1)];
+  const fromAc = f => distBrg(acPos, pt(f));
+  const radialOf = f => distBrg(pt(f), acPos);
+  const distText = f => { if (!POS.has(f)) return ""; const [d, b] = fromAc(f); return `${Math.round(d)} NM · ${p3(b)}°`; };
+
+  /* ---------- The aircraft menu stub ---------- */
+  function stubMenu(o) {
+    const cells = ["FH", "CM", "DCT", "SPD", "HOLD", "XFIX"].map(id => {
+      const notch = ["FH", "CM", "SPD"].includes(id) || (o.notched && o.notched.includes(id));
+      const msg = ["FH", "CM", "SPD"].includes(id) ? `${LABEL[id]}: opens its X5 flyout (not in this part).` : (notch ? `${LABEL[id]}: opens its flyout (drawn beside).` : `${LABEL[id]}: opens a popup today.`);
+      return `<span class="cell${id === o.latch ? " latched" : ""}" title="${esc(LABEL[id])}" role="button" aria-label="${esc(LABEL[id])}" data-say="${esc(msg)}">${gl(id, 32)}${notch ? `<i class="notch"></i>` : ""}</span>`;
+    }).join("");
+    const faint = t => `<div class="mi plain faint"><span>${esc(t)}</span><span></span><span class="chev">›</span></div>`;
+    return menu(`<div class="mtitle">${AC.cs} · ${AC.type}</div><div class="mstate">${esc(AC.state)}</div>${sep()}<div class="mi plain faint"><span>Command…</span><span></span><span></span></div>${sep()}<div class="strip">${cells}</div>${sep()}${["Track", "Data Block", "All Commands"].map(faint).join("")}`, "", "Aircraft menu");
+  }
+  const stub = o => `<div class="stage stub-stage">${stubMenu(o)}</div>`;
+
+  /* ---------- Boxes ---------- */
+  /** o: g, label, ph, kind, verb (the preview while empty), w, focus */
+  function boxRow(o) {
+    const id = uid("box");
+    return `<div class="mi boxed" role="menuitem">${gl(o.g)}<span class="nm col"><span class="n">${esc(o.label)}</span><span class="under"><input class="tbox${o.focus ? " focus" : ""}" type="text" id="${id}" data-box="${o.kind}" placeholder="${esc(o.ph)}" value="${esc(o.value || "")}" aria-label="${esc(o.label)}" style="width:${o.w || 150}px" autocomplete="off" spellcheck="false">${o.after || ""}</span><span class="bnote" data-bnote></span></span><span></span><span class="cmd wait" data-prev>${esc(o.verb || "")}</span></div>`;
+  }
+  function parseAlt(t) {
+    const s = t.trim().toUpperCase().replace(/^FL/, "");
+    if (!/^\d{1,5}$/.test(s)) return null;
+    const n = parseInt(s, 10);
+    const feet = s.length <= 3 ? n * 100 : n;
+    return (feet > 0 && feet <= 60000) ? feet : null;
+  }
+  const parseHdg = t => { const s = t.trim(); if (!/^\d{1,3}$/.test(s)) return null; const h = parseInt(s, 10); return (h >= 1 && h <= 360) ? h : null; };
+  const isFrd = t => { const m = /^([A-Z]{2,5})(\d{3})(\d{3})$/.exec(t); return m && POS.has(m[1]) ? m : null; };
+
+  /* ---------- Toggles and chips ---------- */
+  const VERB = {
+    DCT: ["Direct to", "DCT", "dct"], ADCT: ["Append", "ADCT", "dct"], CFIX: ["Cross", "CFIX", "cfix"], DEPART: ["Depart", "DEPART", "depart"],
+    HOLDP: ["Hold", "HOLDP", "hold"], HFIXL: ["Left 360s", "HFIXL", "orbit"], HFIXR: ["Right 360s", "HFIXR", "orbit"],
+    JRADO: ["Outbound", "JRADO", "jrad"], JRADI: ["Inbound", "JRADI", "jrad"], PTAC: ["PTAC", "PTAC", "ptac"], PTACF: ["Forced", "PTACF", "ptac"],
+  };
+  const LONG = { DCT: "Direct to", ADCT: "Append direct to", CFIX: "Cross fix", DEPART: "Depart fix", HOLDP: "Hold at fix", HFIXL: "Hold at fix (left)", HFIXR: "Hold at fix (right)", JRADO: "Join radial outbound", JRADI: "Join radial inbound", PTAC: "PTAC", PTACF: "PTAC (forced)" };
+  const seg = (verbs, on, labels = {}) => `<div class="seg" role="group" aria-label="Verb">${verbs.map(v => `<button type="button" data-verb="${v}" aria-pressed="${v === on}">${esc(labels[v] || VERB[v][0])}<code>${VERB[v][1]}</code></button>`).join("")}</div>`;
+  const optSeg = (key, opts, on, cls = "") => `<div class="seg ${cls}" role="group">${opts.map(([v, l, c]) => `<button type="button" data-opt="${key}" data-val="${esc(v)}" aria-pressed="${v === on}">${esc(l)}${c ? `<code>${esc(c)}</code>` : ""}</button>`).join("")}</div>`;
+  const chips = (key, label, opts, on) => `<div class="chiprow"><span class="cl">${esc(label)}</span>${opts.map(([v, l]) => `<button type="button" class="chip" data-opt="${key}" data-val="${esc(v)}" aria-pressed="${v === on}">${esc(l)}</button>`).join("")}</div>`;
+
+  /* ---------- Fix rows ---------- */
+  const fixRowEl = (f, o = {}) => `<div class="ar fr" role="menuitem" tabindex="0" data-fix="${f}"${o.route ? ` data-route="${f}"` : ""}><span class="ag"></span><span class="av">${f}</span><span class="an"${o.dist === false ? "" : ` data-dist="${f}"`}>${o.note || ""}</span><span class="cmd" data-rowcmd></span></div>`;
+  const routeRows = o => ROUTE.map(f => fixRowEl(f, { route: true, dist: o.dist })).join("");
+  const nearby = () => FIXES.filter(f => f[3] !== "A" && fromAc(f[0])[0] < 30).sort((a, b) => fromAc(a[0])[0] - fromAc(b[0])[0]).map(f => f[0]);
+  const navaids = () => FIXES.filter(f => f[3] === "V").sort((a, b) => fromAc(a[0])[0] - fromAc(b[0])[0]).map(f => f[0]);
+
+  /* ---------- One fix flyout: every fix picker on the page is one of these ---------- */
+  /**
+   * o: verb, verbs (toggle) | null, title, glyph, sort ("near" | "alpha"), dist (bool), tabs (bool), plain (no route section),
+   * form (html of the extra boxes, after the fix box), afterList (html after the list), panelH, label, emptyHint, attrs
+   */
+  function fixFly(o) {
+    const id = uid("fly");
+    const top = titleLine(`<b data-ttl>${esc(o.title || LONG[o.verb])}</b>`, o.right || `→ <span data-next>SPAMY</span> · FL240`);
+    const toggle = o.verbs ? seg(o.verbs, o.verb, o.verbLabels) : "";
+    const box = boxRow({ g: o.glyph, label: o.boxLabel || "Fix", ph: o.ph || "Fix name or FRD", kind: "fix", verb: `${o.verb} ···`, focus: true, w: o.boxW || 190 });
+    const empty = o.emptyHint || "Type to search every fix, nearest first";
+    let list;
+    if (o.tabs) {
+      const near = nearby();
+      list = tabbed([{ k: "route", label: "Route", small: String(ROUTE.length) }, { k: "near", label: "Nearby", small: String(near.length) }, { k: "all", label: "All" }],
+        { route: routeRows({ dist: true }), near: near.map(f => fixRowEl(f)).join(""), all: `<div data-results data-empty="${esc(`<div class='hint'>Type a name: every fix, nearest first</div>`)}"><div class="hint">Type a name: every fix, nearest first</div></div>` }, "route", o.panelH || 300);
+    } else {
+      const route = o.plain ? "" : `<div class="grp">${o.dist === false ? "Route" : "Remaining route <code>next ●</code>"}</div>${routeRows({ dist: o.dist !== false })}`;
+      const res = `<div data-results data-empty="${esc(`<div class='hint'>${empty}</div>`)}"><div class="hint">${esc(empty)}</div></div>`;
+      list = `<div class="panel" style="max-height:${o.panelH || 300}px">${route}${res}</div>`;
+    }
+    const kind = VERB[o.verb][2];
+    return menu(top + toggle + box + (o.form || "") + sep() + list + (o.afterList || ""), "w fly", o.label || LONG[o.verb],
+      `data-fly="${id}" data-verb="${o.verb}" data-kind="${kind}" data-sort="${o.sort || "near"}" data-hasdist="${o.dist === false ? "0" : "1"}" ${o.attrs || ""}`);
+  }
+  function tabbed(tabs, panels, sel, h) {
+    const bar = `<div class="tabs" role="tablist">${tabs.map(t => `<button type="button" class="tab" role="tab" data-tab="${t.k}" aria-selected="${t.k === sel}">${esc(t.label)}${t.small ? `<small>${esc(t.small)}</small>` : ""}</button>`).join("")}</div>`;
+    const body = Object.entries(panels).map(([k, html]) => `<div class="panel" style="max-height:${h}px" data-panel="${k}"${k === sel ? "" : " hidden"}>${html}</div>`).join("");
+    return `<div data-tabgroup>${bar}${body}</div>`;
+  }
+
+  /** The command a flyout sends for a fix, given its verb and its other boxes: { cmd, ready, need }. */
+  function flyCmd(m, fix) {
+    const v = m.dataset.verb, k = VERB[v][2];
+    const val = sel => { const b = m.querySelector(`[data-box="${sel}"]`); return b ? b.value.trim() : ""; };
+    if (k === "dct" || k === "orbit") return { cmd: `${v} ${fix}`, ready: true };
+    if (k === "cfix") {
+      const a = parseAlt(val("calt"));
+      const s = /^\d{2,3}$/.test(val("cspd")) ? ` ${parseInt(val("cspd"), 10)}` : "";
+      return a ? { cmd: `CFIX ${fix} ${m.dataset.pfx || ""}${p3(Math.round(a / 100))}${s}`, ready: true } : { cmd: `CFIX ${fix} ···`, ready: false, need: "calt", what: "an altitude" };
+    }
+    if (k === "depart") {
+      const h = parseHdg(val("dhdg"));
+      return h ? { cmd: `DEPART ${fix} ${p3(h)}`, ready: true } : { cmd: `DEPART ${fix} ···`, ready: false, need: "dhdg", what: "a heading" };
+    }
+    if (k === "hold") {
+      const typed = parseHdg(val("hcrs"));
+      const c = typed || COURSE[fix];
+      const tail = `${m.dataset.leg || "1.5M"} ${m.dataset.turn || "R"}`;
+      return c ? { cmd: `HOLDP ${fix} ${p3(c)} ${tail}`, ready: true } : { cmd: `HOLDP ${fix} ··· ${tail}`, ready: false, need: "hcrs", what: "an inbound course" };
+    }
+    if (k === "jrad") {
+      const r = m.dataset.rad;
+      return r ? { cmd: `${v} ${fix}${p3(r)}`, ready: true } : { cmd: `${v} ${fix}···`, ready: false, need: "rad", what: "a radial" };
+    }
+    return { cmd: "", ready: false };
+  }
+  /** The fix the box names now: the outlined row, else a known name or FRD as typed, else null. */
+  function boxFix(m) {
+    const b = m.querySelector('[data-box="fix"]');
+    if (!b) return m.dataset.pick || null;
+    const t = b.value.trim().toUpperCase();
+    if (!t) return m.dataset.pick || null;
+    const k = m.querySelector(".ar.kfocus[data-fix]");
+    if (k && !k.hidden) return k.dataset.fix;
+    if (POS.has(t) || isFrd(t)) return t;
+    return null;
+  }
+  function refreshFly(m) {
+    const k = VERB[m.dataset.verb][2];
+    m.querySelectorAll("[data-for]").forEach(el => { el.hidden = !el.dataset.for.split(" ").includes(k); });
+    m.querySelectorAll(".ar[data-fix]").forEach(r => {
+      const c = r.querySelector("[data-rowcmd]");
+      if (c) { const x = flyCmd(m, r.dataset.fix); c.textContent = x.cmd; c.classList.toggle("wait", !x.ready); }
+      r.classList.toggle("picked", m.dataset.pick === r.dataset.fix);
+    });
+    const fb = m.querySelector('[data-box="fix"]');
+    if (fb) {
+      const prev = fb.closest(".mi").querySelector("[data-prev]");
+      const f = boxFix(m);
+      const t = fb.value.trim();
+      if (f) { const x = flyCmd(m, f); prev.textContent = x.cmd; prev.classList.toggle("wait", !x.ready); prev.classList.remove("bad"); }
+      else { prev.textContent = t ? "no such fix" : `${m.dataset.verb} ···`; prev.classList.toggle("bad", !!t); prev.classList.toggle("wait", !t); }
+    }
+    m.querySelectorAll("[data-box]:not([data-box='fix'])").forEach(b => {
+      const prev = b.closest(".mi")?.querySelector("[data-prev]");
+      if (!prev) return;
+      const f = boxFix(m);
+      if (b.dataset.box === "hbox" || b.dataset.box === "ptxt" || b.dataset.box === "awy" || b.dataset.box.startsWith("pt")) return;
+      if (f) { const x = flyCmd(m, f); prev.textContent = x.cmd; prev.classList.toggle("wait", !x.ready); }
+      else prev.textContent = "pick a fix";
+    });
+    const ttl = m.querySelector("[data-ttl]");
+    if (ttl && m.querySelector("[data-verb]")) ttl.textContent = LONG[m.dataset.verb];
+    m.querySelectorAll(".dial").forEach(drawRose);
+  }
+  function filterFly(m, text) {
+    const pre = text.trim().toUpperCase();
+    m.querySelectorAll(".ar.kfocus").forEach(r => r.classList.remove("kfocus"));
+    m.querySelectorAll(".ar[data-fix]:not([data-res])").forEach(r => { r.hidden = !!pre && !r.dataset.fix.startsWith(pre) && !(isFrd(pre)); });
+    const res = m.querySelector("[data-results]");
+    if (res) {
+      if (!pre) res.innerHTML = res.dataset.empty;
+      else {
+        const shown = new Set([...m.querySelectorAll(".ar[data-fix]:not([data-res])")].filter(r => !r.hidden).map(r => r.dataset.fix));
+        const frd = isFrd(pre);
+        let list = NAMES.filter(n => n.startsWith(pre) && !shown.has(n));
+        if (m.dataset.sort === "near") list.sort((a, b) => fromAc(a)[0] - fromAc(b)[0]);
+        const total = list.length;
+        list = list.slice(0, 50);
+        const dist = m.dataset.hasdist === "1";
+        const rows = list.map(f => fixRowEl(f, { dist }).replace('data-fix=', 'data-res data-fix=')).join("");
+        const frdRow = frd ? fixRowEl(pre, { dist: false, note: `${frd[1]} radial ${frd[2]}, ${parseInt(frd[3], 10)} NM` }).replace('data-fix=', 'data-res data-fix=') : "";
+        const head = m.dataset.sort === "near" ? `All fixes · nearest first <code>${total}${total > 50 ? ", first 50" : ""}</code>` : `All fixes · A to Z <code>${total}${total > 50 ? ", first 50" : ""}</code>`;
+        res.innerHTML = frdRow + (total ? `<div class="grp">${head}</div>${rows}` : (frd ? "" : `<div class="hint">No fix starts with ${esc(pre)}</div>`));
+        if (m.querySelector("[data-tabgroup]")) selectTab(m.querySelector('[data-tab="all"]'), true);
+      }
+    }
+    const first = [...m.querySelectorAll(".ar[data-fix]")].find(r => !r.hidden && r.offsetParent !== null);
+    if (pre && first) first.classList.add("kfocus");
+    tickLive();
+    refreshFly(m);
+  }
+  function pickOrSend(m, fix, from) {
+    const x = flyCmd(m, fix);
+    if (x.ready) { say(from, `Sends <code>${esc(x.cmd)}</code> and closes the flyout and the menu.`); return; }
+    m.dataset.pick = fix;
+    refreshFly(m);
+    const need = m.querySelector(`[data-box="${x.need}"]`);
+    if (need) need.focus();
+    say(from, `Picks <b>${esc(fix)}</b> and focuses the box for ${x.what}: <code>${esc(x.cmd)}</code> needs it, so nothing is sent yet.`);
+  }
+
+  /* ---------- Live refill: distances, the ● next fix, passed fixes, the radial needle ---------- */
+  function tickLive() {
+    document.querySelectorAll("[data-dist]").forEach(el => { el.textContent = distText(el.dataset.dist); });
+    document.querySelectorAll(".ar[data-route]").forEach(r => {
+      const f = r.dataset.route, isNext = f === nextFix(), isPassed = passed(f);
+      r.classList.toggle("now", isNext);
+      r.classList.toggle("passed", isPassed);
+      r.querySelector(".ag").textContent = isNext ? "●" : "";
+      if (isPassed) r.querySelector(".an").textContent = "passed";
+    });
+    document.querySelectorAll("[data-next]").forEach(el => { el.textContent = nextFix(); });
+    document.querySelectorAll("[data-radnote]").forEach(el => { const f = el.dataset.radnote; const [d, b] = radialOf(f); el.textContent = `${Math.round(d)} NM · on its ${p3(b)} radial`; });
+    document.querySelectorAll(".dial").forEach(drawRose);
+    document.querySelectorAll("[data-clock]").forEach(c => { c.textContent = `t = ${Math.floor(simT)} s · ${Math.round(simT * GS / 3600 * SPEEDUP)} NM flown`; });
+  }
+
+  /* ---------- The radial rose: HeadingRose's face, the fix in the centre ---------- */
+  const R = { w: 256, c: 128, r: 116 };
+  const dPt = (a, r) => { const t = rad(a); return [R.c + r * Math.sin(t), R.c - r * Math.cos(t)]; };
+  const f1 = n => n.toFixed(1);
+  const snap5 = x => { const h = (((Math.round(x / 5) * 5) % 360) + 360) % 360; return h === 0 ? 360 : h; };
+  const roseSvg = () => `<svg class="dial" id="${uid("dial")}" width="${R.w}" height="${R.w}" viewBox="0 0 ${R.w} ${R.w}" tabindex="0" role="slider" aria-label="Radial" aria-valuemin="1" aria-valuemax="360"></svg>`;
+  function drawRose(svg) {
+    const m = svg.closest(".menu");
+    const fix = m.dataset.pick;
+    const shown = svg.dataset.ghost || m.dataset.rad;
+    const inb = m.dataset.verb === "JRADI";
+    let s = `<circle cx="${R.c}" cy="${R.c}" r="${R.r}" fill="#1d2024" stroke="#3a414b"/>`;
+    for (let h = 5; h <= 360; h += 5) {
+      const len = h % 30 === 0 ? 14 : (h % 10 === 0 ? 9 : 5);
+      const [x0, y0] = dPt(h, R.r - 1), [x1, y1] = dPt(h, R.r - len);
+      s += `<line x1="${f1(x0)}" y1="${f1(y0)}" x2="${f1(x1)}" y2="${f1(y1)}" stroke="${h % 30 === 0 ? "#9aa3ad" : "#4f5762"}" stroke-width="${h % 30 === 0 ? 1.6 : 1}"/>`;
+    }
+    const CARD = { 360: "N", 90: "E", 180: "S", 270: "W" };
+    for (let h = 30; h <= 360; h += 30) {
+      const [x, y] = dPt(h, R.r - 26);
+      s += `<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono, Consolas, monospace" font-size="${CARD[h] ? 12 : 10.5}" font-weight="${CARD[h] ? 700 : 400}" fill="${CARD[h] ? "#fff" : "#b8c0c9"}">${CARD[h] || p3(h)}</text>`;
+    }
+    if (fix && POS.has(fix)) {
+      const [dist, now] = radialOf(fix);
+      const [ax, ay] = dPt(now, R.r - 52), [tx, ty] = dPt(now, R.r - 44);
+      s += `<line x1="${R.c}" y1="${R.c}" x2="${f1(ax)}" y2="${f1(ay)}" stroke="#5b8def" stroke-width="3" stroke-linecap="round"/><path d="M${f1(tx)} ${f1(ty)}l-6 -6l-6 6l6 6z" transform="translate(6 0)" fill="#5b8def"/>`;
+      if (shown) {
+        const a = Number(shown);
+        const [px, py] = dPt(a, R.r - 6);
+        const head = inb ? dPt(a, 40) : dPt(a, R.r - 20);
+        const dir = inb ? a + 180 : a;
+        const t = rad(dir), ux = Math.sin(t), uy = -Math.cos(t);
+        const tip = [head[0] + ux * 6, head[1] + uy * 6], b1 = [head[0] - ux * 4 - uy * 5, head[1] - uy * 4 + ux * 5], b2 = [head[0] - ux * 4 + uy * 5, head[1] - uy * 4 - ux * 5];
+        s += `<line x1="${R.c}" y1="${R.c}" x2="${f1(px)}" y2="${f1(py)}" stroke="#A8CAFF" stroke-width="2"${svg.dataset.ghost ? ` stroke-dasharray="4 3" opacity=".8"` : ""}/><path d="M${f1(tip[0])} ${f1(tip[1])}L${f1(b1[0])} ${f1(b1[1])}L${f1(b2[0])} ${f1(b2[1])}z" fill="#A8CAFF"/><circle cx="${f1(px)}" cy="${f1(py)}" r="6.5" fill="#A8CAFF" stroke="#0b0d10" stroke-width="1.5"/>`;
+      }
+      s += `<circle cx="${R.c}" cy="${R.c}" r="17" fill="#0b0d10" stroke="#5b8def" stroke-width="1.2"/><text x="${R.c}" y="${R.c}" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono, Consolas, monospace" font-size="10.5" font-weight="700" fill="#fff">${esc(fix.slice(0, 5))}</text>`;
+    } else {
+      s += `<text x="${R.c}" y="${R.c}" text-anchor="middle" dominant-baseline="central" font-family="Inter, Segoe UI, sans-serif" font-size="12" fill="#8f969e">Pick a fix</text>`;
+    }
+    svg.innerHTML = s;
+    const rd = m.querySelector("[data-dread]");
+    if (!rd) return;
+    if (!fix) { rd.innerHTML = `<span class="k">Pick a fix above; then point at the rose, drag, or type the radial</span>`; return; }
+    const [d, now] = radialOf(fix);
+    if (!shown) { rd.innerHTML = `<span class="k">UAL455 is on the ${esc(fix)} ${p3(now)} radial, ${Math.round(d)} NM (the blue needle). Point at the rose to pick a radial.</span>`; return; }
+    const a = Number(shown);
+    rd.innerHTML = `<b>${p3(a)}</b> · ${inb ? "inbound to" : "outbound from"} ${esc(fix)} on its ${p3(a)} radial · <code>${m.dataset.verb} ${esc(fix)}${p3(a)}</code> · <span class="k">${svg.dataset.ghost ? "a click sends" : (svg.dataset.drag === "1" ? "release sends" : "Enter sends")}</span>`;
+  }
+  function roseHeading(svg, ev) {
+    const r = svg.getBoundingClientRect(), k = R.w / r.width;
+    const dx = (ev.clientX - r.left) * k - R.c, dy = (ev.clientY - r.top) * k - R.c;
+    if (Math.hypot(dx, dy) < 18) return null;
+    return snap5(Math.atan2(dx, -dy) * 180 / Math.PI);
+  }
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function lane(l) {
+    return `<section class="lane${l.wide ? " wide" : ""}" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${l.rec ? `<span class="recb">recommended</span>` : ""}</div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Click a row, a chip or a toggle, or type in a box, to see what it sends."}</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>${a.side ? `<div class="side">${a.side}</div>` : ""}</div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+
+  /* ---------- 0. Today ---------- */
+  const oldFiltered = (priority, label) => `<div class="oldpop fl" data-oldfl><input class="obox" placeholder="Fix name..." aria-label="${esc(label)}" data-oldbox autocomplete="off" spellcheck="false"><div class="oldlist" data-oldlist>${priority.map(f => `<div data-oldpick="${f}">${f}</div>`).join("")}</div></div>`;
+  const oldList = (items, cmd, why) => `<div class="oldpop"><div class="oldlist" style="max-height:300px">${items.map((t, i) => `<div${i === 0 ? ` class="sel"` : ""} data-say="${esc(`Sends <code>${cmd} ${t}</code> and closes the list. ${why}`)}">${t}</div>`).join("")}</div></div>`;
+  const inputPopup = (ph, w = 160) => `<div class="inpop m"><input class="tbox" type="text" placeholder="${esc(ph)}" style="width:${w}px" aria-label="${esc(ph)}" autocomplete="off" spellcheck="false"><span class="btn">OK</span><span class="btn">Clear</span></div>`;
+  const procMenu = hot => menu(
+    plainRow("Join STAR WNDSR2", { cmd: "JARR WNDSR2", faint: true }) + plainRow("Join STAR (other)…", { faint: true }) + plainRow("Climb via SID", { cmd: "CVIA", faint: true }) + plainRow("Descend via STAR", { cmd: "DVIA", faint: true })
+    + plainRow("Cross fix…", { hot: hot === "x" }) + plainRow("Cross fix (other)…") + plainRow("Depart fix…") + plainRow("Depart fix (other)…") + plainRow("PTAC…", { hot: hot === "p" })
+    + plainRow("Join airway J3", { cmd: "JAWY J3", hot: hot === "j" }) + plainRow("Join airway (other)…") + plainRow("Join radial outbound…", { hot: hot === "r" }) + plainRow("Join radial inbound…"), "", "All Commands, Procedures");
+  const d0 = {
+    id: "d0-today", title: "Today · a filter popup, list popups, leaves with “(other)” companions, a two-step radial and input popups", sends: "DCT SPAMY · HFIXL SAC · CFIX SPAMY · JAWY J3 · JRADO RBL 184 · HOLDP … · PTAC …",
+    intro: [
+      "UAL455's strip (IFR en route: Fly heading, Maintain altitude, Direct to, Assign speed, Hold at fix, Cross fix). Fly heading, Maintain altitude and Assign speed carry the notch since X5; Direct to, Hold at fix and Cross fix still open popups at the pointer, and the menu closes under them.",
+      "<b>Direct to…</b> is <code>ShowFilteredList</code>: a 200 px column, the filter box focused, listing the remaining route (<code>DirectToFixes</code>) until you type, then the first 50 names that start with the text, A to Z; Enter picks the selected name, else the typed text upper-cased. <b>Append direct to…</b> is the same over the whole route; <b>Hold at fix (left / right)…</b> lists nothing until you type. <b>Cross fix</b> and <b>Depart fix</b> are a 120 px list of route fixes (<code>RouteFixNames</code>: the remaining route, then the filed route's fixes, then the destination and the departure) beside an “(other)” input popup; <b>Join airway</b> is a leaf for the one filed airway, J3, beside its “(other)”. <b>Join radial</b> is the filter popup, then a bearing popup. <b>Hold at fix…</b> on the strip (<code>HOLDP</code>) and <b>PTAC…</b> are one-box popups.",
+    ],
+    side: stub({ latch: null }),
+    lanes: [
+      { kind: "a", wide: true, name: "As built (MenuPopups)", hint: "Type in a filter popup, or click a row, to see what it sends.",
+        body: `<div class="pair">${frame("Direct to… › <b>filter popup</b>", oldFiltered(ROUTE, "Direct to filter"))}${frame("Hold at fix (left)… › <b>filter popup</b>", oldFiltered([], "Hold at fix filter"))}${frame("Cross fix… › <b>list</b>", oldList(ROUTE_ALL, "CFIX", "The sim refuses it: “CFIX requires fix name and altitude”."))}${frame("All Commands › <b>Procedures</b>", procMenu("j"))}</div>`
+          + `<div class="pair">${frame("Cross fix (other)… / Depart fix (other)… › <b>input popup</b>", inputPopup("Fix name"))}${frame("Join airway (other)… › <b>input popup</b>", inputPopup("Airway ID"))}${frame("Join radial outbound… › filter popup, then <b>bearing popup</b>", inputPopup("Bearing from RBL (0-360)", 190))}</div>`
+          + `<div class="pair">${frame("Hold at fix… (strip, <code>HOLDP</code>) › <b>input popup</b>", inputPopup("Fix, inbound course, legs, turns (e.g. SUNOL 180 1M R)"))}${frame("PTAC… › <b>input popup</b>", inputPopup("PTAC arguments"))}</div>`,
+        how: "Each popup closes the menu and opens at the pointer. The filter popup filters A to Z and never says how far a fix is; the list popups send on a click; the input popups take the whole argument list typed, the 160 px holding-pattern box showing about a third of its own placeholder.",
+        worst: "Cross fix and Depart fix send a fix alone, which the sim refuses; typed “SA” for SAC (81 NM away), the filter lists about 235 CIFP names A to Z and SAC is the 26th, below SAABR, SAAGE and SAAGO from across the country; nothing in any popup says what a row will send before it is clicked." },
+    ],
+  };
+
+  /* ---------- 1. Direct to layout ---------- */
+  const DCT_A = (o = {}) => fixFly({ verb: "DCT", glyph: "DCT", sort: "near", panelH: 300, ...o });
+  const d1 = {
+    id: "d1-direct", title: "1 · Direct to: route fixes first, then every fix", sends: "DCT <fix>",
+    intro: [
+      "Today's priority list is UAL455's remaining route from SPAMY (<code>DirectToFixNames</code>: the navigation route from the fix it is navigating to, the filed route after it, then the destination), and typing searches every fix. All three lanes keep both, put the box on top, focused, and add a command column; lanes A and B add each fix's distance and magnetic bearing from the aircraft.",
+      "Try <code>SA</code> (SAC, the Sacramento VOR, 81 NM), <code>SUN</code> (SUNOL), <code>RBL184031</code> (an FRD) or a name that does not exist. The demo clock flies UAL455 down the route at 10× so the live columns move: SPAMY greys to “passed” at about 24 s and the ● moves to HUBRT; no row moves.",
+    ],
+    side: stub({ latch: "DCT", notched: ["DCT"] }) + `<div class="demo" role="group" aria-label="Demo clock"><button type="button" data-demo="toggle">Pause</button><button type="button" data-demo="reset">Restart</button><span class="clock" data-clock>t = 0 s</span><span>played at 10×</span></div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "Box on top, the remaining route, then every fix nearest first",
+        body: frame("Direct to… › <b>flyout</b>", DCT_A()),
+        how: "The Fix box, focused; then one 300 px panel: “Remaining route” as rows (mark, fix, distance and bearing from the aircraft, command), the next fix filled with ●; then, as you type, the route rows that match stay and “All fixes” lists every other match nearest first, the first 50. The first match is outlined and Enter sends it. An FRD gets its own row. Live: distances, bearings and the ● follow the aircraft every second; a passed fix greys in place.",
+        worst: "Nearest first is not wanted first: typed “SA” for the Sacramento VOR, SATNE (27 NM), SABBY, SAWNA and SAKEE all come before SAC (81 NM), so the outlined row Enter sends is SATNE; a fix the aircraft has passed (RBL, 31 NM behind) is not in the route section and must be typed." },
+      { kind: "b", name: "Tabs: Route, Nearby, All",
+        hint: "Click a tab; type in the box to jump to All.",
+        body: frame("Direct to… › <b>flyout</b>", fixFly({ verb: "DCT", glyph: "DCT", tabs: true, panelH: 260 })),
+        how: "The built tab strip under the box: Route (the remaining route, as lane A), Nearby (every fix within 30 NM, nearest first: 27 here), All (every fix as you type, nearest first). Typing switches to All; the Route and Nearby rows filter in place.",
+        worst: "Nearby is 27 intersections the aircraft is not routed over, among them <code>KO57E</code>, a computer navigation fix nobody clears an aircraft to; the useful fix sits in another tab one click away, and typing jumps tabs under the pointer." },
+      { kind: "c", name: "One flat list as today, inside the flyout",
+        body: frame("Direct to… › <b>flyout</b>", fixFly({ verb: "DCT", glyph: "DCT", sort: "alpha", dist: false, panelH: 300, emptyHint: "Type to search every fix, A to Z" })),
+        how: "Today's popup moved into the flyout: the box, the route names until you type, then the first 50 names A to Z; the rows gain only the command column.",
+        worst: "In the app “SA” lists SAABR, SAAGE, SAAGO … from across the country, SAC 26th of about 235; this page holds only the fixes within 150 NM, so its A-to-Z list looks kinder than the app's. No row says how far a fix is." },
+    ],
+  };
+
+  /* ---------- 2. One flyout or several ---------- */
+  const cfixForm = () => `<div data-for="cfix">${optSegRow("pfx", "Cross at", [["", "At", ""], ["A", "At or above", "A"], ["B", "At or below", "B"]], "A")}${boxRow({ g: "CM", label: "Altitude", ph: "e.g. 110 or 11000", kind: "calt", verb: "", w: 150 })}${boxRow({ g: "SPD", label: "Speed (knots), optional", ph: "e.g. 250", kind: "cspd", verb: "", w: 110 })}</div>`;
+  const departForm = () => `<div data-for="depart">${boxRow({ g: "FH", label: "Heading after the fix", ph: "e.g. 200", kind: "dhdg", verb: "", w: 110 })}</div>`;
+  const legOpts = [["1M", "1 min"], ["1.5M", "1½ min"], ["2M", "2 min"], ["5", "5 NM"], ["10", "10 NM"]];
+  const holdForm = () => `<div data-for="hold">${boxRow({ g: "FH", label: "Inbound course", ph: "route course", kind: "hcrs", verb: "", w: 110 })}${chips("leg", "Legs", legOpts, "1.5M")}${optSegRow("turn", "Turns", [["R", "Right", "R"], ["L", "Left", "L"]], "R")}</div>`;
+  function optSegRow(key, label, opts, on) { return `<div class="chiprow"><span class="cl">${esc(label)}</span>${optSeg(key, opts, on, "inl")}</div>`; }
+  const d2 = {
+    id: "d2-verbs", title: "2 · One flyout for the fix verbs, or one per verb", sends: "DCT · ADCT · CFIX · DEPART · HOLDP",
+    intro: [
+      "Five entries pick a fix: Direct to (<code>DCT</code>, strip), Append direct to (<code>ADCT</code>, All Commands › Navigation, offered only while the aircraft navigates to a fix), Cross fix (<code>CFIX</code>, strip), Depart fix (<code>DEPART</code>) and Hold at fix (<code>HOLDP</code>, strip). Direct and Append take a fix alone; Cross takes an altitude (and a speed), Depart a heading, Hold a course, legs and turns. X5 folded the heading verbs into one flyout with a toggle.",
+    ],
+    side: `<div class="stage stub-stage">${frame("All Commands › <b>Navigation (→ SPAMY)</b> today", menu(plainRow("Direct to…", { hot: true }) + plainRow("Append direct to…"), "", "All Commands, Navigation"))}</div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "Direct and Append share one flyout; Cross, Depart and Hold keep their own",
+        hint: "Click the toggle, then a row.",
+        body: frame("Direct to… › <b>flyout</b>, toggle on Direct to", DCT_A({ verbs: ["DCT", "ADCT"], verbLabels: { DCT: "Direct to", ADCT: "Append to route" }, panelH: 200 }))
+          + frame("All Commands › Append direct to… › <b>the same flyout</b>, toggle on Append", DCT_A({ verb: "ADCT", verbs: ["DCT", "ADCT"], verbLabels: { DCT: "Direct to", ADCT: "Append to route" }, panelH: 200 })),
+        how: "The Direct to flyout gains a two-way toggle, Direct to <code>DCT</code> / Append to route <code>ADCT</code>, drawn only while the aircraft navigates to a fix (today's gate). From the strip it opens on Direct to; All Commands › Append direct to… opens it on Append. Cross fix, Depart fix and Hold at fix each keep their own flyout built from the same fix list, since each adds boxes of its own (decisions 3 and 6).",
+        worst: "The toggle is a mode: left on Append, a click on SPAMY sends <code>ADCT SPAMY</code>, adding SPAMY after CRSEN at the end of the route, when a direct to was meant; the title and the pressed toggle are the only signs." },
+      { kind: "b", name: "One fix flyout, a five-way verb toggle",
+        hint: "Click a verb: the boxes under the fix box change.",
+        body: frame("Direct to… / Cross fix / Depart fix / Hold at fix › <b>one flyout</b>, toggle on Cross", fixFly({ verb: "CFIX", verbs: ["DCT", "ADCT", "CFIX", "DEPART", "HOLDP"], verbLabels: { DCT: "Direct" }, glyph: "XFIX", panelH: 170, form: cfixForm() + departForm() + holdForm() })),
+        how: "One flyout for all five, a toggle of Direct / Append / Cross / Depart / Hold; the boxes under the fix box follow the verb (altitude and speed for Cross, a heading for Depart, course, legs and turns for Hold). Each strip button and All Commands entry opens it on its own verb.",
+        worst: "The flyout changes height with the verb (309 px on Direct, 370 on Depart, 437 on Hold, 467 on Cross, measured here), so with SlideY the list jumps under the pointer as the toggle is clicked; the toggle makes it 450 px wide, near the cap." },
+      { kind: "c", name: "One flyout per entry, no toggle",
+        body: `<div class="pair">${frame("Direct to… › <b>flyout</b>", DCT_A({ panelH: 200 }))}${frame("All Commands › Append direct to… › <b>flyout</b>", fixFly({ verb: "ADCT", glyph: "ADCT", panelH: 200 }))}</div>`,
+        how: "Each entry keeps its own flyout from the shared fix list part; the title names the verb and every row sends it.",
+        worst: "Append direct to is reachable only through All Commands › Navigation; an instructor who opened Direct to and meant Append closes it and walks three levels back in." },
+    ],
+  };
+
+  /* ---------- 3. Hold at fix ---------- */
+  const holdFly = (o = {}) => fixFly({ verb: "HOLDP", glyph: "HOLD", panelH: 170, right: "FL240 · IFR", form: holdForm(), ...o });
+  const orbitFly = verb => fixFly({ verb, verbs: ["HFIXL", "HFIXR"], verbLabels: { HFIXL: "Left 360s", HFIXR: "Right 360s" }, glyph: verb === "HFIXL" ? "HOLDL" : "HOLDR", panelH: 170, right: "→ <span data-next>SPAMY</span>" });
+  const holdText = () => menu(titleLine("<b>Hold at fix</b>", "FL240 · IFR") + boxRow({ g: "HOLD", label: "Hold", ph: "SPAMY 184 1.5M R", kind: "hbox", verb: "HOLDP ···", focus: true, w: 210 }) + sep()
+    + `<div class="panel" style="max-height:170px"><div class="grp">Remaining route <code>a click puts the fix in the box</code></div>${ROUTE.map(f => `<div class="ar fr" role="menuitem" tabindex="0" data-insert="${f}" data-route="${f}"><span class="ag"></span><span class="av">${f}</span><span class="an" data-dist="${f}"></span><span class="cmd"></span></div>`).join("")}</div>`, "w", "Hold at fix", `data-kind="htext" data-verb="HOLDP"`);
+  const d3 = {
+    id: "d3-hold", title: "3 · Hold at fix: the holding pattern's course, legs and turns, and the 360s at a fix", sends: "HOLDP <fix> <course> <legs> <R|L> · HFIXL <fix> · HFIXR <fix>",
+    intro: [
+      "Two different instructions share the word “hold”. <b>Hold at fix…</b> on the strip sends <code>HOLDP</code>, a racetrack: fix, inbound course, legs (<code>1M</code> minutes or a plain number of NM), turns; the parser defaults to right turns and 1-minute legs. It is IFR only and not in All Commands › Hold. <b>Hold at fix (left / right)…</b> in All Commands › Hold send <code>HFIXL</code> / <code>HFIXR</code>: fly to the fix, then left or right 360s; today their filter popup lists nothing until you type.",
+      "In every lane the inbound course box reads the route course into the fix when left empty (184 into SPAMY, from RBL), and the legs chips open on 1½ min, the inbound leg above 14,000 ft MSL (AIM 5-3-8, Timing). Both are design proposals for the aviation review.",
+    ],
+    side: stub({ latch: "HOLD", notched: ["HOLD"] }),
+    lanes: [
+      { kind: "a", rec: true, name: "A holding-pattern form; the 360s their own small flyout",
+        hint: "Click a route row: it sends with the route course; type a course, pick legs or turns first to change it.",
+        body: frame("Hold at fix… › <b>flyout</b>", holdFly()) + frame("All Commands › Hold › Hold at fix (left)… › <b>flyout</b>", orbitFly("HFIXL")),
+        how: "The Fix box, then the form: Inbound course (empty reads the route course into the row's fix), Legs chips (1 min, 1½ min, 2 min, 5 NM, 10 NM, opening on the altitude's standard), Turns Right / Left (Right first, as the parser defaults); every row's command shows the whole <code>HOLDP</code>, so a click on a route row sends. The 360s at a fix get the fix list with a Left 360s / Right 360s toggle, each All Commands entry opening it on its side.",
+        worst: "A fix off the route has no route course, so its row waits (<code>HOLDP SAC ··· 1.5M R</code>) and a click only picks it; an instructor who expects “hold as published” gets the route course instead, a hold on the inbound side the aircraft arrives from." },
+      { kind: "b", name: "One Hold flyout with a Racetrack / Left 360s / Right 360s toggle",
+        body: frame("Hold at fix… / Hold at fix (left / right)… › <b>one flyout</b>", holdFly({ verbs: ["HOLDP", "HFIXL", "HFIXR"], verbLabels: { HOLDP: "Racetrack", HFIXL: "Left 360s", HFIXR: "Right 360s" } })),
+        how: "One flyout for the three: the toggle picks the racetrack (the form shows) or the 360s left or right (the form hides). The strip's button opens it on Racetrack; the two All Commands entries on their 360s.",
+        worst: "Left and right appear twice, as the racetrack's Turns and as the 360s' side: a click on Left meaning left turns in the hold sends <code>HFIXL SPAMY</code>, 360s at SPAMY, not a racetrack." },
+      { kind: "c", name: "The holding pattern as one typed box",
+        hint: "Click a route row to put its name in the box, then type the rest.",
+        body: frame("Hold at fix… › <b>flyout</b>", holdText()),
+        how: "Today's popup as an inline box, the command beside it parsed as you type (fix, course, legs, turns, with the parser's defaults), and the route rows putting a fix name into the box.",
+        worst: "The syntax is the instructor's to know: <code>SPAMY 184 R 1M</code> (turns before legs) reads R as the leg and is refused; the 360s stay their own entries." },
+    ],
+  };
+
+  /* ---------- 4. Join airway ---------- */
+  function awyRows(list) {
+    const nearest = a => a.fixes.filter(f => POS.has(f)).map(f => [f, fromAc(f)[0]]).sort((x, y) => x[1] - y[1]);
+    return list.slice().sort((x, y) => nearest(x)[0][1] - nearest(y)[0][1]).map(a => {
+      const near = nearest(a);
+      const at = a.fixes.indexOf(near[0][0]);
+      const around = a.fixes.slice(Math.max(0, at - 1), at + 2).join(" · ");
+      return `<div class="ar aw" role="menuitem" tabindex="0" data-send="JAWY ${a.id}" data-awy="${a.id}"><span class="ag">${a.filed ? "◆" : ""}</span><span class="av">${a.id}</span><span class="an">${a.filed ? "<i>filed</i> · " : ""}${esc(around)} · ${esc(near[0][0])} ${Math.round(near[0][1])} NM</span><span class="cmd">JAWY ${a.id}</span></div>`;
+    }).join("");
+  }
+  const awyBox = () => boxRow({ g: "JAWY", label: "Airway", ph: "e.g. V23, J1, Q5", kind: "awy", verb: "JAWY ···", focus: true, w: 150 });
+  const awyFly = withNear => menu(titleLine("<b>Join airway</b>", "hdg 184 · FL240") + awyBox() + sep()
+    + `<div class="panel" style="max-height:260px"><div class="grp">Filed</div>${awyRows(AIRWAYS.filter(a => a.filed))}${withNear ? `<div class="grp">Through the route and fixes within 30 NM <code>nearest first</code></div>${awyRows(AIRWAYS.filter(a => !a.filed))}` : ""}</div>`, "w", "Join airway", `data-kind="awy" data-verb="JAWY"`);
+  const d4 = {
+    id: "d4-airway", title: "4 · Join airway: the filed airways, the airways nearby, and the “(other)” box", sends: "JAWY <airway>",
+    intro: [
+      "Today Join airway lists the airways the filed route names (<code>FiledAirways</code>): UAL455 files only J3, so the entry is a leaf, “Join airway J3”, beside “Join airway (other)…”, a free-text popup. <code>JAWY</code> flies the present heading until it meets the airway, then follows it in the direction of travel.",
+      "The airways through RBL, the route's last navaid, and through fixes within 30 NM come from the CIFP: J1, J65, J126, V23, V25, V195, V199, and Q5 through HUPTU. The box replaces “(other)”: any airway ID, refused under the box when it names none (the page accepts a J, V, Q or T and digits; the app would ask <code>IsAirway</code>).",
+    ],
+    side: `<div class="stage stub-stage">${frame("All Commands › <b>Procedures</b> today", procMenu("j"))}</div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "The box, the filed airways, then airways through nearby fixes",
+        body: frame("All Commands › Join airway › <b>flyout</b>", awyFly(true)),
+        how: "Airway box on top (the “(other)” companion folded in), then “Filed” (◆ J3, its fixes and the nearest of them), then every airway through the route's fixes and fixes within 30 NM, nearest first, each naming its fixes; every row shows <code>JAWY</code> and sends on a click.",
+        worst: "The list does not know which airways the present heading meets: from heading 184, <code>JAWY J65</code> (RBL to SAC, behind and to the east) may never be intercepted, and the aircraft flies 184 on." },
+      { kind: "b", name: "Filed airways and the box only",
+        body: frame("All Commands › Join airway › <b>flyout</b>", awyFly(false)),
+        how: "Today's data (the filed airways) as rows under the Airway box; the “(other)” entry goes away into the box.",
+        worst: "An aircraft vectored off its route, or one filed direct, has no rows: every join is typed, and the instructor must know V23 runs through RBL." },
+      { kind: "c", name: "Keep the leaf and the “(other)” entry; the other a one-box flyout",
+        body: `<div class="pair">${frame("All Commands › <b>Procedures</b>", procMenu("j"))}${frame("Join airway (other)… › <b>one-box flyout</b>", menu(titleLine("<b>Join airway (other)</b>", "") + awyBox(), "w", "Join airway (other)", `data-kind="awy" data-verb="JAWY"`))}</div>`,
+        how: "One filed airway stays a leaf sending <code>JAWY J3</code>; two or more open a flyout of rows; “Join airway (other)…” opens a flyout of the one box.",
+        worst: "Two entries for one instruction, and the leaf's shape changes with the filed route (leaf, flyout, or the box alone), so the same aircraft class shows three forms." },
+    ],
+  };
+
+  /* ---------- 5. Join radial ---------- */
+  function radFly(o) {
+    const nav = navaids().slice(0, 12);
+    const rows = nav.map(f => `<div class="ar fr" role="menuitem" tabindex="0" data-fix="${f}"><span class="ag"></span><span class="av">${f}</span><span class="an" data-radnote="${f}"></span><span class="cmd" data-rowcmd></span></div>`).join("");
+    const box = boxRow({ g: "JRAD", label: "Fix or navaid", ph: "e.g. RBL", kind: "fix", verb: `${o.verb} ···`, focus: !o.pick, w: 150 });
+    const radBox = boxRow({ g: "FH", label: "Radial", ph: "e.g. 184", kind: "rbox", verb: "", w: 90 });
+    const rose = o.rose ? `<div class="rosewrap">${roseSvg()}</div><div class="dread" data-dread></div>` : "";
+    return menu(titleLine(`<b data-ttl>${LONG[o.verb]}</b>`, "hdg 184 · FL240") + seg(["JRADO", "JRADI"], o.verb) + box
+      + `<div class="panel" style="max-height:${o.listH || 106}px"><div class="grp">Navaids, nearest first <code>where UAL455 is now</code></div>${rows}<div data-results data-empty=""></div></div>` + sep() + radBox + rose,
+      "w fly", "Join radial", `data-fly="${uid("fly")}" data-verb="${o.verb}" data-kind="jrad" data-sort="near" data-hasdist="0"${o.pick ? ` data-pick="${o.pick}"` : ""}${o.rad ? ` data-rad="${o.rad}"` : ""}`);
+  }
+  function radTwoStep() {
+    const nav = navaids().slice(0, 8);
+    const one = menu(titleLine("<b>Join radial outbound</b>", "step 1 of 2") + boxRow({ g: "JRAD", label: "Fix or navaid", ph: "e.g. RBL", kind: "x", verb: "", focus: true, w: 150 }) + sep()
+      + `<div class="panel" style="max-height:200px">${nav.map(f => `<div class="ar fr" role="menuitem" tabindex="0" data-step="${f}"><span class="ag"></span><span class="av">${f}</span><span class="an" data-radnote="${f}"></span><span class="cmd">›</span></div>`).join("")}</div>`, "w", "Join radial, step 1", `data-steps`);
+    return one;
+  }
+  const d5 = {
+    id: "d5-radial", title: "5 · Join radial: the fix and the radial in one flyout, or two steps", sends: "JRADO <fix><radial> · JRADI <fix><radial>",
+    intro: [
+      "Today each of the two entries opens the filter popup over every fix (no route fixes first), and the pick opens a second popup, “Bearing from RBL (0-360)”. The flyouts here send the parser's one-token form (<code>JRADO RBL184</code>; see the note at the top). UAL455 is 31 NM south of Red Bluff on its 184 radial.",
+      "Lanes A and B merge the two entries behind an Outbound <code>JRADO</code> / Inbound <code>JRADI</code> toggle; each All Commands entry opens on its own verb. Lane A reuses the heading flyout's <code>HeadingRose</code>: the fix sits in the centre, the blue needle is the radial the aircraft is on, and pointing, dragging or the arrow keys pick a radial in 5° steps.",
+    ],
+    side: `<div class="stage stub-stage">${frame("All Commands › <b>Procedures</b> today", procMenu("r"))}</div>`,
+    lanes: [
+      { kind: "a", rec: true, name: "Navaids, a radial box and the rose, in one flyout",
+        hint: "Pick a navaid, then point at the rose (release sends), use the arrows, or type a radial.",
+        body: frame("All Commands › Join radial outbound… › <b>flyout</b>, RBL picked", radFly({ verb: "JRADO", rose: true, pick: "RBL" }))
+          + frame("All Commands › Join radial inbound… › <b>the same flyout</b>, the 150 radial picked", radFly({ verb: "JRADI", rose: true, pick: "RBL", rad: "150" })),
+        how: "Toggle, Fix box, then the navaids nearest first, each naming the radial and distance UAL455 is on now; picking one puts it in the rose's centre with the needle on the aircraft's radial. A press on the rose picks a radial, a drag moves it and the release sends; the arrows step 5° (Shift 30°) and Enter sends; the Radial box takes any whole degree. The flyout opens with the nearest navaid on the route picked (RBL). Live: the needle and the navaid notes follow the aircraft.",
+        worst: "Radials are flown to the degree but the rose snaps to 5°: the 184 radial the aircraft is on cannot be clicked (183 or 185 either), only typed; the needle here means the aircraft's radial where the same rose in Fly heading means its heading." },
+      { kind: "b", name: "Navaids and a radial box, no rose",
+        hint: "Click a navaid, then type a radial and press Enter.",
+        body: frame("All Commands › Join radial outbound… › <b>flyout</b>", radFly({ verb: "JRADO", rose: false, listH: 180 })),
+        how: "As lane A without the rose: the rows say where the aircraft is (“31 NM · on its 184 radial”); a click picks the fix and focuses the Radial box; Enter sends.",
+        worst: "Every radial is typed: nothing on screen shows which way the 150 radial lies from RBL or how far it is from the aircraft's 184." },
+      { kind: "c", name: "Two steps inside the flyout, as today's two popups",
+        hint: "Click a navaid: the flyout turns to its second step.",
+        body: frame("All Commands › Join radial outbound… › <b>flyout</b>, step 1", radTwoStep()),
+        how: "Step 1 lists the navaids; a click turns the flyout to step 2 (a back row naming the fix, then the Radial box). The two All Commands entries stay separate.",
+        worst: "The fix leaves the screen when the radial is typed; a wrong navaid is a click back and a new pick; inbound and outbound are two entries with no way across." },
+    ],
+  };
+
+  /* ---------- 6. Cross fix and Depart fix ---------- */
+  const cfixFly = (o = {}) => fixFly({ verb: "CFIX", glyph: "XFIX", panelH: 190, form: cfixForm(), attrs: `data-pfx="A"`, ...o });
+  const departFly = () => fixFly({ verb: "DEPART", glyph: "DEP", panelH: 190, form: departForm() });
+  const cfixTyped = () => fixFly({ verb: "CFIX", glyph: "XFIX", panelH: 220, boxLabel: "Fix and restriction", ph: "SPAMY A110 250", boxW: 210, attrs: `data-typed="1"` });
+  const altLadder = () => { const r = []; for (let a = 24000; a >= 6000; a -= 1000) r.push(a); return r; };
+  const fmtAlt = a => (a >= 18000 ? `FL${a / 100}` : a.toLocaleString("en-US"));
+  const cfixLadder = () => fixFly({ verb: "CFIX", glyph: "XFIX", panelH: 150, attrs: `data-pfx="A"`, form: `<div data-for="cfix">${optSegRow("pfx", "Cross at", [["", "At", ""], ["A", "At or above", "A"], ["B", "At or below", "B"]], "A")}<input type="hidden" data-box="calt" value=""></div>`,
+    afterList: sep() + `<div class="grp">Altitude <code>the Maintain altitude list</code></div><div class="panel" style="max-height:150px">${altLadder().map(a => `<div class="ar" role="menuitem" tabindex="0" data-setalt="${a / 100}"><span class="ag">${a === 24000 ? "●" : ""}</span><span class="av">${fmtAlt(a)}</span><span class="an">${a === 24000 ? "now" : ""}</span><span class="cmd"></span></div>`).join("")}</div>` });
+  const d6 = {
+    id: "d6-cross", title: "6 · Cross fix and Depart fix: the second value as inline boxes", sends: "CFIX <fix> [A|B]<hundreds> [knots] · DEPART <fix> <heading>",
+    intro: [
+      "<code>CFIX</code> takes a fix and an altitude in hundreds, prefixed <code>A</code> (at or above), <code>B</code> (at or below) or nothing (at), and an optional speed (<code>CFIX SUNOL A034</code>; <code>ParseCfix</code>). <code>DEPART</code> takes exactly a fix and a heading (<code>DEPART SUNOL 270</code>). Today both send the fix alone, which the sim refuses.",
+      "Each lane keeps decision 2 lane A's shape: the fix list part, then the extra boxes. Rows wait (faded command) until the second value is there; a click on a waiting row picks the fix and focuses the box, and once the box holds a value a click on a row sends. Type <code>110</code> then click SPAMY, or click first.",
+    ],
+    side: stub({ latch: "XFIX", notched: ["XFIX"] }),
+    lanes: [
+      { kind: "a", rec: true, name: "Boxes under the fix box: the restriction, then the list",
+        body: frame("Cross fix › <b>flyout</b>", cfixFly()) + frame("All Commands › Depart fix… › <b>flyout</b>", departFly()),
+        how: "Cross fix: the Fix box, then “Cross at” (At / At or above / At or below, opening on At or above), the Altitude box (hundreds or feet, as the altitude flyout reads it) and an optional Speed box; the rows show the whole <code>CFIX</code>. Depart fix: the Fix box, a Heading box (three digits), the rows showing <code>DEPART SPAMY 200</code>. The “(other)” companions fold into the Fix box.",
+        worst: "The prefix toggle remembers nothing and opens on At or above: an instructor reading “cross SPAMY at 11,000” who skips it sends <code>CFIX SPAMY A110</code>, a floor, not a hard altitude." },
+      { kind: "b", name: "The whole restriction typed after the fix",
+        hint: "Type “SPAMY A110 250”; a row click puts the fix in the box.",
+        body: frame("Cross fix › <b>flyout</b>", cfixTyped()),
+        how: "One box takes the command bar's own form after the verb (<code>SPAMY A110 250</code>); the list filters on the first word, a row click writes the fix and a space, and the command column parses the rest.",
+        worst: "The A / B prefix is the instructor's to remember: <code>SPAMY 110</code>, meant as at or above, sends <code>CFIX SPAMY 110</code>, a hard altitude; every row waits until the typed text parses, so the list gives no preview of the restriction." },
+      { kind: "c", name: "The altitude from the Maintain altitude list",
+        hint: "Pick the prefix, an altitude row, then a fix.",
+        body: frame("Cross fix › <b>flyout</b>", cfixLadder()),
+        how: "The prefix toggle, the fix list, then the altitude list of the Maintain altitude flyout (drawn here as a short ladder every 1,000 ft); clicking an altitude sets it, and the fix rows then send.",
+        worst: "Two scrolling lists in one flyout (474 px tall here, each list cut to 150 px); the speed has no place, and the list's steps miss a restriction such as 10,500 unless it is the 500 ft list." },
+    ],
+  };
+
+  /* ---------- 7. PTAC ---------- */
+  const APPS = [["", "The expected approach", "auto", true], ["ILS30", "ILS 30", ""], ["RNAV30", "RNAV (GPS) 30", ""], ["ILS28R", "ILS 28R", ""], ["ILS28L", "ILS 28L", ""]];
+  function ptacFly() {
+    const rows = APPS.map(([id, label, n, exp]) => `<div class="ar${exp ? " now" : ""}" role="menuitem" tabindex="0" data-app="${id}"><span class="ag">${exp ? "●" : ""}</span><span class="av" style="font-family:Inter,Segoe UI,sans-serif">${esc(label)}</span><span class="an">${exp ? "ILS30 expected" : esc(n)}</span><span class="cmd" data-appcmd></span></div>`).join("");
+    return menu(titleLine("<b>PTAC</b>", "hdg 250 · 3,000") + seg(["PTAC", "PTACF"], "PTAC", { PTAC: "PTAC", PTACF: "Forced" })
+      + boxRow({ g: "FH", label: "Heading", ph: "PH (present 250)", kind: "pth", verb: "", w: 150, focus: true }) + boxRow({ g: "CM", label: "Altitude", ph: "PA (present 3,000)", kind: "pta", verb: "", w: 150 })
+      + sep() + `<div class="grp">Approach <code>the approach flyout's rows</code></div>${rows}`, "w", "PTAC", `data-kind="ptac" data-verb="PTAC"`);
+  }
+  const ptacText = () => menu(titleLine("<b>PTAC</b>", "hdg 250 · 3,000") + boxRow({ g: "CAPP", label: "Heading, altitude, approach", ph: "280 025 ILS30, or PH PA", kind: "ptxt", verb: "PTAC ···", w: 210, focus: true })
+    + `<div class="hint">Heading or <code>PH</code>, altitude in hundreds or <code>PA</code>, then the approach, optional</div>`, "w", "PTAC", `data-kind="ptxt" data-verb="PTAC"`);
+  const d7 = {
+    id: "d7-ptac", title: "7 · PTAC: heading, altitude and approach as boxes and rows, or one typed box", sends: "PTAC <heading|PH> <hundreds|PA> [approach] · PTACF …",
+    intro: [
+      "PTAC is in the fix family only by its popup: All Commands › Procedures › PTAC… is a one-box popup, “PTAC arguments”. <code>PTAC 280 025 ILS30</code> turns heading 280, maintains 2,500 and clears the ILS 30; <code>PH</code> and <code>PA</code> mean present heading and altitude, and without an approach the sim uses the expected approach. <code>PTACF</code> skips the 30° intercept check.",
+      "Drawn later in UAL455's flight (illustrative): on vectors for runway 30, 3,000 ft, heading 250. Added to the list because the code forces it: it is the last one-box popup in Procedures.",
+    ],
+    lanes: [
+      { kind: "a", rec: true, name: "A heading box, an altitude box and the approach rows",
+        hint: "Type a heading and an altitude (or leave them for PH / PA), then click an approach.",
+        body: frame("All Commands › PTAC… › <b>flyout</b>", ptacFly()),
+        how: "A PTAC / Forced toggle (as the approach flyout's Force toggle), the Heading box and the Altitude box (empty sends <code>PH</code> / <code>PA</code>, the placeholders saying what those are now), then the approach rows: “The expected approach” first, marked ●, then the destination's approaches. Every row shows its whole command and sends on a click.",
+        worst: "Left empty, both boxes send present heading and altitude: a click on ILS 30 with nothing typed sends <code>PTAC PH PA ILS30</code>, an intercept from heading 250 that the 30° check may refuse." },
+      { kind: "b", name: "One typed box, the command beside it",
+        body: frame("All Commands › PTAC… › <b>flyout</b>", ptacText()),
+        how: "Today's popup as an inline box with a hint line and the command parsed beside it as you type.",
+        worst: "The order is the instructor's to know and nothing lists the approaches: a mistyped ID (<code>280 025 ILS3O</code>) is sent as typed, and the sim's refusal arrives after the flyout has closed." },
+    ],
+  };
+
+  const ARTS = [d0, d1, d2, d3, d4, d5, d6, d7];
+  placeAircraft(0);
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.id === "d0-today" ? "Today" : a.title.split(":")[0])}</a>`).join("");
+  tickLive();
+  document.querySelectorAll(".menu.fly").forEach(refreshFly);
+  document.querySelectorAll('.menu[data-kind="ptac"]').forEach(refreshPtac);
+
+  /* ---------- Holding-pattern text, airway box, PTAC ---------- */
+  function parseHoldText(t) {
+    const tok = t.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    if (!tok.length) return null;
+    if (!POS.has(tok[0])) return { bad: `no fix ${tok[0]}` };
+    if (tok.length < 3) return { bad: "needs a course and legs or turns" };
+    const c = parseHdg(tok[1]);
+    if (!c) return { bad: `bad course ${tok[1]}` };
+    const leg = /^\d+(\.\d+)?M?$/;
+    if (tok.length === 3) return /^(R|L)$/.test(tok[2]) || leg.test(tok[2]) ? { cmd: `HOLDP ${tok.join(" ")}` } : { bad: `bad legs or turns ${tok[2]}` };
+    if (!leg.test(tok[2])) return { bad: `bad legs ${tok[2]}` };
+    return { cmd: `HOLDP ${tok.slice(0, 4).join(" ")}` };
+  }
+  function refreshPtac(m) {
+    const v = m.querySelector('[data-verb][aria-pressed="true"]')?.dataset.verb || "PTAC";
+    m.dataset.verb = v;
+    const h = m.querySelector('[data-box="pth"]').value.trim(), a = m.querySelector('[data-box="pta"]').value.trim();
+    const hv = h ? parseHdg(h) : "PH", av = a ? parseAlt(a) : "PA";
+    const ht = hv === "PH" ? "PH" : (hv ? p3(hv) : null), at = av === "PA" ? "PA" : (av ? p3(Math.round(av / 100)) : null);
+    m.querySelectorAll("[data-app]").forEach(r => {
+      const c = r.querySelector("[data-appcmd]");
+      c.textContent = (ht && at) ? `${v} ${ht} ${at}${r.dataset.app ? ` ${r.dataset.app}` : ""}` : `${v} ···`;
+      c.classList.toggle("bad", !(ht && at));
+    });
+    const hp = m.querySelector('[data-box="pth"]').closest(".mi").querySelector("[data-prev]");
+    const ap = m.querySelector('[data-box="pta"]').closest(".mi").querySelector("[data-prev]");
+    hp.textContent = ht || "not a heading"; hp.classList.toggle("bad", !ht); hp.classList.toggle("wait", hv === "PH");
+    ap.textContent = at || "not an altitude"; ap.classList.toggle("bad", !at); ap.classList.toggle("wait", av === "PA");
+    m.querySelector("[data-ttl]") && (m.querySelector("[data-ttl]").textContent = LONG[v]);
+  }
+  function ptacTextCmd(t) {
+    const tok = t.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    if (!tok.length) return { cmd: "PTAC", why: "(present heading, present altitude, the expected approach)" };
+    if (tok.length < 2) return { bad: "needs a heading and an altitude" };
+    const h = tok[0] === "PH" || parseHdg(tok[0]);
+    const a = tok[1] === "PA" || parseAlt(tok[1]);
+    if (!h) return { bad: `bad heading ${tok[0]}` };
+    if (!a) return { bad: `${tok[1]}: an altitude or PA` };
+    return { cmd: `PTAC ${tok.slice(0, 3).join(" ")}` };
+  }
+
+  /* ---------- Interaction ---------- */
+  function selectTab(tab, quiet) {
+    const g = tab.closest("[data-tabgroup]");
+    g.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === tab)));
+    g.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+    if (!quiet) say(tab, `Shows the ${esc(tab.firstChild.textContent)} rows; sends nothing.`);
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const demo = e.target.closest("[data-demo]");
+    if (demo) {
+      if (demo.dataset.demo === "toggle") { playing = !playing; demo.textContent = playing ? "Pause" : "Play"; }
+      else { simT = 0; placeAircraft(0); tickLive(); }
+      return;
+    }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { selectTab(tab); return; }
+    const m = e.target.closest(".menu");
+    const vb = e.target.closest("[data-verb]");
+    if (vb && vb.tagName === "BUTTON") {
+      vb.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === vb)));
+      m.dataset.verb = vb.dataset.verb;
+      m.dataset.kind = VERB[vb.dataset.verb][2];
+      if (m.dataset.kind === "ptac") { refreshPtac(m); say(vb, `Every row now sends <code>${vb.dataset.verb}</code>; sends nothing.`); return; }
+      refreshFly(m);
+      say(vb, `Every row now sends <code>${vb.dataset.verb}</code>; sends nothing.`);
+      return;
+    }
+    const opt = e.target.closest("[data-opt]");
+    if (opt) {
+      opt.parentElement.querySelectorAll(`[data-opt="${opt.dataset.opt}"]`).forEach(b => b.setAttribute("aria-pressed", String(b === opt)));
+      m.dataset[opt.dataset.opt] = opt.dataset.val;
+      refreshFly(m);
+      say(opt, `Sets ${esc(opt.dataset.opt === "pfx" ? "the restriction" : opt.dataset.opt === "leg" ? "the legs" : "the turns")} to ${esc(opt.textContent)}; the rows' commands follow; sends nothing.`);
+      return;
+    }
+    const sa = e.target.closest("[data-setalt]");
+    if (sa) {
+      const b = m.querySelector('[data-box="calt"]');
+      b.value = sa.dataset.setalt;
+      m.querySelectorAll("[data-setalt]").forEach(r => r.classList.toggle("picked", r === sa));
+      refreshFly(m);
+      if (m.dataset.pick) { pickOrSend(m, m.dataset.pick, sa); return; }
+      say(sa, `Sets the altitude to ${fmtAlt(sa.dataset.setalt * 100)}; the fix rows now send; sends nothing.`);
+      return;
+    }
+    const ins = e.target.closest("[data-insert]");
+    if (ins) { const b = m.querySelector('[data-box="hbox"]'); b.value = `${ins.dataset.insert} `; b.focus(); onInput(b); say(ins, `Puts ${ins.dataset.insert} in the box; type the course, legs and turns; sends nothing.`); return; }
+    const st = e.target.closest("[data-step]");
+    if (st) {
+      const f = st.dataset.step;
+      m.innerHTML = titleLine("<b>Join radial outbound</b>", "step 2 of 2") + `<div class="ar" role="menuitem" tabindex="0" data-stepback><span class="ag">‹</span><span class="av">${f}</span><span class="an" data-radnote="${f}"></span><span class="cmd">back</span></div>` + sep()
+        + boxRow({ g: "FH", label: `Radial from ${f}`, ph: "e.g. 184", kind: "srad", verb: `JRADO ${f}···`, focus: true, w: 90 });
+      m.dataset.stepfix = f;
+      tickLive();
+      m.querySelector("input").focus();
+      say(st, `Turns the flyout to step 2 for ${f}; sends nothing.`);
+      return;
+    }
+    const sb = e.target.closest("[data-stepback]");
+    if (sb) { m.outerHTML = radTwoStep(); tickLive(); say(document.querySelector("#d5-radial [data-steps]"), "Back to step 1; sends nothing."); return; }
+    const app = e.target.closest("[data-app]");
+    if (app) {
+      const c = app.querySelector("[data-appcmd]").textContent;
+      say(app, c.includes("···") ? "The heading or altitude box holds something it cannot read; sends nothing." : `Sends <code>${esc(c)}</code> and closes the flyout and the menu.`);
+      return;
+    }
+    const row = e.target.closest(".ar[data-fix]");
+    if (row && m) {
+      if (m.dataset.typed) { const b = m.querySelector('[data-box="fix"]'); b.value = `${row.dataset.fix} `; b.focus(); onInput(b); say(row, `Writes ${row.dataset.fix} in the box; type the restriction; sends nothing.`); return; }
+      if (m.dataset.kind === "jrad" && (!m.dataset.rad || m.dataset.pick !== row.dataset.fix)) {
+        m.dataset.pick = row.dataset.fix; delete m.dataset.rad;
+        const rb = m.querySelector('[data-box="rbox"]'); if (rb) { rb.value = ""; }
+        refreshFly(m);
+        if (rb && !m.querySelector(".dial")) rb.focus();
+        say(row, `Picks ${row.dataset.fix}${m.querySelector(".dial") ? "; the rose centres on it, the needle on UAL455's radial" : "; the Radial box takes focus"}; sends nothing.`);
+        return;
+      }
+      pickOrSend(m, row.dataset.fix, row);
+      return;
+    }
+    const old = e.target.closest("[data-oldpick]");
+    if (old) { say(old, `Sends <code>DCT ${esc(old.dataset.oldpick)}</code> and closes the popup.`); return; }
+    const sy = e.target.closest("[data-say]");
+    if (sy) { say(sy, sy.dataset.say); return; }
+    const s = e.target.closest("[data-send]");
+    if (s) say(s, `Sends <code>${esc(s.dataset.send)}</code> and closes the flyout and the menu.`);
+  });
+
+  function onInput(b) {
+    const m = b.closest(".menu");
+    const k = b.dataset.box;
+    const prev = b.closest(".mi")?.querySelector("[data-prev]");
+    const bn = b.closest(".mi")?.querySelector("[data-bnote]");
+    if (bn) bn.textContent = "";
+    if (b.matches("[data-oldbox]")) {
+      const pre = b.value.trim().toUpperCase();
+      const list = b.closest("[data-oldfl]").querySelector("[data-oldlist]");
+      const res = pre ? NAMES.filter(n => n.startsWith(pre)).slice(0, 50) : [];
+      list.innerHTML = res.map((f, i) => `<div${i === 0 ? ` class="sel"` : ""} data-oldpick="${f}">${f}</div>`).join("");
+      return;
+    }
+    if (k === "fix") { if (m.dataset.typed) { typedCfix(m, b); return; } filterFly(m, b.value); return; }
+    if (k === "hbox") { const r = parseHoldText(b.value); prev.textContent = r ? (r.cmd || r.bad) : "HOLDP ···"; prev.classList.toggle("bad", !!(r && r.bad)); prev.classList.toggle("wait", !r); return; }
+    if (k === "awy") { const t = b.value.trim().toUpperCase(); const ok = /^[JVQT]\d{1,4}$/.test(t); prev.textContent = t ? (ok ? `JAWY ${t}` : "not an airway") : "JAWY ···"; prev.classList.toggle("bad", !!t && !ok); prev.classList.toggle("wait", !t); return; }
+    if (k === "ptxt") { const r = ptacTextCmd(b.value); prev.textContent = r.cmd || r.bad; prev.classList.toggle("bad", !!r.bad); prev.classList.remove("wait"); return; }
+    if (k === "pth" || k === "pta") { refreshPtac(m); return; }
+    if (k === "srad") { const h = parseHdg(b.value); prev.textContent = h ? `JRADO ${m.dataset.stepfix}${p3(h)}` : `JRADO ${m.dataset.stepfix}···`; prev.classList.toggle("wait", !h); return; }
+    if (k === "rbox") { const h = parseHdg(b.value); if (h) m.dataset.rad = String(h); else delete m.dataset.rad; refreshFly(m); prev.textContent = h ? (m.dataset.pick ? `${m.dataset.verb} ${m.dataset.pick}${p3(h)}` : "pick a fix") : ""; return; }
+    refreshFly(m);
+  }
+  function typedCfix(m, b) {
+    const tok = b.value.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    const prev = b.closest(".mi").querySelector("[data-prev]");
+    filterFly(m, tok[0] || "");
+    if (!tok.length) { prev.textContent = "CFIX ···"; prev.className = "cmd wait"; return; }
+    const ok = POS.has(tok[0]) && tok[1] && /^(A|B)?\d{2,5}$/.test(tok[1]) && (!tok[2] || /^\d{2,3}$/.test(tok[2]));
+    prev.textContent = ok ? `CFIX ${tok.slice(0, 3).join(" ")}` : (tok[1] && !/^(A|B)?\d{2,5}$/.test(tok[1]) ? `${tok[1]}: an altitude, A/B prefix` : `CFIX ${tok.join(" ")} ···`);
+    prev.className = `cmd${ok ? "" : (tok[1] && !/^(A|B)?\d{2,5}$/.test(tok[1]) ? " bad" : " wait")}`;
+    m.querySelectorAll("[data-rowcmd]").forEach(c => { const f = c.closest("[data-fix]").dataset.fix; c.textContent = `CFIX ${f} ···`; c.classList.add("wait"); });
+  }
+  function onEnter(b) {
+    const m = b.closest(".menu");
+    const k = b.dataset.box;
+    const prev = b.closest(".mi").querySelector("[data-prev]");
+    const bn = b.closest(".mi").querySelector("[data-bnote]");
+    const sendOrSay = (ok, cmd, why) => say(b, ok ? `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu.` : why);
+    if (k === "fix" && m.dataset.typed) { sendOrSay(!prev.classList.contains("wait") && !prev.classList.contains("bad"), prev.textContent, "Not a whole restriction yet: sends nothing, the flyout stays open."); return; }
+    if (k === "fix") {
+      const t = b.value.trim();
+      if (!t) { say(b, "Empty: Enter sends nothing and the flyout stays open."); return; }
+      const f = boxFix(m);
+      if (!f) { if (bn) bn.textContent = "Not a known fix"; say(b, "“Not a known fix” under the box; sends nothing, the text stays as typed."); return; }
+      if (m.dataset.kind === "jrad") { m.dataset.pick = f; refreshFly(m); say(b, `Picks ${esc(f)} for the radial; sends nothing.`); return; }
+      pickOrSend(m, f, b);
+      return;
+    }
+    if (["calt", "cspd", "dhdg", "hcrs"].includes(k)) {
+      const f = boxFix(m) || m.dataset.pick;
+      if (!f) { say(b, "No fix yet: pick a row or type a fix; sends nothing."); return; }
+      const x = flyCmd(m, f);
+      sendOrSay(x.ready, x.cmd, `${esc(x.cmd)} still needs ${x.what}; sends nothing.`);
+      return;
+    }
+    if (k === "rbox") { const x = m.dataset.pick && m.dataset.rad ? flyCmd(m, m.dataset.pick) : null; sendOrSay(x && x.ready, x && x.cmd, "Needs a fix and a radial 1 to 360; sends nothing."); return; }
+    if (k === "srad" || k === "hbox" || k === "awy" || k === "ptxt") { const ok = !prev.classList.contains("bad") && !prev.classList.contains("wait"); sendOrSay(ok, prev.textContent, `“${esc(prev.textContent)}”: sends nothing, the flyout stays open.`); return; }
+    if (k === "pth" || k === "pta") { const r = m.querySelector("[data-app] [data-appcmd]").textContent; sendOrSay(!r.includes("···"), r, "A box holds something it cannot read; sends nothing."); return; }
+  }
+  document.addEventListener("input", e => { if (e.target.matches("[data-box], [data-oldbox]")) onInput(e.target); });
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (e.key === "Enter" && t.matches("[data-box]")) { e.preventDefault(); onEnter(t); return; }
+    if (e.key === "Enter" && t.matches("[data-oldbox]")) { const s = t.closest("[data-oldfl]").querySelector(".sel"); say(t, `Sends <code>DCT ${esc(s ? s.dataset.oldpick : t.value.trim().toUpperCase())}</code> and closes the popup.`); return; }
+    if (e.key === "Enter" && t.matches(".ar, .mi[data-send]")) { e.preventDefault(); t.click(); }
+  });
+
+  /* ---------- Roses: pointer and keys ---------- */
+  document.querySelectorAll(".dial").forEach(svg => {
+    const m = () => svg.closest(".menu");
+    const send = () => { const x = flyCmd(m(), m().dataset.pick); if (x.ready) say(svg, `Sends <code>${esc(x.cmd)}</code> and closes the flyout and the menu.`); };
+    svg.addEventListener("pointermove", ev => {
+      if (!m().dataset.pick) return;
+      const h = roseHeading(svg, ev);
+      if (svg.dataset.drag === "1") { if (h) m().dataset.rad = String(h); delete svg.dataset.ghost; }
+      else if (h) svg.dataset.ghost = String(h); else delete svg.dataset.ghost;
+      drawRose(svg);
+    });
+    svg.addEventListener("pointerleave", () => { if (svg.dataset.drag === "1") return; delete svg.dataset.ghost; drawRose(svg); });
+    svg.addEventListener("pointerdown", ev => {
+      const h = roseHeading(svg, ev);
+      if (!h || !m().dataset.pick) return;
+      svg.setPointerCapture(ev.pointerId);
+      svg.dataset.drag = "1"; m().dataset.rad = String(h); delete svg.dataset.ghost;
+      refreshFly(m());
+    });
+    svg.addEventListener("pointerup", () => { if (svg.dataset.drag !== "1") return; svg.dataset.drag = "0"; refreshFly(m()); send(); });
+    svg.addEventListener("keydown", ev => {
+      if (!m().dataset.pick) return;
+      const step = ev.shiftKey ? 30 : 5;
+      const d = { ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step }[ev.key];
+      if (ev.key === "Enter") { ev.preventDefault(); if (!m().dataset.rad) m().dataset.rad = String(snap5(radialOf(m().dataset.pick)[1])); refreshFly(m()); send(); return; }
+      if (d === undefined) return;
+      ev.preventDefault();
+      m().dataset.rad = String(snap5(Number(m().dataset.rad || radialOf(m().dataset.pick)[1]) + d));
+      delete svg.dataset.ghost;
+      refreshFly(m());
+    });
+  });
+
+  /* ---------- The demo clock ---------- */
+  let last = performance.now();
+  setInterval(() => {
+    const now = performance.now();
+    if (playing) { simT += (now - last) / 1000; if (simT > LOOP) simT = 0; placeAircraft(simT); tickLive(); }
+    last = now;
+  }, 1000);
+
+  /* ---------- #measure lists every flyout's rendered size ---------- */
+  if (location.hash === "#measure") {
+    const lines = [...document.querySelectorAll(".frame")].map(f => {
+      const mm = f.querySelector(":scope > .menu, :scope > div > .menu, :scope > .oldpop, :scope > .inpop");
+      if (!mm) return null;
+      const r = mm.getBoundingClientRect();
+      const id = f.closest(".art").id.split("-")[0];
+      return `${id} ${f.closest("[data-lane]")?.querySelector(".tag").textContent ?? "side"} ·${f.querySelector(".flabel").textContent.slice(0, 70)}: ${Math.round(r.width)} × ${Math.round(r.height)}`;
+    }).filter(Boolean);
+    document.getElementById("measure").innerHTML = `<div class="measure">${esc(lines.join("\n"))}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
