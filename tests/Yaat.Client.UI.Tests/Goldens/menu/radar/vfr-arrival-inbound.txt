@@ -85,9 +85,12 @@ All Commands
     Depart fix…
       depart fix flyout
     PTAC… picker:input
-    Join airway… picker:input
-    Join radial outbound… picker:input
-    Join radial inbound… picker:input
+    Join airway…
+      join airway flyout
+    Join radial outbound…
+      join radial flyout
+    Join radial inbound…
+      join radial flyout
   Pattern
     Enter left downwind
       Runway 10L — ELD 10L

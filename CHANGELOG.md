@@ -41,6 +41,8 @@
 - Direct to and Append direct to open a live flyout: fix box, route ahead with distance and bearing, nearest matching fixes as you type.
 - Cross fix and Depart fix open live flyouts: a fix box with altitude and optional speed, or heading, sending complete `CFIX` and `DEPART` commands.
 - Hold at fix opens a live flyout: inbound course defaulting to the arrival course, leg chips opening on the altitude standard, turns, and a spoken-style caption.
+- Join airway opens a live flyout: an airway box, the filed airways, then airways nearby, each naming the fix the aircraft joins after intercepting.
+- Join radial outbound and inbound open one flyout: nearby VORs with the radial the aircraft is on, a radial box and a compass rose.
 - Left and right 360s at fix share one fix flyout with a side toggle, offered to VFR aircraft aloft.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 

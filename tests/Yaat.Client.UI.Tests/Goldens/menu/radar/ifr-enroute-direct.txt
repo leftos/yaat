@@ -84,10 +84,12 @@ All Commands
     Depart fix…
       depart fix flyout
     PTAC… picker:input
-    Join airway Q126
-    Join airway (other)… picker:input
-    Join radial outbound… picker:input
-    Join radial inbound… picker:input
+    Join airway…
+      join airway flyout
+    Join radial outbound…
+      join radial flyout
+    Join radial inbound…
+      join radial flyout
   Pattern
     Make straight-in
       Runway 6L — EF 6L

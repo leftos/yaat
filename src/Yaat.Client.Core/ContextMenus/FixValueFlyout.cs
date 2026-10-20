@@ -163,9 +163,8 @@ public sealed class DepartFixFlyoutHost() : FlyoutPanelHost("depart fix flyout",
 
 /// <summary>
 /// The panel the Cross fix, Depart fix and Hold at fix flyouts share (<see cref="FixValueFlyout"/>, <see cref="HoldFlyout"/>): the
-/// title line, the fix box with its
-/// refusal, the verb's value boxes, the caption of what Enter sends, a separator, then the fix list (<see cref="FixListView"/>).
-/// Each verb's panel adds its boxes and says what command a fix makes with them.
+/// title line, the fix box with its refusal, the verb's value boxes, the caption of what Enter sends, a separator, then the fix
+/// list (<see cref="FixListView"/>). Each verb's panel adds its boxes and says what command a fix makes with them.
 /// </summary>
 public abstract class FixValueFlyoutPanel : StackPanel, IFlyoutPanel
 {

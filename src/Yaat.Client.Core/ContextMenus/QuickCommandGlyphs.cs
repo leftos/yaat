@@ -95,6 +95,9 @@ public static class QuickCommandGlyphs
     /// <summary>Join final approach course: a level track above the runway, the course without the descent.</summary>
     private const string JoinFinalCoursePath = "M2 20h9 M21 10H5 M8 7l-3 3 3 3";
 
+    /// <summary>Join radial: a station, its radial running out to the north-east, the arrow at its end.</summary>
+    private const string JoinRadialPath = "M8 10a3 3 0 1 0 0 6a3 3 0 1 0 0-6 M10.4 11.3L20 4 M15 4h5v5";
+
     private const string ClosedTrafficPath = "M7 4h10a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z M7 12h10 M13 1l-3 3 3 3";
 
     /// <summary>Every glyph-bearing catalog action's glyph; an action with no glyph is absent.</summary>
@@ -155,6 +158,9 @@ public static class QuickCommandGlyphs
             [MenuIds.ProceduresDescendViaStar] = Flight("M3 4h5v5h5v5h5v5 M15 16l3 3 3-3"),
             [MenuIds.ProceduresCrossFix] = Flight("M12 7l5 9H7z M2 12h19 M18 9l3 3-3 3"),
             [MenuIds.ProceduresDepartFix] = Flight("M7 8l4 7H3z M11 12h10 M18 9l3 3-3 3"),
+            [MenuIds.ProceduresJoinAirway] = Flight("M2 6h20 M4 21c1.5-7 5.5-12 12-15 M13 3l3 3-3 3"),
+            [MenuIds.ProceduresJoinRadialOutbound] = Flight(JoinRadialPath),
+            [MenuIds.ProceduresJoinRadialInbound] = Flight(JoinRadialPath),
             [MenuIds.NavigationOnCourse] = Flight("M3 21c0-6 3-9 9-9h9 M18 9l3 3-3 3"),
             [MenuIds.PatternEnterLeftDownwind] = Pattern(EnterLeftDownwindPath),
             [MenuIds.PatternEnterRightDownwind] = Pattern(EnterRightDownwindPath),

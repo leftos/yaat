@@ -314,9 +314,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(anchor, items, selected, onPick);
 
-    public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        MenuPopups.ShowFilteredList(anchor, sortedNames, priorityItems, onPick);
-
     public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => MenuPopups.ShowRichList(anchor, list, onPick);
 
     /// <summary>The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>.</summary>
@@ -365,9 +362,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         string airport = NavigationDatabase.NormalizeAirport(airportId);
         return main.RoomToweredAirports.Any(towered => NavigationDatabase.NormalizeAirport(towered) == airport);
     }
-
-    /// <summary>The primary radar view model's fix names: every fix in the navigation database once it is loaded, else null.</summary>
-    public string[]? FixNames => main.Radar.FixNames;
 
     /// <summary>
     /// The command bar's fix suggestions for <paramref name="partial"/> (<see cref="FixSuggester.AddFixSuggestionsForActiveToken"/>):

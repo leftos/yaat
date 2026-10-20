@@ -143,7 +143,7 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
 4. **Fixes** — crosses + labels; programmed fixes get a distinct color and always-on label (`:324-327`, `DrawFixes`). The source
    list is `RadarViewModel.BuildVisibleFixes`, which drops vNAS-adapted identifiers that are themselves FRD strings
    (`OAK169001`) via `FrdResolver.IsFrdIdentifier` — ~6,900 of them would otherwise carpet the scope. They remain typeable
-   through `FixNames`.
+   through the command bar and the fix flyouts' boxes (`AllFixNames` still holds them).
 5. **Shown nav routes** — the "show nav route" overlay, drawn behind aircraft (`:330-333`, `DrawShownPaths`).
 6. **Aircraft targets** — `TargetRenderer.Render` (`:336-349`).
 7. **Heading-mode preview** — the live elastic vector when EuroScope heading mode is active; above aircraft, below the
@@ -518,8 +518,7 @@ Each phase action exposes a **one-click top-level item** resolved from aircraft 
   top item (`approach.cleared-visual`) and `MenuCatalog.BuildClearedVisualOther` adds the "(other)…" picker under the same ID.
 - "Join STAR `<id>`" resolves via `MenuCatalog.FiledStar` by scanning the filed route for a STAR known at the destination;
   `BuildJoinStarOther` adds the "(other)…" list.
-- Single-value pickers (one filed airway, one route fix) likewise promote the lone value to a direct item and offer
-  "(other)…" for the rest (`MenuCatalog.BuildOneManyOrInput` with the `Build…Other` companions, added by `SharedMenuGroups.AddCompanion`).
+- The other `Build…Other` companions (`BuildClearedVisualOther`, `BuildJoinStarOther`, added by `SharedMenuGroups.AddCompanion`) do the same for their pickers; the airway and fix pickers are flyouts with a box instead (Join airway, Cross fix, Depart fix, Hold at fix: [client-context-menus.md](client-context-menus.md)).
 
 When adding a new phase action, add **both** the smart-default item and the override path.
 

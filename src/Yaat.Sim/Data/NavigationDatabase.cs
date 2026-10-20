@@ -569,8 +569,124 @@ public sealed class NavigationDatabase
             }
         }
 
-        near.Sort((a, b) => (a.DistanceNm != b.DistanceNm) ? a.DistanceNm.CompareTo(b.DistanceNm) : string.CompareOrdinal(a.Name, b.Name));
+        near.Sort(NearestFirst);
         return near;
+    }
+
+    /// <summary>
+    /// Every radial navaid (<see cref="IsRadialNavaid"/>: a VOR, VORTAC or TACAN) whose name starts with
+    /// <paramref name="namePrefix"/> (ignoring case; an empty prefix matches every one), nearest to <paramref name="position"/>
+    /// first, however far, ties by name as <see cref="FixesNear"/> breaks them.
+    /// </summary>
+    /// <param name="position">Where distances are measured from.</param>
+    /// <param name="namePrefix">The start every listed name has; empty for every radial navaid.</param>
+    public IReadOnlyList<NearbyFix> NavaidsNear(LatLon position, string namePrefix)
+    {
+        List<NearbyFix> near = [];
+        foreach ((string name, double lat, double lon) in GetFixTuples())
+        {
+            if (name.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase) && IsRadialNavaid(name))
+            {
+                var navaidPosition = new LatLon(lat, lon);
+                near.Add(new NearbyFix(name, navaidPosition, GeoMath.DistanceNm(position, navaidPosition)));
+            }
+        }
+
+        near.Sort(NearestFirst);
+        return near;
+    }
+
+    private Dictionary<string, List<string>>? _airwaysByFix;
+
+    /// <summary>
+    /// The airways (military training routes left out) that pass through any of <paramref name="routeFixes"/>, however far, or
+    /// any fix within <paramref name="radiusNm"/> of <paramref name="position"/>, each once with its nearest such fix, ordered by
+    /// that fix's distance from <paramref name="position"/>, ties by id. A route fix without a position adds nothing.
+    /// </summary>
+    /// <param name="routeFixes">The fixes of the aircraft's route, whose airways are listed at any distance.</param>
+    /// <param name="position">Where distances are measured from.</param>
+    /// <param name="radiusNm">How far from <paramref name="position"/> a fix brings its airways.</param>
+    public IReadOnlyList<NearbyAirway> AirwaysNear(IReadOnlyList<string> routeFixes, LatLon position, double radiusNm)
+    {
+        Dictionary<string, List<string>> byFix = _airwaysByFix ??= BuildAirwaysByFix();
+        var nearest = new Dictionary<string, NearbyFix>(StringComparer.OrdinalIgnoreCase);
+
+        void Consider(NearbyFix fix)
+        {
+            if (!byFix.TryGetValue(fix.Name, out List<string>? airways))
+            {
+                return;
+            }
+
+            foreach (string airway in airways)
+            {
+                if (!nearest.TryGetValue(airway, out NearbyFix? held) || (NearestFirst(fix, held) < 0))
+                {
+                    nearest[airway] = fix;
+                }
+            }
+        }
+
+        foreach (string routeFix in routeFixes)
+        {
+            if (GetFixPosition(routeFix) is (double lat, double lon))
+            {
+                var fixPosition = new LatLon(lat, lon);
+                Consider(new NearbyFix(routeFix.ToUpperInvariant(), fixPosition, GeoMath.DistanceNm(position, fixPosition)));
+            }
+        }
+
+        foreach ((string name, double lat, double lon) in GetFixTuples())
+        {
+            var fixPosition = new LatLon(lat, lon);
+            double distance = GeoMath.DistanceNm(position, fixPosition);
+            if (distance <= radiusNm)
+            {
+                Consider(new NearbyFix(name, fixPosition, distance));
+            }
+        }
+
+        List<NearbyAirway> listed = [.. nearest.Select(pair => new NearbyAirway(pair.Key, pair.Value))];
+        listed.Sort(
+            (a, b) =>
+                (a.JoinFix.DistanceNm != b.JoinFix.DistanceNm)
+                    ? a.JoinFix.DistanceNm.CompareTo(b.JoinFix.DistanceNm)
+                    : string.CompareOrdinal(a.Id, b.Id)
+        );
+        return listed;
+    }
+
+    /// <summary>Nearest first, ties by name.</summary>
+    private static int NearestFirst(NearbyFix a, NearbyFix b) =>
+        (a.DistanceNm != b.DistanceNm) ? a.DistanceNm.CompareTo(b.DistanceNm) : string.CompareOrdinal(a.Name, b.Name);
+
+    /// <summary>Each fix's airways, military training routes left out, from <see cref="AirwayIds"/> and <see cref="GetAirwayFixes"/>.</summary>
+    private Dictionary<string, List<string>> BuildAirwaysByFix()
+    {
+        var byFix = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (string airway in AirwayIds)
+        {
+            if (IsMilitaryRoute(airway) || (GetAirwayFixes(airway) is not { } fixes))
+            {
+                continue;
+            }
+
+            foreach (string fix in fixes)
+            {
+                if (!byFix.TryGetValue(fix, out List<string>? airways))
+                {
+                    airways = [];
+                    byFix[fix] = airways;
+                }
+
+                if (!airways.Contains(airway, StringComparer.OrdinalIgnoreCase))
+                {
+                    airways.Add(airway);
+                }
+            }
+        }
+
+        return byFix;
     }
 
     public int Count => _navDb.Count;
@@ -2906,6 +3022,9 @@ public sealed class NavigationDatabase
     /// defaulting every navaid to "VOR".
     /// </summary>
     public string? GetNavaidType(string code) => _navaidTypes.TryGetValue(code, out string? type) ? type : null;
+
+    /// <summary>Whether <paramref name="code"/> is a navaid that gives radials: a VOR, VORTAC or TACAN (not a DME or an NDB).</summary>
+    public bool IsRadialNavaid(string code) => GetNavaidType(code) is "VOR" or "VORTAC" or "TACAN";
 
     /// <summary>
     /// Returns the navaid's station declination (east-positive degrees, the same sign as

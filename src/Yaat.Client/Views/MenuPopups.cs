@@ -28,9 +28,6 @@ internal static class MenuPopups
 {
     private static readonly ILogger Log = AppLog.CreateLogger("MenuPopups");
 
-    /// <summary>The most names the filtered list shows for one prefix.</summary>
-    private const int MaxFilteredMatches = 50;
-
     private static readonly IBrush InputBackground = new SolidColorBrush(Color.FromArgb(240, 24, 24, 24));
     private static readonly IBrush InputBorderBrush = new SolidColorBrush(Color.FromArgb(255, 80, 80, 80));
     private static readonly IBrush InputRefusalForeground = new SolidColorBrush(Color.Parse("#e08a8a"));
@@ -223,85 +220,6 @@ internal static class MenuPopups
         };
 
         Open(anchor, popup, "list");
-    }
-
-    /// <summary>
-    /// Opens a focused filter box over <paramref name="sortedNames"/>, listing <paramref name="priorityItems"/> until
-    /// the controller types. Typing lists the names starting with the text (case folded, at most
-    /// <see cref="MaxFilteredMatches"/>) and selects the first; Up and Down move the selection; Enter picks the selected
-    /// name, else the typed text upper-cased; a click on a name picks it once the filter box has lost focus.
-    /// </summary>
-    public static void ShowFilteredList(Control anchor, string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick)
-    {
-        Popup popup = NewPopup(anchor);
-        var textBox = new TextBox { FontSize = 12, PlaceholderText = "Fix name..." };
-        var listBox = new ListBox
-        {
-            MaxHeight = 250,
-            FontSize = 12,
-            Background = PickerBackground,
-            Foreground = PickerForeground,
-            ItemsSource = priorityItems ?? [],
-        };
-        ApplyMonoFont(anchor, textBox);
-        ApplyMonoFont(anchor, listBox);
-
-        bool picked = false;
-        void Pick(string? value)
-        {
-            popup.Close();
-            if (!string.IsNullOrEmpty(value))
-            {
-                picked = true;
-                _ = onPick(value);
-            }
-        }
-
-        textBox.TextChanged += (_, _) => FilterNames(textBox, listBox, sortedNames);
-        textBox.KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter)
-            {
-                string? value = listBox.SelectedItem?.ToString();
-                Pick(string.IsNullOrEmpty(value) ? textBox.Text?.Trim().ToUpperInvariant() : value);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                popup.Close();
-                e.Handled = true;
-            }
-            else
-            {
-                e.Handled = MoveSelection(listBox, e.Key);
-            }
-        };
-        listBox.SelectionChanged += (_, e) =>
-        {
-            if (picked || (e.AddedItems.Count == 0) || textBox.IsFocused)
-            {
-                return;
-            }
-
-            string? value = e.AddedItems[0]?.ToString();
-            if (!string.IsNullOrEmpty(value))
-            {
-                Pick(value);
-            }
-        };
-
-        popup.Child = PickerBorder(
-            new StackPanel
-            {
-                Width = 200,
-                Spacing = 4,
-                Children = { textBox, listBox },
-            },
-            new Thickness(4)
-        );
-        popup.Opened += (_, _) => textBox.Focus();
-
-        Open(anchor, popup, "filtered-list");
     }
 
     /// <summary>
@@ -786,64 +704,5 @@ internal static class MenuPopups
         }
 
         return -1;
-    }
-
-    private static void FilterNames(TextBox textBox, ListBox listBox, string[] sortedNames)
-    {
-        string prefix = textBox.Text?.Trim().ToUpperInvariant() ?? "";
-        if (prefix.Length == 0)
-        {
-            listBox.ItemsSource = Array.Empty<object>();
-            return;
-        }
-
-        IReadOnlyList<object> results = PrefixSearch(sortedNames, prefix, MaxFilteredMatches);
-        listBox.ItemsSource = results;
-        if (results.Count > 0)
-        {
-            listBox.SelectedIndex = 0;
-        }
-    }
-
-    /// <summary>Moves the filtered list's selection for Up and Down; returns whether <paramref name="key"/> was one of them.</summary>
-    private static bool MoveSelection(ListBox listBox, Key key)
-    {
-        if ((key != Key.Down) && (key != Key.Up))
-        {
-            return false;
-        }
-
-        if (listBox.ItemCount > 0)
-        {
-            listBox.SelectedIndex =
-                key == Key.Down ? Math.Min(listBox.SelectedIndex + 1, listBox.ItemCount - 1) : Math.Max(listBox.SelectedIndex - 1, 0);
-            listBox.ScrollIntoView(listBox.SelectedItem!);
-        }
-
-        return true;
-    }
-
-    private static IReadOnlyList<object> PrefixSearch(string[] sortedNames, string prefix, int maxResults)
-    {
-        var results = new List<object>();
-        int idx = Array.BinarySearch(sortedNames, prefix, StringComparer.OrdinalIgnoreCase);
-        if (idx < 0)
-        {
-            idx = ~idx;
-        }
-
-        for (int i = idx; (i < sortedNames.Length) && (results.Count < maxResults); i++)
-        {
-            if (sortedNames[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                results.Add(sortedNames[i]);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        return results;
     }
 }

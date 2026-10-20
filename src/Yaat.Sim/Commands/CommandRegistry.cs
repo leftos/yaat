@@ -2141,7 +2141,7 @@ public static class CommandRegistry
                 CommandDimension.Lateral,
                 false,
                 ["JRADO", "JRAD"],
-                [O(null, [R("radial", "FIX + bearing")], "Join radial outbound")]
+                [O(null, [R("radial", "FIX + 3-digit radial, one token (SJC150)")], "Join radial outbound")]
             ),
             Cmd(
                 JoinRadialInbound,
@@ -2150,7 +2150,7 @@ public static class CommandRegistry
                 CommandDimension.Lateral,
                 false,
                 ["JRADI", "JICRS"],
-                [O(null, [R("radial", "FIX + bearing")], "Join radial inbound")]
+                [O(null, [R("radial", "FIX + 3-digit radial, one token (SJC150)")], "Join radial inbound")]
             ),
             Cmd(
                 HoldingPattern,

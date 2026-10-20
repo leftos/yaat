@@ -49,9 +49,6 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         inner.ShowListPopup(items, selected, onPick);
 
-    public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        inner.ShowFilteredListPopup(sortedNames, priorityItems, onPick);
-
     public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => inner.ShowRichListPopup(list, onPick);
 
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
@@ -62,8 +59,6 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public IReadOnlyList<string> GetActiveArrivalEnds(string airportId) => inner.GetActiveArrivalEnds(airportId);
 
     public bool IsToweredAirport(string airportId) => inner.IsToweredAirport(airportId);
-
-    public string[]? FixNames => inner.FixNames;
 
     public IReadOnlyList<string> SuggestFixes(string partial) => inner.SuggestFixes(partial);
 

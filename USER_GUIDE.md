@@ -948,7 +948,17 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
 
-  Procedures offers the Cross fix and Depart fix flyouts, a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
+  Procedures offers the Cross fix and Depart fix flyouts, a Join STAR picker (smart-defaults to a filed STAR detected in the route), Join airway… and Join radial outbound… / inbound…, described next. Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
+
+  **Join airway…** (All Commands › Procedures) opens a flyout titled "Join airway" with an Airway box (focused on open; it filters the rows by what you type). The box says "unknown airway" in red for a name the navigation data lacks and "military route: use CMTR" for a military training route such as IR149.
+
+  Under the caption `Join V25` the rows come in two groups: "Filed" (marked ◆) and "Through the route and fixes within 30 NM · nearest first" (up to 12). Each row's note is the fix the aircraft proceeds to after intercepting the airway on its present heading, with distance and bearing (`SUNOL · 12 NM · 184°`), or "no segment ahead". A click sends `JAWY V25`.
+
+  **Join radial outbound…** and **Join radial inbound…** open one flyout whose title follows an Outbound `JRADO` / Inbound `JRADI` toggle. The "Fix (VOR, VORTAC or TACAN)" box refuses anything else ("not a VOR, VORTAC or TACAN"), and up to 12 "Navaids · nearest first" rows each show the radial the aircraft is on and its distance (`SFO · 123 radial · 9 NM`); a row click sends its command, such as `JRADO SFO123`.
+
+  The "Radial (empty: the aircraft's)" box takes 001 to 360 ("Not a valid radial" otherwise), and the caption reads `Intercept the RBL 184 radial outbound`. The rose below shows the navaid in its centre: press or drag on it to fill the Radial box, and releasing sends.
+
+  The flyout opens on the nearest navaid of the aircraft's route within 130 NM, else the nearest VOR, VORTAC or TACAN. Radials are magnetic, by the station's published variation.
 
   The Tower and Pattern submenus list only the commands valid for the aircraft's current state — departure clearances (Line up and wait, Cleared for takeoff) for aircraft on the ground, landing/option clearances while on approach or in the pattern, and runway exits after touchdown; the VFR-only items (touch-and-go, stop-and-go, low approach, the option, and pattern maneuvers) are hidden for IFR aircraft, and the submenu is dropped entirely when nothing applies.
 

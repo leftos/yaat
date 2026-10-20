@@ -90,12 +90,6 @@ public interface IMenuHost
     void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick);
 
     /// <summary>
-    /// Opens the surface's type-to-filter popup over <paramref name="sortedNames"/>, listing
-    /// <paramref name="priorityItems"/> until the controller types, and hands the picked name to <paramref name="onPick"/>.
-    /// </summary>
-    void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick);
-
-    /// <summary>
     /// Opens the surface's titled picker of <paramref name="list"/>'s rows, with its selected row centred, and hands the
     /// row the controller picks to <paramref name="onPick"/>; a row that cannot be picked (<see cref="MenuRichRow.IsPickable"/>)
     /// is never handed over.
@@ -128,9 +122,6 @@ public interface IMenuHost
     /// tower; an airport the room does not name is untowered.
     /// </summary>
     bool IsToweredAirport(string airportId);
-
-    /// <summary>Every fix name the surface's filtered fix pickers offer, sorted; null while the navigation data is not loaded.</summary>
-    string[]? FixNames { get; }
 
     /// <summary>
     /// The fixes a menu fix box offers for <paramref name="partial"/>, as the command bar offers them after <c>DCT</c>: the

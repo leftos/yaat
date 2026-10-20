@@ -375,7 +375,6 @@ public partial class RadarViewModel(
     public void SetNavDbReady()
     {
         _navDbReady = true;
-        FixNames = NavigationDatabase.Instance.AllFixNames;
         SetFixes(BuildVisibleFixes());
         RebuildPinnedMarkers();
     }
@@ -421,8 +420,6 @@ public partial class RadarViewModel(
         );
     }
 
-    public string[]? FixNames { get; private set; }
-
     private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes()
     {
         if (!_navDbReady)
@@ -435,7 +432,7 @@ public partial class RadarViewModel(
         foreach (string name in names)
         {
             // vNAS publishes thousands of adapted fixes whose identifiers are themselves FRD strings
-            // (OAK169001). They stay typeable via FixNames, but they aren't chartable waypoints, so
+            // (OAK169001). They stay typeable in the command bar, but they aren't chartable waypoints, so
             // they neither paint on the scope nor anchor a deduced FRD.
             if (FrdResolver.IsFrdIdentifier(name))
             {

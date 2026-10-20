@@ -363,11 +363,38 @@ public class HoldFlyoutTests
         HoldPatternFlyoutPanel panel = Open(aircraft, new RecordingMenuHost(""));
 
         Assert.Equal(["SUNOL", "SJC", "KSFO", "KOAK"], panel.RouteRows.Select(row => row.Fix));
+        int legFromSunol = Course(Position("SUNOL"), "SJC", Published("SJC"));
+        Assert.NotEqual(Course(FixValueFlyoutHarness.OakVor(), "SJC", Published("SJC")), legFromSunol);
+        Assert.NotEqual($"HOLDP SJC {HoldFlyout.Three(legFromSunol)} 1M R", panel.RouteRows[1].SentCommand);
         foreach (FixRow row in panel.RouteRows)
         {
             int expected = Course(FixValueFlyoutHarness.OakVor(), row.Fix, Published(row.Fix));
             Assert.Equal($"HOLDP {row.Fix} {HoldFlyout.Three(expected)} 1M R", row.SentCommand);
         }
+    }
+
+    /// <summary>
+    /// On a long east-west leg the great circle turns: the default course is the course arriving at the fix, not the bearing the
+    /// leg starts on from the fix before it.
+    /// </summary>
+    [AvaloniaFact]
+    public void DefaultCourse_LongEastWestLeg_IsTheArrivalCourse_NotTheStartingBearing()
+    {
+        double declination = Published("KJFK");
+        int arriving = Course(Position("SUNOL"), "KJFK", declination);
+        int starting = HeadingFlyout.WholeHeading(GeoMath.BearingTo(Position("SUNOL"), Position("KJFK")) - declination);
+        Assert.True(Math.Abs(arriving - starting) > 10, $"arriving {arriving} vs starting {starting}");
+
+        HoldPatternFlyoutPanel panel = Open(
+            FixValueFlyoutHarness.Routed() with
+            {
+                NavigationRoute = ["SUNOL", "KJFK"],
+                RouteFixes = ["SUNOL", "KJFK"],
+            },
+            new RecordingMenuHost("")
+        );
+
+        Assert.Equal($"HOLDP KJFK {HoldFlyout.Three(arriving)} 1M R", panel.RouteRows[1].SentCommand);
     }
 
     /// <summary>A re-route while the flyout is open moves a down-route fix's default leg onto the new route's previous fix.</summary>

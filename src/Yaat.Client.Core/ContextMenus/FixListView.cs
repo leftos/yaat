@@ -9,8 +9,9 @@ using Avalonia.Media.Immutable;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// One fix row of a fix flyout (Direct to, Cross fix, Depart fix): the ● mark on the next fix, the fix, its distance and magnetic
-/// bearing (or <c>passed</c>), and its command column, in the outline the fix box draws round the row Enter sends.
+/// One fix row of a fix flyout (Direct to, Cross fix, Depart fix, Hold at fix, and Join radial's navaid rows): the ● mark on the
+/// next fix, the fix, its note (distance and magnetic bearing, <c>passed</c>, or a navaid's radial and distance), and its command
+/// column, in the outline the fix box draws round the row Enter sends (Join radial outlines its picked navaid's row).
 /// </summary>
 public sealed class FixRow : Button
 {

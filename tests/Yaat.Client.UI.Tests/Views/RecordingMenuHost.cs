@@ -11,14 +11,12 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// Records every send and popup, and answers a picker at once: an input or filtered list with
+/// Records every send and popup, and answers a picker at once: an input with
 /// <paramref name="input"/>, a list with the item whose text is <paramref name="input"/> (an empty input only records the list).
 /// </summary>
 internal sealed class RecordingMenuHost(string input) : IMenuHost
 {
     public List<(string Callsign, string Command, string Initials)> Sent { get; } = [];
-
-    public string[]? FixNames { get; init; }
 
     /// <summary>The fixes <see cref="SuggestFixes"/> answers every partial name with; none by default.</summary>
     public IReadOnlyList<string> FixSuggestions { get; init; } = [];
@@ -38,8 +36,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public List<string?> FieldElevationRequests { get; } = [];
 
     public List<(IReadOnlyList<string> Items, object? Selected)> ListPopups { get; } = [];
-
-    public List<(string[] Names, IReadOnlyList<string>? Priority)> FilteredListPopups { get; } = [];
 
     public List<string> DrawRouteCallsigns { get; } = [];
 
@@ -153,12 +149,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         {
             _ = onPick(items.First(i => i.ToString() == input));
         }
-    }
-
-    public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick)
-    {
-        FilteredListPopups.Add((sortedNames, priorityItems?.Select(i => i.ToString() ?? "").ToList()));
-        _ = onPick(input);
     }
 
     /// <summary>Every rich-row picker shown, in order.</summary>

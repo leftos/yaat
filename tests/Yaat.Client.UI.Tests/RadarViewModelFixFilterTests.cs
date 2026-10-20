@@ -32,21 +32,4 @@ public class RadarViewModelFixFilterTests
         Assert.Contains(vm.Fixes, f => f.Name == "SUNOL");
         Assert.DoesNotContain(vm.Fixes, f => f.Name == "OAK169001");
     }
-
-    [Fact]
-    public void SetNavDbReady_KeepsFrdNamedFixesInAutocompleteNames()
-    {
-        var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["OAK"] = (37.7213, -122.2208),
-            ["OAK169001"] = (37.7053, -122.2166),
-        };
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting(fixes));
-
-        RadarViewModel vm = NewVm();
-        vm.SetNavDbReady();
-
-        Assert.NotNull(vm.FixNames);
-        Assert.Contains("OAK169001", vm.FixNames);
-    }
 }

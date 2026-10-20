@@ -192,6 +192,14 @@ internal static class FlyoutPanelParts
         return grid;
     }
 
+    /// <summary>Redraws the glyph of a box row <see cref="BoxRow"/> made, as <paramref name="glyph"/>.</summary>
+    public static void SetBoxRowGlyph(Grid boxRow, QuickCommandGlyph glyph)
+    {
+        Viewbox icon = QuickCommandStrip.GlyphIcon(glyph);
+        icon.Margin = new Thickness(0, 0, 8, 0);
+        boxRow.Children[0] = icon;
+    }
+
     /// <summary>
     /// A chip showing <paramref name="content"/> in the monospace font, named <paramref name="automationName"/>, sending
     /// <paramref name="command"/> through <paramref name="choose"/> when clicked.

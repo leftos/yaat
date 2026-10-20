@@ -178,7 +178,7 @@ public static class HoldFlyout
     public static int Radial(int inboundCourse) => HeadingFlyout.WholeHeading(inboundCourse + 180);
 
     /// <summary>Whether <paramref name="fix"/> is a VOR, VORTAC or TACAN, whose hold the caption names by its radial.</summary>
-    public static bool IsRadialNavaid(string fix) => NavigationDatabase.InstanceOrNull?.GetNavaidType(fix) is "VOR" or "VORTAC" or "TACAN";
+    public static bool IsRadialNavaid(string fix) => NavigationDatabase.InstanceOrNull?.IsRadialNavaid(fix) ?? false;
 
     /// <summary>What sits beside the Inbound course box: the direction of holding, and at a VOR the radial (<c>north · 004 radial</c>).</summary>
     public static string SideText(string fix, int course) =>
@@ -660,10 +660,8 @@ public sealed class HoldTurnsFlyoutPanel : StackPanel, IFlyoutPanel
         }
 
         _title.Text = HoldFlyout.TurnsTitle(side);
-        Viewbox icon = QuickCommandStrip.GlyphIcon(SideGlyph(side));
-        icon.Margin = new Thickness(0, 0, 8, 0);
-        _boxRow.Children[0] = icon;
         BoxGlyph = SideGlyph(side);
+        FlyoutPanelParts.SetBoxRowGlyph(_boxRow, BoxGlyph);
         _fixes.UpdateCommands();
         ShowBoxCommand();
     }

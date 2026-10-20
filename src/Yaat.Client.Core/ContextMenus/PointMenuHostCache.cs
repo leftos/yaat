@@ -24,8 +24,6 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public MenuSession Session => inner.Session;
 
-    public string[]? FixNames => inner.FixNames;
-
     public IReadOnlyList<string> SuggestFixes(string partial) => inner.SuggestFixes(partial);
 
     public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd)
@@ -91,9 +89,6 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         inner.ShowListPopup(items, selected, onPick);
-
-    public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        inner.ShowFilteredListPopup(sortedNames, priorityItems, onPick);
 
     public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => inner.ShowRichListPopup(list, onPick);
 

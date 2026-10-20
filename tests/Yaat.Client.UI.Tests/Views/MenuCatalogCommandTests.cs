@@ -104,9 +104,6 @@ public class MenuCatalogCommandTests
         (MenuIds.ProceduresClimbViaSid, "", "CVIA"),
         (MenuIds.ProceduresDescendViaStar, "", "DVIA"),
         (MenuIds.ProceduresPtac, "280 025 I28R", "PTAC 280 025 I28R"),
-        (MenuIds.ProceduresJoinAirway, "V25", "JAWY V25"),
-        (MenuIds.ProceduresJoinRadialOutbound, "SUNOL 090", "JRADO SUNOL 090"),
-        (MenuIds.ProceduresJoinRadialInbound, "SUNOL 270", "JRADI SUNOL 270"),
         (MenuIds.TowerLineUpAndWait, "", "LUAW"),
         (MenuIds.TowerCancelTakeoff, "", "CTOC"),
         (MenuIds.TowerClearedToLand, "", "CLAND"),
@@ -210,6 +207,11 @@ public class MenuCatalogCommandTests
         MenuIds.HoldPattern,
         MenuIds.HoldFixLeft,
         MenuIds.HoldFixRight,
+        // Join airway… opens the Join airway flyout and the two join-radial entries the Join radial flyout; JoinAirwayFlyoutTests and
+        // JoinRadialFlyoutTests click them.
+        MenuIds.ProceduresJoinAirway,
+        MenuIds.ProceduresJoinRadialOutbound,
+        MenuIds.ProceduresJoinRadialInbound,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -784,7 +786,6 @@ public class MenuCatalogCommandTests
 
         Assert.Equal(command, DirectToFlyout.VerbText(panel.Verb));
         Assert.Empty(host.ListPopups);
-        Assert.Empty(host.FilteredListPopups);
         Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], host.Sent);
     }
 
@@ -839,7 +840,6 @@ public class MenuCatalogCommandTests
         row.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.Empty(host.InputPlaceholders);
-        Assert.Empty(host.FilteredListPopups);
         (string _, string command, string _) = Assert.Single(host.Sent);
         return command;
     }
@@ -1238,22 +1238,26 @@ public class MenuCatalogCommandTests
         Assert.True(parsed.IsSuccess, $"{command}: {parsed.Reason}");
     }
 
+    /// <summary>Join airway… opens the flyout; its filed airway row sends <c>JAWY V25</c>, which the parser reads, and no popup opens.</summary>
     [AvaloniaFact]
-    public void JoinAirway_TwoFiledAirways_UsesListPlusOther()
+    public void JoinAirway_FiledRowSendsJawy_TheParserReads()
     {
         TestVnasData.EnsureInitialized();
-        Assert.True(NavigationDatabase.Instance.IsAirway("V25"));
-        Assert.True(NavigationDatabase.Instance.IsAirway("J80"));
-        var host = new RecordingMenuHost("J80") { InputAnswer = "J6" };
-        var aircraft = new FakeMenuAircraft { Route = "OAK V25 SUNOL J80 ECA V25" };
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Route = "OAK V25 SUNOL" };
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinAirway).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Join airway…", MenuPickerDescriptor.List, ["V25", "J80"]));
-        Click(AssertPicker(MenuCatalog.BuildJoinAirwayOther(aircraft, Context(), host), "Join airway (other)…", MenuPickerDescriptor.Input, []));
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ProceduresJoinAirway).Build(aircraft, Context(), host));
+        Assert.Equal("Join airway…", item.Header as string);
+        item.IsSubMenuOpen = true;
+        JoinAirwayFlyoutPanel panel = Assert.IsType<JoinAirwayFlyoutPanel>(
+            Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
+        );
+        panel.Rows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal<object?>("V25", Assert.Single(host.ListPopups).Selected);
-        Assert.Equal(["Airway ID"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "JAWY J80", Initials), (Callsign, "JAWY J6", Initials)], host.Sent);
+        Assert.Empty(host.ListPopups);
+        Assert.Empty(host.InputPlaceholders);
+        Assert.Equal([(Callsign, "JAWY V25", Initials)], host.Sent);
+        Assert.Equal("V25", Assert.IsType<JoinAirwayCommand>(CommandParser.Parse("JAWY V25").Value).AirwayId);
     }
 
     [AvaloniaFact]
@@ -1300,34 +1304,41 @@ public class MenuCatalogCommandTests
         Assert.Null(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host));
     }
 
+    /// <summary>
+    /// Each join-radial entry opens the Join radial flyout on its side and sends one token, the navaid and the three-digit
+    /// radial (north 360), which the parser reads; no popup opens (YAAT-910).
+    /// </summary>
     [AvaloniaTheory]
-    [InlineData(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", "Bearing from SUNOL (0-360)", "JRADO SUNOL 090")]
-    [InlineData(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound…", "Bearing to SUNOL (0-360)", "JRADI SUNOL 090")]
-    public void JoinRadial_WithFixNames_PicksFixThenAsksBearing(string id, string label, string prompt, string command)
+    [InlineData(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", "184", "JRADO RBL184")]
+    [InlineData(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound…", "184", "JRADI RBL184")]
+    [InlineData(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", "360", "JRADO RBL360")]
+    public void JoinRadial_SendsOneToken_TheParserReads(string id, string label, string radial, string command)
     {
-        var host = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix], InputAnswer = "090" };
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        // Half a degree (30 NM) south of Red Bluff, well inside the 130 NM a route navaid opens the flyout from.
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("RBL")!.Value;
+        var aircraft = new FakeMenuAircraft { Position = new LatLon(lat - 0.5, lon), RouteFixes = ["RBL"] };
 
-        MenuItem? item = MenuCatalog.Get(id).Build(null, Context(), host);
-        Click(AssertPicker(item, label, MenuPickerDescriptor.FilteredList, []));
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, Context(), host));
+        Assert.Equal(label, item.Header as string);
+        item.IsSubMenuOpen = true;
+        JoinRadialFlyoutPanel panel = Assert.IsType<JoinRadialFlyoutPanel>(
+            Assert.IsAssignableFrom<FlyoutPanelHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
+        );
+        panel.RadialBox.Text = radial;
+        panel.RadialBox.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
 
-        (string[] Names, IReadOnlyList<string>? Priority) popup = Assert.Single(host.FilteredListPopups);
-        Assert.Equal(["ECA", "OAK", Fix], popup.Names);
-        Assert.Null(popup.Priority);
-        Assert.Equal([prompt], host.InputPlaceholders);
+        Assert.Empty(host.InputPlaceholders);
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void JoinRadialInbound_WithoutFixNames_SendsInputVerbatim()
-    {
-        var host = new RecordingMenuHost("SUNOL 270");
-
-        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinRadialInbound).Build(null, Context(), host);
-        Click(AssertPicker(item, "Join radial inbound…", MenuPickerDescriptor.Input, []));
-
-        Assert.Empty(host.FilteredListPopups);
-        Assert.Equal(["FIX bearing"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "JRADI SUNOL 270", Initials)], host.Sent);
+        ParsedCommand? parsed = CommandParser.Parse(command).Value;
+        (string fix, int parsedRadial) = parsed switch
+        {
+            JoinRadialOutboundCommand outbound => (outbound.FixName, outbound.Radial),
+            JoinRadialInboundCommand inbound => (inbound.FixName, inbound.Radial),
+            _ => throw new InvalidOperationException($"{command} parsed as {parsed}"),
+        };
+        Assert.Equal(("RBL", int.Parse(radial, CultureInfo.InvariantCulture)), (fix, parsedRadial));
     }
 
     [AvaloniaFact]

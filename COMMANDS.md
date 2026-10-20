@@ -441,8 +441,8 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Join final | `JFAC ILS28R` | `JLOC`, `JF` | — |
 | Join arrival | `JARR OAK.SALI2` | `ARR`, `STAR`, `JSTAR` | — |
 | Join airway | `JAWY V25` | — | — |
-| Join radial out | `JRADO SJC 150` | `JRAD` | — |
-| Join radial in | `JRADI SJC 150` | `JICRS` | — |
+| Join radial out | `JRADO SJC150` | `JRAD` | — |
+| Join radial in | `JRADI SJC150` | `JICRS` | — |
 | Cross fix | `CFIX SUNOL A034` | `CF` | — |
 | Descend via | `DVIA` | — | — |
 | Climb via | `CVIA` | — | — |
@@ -1629,8 +1629,8 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `JARR SALI2 KENNO 28R` | Join STAR via entry fix KENNO for runway 28R |
 | `JARR OAK.SALI2 KENNO` | Join STAR with both airport qualifier and entry fix |
 | `JAWY V25` | Join airway: intercept and join airway V25, following fixes in the direction of travel |
-| `JRADO SJC 150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
-| `JRADI SJC 150` | Join radial inbound: intercept and fly inbound on the 150° radial to SJC |
+| `JRADO SJC150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
+| `JRADI SJC150` | Join radial inbound: intercept and fly inbound on the 150° radial to SJC |
 | `CFIX SUNOL A034` | Cross specific fix SUNOL at or above 3,400 ft |
 | `DVIA` | Descend via STAR — enables altitude/speed constraint following on active STAR |
 | `DVIA 240` | Descend via STAR, except maintain FL240 (altitude floor) |

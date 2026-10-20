@@ -842,13 +842,13 @@ internal static class NavigationCommandHandler
         }
 
         // Find the bracketing segment: the fix behind and fix ahead of the aircraft
-        (int behindIdx, int aheadIdx) = FindBracketingSegment(aircraft, airwayFixes);
+        (int behindIdx, int aheadIdx) = AirwayBracketing.Find(navDb, aircraft.Position, aircraft.TrueHeading, airwayFixes);
         if (aheadIdx < 0)
         {
             return new CommandResult(false, $"No navigable segment found on {cmd.AirwayId}");
         }
 
-        // Resolve ahead fix position (guaranteed non-null since FindBracketingSegment validated it)
+        // Resolve ahead fix position (guaranteed non-null since AirwayBracketing.Find validated it)
         (double Lat, double Lon) aheadPos = navDb.GetFixPosition(airwayFixes[aheadIdx])!.Value;
 
         // Determine the segment course to intercept
@@ -900,7 +900,7 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// The candidate fix sequences a restored JAWY block could have been planned with, given the trigger it was
     /// saved with. The sequence is rebuilt from that trigger and never re-planned against the aircraft's position:
-    /// <see cref="FindBracketingSegment"/> can pick a different fix once earlier fixes pass abeam, and finds no
+    /// <see cref="AirwayBracketing.Find"/> can pick a different fix once earlier fixes pass abeam, and finds no
     /// segment at all once the aircraft is past the airway's last fix ahead.
     ///
     /// The trigger names the segment origin, which is either the fix behind the aircraft — the far end is then a
@@ -1011,122 +1011,6 @@ internal static class NavigationCommandHandler
         }
 
         return targets;
-    }
-
-    /// <summary>
-    /// Finds the bracketing segment on an airway — the fix behind and fix ahead of the aircraft.
-    /// Returns (behindIdx, aheadIdx). behindIdx may be -1 if the aircraft is before the first fix.
-    /// aheadIdx will be -1 if no valid segment is found.
-    /// The method considers both forward and reverse traversal of the airway to determine the
-    /// direction of travel that best matches the aircraft's heading.
-    /// </summary>
-    private static (int BehindIdx, int AheadIdx) FindBracketingSegment(AircraftState aircraft, IReadOnlyList<string> airwayFixes)
-    {
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-        // Resolve positions for all fixes
-        var positions = new (double Lat, double Lon)?[airwayFixes.Count];
-        for (int i = 0; i < airwayFixes.Count; i++)
-        {
-            positions[i] = navDb.GetFixPosition(airwayFixes[i]);
-        }
-
-        // Find the closest fix ahead (within ±90° of heading) and closest fix behind
-        int bestAheadIdx = -1;
-        double bestAheadDist = double.MaxValue;
-        int bestBehindIdx = -1;
-        double bestBehindDist = double.MaxValue;
-
-        for (int i = 0; i < airwayFixes.Count; i++)
-        {
-            if (positions[i] is null)
-            {
-                continue;
-            }
-
-            double bearing = GeoMath.BearingTo(aircraft.Position, new LatLon(positions[i]!.Value.Lat, positions[i]!.Value.Lon));
-            double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
-            if (angleDiff > 180)
-            {
-                angleDiff = 360 - angleDiff;
-            }
-
-            double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(positions[i]!.Value.Lat, positions[i]!.Value.Lon));
-
-            if (angleDiff <= 90)
-            {
-                if (dist < bestAheadDist)
-                {
-                    bestAheadDist = dist;
-                    bestAheadIdx = i;
-                }
-            }
-            else
-            {
-                if (dist < bestBehindDist)
-                {
-                    bestBehindDist = dist;
-                    bestBehindIdx = i;
-                }
-            }
-        }
-
-        if (bestAheadIdx < 0)
-        {
-            return (-1, -1);
-        }
-
-        // Verify the behind and ahead fixes form an adjacent segment on the airway
-        // (they should be consecutive in forward or reverse order)
-        if (bestBehindIdx >= 0)
-        {
-            int diff = bestAheadIdx - bestBehindIdx;
-            if (diff != 1 && diff != -1)
-            {
-                // Not adjacent — use the fix adjacent to the ahead fix in the correct direction
-                int candidateBefore = bestAheadIdx - 1;
-                int candidateAfter = bestAheadIdx + 1;
-
-                // Pick the adjacent fix that is behind the aircraft
-                bestBehindIdx = -1;
-                if (candidateBefore >= 0 && positions[candidateBefore] is not null)
-                {
-                    double bearing = GeoMath.BearingTo(
-                        aircraft.Position,
-                        new LatLon(positions[candidateBefore]!.Value.Lat, positions[candidateBefore]!.Value.Lon)
-                    );
-                    double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
-                    if (angleDiff > 180)
-                    {
-                        angleDiff = 360 - angleDiff;
-                    }
-
-                    if (angleDiff > 90)
-                    {
-                        bestBehindIdx = candidateBefore;
-                    }
-                }
-
-                if (bestBehindIdx < 0 && candidateAfter < airwayFixes.Count && positions[candidateAfter] is not null)
-                {
-                    double bearing = GeoMath.BearingTo(
-                        aircraft.Position,
-                        new LatLon(positions[candidateAfter]!.Value.Lat, positions[candidateAfter]!.Value.Lon)
-                    );
-                    double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
-                    if (angleDiff > 180)
-                    {
-                        angleDiff = 360 - angleDiff;
-                    }
-
-                    if (angleDiff > 90)
-                    {
-                        bestBehindIdx = candidateAfter;
-                    }
-                }
-            }
-        }
-
-        return (bestBehindIdx, bestAheadIdx);
     }
 
     /// <summary>The altitude at and below which a hold's leg is 1 minute, in feet MSL (AIM 5-3-8(j)(4)(a)).</summary>
