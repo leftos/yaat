@@ -22,6 +22,8 @@
 - [ ] YAAT-888 Point menu Taxi here answers an empty group when every route drops out
 - [ ] YAAT-892 Make Taxi here titles skip the destination runway like the variants do
 - [ ] YAAT-908 Move the approach flyout onto the shared flyout base; mark the assigned Mach
+- [ ] YAAT-910 Make Cross fix, Depart fix and Join radial quick commands send commands the parser accepts
+- [ ] YAAT-922 Collect route fix names without throwing when navdata is not loaded
 
 ## Bug reports and feature requests
 
@@ -363,7 +365,7 @@
 - [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
 - [ ] YAAT-643 Run prepare-release's remote deploy and watch steps under the gate's -Slot none
 - [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load
-- [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; delete tools/gate.ps1 · release vNext
+- [ ] YAAT-668 Call gate run on PATH in yaat and yaat-server; keep tools/gate.ps1 as a pass-through · release vNext
 - [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof
 - [ ] YAAT-798 Answer gate's routed-run CS0009 questions: test-all parallel builds, obj in routing outputs
 - [ ] YAAT-821 Find the Yaat.Client.Tests test that stalls a local full suite on a busy machine
@@ -617,5 +619,15 @@
 
 ## No project
 
-- [ ] YAAT-907 Route the heavy pre-commit build hook through the gate (GATE-449)
+- [ ] YAAT-907 Route the heavy pre-commit build hook through the gate (GATE-449) · release vNext
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
+- [ ] YAAT-911 Stop a taxiing aircraft before it drives head-on into a stopped follower
+- [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
+- [ ] YAAT-913 Read charted enroute holds from CIFP
+- [ ] YAAT-915 Keep the route to the fix for HOLDP and DEPART instead of going direct
+- [ ] YAAT-916 Default an omitted HOLDP leg to the altitude standard; parse legs invariantly
+- [ ] YAAT-917 Decide whether PTAC PH prefers the assigned heading mid-turn
+- [ ] YAAT-918 Intercept and fly JRADO/JRADI radials with the station's magnetic variation · release vNext
+- [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
+- [ ] YAAT-920 Track a hold's inbound course to the fix instead of flying direct
+- [ ] YAAT-921 Treat a runway crossing stitched through :link edges as a crossing
