@@ -25,6 +25,8 @@
 - [ ] YAAT-922 Collect route fix names without throwing when navdata is not loaded
 - [ ] YAAT-930 Refuse unresolvable route rows and out-of-range speeds in the Cross fix flyout
 - [ ] YAAT-931 Fix the red ground-runway menu hover-preview automation test on main
+- [ ] YAAT-936 Steady the Hold at fix default course near the fix
+- [ ] YAAT-937 Offer Hold at fix (HOLDP) in All Commands › Hold
 
 ## Bug reports and feature requests
 
@@ -244,6 +246,9 @@
 - [ ] YAAT-898 Pass SegmentExpander's walk state as a SegmentWalk record
 - [/] YAAT-899 Keep a taxi detour connector off uncleared runway centrelines (SFO C3→S2 ends on 28R) · release vNext
 - [ ] YAAT-900 Try the next offset-crossing join pair when the closest one cannot be driven
+- [ ] YAAT-932 Stop a detour connector reusing a taxiway cleared before the transition
+- [ ] YAAT-933 Require a self-picked connector's runway crossing to be nearly perpendicular
+- [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -618,12 +623,16 @@
 - [ ] YAAT-902 Make ExitFlyoutTests initialise the navigation database itself (4 fail when the class runs alone)
 - [ ] YAAT-903 Stop the bounded taxi detour charging a runway-exit holding bar as a second crossing (SFO S1 bar #840)
 - [ ] YAAT-904 Make AutomationPointerTests.GroundRunwayMenu_HoverPreviewsRoute pass locally (fails alone here, passes on the builder)
-- [ ] YAAT-923 Convert FRD radials with the station's variation in FrdResolver · release vNext
 - [ ] YAAT-924 Track a JRADO radial with wind correction after the intercept
 - [ ] YAAT-925 Log exceptions from the flyouts' async key handlers
 - [ ] YAAT-926 Convert CR/VR departure-leg radials with the navaid's variation
 - [ ] YAAT-927 Select the nearest 50 fixes in FixesNear without sorting every prefix match
 - [ ] YAAT-929 Migrate aircraft snapshots on the synthetic-spawn and recorded-action paths
+- [ ] YAAT-934 Check FRD anchors whose position and declination come from different fixes
+- [ ] YAAT-935 Convert an airport-anchored FRD with the airport's variation of record
+- [ ] YAAT-938 Default approach and missed-approach hold legs to the altitude standard
+- [ ] YAAT-940 Re-time a standard-leg hold when its altitude crosses 14,000 ft
+- [ ] YAAT-941 Stop UserPreferencesTaxiRouteDisplayTests sharing one preferences file
 
 ## No project
 
@@ -633,7 +642,6 @@
 - [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
 - [ ] YAAT-913 Read charted enroute holds from CIFP
 - [ ] YAAT-915 Keep the route to the fix for HOLDP and DEPART instead of going direct
-- [ ] YAAT-916 Default an omitted HOLDP leg to the altitude standard; parse legs invariantly
 - [ ] YAAT-917 Decide whether PTAC PH prefers the assigned heading mid-turn
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
 - [ ] YAAT-920 Track a hold's inbound course to the fix instead of flying direct
