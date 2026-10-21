@@ -85,12 +85,12 @@
       "user": "28a150edc237b497"
     },
     "load-adjusted-timeouts": {
-      "repo": "cd6a823317bbf1a8",
+      "repo": "92b11e0f89a584bd",
       "user": "45cd99cd2da27dd7"
     },
     "mark-injected-input": {
-      "declined": "offers no hover or drag gestures (its \"Not applicable\")",
-      "user": "b3f75d9310294ad1"
+      "declined": "Avalonia keeps capture and pointer-over per device and SyntheticMouse gives each top level its own MouseDevice, so a real mouse cannot break an injected drag or move its hover; nothing to mark or swallow",
+      "user": "77bc05c4065fa83d"
     },
     "merge-inherited-webview-args": {
       "declined": "no webview",
@@ -237,5 +237,5 @@
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 9
+  "user_revision": 10
 }
