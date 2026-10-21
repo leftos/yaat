@@ -469,6 +469,7 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
         var directory = new PipeDirectory(
             DiscoveryDirectory,
             Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );

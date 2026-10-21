@@ -24,7 +24,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     public async Task PipeClient_Ping_ReturnsPidAndVersion()
     {
         using AutomationHost host = StartHost(() => Windows);
-        await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
+        await using var client = new PipeClient(PipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
 
         PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
 
@@ -37,7 +37,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     {
         ShowWindow("AutomationRoot", Pad(), null);
         using AutomationHost host = StartHost(() => Windows);
-        await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
+        await using var client = new PipeClient(PipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
 
         List<WindowInfo> windows = await client.SendAsync<List<WindowInfo>>(
             ProtocolMethods.ListWindows,
@@ -53,7 +53,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     public async Task PipeClient_RemoteError_MapsCodeMessageAndHint()
     {
         using AutomationHost host = StartHost(() => Windows);
-        await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
+        await using var client = new PipeClient(PipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
 
         PipeRemoteException error = await Assert.ThrowsAsync<PipeRemoteException>(() =>
             client.SendAsync<PingResult>("no_such_method", null, PipeClient.RequestTimeout, CancellationToken.None)
@@ -71,7 +71,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     public async Task PipeClient_DisposedDuringAnInFlightRequest_ReportsTheRequestFailure()
     {
         using AutomationHost host = StartHost(() => Windows);
-        var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
+        var client = new PipeClient(PipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
         ShowWindow("AutomationRoot", Pad(), null);
 
         // A request the host will not answer soon: the wait_for polls to its timeout, so the send stays in flight.
@@ -93,7 +93,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     public async Task PipeClient_CancelledMidRequest_ReconnectsOnTheNextCall()
     {
         using AutomationHost host = StartHost(() => Windows);
-        await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
+        await using var client = new PipeClient(PipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
         ShowWindow("AutomationRoot", Pad(), null);
         using var cancellation = new CancellationTokenSource();
         // Open the connection first, so the cancel lands on a request already on the wire rather than on the connect.
@@ -120,7 +120,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     public async Task PipeClient_HostStopped_ThrowsThenReconnects()
     {
         using AutomationHost host = StartHost(() => Windows);
-        await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
+        await using var client = new PipeClient(PipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
         _ = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
 
         host.Dispose();
@@ -257,7 +257,7 @@ public sealed class PipeClientTests : AutomationHostFixture
     private static string CurrentProcessName() => Process.GetCurrentProcess().ProcessName;
 
     private static PipeDirectory NewPipeDirectory(string discoveryDirectory, string expectedProcessName) =>
-        new(discoveryDirectory, expectedProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        new(discoveryDirectory, expectedProcessName, TimeProvider.System, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
 
     // Params of a wait_for that polls its whole timeout: the window count never reaches 9999.
     private static object CountEqualsParams() =>

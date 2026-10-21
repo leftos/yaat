@@ -151,6 +151,7 @@ public sealed class ClientErrorsTests : AutomationHostFixture
         var directory = new PipeDirectory(
             DiscoveryDirectory,
             Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );

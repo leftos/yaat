@@ -16,8 +16,9 @@ namespace Yaat.ClientDriver.Mcp.Pipe;
 /// </summary>
 /// <param name="pipeName">The named pipe to connect to.</param>
 /// <param name="pid">The client's process id, named in connection failures; null when the caller does not know it.</param>
+/// <param name="clock">The clock the connect and request timeouts run on.</param>
 /// <param name="logger">Where connection diagnostics go (stderr through the host's logging).</param>
-public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> logger) : IAsyncDisposable
+public sealed class PipeClient(string pipeName, int? pid, TimeProvider clock, ILogger<PipeClient> logger) : IAsyncDisposable
 {
     /// <summary>
     /// How long a request waits for its answer: every call passes this, except one whose host-side wait runs longer
@@ -111,8 +112,8 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
         var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         try
         {
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(ConnectTimeout);
+            using var limit = new CancellationTokenSource(ConnectTimeout, clock);
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct, limit.Token);
             await pipe.ConnectAsync(timeoutCts.Token).ConfigureAwait(false);
         }
         catch
@@ -139,8 +140,8 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
             Params = parameters is null ? null : ProtocolSerializer.ToElement(parameters),
         };
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(timeout);
+        using var limit = new CancellationTokenSource(timeout, clock);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct, limit.Token);
 
         await writer.WriteLineAsync(ProtocolSerializer.Serialize(request).AsMemory(), timeoutCts.Token).ConfigureAwait(false);
         string line =

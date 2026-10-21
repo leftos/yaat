@@ -600,7 +600,13 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
     }
 
     private PipeDirectory NewPipeDirectory() =>
-        new(DiscoveryDirectory, Process.GetCurrentProcess().ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        new(
+            DiscoveryDirectory,
+            Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
 
     /// <summary>The inspect and input tools over one registry and one pipe directory, as the server wires them.</summary>
     private sealed record Tools(InspectTools Inspect, InputTools Input);

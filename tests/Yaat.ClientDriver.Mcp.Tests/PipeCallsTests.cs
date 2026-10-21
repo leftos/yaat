@@ -294,7 +294,13 @@ public sealed class PipeCallsTests : AutomationHostFixture
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await WriteDiscoveryAsync(childPid, pipeName, childName);
         Task server = ServeAsync(pipeName, childPid, null, timeout.Token);
-        var directory = new PipeDirectory(DiscoveryDirectory, childName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        var directory = new PipeDirectory(
+            DiscoveryDirectory,
+            childName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
         try
         {
             Assert.NotNull(await directory.TryGetAsync(childPid, CancellationToken.None));
@@ -385,5 +391,11 @@ public sealed class PipeCallsTests : AutomationHostFixture
     private static PipeElement Element(string id, int nodeId) => new(id, new PipeNodeRef(Environment.ProcessId, nodeId));
 
     private PipeDirectory NewPipeDirectory() =>
-        new(DiscoveryDirectory, Process.GetCurrentProcess().ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        new(
+            DiscoveryDirectory,
+            Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
 }

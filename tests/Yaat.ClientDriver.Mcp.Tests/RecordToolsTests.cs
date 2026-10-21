@@ -25,6 +25,9 @@ public sealed class RecordToolsTests : AutomationHostFixture
     /// <summary>A pid no discovery file names, so it routes as a process without an automation pipe.</summary>
     private const int NoPipePid = 4242;
 
+    /// <summary>A hang guard: a passing run never waits it out; it fires only when the call it bounds is stuck.</summary>
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(60);
+
     private readonly FakeRecordingBackend _backend = new();
     private readonly ManualClock _clock = new(RecordingFakes.Start);
     private readonly RecordingSession _session;
@@ -37,6 +40,7 @@ public sealed class RecordToolsTests : AutomationHostFixture
         _pipes = new PipeDirectory(
             DiscoveryDirectory,
             Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );
@@ -438,10 +442,26 @@ public sealed class RecordToolsTests : AutomationHostFixture
     }
 
     // A wait_until in flight holds the client's pipe, so get_sim_time queues behind it: the 2 s limit covers that queue, the mark
-    // is written without a sim time, and a record_stop called meanwhile is not held behind the mark.
+    // is written without a sim time, and a record_stop called meanwhile is not held behind the mark. The limit runs on the pipes'
+    // held clock, so only the test ends it, and the stub holds wait_until until the test releases it.
     [Fact]
     public async Task Mark_SimClockBlocked_ReturnsWithinTheWaitAndNullSim()
     {
+        var clock = new HeldClock();
+        var pipes = new PipeDirectory(
+            DiscoveryDirectory,
+            Process.GetCurrentProcess().ProcessName,
+            clock,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
+        var tools = new RecordTools(
+            _session,
+            _backend,
+            new ElementRegistry(NullLogger<ElementRegistry>.Instance),
+            pipes,
+            NullLogger<RecordTools>.Instance
+        );
         var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
         await WithClientAsync(
@@ -450,7 +470,7 @@ public sealed class RecordToolsTests : AutomationHostFixture
                 if (method == ProtocolMethods.WaitUntil)
                 {
                     arrived.TrySetResult();
-                    release.Wait(TimeSpan.FromSeconds(20), Ct);
+                    release.Wait(Ct);
                     return ClientAnswer(id, new { });
                 }
 
@@ -460,24 +480,34 @@ public sealed class RecordToolsTests : AutomationHostFixture
             {
                 try
                 {
-                    await _tools.RecordStartAsync(Ct, Pid, "", OutPath, 30, null);
+                    await tools.RecordStartAsync(Ct, Pid, "", OutPath, 30, null);
                     _backend.Process.OnStop = () => File.WriteAllBytes(OutPath, [0]);
-                    _ = PipeCalls.SendForPidAsync<JsonElement>(_pipes, Pid, ProtocolMethods.WaitUntil, null, TimeSpan.FromSeconds(20), Ct);
-                    await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
-                    var elapsed = Stopwatch.StartNew();
+                    Task<JsonElement> waitUntil = PipeCalls.SendForPidAsync<JsonElement>(
+                        pipes,
+                        Pid,
+                        ProtocolMethods.WaitUntil,
+                        null,
+                        TimeSpan.FromSeconds(20),
+                        Ct
+                    );
+                    await arrived.Task.WaitAsync(HangGuard, Ct);
 
-                    Task<string> mark = _tools.RecordMarkAsync("blocked", Ct);
-                    Task<string> stop = _tools.RecordStopAsync(Ct);
+                    Task<string> mark = tools.RecordMarkAsync("blocked", Ct);
+                    Task<string> stop = tools.RecordStopAsync(Ct);
 
-                    Assert.Same(stop, await Task.WhenAny(stop, mark).WaitAsync(TimeSpan.FromSeconds(10), Ct));
-                    string marked = await mark.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+                    await stop.WaitAsync(HangGuard, Ct);
+                    Assert.False(mark.IsCompleted);
+                    Assert.Contains(TimeSpan.FromSeconds(2), clock.Pending);
+                    clock.Fire(TimeSpan.FromSeconds(2));
+                    string marked = await mark.WaitAsync(HangGuard, Ct);
                     Assert.Contains("sim unknown", marked, StringComparison.Ordinal);
-                    Assert.InRange(elapsed.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(6));
+                    Assert.False(waitUntil.IsCompleted);
                     Assert.Equal("blocked", ReadMarks().GetProperty("marks")[0].GetProperty("label").GetString());
                 }
                 finally
                 {
                     release.Set();
+                    await pipes.ForgetAsync(Pid);
                 }
             }
         );
@@ -615,7 +645,8 @@ public sealed class RecordToolsTests : AutomationHostFixture
     {
         string pipeName = $"yaat-scripted-host-{Guid.NewGuid():N}";
         await StubPipeHost.AdvertiseAsync(DiscoveryDirectory, pipeName, Ct);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // A hang guard: the stub serves until the body is done with it, and a passing run cancels it long before this.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         Task host = StubPipeHost.ServeResponsesAsync(pipeName, respond, TimeSpan.Zero, timeout.Token);
         try
         {

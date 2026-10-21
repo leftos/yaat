@@ -606,25 +606,39 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         string appDataDir = NewDirectory("appdata");
         string exePath = NewDummyClientExe();
         // This test starts the child itself, so the discovery file and the pipe stub are ready before the launch runs.
-        using Process child = Process.Start(Shell("ping.exe", "-n 30 127.0.0.1"))!;
+        // The child outlives the launch's hang guard, so it cannot exit on its own first; the finally kills it.
+        using Process child = Process.Start(Shell("ping.exe", "-n 300 127.0.0.1"))!;
         string pipeName = $"yaat-stub-host-{Guid.NewGuid():N}";
         WriteDiscovery(child.Id, pipeName, child.ProcessName);
-        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        Task server = ServeUnansweringAsync(pipeName, ceiling.Token);
-        var directory = new PipeDirectory(DiscoveryDirectory, child.ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        // Hang guards: the launch's own 1 s deadline ends a passing run long before either. The stub outlives the launch guard,
+        // so a stalled ping that the deadline does not reach fails at the guard rather than ending with the stub's hang-up.
+        var launchHangGuard = TimeSpan.FromSeconds(60);
+        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(150));
+        var pingRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task server = ServeUnansweringAsync(pipeName, pingRead, ceiling.Token);
+        // The pipe client's connect and request timeouts are held: they never fire, so only the deadline can end the ping.
+        var clock = new HeldClock();
+        var directory = new PipeDirectory(
+            DiscoveryDirectory,
+            child.ProcessName,
+            clock,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
         var starter = new ScriptedStarter(() => Process.GetProcessById(child.Id));
         ProcessTools tools = NewTools(directory, starter);
         try
         {
-            var elapsed = Stopwatch.StartNew();
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1)
+                tools
+                    .LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1)
+                    .WaitAsync(launchHangGuard, TestContext.Current.CancellationToken)
             );
-            elapsed.Stop();
 
             Assert.StartsWith($"no automation pipe answered within 1 s (pid {child.Id});", failure.Message, StringComparison.Ordinal);
-            // Without the deadline linked into the pipe calls, the ping waits out its own connect and request timeouts.
-            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(5), $"the deadline did not bound the stalled pipe call: {elapsed.Elapsed}");
+            // The launch reached the stub's pipe and sent the ping it never answers, and no pipe timeout is left armed after it.
+            Assert.True(pingRead.Task.IsCompleted, "the launch never sent the stalled ping");
+            Assert.Empty(clock.Pending);
             Assert.True(child.HasExited);
         }
         finally
@@ -652,7 +666,13 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(150));
         var polledAgain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Task server = ServeCodedErrorAfterPingAsync(pipeName, child.Id, polledAgain, ceiling.Token);
-        var directory = new PipeDirectory(DiscoveryDirectory, child.ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        var directory = new PipeDirectory(
+            DiscoveryDirectory,
+            child.ProcessName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
         var starter = new ScriptedStarter(() => Process.GetProcessById(child.Id));
         ProcessTools tools = NewTools(directory, starter);
         try
@@ -732,6 +752,7 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         var directory = new PipeDirectory(
             DiscoveryDirectory,
             Path.GetFileNameWithoutExtension(childExecutable),
+            TimeProvider.System,
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );
@@ -819,7 +840,13 @@ public sealed class LaunchYaatTests : AutomationHostFixture
     private static string[] Lines(string text) => text.Split(Environment.NewLine);
 
     private PipeDirectory NewPipeDirectory() =>
-        new(DiscoveryDirectory, Process.GetCurrentProcess().ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        new(
+            DiscoveryDirectory,
+            Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
 
     /// <summary>Writes the client-style discovery file that makes <paramref name="pid"/>'s pipe the one the directory finds.</summary>
     private void WriteDiscovery(int pid, string pipeName, string processName)
@@ -836,8 +863,11 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         File.WriteAllText(Path.Combine(DiscoveryDirectory, $"{pid}.json"), ProtocolSerializer.Serialize(discovery));
     }
 
-    /// <summary>Accepts one client and reads its requests without ever answering, until it hangs up or <paramref name="ct"/> cancels.</summary>
-    private static async Task ServeUnansweringAsync(string pipeName, CancellationToken ct)
+    /// <summary>
+    /// Accepts one client and reads its requests without ever answering, until it hangs up or <paramref name="ct"/> cancels;
+    /// <paramref name="pingRead"/> completes once a ping request has been read.
+    /// </summary>
+    private static async Task ServeUnansweringAsync(string pipeName, TaskCompletionSource pingRead, CancellationToken ct)
     {
         await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
@@ -845,9 +875,14 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         {
             await pipe.WaitForConnectionAsync(ct);
             using var reader = new StreamReader(pipe, utf8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
-            while (await reader.ReadLineAsync(ct) is not null)
+            // A real host answers each request; this stub is testing what happens when one never does.
+            while (await reader.ReadLineAsync(ct) is { } line)
             {
-                // A real host answers each request; this stub is testing what happens when one never does.
+                using var request = JsonDocument.Parse(line);
+                if (request.RootElement.GetProperty("method").GetString() == ProtocolMethods.Ping)
+                {
+                    pingRead.TrySetResult();
+                }
             }
         }
         catch (IOException ex)

@@ -144,7 +144,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
 
         string pipeName = $"yaat-scripted-host-{Guid.NewGuid():N}";
         object waitParams = new { selector = "#Box", condition = "exists" };
-        await using var client = new PipeClient(pipeName, null, NullLogger<PipeClient>.Instance);
+        await using var client = new PipeClient(pipeName, null, TimeProvider.System, NullLogger<PipeClient>.Instance);
 
         Task cutServer = ServeLateAsync(pipeName);
         McpException cut = await Assert.ThrowsAsync<McpException>(() =>
@@ -256,5 +256,11 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         };
 
     private PipeDirectory NewPipeDirectory() =>
-        new(DiscoveryDirectory, Process.GetCurrentProcess().ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        new(
+            DiscoveryDirectory,
+            Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
 }

@@ -13,11 +13,13 @@ namespace Yaat.ClientDriver.Mcp.Pipe;
 /// </summary>
 /// <param name="discoveryDirectory">The directory the client writes <c>&lt;pid&gt;.json</c> into.</param>
 /// <param name="expectedProcessName">The process name a discovery file must belong to, e.g. <c>Yaat.Client</c>.</param>
+/// <param name="clock">The clock the cached <see cref="PipeClient"/>s run their timeouts on.</param>
 /// <param name="logger">Where the fallback reasons go.</param>
 /// <param name="clientLogger">The logger the cached <see cref="PipeClient"/>s report through.</param>
 public sealed class PipeDirectory(
     string discoveryDirectory,
     string expectedProcessName,
+    TimeProvider clock,
     ILogger<PipeDirectory> logger,
     ILogger<PipeClient> clientLogger
 )
@@ -26,6 +28,10 @@ public sealed class PipeDirectory(
     public const string ClientProcessName = "Yaat.Client";
 
     private readonly ConcurrentDictionary<int, PipeClient> _clients = new();
+
+    /// <summary>The clock the pipe calls' timeouts run on; a caller's own limit on a pipe call runs on it too.</summary>
+    public TimeProvider Clock => clock;
+
     private readonly Lock _lastTargetGate = new();
     private int? _lastTargetPid;
 
@@ -118,7 +124,7 @@ public sealed class PipeDirectory(
             return null;
         }
 
-        var client = new PipeClient(info.PipeName, pid, clientLogger);
+        var client = new PipeClient(info.PipeName, pid, clock, clientLogger);
         try
         {
             await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, ct).ConfigureAwait(false);

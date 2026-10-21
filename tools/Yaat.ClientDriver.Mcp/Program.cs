@@ -27,6 +27,7 @@ builder.Services.AddSingleton<RecordingSession>();
 builder.Services.AddSingleton(provider => new PipeDirectory(
     Path.Combine(Path.GetTempPath(), "yaat-automation"),
     PipeDirectory.ClientProcessName,
+    provider.GetRequiredService<TimeProvider>(),
     provider.GetRequiredService<ILogger<PipeDirectory>>(),
     provider.GetRequiredService<ILogger<PipeClient>>()
 ));

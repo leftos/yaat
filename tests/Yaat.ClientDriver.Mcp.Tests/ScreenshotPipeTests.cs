@@ -191,5 +191,11 @@ public sealed class ScreenshotPipeTests : AutomationHostFixture
     }
 
     private PipeDirectory NewPipeDirectory() =>
-        new(DiscoveryDirectory, Process.GetCurrentProcess().ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        new(
+            DiscoveryDirectory,
+            Process.GetCurrentProcess().ProcessName,
+            TimeProvider.System,
+            NullLogger<PipeDirectory>.Instance,
+            NullLogger<PipeClient>.Instance
+        );
 }

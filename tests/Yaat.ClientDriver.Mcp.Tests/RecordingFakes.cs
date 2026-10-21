@@ -36,6 +36,118 @@ internal sealed class ManualClock(DateTimeOffset start) : TimeProvider
 }
 
 /// <summary>
+/// A clock whose timers never fire on their own: each one is held at the due time it was armed with until the test fires it,
+/// so a timeout the product arms on it ends only when the test says, however late the machine runs the test. Only timers are
+/// held: <see cref="TimeProvider.GetUtcNow"/> and <see cref="TimeProvider.GetTimestamp"/> read real time. A timer created with a
+/// zero due time is held too, until <see cref="Fire"/> with <see cref="TimeSpan.Zero"/>. Periodic timers are not supported.
+/// </summary>
+internal sealed class HeldClock : TimeProvider
+{
+    private readonly Lock _gate = new();
+    private readonly List<HeldTimer> _timers = [];
+
+    /// <summary>The due times of the timers armed and not yet fired or disposed, in the order they were created.</summary>
+    public IReadOnlyList<TimeSpan> Pending
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _timers.Select(timer => timer.Due).OfType<TimeSpan>()];
+            }
+        }
+    }
+
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        RequireOneShot(period);
+        var timer = new HeldTimer(this, callback, state, dueTime);
+        lock (_gate)
+        {
+            _timers.Add(timer);
+        }
+
+        return timer;
+    }
+
+    /// <summary>Runs, on the calling thread, every armed timer due at <paramref name="due"/>; each fires once.</summary>
+    public void Fire(TimeSpan due)
+    {
+        List<HeldTimer> firing;
+        lock (_gate)
+        {
+            firing = [.. _timers.Where(timer => timer.Due == due)];
+            foreach (HeldTimer timer in firing)
+            {
+                timer.Due = null;
+            }
+        }
+
+        foreach (HeldTimer timer in firing)
+        {
+            timer.Run();
+        }
+    }
+
+    private static void RequireOneShot(TimeSpan period)
+    {
+        if (period != Timeout.InfiniteTimeSpan)
+        {
+            throw new NotSupportedException($"HeldClock holds one-shot timers only; got a period of {period}.");
+        }
+    }
+
+    private void Remove(HeldTimer timer)
+    {
+        lock (_gate)
+        {
+            timer.Disposed = true;
+            timer.Due = null;
+            _timers.Remove(timer);
+        }
+    }
+
+    // False for a disposed timer, which stays disarmed, as a disposed System.Threading.Timer does.
+    private bool Arm(HeldTimer timer, TimeSpan dueTime)
+    {
+        lock (_gate)
+        {
+            if (timer.Disposed)
+            {
+                return false;
+            }
+
+            timer.Due = (dueTime == Timeout.InfiniteTimeSpan) ? null : dueTime;
+            return true;
+        }
+    }
+
+    /// <summary>One held timer: armed at <see cref="Due"/>, or disarmed (null) once fired, disposed or changed to infinite.</summary>
+    private sealed class HeldTimer(HeldClock owner, TimerCallback callback, object? state, TimeSpan dueTime) : ITimer
+    {
+        public TimeSpan? Due { get; set; } = (dueTime == Timeout.InfiniteTimeSpan) ? null : dueTime;
+
+        public bool Disposed { get; set; }
+
+        public void Run() => callback(state);
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            RequireOneShot(period);
+            return owner.Arm(this, dueTime);
+        }
+
+        public void Dispose() => owner.Remove(this);
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+}
+
+/// <summary>
 /// The recording pipeline's process as a test drives it: it runs until the test says it exited, or until the stop's wait
 /// reaches it, when <see cref="OnStop"/> plays the pipeline's own ending (the recorder's end line, the MP4 on disk).
 /// </summary>

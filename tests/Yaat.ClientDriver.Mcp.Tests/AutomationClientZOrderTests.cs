@@ -25,7 +25,11 @@ public sealed class AutomationClientZOrderTests
     private const uint WmQuit = 0x0012;
     private const int ReferenceX = -32000;
     private const int ReferenceY = -32000;
-    private static readonly TimeSpan WindowWait = TimeSpan.FromSeconds(60);
+
+    // A hang guard on the poll for the client's windows: a passing run finds them long before it. A stalled list_windows
+    // throws the test client's 120 s reply timeout, which the poll records as its last error before polling again, so 300 s
+    // fits at least two stalled replies; the poll can end as late as about 422 s (a third reply started just before 300 s).
+    private static readonly TimeSpan WindowHangGuard = TimeSpan.FromSeconds(300);
     private static readonly TimeSpan ReferenceWait = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ThreadStopWait = TimeSpan.FromSeconds(5);
 
@@ -168,7 +172,7 @@ public sealed class AutomationClientZOrderTests
         string logPath = ClientLogPath(appDataDir);
         var deadline = Stopwatch.StartNew();
         string lastError = "(no answer)";
-        while (deadline.Elapsed < WindowWait)
+        while (deadline.Elapsed < WindowHangGuard)
         {
             if (client.HasExited)
             {
@@ -205,7 +209,7 @@ public sealed class AutomationClientZOrderTests
         }
 
         throw new TimeoutException(
-            $"Client {client.Id} showed no {requiredTypeName} within {WindowWait.TotalSeconds} s; last list_windows answer: {lastError}; "
+            $"Client {client.Id} showed no {requiredTypeName} within {WindowHangGuard.TotalSeconds} s; last list_windows answer: {lastError}; "
                 + $"its log is {logPath}"
         );
     }

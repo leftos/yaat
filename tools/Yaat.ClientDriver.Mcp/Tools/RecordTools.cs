@@ -166,12 +166,12 @@ public sealed class RecordTools(
 
     /// <summary>
     /// The client's scenario clock, or null when it does not answer: no main window yet, a closed pipe, or no answer within
-    /// <see cref="SimTimeWait"/>, which covers the wait for the pipe too (another call, a long wait_until, may hold it).
+    /// <see cref="SimTimeWait"/> on the pipes' clock, which covers the wait for the pipe too (another call, a long wait_until, may hold it).
     /// </summary>
     private async Task<double?> SimSecondsAsync(int pid, CancellationToken ct)
     {
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        limit.CancelAfter(SimTimeWait);
+        using var wait = new CancellationTokenSource(SimTimeWait, pipes.Clock);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct, wait.Token);
         try
         {
             GetSimTimeResult result = await PipeCalls

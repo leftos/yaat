@@ -23,6 +23,12 @@ public sealed class BatchToolsTests : AutomationHostFixture
 {
     private const string NodeIdRefusal = "steps address elements by selector; nodeId is not accepted in batch_drive";
 
+    /// <summary>A hang guard: a passing run never waits it out; it fires only when the batch or the stub is stuck.</summary>
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(60);
+
+    /// <summary>A 30 s batch deadline, a stub that answers at once and the pipe client on the real clock.</summary>
+    private static readonly StubTiming Prompt = new(TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeProvider.System);
+
     private static int Pid => Environment.ProcessId;
 
     private static string ShotFixture => Path.Combine(AppContext.BaseDirectory, "TestData", "shot-200x100.png");
@@ -36,8 +42,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"list_windows"},{"method":"get_tree","params":{"selector":"#Box","depth":2}}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -64,8 +69,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"list_windows"},{"method":"get_tree"}]""",
             Failing(AutomationErrorCodes.Timeout, "Condition did not hold"),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -85,15 +89,13 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome nodeId = await RunBatchAsync(
             """[{"method":"click","params":{"nodeId":7}}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
         Outcome windowNodeId = await RunBatchAsync(
             """[{"method":"screenshot","params":{"windowNodeId":7}}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -113,13 +115,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         foreach (string stepsJson in new[] { "[]", overLimit })
         {
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                RunBatchAsync(
-                    stepsJson,
-                    Answer((method, _) => new { ok = method }),
-                    TimeSpan.FromSeconds(30),
-                    TimeSpan.Zero,
-                    TestContext.Current.CancellationToken
-                )
+                RunBatchAsync(stepsJson, Answer((method, _) => new { ok = method }), Prompt, TestContext.Current.CancellationToken)
             );
 
             Assert.Contains("1 to 100", failure.Message, StringComparison.Ordinal);
@@ -133,8 +129,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"assert":"wait","selector":"#Box","condition":"exists"}]""",
             Answer((_, _) => new { elapsedMs = 12, matchCount = 1 }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -155,8 +150,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"assert":"wait","selector":"#Box","condition":"exists","timeoutMs":999999}]""",
             Answer((_, _) => new { elapsedMs = 1, matchCount = 1 }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -172,8 +166,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"list_windows"},{"assert":"no_errors"}]""",
             AnsweredWithClientErrors((method, _) => new { ok = method }, [new ClientLogEntry("Error", "Yaat.Client.Radar", "Render failed", null)]),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -198,8 +191,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"assert":"no_errors"}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -208,8 +200,8 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Assert.True(step.GetProperty("ok").GetBoolean(), $"an error logged before the batch is not this batch's: {outcome.Result}");
     }
 
-    // A real wait past the default request timeout would make this test slow, so the step's arithmetic is checked exactly, and
-    // then shown to reach the pipe client: timeoutMs 0 leaves only the answer margin, so an answer six seconds late is cut.
+    // The step's arithmetic is checked exactly, then shown to reach the pipe client: the stub never answers, so the only timer
+    // that can end the step is the pipe client's answer timeout, held on the test's clock until the test fires it.
     [Fact]
     public async Task MethodStep_TimeoutMs_IsTheAnswerTimeout()
     {
@@ -217,13 +209,25 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Assert.Equal(TimeSpan.FromSeconds(45), BatchTools.StepTimeoutFor(document.RootElement));
         Assert.Equal(PipeClient.RequestTimeout, BatchTools.StepTimeoutFor(null));
 
-        Outcome outcome = await RunBatchAsync(
-            """[{"method":"list_windows","params":{"timeoutMs":0}}]""",
-            Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromSeconds(6),
+        var clock = new HeldClock();
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<Outcome> batch = RunBatchAsync(
+            """[{"method":"list_windows","params":{"timeoutMs":1000}}]""",
+            Answer(
+                (method, _) =>
+                {
+                    requested.TrySetResult();
+                    return new { ok = method };
+                }
+            ),
+            new StubTiming(TimeSpan.FromMinutes(10), Timeout.InfiniteTimeSpan, clock),
             TestContext.Current.CancellationToken
         );
+
+        await requested.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        Assert.Equal([TimeSpan.FromSeconds(6)], clock.Pending);
+        clock.Fire(TimeSpan.FromSeconds(6));
+        Outcome outcome = await batch.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
 
         JsonElement step = Step(outcome.Result, 0);
         Assert.False(step.GetProperty("ok").GetBoolean());
@@ -237,8 +241,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"list_windows","params":null}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -255,8 +258,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"list_windows","params":{"timeoutMs":3000}},{"method":"get_tree"}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(3),
-            TimeSpan.FromSeconds(10),
+            new StubTiming(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(10), TimeProvider.System),
             TestContext.Current.CancellationToken
         );
 
@@ -277,8 +279,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Task<Outcome> batch = RunBatchAsync(
             """[{"method":"list_windows"},{"method":"get_tree"}]""",
             Answer((method, _) => new { ok = method }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromSeconds(10),
+            new StubTiming(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(10), TimeProvider.System),
             cancel.Token
         );
         await cancel.CancelAsync();
@@ -303,8 +304,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
                         pngBase64 = base64,
                     }
             ),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -324,8 +324,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"screenshot","params":{"selector":"#Box"}}]""",
             Answer((_, _) => new { width = 200, height = 100 }),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -356,8 +355,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
                         null
                     )
             ),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -399,8 +397,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
                         null
                     )
             ),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -419,8 +416,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Outcome outcome = await RunBatchAsync(
             """[{"method":"wait_until","params":{"conditions":[{"kind":"on_ground","callsign":"AAL1"}],"timeoutMs":1000}}]""",
             Answer((_, _) => new WaitUntilResult(true, [0], 3.5, 120, [new WaitUntilLastValue(0, "on_ground", "on ground")], null, null, null)),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.Zero,
+            Prompt,
             TestContext.Current.CancellationToken
         );
 
@@ -441,8 +437,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
             Outcome outcome = await RunBatchAsync(
                 stepsJson,
                 Answer((method, _) => new { ok = method }),
-                TimeSpan.FromSeconds(30),
-                TimeSpan.Zero,
+                Prompt,
                 TestContext.Current.CancellationToken
             );
 
@@ -463,6 +458,9 @@ public sealed class BatchToolsTests : AutomationHostFixture
     /// <param name="Methods">The method of each request the host answered, in order.</param>
     /// <param name="Arguments">Each request's params, or null when it sent none.</param>
     private sealed record Outcome(string Result, List<string> Methods, List<JsonElement?> Arguments);
+
+    /// <summary>A batch's timing: its deadline, the stub's delay before each answer, and the clock the pipe client's timeouts run on.</summary>
+    private sealed record StubTiming(TimeSpan Deadline, TimeSpan Delay, TimeProvider Clock);
 
     private static JsonElement Parse(string result) => JsonDocument.Parse(result).RootElement.Clone();
 
@@ -488,21 +486,23 @@ public sealed class BatchToolsTests : AutomationHostFixture
 
     /// <summary>
     /// Serves a scripted host answering every request with <paramref name="respond"/> — recorded as it answers — and runs the
-    /// steps against it through <see cref="BatchTools.RunAsync"/>, with <paramref name="delay"/> before each answer.
+    /// steps against it through <see cref="BatchTools.RunAsync"/> with <paramref name="timing"/>'s batch deadline, delay before
+    /// each answer and pipe-client clock.
     /// </summary>
     private async Task<Outcome> RunBatchAsync(
         string stepsJson,
         Func<string, string, JsonElement?, AutomationResponse> respond,
-        TimeSpan deadline,
-        TimeSpan delay,
+        StubTiming timing,
         CancellationToken callerToken
     )
     {
+        (TimeSpan deadline, TimeSpan delay, TimeProvider clock) = timing;
         string pipeName = $"yaat-scripted-host-{Guid.NewGuid():N}";
         // The host runs to the test's own lifetime, never the batch's caller token: a caller cancel must reach RunAsync, not
         // cut the stub's own advertisement short.
         await StubPipeHost.AdvertiseAsync(DiscoveryDirectory, pipeName, TestContext.Current.CancellationToken);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // A hang guard: the stub serves until the batch is done with it, and a passing run cancels it long before this.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         List<string> methods = [];
         _seen = methods;
         List<JsonElement?> arguments = [];
@@ -520,6 +520,7 @@ public sealed class BatchToolsTests : AutomationHostFixture
         var directory = new PipeDirectory(
             DiscoveryDirectory,
             Process.GetCurrentProcess().ProcessName,
+            clock,
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );
