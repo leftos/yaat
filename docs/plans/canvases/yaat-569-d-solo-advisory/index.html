@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solo Traffic Advisories</title>
+<style>
+  /* Layout: rulings carried and found notes, one artboard whose three lanes each draw the solo advisory over a scope excerpt, then open decisions. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .switches code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 0 0 24px; font-size: 13px; color: var(--muted); }
+  .switches label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; }
+  .switches b { color: var(--ink); font-weight: 600; }
+  .switches .grpw { display: inline-flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 120ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts i { font-style: normal; font: 500 11px var(--f-mono); color: var(--tag-b); }
+  .nd { font: 600 10.5px var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--warn); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 96ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 30px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; scroll-margin-top: 12px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 17px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12.5px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .sent b { color: var(--ink); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; max-width: 150ch; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 110ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-wrap: wrap; gap: 18px 14px; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; max-width: 440px; }
+  .scene-frame .flabel { max-width: none; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 440px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .solo-b { font: 600 10px Inter, "Segoe UI", sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #7fd1b9; border: 1px solid #3f6f62; border-radius: 3px; padding: 0 4px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .nm .sub { font: 11px Inter, "Segoe UI", sans-serif; color: #8f969e; }
+  .fsub { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .mi > [data-prev] { max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+  .panel { max-height: 300px; overflow-y: auto; scrollbar-color: #555 transparent; position: relative; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .hint { font: 12px Inter, "Segoe UI", sans-serif; color: #8f969e; padding: 6px 11px 8px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; }
+  .muted-line { font: 12.5px Inter, "Segoe UI", sans-serif; color: #8f969e; padding: 10px 11px 12px; }
+
+  /* The box. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 210px; }
+  .tbox.wide { width: 250px; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .ghost { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; margin-top: 3px; white-space: nowrap; }
+  .ghost b { color: #cfe0ff; border: 1px solid #3a414b; border-radius: 3px; padding: 0 4px; font-weight: 500; }
+  .ghost kbd { font: 10.5px Inter, "Segoe UI", sans-serif; color: #cfd5dc; border: 1px solid #4a4f57; border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; }
+
+  /* The advisory block under the box. */
+  .adv { padding: 6px 11px 8px; display: flex; flex-direction: column; gap: 7px; }
+  .adv .lead { font: 11px Inter, "Segoe UI", sans-serif; color: #a4adb8; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .adv .lead b { color: #e4e7eb; font: 600 12px "JetBrains Mono", Consolas, monospace; }
+  .tgl { display: inline-flex; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; align-self: flex-start; }
+  .tgl button { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; border: 0; border-left: 1px solid #3a414b; padding: 4px 9px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+  .tgl button:first-child { border-left: 0; }
+  .tgl button code { font: 10.5px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .tgl button.on { background: #24406a; color: #fff; }
+  .tgl button.on code { color: #cfe0ff; }
+  .tgl button:disabled { opacity: .36; cursor: default; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { display: inline-flex; align-items: center; background: #23272c; border: 1px solid #3a414b; border-radius: 4px; height: 26px; font: 12.5px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; }
+  .chip button { background: transparent; border: 0; color: #8f969e; width: 17px; height: 24px; cursor: pointer; font: 13px Inter, sans-serif; padding: 0; }
+  .chip button:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+  .chip b { font-weight: 500; padding: 0 2px; white-space: nowrap; }
+  .chip.unset { border-style: dashed; border-color: #e0b070; }
+  .chip.unset b { color: #e0b070; }
+  .chip input { width: 54px; background: transparent; border: 0; color: #fff; font: inherit; padding: 0 7px; text-transform: uppercase; }
+  .chip input:focus { outline: none; }
+  .chip.add { border-style: dashed; color: #8f969e; padding: 0 8px; cursor: pointer; font-family: Inter, "Segoe UI", sans-serif; font-size: 12px; }
+  .say { font: italic 12.5px/1.4 Inter, "Segoe UI", sans-serif; color: #cfd5dc; }
+  .say .gap { color: #e0b070; font-style: normal; font: 11.5px "JetBrains Mono", Consolas, monospace; }
+  .sendl { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .sendl .cmd { padding-left: 0; opacity: 1; color: #cfe0ff; text-align: left; }
+  .sendl .cmd .gap { color: #e0b070; }
+  .kbd { font: 11px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; border: 1px solid #4a4f57; border-bottom-width: 2px; border-radius: 3px; padding: 1px 7px; cursor: pointer; white-space: nowrap; }
+  .kbd:disabled { opacity: .4; cursor: default; }
+  .anote { font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #8f969e; }
+  .anote:empty { display: none; }
+  .anote.bad { color: #ff9c8a; }
+  .anote.ok { color: #7fd1b9; }
+  .anote code { font: 11px "JetBrains Mono", Consolas, monospace; color: #cfe0ff; }
+  .check { font: 11.5px "JetBrains Mono", Consolas, monospace; display: flex; flex-wrap: wrap; gap: 2px 9px; color: #8f969e; }
+  .check .to { color: #e4e7eb; font-weight: 600; }
+  .check .y { color: #7fd1b9; } .check .n { color: #e0b070; } .check .x { color: #ff9c8a; }
+
+  /* Lane B's builder. */
+  .bgrid { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .bf { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 8px; align-items: center; font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; }
+  .bf .w { font: 11px Inter, "Segoe UI", sans-serif; color: #8f969e; margin-left: 6px; }
+  .stp { display: inline-flex; align-items: center; border: 1px solid #3a414b; border-radius: 4px; background: #23272c; height: 26px; }
+  .stp button { background: transparent; border: 0; color: #cfd5dc; width: 22px; height: 24px; cursor: pointer; font: 14px Inter, sans-serif; }
+  .stp button:hover { background: rgba(255, 255, 255, .08); }
+  .stp b { font: 500 12.5px "JetBrains Mono", Consolas, monospace; color: #fff; min-width: 40px; text-align: center; }
+  .stp.unset { border-style: dashed; border-color: #e0b070; }
+  .stp.unset b { color: #e0b070; }
+  .pad { display: grid; grid-template-columns: repeat(3, 28px); gap: 2px; }
+  .pad button, .pad span { height: 22px; font: 10.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; cursor: pointer; padding: 0; }
+  .pad span { background: transparent; border-color: transparent; cursor: default; display: grid; place-items: center; color: #5b6570; }
+  .pad button.on { background: #24406a; color: #fff; border-color: #8fc1ff; }
+  .pad.unset button { border-style: dashed; border-color: #6a5a3a; }
+  .seg { display: inline-flex; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; }
+  .seg button { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 0; border-left: 1px solid #3a414b; padding: 3px 8px; cursor: pointer; }
+  .seg button:first-child { border-left: 0; }
+  .seg button.on { background: #24406a; color: #fff; }
+  .seg.unset { border-style: dashed; border-color: #e0b070; }
+  .btype { font: 12.5px "JetBrains Mono", Consolas, monospace; color: #fff; background: #23272c; border: 1px solid #3a414b; border-radius: 4px; height: 26px; width: 70px; padding: 0 7px; text-transform: uppercase; }
+  .chk { display: inline-flex; gap: 4px; align-items: center; margin-left: 8px; font-size: 11px; color: #a4adb8; cursor: pointer; }
+  .dial { display: block; }
+  .dial .hr { cursor: pointer; }
+  .dial .hr circle { fill: #23272c; stroke: #3a414b; }
+  .dial .hr:hover circle { stroke: #8fc1ff; }
+  .dial .hr.on circle { fill: #24406a; stroke: #8fc1ff; }
+  .dial text { fill: #cfd5dc; font: 11px "JetBrains Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
+  .dial .wd { fill: #23272c; stroke: #3a414b; cursor: pointer; }
+  .dial .wd:hover { stroke: #8fc1ff; }
+  .dial .wd.on { fill: #24406a; stroke: #8fc1ff; }
+  .dial .wl { font-size: 9.5px; }
+  .dial .ac { fill: #ffffff; }
+  .dial .nose { stroke: #8f969e; stroke-dasharray: 2 3; }
+  .dial .cap2 { fill: #8f969e; font: 9.5px Inter, "Segoe UI", sans-serif; }
+  .dial.unset .ring0 { stroke: #e0b070; stroke-dasharray: 3 3; fill: none; }
+  .pat .leg { stroke: #46505b; stroke-width: 3; stroke-linecap: round; }
+  .pat .leg.side { stroke: #76838f; }
+  .pat .leg.on { stroke: #8fc1ff; stroke-width: 4.5; }
+  .pat .hit { stroke: transparent; stroke-width: 14; cursor: pointer; }
+  .pat .rw { stroke: #cfd5dc; stroke-width: 6; }
+  .pat text { fill: #a4adb8; font: 9.5px "JetBrains Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
+  .pat text.on { fill: #cfe0ff; }
+  .fixl { display: flex; flex-direction: column; gap: 3px; }
+  .fixl button { font: 11.5px Inter, "Segoe UI", sans-serif; text-align: left; color: #cfd5dc; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 4px 7px; cursor: pointer; }
+  .fixl button code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .fixl button.on { background: #24406a; color: #fff; border-color: #8fc1ff; }
+  .fixl .none { font: 11px Inter, "Segoe UI", sans-serif; color: #8f969e; }
+
+  /* Traffic rows: mark, callsign and type over where it is, the row's state. */
+  .tr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; min-height: 42px; padding: 3px 11px 3px 8px; border-radius: 4px; cursor: pointer; color: #e4e7eb; }
+  .tr:hover, .tr.hot { background: rgba(255, 255, 255, .085); }
+  .tr.picked { background: rgba(143, 193, 255, .13); }
+  .tr .mk { font-size: 12px; text-align: center; color: #8fc1ff; }
+  .tr .two { min-width: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+  .tr .l1 { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .tr .cs { font: 600 13px "JetBrains Mono", Consolas, monospace; }
+  .tr .ty { font: 12px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; }
+  .tr .lg { font: 11.5px Inter, "Segoe UI", sans-serif; color: #e4e7eb; overflow: hidden; text-overflow: ellipsis; }
+  .tr .l2 { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tr .l2 i { font-style: normal; font-family: Inter, "Segoe UI", sans-serif; color: #6f7883; }
+  .tr .cmd.res { color: #7fd1b9; opacity: 1; }
+
+  /* The aircraft menu stub with its quick-command strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; white-space: nowrap; }
+  .strip { display: flex; gap: 4px; padding: 2px 11px 2px; }
+  .well { width: 34px; height: 34px; border-radius: 5px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .well .gly { margin: 0; }
+  .well.open { background: #24406a; }
+  .well.inert { opacity: .38; }
+  .slabel { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ededed; padding: 4px 11px 6px; }
+  .slabel code { font: 11px "JetBrains Mono", Consolas, monospace; color: #b8b8b8; }
+  .slabel .why { color: #9a9a9a; }
+
+  /* The scene: the scope excerpt with the menu and flyout over it. */
+  .scene { position: relative; width: 1130px; height: 720px; flex: 0 0 auto; border-radius: 6px; overflow: hidden; }
+  .scene > svg { position: absolute; inset: 0; }
+  .scene .at-menu { position: absolute; left: 12px; top: 12px; }
+  .scene .at-fly { position: absolute; left: 252px; top: 12px; }
+  .scope-bg { fill: #05080b; }
+  .vm { stroke: #3a4652; stroke-width: 1.2; fill: none; }
+  .rwy { stroke: #6b7886; stroke-width: 3; stroke-linecap: round; }
+  .apt { font: 10px "JetBrains Mono", Consolas, monospace; fill: #6b7886; }
+  .vfrp path { fill: none; stroke: #8a7bb0; stroke-width: 1.2; }
+  .vfrp text { font: 9.5px "JetBrains Mono", Consolas, monospace; fill: #8a7bb0; }
+  .ckr { font: 10px "JetBrains Mono", Consolas, monospace; fill: #5f7fa8; text-anchor: middle; }
+  .tgt circle { fill: none; stroke: #b9d3c2; stroke-width: 1.4; }
+  .tgt line { stroke: #6f8a7a; stroke-width: 1; }
+  .tgt text { font: 11px "JetBrains Mono", Consolas, monospace; fill: #9fd8b0; }
+  .tgt .ring { stroke: transparent; stroke-width: 2; fill: none; }
+  .tgt.lit circle.dot { stroke: #ffffff; }
+  .tgt.lit text { fill: #ffffff; font-weight: 700; }
+  .tgt.lit .ring { stroke: #8fc1ff; }
+  .tgt.res .ring { stroke: #7fd1b9; stroke-dasharray: 4 3; }
+  .subj circle { fill: #ffffff; stroke: none; }
+  .subj text { font: 11px "JetBrains Mono", Consolas, monospace; fill: #ffffff; }
+  .subj .sel { fill: none; stroke: #ffffff; stroke-width: 1; stroke-dasharray: 3 2; }
+  .subj .vec { stroke: #ffffff; stroke-width: 1; opacity: .6; }
+  .hist { fill: #ffffff; opacity: .35; }
+  .bline { stroke: #8fc1ff; stroke-width: 1.4; stroke-dasharray: 5 4; fill: none; }
+  .blabel { font: 11px "JetBrains Mono", Consolas, monospace; fill: #8fc1ff; }
+  body:not(.bearing) .bline, body:not(.bearing) .blabel { display: none; }
+  .measure { font: 12px var(--f-mono); color: var(--muted); white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 0 0 18px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body class="bearing" data-prefill="true">
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part D · solo training · mock for the owner's decisions</div>
+  <h1>Solo training: the traffic and field advisory from the flyout</h1>
+  <p class="lede">In solo training the sim refuses <code>RTIS {callsign}</code> and bare <code>RTIS</code> (“Use RTIS &lt;clock&gt; &lt;miles&gt; &lt;direction&gt; &lt;type&gt; [altitude] in solo training”, <code>NavigationCommandHandler.cs:1530</code>), and bare <code>RFIS</code> (“Use RFIS &lt;clock&gt; &lt;miles&gt;”, :1446). The student is the controller: they must give the advisory as they would say it, and the sim matches it to traffic and scores it. This page draws three ways for the student to build that call from the <b>Report traffic in sight…</b> flyout (the lane B layout the owner chose) without typing the whole thing, and the same for the field advisory from <b>Report field in sight…</b>.</p>
+  <p class="lede">The situation: <b>N52TW</b>, a PA28 VFR inbound to <b>KOAK</b> from the southeast at 2,000 ft, heading 300; nothing reported in sight yet. Seven aircraft are airborne within 7 NM; <b>N9152M</b> is on a left base for 28L, <b>N738SP</b> on a left downwind, <b>SWA2287</b> on final 30, and <b>N22RX</b> is over the Oakland Coliseum reporting point (<code>VPCOL</code>). Positions follow each row's clock and distance; they are illustrative, not from a recording.</p>
+  <p class="lede">Each lane draws, in order: the flyout open over the radar with an aircraft picked (ring and bearing line), its advisory filled and what Enter sends; the pattern-leg form near the field; the field advisory; then a refused call, a call that describes other traffic, a form the aircraft cannot take, an incomplete call, and the empty state. Everything is live: pick rows, step values, switch forms, press Enter; the line under each lane says what would be sent and what the sim would answer. The answers imitate the sim's matcher on the drawn positions.</p>
+
+  <section class="note-box" aria-labelledby="note-h">
+    <h2 id="note-h">Carried from the owner's rulings (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Lane B layout.</b> Report traffic in sight… and Follow traffic… are two flyouts on one layout: title line, a glyph box row whose command column previews what Enter sends, a separator, a 300 px list of airborne traffic, nearest first. The advisory sits between the box and the list.</li>
+      <li><b>Follow</b> (not drawn here): rows not reported in sight are greyed, with an RPO-only Force that sends <code>FOLLOWF</code>; Force is absent in solo, so in solo a follow always needs a reported advisory first.</li>
+      <li><b>Radar cue</b> on hover and keyboard focus: a ring on the target and a dashed bearing line from the selected aircraft. Here the picked aircraft stays ringed while its advisory is open; lane C rings the aircraft the typed call resolves to.</li>
+      <li><b>RPO mode is unchanged</b>: rows send <code>RTIS {callsign}</code> as the part D mock draws. The advisory builder replaces that only in solo training.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">What the sim does with the call (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>Tolerant matching.</b> The structured call resolves to the best-fitting airborne aircraft within clock ±2 h, ±2 NM, direction ±1 octant, altitude ±500 ft; it scores clean within 1 h, 1 NM, the exact direction and 100 ft, else adds an “advisory imprecise” coaching note (<code>TrafficAdvisoryMatcher.cs:68-83</code>, <code>COMMANDS.md:1546-1548</code>). Nose: ±1 octant, ±2 NM; pattern leg: leg, side and runway exact, ±2 NM; over a point: within 2 NM of it.</li>
+      <li><b>The call can land on other traffic.</b> The lowest weighted error wins, so a call that fits another aircraft better resolves to it, not to the aircraft the student meant; only the pilot's reply tells them.</li>
+      <li><b>Out of tolerance is refused at once</b>: “Unable, no aircraft matches traffic 5 o'clock, 4 mile(s), Wbound, SR22, 3,500” (<code>TrafficAdvisoryMatcher.cs:151</code>; nose :262, pattern :346, landmark :411). The <code>{Direction}bound</code> text reads “Wbound”, “NWbound” (<code>Describe</code>, :481-485): a nit.</li>
+      <li><b>The field advisory is not checked.</b> <code>RFIS &lt;clock&gt; &lt;miles&gt;</code> runs the field acquisition and echoes the phrase (<code>NavigationCommandHandler.cs:1522-1526</code>); the evaluator records field proof for any values (<code>SoloTrainingEvaluator.cs:142-145</code>). <code>RFIS 6 30</code> proves it as well as <code>RFIS 12 5</code>. <span class="nd">aviation review</span> if it should be graded.</li>
+      <li><b>No dry run exists.</b> The matcher works on <code>AircraftState</code> in the sim; a check before sending (lane C) needs it run against the client's snapshot or a server round trip. <span class="nd">needs building</span></li>
+    </ul>
+  </section>
+
+  <div id="measure"></div>
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="switches" role="group" aria-label="Page switches">
+    <span class="grpw" role="radiogroup" aria-label="Pre-filled values"><b>Pre-filled values</b>
+      <label><input type="radio" name="prefill" value="true" checked> the true ones</label>
+      <label><input type="radio" name="prefill" value="blank"> left for the student (clock, miles, direction)</label>
+    </span>
+    <span>Open question 2: with “left for the student”, rows and the bearing label also stop printing clock and miles.</span>
+    <label><input type="checkbox" id="sw-bearing" checked> <b>Bearing line</b></label>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <ol class="nl">
+      <li><b>1. How the student builds the call.</b><span class="opts"><i>A</i> a chip line pre-filled from the picked row, stepped and sent with Enter · <i>B</i> a builder (clock dial, miles, direction pad, type, altitude) seeded from the pointed row · <i>C</i> the short form typed in the box, Tab taking each part from the pointed row, a live check naming the aircraft it resolves to.</span></li>
+      <li><b>2. Pre-filled values</b> (the page switch).<span class="opts"><i>a</i> the true ones: easy, teaches less; the Session Report scores every call clean · <i>b</i> left for the student: clock, miles and direction blank, type and altitude filled (read off the data block); rows and the bearing label stop printing clock and miles · <i>c</i> a solo-session setting (“Coach”/“Check ride”) choosing between them.</span></li>
+      <li><b>3. Check before sending.</b><span class="opts"><i>a</i> none: the pilot's reply and the Session Report grade it (A and B as drawn) · <i>b</i> a live check under the box (C as drawn; needs the matcher on the client or a dry-run call) · <i>c</i> only after a refusal, naming the part that is out.</span></li>
+      <li><b>4. On a refusal.</b><span class="opts"><i>a</i> the flyout stays open with the sim's reply, the values kept for a fix (as drawn; the client waits for the command result) · <i>b</i> it closes as on success, the reply in the terminal as today.</span></li>
+      <li><b>5. Forms offered.</b><span class="opts"><i>a</i> all four, Radar · Nose · Pattern · Over, each greyed with its reason when the aircraft cannot take it (as drawn) · <i>b</i> Radar only · <i>c</i> Radar, plus Pattern when the aircraft is in a pattern leg.</span></li>
+      <li><b>6. The field advisory in solo.</b><span class="opts"><i>a</i> Report field in sight becomes a flyout with the lane's clock and miles, in solo only (as drawn; RPO keeps the one-click bare <code>RFIS</code>) · <i>b</i> also in RPO. And: should the sim grade <code>RFIS</code> clock and miles as it grades RTIS (sim change, aviation review)?</span></li>
+      <li><b>7. Which aircraft stays ringed.</b><span class="opts"><i>a</i> the pointed row, else the picked one while its advisory is open (A, B as drawn) · <i>b</i> the pointed row only (the ruling's letter) · <i>c</i> in C, the aircraft the typed call resolves to (as drawn), which can differ from the one pointed at.</span></li>
+    </ol>
+  </section>
+
+  <footer class="foot">Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px, stroke 1.9: Report traffic in sight and Report field in sight in the Tower amber <code>#FFC062</code>, Follow traffic in the Pattern violet <code>#DDBDFF</code>; Enter left downwind is a faint stand-in. Spoken text follows <code>CommandDescriber.FormatTraffic*Phrase</code> (:2750-2793); the aircraft type words (“Cirrus SR22”, “a Cessna”) are illustrative, not from its type table. The scope is a sketch (KOAK's runways, a shoreline, a 5 NM ring), not YAAT's radar renderer. Open the page with <code>#measure</code> to list every flyout's rendered size.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const GL = {
+    RTIS: ["#FFC062", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"],
+    RFIS: ["#FFC062", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"],
+    FOLLOW: ["#DDBDFF", "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"],
+    ELD: ["#DDBDFF", "M5 6h14 M19 6v12 M19 18H9", true],
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${GL[id][2] ? ` opacity=".45"` : ""}><path d="${GL[id][1]}"/></svg>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner, cls = "") => `<div class="frame ${cls}"><div class="flabel">${label}</div>${inner}</div>`;
+  const titleLine = (html, right) => `<div class="mi title"><span class="et">${html}</span><span class="r">${right}</span></div>`;
+  const fmt = n => n.toLocaleString("en-US");
+  const pad3 = n => String(n).padStart(3, "0");
+  const rad = d => d * Math.PI / 180;
+
+  /* ---------- Data ---------- */
+  const SUBJ = { cs: "N52TW", type: "PA28", alt: 2000, hdg: 300, x: 920, y: 230, state: "VFR arrival · KOAK 28L · 2,000 · 105 kt" };
+  const T = [
+    { cs: "N738SP", type: "C172", clock: 12, nm: 3, alt: 1000, dir: "E", leg: "left downwind 28L", pat: { leg: "DW", side: "L", pnm: 2, rwy: "28L" } },
+    { cs: "N9152M", type: "C152", clock: 11, nm: 4, alt: 900, dir: "N", leg: "left base 28L", pat: { leg: "BASE", side: "L", pnm: 2, rwy: "28L" } },
+    { cs: "N22RX", type: "SR22", clock: 2, nm: 4, alt: 3500, dir: "W", leg: "over Coliseum", fix: "VPCOL" },
+    { cs: "SWA2287", type: "B737", clock: 9, nm: 5, alt: 1600, dir: "NW", leg: "final 30", pat: { leg: "FINAL", side: null, pnm: 4, rwy: "30" } },
+    { cs: "N4417Q", type: "C182", clock: 6, nm: 5, alt: 2000, dir: "NW", leg: "" },
+    { cs: "N2468W", type: "BE36", clock: 8, nm: 6, alt: 3500, dir: "N", leg: "" },
+    { cs: "N811CP", type: "C182", clock: 4, nm: 7, alt: 2500, dir: "S", leg: "" },
+  ];
+  const byCs = new Map(T.map(t => [t.cs, t]));
+  const FIELD = { id: "KOAK", name: "Oakland Intl", clock: 12, nm: 5 };
+  const FIXES = [{ id: "VPCOL", name: "Oakland Coliseum" }];
+  const fixName = id => (FIXES.find(x => x.id === id) || { name: id }).name;
+  const S = 30;
+  T.forEach(t => {
+    const b = rad(SUBJ.hdg + t.clock * 30);
+    t.x = SUBJ.x + Math.sin(b) * t.nm * S;
+    t.y = SUBJ.y - Math.cos(b) * t.nm * S;
+  });
+  const DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const DIRW = { N: "northbound", NE: "northeastbound", E: "eastbound", SE: "southeastbound", S: "southbound", SW: "southwestbound", W: "westbound", NW: "northwestbound" };
+  const POS = ["NOSE", "NR", "R", "RR", "TAIL", "LR", "L", "NL"];
+  const POSW = { NOSE: "nose", NR: "nose and to the right", R: "right", RR: "right, slightly behind", TAIL: "tail", LR: "left, slightly behind", L: "left", NL: "nose and to the left" };
+  const LEGS = ["UW", "XW", "DW", "BASE", "FINAL"];
+  const LEGW = { UW: "upwind", XW: "crosswind", DW: "downwind", BASE: "base", FINAL: "final" };
+  const LEGE = { UW: "Upwind", XW: "Crosswind", DW: "Downwind", BASE: "Base", FINAL: "Final" };
+  const RWYS = ["28L", "28R", "30"];
+  const TYPEW = { SR22: ["Cirrus SR22", "a Cirrus"], C172: ["Cessna 172", "a Cessna"], C152: ["Cessna 152", "a Cessna"], B737: ["Boeing 737", "a Boeing 737"], C182: ["Cessna 182", "a Cessna"], BE36: ["Bonanza", "a Bonanza"] };
+  const typeW = (ty, vfr) => TYPEW[ty] ? TYPEW[ty][vfr ? 1 : 0] : (vfr ? `a ${ty}` : ty);
+  const octOfClock = c => Math.round((c % 12) * 30 / 45) % 8;
+  const sd = (a, b) => { const d = Math.abs(a - b) % 12; return Math.min(d, 12 - d); };
+  const od = (a, b) => { const d = Math.abs(a - b) % 8; return Math.min(d, 8 - d); };
+  const delta = t => { const d = t.alt - SUBJ.alt; return Math.abs(d) < 100 ? "same altitude" : `${fmt(Math.abs(d))} ${d < 0 ? "below" : "above"}`; };
+  const prefill = () => document.body.dataset.prefill;
+
+  /* ---------- The advisory model ---------- */
+  const ORDER = { radar: ["clock", "nm", "dir", "type", "alt"], nose: ["pos", "nm", "type"], pattern: ["leg", "side", "pnm", "rwy", "type"], over: ["fix", "type"], rfis: ["clock", "nm"] };
+  const JUDGED = { radar: ["clock", "nm", "dir"], nose: ["pos", "nm"], pattern: ["leg", "side", "pnm"], over: ["fix"], rfis: ["clock", "nm"] };
+  const KIND = { clock: "clock", nm: "miles", dir: "direction", type: "type", alt: "altitude", pos: "position off the nose", leg: "leg", side: "side", pnm: "miles", rwy: "runway", fix: "reporting point" };
+  const FORMS = [["radar", "Radar", "clock"], ["nose", "Nose", "NR"], ["pattern", "Pattern", "DW"], ["over", "Over", "fix"]];
+  function truthOf(form, cs) {
+    if (form === "rfis") return { clock: FIELD.clock, nm: FIELD.nm };
+    const t = byCs.get(cs);
+    if (!t) return null;
+    if (form === "radar") return { clock: t.clock, nm: t.nm, dir: t.dir, type: t.type, alt: Math.round(t.alt / 100) };
+    if (form === "nose") return { pos: POS[octOfClock(t.clock)], nm: t.nm, type: t.type };
+    if (form === "pattern") return t.pat ? { ...t.pat, type: t.type } : null;
+    if (form === "over") return t.fix ? { fix: t.fix, type: t.type } : null;
+    return null;
+  }
+  const formReason = (t, k) => k === "pattern" && !t.pat ? `${t.cs} is in no pattern leg` : k === "over" && !t.fix ? `${t.cs} is not within 2 NM of a reporting point` : "";
+  const formKey = st => st.verb === "RFIS" ? "rfis" : st.form;
+  function seed(st) {
+    const tr = truthOf(formKey(st), st.cs);
+    st.f = tr ? { ...tr } : null;
+    if (st.f && prefill() === "blank") JUDGED[formKey(st)].forEach(k => { st.f[k] = null; });
+    if (st.f && st.form === "pattern" && prefill() === "blank") st.f.side = null;
+  }
+  function required(form, f) {
+    if (form === "radar") return ["clock", "nm", "dir", "type"];
+    if (form === "pattern") return f.leg === "FINAL" ? ["leg", "pnm", "rwy", "type"] : ["leg", "side", "pnm", "rwy", "type"];
+    return ORDER[form];
+  }
+  const missingOf = (form, f) => required(form, f).filter(k => f[k] == null || f[k] === "");
+
+  /* The command and the spoken call; a missing part shows as ‹kind›. */
+  function cmdHtml(form, f) {
+    const q = k => f[k] == null || f[k] === "" ? `<span class="gap">‹${KIND[k]}›</span>` : esc(f[k]);
+    if (form === "rfis") return `RFIS ${q("clock")} ${q("nm")}`;
+    if (form === "radar") return `RTIS ${q("clock")} ${q("nm")} ${q("dir")} ${q("type")}${f.alt != null ? ` ${pad3(f.alt)}` : ""}`;
+    if (form === "nose") return `RTIS ${q("pos")} ${q("nm")} ${q("type")}`;
+    if (form === "pattern") return `RTIS ${q("leg")} ${f.leg === "FINAL" ? "" : q("side") + " "}${q("pnm")} ${q("rwy")} ${q("type")}`;
+    return `RTIS OVER ${q("fix")} ${q("type")}`;
+  }
+  const cmdText = (form, f) => { const d = document.createElement("div"); d.innerHTML = cmdHtml(form, f); return d.textContent; };
+  function sayHtml(form, f) {
+    const g = k => `<span class="gap">‹${KIND[k]}›</span>`;
+    const v = (k, fn) => f[k] == null || f[k] === "" ? g(k) : esc(fn ? fn(f[k]) : f[k]);
+    const mi = k => f[k] == null ? g(k) : `${f[k]} mile${f[k] === 1 ? "" : "s"}`;
+    if (form === "rfis") return `Field's at your ${v("clock")} o'clock, ${mi("nm")}, report it in sight.`;
+    if (form === "radar") return `Traffic, ${v("clock")} o'clock, ${mi("nm")}, ${v("dir", d => DIRW[d] || d)}, ${v("type", ty => typeW(ty, false))}${f.alt != null ? `, ${fmt(f.alt * 100)}` : ""}, report it in sight.`;
+    if (form === "nose") return `Traffic, off your ${v("pos", p => POSW[p] || p)}, ${mi("nm")}, ${v("type", ty => typeW(ty, true))}, report it in sight.`;
+    if (form === "pattern") {
+      const side = f.leg === "FINAL" ? "" : f.side == null ? `${g("side")} ` : `${f.side === "L" ? "left" : "right"} `;
+      return `Traffic, ${f.pnm == null ? g("pnm") : f.pnm}-mile ${side}${v("leg", l => LEGW[l] || l)} for runway ${v("rwy")}, ${v("type", ty => typeW(ty, true))}, report it in sight.`;
+    }
+    return `Traffic, over ${v("fix", fixName)}, ${v("type", ty => typeW(ty, true))}, report it in sight.`;
+  }
+
+  /* What the sim would answer: an imitation of TrafficAdvisoryMatcher on the drawn positions. */
+  function score(form, f, t) {
+    const tm = t.type === f.type;
+    if (form === "radar") {
+      const ce = sd(t.clock, f.clock), me = Math.abs(t.nm - f.nm), de = od(DIRS.indexOf(t.dir), DIRS.indexOf(f.dir));
+      const ae = f.alt == null ? 0 : Math.abs(Math.round(t.alt / 100) - f.alt);
+      if ((ce > 2) || (me > 2) || (de > 1) || (ae > 5)) return null;
+      const marks = [["clock", ce <= 1, `${ce} h off`], ["miles", me <= 1, `${me} NM off`], ["direction", de === 0, "an octant off"]];
+      if (f.alt != null) marks.push(["altitude", ae <= 1, `${ae * 100} ft off`]);
+      marks.push(["type", tm, `is ${t.type}`]);
+      return { w: ce + me + de + ae / 5 + (tm ? 0 : 3), marks };
+    }
+    if (form === "nose") {
+      const pe = od(octOfClock(t.clock), POS.indexOf(f.pos)), me = Math.abs(t.nm - f.nm);
+      if ((pe > 1) || (me > 2)) return null;
+      return { w: pe * 2 + me + (tm ? 0 : 3), marks: [["position", pe === 0, "an octant off"], ["miles", me <= 1, `${me} NM off`], ["type", tm, `is ${t.type}`]] };
+    }
+    if (form === "pattern") {
+      if (!t.pat || (t.pat.leg !== f.leg) || (t.pat.rwy !== f.rwy) || ((f.leg !== "FINAL") && (t.pat.side !== f.side))) return null;
+      const me = Math.abs(t.pat.pnm - f.pnm);
+      if (me > 2) return null;
+      return { w: me + (tm ? 0 : 3), marks: [["leg", true, ""], ["miles", me <= 1, `${me} NM off`], ["type", tm, `is ${t.type}`]] };
+    }
+    if (form === "over") {
+      if (t.fix !== f.fix) return null;
+      return { w: tm ? 0 : 3, marks: [["point", true, ""], ["type", tm, `is ${t.type}`]] };
+    }
+    return null;
+  }
+  function refusal(form, f) {
+    if (form === "radar") return `Unable, no aircraft matches traffic ${f.clock} o'clock, ${f.nm} mile(s), ${f.dir}bound, ${f.type}${f.alt != null ? `, ${fmt(f.alt * 100)}` : ""}`;
+    if (form === "nose") return `Unable, no traffic ${f.nm} mile(s) off your ${f.pos}`;
+    if (form === "pattern") return `Unable, no traffic on the ${LEGE[f.leg] || f.leg} leg for runway ${f.rwy}`;
+    return "Unable, no traffic over that landmark";
+  }
+  function judge(form, f) {
+    const miss = missingOf(form, f);
+    if (miss.length) return { state: "incomplete", miss };
+    if (form === "rfis") {
+      const marks = [["clock", sd(FIELD.clock, f.clock) <= 1, `${sd(FIELD.clock, f.clock)} h off`], ["miles", Math.abs(FIELD.nm - f.nm) <= 1, `${Math.abs(FIELD.nm - f.nm)} NM off`]];
+      return { state: "field", marks };
+    }
+    let best = null;
+    T.forEach(t => { const r = score(form, f, t); if (r && (!best || r.w < best.w)) best = { ...r, cs: t.cs }; });
+    if (!best) return { state: "refused", msg: refusal(form, f) };
+    return { state: "ok", cs: best.cs, marks: best.marks, clean: best.marks.every(m => m[1]) };
+  }
+  const offText = r => r.marks.filter(m => !m[1]).map(m => `${m[0]} ${m[2]}`).join(", ");
+
+  /* ---------- Flyout states ---------- */
+  const STATES = new Map();
+  let nextId = 0;
+  function mk(lane, o) {
+    const st = { id: `f${nextId++}`, lane, verb: o.verb || "RTIS", cs: o.cs || null, form: o.form || "radar", f: null, typed: o.typed || "", pinned: !!o.cs, note: null, filter: "" };
+    if (o.f) st.f = { ...o.f };
+    else if (st.cs || st.verb === "RFIS") seed(st);
+    STATES.set(st.id, st);
+    if (o.send) send(st, true);
+    return st;
+  }
+  /* The form and parts the flyout holds now: lane C reads them from what was typed. */
+  function cur(st) {
+    if (st.lane !== "c") return { form: formKey(st), f: st.f || {} };
+    return parseC(st);
+  }
+  const int = s => (s != null && /^\d+$/.test(s)) ? parseInt(s, 10) : null;
+  function parseC(st) {
+    const tk = st.typed.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    if (st.verb === "RFIS") return { form: "rfis", f: { clock: int(tk[0]), nm: int(tk[1]) } };
+    if (!tk.length) return { form: "radar", f: {}, empty: true };
+    const t0 = tk[0];
+    if (/^\d+$/.test(t0)) {
+      const c = int(tk[0]);
+      return { form: "radar", f: { clock: (c >= 1 && c <= 12) ? c : null, nm: int(tk[1]), dir: DIRS.includes(tk[2]) ? tk[2] : null, type: tk[3] || null, alt: int(tk[4]) } };
+    }
+    if (POS.includes(t0)) return { form: "nose", f: { pos: t0, nm: int(tk[1]), type: tk[2] || null } };
+    if (LEGS.includes(t0)) {
+      if (t0 === "FINAL") return { form: "pattern", f: { leg: t0, side: null, pnm: int(tk[1]), rwy: tk[2] || null, type: tk[3] || null } };
+      return { form: "pattern", f: { leg: t0, side: ["L", "R"].includes(tk[1]) ? tk[1] : null, pnm: int(tk[2]), rwy: tk[3] || null, type: tk[4] || null } };
+    }
+    if (t0 === "OVER") return { form: "over", f: { fix: tk[1] || null, type: tk[2] || null } };
+    return { form: "filter", f: {}, text: tk.join(" ") };
+  }
+
+  /* ---------- Rendering one flyout ---------- */
+  function rowHtml(t) {
+    const l2 = prefill() === "true" ? `${t.clock} o'clock · ${t.nm} nm · ${delta(t)} · ${DIRW[t.dir]}` : `${delta(t)} · <i>find it on the scope</i>`;
+    const lg = t.leg ? `<span class="lg">· ${esc(t.leg)}</span>` : "";
+    return `<div class="tr" role="menuitem" tabindex="0" data-cs="${t.cs}"><span class="mk"></span><span class="two"><span class="l1"><span class="cs">${esc(t.cs)}</span><span class="ty">· ${esc(t.type)}</span>${lg}</span><span class="l2">${l2}</span></span><span class="cmd wait" data-c></span></div>`;
+  }
+  function fly(st, o = {}) {
+    const isF = st.verb === "RFIS";
+    const title = isF ? "Report field in sight" : "Report traffic in sight";
+    const right = `${SUBJ.cs} · ${fmt(SUBJ.alt)} · hdg ${SUBJ.hdg} <span class="solo-b">solo</span>`;
+    let box;
+    if (st.lane === "c") {
+      const ph = isF ? "clock miles: 12 5" : "2 4 w sr22 35, or a callsign";
+      box = `<div class="mi" role="menuitem">${gl(isF ? "RFIS" : "RTIS")}<span class="nm"><span>${isF ? "Field advisory" : "Advisory"} <span class="sub">as you would say it</span></span><span class="under"><input class="tbox wide focus" type="text" data-say value="${esc(st.typed)}" placeholder="${ph}" aria-label="Advisory" autocomplete="off" spellcheck="false"></span><span class="ghost" data-ghost></span></span><span></span><span class="cmd" data-prev></span></div>`;
+    } else if (isF) {
+      box = `<div class="mi" role="menuitem">${gl("RFIS")}<span class="nm"><span>Field advisory</span><span class="fsub">KOAK · destination</span></span><span></span><span class="cmd" data-prev></span></div>`;
+    } else {
+      box = `<div class="mi" role="menuitem">${gl("RTIS")}<span class="nm"><span>Traffic</span><span class="under"><input class="tbox${st.cs ? "" : " focus"}" type="text" data-box value="" placeholder="Filter by callsign or type" aria-label="Traffic filter" autocomplete="off" spellcheck="false"></span></span><span></span><span class="cmd" data-prev></span></div>`;
+    }
+    let list;
+    if (o.empty) { st.empty = true; list = `<div class="muted-line">No other aircraft airborne.</div>`; }
+    else if (isF) list = `<div class="tr picked" data-fieldrow tabindex="0"><span class="mk">●</span><span class="two"><span class="l1"><span class="cs">KOAK</span><span class="ty">· Oakland Intl</span><span class="lg">· destination</span></span><span class="l2">${prefill() === "true" ? `${FIELD.clock} o'clock · ${FIELD.nm} nm · runways 28L 28R 30` : "<i>find it on the scope</i>"}</span></span><span class="cmd wait"></span></div>`;
+    else list = `<div class="panel" data-list><div class="grp"><span>Airborne · nearest first</span><code>${T.length}</code></div>${T.map(rowHtml).join("")}<div class="hint" data-nomatch hidden></div></div>`;
+    return `<div class="menu m w fly" role="menu" aria-label="${title}" data-fid="${st.id}">${titleLine(`<b>${title}</b>`, right)}${box}<div data-adv></div>${sep()}${list}</div>`;
+  }
+
+  /* Lane A: the chip line. */
+  function chip(st, k) {
+    const v = st.f[k];
+    if (k === "type") return `<span class="chip" title="Type, read off the data block"><input data-type value="${esc(v || "")}" aria-label="Type" spellcheck="false"></span>`;
+    if (k === "alt") {
+      if (v == null) return `<span class="chip add" data-addalt title="Altitude is optional">+ altitude</span>`;
+      return `<span class="chip" data-f="alt"><button data-step="-1" aria-label="Lower">‹</button><b>${fmt(v * 100)}</b><button data-step="1" aria-label="Higher">›</button><button data-omit title="Omit the altitude" aria-label="Omit altitude">×</button></span>`;
+    }
+    const show = { clock: x => `${x} o'clock`, nm: x => `${x} mi`, pnm: x => `${x} mi`, dir: x => DIRW[x], pos: x => POSW[x], leg: x => LEGW[x], side: x => x === "L" ? "left" : "right", rwy: x => `rwy ${x}`, fix: x => x };
+    const unset = v == null;
+    return `<span class="chip${unset ? " unset" : ""}" data-f="${k}"><button data-step="-1" aria-label="Previous">‹</button><b>${unset ? `${KIND[k]} ?` : esc(show[k](v))}</b><button data-step="1" aria-label="Next">›</button></span>`;
+  }
+  function tabsHtml(st) {
+    const t = byCs.get(st.cs);
+    return `<div class="tgl ftabs" role="group" aria-label="Form">${FORMS.map(([k, l, tok]) => { const why = formReason(t, k); return `<button type="button" data-form="${k}" class="${st.form === k ? "on" : ""}"${why ? ` disabled title="${esc(why)}"` : ""}>${l} <code>${tok}</code></button>`; }).join("")}</div>`;
+  }
+  function sendLine(form, f) {
+    const ok = !missingOf(form, f).length;
+    return `<div class="sendl"><span class="cmd">${cmdHtml(form, f)}</span><button type="button" class="kbd" data-send${ok ? "" : " disabled"}>Enter ⏎</button></div>`;
+  }
+  const noteHtml = st => st.note ? `<div class="anote ${st.note.cls}">${st.note.html}</div>` : "";
+  function leadHtml(st) {
+    if (st.verb === "RFIS") return `<div class="lead"><span>Field advisory for <b>KOAK</b></span></div>`;
+    return `<div class="lead"><span>Advisory for <b>${esc(st.cs)}</b></span><span>${tabsHtml(st)}</span></div>`;
+  }
+  function advA(st) {
+    if (st.verb !== "RFIS" && !st.cs) return `<div class="adv"><div class="anote">Pick an aircraft below; its advisory opens here, one chip per part.</div></div>`;
+    const form = formKey(st), f = st.f;
+    const keys = form === "pattern" ? (f.leg === "FINAL" ? ["leg", "pnm", "rwy", "type"] : ["leg", "side", "pnm", "rwy", "type"]) : ORDER[form];
+    return `<div class="adv">${leadHtml(st)}<div class="chips">${keys.map(k => chip(st, k)).join("")}</div><div class="say">“${sayHtml(form, f)}”</div>${sendLine(form, f)}${noteHtml(st)}</div>`;
+  }
+
+  /* Lane B: the builder. */
+  function dialHours(v, ring) {
+    const c = 62;
+    const hrs = Array.from({ length: 12 }, (_, i) => i + 1).map(h => {
+      const a = rad(h * 30), x = c + Math.sin(a) * 47, y = c - Math.cos(a) * 47;
+      return `<g class="hr${v === h ? " on" : ""}" data-set="clock" data-v="${h}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10.5"/><text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}">${h}</text></g>`;
+    }).join("");
+    return `<svg class="dial${v == null ? " unset" : ""}" width="124" height="124" viewBox="0 0 124 124" role="img" aria-label="Clock dial, 12 at the nose">${v == null ? `<circle class="ring0" cx="62" cy="62" r="58"/>` : ""}<line class="nose" x1="62" y1="54" x2="62" y2="26"/>${hrs}<path class="ac" d="M62 52 l6 16 l-6 -4 l-6 4z"/><text class="cap2" x="62" y="88">${ring}</text></svg>`;
+  }
+  function dialWedges(v) {
+    const c = 62, r1 = 20, r2 = 58;
+    const pt = (a, r) => `${(c + Math.sin(rad(a)) * r).toFixed(1)} ${(c - Math.cos(rad(a)) * r).toFixed(1)}`;
+    const w = POS.map((p, i) => {
+      const a0 = i * 45 - 22.5, a1 = i * 45 + 22.5, lx = c + Math.sin(rad(i * 45)) * 41, ly = c - Math.cos(rad(i * 45)) * 41;
+      return `<g data-set="pos" data-v="${p}"><path class="wd${v === p ? " on" : ""}" d="M${pt(a0, r1)} L${pt(a0, r2)} A${r2} ${r2} 0 0 1 ${pt(a1, r2)} L${pt(a1, r1)} A${r1} ${r1} 0 0 0 ${pt(a0, r1)}Z"/><text class="wl" x="${lx.toFixed(1)}" y="${(ly + 3.5).toFixed(1)}">${p}</text></g>`;
+    }).join("");
+    return `<svg class="dial${v == null ? " unset" : ""}" width="124" height="124" viewBox="0 0 124 124" role="img" aria-label="Octants off the nose">${w}<path class="ac" d="M62 54 l5 13 l-5 -3 l-5 3z"/></svg>`;
+  }
+  /* Landing west on 28: left traffic flies the legs south of the runway, right traffic north. */
+  function patSketch(f) {
+    const ry = 62, side = f.side || "L", yo = side === "L" ? 104 : 20, yx = side === "L" ? 20 : 104;
+    const legs = s => { const y = s === "L" ? 104 : 20; return { UW: [8, ry, 38, ry], XW: [8, ry, 8, y], DW: [8, y, 116, y], BASE: [116, y, 116, ry], FINAL: [86, ry, 116, ry] }; };
+    const draw = (s, active) => Object.entries(legs(s)).filter(([k]) => active || ["XW", "DW", "BASE"].includes(k)).map(([k, [x1, y1, x2, y2]]) => {
+      const on = active && f.leg === k;
+      return `<g data-set="leg" data-v="${k}" data-side="${k === "UW" || k === "FINAL" ? "" : s}"><line class="leg${active ? " side" : ""}${on ? " on" : ""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line class="hit" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/></g>`;
+    }).join("");
+    const lab = (k, x, y) => `<text x="${x}" y="${y}" class="${f.leg === k ? "on" : ""}">${k}</text>`;
+    return `<svg class="pat" width="124" height="124" viewBox="0 0 124 124" role="img" aria-label="Pattern legs">${draw(side === "L" ? "R" : "L", false)}${draw(side, true)}<line class="rw" x1="38" y1="${ry}" x2="86" y2="${ry}"/><text x="62" y="${ry - 6}">${esc(f.rwy || "28L")}</text>${lab("UW", 22, ry - 5)}${lab("FINAL", 104, ry - 5)}${lab("DW", 62, yo + (side === "L" ? 13 : -5))}${lab("XW", 18, (ry + yo) / 2 + 3)}${lab("BASE", 104, (ry + yo) / 2 + 3)}<text x="62" y="${yx + (side === "L" ? -4 : 10)}" style="fill:#5b6570">${side === "L" ? "right traffic" : "left traffic"}</text></svg>`;
+  }
+  const stp = (k, v, show) => `<span class="stp${v == null ? " unset" : ""}" data-f="${k}"><button type="button" data-step="-1" aria-label="Less">−</button><b>${v == null ? "?" : esc(show ? show(v) : v)}</b><button type="button" data-step="1" aria-label="More">+</button></span>`;
+  const seg = (k, v, opts) => `<span class="seg${v == null ? " unset" : ""}">${opts.map(([o, l]) => `<button type="button" data-set="${k}" data-v="${o}" class="${v === o ? "on" : ""}">${l}</button>`).join("")}</span>`;
+  function dirPad(v) {
+    const cells = ["NW", "N", "NE", "W", "", "E", "SW", "S", "SE"];
+    return `<span class="pad${v == null ? " unset" : ""}">${cells.map(d => d ? `<button type="button" data-set="dir" data-v="${d}" class="${v === d ? "on" : ""}">${d}</button>` : `<span>·</span>`).join("")}</span>`;
+  }
+  function advB(st) {
+    if (st.verb !== "RFIS" && !st.cs) return `<div class="adv"><div class="anote">Point at an aircraft below to seed the builder; a click pins it.</div></div>`;
+    const form = formKey(st), f = st.f;
+    const typeIn = `<input class="btype" data-type value="${esc(f.type || "")}" aria-label="Type" spellcheck="false">`;
+    let left, rows;
+    if (form === "rfis") { left = dialHours(f.clock, "field"); rows = [["Miles", stp("nm", f.nm)]]; }
+    else if (form === "radar") {
+      left = dialHours(f.clock, `hdg ${SUBJ.hdg}`);
+      rows = [["Miles", stp("nm", f.nm)], ["Direction", `${dirPad(f.dir)}<span class="w">${f.dir ? DIRW[f.dir] : ""}</span>`], ["Type", typeIn], ["Altitude", `${stp("alt", f.alt, a => fmt(a * 100))}<label class="chk"><input type="checkbox" data-altunk${f.alt == null ? " checked" : ""}> unknown</label>`]];
+    } else if (form === "nose") { left = dialWedges(f.pos); rows = [["Miles", stp("nm", f.nm)], ["Type", typeIn]]; }
+    else if (form === "pattern") {
+      left = patSketch(f);
+      rows = [["Side", f.leg === "FINAL" ? `<span class="w">none on final</span>` : seg("side", f.side, [["L", "left"], ["R", "right"]])], ["Miles", stp("pnm", f.pnm)], ["Runway", seg("rwy", f.rwy, RWYS.map(r => [r, r]))], ["Type", typeIn]];
+    } else {
+      left = `<div class="fixl">${FIXES.map(x => `<button type="button" data-set="fix" data-v="${x.id}" class="${f.fix === x.id ? "on" : ""}">${esc(x.name)} <code>${x.id}</code></button>`).join("")}<span class="none">points within 2 NM of ${esc(st.cs)}</span></div>`;
+      rows = [["Type", typeIn]];
+    }
+    return `<div class="adv">${leadHtml(st)}<div class="bgrid"><div>${left}</div><div class="bf">${rows.map(([l, h]) => `<span>${l}</span><span>${h}</span>`).join("")}</div></div><div class="say">“${sayHtml(form, f)}”</div>${sendLine(form, f)}${noteHtml(st)}</div>`;
+  }
+
+  /* Lane C: the typed short form, Tab taking the next part from the pointed row, a live check. */
+  function nextOf(p) {
+    if (p.form === "filter") return null;
+    const order = p.form === "pattern" && p.f.leg === "FINAL" ? ["leg", "pnm", "rwy", "type"] : ORDER[p.form];
+    return order.find(k => p.f[k] == null) || null;
+  }
+  function tokenOf(k, v) { return k === "alt" ? pad3(v) : String(v); }
+  function ghostOf(st, p) {
+    if (p.form === "filter") {
+      const m = T.find(t => t.cs.includes(p.text) || t.type.startsWith(p.text));
+      return m ? { html: `<kbd>Tab</kbd> picks <b>${m.cs}</b>`, pick: m.cs } : { html: "no callsign or type matches" };
+    }
+    const k = nextOf(p);
+    if (!k) return { html: p.empty ? "" : "complete · <kbd>Enter</kbd> sends" };
+    const src = st.verb === "RFIS" ? "rfis" : p.form;
+    const tr = st.cs || st.verb === "RFIS" ? truthOf(src, st.cs) : null;
+    const opt = k === "alt" ? " (optional)" : "";
+    if (tr && tr[k] != null && (prefill() === "true" || !JUDGED[src].includes(k))) {
+      const tok = tokenOf(k, tr[k]);
+      return { html: `<kbd>Tab</kbd> <b>${esc(tok)}</b> ${KIND[k]}${opt}`, tok };
+    }
+    return { html: `next: ‹${KIND[k]}›${opt}${st.cs || st.verb === "RFIS" ? "" : " · point at a row for help"}` };
+  }
+  function checkHtml(st, p) {
+    if (p.form === "filter") return `<span>filtering the list by <span class="to">${esc(p.text)}</span></span>`;
+    if (p.empty) return `<span>type the call: a number starts the clock form, NOSE/NR… the nose form, DW/BASE… a pattern leg, OVER a reporting point</span>`;
+    const r = judge(p.form, p.f);
+    if (r.state === "incomplete") return `<span>needs ${r.miss.map(k => `‹${KIND[k]}›`).join(" ")}</span>`;
+    if (r.state === "refused") return `<span class="x">✗ no traffic fits</span><span>the sim would answer “${esc(r.msg)}”</span>`;
+    const marks = r.marks.map(m => `<span class="${m[1] ? "y" : "n"}">${m[0]} ${m[1] ? "✓" : `≈ ${esc(m[2])}`}</span>`).join("");
+    if (r.state === "field") return `${marks}<span>· the sim does not check these</span>`;
+    const other = st.cs && r.cs !== st.cs ? `<span class="n">not ${esc(st.cs)}, the row pointed at</span>` : "";
+    return `<span>→ <span class="to">${r.cs}</span></span>${marks}<span>${r.clean ? "· scores clean" : "· imprecise"}</span>${other}`;
+  }
+  function advC(st) {
+    const p = parseC(st);
+    if ((p.form === "filter") || p.empty) return `<div class="adv"><div class="check">${checkHtml(st, p)}</div></div>`;
+    return `<div class="adv"><div class="say">“${sayHtml(p.form, p.f)}”</div><div class="check">${checkHtml(st, p)}</div>${noteHtml(st)}</div>`;
+  }
+
+  /* Refresh one flyout's moving parts in place, so the rows and the box keep focus. */
+  function upd(st) {
+    const m = document.querySelector(`[data-fid="${st.id}"]`);
+    if (!m) return;
+    const p = cur(st);
+    m.querySelector("[data-adv]").innerHTML = st.empty ? "" : st.lane === "a" ? advA(st) : st.lane === "b" ? advB(st) : advC(st);
+    const prev = m.querySelector("[data-prev]");
+    const complete = p.form !== "filter" && !p.empty && !missingOf(p.form, p.f).length;
+    if (st.lane === "c" || st.cs || st.verb === "RFIS") { prev.textContent = p.form === "filter" || p.empty ? `${st.verb} ···` : cmdText(p.form, p.f); prev.className = complete ? "cmd" : "cmd wait"; }
+    else { prev.textContent = "RTIS ···"; prev.className = "cmd wait"; }
+    const gh = m.querySelector("[data-ghost]");
+    if (gh) gh.innerHTML = st.empty ? "" : ghostOf(st, p).html;
+    const res = st.lane === "c" && p.form !== "filter" && !p.empty ? judge(p.form, p.f) : null;
+    const resCs = res && res.state === "ok" ? res.cs : null;
+    const filt = st.lane === "c" ? (p.form === "filter" ? p.text : "") : st.filter;
+    let shown = 0;
+    m.querySelectorAll(".tr[data-cs]").forEach(r => {
+      const cs = r.dataset.cs, t = byCs.get(cs);
+      const picked = st.lane !== "c" && cs === st.cs && st.pinned;
+      r.classList.toggle("picked", picked || (st.lane === "c" && cs === st.cs));
+      r.querySelector(".mk").textContent = picked || (st.lane === "c" && cs === st.cs) ? "●" : "";
+      const c = r.querySelector("[data-c]");
+      if (st.lane === "c") { c.textContent = cs === resCs ? "◎ your call" : ""; c.className = cs === resCs ? "cmd res" : "cmd wait"; }
+      else { c.textContent = picked ? "in the advisory" : "pick"; c.className = picked ? "cmd" : "cmd wait"; }
+      const ok = !filt || t.cs.includes(filt) || t.type.startsWith(filt);
+      r.hidden = !ok;
+      if (ok) shown++;
+    });
+    const nm = m.querySelector("[data-nomatch]");
+    if (nm) { nm.hidden = !filt || shown > 0; nm.innerHTML = `No aircraft matches <code>${esc(filt)}</code>. In solo a callsign is not a call: pick an aircraft, or type the advisory.`; }
+    const sc = m.closest("[data-scene]");
+    if (sc) lightCs(sc, resCs || st.cs, resCs ? "res" : "lit");
+  }
+
+  /* ---------- Sending ---------- */
+  function send(st, quiet) {
+    const p = cur(st);
+    if (p.form === "filter" || p.empty) return;
+    const r = judge(p.form, p.f);
+    const cmd = cmdText(p.form, p.f);
+    let lane;
+    if (r.state === "incomplete") {
+      st.note = { cls: "", html: `Set the ${r.miss.map(k => KIND[k]).join(", ")} first; Enter sends nothing.` };
+      lane = `Incomplete: Enter sends nothing and the flyout stays open; the unset part is outlined.`;
+    } else if (r.state === "refused") {
+      st.note = { cls: "bad", html: st.lane === "c" ? "Sent and refused; the text is kept for a fix." : `Refused: “${esc(r.msg)}”. The values are kept; fix a part and press Enter again.` };
+      lane = `Sends <code>${esc(cmd)}</code>; the sim refuses it at once, so the flyout stays open with the reply under the advisory.`;
+    } else if (r.state === "field") {
+      st.note = null;
+      lane = `Sends <code>${esc(cmd)}</code> for ${SUBJ.cs} and closes. The pilot hears “${sayHtml(p.form, p.f)}”; the sim records the field advisory${r.marks.every(m => m[1]) ? "" : ` whatever its values (here ${esc(offText(r))})`}.`;
+    } else {
+      const who = st.cs && r.cs !== st.cs ? `<b>${r.cs}</b>, not ${esc(st.cs)}, the aircraft picked` : `<b>${r.cs}</b>`;
+      st.note = st.lane === "c" ? null : { cls: r.cs === st.cs ? "ok" : "bad", html: `Sent; the sim resolves ${who}, ${r.clean ? "scored clean" : `imprecise: ${esc(offText(r))}`}. (The flyout closes; kept open here to show it.)` };
+      lane = `Sends <code>${esc(cmd)}</code> for ${SUBJ.cs} and closes. The pilot hears “${sayHtml(p.form, p.f)}”; the sim resolves ${who}, ${r.clean ? "scored clean" : `imprecise: ${esc(offText(r))}`}.`;
+    }
+    st.lastSay = lane;
+    if (!quiet) { upd(st); say(document.querySelector(`[data-fid="${st.id}"]`), lane); }
+  }
+  const say = (from, html) => { const l = from && from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+
+  /* ---------- The aircraft menu stub ---------- */
+  function acMenu(open, o = {}) {
+    const wells = [["ELD", "Enter left downwind"], ["RFIS", "Report field in sight…"], ["RTIS", "Report traffic in sight…"], ["FOLLOW", "Follow traffic…"]];
+    const inert = id => (o.inert === "traffic" && (id === "RTIS" || id === "FOLLOW")) || (o.inert === "field" && id === "RFIS");
+    const strip = wells.map(([id, l]) => `<span class="well${id === open ? " open" : ""}${inert(id) ? " inert" : ""}" title="${esc(l)}">${gl(id)}</span>`).join("");
+    const lab = o.inert === "traffic" ? `Report traffic in sight… <span class="why">· no other aircraft airborne</span>`
+      : o.inert === "field" ? `Report field in sight… <span class="why">· no destination field</span>`
+      : open === "RFIS" ? `Report field in sight… <code>RFIS</code>` : `Report traffic in sight… <code>RTIS</code>`;
+    return `<div class="menu m" role="menu" aria-label="Aircraft menu" style="width:230px"><div class="mtitle">${SUBJ.cs} · ${SUBJ.type}</div><div class="mstate">${esc(SUBJ.state)}</div><div class="strip">${strip}</div><div class="slabel">${lab}</div>${sep()}${["Command…", "All Commands"].map(l => `<div class="mi plain faint"><span>${esc(l)}</span><span></span><span class="chev">${l === "Command…" ? "" : "›"}</span></div>`).join("")}</div>`;
+  }
+
+  /* ---------- The scope excerpt ---------- */
+  const H = 720;
+  function scope(o = {}) {
+    const apt = { x: SUBJ.x + Math.sin(rad(300)) * 5.4 * S, y: SUBJ.y - Math.cos(rad(300)) * 5.4 * S };
+    const rw = (cx, cy, hdg, len) => { const dx = Math.sin(rad(hdg)) * len / 2, dy = -Math.cos(rad(hdg)) * len / 2; return `<line class="rwy" x1="${(cx - dx).toFixed(1)}" y1="${(cy - dy).toFixed(1)}" x2="${(cx + dx).toFixed(1)}" y2="${(cy + dy).toFixed(1)}"/>`; };
+    const vm = `<path class="vm" d="M700 30 C 740 120, 760 220, 730 310 S 760 470, 800 ${H}"/><path class="vm" d="M960 0 L 1130 130"/><circle class="vm" cx="${SUBJ.x}" cy="${SUBJ.y}" r="${5 * S}" stroke-dasharray="2 5"/>`;
+    const rwys = rw(apt.x - 4, apt.y - 14, 283, 34) + rw(apt.x + 4, apt.y - 6, 283, 30) + rw(apt.x + 6, apt.y + 22, 300, 60);
+    const n22 = byCs.get("N22RX");
+    const vp = { x: n22.x - 24, y: n22.y + 18 };
+    const vfrp = `<g class="vfrp"><path d="M${vp.x} ${vp.y - 5} l5 5 l-5 5 l-5 -5z"/><text x="${vp.x - 44}" y="${vp.y + 4}">VPCOL</text></g>`;
+    const ring = o.clockRing ? Array.from({ length: 12 }, (_, i) => i + 1).map(h => { const b = rad(SUBJ.hdg + h * 30); return `<text class="ckr" x="${(SUBJ.x + Math.sin(b) * 62).toFixed(1)}" y="${(SUBJ.y - Math.cos(b) * 62 + 3.5).toFixed(1)}">${h}</text>`; }).join("") : "";
+    const tg = T.map(t => {
+      const left = (t.x < SUBJ.x - 10) || (t.x > 1040);
+      const dx = left ? -12 : 12, tx = left ? t.x - 74 : t.x + 14;
+      return `<g class="tgt" data-tgt="${t.cs}"><circle class="ring" cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="13"/><circle class="dot" cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="4"/><line x1="${t.x.toFixed(1)}" y1="${t.y.toFixed(1)}" x2="${(t.x + dx).toFixed(1)}" y2="${(t.y - 10).toFixed(1)}"/><text class="cs" x="${tx.toFixed(1)}" y="${(t.y - 12).toFixed(1)}">${t.cs}</text><text x="${tx.toFixed(1)}" y="${(t.y + 1).toFixed(1)}">${pad3(Math.round(t.alt / 100))} ${t.type}</text></g>`;
+    }).join("");
+    const hv = rad(SUBJ.hdg);
+    const hist = [1, 2, 3, 4].map(i => `<circle class="hist" cx="${(SUBJ.x - Math.sin(hv) * i * 9).toFixed(1)}" cy="${(SUBJ.y + Math.cos(hv) * i * 9).toFixed(1)}" r="1.6"/>`).join("");
+    const subj = `<g class="subj">${hist}<line class="vec" x1="${SUBJ.x}" y1="${SUBJ.y}" x2="${(SUBJ.x + Math.sin(hv) * 40).toFixed(1)}" y2="${(SUBJ.y - Math.cos(hv) * 40).toFixed(1)}"/><circle cx="${SUBJ.x}" cy="${SUBJ.y}" r="4.5"/><rect class="sel" x="${SUBJ.x - 9}" y="${SUBJ.y - 9}" width="18" height="18"/><text x="${SUBJ.x + 14}" y="${SUBJ.y + 4}">${SUBJ.cs}</text><text x="${SUBJ.x + 14}" y="${SUBJ.y + 17}">020 PA28</text></g>`;
+    return `<svg viewBox="0 0 1130 ${H}" width="1130" height="${H}" role="img" aria-label="Radar excerpt around KOAK"><rect class="scope-bg" width="1130" height="${H}"/>${vm}${rwys}<text class="apt" x="${(apt.x - 30).toFixed(1)}" y="${(apt.y - 30).toFixed(1)}">KOAK</text><text class="apt" x="${SUBJ.x + 5 * S * .72}" y="${SUBJ.y + 5 * S * .72 + 12}">5 NM</text>${vfrp}${ring}${tg}<path class="bline" data-bline d=""/><text class="blabel" data-blabel x="0" y="0"></text>${subj}</svg>`;
+  }
+  const scene = (menu, flyHtml, o) => `<div class="scene" data-scene>${scope(o)}<div class="at-menu">${menu}</div><div class="at-fly">${flyHtml}</div></div>`;
+  function lightCs(sc, cs, cls = "lit") {
+    sc.querySelectorAll(".tgt").forEach(g => { g.classList.toggle("lit", g.dataset.tgt === cs); g.classList.toggle("res", cls === "res" && g.dataset.tgt === cs); });
+    const bl = sc.querySelector("[data-bline]"), lb = sc.querySelector("[data-blabel]");
+    const t = byCs.get(cs);
+    if (!t) { bl.setAttribute("d", ""); lb.textContent = ""; return; }
+    bl.setAttribute("d", `M${SUBJ.x} ${SUBJ.y} L${t.x.toFixed(1)} ${t.y.toFixed(1)}`);
+    lb.setAttribute("x", ((SUBJ.x + t.x) / 2 + 8).toFixed(1));
+    lb.setAttribute("y", ((SUBJ.y + t.y) / 2 + 4).toFixed(1));
+    lb.textContent = prefill() === "true" ? `${t.clock} o'clock · ${t.nm} nm` : "";
+  }
+
+  /* ---------- Lanes ---------- */
+  const LANES = {
+    a: {
+      name: "Chip line: the picked row fills an editable advisory",
+      how: "A click on a row (or Enter on the top filter match) opens the advisory under the box, one chip per part; ‹ › or the arrow keys step a chip, the tabs switch the form (Radar · Nose · Pattern leg · Over a point, greyed with the reason when the aircraft cannot take it), the italic line reads the call as the pilot will hear it, and Enter sends.",
+      worst: "With true values pre-filled, click then Enter sends a perfect call for any row: the fastest misuse is never reading the chips, and the Session Report still scores it clean, so it teaches only which aircraft to call.",
+      presets: { c1: {}, c4: { f: { clock: 5, nm: 4, dir: "W", type: "SR22", alt: 35 } }, c5: { f: { clock: 5, nm: 6, dir: "NW", type: "C182", alt: 20 }, send: true }, c7: { f: { clock: 2, nm: 4, dir: null, type: "SR22", alt: 35 } } },
+    },
+    b: {
+      name: "Builder: a clock dial, miles, a direction pad, type and altitude",
+      how: "Pointing at a row seeds the builder under the box and a click pins it: a clock dial with the nose at 12 (the radar draws the same numbers round N52TW), a miles stepper, an 8-point direction pad, type and altitude. Nose turns the dial into octants, Pattern into a pattern sketch whose legs are clicked, Over into the reporting points within 2 NM.",
+      worst: "The tallest flyout and five controls per call: the student sets each part by hand even with true values shown, and moving the pointer from the list up to the builder crosses other rows, so seeding must stop at the first click or the values jump under them.",
+      presets: { c1: {}, c4: { f: { clock: 5, nm: 4, dir: "W", type: "SR22", alt: 35 } }, c5: { f: { clock: 5, nm: 6, dir: "NW", type: "C182", alt: 20 }, send: true }, c7: { f: { clock: 2, nm: 4, dir: null, type: "SR22", alt: 35 } } },
+    },
+    c: {
+      name: "Say it: type the short form, Tab takes each part, the flyout checks it",
+      how: "The box takes the call as the student would say it (<code>2 4 w sr22 35</code>, <code>base l 2 28l c152</code>, <code>over vpcol sr22</code>); pointing at a row offers its next part as a ghost that Tab accepts, letters still filter callsigns, and a check line names the aircraft the sim would resolve the call to and grades each part, the ring following that aircraft rather than the pointer.",
+      worst: "The live check gives the answer before the pilot does: stepping a number until every mark turns ✓ is trial and error, and with true values Tab Tab Tab Tab Enter is a click-through; it also needs the matcher on the client (or a dry-run call) to exist.",
+      presets: { c1: { typed: "2 4 w sr22 35" }, c4: { typed: "5 4 w sr22 35" }, c5: { typed: "5 6 nw c182 020" }, c7: { typed: "2 4" } },
+    },
+  };
+  function laneBody(L) {
+    const d = LANES[L].presets;
+    const c = L === "c";
+    const p1 = mk(L, { cs: "N22RX", form: "radar", ...d.c1 });
+    const p2 = mk(L, c ? { cs: "N9152M", typed: "base l 2 28l c152" } : { cs: "N9152M", form: "pattern" });
+    const p3 = mk(L, c ? { verb: "RFIS", typed: "12 5" } : { verb: "RFIS" });
+    const p4 = mk(L, { cs: "N22RX", form: "radar", ...d.c4, send: true });
+    const p5 = mk(L, { cs: "N811CP", form: "radar", ...d.c5 });
+    const p6 = mk(L, c ? { cs: "N4417Q", typed: "uw l 1 28l c182" } : { cs: "N4417Q", form: "radar" });
+    const p7 = mk(L, { cs: "N22RX", form: "radar", ...d.c7 });
+    const pe = mk(L, {});
+    const sc = frame(`Strip › <b>Report traffic in sight…</b> › flyout · <b>N22RX</b> picked, its advisory filled in the radar form`, scene(acMenu("RTIS"), fly(p1), { clockRing: L === "b" }), "scene-frame");
+    const small = [
+      frame(`<b>Pattern leg</b>, near the field: N9152M on a left base for 28L`, fly(p2)),
+      frame(`Strip › <b>Report field in sight…</b> (solo): the field advisory`, fly(p3)),
+      frame(`<b>Refused</b>: clock 5 for traffic at 2 o'clock is 3 h off; sent, the flyout stays open`, fly(p4)),
+      frame(`<b>Other traffic fits better</b>: N811CP picked, the call describes N4417Q${c ? "" : " (student-set values)"}`, fly(p5)),
+      frame(c ? `<b>No such traffic</b>: an upwind call when nobody is on upwind` : `<b>Form unavailable</b>: N4417Q is in no pattern leg and near no reporting point`, fly(p6)),
+      frame(`<b>Incomplete</b>: no direction yet, so Enter sends nothing`, fly(p7)),
+      frame(`<b>Empty</b>: nothing else airborne; no destination; a list emptied while open`, `<div class="pair">${acMenu("", { inert: "traffic" })}${acMenu("", { inert: "field" })}${fly(pe, { empty: true })}</div>`),
+    ];
+    return { html: `${sc}<div class="pair">${small.join("")}</div>`, states: [p1, p2, p3, p4, p5, p6, p7, pe] };
+  }
+  function render() {
+    STATES.clear();
+    let all = [];
+    const lanesHtml = ["a", "b", "c"].map(L => {
+      const b = laneBody(L);
+      all = all.concat(b.states);
+      return `<section class="lane" data-lane id="lane-${L}">
+        <div class="lane-h"><span class="tag ${L}">${L.toUpperCase()}</span><h3>${esc(LANES[L].name)}</h3></div>
+        <div class="stage">${b.html}</div>
+        <div class="sent" data-sent>${b.states[0].lastSay || "Click a row, step a part, switch the form or press Enter: this line says what would be sent and what the sim would answer."}</div>
+        <dl class="cap"><dt>How it works</dt><dd>${LANES[L].how}</dd><dt>Worst case</dt><dd class="worst">${LANES[L].worst}</dd></dl>
+      </section>`;
+    }).join("");
+    document.getElementById("arts").innerHTML = `<section class="art" id="lanes"><div class="art-meta"><h2>Three ways to build the solo advisory from the flyout</h2><div class="sends">RTIS &lt;clock&gt; &lt;miles&gt; &lt;dir&gt; &lt;type&gt; [alt] · RTIS &lt;pos&gt; &lt;miles&gt; &lt;type&gt; · RTIS &lt;leg&gt; &lt;L|R&gt; &lt;miles&gt; &lt;rwy&gt; &lt;type&gt; · RTIS OVER &lt;fix&gt; &lt;type&gt; · RFIS &lt;clock&gt; &lt;miles&gt;</div><p>Every lane keeps the lane B flyout: the title line (with a <b>solo</b> mark), the box row, the list. The advisory sits between the box and the list; its command column previews what Enter sends, and an italic line reads the call as the pilot will hear it. The student says it, the sim checks it: a call within tolerance resolves to the best-fitting aircraft and is scored; one outside is refused at once.</p><p>Switch <b>Pre-filled values</b> above to see each lane with clock, miles and direction left for the student.</p></div><div class="lanes">${lanesHtml}</div></section>`;
+    all.forEach(upd);
+    // The first scene opens with the pointer resting on the picked row.
+    document.querySelectorAll("[data-scene] .tr.picked").forEach(r => r.classList.add("hot"));
+  }
+  document.getElementById("index").innerHTML = ["a", "b", "c"].map(L => `<a href="#lane-${L}">Lane ${L.toUpperCase()}</a>`).join("") + `<a href="#questions">Open decisions</a>`;
+
+  /* ---------- Interaction ---------- */
+  const stOf = el => { const m = el.closest("[data-fid]"); return m ? STATES.get(m.dataset.fid) : null; };
+  const CYC = { dir: DIRS, pos: POS, leg: LEGS, side: ["L", "R"], rwy: RWYS, fix: FIXES.map(x => x.id) };
+  function step(st, k, d) {
+    const f = st.f, v = f[k];
+    if (CYC[k]) { const a = CYC[k]; f[k] = v == null ? a[0] : a[(a.indexOf(v) + d + a.length) % a.length]; if (k === "leg" && f.leg === "FINAL") f.side = null; else if (k === "leg" && f.side == null && prefill() === "true") f.side = "L"; return; }
+    if (k === "clock") { f[k] = v == null ? 12 : ((v - 1 + d + 12) % 12) + 1; return; }
+    if (k === "alt") { f[k] = Math.max(0, (v == null ? Math.round(SUBJ.alt / 100) : v) + d); return; }
+    f[k] = Math.max(1, Math.min(20, (v == null ? 1 : v) + d));
+  }
+  function pick(st, cs) {
+    st.cs = cs; st.pinned = true; st.note = null;
+    const t = byCs.get(cs);
+    if (formReason(t, st.form)) st.form = "radar";
+    seed(st);
+  }
+  document.addEventListener("click", e => {
+    const st = stOf(e.target);
+    if (!st) return;
+    const el = e.target;
+    const fm = el.closest("[data-form]");
+    if (fm && !fm.disabled) { st.form = fm.dataset.form; seed(st); st.note = null; upd(st); say(el, `Form: ${fm.textContent.trim()}. The parts are re-seeded from ${st.cs}.`); return; }
+    const stp = el.closest("[data-step]");
+    if (stp) { step(st, stp.closest("[data-f]").dataset.f, +stp.dataset.step); st.note = null; upd(st); return; }
+    const set = el.closest("[data-set]");
+    if (set) { const k = set.dataset.set; st.f[k] = k === "clock" ? +set.dataset.v : set.dataset.v; if (k === "leg") { st.f.side = set.dataset.v === "FINAL" ? null : (set.dataset.side || st.f.side); } st.note = null; upd(st); return; }
+    if (el.closest("[data-omit]")) { st.f.alt = null; upd(st); return; }
+    if (el.closest("[data-addalt]")) { st.f.alt = Math.round(SUBJ.alt / 100); upd(st); return; }
+    if (el.closest("[data-send]")) { send(st); return; }
+    const r = el.closest(".tr[data-cs]");
+    if (r) {
+      if (st.lane === "c") { st.cs = r.dataset.cs; st.typed = ""; st.note = null; const box = r.closest(".fly").querySelector("[data-say]"); box.value = ""; upd(st); box.focus(); say(el, `${r.dataset.cs} pointed: the ghost under the box offers its parts; Tab takes one.`); return; }
+      pick(st, r.dataset.cs); upd(st);
+      say(el, `${r.dataset.cs} picked: the advisory ${prefill() === "true" ? "is filled with its true values" : "keeps type and altitude; clock, miles and direction are left to set"}. Enter sends.`);
+    }
+  });
+  document.addEventListener("change", e => {
+    const st = stOf(e.target);
+    if (st && e.target.matches("[data-altunk]")) { st.f.alt = e.target.checked ? null : Math.round(SUBJ.alt / 100); upd(st); }
+  });
+  document.addEventListener("input", e => {
+    const st = stOf(e.target);
+    if (!st) return;
+    if (e.target.matches("[data-type]")) { st.f.type = e.target.value.trim().toUpperCase() || null; const m = document.querySelector(`[data-fid="${st.id}"]`); const say1 = m.querySelector(".say"); if (say1) { const p = cur(st); say1.innerHTML = `“${sayHtml(p.form, p.f)}”`; m.querySelector(".sendl").outerHTML = sendLine(p.form, p.f); } return; }
+    if (e.target.matches("[data-box]")) { st.filter = e.target.value.trim().toUpperCase(); upd(st); return; }
+    if (e.target.matches("[data-say]")) { st.typed = e.target.value; st.note = null; upd(st); }
+  });
+  document.addEventListener("keydown", e => {
+    const st = stOf(e.target);
+    if (!st) return;
+    const t = e.target;
+    if (t.matches("[data-say]")) {
+      if (e.key === "Tab") {
+        const g = ghostOf(st, parseC(st));
+        if (g.pick) { e.preventDefault(); st.cs = g.pick; st.typed = ""; t.value = ""; upd(st); return; }
+        if (g.tok) { e.preventDefault(); st.typed = `${st.typed.trim()} ${g.tok}`.trim() + " "; t.value = st.typed; upd(st); return; }
+      }
+      if (e.key === "Enter") { e.preventDefault(); send(st); }
+      return;
+    }
+    if (t.matches("[data-box]") && e.key === "Enter") {
+      e.preventDefault();
+      const r = [...document.querySelector(`[data-fid="${st.id}"]`).querySelectorAll(".tr[data-cs]")].find(x => !x.hidden);
+      if (st.cs && st.pinned && !st.filter) { send(st); return; }
+      if (r) { pick(st, r.dataset.cs); st.filter = ""; t.value = ""; upd(st); say(t, `Enter picked ${r.dataset.cs}, the top match; Enter again sends.`); }
+      return;
+    }
+    if (t.matches(".tr[data-cs]") && e.key === "Enter") { e.preventDefault(); t.click(); return; }
+    if (e.key === "Enter" && (t.closest(".adv"))) { e.preventDefault(); send(st); return; }
+    const ch = t.closest(".chip[data-f]");
+    if (ch && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); step(st, ch.dataset.f, e.key === "ArrowUp" ? 1 : -1); upd(st); }
+  });
+  /* Scope feedback: the pointed row rings its aircraft; leaving it rings the picked (or, in C, the resolved) one again. Lane B seeds from the pointed row until one is clicked. */
+  document.addEventListener("pointerover", e => {
+    const r = e.target.closest(".tr[data-cs]");
+    if (!r) return;
+    const st = stOf(r);
+    const sc = r.closest("[data-scene]");
+    r.closest(".fly").querySelectorAll(".tr.hot").forEach(h => h.classList.remove("hot"));
+    if (sc) lightCs(sc, r.dataset.cs);
+    if (st && st.lane === "b" && !st.pinned && st.cs !== r.dataset.cs) { st.cs = r.dataset.cs; seed(st); upd(st); if (sc) lightCs(sc, r.dataset.cs); }
+    if (st && st.lane === "c" && !st.typed.trim()) { const gh = r.closest(".fly").querySelector("[data-ghost]"); const old = st.cs; st.cs = r.dataset.cs; gh.innerHTML = ghostOf(st, parseC(st)).html; st.cs = old; }
+  });
+  document.addEventListener("pointerout", e => {
+    const r = e.target.closest(".tr[data-cs]");
+    if (!r || r.contains(e.relatedTarget)) return;
+    const st = stOf(r);
+    if (st && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".tr[data-cs]"))) upd(st);
+  });
+  document.addEventListener("focusin", e => { const r = e.target.closest(".tr[data-cs]"); const sc = r && r.closest("[data-scene]"); if (sc) lightCs(sc, r.dataset.cs); });
+  document.querySelectorAll("input[name=prefill]").forEach(i => i.addEventListener("change", e => { document.body.dataset.prefill = e.target.value; render(); }));
+  document.getElementById("sw-bearing").addEventListener("change", e => { document.body.classList.toggle("bearing", e.target.checked); });
+  if (location.hash === "#blank") { document.body.dataset.prefill = "blank"; document.querySelector("input[name=prefill][value=blank]").checked = true; }
+  render();
+
+  /* ---------- #measure lists every flyout's rendered size ---------- */
+  if (location.hash === "#measure") {
+    const lines = [...document.querySelectorAll(".menu.fly")].map(mm => {
+      const r = mm.getBoundingClientRect();
+      const f = mm.closest(".frame");
+      const tag = mm.closest("[data-lane]").querySelector(".tag").textContent;
+      return `${tag} · ${(f ? f.querySelector(".flabel").textContent : "").slice(0, 60)}: ${Math.round(r.width)} × ${Math.round(r.height)}`;
+    });
+    document.getElementById("measure").innerHTML = `<div class="measure">${esc(lines.join("\n"))}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
