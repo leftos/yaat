@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Picker Flyouts</title>
+<style>
+  /* Layout: carried rulings and found notes, today's surfaces, then one artboard whose lanes each draw the flyout over a scope excerpt. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .switches code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 0 0 24px; font-size: 13px; color: var(--muted); }
+  .switches label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; }
+  .switches b { color: var(--ink); font-weight: 600; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 120ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts i { font-style: normal; font: 500 11px var(--f-mono); color: var(--tag-b); }
+  .nd { font: 600 10.5px var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--warn); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .recb { font: 600 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--panel); background: var(--tag-a); border-radius: 3px; padding: 1px 6px; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; max-width: 150ch; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 440px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .cmd.force { color: #ffb259; opacity: 1; }
+  .panel { max-height: 300px; overflow-y: auto; scrollbar-color: #555 transparent; position: relative; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .hint { font: 12px Inter, "Segoe UI", sans-serif; color: #8f969e; padding: 6px 11px 8px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; }
+  .muted-line { font: 12.5px Inter, "Segoe UI", sans-serif; color: #8f969e; padding: 10px 11px 12px; }
+
+  /* The box and the toggles. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 210px; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .bnote { font: 11px Inter, "Segoe UI", sans-serif; color: #e0b070; }
+  .bnote:empty { display: none; }
+  .tgl { display: inline-flex; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; margin: 2px 11px 4px; }
+  .tgl button { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; border: 0; border-left: 1px solid #3a414b; padding: 4px 10px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .tgl button:first-child { border-left: 0; }
+  .tgl button code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .tgl button.on { background: #24406a; color: #fff; }
+  .tgl button.on code { color: #cfe0ff; }
+  .force-t { font: 11px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 1px 6px; cursor: pointer; }
+  .force-t.on { background: #4a3417; border-color: #ffb259; color: #ffd8a6; }
+
+  /* Traffic rows: mark, callsign and type over where it is, command. */
+  .tr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; min-height: 42px; padding: 3px 11px 3px 8px; border-radius: 4px; cursor: pointer; color: #e4e7eb; }
+  .tr:hover, .tr.hot { background: rgba(255, 255, 255, .085); }
+  .tr.kfocus { outline: 1px solid #8fc1ff; outline-offset: -1px; }
+  .tr .mk { font-size: 12px; text-align: center; color: #5b8def; }
+  .tr .two { min-width: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+  .tr .l1 { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .tr .cs { font: 600 13px "JetBrains Mono", Consolas, monospace; }
+  .tr .ty { font: 12px "JetBrains Mono", Consolas, monospace; color: #9aa3ad; }
+  .tr .lg { font: 11.5px Inter, "Segoe UI", sans-serif; color: #e4e7eb; overflow: hidden; text-overflow: ellipsis; }
+  .tr .nt { font: 11px Inter, "Segoe UI", sans-serif; color: #7fd1b9; }
+  .tr .nt.no { color: #8f969e; }
+  .tr .l2 { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tr .l2 em { font-style: normal; color: #cfd5dc; }
+  .tr.dim { opacity: .5; cursor: default; }
+  .tr.dim:hover { background: transparent; }
+  .tr.insight .mk { color: #7fd1b9; }
+
+  /* The aircraft menu stub with its quick-command strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; white-space: nowrap; }
+  .strip { display: flex; gap: 4px; padding: 2px 11px 2px; }
+  .well { width: 34px; height: 34px; border-radius: 5px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .well .gly { margin: 0; }
+  .well.open { background: #24406a; }
+  .well.inert { opacity: .38; }
+  .slabel { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ededed; padding: 4px 11px 6px; }
+  .slabel code { font: 11px "JetBrains Mono", Consolas, monospace; color: #b8b8b8; }
+  .slabel .why { color: #9a9a9a; }
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; gap: 4px; align-items: center; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .inpop .tbox { width: 170px; }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+  .rich { background: #2c2c2c; border: 1px solid #474747; border-radius: 6px; padding: 4px; width: 430px; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .rich .rh { font-weight: 600; padding: 4px 8px 0; }
+  .rich .rs { font-size: 11px; color: #a4adb8; padding: 0 8px 4px; }
+  .rich .rr { display: grid; grid-template-columns: minmax(0, 1fr) 80px 44px 104px; gap: 6px; white-space: nowrap; font-size: 12.5px; padding: 4px 8px; border-radius: 3px; }
+  .rich .rr.sel { background: #3a3a3a; }
+  .rich .rr span:not(:first-child) { color: #cfd5dc; font: 12px "JetBrains Mono", Consolas, monospace; }
+
+  /* The scene: the scope excerpt with the menu and flyout over it. */
+  .scene { position: relative; width: 1130px; height: 470px; flex: 0 0 auto; border-radius: 6px; overflow: hidden; }
+  .scene > svg { position: absolute; inset: 0; }
+  .scene .at-menu { position: absolute; left: 12px; top: 12px; }
+  .scene .at-fly { position: absolute; left: 252px; top: 12px; }
+  .scope-bg { fill: #05080b; }
+  .vm { stroke: #3a4652; stroke-width: 1.2; fill: none; }
+  .rwy { stroke: #6b7886; stroke-width: 3; stroke-linecap: round; }
+  .apt { font: 10px "JetBrains Mono", Consolas, monospace; fill: #6b7886; }
+  .tgt circle { fill: none; stroke: #b9d3c2; stroke-width: 1.4; }
+  .tgt line { stroke: #6f8a7a; stroke-width: 1; }
+  .tgt text { font: 11px "JetBrains Mono", Consolas, monospace; fill: #9fd8b0; }
+  .tgt .ring { stroke: transparent; stroke-width: 2; fill: none; }
+  .tgt.lit circle.dot { stroke: #ffffff; }
+  .tgt.lit text { fill: #ffffff; font-weight: 700; }
+  .tgt.lit .ring { stroke: #8fc1ff; }
+  .tgt.insight text.cs { fill: #7fd1b9; }
+  .subj circle { fill: #ffffff; stroke: none; }
+  .subj text { font: 11px "JetBrains Mono", Consolas, monospace; fill: #ffffff; }
+  .subj .sel { fill: none; stroke: #ffffff; stroke-width: 1; stroke-dasharray: 3 2; }
+  .subj .vec { stroke: #ffffff; stroke-width: 1; opacity: .6; }
+  .hist { fill: #ffffff; opacity: .35; }
+  .bline { stroke: #8fc1ff; stroke-width: 1.4; stroke-dasharray: 5 4; fill: none; }
+  .blabel { font: 11px "JetBrains Mono", Consolas, monospace; fill: #8fc1ff; }
+  body:not(.bearing) .bline, body:not(.bearing) .blabel { display: none; }
+
+  .callout { max-width: 400px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .measure { font: 12px var(--f-mono); color: var(--muted); white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 0 0 18px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+</head>
+<body class="bearing">
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part D · traffic · mock for the owner's decisions</div>
+  <h1>Report traffic in sight and Follow traffic flyouts</h1>
+  <p class="lede">Today <b>Report traffic in sight…</b> opens a rich-row popup of the five nearest airborne aircraft (with no traffic, a bare text box), and <b>Follow traffic…</b> opens a bare text box, “Traffic callsign (optional)” (<code>MenuCatalog.cs</code> :171, :409–415, :1360–1423). The owner's ruling makes them one traffic-picker family.</p>
+  <p class="lede">The page draws the family three ways (lanes A, B, C), each over an excerpt of the radar scope: the flyout as it opens with the pointer on a row (its aircraft ringed on the scope), then the filter matching nothing, the empty state, and the lane's second verb. Rows, boxes and toggles are live: point at a row to ring its aircraft, type in a box, click a row or press Enter; the line under each lane says what would be sent.</p>
+  <p class="lede">The situation: <b>N52TW</b>, a PA28 VFR inbound to <b>KOAK</b> from the southeast at 2,000 ft, heading 300, for a left pattern to 28L. It has already reported <b>N738SP</b> (left downwind 28L) in sight. Seven other aircraft are airborne within 7 NM. Positions are drawn to the clock and distance each row states; they are illustrative, not from a recording.</p>
+
+  <section class="note-box" aria-labelledby="note-h">
+    <h2 id="note-h">Carried from earlier parts (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Flyout language.</b> Title line, a glyph box row whose command column previews what Enter sends, a separator, a 300 px list, rows that show the command they send (parts B and C).</li>
+      <li><b>Filter box and keys</b> (ground Follow, ruling 3C/5A): focus opens in the box; a case-insensitive callsign substring (here also the type) filters, nearest first kept; Enter sends the top row, else the verb with what was typed; with no match every row hides and the hint alone says so. Down into the rows, Up from the first back to the box, Escape closes.</li>
+      <li><b>Greyed row</b> (approach flyout, “field not in sight”): 50%, not clickable, skipped by the keyboard, a note saying why, the sim's refusal in the tooltip. <b>Force</b> (approach and PTAC): a small toggle in the title line turning rows forced, commands in amber; absent in solo training.</li>
+      <li><b>Empty</b> (ground ruling 2C): with no other airborne aircraft the strip button stays, faded and inert, its label line naming why; a list that empties while open shows one muted line.</li>
+      <li><b>Scope feedback</b> on hover and keyboard focus alike, cleared when the row loses both and when the flyout closes. Here it rings the aircraft on the <i>radar</i>, which the ground family's ruling did not cover.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found while drawing (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>Solo training refuses every RTIS the menu sends today.</b> <code>RTIS {callsign}</code> and bare <code>RTIS</code> are RPO conveniences; solo needs <code>RTIS &lt;clock&gt; &lt;miles&gt; &lt;direction&gt; &lt;type&gt; [altitude]</code> (<code>NavigationCommandHandler.cs:1530</code>). A row knows all five, so it can send the descriptive form: switch <b>Solo training</b> above to see it.</li>
+      <li><b>“Any traffic (no target)” is refused</b> unless traffic is already in sight (“Unable, no traffic specified”, <code>NavigationCommandHandler.cs:1557</code>). The lanes drop it.</li>
+      <li><b>FOLLOW checks only that some traffic is in sight</b>, not that it is the traffic named (<code>CommandDispatcher.cs:4090–4103</code>): after reporting N738SP, <code>FOLLOW SWA2287</code> is accepted today. The lanes grey every row but the reported one; <span class="nd">aviation review</span> for the sim.</li>
+      <li><b>Follow traffic… is offered after the in-sight flag has cleared</b>: its gate reads <code>LastReportedTrafficCallsign</code>, which outlives the flag (<code>MenuCatalog.cs:445</code>, <code>VisualApproachHelper.cs:64</code>); it also has no All Commands entry.</li>
+      <li><b>The radar has no menu highlight.</b> <code>ClientMenuHost.HighlightAircraft</code> writes ground views only, and <code>RadarCanvas</code> does not repaint on <code>HighlightsChanged</code>; the ring drawn here <span class="nd">needs building</span>. The client cannot show a pending “looking” RTIS (not on the wire), nor a super lead.</li>
+    </ul>
+  </section>
+
+  <div id="measure"></div>
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="switches" role="group" aria-label="Page switches">
+    <label><input type="checkbox" id="sw-solo"> <b>Solo training</b></label><span>RTIS rows send the descriptive form; Force is gone.</span>
+    <label><input type="checkbox" id="sw-bearing" checked> <b>Bearing line</b></label><span>a dashed line from N52TW to the pointed row's aircraft, besides the ring.</span>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open questions for the owner</h2>
+    <ol class="nl">
+      <li><b>1. Layout of the family.</b><span class="opts"><i>A</i> one flyout, a Report in sight / Follow toggle · <i>B</i> two flyouts on one layout · <i>C</i> one flyout grouped In sight / Not reported, a row's click its group's verb.</span></li>
+      <li><b>2. Solo training.</b><span class="opts"><i>a</i> RTIS rows send the descriptive form built from the row (<code>RTIS 11 4 N C152 009</code>) · <i>b</i> RTIS rows greyed in solo, typed only · <i>c</i> as today (refused).</span></li>
+      <li><b>3. Follow for traffic not reported.</b><span class="opts"><i>a</i> greyed “not in sight”, Force (<code>FOLLOWF</code>) in RPO (as drawn) · <i>b</i> greyed, no Force · <i>c</i> enabled, as the sim accepts it today.</span></li>
+      <li><b>4. When Follow traffic… shows.</b><span class="opts"><i>a</i> always, for a VFR aircraft aloft with other traffic (as drawn) · <i>b</i> only while traffic is in sight (the flag, not the stale callsign) · <i>c</i> as today. And: add both to All Commands (Approach › and Pattern ›)?</span></li>
+      <li><b>5. Row content.</b><span class="opts"><i>a</i> callsign · type, then clock · NM · relative altitude · direction · leg (as drawn) · <i>b</i> a also with absolute altitude · <i>c</i> today's columns only.</span></li>
+      <li><b>6. How many rows.</b><span class="opts"><i>a</i> every airborne aircraft within 10 NM, nearest first, the list scrolling past 300 px (as drawn) · <i>b</i> today's 5 · <i>c</i> 8, then “Show n more” as Give way to.</span></li>
+      <li><b>7. While open.</b><span class="opts"><i>a</i> the ground rule: live outside, order frozen inside, a departed aircraft greyed “gone” · <i>b</i> read once, as Coordination.</span></li>
+      <li><b>8. Scope feedback.</b><span class="opts"><i>a</i> ring and bearing line · <i>b</i> ring only · <i>c</i> none (the ground ruling's “ground views only”).</span></li>
+      <li><b>9. The right-click “Selected aircraft: report in sight / follow traffic” items.</b><span class="opts"><i>a</i> unchanged · <i>b</i> open the flyout with that row focused.</span></li>
+    </ol>
+  </section>
+
+  <footer class="foot">Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px, stroke 1.9: Report traffic in sight in the Tower amber <code>#FFC062</code>, Follow traffic in the Pattern violet <code>#DDBDFF</code>; the other two strip buttons are faint stand-ins. The scope is a sketch (KOAK's runways, a shoreline), not YAAT's radar renderer. Open the page with <code>#measure</code> to list every flyout's rendered size.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const GL = {
+    RTIS: ["#FFC062", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"],
+    FOLLOW: ["#DDBDFF", "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"],
+    ELD: ["#DDBDFF", "M5 6h14 M19 6v12 M19 18H9", true],
+    CTL: ["#FFC062", "M4 16h16 M7 12l5-6 5 6", true],
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${GL[id][2] ? ` opacity=".45"` : ""}><path d="${GL[id][1]}"/></svg>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+  const titleLine = (html, right) => `<div class="mi title"><span class="et">${html}</span><span class="r">${right}</span></div>`;
+
+  /* ---------- Data ---------- */
+  const SUBJ = { cs: "N52TW", type: "PA28", alt: 2000, hdg: 300, x: 920, y: 230, state: "VFR arrival · KOAK 28L · 2,000 · 105 kt" };
+  const T = [
+    { cs: "N738SP", type: "C172", clock: 12, nm: 3, alt: 1000, dir: "E", word: "eastbound", leg: "left downwind 28L", insight: true, side: "r" },
+    { cs: "N9152M", type: "C152", clock: 11, nm: 4, alt: 900, dir: "N", word: "northbound", leg: "left base 28L" },
+    { cs: "N22RX", type: "SR22", clock: 2, nm: 4, alt: 3500, dir: "W", word: "westbound", leg: "" },
+    { cs: "SWA2287", type: "B737", clock: 9, nm: 5, alt: 1600, dir: "NW", word: "northwestbound", leg: "final 30" },
+    { cs: "N4417Q", type: "C182", clock: 6, nm: 5, alt: 2000, dir: "NW", word: "northwestbound", leg: "" },
+    { cs: "N2468W", type: "BE36", clock: 8, nm: 6, alt: 3500, dir: "N", word: "northbound", leg: "" },
+    { cs: "N811CP", type: "C182", clock: 4, nm: 7, alt: 2500, dir: "S", word: "southbound", leg: "" },
+  ];
+  const byCs = new Map(T.map(t => [t.cs, t]));
+  const S = 30;
+  const rad = d => d * Math.PI / 180;
+  T.forEach(t => {
+    const b = rad(SUBJ.hdg + t.clock * 30);
+    t.x = SUBJ.x + Math.sin(b) * t.nm * S;
+    t.y = SUBJ.y - Math.cos(b) * t.nm * S;
+  });
+  const fmt = n => n.toLocaleString("en-US");
+  const delta = t => { const d = t.alt - SUBJ.alt; return Math.abs(d) < 100 ? "same altitude" : `${fmt(Math.abs(d))} ${d < 0 ? "below" : "above"}`; };
+  const where = t => `${t.clock} o'clock · ${t.nm} nm · ${delta(t)} · ${t.word}`;
+  const legHtml = t => t.leg ? `<span class="lg">· ${esc(t.leg)}</span>` : "";
+  const solo = () => document.body.classList.contains("solo");
+  const rtisCmd = t => solo() ? `RTIS ${t.clock} ${t.nm} ${t.dir} ${t.type} ${String(Math.round(t.alt / 100)).padStart(3, "0")}` : `RTIS ${t.cs}`;
+
+  /* ---------- Rows ---------- */
+  /* verb: RTIS | FOLLOW; force: the Force toggle's state. */
+  function trow(t, verb, force) {
+    let cmd, cls = "", note = "", mk = "";
+    if (t.insight) { mk = "◆"; note = `<span class="nt">in sight</span>`; cls = " insight"; }
+    if (verb === "RTIS") { cmd = `<span class="cmd" data-c>${esc(rtisCmd(t))}</span>`; }
+    else if (t.insight) { cmd = `<span class="cmd" data-c>FOLLOW ${esc(t.cs)}</span>`; }
+    else if (force && !solo()) { cmd = `<span class="cmd force" data-c>FOLLOWF ${esc(t.cs)}</span>`; }
+    else { cls += " dim"; note = `<span class="nt no">not in sight</span>`; cmd = `<span class="cmd wait" data-c>FOLLOW ${esc(t.cs)}</span>`; }
+    const dim = cls.includes("dim");
+    return `<div class="tr${cls}" role="menuitem" tabindex="${dim ? -1 : 0}" data-cs="${t.cs}" data-verb="${verb}"${dim ? ` title="Traffic not in sight — issue RTIS first" aria-disabled="true"` : ""}><span class="mk">${mk}</span><span class="two"><span class="l1"><span class="cs">${esc(t.cs)}</span><span class="ty">· ${esc(t.type)}</span>${legHtml(t)}${note}</span><span class="l2">${where(t)}</span></span>${cmd}</div>`;
+  }
+  const VERBS = { RTIS: { title: "Report traffic in sight", glyph: "RTIS" }, FOLLOW: { title: "Follow traffic", glyph: "FOLLOW" } };
+  const noMatch = `<div class="hint" data-nomatch hidden></div>`;
+
+  /** One traffic flyout. kind a | b | c; verb RTIS | FOLLOW (a, b); o: preset, empty, force. */
+  function fly(kind, verb, o = {}) {
+    const force = !!o.force;
+    const showsForce = ((kind === "c") || (verb === "FOLLOW")) && !solo();
+    const forceT = showsForce ? `<button type="button" class="force-t${force ? " on" : ""}" data-force title="Follow traffic not reported in sight: FOLLOWF folds RTISF in (RPO only)">Force</button>` : "";
+    const title = kind === "c" ? "Traffic" : VERBS[verb].title;
+    const right = `${SUBJ.cs} · ${fmt(SUBJ.alt)} · hdg ${SUBJ.hdg}${forceT}`;
+    const toggle = kind === "a" ? `<div class="tgl" role="group" aria-label="Verb">${["RTIS", "FOLLOW"].map(v => `<button type="button" data-verbt="${v}" class="${v === verb ? "on" : ""}">${v === "RTIS" ? "Report in sight" : "Follow"} <code>${v}</code></button>`).join("")}</div>` : "";
+    const glyphId = kind === "c" ? "RTIS" : VERBS[verb].glyph;
+    const box = `<div class="mi" role="menuitem">${gl(glyphId)}<span class="nm"><span>Traffic</span><span class="under"><input class="tbox focus" type="text" data-box value="${esc(o.preset || "")}" placeholder="Filter or type a callsign" aria-label="Traffic" autocomplete="off" spellcheck="false"></span><span class="bnote" data-bnote></span></span><span></span><span class="cmd wait" data-prev>${kind === "c" ? "RTIS ···" : `${verb} ···`}</span></div>`;
+    let list;
+    if (o.empty) {
+      list = `<div class="muted-line">No other aircraft airborne.</div>`;
+    } else if (kind === "c") {
+      const seen = T.filter(t => t.insight), rest = T.filter(t => !t.insight);
+      list = `<div class="panel"><div data-group><div class="grp"><span>In sight · a click follows</span><code>FOLLOW</code></div>${seen.map(t => trow(t, "FOLLOW", false)).join("")}</div>`
+        + `<div data-group><div class="grp"><span>Not reported · nearest first · a click reports in sight</span><code>RTIS</code></div>${rest.map(t => crow(t, force)).join("")}</div>${noMatch}</div>`;
+    } else {
+      const order = verb === "FOLLOW" ? [...T.filter(t => t.insight), ...T.filter(t => !t.insight)] : T;
+      list = `<div class="panel"><div data-group><div class="grp"><span>Airborne · nearest first</span><code>${T.length}</code></div>${order.map(t => trow(t, verb, force)).join("")}</div>${noMatch}</div>`;
+    }
+    return `<div class="menu m w fly" role="menu" aria-label="${esc(title)}" data-kind="${kind}" data-verb="${verb}" data-force="${force ? 1 : 0}"${o.empty ? " data-empty" : ""}${o.hot ? ` data-hot="${o.hot}"` : ""}>${titleLine(`<b>${esc(title)}</b>`, right)}${toggle}${box}${sep()}${list}</div>`;
+  }
+  /* Lane C's not-reported row: a click reports in sight; with Force, it follows (FOLLOWF). */
+  function crow(t, force) {
+    if (force && !solo()) {
+      return `<div class="tr" role="menuitem" tabindex="0" data-cs="${t.cs}" data-verb="FOLLOWF"><span class="mk"></span><span class="two"><span class="l1"><span class="cs">${esc(t.cs)}</span><span class="ty">· ${esc(t.type)}</span>${legHtml(t)}</span><span class="l2">${where(t)}</span></span><span class="cmd force" data-c>FOLLOWF ${esc(t.cs)}</span></div>`;
+    }
+    return trow(t, "RTIS", false);
+  }
+
+  /* ---------- The aircraft menu stub ---------- */
+  function acMenu(open, o = {}) {
+    const wells = [["ELD", "Enter left downwind"], ["CTL", "Cleared to land"], ["RTIS", "Report traffic in sight…"], ["FOLLOW", "Follow traffic…"]];
+    const strip = wells.map(([id, l]) => `<span class="well${id === open ? " open" : ""}${o.inert && (id === "RTIS" || id === "FOLLOW") ? " inert" : ""}" title="${esc(l)}">${gl(id)}</span>`).join("");
+    const lab = o.inert
+      ? `Report traffic in sight… <span class="why">· no other aircraft airborne</span>`
+      : open === "FOLLOW" ? `Follow traffic… <code>FOLLOW</code>` : `Report traffic in sight… <code>RTIS</code>`;
+    return `<div class="menu m" role="menu" aria-label="Aircraft menu" style="width:230px"><div class="mtitle">${SUBJ.cs} · ${SUBJ.type}</div><div class="mstate">${esc(SUBJ.state)}</div><div class="strip">${strip}</div><div class="slabel">${lab}</div>${sep()}${["Command…", "All Commands"].map(l => `<div class="mi plain faint"><span>${esc(l)}</span><span></span><span class="chev">${l === "Command…" ? "" : "›"}</span></div>`).join("")}</div>`;
+  }
+
+  /* ---------- The scope excerpt ---------- */
+  function scope() {
+    const apt = { x: SUBJ.x + Math.sin(rad(300)) * 5.4 * S, y: SUBJ.y - Math.cos(rad(300)) * 5.4 * S };
+    const rw = (cx, cy, hdg, len) => { const dx = Math.sin(rad(hdg)) * len / 2, dy = -Math.cos(rad(hdg)) * len / 2; return `<line class="rwy" x1="${(cx - dx).toFixed(1)}" y1="${(cy - dy).toFixed(1)}" x2="${(cx + dx).toFixed(1)}" y2="${(cy + dy).toFixed(1)}"/>`; };
+    const vm = `<path class="vm" d="M700 30 C 740 120, 760 220, 730 310 S 760 420, 800 470"/><path class="vm" d="M960 0 L 1130 130"/><circle class="vm" cx="${SUBJ.x}" cy="${SUBJ.y}" r="${5 * S}" stroke-dasharray="2 5"/>`;
+    const rwys = rw(apt.x - 4, apt.y - 14, 283, 34) + rw(apt.x + 4, apt.y - 6, 283, 30) + rw(apt.x + 6, apt.y + 22, 300, 60);
+    const tg = T.map(t => {
+      const left = t.side ? t.side === "l" : (t.x < SUBJ.x - 10) || (t.x > 1040);
+      const dx = left ? -12 : 12, tx = left ? t.x - 74 : t.x + 14;
+      return `<g class="tgt${t.insight ? " insight" : ""}" data-tgt="${t.cs}"><circle class="ring" cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="13"/><circle class="dot" cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="4"/><line x1="${t.x.toFixed(1)}" y1="${t.y.toFixed(1)}" x2="${(t.x + dx).toFixed(1)}" y2="${(t.y - 10).toFixed(1)}"/><text class="cs" x="${tx.toFixed(1)}" y="${(t.y - 12).toFixed(1)}">${t.cs}</text><text x="${tx.toFixed(1)}" y="${(t.y + 1).toFixed(1)}">${String(Math.round(t.alt / 100)).padStart(3, "0")} ${t.type}</text></g>`;
+    }).join("");
+    const hv = rad(SUBJ.hdg);
+    const hist = [1, 2, 3, 4].map(i => `<circle class="hist" cx="${(SUBJ.x - Math.sin(hv) * i * 9).toFixed(1)}" cy="${(SUBJ.y + Math.cos(hv) * i * 9).toFixed(1)}" r="1.6"/>`).join("");
+    const subj = `<g class="subj">${hist}<line class="vec" x1="${SUBJ.x}" y1="${SUBJ.y}" x2="${(SUBJ.x + Math.sin(hv) * 40).toFixed(1)}" y2="${(SUBJ.y - Math.cos(hv) * 40).toFixed(1)}"/><circle cx="${SUBJ.x}" cy="${SUBJ.y}" r="4.5"/><rect class="sel" x="${SUBJ.x - 9}" y="${SUBJ.y - 9}" width="18" height="18"/><text x="${SUBJ.x + 14}" y="${SUBJ.y + 4}">${SUBJ.cs}</text><text x="${SUBJ.x + 14}" y="${SUBJ.y + 17}">020 PA28</text></g>`;
+    return `<svg viewBox="0 0 1130 470" width="1130" height="470" role="img" aria-label="Radar excerpt around KOAK"><rect class="scope-bg" width="1130" height="470"/>${vm}${rwys}<text class="apt" x="${(apt.x - 30).toFixed(1)}" y="${(apt.y - 30).toFixed(1)}">KOAK</text><text class="apt" x="${SUBJ.x + 5 * S * .72}" y="${SUBJ.y + 5 * S * .72 + 12}">5 NM</text>${tg}<path class="bline" data-bline d=""/><text class="blabel" data-blabel x="0" y="0"></text>${subj}</svg>`;
+  }
+  const scene = (menu, flyHtml) => `<div class="scene" data-scene>${scope()}<div class="at-menu">${menu}</div><div class="at-fly">${flyHtml}</div></div>`;
+
+  /* ---------- Today ---------- */
+  const richToday = `<div class="rich m"><div class="rh">Nearest traffic</div><div class="rs">${SUBJ.cs} · report traffic in sight</div>${T.slice(0, 5).map((t, i) => `<div class="rr${i === 0 ? " sel" : ""}"><span>${t.cs} · ${t.type}</span><span>${t.clock} o'clock</span><span>${t.nm} nm</span><span>${delta(t)}</span></div>`).join("")}${sep()}<div class="rr"><span>Any traffic (no target)</span><span></span><span></span><span>RTIS</span></div><div class="rr"><span>Other callsign…</span><span></span><span></span><span></span></div></div>`;
+  const followToday = `<div class="inpop m"><input class="tbox" type="text" placeholder="Traffic callsign (optional)" aria-label="Traffic callsign" autocomplete="off" spellcheck="false" data-oldbox><span class="btn">OK</span><span class="btn">Clear</span></div>`;
+  const d0 = {
+    id: "d0-today", title: "Today · a rich-row popup and a one-box popup", sends: "RTIS <callsign> · RTIS · FOLLOW <typed> · FOLLOW",
+    intro: [
+      "Report traffic in sight… shows the five nearest airborne aircraft (<code>IMenuHost.GetNearbyTraffic</code>, <code>ClientMenuHost.cs:514</code>), then Any traffic (bare <code>RTIS</code>) and Other callsign… (a second popup). With nothing airborne nearby it is the text box alone.",
+      "Follow traffic… shows only after a traffic report (<code>CanFollowTraffic</code>) and opens a text box; blank sends a bare <code>FOLLOW</code>, the last traffic reported. Neither popup says where an aircraft is on the scope, and nothing rings it.",
+    ],
+    lanes: [{ kind: "a", name: "As built", hint: "Type in the Follow popup and press Enter to see what it sends.",
+      body: `<div class="pair">${frame("Strip › <b>Report traffic in sight…</b> › rich-row popup", richToday)}${frame("Strip › <b>Follow traffic…</b> › input popup", followToday)}</div>`,
+      how: "Two unrelated popups; the rich rows send <code>RTIS {callsign}</code>, the box sends what was typed.",
+      worst: "In solo training every row and the box send <code>RTIS {callsign}</code> or bare <code>RTIS</code>, which the sim refuses (“Use RTIS &lt;clock&gt; &lt;miles&gt; &lt;direction&gt; &lt;type&gt; [altitude] in solo training”) after the popup has closed." }],
+  };
+
+  /* ---------- 1. The family ---------- */
+  const HOT = "N9152M";
+  const smallFrames = (kind, extra) => `<div class="pair">${extra}${frame("typed <b>dal</b>: no match", fly(kind, kind === "c" ? "RTIS" : "RTIS", { preset: "dal" }))}${frame("<b>empty</b>: nothing else airborne; the strip button inert, a list emptied while open", `<div class="pair">${acMenu("", { inert: true })}${fly(kind, "RTIS", { empty: true })}</div>`)}</div>`;
+  const d1 = {
+    id: "d1-family", title: "1 · The family: one flyout with a toggle, two flyouts, or one grouped flyout", sends: "RTIS <callsign> · FOLLOW <callsign> · FOLLOWF <callsign> (RPO)",
+    intro: [
+      "All lanes: the title line names the verb and the aircraft; the box filters by callsign or type and its command column previews what Enter sends; rows are every airborne aircraft within 10 NM, nearest first, two lines each: callsign · type (◆ and <i>in sight</i> on the one reported), then clock · NM · relative altitude · direction of flight · pattern leg when it has one, and the command.",
+      "Pointing at a row (or focusing it) rings that aircraft on the radar and, with <b>Bearing line</b> on, draws the line from N52TW to it. The scene opens with the pointer on N9152M.",
+    ],
+    lanes: [
+      { kind: "a", rec: true, name: "One flyout with a Report in sight / Follow toggle",
+        body: () => `${frame("Strip › <b>Report traffic in sight…</b> › flyout, pointer on N9152M", scene(acMenu("RTIS"), fly("a", "RTIS", { hot: HOT })))}${smallFrames("a", frame("Strip › <b>Follow traffic…</b>: the same flyout, toggle on Follow", fly("a", "FOLLOW")))}`,
+        how: "Both strip buttons (and All Commands) open one flyout preset to their verb; the toggle under the title switches it in place, keeping the box text. In Follow the reported aircraft comes first and the rest are greyed “not in sight”; Force (RPO only) turns them into <code>FOLLOWF</code> rows.",
+        worst: "Opened from Report in sight, the instructor clicks N738SP to follow it: that sends <code>RTIS N738SP</code> again (a harmless re-echo) and closes, because the toggle was still on Report; following takes a reopen and a toggle click." },
+      { kind: "b", name: "Two flyouts sharing one layout",
+        body: () => `${frame("Strip › <b>Report traffic in sight…</b> › flyout, pointer on N9152M", scene(acMenu("RTIS"), fly("b", "RTIS", { hot: HOT })))}${smallFrames("b", frame("Strip › <b>Follow traffic…</b> › its own flyout", fly("b", "FOLLOW")))}`,
+        how: "Report traffic in sight… and Follow traffic… keep their own entries and open twin flyouts, as Initiate handoff and Point out do. Report lists every row sending <code>RTIS</code>; Follow puts the reported aircraft first and greys the rest, with Force in its title line.",
+        worst: "To follow traffic not yet reported, the instructor opens Report, sends <code>RTIS</code>, waits for “traffic in sight” in the terminal (or a “looking” that the flyout cannot show), then opens Follow: two flyouts and a wait, or Force in RPO and none in solo." },
+      { kind: "c", name: "One flyout grouped by reported in sight",
+        body: () => `${frame("Strip › <b>Report traffic in sight…</b> › flyout, pointer on N9152M", scene(acMenu("RTIS"), fly("c", "RTIS", { hot: HOT })))}${smallFrames("c", frame("<b>Force</b> on (RPO): not-reported rows follow", fly("c", "RTIS", { force: true })))}`,
+        how: "One Traffic flyout for both buttons: an In sight group whose rows send <code>FOLLOW</code>, then Not reported, nearest first, whose rows send <code>RTIS</code>. Report in sight opens with focus on the first not-reported row, Follow on the in-sight row. Force turns the not-reported rows into <code>FOLLOWF</code>.",
+        worst: "N9152M reports in sight while the pointer rests on its row: with the order frozen inside the flyout the row stays put but its command flips from <code>RTIS N9152M</code> to <code>FOLLOW N9152M</code>, so the next click follows when it was meant to re-call the traffic." },
+    ],
+  };
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const lane = l => `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${l.rec ? `<span class="recb">recommended</span>` : ""}</div>
+      <div class="stage">${typeof l.body === "function" ? l.body() : l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Point at a row to ring its aircraft; click a row, or type in a box and press Enter, to see what it sends."}</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div></div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  const ARTS = [d0, d1];
+  function render() {
+    document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+    document.querySelectorAll(".menu.fly").forEach(refresh);
+    document.querySelectorAll(".menu.fly[data-hot]").forEach(m => { const r = m.querySelector(`.tr[data-cs="${m.dataset.hot}"]`); if (r) { r.classList.add("hot"); light(r); } });
+  }
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.id === "d0-today" ? "Today" : a.title.split(":")[0])}</a>`).join("") + `<a href="#questions">Open questions</a>`;
+
+  /* ---------- Filtering ---------- */
+  function refresh(m) {
+    if (m.hasAttribute("data-empty")) return;
+    const b = m.querySelector("[data-box]");
+    const t = b.value.trim(), U = t.toUpperCase();
+    const rows = [...m.querySelectorAll(".tr")];
+    let first = null;
+    rows.forEach(r => {
+      const a = byCs.get(r.dataset.cs);
+      const ok = !t || a.cs.includes(U) || a.type.startsWith(U);
+      r.hidden = !ok;
+      r.classList.remove("kfocus");
+      if (ok && t && !first && !r.classList.contains("dim")) first = r;
+    });
+    m.querySelectorAll("[data-group]").forEach(g => { g.hidden = ![...g.querySelectorAll(".tr")].some(r => !r.hidden); });
+    if (first) first.classList.add("kfocus");
+    const verb = boxVerb(m);
+    const nm = m.querySelector("[data-nomatch]");
+    const any = rows.some(r => !r.hidden);
+    nm.hidden = !t || any;
+    nm.innerHTML = `No aircraft matches; Enter sends <code>${verb} ${esc(U)}</code> as typed.${solo() && verb === "RTIS" ? " In solo training a callsign is refused: type the descriptive form (<code>12 3 E C172 010</code>)." : ""}`;
+    const prev = m.querySelector("[data-prev]");
+    const bn = m.querySelector("[data-bnote]");
+    bn.textContent = "";
+    if (!t) { prev.textContent = `${verb} ···`; prev.className = "cmd wait"; }
+    else if (first) { prev.textContent = first.querySelector("[data-c]").textContent; prev.className = "cmd"; }
+    else { prev.textContent = `${verb} ${U}`; prev.className = "cmd"; bn.textContent = "No listed aircraft: sent as typed"; }
+  }
+  const boxVerb = m => m.dataset.kind === "c" ? "RTIS" : m.dataset.verb;
+
+  /* ---------- Scope feedback ---------- */
+  function light(row) {
+    const sc = row.closest("[data-scene]");
+    if (!sc) return;
+    sc.querySelectorAll(".tgt").forEach(g => g.classList.toggle("lit", g.dataset.tgt === row.dataset.cs));
+    const t = byCs.get(row.dataset.cs);
+    const bl = sc.querySelector("[data-bline]"), lb = sc.querySelector("[data-blabel]");
+    bl.setAttribute("d", `M${SUBJ.x} ${SUBJ.y} L${t.x.toFixed(1)} ${t.y.toFixed(1)}`);
+    lb.setAttribute("x", ((SUBJ.x + t.x) / 2 - 60).toFixed(1));
+    lb.setAttribute("y", ((SUBJ.y + t.y) / 2 + 18).toFixed(1));
+    lb.textContent = `${t.clock} o'clock · ${t.nm} nm`;
+  }
+  function unlight(row) {
+    const sc = row.closest("[data-scene]");
+    if (!sc) return;
+    sc.querySelectorAll(".tgt").forEach(g => g.classList.remove("lit"));
+    sc.querySelector("[data-bline]").setAttribute("d", "");
+    sc.querySelector("[data-blabel]").textContent = "";
+  }
+
+  /* ---------- Interaction ---------- */
+  function sendRow(r) {
+    if (r.classList.contains("dim")) { say(r, `Greyed: ${esc(r.dataset.cs)} is not reported in sight (the sim would answer “Traffic not in sight — issue RTIS first”); sends nothing.`); return; }
+    say(r, `Sends <code>${esc(r.querySelector("[data-c]").textContent)}</code> for ${SUBJ.cs} and closes the flyout and the menu.`);
+  }
+  function rebuild(m, patch) {
+    const o = { preset: m.querySelector("[data-box]")?.value || "", force: m.dataset.force === "1", ...patch };
+    const verb = o.verb || m.dataset.verb;
+    const holder = document.createElement("div");
+    holder.innerHTML = fly(m.dataset.kind, verb, o);
+    const n = holder.firstElementChild;
+    m.replaceWith(n);
+    refresh(n);
+    return n;
+  }
+  document.addEventListener("click", e => {
+    const vt = e.target.closest("[data-verbt]");
+    if (vt) { const m = vt.closest(".menu.fly"); rebuild(m, { verb: vt.dataset.verbt }); return; }
+    const ft = e.target.closest("[data-force]");
+    if (ft) { const m = ft.closest(".menu.fly"); const n = rebuild(m, { force: m.dataset.force !== "1" }); say(n, n.dataset.force === "1" ? "Force on: rows not reported in sight send <code>FOLLOWF</code>, which folds the traffic report in (RPO only; the sim refuses it in solo training)." : "Force off."); return; }
+    const r = e.target.closest(".tr");
+    if (r) sendRow(r);
+  });
+  document.addEventListener("pointerover", e => { const r = e.target.closest(".tr"); if (r) { r.closest(".fly").querySelectorAll(".tr.hot").forEach(h => h.classList.remove("hot")); light(r); } });
+  document.addEventListener("pointerout", e => { const r = e.target.closest(".tr"); if (r && !r.contains(e.relatedTarget)) unlight(r); });
+  document.addEventListener("focusin", e => { const r = e.target.closest(".tr"); if (r) light(r); });
+  document.addEventListener("input", e => { const m = e.target.closest(".menu.fly"); if (m && e.target.matches("[data-box]")) refresh(m); });
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (t.matches("[data-oldbox]") && e.key === "Enter") { const v = t.value.trim().toUpperCase(); say(t, v ? `Sends <code>FOLLOW ${esc(v)}</code> and closes the popup.` : "Blank: sends a bare <code>FOLLOW</code>, the last traffic reported in sight."); return; }
+    const m = t.closest(".menu.fly");
+    if (!m) return;
+    if (t.matches("[data-box]")) {
+      if (e.key === "ArrowDown") { e.preventDefault(); const r = [...m.querySelectorAll(".tr")].find(x => !x.hidden && !x.classList.contains("dim")); if (r) r.focus(); return; }
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const v = t.value.trim().toUpperCase();
+      if (!v) { say(t, "Empty: Enter sends nothing and the flyout stays open."); return; }
+      const k = m.querySelector(".tr.kfocus");
+      if (k) { sendRow(k); return; }
+      say(t, `Sends <code>${boxVerb(m)} ${esc(v)}</code> as typed and closes the flyout; no listed aircraft matched it.`);
+      return;
+    }
+    if (t.matches(".tr")) {
+      const rows = [...m.querySelectorAll(".tr")].filter(x => !x.hidden && !x.classList.contains("dim"));
+      const i = rows.indexOf(t);
+      if (e.key === "Enter") { e.preventDefault(); sendRow(t); }
+      else if (e.key === "ArrowDown" && i < rows.length - 1) { e.preventDefault(); rows[i + 1].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); if (i > 0) rows[i - 1].focus(); else m.querySelector("[data-box]").focus(); }
+    }
+  });
+  document.getElementById("sw-solo").addEventListener("change", e => { document.body.classList.toggle("solo", e.target.checked); render(); });
+  document.getElementById("sw-bearing").addEventListener("change", e => { document.body.classList.toggle("bearing", e.target.checked); });
+  if (location.hash === "#solo") { document.getElementById("sw-solo").checked = true; document.body.classList.add("solo"); }
+  render();
+
+  /* ---------- #measure lists every flyout's rendered size ---------- */
+  if (location.hash === "#measure") {
+    const lines = [...document.querySelectorAll(".menu.fly, .rich, .inpop")].map(mm => {
+      const r = mm.getBoundingClientRect();
+      const f = mm.closest(".frame");
+      const tag = mm.closest("[data-lane]").querySelector(".tag").textContent;
+      return `${mm.closest(".art").id.split("-")[0]} ${tag} · ${(f ? f.querySelector(".flabel").textContent : "").slice(0, 60)}: ${Math.round(r.width)} × ${Math.round(r.height)}`;
+    });
+    document.getElementById("measure").innerHTML = `<div class="measure">${esc(lines.join("\n"))}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
