@@ -4,12 +4,10 @@
 
 ## Do first
 
-- [ ] YAAT-558 Stop QuickCommandsSection_DragReordersARow flaking under load · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-989 Stop FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch flaking on nav data · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [/] YAAT-993 Make DiscordRichPresenceServiceTests' wall-clock waits hang guards · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-137 Fix the SessionPersistenceTests Directory.Move flake under test-all · release vNext — Urgent · Singles
 - [ ] YAAT-169 Investigate the MainViewModelSpeechContextThreadingTests suite-load flake · release vNext — Urgent · Singles
-- [/] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — Urgent · Singles
+- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — Urgent · Singles
 - [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128 · release vNext — Urgent · Backlog
 - [ ] YAAT-646 Make CrcJoinSessionTests' Tower Cab move into another room's session load-proof · release vNext — Urgent · Backlog
 - [ ] YAAT-784 Make ChangeDetectionTests' concurrent remove-and-clear test load-proof · release vNext — Urgent · Backlog
@@ -399,6 +397,7 @@
 - [ ] YAAT-990 Remove the UI tests' leftover preference-restore code
 - [ ] YAAT-997 Move BatchToolsTests' remaining wall-clock races onto HeldClock
 - [ ] YAAT-998 Move the WaitForAndFilePick and ZOrder wall-clock bounds onto HeldClock
+- [ ] YAAT-999 Commit the suspend rig under tools/ and point the load-proof docs at it
 
 ## Singles
 
@@ -480,6 +479,7 @@
 - [ ] YAAT-727 Refuse weather JSON whose root is not an object instead of throwing in a tick
 - [ ] YAAT-759 When auto-determining active runways, if all are deduced arrival-only, assume D&A
 - [ ] YAAT-947 Refuse JAWY on a military training route; point to CMTR
+- [ ] YAAT-1000 Give test-all an idle watchdog that names a stalled test host
 
 ## Backlog
 
