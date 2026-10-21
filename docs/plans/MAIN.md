@@ -666,3 +666,4 @@
 - [ ] YAAT-1002 Don't fail a prepare-restart on a held backup delete; log the swallowed rollback failure
 - [ ] YAAT-1003 Decide vEDST's HandleSessionStarted before StartSession answers (late fire-and-forget read)
 - [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
+- [ ] YAAT-1007 Check two UI tests that set the navdata singleton outside a scope
