@@ -313,6 +313,7 @@ public class PointMenuViewTests
     [AvaloniaFact]
     public void Map_SelectedWithFrd_HeaderCarriesTheFrdAndTheSectionDropsItsRow()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (RadarView view, MainViewModel main) = RadarHarness();
         main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
         AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
@@ -332,6 +333,7 @@ public class PointMenuViewTests
     [AvaloniaFact]
     public void Map_NothingSelectedWithFrd_KeepsTheFrdRow()
     {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         (RadarView view, MainViewModel main) = RadarHarness();
         main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
         var position = new LatLon(37.80, -122.20);
