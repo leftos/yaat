@@ -30,7 +30,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2"],
@@ -38,11 +38,11 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            Point start = StripPoint(window, view, "S1");
-            Border rack1 = RackBorder(view, rackIndex: 1);
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
+            Border rack1 = RackBorder((VStripsView)view, rackIndex: 1);
             // Near the visual bottom of the empty rack — empty racks resolve
             // to insertion index 0 regardless of position.
             Point target = rack1.TranslatePoint(new Point(50, rack1.Bounds.Height - 20), window)!.Value;
@@ -70,7 +70,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2", "S3"],
@@ -78,14 +78,14 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
             // S1 renders at the visual bottom (model index 0); drag it above
             // the topmost strip (S3) → append index. With the source hidden
             // during the drag, the visible set is {S2, S3}, so append = 2.
-            Point start = StripPoint(window, view, "S1");
-            Point s3Top = StripPoint(window, view, "S3");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
+            Point s3Top = StripPoint((Window)window, (VStripsView)view, "S3");
             var target = new Point(s3Top.X, s3Top.Y - 60);
 
             window.MouseDrag(start, target, steps: 6);
@@ -109,7 +109,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2", "S3"],
@@ -117,7 +117,7 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
             // Promote to a drag, wander a few pixels, release in the BOTTOM
@@ -130,9 +130,11 @@ public class VStripsDragGestureTests
             // which side of a band midpoint the interpolated drag path
             // grazed — releasing near the midpoint made this flake on
             // sub-pixel layout differences between runs.
-            Point start = StripPoint(window, view, "S1");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
+            ContentPresenter source = StripControl((VStripsView)view, "S1").FindAncestorOfType<ContentPresenter>()!;
             window.MouseDrag(start, new Point(start.X + 12, start.Y + 22));
-            WaitOutSettle();
+            Assert.False(source.IsVisible, "the release did not promote to a drag: the source strip was never lifted");
+            WaitForSettled(source);
 
             Assert.Empty(captured);
             Assert.Equal(["S1", "S2", "S3"], [.. vm.Bays[0].Racks[0].Strips.Select(s => s.Id)]);
@@ -150,7 +152,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2"],
@@ -158,10 +160,10 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            Point start = StripPoint(window, view, "S2");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S2");
             window.MouseDown(start, MouseButton.Left);
             window.MouseMove(new Point(start.X + 1, start.Y), RawInputModifiers.LeftMouseButton);
             window.MouseUp(new Point(start.X + 1, start.Y), MouseButton.Left);
@@ -184,7 +186,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2"],
@@ -192,15 +194,15 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            Point start = StripPoint(window, view, "S1");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
             window.MouseDown(start, MouseButton.Left);
             window.MouseMove(new Point(start.X + 20, start.Y - 20), RawInputModifiers.LeftMouseButton);
             Dispatcher.UIThread.RunJobs();
 
-            ContentPresenter? sourcePresenter = StripControl(view, "S1").FindAncestorOfType<ContentPresenter>();
+            ContentPresenter? sourcePresenter = StripControl((VStripsView)view, "S1").FindAncestorOfType<ContentPresenter>();
             Assert.NotNull(sourcePresenter);
             Assert.False(sourcePresenter.IsVisible);
 
@@ -227,7 +229,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2"],
@@ -235,15 +237,15 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            Point start = StripPoint(window, view, "S1");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
             window.MouseDown(start, MouseButton.Left);
             window.MouseMove(new Point(start.X + 20, start.Y - 20), RawInputModifiers.LeftMouseButton);
             Dispatcher.UIThread.RunJobs();
 
-            ContentPresenter? sourcePresenter = StripControl(view, "S1").FindAncestorOfType<ContentPresenter>();
+            ContentPresenter? sourcePresenter = StripControl((VStripsView)view, "S1").FindAncestorOfType<ContentPresenter>();
             Assert.NotNull(sourcePresenter);
             Assert.False(sourcePresenter.IsVisible);
 
@@ -268,7 +270,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1"],
@@ -276,10 +278,10 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            Point start = StripPoint(window, view, "S1");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
             Border trash = view.FindControl<Border>("TrashZone")!;
             Point target = trash.TranslatePoint(new Point(trash.Bounds.Width / 2, trash.Bounds.Height / 2), window)!.Value;
 
@@ -302,7 +304,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1"],
@@ -310,11 +312,11 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
             Button localButton = view.GetVisualDescendants().OfType<Button>().Single(b => b.Tag is StripBayViewModel { Name: "LOCAL" });
-            Point start = StripPoint(window, view, "S1");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
             Point target = localButton.TranslatePoint(new Point(localButton.Bounds.Width / 2, localButton.Bounds.Height / 2), window)!.Value;
 
             // Drive the drag manually so the mid-drag hover state is
@@ -368,10 +370,10 @@ public class VStripsDragGestureTests
             )
         );
         vm.Printer.IsOpen = true;
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            VStripsViewInteractionTests.RealizeContainers(view);
+            VStripsViewInteractionTests.RealizeContainers((VStripsView)view);
             // The carousel-rendered strip has no rack Border ancestor.
             FlightStripControl carouselStrip = view.GetVisualDescendants()
                 .OfType<FlightStripControl>()
@@ -379,7 +381,7 @@ public class VStripsDragGestureTests
                     c.DataContext is StripItemViewModel { Id: "P1" } && !c.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)
                 );
             Point start = carouselStrip.TranslatePoint(new Point(30, 20), window)!.Value;
-            Border rack0 = RackBorder(view, rackIndex: 0);
+            Border rack0 = RackBorder((VStripsView)view, rackIndex: 0);
             // Bottom-left corner of rack 0, clear of the centered printer modal.
             Point target = rack0.TranslatePoint(new Point(30, rack0.Bounds.Height - 15), window)!.Value;
 
@@ -407,7 +409,7 @@ public class VStripsDragGestureTests
         // Enough strips that the rack stack overflows the 400px-tall window,
         // giving the ScrollViewer a scrollable extent.
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10"],
@@ -415,13 +417,13 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
             ScrollViewer scrollViewer = view.FindControl<ScrollViewer>("RacksScrollViewer")!;
             Assert.True(scrollViewer.Extent.Height > scrollViewer.Viewport.Height, "test setup: rack must overflow the viewport");
 
-            Point start = StripPoint(window, view, "S2");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S2");
             window.MouseDown(start, MouseButton.Left);
             window.MouseMove(new Point(start.X + 20, start.Y - 20), RawInputModifiers.LeftMouseButton);
             Dispatcher.UIThread.RunJobs();
@@ -441,7 +443,7 @@ public class VStripsDragGestureTests
             // visible viewport (rack 1's bottom is now scrolled out of view
             // and would hit-test to nothing), so combine rack 1's x with the
             // viewport's vertical center.
-            Border rack1 = RackBorder(view, rackIndex: 1);
+            Border rack1 = RackBorder((VStripsView)view, rackIndex: 1);
             double rackX = rack1.TranslatePoint(new Point(50, 0), window)!.Value.X;
             double viewportCenterY = scrollViewer.TranslatePoint(new Point(0, scrollViewer.Viewport.Height / 2), window)!.Value.Y;
             var target = new Point(rackX, viewportCenterY);
@@ -470,7 +472,7 @@ public class VStripsDragGestureTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
         VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
         VStripsViewInteractionTests.SeedStripsInBay(
-            vm,
+            (VStripsViewModel)vm,
             "bay-gnd",
             [
                 ["S1", "S2"],
@@ -478,10 +480,10 @@ public class VStripsDragGestureTests
             ]
         );
         vm.SetConnected(true);
-        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView(vm);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            Point start = StripPoint(window, view, "S1");
+            Point start = StripPoint((Window)window, (VStripsView)view, "S1");
             window.MouseDown(start, MouseButton.Left);
             window.MouseMove(new Point(start.X + 20, start.Y - 20), RawInputModifiers.LeftMouseButton);
             Dispatcher.UIThread.RunJobs();
@@ -490,9 +492,9 @@ public class VStripsDragGestureTests
             StripBayViewModel ground = vm.Bays.Single(b => b.Name == "GROUND");
             StripBayViewModel local = vm.Bays.Single(b => b.Name == "LOCAL");
             await vm.SelectBayAsync(local);
-            VStripsViewInteractionTests.RealizeContainers(view);
+            VStripsViewInteractionTests.RealizeContainers((VStripsView)view);
             await vm.SelectBayAsync(ground);
-            VStripsViewInteractionTests.RealizeContainers(view);
+            VStripsViewInteractionTests.RealizeContainers((VStripsView)view);
 
             // The dragged strip must exist only as the cursor ghost — every
             // rack-mounted rendering of it stays hidden while the drag lives.
@@ -507,7 +509,7 @@ public class VStripsDragGestureTests
 
             // Cancelling restores exactly one visible copy.
             window.DispatchKey(Key.Escape);
-            VStripsViewInteractionTests.RealizeContainers(view);
+            VStripsViewInteractionTests.RealizeContainers((VStripsView)view);
             int visibleAfterCancel = view.GetVisualDescendants()
                 .OfType<FlightStripControl>()
                 .Count(c =>
@@ -530,32 +532,44 @@ public class VStripsDragGestureTests
 
     // ── helpers ─────────────────────────────────────────────────
 
+    // A passing run never waits this out: the slowest observed drop dispatch
+    // under deliberate CPU starvation took 7.8s, and a stalled-loaded thread
+    // was measured at 31.8s. The guard only fires on a broken drop.
+    private static readonly TimeSpan CaptureHangGuard = TimeSpan.FromMinutes(2);
+
     /// <summary>
     /// Pumps the dispatcher until <paramref name="captured"/> reaches
-    /// <paramref name="count"/> entries (or 2s elapse). Drop dispatches run
-    /// after the ~130ms ghost-settle animation, so canonicals arrive on a
-    /// posted continuation rather than synchronously on MouseUp.
+    /// <paramref name="count"/> entries. Drop dispatches run after the
+    /// ghost-settle animation's delay, so canonicals arrive on a posted
+    /// continuation rather than synchronously on MouseUp.
     /// </summary>
     private static void WaitForCaptured(List<(string Callsign, string Command)> captured, int count)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        while ((captured.Count < count) && (stopwatch.ElapsedMilliseconds < 2000))
+        while (captured.Count < count)
         {
+            string dispatched = string.Join(", ", captured.Select(c => c.Command));
+            Assert.True(
+                stopwatch.Elapsed < CaptureHangGuard,
+                $"After {CaptureHangGuard.TotalMinutes} min the drop had dispatched {captured.Count} of {count} command(s): [{dispatched}]"
+            );
             System.Threading.Thread.Sleep(25);
             Dispatcher.UIThread.RunJobs();
         }
     }
 
     /// <summary>
-    /// Pumps the dispatcher past the longest settle window so a test can
-    /// assert that a drop deliberately emitted NOTHING (no-op moves,
-    /// cancelled drags) without racing the delayed dispatch.
+    /// Pumps the dispatcher until the dragged strip's source slot is visible
+    /// again: the drop's cleanup and its dispatch decision run in the same
+    /// continuation, so a test can then assert that NOTHING was emitted.
     /// </summary>
-    private static void WaitOutSettle()
+    private static void WaitForSettled(ContentPresenter source)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        while (stopwatch.ElapsedMilliseconds < 400)
+        while (!source.IsVisible)
         {
+            string timedOut = $"After {CaptureHangGuard.TotalMinutes} min the dropped strip's slot was still hidden: the settle never finished";
+            Assert.True(stopwatch.Elapsed < CaptureHangGuard, timedOut);
             System.Threading.Thread.Sleep(25);
             Dispatcher.UIThread.RunJobs();
         }
