@@ -254,6 +254,7 @@ public class SettingsViewModelImportTargetTests : IDisposable
             [
                 .. new[] { "#80123456", "Never", "OnLanding", "Parked", "Above", "Below" }
                     .Concat(Enum.GetNames<VfrCommandsForIfr>())
+                    .Concat(Enum.GetNames<SoloAdvisoryPrefill>())
                     .Select(s => (JsonNode?)JsonValue.Create(s)),
             ],
         };

@@ -37,6 +37,8 @@ public sealed partial class UserPreferences
         ("soloParkingInitialCallupRatePercent", IntRange(0, 200)),
         ("soloArrivalGeneratorRatePercent", IntRange(0, 100)),
         ("soloGoAroundProbabilityPercent", IntRange(0, 100)),
+        ("soloAdvisoryPrefill", EnumName<SoloAdvisoryPrefill>()),
+        ("soloAdvisoryLiveCheck", Flag),
         ("rpoShowPilotSpeech", Flag),
         ("rpoPilotSpeechAudibleAlert", Flag),
         ("pilotVoiceEnabled", Flag),

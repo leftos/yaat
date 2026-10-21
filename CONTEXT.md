@@ -700,6 +700,9 @@ The gear flyout on the command input that shows and changes the room's live sess
 A `.yaat-settings.zip` holding a `manifest.json` and one file per item type (preferences, macros, command verbs, favorites, grid layout, layouts), each in its single-item format; the Import / Export hub reads and writes it. Preferences travel only by an allowlist of Settings-section keys, each validated on import.
 _Avoid_: settings backup, profile (a layout is not a bundle)
 
+**Solo advisory settings**:
+The two client-only solo settings, "Pre-fill traffic advisories" (True values or Left for the student) and "Live advisory check" (grade the student's advisory as they type): a default in Settings › Scenario defaults › Solo training and a session copy in the session flyout that never leaves the client and reseeds from the default on a room change or a scenario or recording load (docs/client-settings-and-menus.md). Not the load prompt's **Pre-fill**.
+
 ## Tooling
 
 **At-risk tests**:

@@ -398,6 +398,36 @@ public partial class MainViewModel : ObservableObject
     public bool ShowSessionSoloGoAroundProbability => SessionSoloTrainingMode;
 
     /// <summary>
+    /// This session's "Pre-fill traffic advisories", seeded from the preference. Client-only: a change here never writes
+    /// the preference and never reaches the server.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SessionSoloAdvisoryPrefillIndex))]
+    private SoloAdvisoryPrefill _sessionSoloAdvisoryPrefill;
+
+    /// <summary><see cref="SessionSoloAdvisoryPrefill"/> as the session flyout's choice index.</summary>
+    public int SessionSoloAdvisoryPrefillIndex
+    {
+        get => (int)SessionSoloAdvisoryPrefill;
+        set
+        {
+            // A combo box reports -1 while it has no selection; that is not a choice.
+            if (Enum.IsDefined((SoloAdvisoryPrefill)value))
+            {
+                SessionSoloAdvisoryPrefill = (SoloAdvisoryPrefill)value;
+            }
+        }
+    }
+
+    public static IReadOnlyList<string> SessionSoloAdvisoryPrefillOptions => SoloAdvisoryPrefillLabels.Options;
+
+    /// <summary>This session's "Live advisory check", seeded from the preference; client-only like the pre-fill.</summary>
+    [ObservableProperty]
+    private bool _sessionSoloAdvisoryLiveCheck;
+
+    public bool ShowSessionSoloAdvisorySettings => SessionSoloTrainingMode;
+
+    /// <summary>
     /// How far the VFR-only command set opens up for IFR aircraft. A local preference, not a room
     /// setting — the simulation accepts every command, so this is what decides whether the context
     /// menus offer a VFR-only item and whether <see cref="VfrCommandGate"/> lets a typed one through.
@@ -1674,6 +1704,7 @@ public partial class MainViewModel : ObservableObject
         FavoriteLegacyMigration.Run(_preferences, _favoriteStore);
         _isSpeechEnabled = _preferences.SpeechEnabled;
         _sessionSoloTrainingMode = _preferences.SoloTrainingMode;
+        SeedSessionSoloAdvisorySettings();
         _pilotSpeechAlerts = new PilotSpeechAlertService(_preferences);
         _pilotVoice = new PilotVoiceService(_preferences);
 
@@ -2038,6 +2069,11 @@ public partial class MainViewModel : ObservableObject
         LoadLiveWeatherCommand.NotifyCanExecuteChanged();
         ResetPilotVoiceWarningSession();
         RefreshPilotVoiceWarning();
+        // Joining another room starts a new session; a reconnect to the same room keeps the student's choice.
+        if (value is not null)
+        {
+            SeedSessionSoloAdvisorySettings();
+        }
     }
 
     partial void OnActiveRoomNameChanged(string? value)
@@ -3659,6 +3695,14 @@ public partial class MainViewModel : ObservableObject
         ApplyAutoClearedToLandLocally(dto.AutoClearedToLand);
     }
 
+    // The solo advisory settings are client-only, so a new session (another room joined, a scenario or recording loaded)
+    // starts from this user's defaults; a reconnect, a timeline seek or a session-settings broadcast leaves the choice alone.
+    private void SeedSessionSoloAdvisorySettings()
+    {
+        SessionSoloAdvisoryPrefill = _preferences.SoloAdvisoryPrefill;
+        SessionSoloAdvisoryLiveCheck = _preferences.SoloAdvisoryLiveCheck;
+    }
+
     private void ApplySessionSettingsFromRoom(RoomStateDto state)
     {
         // A value typed in the previous room (or before a reconnect) belongs to that room, not this one.
@@ -3696,6 +3740,7 @@ public partial class MainViewModel : ObservableObject
     private void ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto dto)
     {
         _sessionSettingCommitter.DiscardAll("a scenario was loaded");
+        SeedSessionSoloAdvisorySettings();
         ApplySessionSettings(
             new SessionSettingsDto(
                 dto.AutoDeleteOverride,
@@ -3728,6 +3773,7 @@ public partial class MainViewModel : ObservableObject
     internal void ApplySessionSettingsFromLoadScenarioResult(LoadScenarioResultDto result)
     {
         _sessionSettingCommitter.DiscardAll("a scenario was loaded");
+        SeedSessionSoloAdvisorySettings();
         ApplySessionSettings(
             new SessionSettingsDto(
                 result.AutoDeleteOverride,
@@ -3950,6 +3996,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowSessionSoloParkingInitialCallupRate));
         OnPropertyChanged(nameof(ShowSessionSoloArrivalGeneratorRate));
         OnPropertyChanged(nameof(ShowSessionSoloGoAroundProbability));
+        OnPropertyChanged(nameof(ShowSessionSoloAdvisorySettings));
         RefreshPilotVoiceWarning();
         if (!_isApplyingSessionSettings)
         {

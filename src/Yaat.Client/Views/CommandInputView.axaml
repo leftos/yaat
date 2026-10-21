@@ -231,6 +231,16 @@
 
             <CheckBox Content="Solo Training Mode" IsChecked="{Binding SessionSoloTrainingMode}" />
 
+            <StackPanel Spacing="2" IsVisible="{Binding ShowSessionSoloAdvisorySettings}">
+              <TextBlock Text="Pre-fill traffic advisories" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <ComboBox
+                ItemsSource="{Binding SessionSoloAdvisoryPrefillOptions}"
+                SelectedIndex="{Binding SessionSoloAdvisoryPrefillIndex}"
+                HorizontalAlignment="Stretch"
+              />
+              <CheckBox Content="Live advisory check" IsChecked="{Binding SessionSoloAdvisoryLiveCheck}" Margin="0,4,0,0" />
+            </StackPanel>
+
             <StackPanel Spacing="2" IsVisible="{Binding ShowSessionSoloParkingInitialCallupRate}">
               <TextBlock Text="Parking call-up interval:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">

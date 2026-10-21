@@ -32,6 +32,10 @@ Two surfaces stay, reconciled rather than merged. Settings › Scenario defaults
 
 **Settings defaults for the solo pacing.** The solo parking call-up rate and the solo arrival generator rate have defaults under Scenario defaults › Solo training. The scenario setup dialog seeds its pacing sliders from those defaults and never writes back to them.
 
+**Solo advisory settings are client-only.** Scenario defaults › Solo training also holds "Pre-fill traffic advisories" (a combo: True values, the default, or Left for the student) and the "Live advisory check" checkbox (default off), stored as `soloAdvisoryPrefill` and `soloAdvisoryLiveCheck`. Both follow OK/Apply/Cancel and Reset section and travel in the settings bundle; an unknown pre-fill name is ignored with a logged warning.
+
+The session flyout shows the same two controls under "Solo Training Mode", only while it is on. Their values are this client's copy for the session: never written to the preferences, never sent to the server, so no other RPO sees them. The copy returns to the user's defaults when the client joins a different room and when a scenario or recording loads; a reconnect to the same room, a timeline seek and a session-settings broadcast keep the student's choice. Nothing reads them yet.
+
 **Room-only settings.** Live traffic (SWIM, its ceiling, filters and assume) and releases have no Settings default. Scenario defaults lists them in a "Room only" card with no controls.
 
 **One auto cleared-to-land and one auto arrival-spacing flag per room.** Settings keeps per-position defaults (GND, TWR, APP, CTR for cleared-to-land; GND and TWR for arrival spacing). The room holds a single flag of each, loaded from the default for the student's position type, and the flyout labels it with that type ("Auto cleared-to-land (TWR)"); a per-position grid in the flyout was rejected.

@@ -115,6 +115,8 @@ public static class SettingsSearchCatalog
             Setting(s, "SoloGoAroundProbabilityPercent", "Pilot go-around probability (default)", None),
             SettingWithin(s, "SoloParkingInitialCallupIntervalSeconds", "Parking call-up interval:", "Solo training", None),
             SettingWithin(s, "SoloArrivalGeneratorRatePercent", "Arrival generator rate:", "Solo training", None),
+            SettingWithin(s, "SelectedSoloAdvisoryPrefillIndex", "Pre-fill traffic advisories", "Solo training", None),
+            SettingWithin(s, "SoloAdvisoryLiveCheck", "Live advisory check", "Solo training", None),
             Setting(s, "AutoAcceptEnabled", "Auto-accept handoffs to unattended positions", None),
             Setting(s, "AutoAcceptDelaySeconds", "Delay (seconds):", Delay),
             SettingWithin(s, "CommandRunDelayMinSeconds", "Min", CommandRunDelay, Delay),

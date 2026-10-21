@@ -55,7 +55,7 @@
           <StackPanel Spacing="4">
             <TextBlock Text="Solo training" FontWeight="SemiBold" Margin="0,0,0,2" />
             <TextBlock
-              Text="How often parked aircraft call up for taxi, and how fast arrival generators spawn traffic, in solo training. Defaults for new rooms; the scenario setup dialog starts from them, and the room's live values are in the session flyout."
+              Text="How often parked aircraft call up for taxi, how fast arrival generators spawn traffic, and how traffic advisories are pre-filled and checked, in solo training. Defaults for new rooms; the scenario setup dialog starts from them, and the room's live values are in the session flyout."
               TextWrapping="Wrap"
               Foreground="{DynamicResource SubtleTextBrush}"
               FontSize="11"
@@ -97,6 +97,15 @@
                 Foreground="{DynamicResource SubtleTextBrush}"
               />
             </StackPanel>
+            <TextBlock Text="Pre-fill traffic advisories" Foreground="{DynamicResource SubtleTextBrush}" Margin="12,4,0,0" />
+            <ComboBox
+              ItemsSource="{Binding SoloAdvisoryPrefillOptions}"
+              SelectedIndex="{Binding SelectedSoloAdvisoryPrefillIndex}"
+              Width="240"
+              HorizontalAlignment="Left"
+              Margin="12,0,0,0"
+            />
+            <CheckBox Content="Live advisory check" IsChecked="{Binding SoloAdvisoryLiveCheck}" Margin="12,4,0,0" />
           </StackPanel>
           <StackPanel Spacing="4">
             <CheckBox Content="Auto-accept handoffs to unattended positions" IsChecked="{Binding AutoAcceptEnabled}" />

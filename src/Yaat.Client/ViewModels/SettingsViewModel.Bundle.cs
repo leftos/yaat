@@ -235,6 +235,12 @@ public partial class SettingsViewModel
             ),
             Field("soloArrivalGeneratorRatePercent", vm => vm.SoloArrivalGeneratorRatePercent, (vm, v) => vm.SoloArrivalGeneratorRatePercent = v),
             Field("soloGoAroundProbabilityPercent", vm => vm.SoloGoAroundProbabilityPercent, (vm, v) => vm.SoloGoAroundProbabilityPercent = v),
+            Field(
+                "soloAdvisoryPrefill",
+                vm => ((SoloAdvisoryPrefill)vm.SelectedSoloAdvisoryPrefillIndex).ToString(),
+                (vm, v) => vm.SelectedSoloAdvisoryPrefillIndex = (int)Enum.Parse<SoloAdvisoryPrefill>(v)
+            ),
+            Field("soloAdvisoryLiveCheck", vm => vm.SoloAdvisoryLiveCheck, (vm, v) => vm.SoloAdvisoryLiveCheck = v),
             Field("rpoShowPilotSpeech", vm => vm.RpoShowPilotSpeech, (vm, v) => vm.RpoShowPilotSpeech = v),
             Field("rpoPilotSpeechAudibleAlert", vm => vm.RpoPilotSpeechAudibleAlert, (vm, v) => vm.RpoPilotSpeechAudibleAlert = v),
             Field("pilotVoiceEnabled", vm => vm.PilotVoiceEnabled, (vm, v) => vm.PilotVoiceEnabled = v),

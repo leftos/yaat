@@ -97,6 +97,12 @@ public class SettingsSearchTests
     public void ClearTheTerminalOnLoad_IsFoundByItsWords(string query) =>
         Assert.Contains(Entry(SettingsSectionId.Terminal, "ClearTerminalOnScenarioLoad"), Search(query).Matches);
 
+    [Theory]
+    [InlineData("pre-fill traffic advisories", "SelectedSoloAdvisoryPrefillIndex")]
+    [InlineData("live advisory check", "SoloAdvisoryLiveCheck")]
+    public void TheSoloAdvisorySettings_AreFoundByTheirLabels(string query, string bindingPath) =>
+        Assert.Contains(Entry(SettingsSectionId.ScenarioDefaults, bindingPath), Search(query).Matches);
+
     private static SettingsSearchResult Search(string query) => SettingsSearch.Run(query, SettingsSearchCatalog.Entries);
 
     private static SettingsSearchEntry Entry(SettingsSectionId section, string bindingPath) =>

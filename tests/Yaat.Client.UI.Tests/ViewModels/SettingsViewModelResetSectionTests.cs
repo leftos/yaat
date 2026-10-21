@@ -75,6 +75,8 @@ public class SettingsViewModelResetSectionTests
                 vm.SelectedAutoDeleteIndex = 2;
                 vm.SoloParkingInitialCallupIntervalSeconds = 40;
                 vm.SoloArrivalGeneratorRatePercent = 35;
+                vm.SelectedSoloAdvisoryPrefillIndex = 1;
+                vm.SoloAdvisoryLiveCheck = true;
             },
             vm =>
                 (
@@ -82,7 +84,9 @@ public class SettingsViewModelResetSectionTests
                     vm.AutoCrossRunway,
                     SettingsViewModel.IndexToAutoDeleteOverride(vm.SelectedAutoDeleteIndex),
                     SoloPacing.ParkingInitialCallupIntervalSecondsToRate(vm.SoloParkingInitialCallupIntervalSeconds),
-                    vm.SoloArrivalGeneratorRatePercent
+                    vm.SoloArrivalGeneratorRatePercent,
+                    (SoloAdvisoryPrefill)vm.SelectedSoloAdvisoryPrefillIndex,
+                    vm.SoloAdvisoryLiveCheck
                 ),
             p =>
                 (
@@ -90,7 +94,9 @@ public class SettingsViewModelResetSectionTests
                     p.AutoCrossRunway,
                     p.AutoDeleteOverride,
                     p.SoloParkingInitialCallupRatePercent,
-                    p.SoloArrivalGeneratorRatePercent
+                    p.SoloArrivalGeneratorRatePercent,
+                    p.SoloAdvisoryPrefill,
+                    p.SoloAdvisoryLiveCheck
                 )
         );
 

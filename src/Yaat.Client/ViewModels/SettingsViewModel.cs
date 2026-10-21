@@ -346,6 +346,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _soloGoAroundProbabilityPercent;
 
+    /// <summary>Default "Pre-fill traffic advisories" for new solo sessions, a <see cref="SoloAdvisoryPrefill"/> by index.</summary>
+    [ObservableProperty]
+    private int _selectedSoloAdvisoryPrefillIndex;
+
+    /// <summary>Default "Live advisory check" for new solo sessions.</summary>
+    [ObservableProperty]
+    private bool _soloAdvisoryLiveCheck;
+
     /// <summary>Default parking call-up interval for new rooms: 0 (paused) or 10-120 s; stored as a rate percent.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SoloParkingInitialCallupIntervalLabel))]
@@ -727,6 +735,9 @@ public partial class SettingsViewModel : ObservableObject
     public static IReadOnlyList<string> VfrCommandsForIfrOptions { get; } =
     ["Never — require CIFR first", "Enter final (EF) only", "All VFR commands"];
 
+    // Indexed by the SoloAdvisoryPrefill value, so SelectedSoloAdvisoryPrefillIndex maps directly to the enum.
+    public static IReadOnlyList<string> SoloAdvisoryPrefillOptions => SoloAdvisoryPrefillLabels.Options;
+
     public bool IsMacOs { get; } = OperatingSystem.IsMacOS();
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -823,6 +834,8 @@ public partial class SettingsViewModel : ObservableObject
         );
         _appliedSoloParkingInitialCallupIntervalSeconds = _soloParkingInitialCallupIntervalSeconds;
         _soloArrivalGeneratorRatePercent = _preferences.SoloArrivalGeneratorRatePercent;
+        _selectedSoloAdvisoryPrefillIndex = (int)_preferences.SoloAdvisoryPrefill;
+        _soloAdvisoryLiveCheck = _preferences.SoloAdvisoryLiveCheck;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
         _rpoPilotSpeechAudibleAlert = _preferences.RpoPilotSpeechAudibleAlert;
         _pilotVoiceEnabled = _preferences.PilotVoiceEnabled;
@@ -1037,6 +1050,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSoloTrainingMode(SoloTrainingMode);
         _preferences.SetSoloGoAroundProbabilityGlobal(SoloGoAroundProbabilityPercent);
         ApplySoloPacingIfChanged();
+        _preferences.SetSoloAdvisorySettings((SoloAdvisoryPrefill)SelectedSoloAdvisoryPrefillIndex, SoloAdvisoryLiveCheck);
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
@@ -1970,6 +1984,8 @@ public partial class SettingsViewModel : ObservableObject
         SoloGoAroundProbabilityPercent = defaults.SoloGoAroundProbabilityPercent;
         SoloParkingInitialCallupIntervalSeconds = SoloPacing.ParkingInitialCallupRateToIntervalSeconds(defaults.SoloParkingInitialCallupRatePercent);
         SoloArrivalGeneratorRatePercent = defaults.SoloArrivalGeneratorRatePercent;
+        SelectedSoloAdvisoryPrefillIndex = (int)defaults.SoloAdvisoryPrefill;
+        SoloAdvisoryLiveCheck = defaults.SoloAdvisoryLiveCheck;
         RpoShowPilotSpeech = defaults.RpoShowPilotSpeech;
         RpoPilotSpeechAudibleAlert = defaults.RpoPilotSpeechAudibleAlert;
     }

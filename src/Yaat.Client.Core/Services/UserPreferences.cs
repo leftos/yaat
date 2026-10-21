@@ -365,6 +365,15 @@ public sealed partial class UserPreferences
     public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
     public int SoloGoAroundProbabilityPercent => Math.Clamp(_data.SoloGoAroundProbabilityPercent, 0, 100);
+
+    /// <summary>Whether a new solo session's traffic advisories start with the true values or leave them for the student.</summary>
+    public SoloAdvisoryPrefill SoloAdvisoryPrefill =>
+        (Enum.TryParse<SoloAdvisoryPrefill>(_data.SoloAdvisoryPrefill, out SoloAdvisoryPrefill prefill) && Enum.IsDefined(prefill))
+            ? prefill
+            : SoloAdvisoryPrefill.TrueValues;
+
+    /// <summary>Whether a new solo session grades a traffic advisory part by part as the student types it.</summary>
+    public bool SoloAdvisoryLiveCheck => _data.SoloAdvisoryLiveCheck;
     public bool RpoShowPilotSpeech => _data.RpoShowPilotSpeech;
     public bool RpoPilotSpeechAudibleAlert => _data.RpoPilotSpeechAudibleAlert;
     public bool PilotVoiceEnabled => _data.PilotVoiceEnabled;
@@ -869,6 +878,13 @@ public sealed partial class UserPreferences
     public void SetSoloTrainingMode(bool enabled)
     {
         _data.SoloTrainingMode = enabled;
+        Save();
+    }
+
+    public void SetSoloAdvisorySettings(SoloAdvisoryPrefill prefill, bool liveCheck)
+    {
+        _data.SoloAdvisoryPrefill = prefill.ToString();
+        _data.SoloAdvisoryLiveCheck = liveCheck;
         Save();
     }
 
@@ -2120,6 +2136,8 @@ public sealed partial class UserPreferences
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
             SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
+            SoloAdvisoryPrefill = GetFieldOr(obj, "soloAdvisoryPrefill", nameof(Services.SoloAdvisoryPrefill.TrueValues)),
+            SoloAdvisoryLiveCheck = GetFieldOr(obj, "soloAdvisoryLiveCheck", false),
             RpoShowPilotSpeech = GetFieldOr(obj, "rpoShowPilotSpeech", false),
             RpoPilotSpeechAudibleAlert = GetFieldOr(obj, "rpoPilotSpeechAudibleAlert", false),
             PilotVoiceEnabled = GetFieldOr(obj, "pilotVoiceEnabled", false),
@@ -2519,6 +2537,10 @@ public sealed partial class UserPreferences
         public bool SoloTrainingMode { get; set; }
         public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
         public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
+
+        // A SoloAdvisoryPrefill name, stored as a string (like VfrCommandsForIfr) so enum reordering can't misassign it.
+        public string SoloAdvisoryPrefill { get; set; } = nameof(Services.SoloAdvisoryPrefill.TrueValues);
+        public bool SoloAdvisoryLiveCheck { get; set; }
 
         // Global default per-approach pilot-go-around probability (0–100). Seeds the
         // Scenario Setup dialog when no per-scenario override is present. Default 0 =
