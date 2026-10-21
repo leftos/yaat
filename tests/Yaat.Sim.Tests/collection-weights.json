@@ -597,7 +597,6 @@
     "Yaat.Sim.Tests.SoloTrainingEvaluatorTests": 1,
     "Yaat.Sim.Tests.WarpCommandTests": 1,
     "Yaat.Sim.Tests.WindVariationTests": 1,
-    "TugPlanTiming": 0,
     "Yaat.Sim.Tests.AbbreviatedFlightPlanOtpTests": 0,
     "Yaat.Sim.Tests.ActiveApproachScoreSnapshotTests": 0,
     "Yaat.Sim.Tests.ActiveRunwaysCommandParserTests": 0,

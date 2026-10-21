@@ -16,6 +16,12 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
     private static readonly ILogger Log = AppLog.CreateLogger("NamedPipeTransport");
     private static readonly TimeSpan AcceptRetryDelay = TimeSpan.FromMilliseconds(100);
 
+    /// <summary>
+    /// How long Dispose waits for the listen loop to end once cancelled. A hang guard: the cancelled accept ends at once on
+    /// a working machine, and expiry only logs an error and carries on closing the instances.
+    /// </summary>
+    private static readonly TimeSpan ListenStopGuard = TimeSpan.FromSeconds(30);
+
     // Cancelled on dispose, never disposed: connection tasks may still observe its token after the listen loop ends,
     // and a source with no timer or wait handle holds nothing to free.
     private readonly CancellationTokenSource _cts = new();
@@ -27,6 +33,9 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
     private readonly HashSet<NamedPipeServerStream> _instances = [];
     private bool _stopped;
     private int _started;
+
+    // The listen loop, which Dispose waits for: its pending accept can still take a client until the accept itself ends.
+    private Task _listenLoop = Task.CompletedTask;
 
     /// <summary>
     /// Starts listening on a background task and returns at once. <paramref name="connectionHandler"/> serves one client.
@@ -40,7 +49,8 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         }
 
         CancellationToken ct = _cts.Token;
-        _ = Task.Run(() => ListenLoop(connectionHandler, ct), ct);
+        // Started without the token: a task cancelled before it runs would make Dispose's wait throw instead of return.
+        Volatile.Write(ref _listenLoop, Task.Run(() => ListenLoop(connectionHandler, ct)));
     }
 
     private async Task ListenLoop(Func<Stream, CancellationToken, Task> connectionHandler, CancellationToken ct)
@@ -159,14 +169,14 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         ct.IsCancellationRequested && (ex is ObjectDisposedException or IOException);
 
     /// <summary>
-    /// Stops accepting clients and closes every open connection. Every server instance is disposed before this returns, so
-    /// a client connecting afterwards finds no pipe. Calling it again does nothing.
+    /// Stops accepting clients and closes every open connection. It cancels the pending accept and waits for the listen loop
+    /// to end, since an instance closed while its accept is still in flight can take one more client; then every server
+    /// instance is disposed before this returns, so a client connecting afterwards finds no pipe. Calling it again does nothing.
     /// </summary>
     public void Dispose()
     {
         _cts.Cancel();
 
-        List<NamedPipeServerStream> open;
         lock (_instancesLock)
         {
             if (_stopped)
@@ -175,6 +185,20 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
             }
 
             _stopped = true;
+        }
+
+        if (!Volatile.Read(ref _listenLoop).Wait(ListenStopGuard))
+        {
+            Log.LogError(
+                "Automation pipe {PipeName}: the listen loop did not end within {Guard} of dispose; closing its instances anyway",
+                pipeName,
+                ListenStopGuard
+            );
+        }
+
+        List<NamedPipeServerStream> open;
+        lock (_instancesLock)
+        {
             open = [.. _instances];
         }
 

@@ -42,30 +42,42 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
                 return cached;
             }
 
-            string path = GetGeoJsonPath(shortId);
-            AirportGroundLayout? layout = null;
-
-            if (File.Exists(path))
-            {
-                // Both production call sites (AirportLayoutDownloader, the server's AirportGroundDataService) parse
-                // with the real airport code so runway widths come from navdata. Passing null instead fell back to a
-                // 150 ft default that no real runway uses, which moves the on-runway rectangle and therefore where
-                // hold-short nodes seat — the harness was building a different graph than the shipping one.
-                //
-                // EnsureInitialized is called unconditionally so the width does not depend on whether some other test
-                // class happened to load nav data first: the layout is cached per process, so a race there would bake
-                // one arbitrary graph in for the whole run. Codes unknown to navdata (the non-airport fixtures such as
-                // issue172-sfo) simply keep the default width, and a fresh/offline checkout with no nav data falls
-                // back to null so the harness's silent-skip convention still holds.
-                TestVnasData.EnsureInitialized();
-                string? runwayAirportCode = NavigationDatabase.InstanceOrNull is not null ? shortId.ToUpperInvariant() : null;
-
-                layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), runwayAirportCode, TestStandLeadIns.For(shortId), _filletMode);
-            }
-
+            AirportGroundLayout? layout = Parse(shortId, _filletMode);
             Cache[key] = layout;
             return layout;
         }
+    }
+
+    /// <summary>
+    /// A fresh parse of <paramref name="airportId"/>'s layout with the standard fillets, shared with no other caller: a
+    /// test measuring work the planner caches per layout instance needs an instance no earlier test has warmed.
+    /// </summary>
+    public static AirportGroundLayout? LoadUncached(string airportId) => Parse(NormalizeShortId(airportId), FilletMode.Standard);
+
+    private static AirportGroundLayout? Parse(string shortId, FilletMode filletMode)
+    {
+        string path = GetGeoJsonPath(shortId);
+        AirportGroundLayout? layout = null;
+
+        if (File.Exists(path))
+        {
+            // Both production call sites (AirportLayoutDownloader, the server's AirportGroundDataService) parse
+            // with the real airport code so runway widths come from navdata. Passing null instead fell back to a
+            // 150 ft default that no real runway uses, which moves the on-runway rectangle and therefore where
+            // hold-short nodes seat — the harness was building a different graph than the shipping one.
+            //
+            // EnsureInitialized is called unconditionally so the width does not depend on whether some other test
+            // class happened to load nav data first: the layout is cached per process, so a race there would bake
+            // one arbitrary graph in for the whole run. Codes unknown to navdata (the non-airport fixtures such as
+            // issue172-sfo) simply keep the default width, and a fresh/offline checkout with no nav data falls
+            // back to null so the harness's silent-skip convention still holds.
+            TestVnasData.EnsureInitialized();
+            string? runwayAirportCode = NavigationDatabase.InstanceOrNull is not null ? shortId.ToUpperInvariant() : null;
+
+            layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), runwayAirportCode, TestStandLeadIns.For(shortId), filletMode);
+        }
+
+        return layout;
     }
 
     public string? GetSourceGeoJson(string airportId)

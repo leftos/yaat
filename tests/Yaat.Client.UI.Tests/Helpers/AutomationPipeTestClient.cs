@@ -13,7 +13,12 @@ namespace Yaat.Client.UI.Tests.Helpers;
 /// </summary>
 public sealed class AutomationPipeTestClient : IAsyncDisposable
 {
-    private static readonly TimeSpan ReplyTimeout = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// A hang guard on every write and read, never a deadline a test relies on: it only turns a host that never answers
+    /// into a failure. It stays well past the product's own 30 s <c>wait_until</c> default and a starved test process's
+    /// stalls; a test that expects a timeout passes its own short one.
+    /// </summary>
+    private static readonly TimeSpan ReplyHangGuard = TimeSpan.FromSeconds(120);
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly NamedPipeClientStream _pipe;
@@ -55,7 +60,7 @@ public sealed class AutomationPipeTestClient : IAsyncDisposable
     {
         // Written straight to the pipe, without a StreamWriter: a writer's dispose-time flush throws once the host
         // has closed the pipe, which the shutdown test relies on.
-        await _pipe.WriteAsync(Utf8NoBom.GetBytes(line + "\n")).AsTask().WaitAsync(ReplyTimeout);
+        await _pipe.WriteAsync(Utf8NoBom.GetBytes(line + "\n")).AsTask().WaitAsync(ReplyHangGuard);
         string? reply = await ReadLineAsync();
         Assert.NotNull(reply);
         using var document = JsonDocument.Parse(reply);
@@ -63,10 +68,10 @@ public sealed class AutomationPipeTestClient : IAsyncDisposable
     }
 
     /// <summary>Sends <paramref name="line"/> as one request line without waiting for the response.</summary>
-    public async Task WriteLineAsync(string line) => await _pipe.WriteAsync(Utf8NoBom.GetBytes(line + "\n")).AsTask().WaitAsync(ReplyTimeout);
+    public async Task WriteLineAsync(string line) => await _pipe.WriteAsync(Utf8NoBom.GetBytes(line + "\n")).AsTask().WaitAsync(ReplyHangGuard);
 
     /// <summary>Reads the next line from the host; null once the host has closed the connection.</summary>
-    public async Task<string?> ReadLineAsync() => await _reader.ReadLineAsync().WaitAsync(ReplyTimeout);
+    public async Task<string?> ReadLineAsync() => await _reader.ReadLineAsync().WaitAsync(ReplyHangGuard);
 
     /// <summary>The pipe's security descriptor as this client sees it.</summary>
     [SupportedOSPlatform("windows")]

@@ -11,6 +11,7 @@ using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Handlers;
 using Yaat.Client.Automation.Protocol;
+using Yaat.Client.Automation.Transport;
 using Yaat.Client.UI.Tests.Helpers;
 
 namespace Yaat.Client.UI.Tests.Automation;
@@ -321,6 +322,60 @@ public sealed class AutomationHostTests : AutomationHostFixture
         Assert.True(held);
         Assert.Null(line);
         Assert.IsType<TimeoutException>(connectAfterDispose);
+    }
+
+    /// <summary>How long the stress test's connect to a just-started transport may wait before the run counts as hung.</summary>
+    private static readonly TimeSpan TransportConnectHangGuard = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// A transport disposed straight after serving a client leaves no server instance that accepts: a pending accept torn
+    /// down under <see cref="NamedPipeTransport.Dispose"/> can still take the next client, about once in five thousand
+    /// cycles, so the test runs enough cycles to catch it in nearly every run.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Nightly")]
+    public void Dispose_NoClientCanConnectAfterwards_Repeated()
+    {
+        const int Cycles = 20_000;
+        int connectedAfterDispose = 0;
+        for (int cycle = 0; cycle < Cycles; cycle++)
+        {
+            // A name per cycle, so a leaked instance from one cycle cannot take another cycle's first client.
+            string name = $"{PipeName}-{cycle}";
+            var transport = new NamedPipeTransport(name);
+            try
+            {
+                transport.Start(static (stream, ct) => stream.CopyToAsync(Stream.Null, ct));
+                using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut);
+                client.Connect(TransportConnectHangGuard);
+            }
+            finally
+            {
+                transport.Dispose();
+            }
+
+            if (ConnectsAtOnce(name))
+            {
+                connectedAfterDispose++;
+            }
+        }
+
+        Assert.Equal(0, connectedAfterDispose);
+    }
+
+    /// <summary>Whether a client connects to <paramref name="pipeName"/> on its first try; a missing pipe times out at once.</summary>
+    private static bool ConnectsAtOnce(string pipeName)
+    {
+        using var late = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
+        try
+        {
+            late.Connect(0);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 
     [AvaloniaFact]

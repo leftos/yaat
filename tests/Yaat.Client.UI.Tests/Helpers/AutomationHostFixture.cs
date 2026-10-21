@@ -15,7 +15,11 @@ namespace Yaat.Client.UI.Tests.Helpers;
 /// </summary>
 public abstract class AutomationHostFixture : IDisposable
 {
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// A hang guard on <see cref="Connect"/>, never a deadline a test relies on: the host's listen loop starts on the thread
+    /// pool, which a starved test process may not run for seconds. A test that expects no pipe passes its own short timeout.
+    /// </summary>
+    private static readonly TimeSpan ConnectHangGuard = TimeSpan.FromSeconds(120);
 
     protected string PipeName { get; } = $"yaat-automation-test-{Guid.NewGuid():N}";
 
@@ -66,7 +70,7 @@ public abstract class AutomationHostFixture : IDisposable
         return host;
     }
 
-    protected Task<AutomationPipeTestClient> Connect() => AutomationPipeTestClient.ConnectAsync(PipeName, ConnectTimeout);
+    protected Task<AutomationPipeTestClient> Connect() => AutomationPipeTestClient.ConnectAsync(PipeName, ConnectHangGuard);
 
     /// <summary>Shows <paramref name="window"/>, owned by <paramref name="owner"/> when one is given, and tracks it for closing.</summary>
     protected Window Show(Window window, Window? owner)

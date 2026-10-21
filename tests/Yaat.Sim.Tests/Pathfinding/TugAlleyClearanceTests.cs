@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
-using Yaat.Sim.Diagnostics;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -237,29 +236,25 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
     }
 }
 
-/// <summary>
-/// Serialized test collection for the tug planner's wall-clock budget: a timing measured while the rest of the assembly
-/// runs its collections in parallel (<c>xunit.runner.json</c>) measures the machine's load, not the planner.
-/// </summary>
-[CollectionDefinition("TugPlanTiming", DisableParallelization = true)]
-public sealed class TugPlanTimingCollection;
-
-/// <summary>What the alley clearance check costs the planner once the layout's work is cached.</summary>
-[Collection("TugPlanTiming")]
+/// <summary>What the alley clearance check reuses once the planner has seen the layout.</summary>
 public class TugAlleyClearanceTimingTests(ITestOutputHelper output)
 {
-    /// <summary>The most a plan may take once the layout's clearance work is cached, milliseconds.</summary>
-    private const double WarmPlanBudgetMs = 100.0;
+    /// <summary>
+    /// How many times fewer bytes the warm plan allocates than the cold one, at least: half the measured ratio, so a planner
+    /// change that allocates somewhat more still passes. Measured: alone 5.1x (4,264,720 bytes cold against 840,536 warm), in
+    /// a warmed process 4.7x (3,978,248 against 840,536), and about 2.0x with the layout cache defeated.
+    /// </summary>
+    private const double ReuseFactor = 2.55;
 
     /// <summary>
-    /// What the clearance check costs at SFO: the first F8 → 7A plan pays for the layout's protected centreline pieces,
-    /// their clipping and the taxiways' design groups; planning the same push again reuses all of it and takes under
-    /// <see cref="WarmPlanBudgetMs"/>.
+    /// The first F8 → 7A plan at SFO builds the layout's protected centreline pieces, their clipping and the taxiways'
+    /// design groups; planning the same push again reuses all of it. Reuse is proven by the bytes each plan allocates on
+    /// this thread, which load does not change, on a layout instance no other test has planned on.
     /// </summary>
     [Fact]
-    public void AlleyPushPlan_SecondPlanReusesLayoutWork_Under100ms()
+    public void AlleyPushPlan_SecondPlanReusesLayoutWork()
     {
-        if (TugAlleyClearanceTests.LoadSfo() is not { } layout)
+        if (TestAirportGroundData.LoadUncached("SFO") is not { } layout)
         {
             return;
         }
@@ -269,25 +264,19 @@ public class TugAlleyClearanceTimingTests(ITestOutputHelper output)
         GroundNode spot = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("no spot 7A");
         TugRequest request = TugAlleyClearanceTests.StandStart(layout, stand, TugAlleyClearanceTests.Regional, TugGoal.Spot(spot));
 
-        TimeSpan coldStart = ThreadCpuTime.Current();
+        long coldStart = GC.GetAllocatedBytesForCurrentThread();
         TugPlan? cold = TugMovePlanner.Plan(layout, request, out string coldRefusal);
-        TimeSpan warmStart = ThreadCpuTime.Current();
-        TimeSpan warmGcStart = GC.GetTotalPauseDuration();
+        long warmStart = GC.GetAllocatedBytesForCurrentThread();
         TugPlan? warm = TugMovePlanner.Plan(layout, request, out string warmRefusal);
-        double warmCpuMs = (ThreadCpuTime.Current() - warmStart).TotalMilliseconds;
-        double warmGcMs = (GC.GetTotalPauseDuration() - warmGcStart).TotalMilliseconds;
-        double warmMs = warmCpuMs + warmGcMs;
-        double coldMs = (warmStart - coldStart).TotalMilliseconds;
+        long warmBytes = GC.GetAllocatedBytesForCurrentThread() - warmStart;
+        long coldBytes = warmStart - coldStart;
 
         output.WriteLine(
-            $"F8 → 7A ({TugAlleyClearanceTests.Regional}) planned in {coldMs:F1} ms cold, {warmCpuMs:F1} ms warm of thread CPU time "
-                + $"+ {warmGcMs:F1} ms GC pause = {warmMs:F1} ms (budget {WarmPlanBudgetMs:F0} ms)"
+            $"F8 → 7A ({TugAlleyClearanceTests.Regional}) allocated {coldBytes:N0} bytes cold, {warmBytes:N0} bytes warm "
+                + $"({(double)coldBytes / warmBytes:F1}x)"
         );
         Assert.True(cold is not null, $"the cold plan was refused: {coldRefusal}");
         Assert.True(warm is not null, $"the warm plan was refused: {warmRefusal}");
-        Assert.True(
-            warmMs < WarmPlanBudgetMs,
-            $"the warm plan took {warmCpuMs:F1} ms of thread CPU time + {warmGcMs:F1} ms GC pause = {warmMs:F1} ms (cold {coldMs:F1} ms)"
-        );
+        Assert.True(warmBytes * ReuseFactor < coldBytes, $"the warm plan allocated {warmBytes:N0} bytes, the cold plan {coldBytes:N0}");
     }
 }

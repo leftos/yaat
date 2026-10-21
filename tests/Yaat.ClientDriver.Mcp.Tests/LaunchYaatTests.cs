@@ -532,8 +532,9 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         ProcessTools tools = NewTools(NewPipeDirectory(), starter);
         try
         {
+            // 120 s is a hang guard, not a bound the child must beat: the wait ends when the child exits.
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 10)
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 120)
             );
 
             Assert.Contains("exited with code 3", failure.Message, StringComparison.Ordinal);
@@ -642,29 +643,28 @@ public sealed class LaunchYaatTests : AutomationHostFixture
     {
         string appDataDir = NewDirectory("appdata");
         string exePath = NewDummyClientExe();
-        // This test starts the child itself, so the discovery file and the pipe stub are ready before the launch runs.
-        using Process child = Process.Start(Shell("ping.exe", "-n 30 127.0.0.1"))!;
+        // This test starts the child itself, so the discovery file and the pipe stub are ready before the launch runs. It
+        // lives about 300 s, past the launch's 120 s guard, so its exit can never answer the launch first.
+        using Process child = Process.Start(Shell("ping.exe", "-n 300 127.0.0.1"))!;
         string pipeName = $"yaat-stub-host-{Guid.NewGuid():N}";
         WriteDiscovery(child.Id, pipeName, child.ProcessName);
-        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        Task server = ServeCodedErrorAfterPingAsync(pipeName, child.Id, ceiling.Token);
+        // The stub's ceiling is a hang guard past the launch's own 120 s one, so the launch always ends first.
+        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(150));
+        var polledAgain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task server = ServeCodedErrorAfterPingAsync(pipeName, child.Id, polledAgain, ceiling.Token);
         var directory = new PipeDirectory(DiscoveryDirectory, child.ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
         var starter = new ScriptedStarter(() => Process.GetProcessById(child.Id));
         ProcessTools tools = NewTools(directory, starter);
-        const int waitSeconds = 10;
         try
         {
-            var elapsed = Stopwatch.StartNew();
-            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, waitSeconds)
+            // 120 s is a hang guard: the launch must fail on the first coded error, before it asks for the windows again.
+            Task<McpException> launch = Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 120)
             );
-            elapsed.Stop();
 
+            Assert.Same(launch, await Task.WhenAny(launch, polledAgain.Task));
+            McpException failure = await launch;
             Assert.Equal("HOST_BUSY: The host could not list its windows. Hint: try again", failure.Message);
-            Assert.True(
-                elapsed.Elapsed < TimeSpan.FromSeconds(waitSeconds / 2.0),
-                $"the launch polled past the host's coded error: {elapsed.Elapsed}"
-            );
         }
         finally
         {
@@ -896,10 +896,12 @@ public sealed class LaunchYaatTests : AutomationHostFixture
 
     /// <summary>
     /// Answers a ping for <paramref name="pid"/> and every other request with a coded host error, until the client hangs up
-    /// or <paramref name="ct"/> cancels.
+    /// or <paramref name="ct"/> cancels. Completes <paramref name="polledAgain"/> on the second <c>list_windows</c>: a
+    /// client that asks again polled past the first error.
     /// </summary>
-    private static async Task ServeCodedErrorAfterPingAsync(string pipeName, int pid, CancellationToken ct)
+    private static async Task ServeCodedErrorAfterPingAsync(string pipeName, int pid, TaskCompletionSource polledAgain, CancellationToken ct)
     {
+        int listWindowsCount = 0;
         await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         var busy = new AutomationError("The host could not list its windows.", "HOST_BUSY", "try again", null);
@@ -914,8 +916,14 @@ public sealed class LaunchYaatTests : AutomationHostFixture
                 {
                     using var request = JsonDocument.Parse(line);
                     string id = request.RootElement.GetProperty("id").GetString()!;
+                    string? method = request.RootElement.GetProperty("method").GetString();
+                    if ((method == ProtocolMethods.ListWindows) && (++listWindowsCount == 2))
+                    {
+                        polledAgain.TrySetResult();
+                    }
+
                     AutomationResponse response =
-                        (request.RootElement.GetProperty("method").GetString() == ProtocolMethods.Ping)
+                        (method == ProtocolMethods.Ping)
                             ? AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(pid, ProtocolVersion.Current)))
                             : AutomationResponse.Failure(id, busy);
                     await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
