@@ -6,6 +6,11 @@ public sealed class CommandQueueDto
 {
     public required List<CommandBlockDto> Blocks { get; init; }
     public required int CurrentBlockIndex { get; init; }
+
+    // The aircraft's transmission counter. Additive, no schema bump: 0 (omitted) before its first transmission and in
+    // older snapshots.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int LastTransmissionId { get; init; }
 }
 
 public sealed class CommandBlockDto
@@ -48,6 +53,15 @@ public sealed class CommandBlockDto
     // DispatchContext: without the flag a preset queued behind a trigger fires as if the instructor
     // issued it. Defaults false so older snapshots deserialize as not scripted.
     public bool IsScenarioScripted { get; init; }
+
+    // The transmission that queued this block, so a restored block's rebuilt ApplyAction stamps the same id.
+    // Additive, no schema bump: 0 (omitted) in older snapshots.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int TransmissionId { get; init; }
+
+    // Whether that transmission also carried a DVIA. Additive, no schema bump: false (omitted) in older snapshots.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TransmissionDescendsVia { get; init; }
 }
 
 public sealed class TrackedCommandDto

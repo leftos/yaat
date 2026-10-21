@@ -333,6 +333,24 @@ public class CommandBlock
     public bool IsScenarioScripted { get; init; }
 
     /// <summary>
+    /// The id of the transmission that queued this block (<see cref="Commands.DispatchContext.TransmissionId"/>): set
+    /// only when that transmission carried a CFIX or a constrained DCTF, 0 otherwise. Serialized so a restored block's
+    /// rebuilt <see cref="ApplyAction"/> stamps the id the live dispatch would have.
+    /// </summary>
+    public int TransmissionId { get; init; }
+
+    /// <summary>
+    /// Whether the transmission that queued this block still carries a DVIA
+    /// (<see cref="Commands.DispatchContext.TransmissionDescendsVia"/>). Serialized beside <see cref="TransmissionId"/>
+    /// for the same reason. Read when the block fires, and cleared by <see cref="CommandQueue.ForgetDroppedDescendVia"/>
+    /// when the transmission's queued DVIA is dropped before it applied.
+    /// </summary>
+    public bool TransmissionDescendsVia { get; set; }
+
+    /// <summary>Whether this block's parsed commands hold a DVIA; false for a restored block not yet rehydrated.</summary>
+    internal bool CarriesDescendVia => ParsedCommands?.Exists(c => c is Commands.DescendViaCommand) is true;
+
+    /// <summary>
     /// Set while this runway-entry block waits in the queue for its departure's release (<c>FlightPhysics.WaitsForRelease</c>),
     /// so the RPO's "waits for the release" notice and the wait/resume log lines each come once per block. Not serialized:
     /// it drives notices and logging only, and a restored block that is still held recomputes the wait from
@@ -362,6 +380,8 @@ public class CommandBlock
             TrackApplied = TrackApplied,
             HasDeleteCommand = HasDeleteCommand,
             IsScenarioScripted = IsScenarioScripted,
+            TransmissionId = TransmissionId,
+            TransmissionDescendsVia = TransmissionDescendsVia,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -386,6 +406,8 @@ public class CommandBlock
             TrackApplied = dto.TrackApplied,
             HasDeleteCommand = dto.HasDeleteCommand,
             IsScenarioScripted = dto.IsScenarioScripted,
+            TransmissionId = dto.TransmissionId,
+            TransmissionDescendsVia = dto.TransmissionDescendsVia,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
             // SimulationEngine.RehydrateRestoredQueueBlocks rebuilds it (and ParsedCommands) from
             // SourceCommandText on the next physics tick, before the queue can fire; track commands are
@@ -401,6 +423,45 @@ public class CommandQueue
     public CommandBlock? CurrentBlock => CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count ? Blocks[CurrentBlockIndex] : null;
 
     public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
+
+    /// <summary>
+    /// The id of the last accepted transmission to this aircraft that carried a CFIX or a constrained DCTF (0 before
+    /// the first); no other transmission takes an id. Per aircraft and snapshotted, so a restore followed by the same
+    /// commands hands out the same ids.
+    /// </summary>
+    public int LastTransmissionId { get; private set; }
+
+    /// <summary>Advances <see cref="LastTransmissionId"/> for a transmission carrying a crossing restriction and returns it.</summary>
+    public int NextTransmissionId() => ++LastTransmissionId;
+
+    /// <summary>Hands back the id a refused transmission took, so the refusal leaves the counter where it was.</summary>
+    internal void RewindTransmissionId(int lastTransmissionId) => LastTransmissionId = lastTransmissionId;
+
+    /// <summary>
+    /// Keeps <see cref="CommandBlock.TransmissionDescendsVia"/> true to the DVIAs a transmission still has once
+    /// <paramref name="removed"/> left the queue: for each transmission whose DVIA was in a removed block that had not
+    /// applied, every block of <paramref name="remaining"/> from that transmission loses the flag, unless one of them
+    /// still carries a DVIA. A CFIX queued beside the dropped DVIA then fires as a lone CFIX would, with its reverts.
+    /// </summary>
+    internal static void ForgetDroppedDescendVia(IEnumerable<CommandBlock> removed, IReadOnlyCollection<CommandBlock> remaining)
+    {
+        IEnumerable<int> droppedVias = removed
+            .Where(b => (b.TransmissionId != 0) && !b.IsApplied && b.CarriesDescendVia)
+            .Select(b => b.TransmissionId)
+            .Distinct();
+        foreach (int transmissionId in droppedVias)
+        {
+            if (remaining.Any(b => (b.TransmissionId == transmissionId) && b.CarriesDescendVia))
+            {
+                continue;
+            }
+
+            foreach (CommandBlock block in remaining.Where(b => b.TransmissionId == transmissionId))
+            {
+                block.TransmissionDescendsVia = false;
+            }
+        }
+    }
 
     /// <summary>
     /// Aborts the remainder of a chained compound after <paramref name="failedBlock"/> failed at fire
@@ -421,6 +482,7 @@ public class CommandQueue
             return discarded;
         }
 
+        var removed = new List<CommandBlock>();
         for (int i = Blocks.Count - 1; i > failedIndex; i--)
         {
             CommandBlock block = Blocks[i];
@@ -430,10 +492,12 @@ public class CommandQueue
             }
 
             discarded.Add(!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
+            removed.Add(block);
             Blocks.RemoveAt(i);
         }
 
         discarded.Reverse();
+        ForgetDroppedDescendVia(removed, Blocks);
 
         foreach (TrackedCommand cmd in failedBlock.Commands)
         {
@@ -448,11 +512,17 @@ public class CommandQueue
         return discarded;
     }
 
-    public CommandQueueDto ToSnapshot() => new() { Blocks = [.. Blocks.Select(b => b.ToSnapshot())], CurrentBlockIndex = CurrentBlockIndex };
+    public CommandQueueDto ToSnapshot() =>
+        new()
+        {
+            Blocks = [.. Blocks.Select(b => b.ToSnapshot())],
+            CurrentBlockIndex = CurrentBlockIndex,
+            LastTransmissionId = LastTransmissionId,
+        };
 
     public static CommandQueue FromSnapshot(CommandQueueDto dto)
     {
-        var queue = new CommandQueue { CurrentBlockIndex = dto.CurrentBlockIndex };
+        var queue = new CommandQueue { CurrentBlockIndex = dto.CurrentBlockIndex, LastTransmissionId = dto.LastTransmissionId };
         foreach (CommandBlockDto blockDto in dto.Blocks)
         {
             queue.Blocks.Add(CommandBlock.FromSnapshot(blockDto));

@@ -1,6 +1,8 @@
-﻿using Xunit;
+﻿using System.Text.Json;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
 
@@ -140,6 +142,102 @@ public class ProcedureCommandTests
         Assert.False(aircraft.Procedure.StarViaMode);
         Assert.Null(aircraft.Procedure.StarViaFloor);
         Assert.Equal(5500.0, aircraft.Targets.AltitudeFloor);
+    }
+
+    // --- DVIA supersedes the stored assigned altitude (YAAT-956) ---
+
+    [Fact]
+    public void DescendVia_ClearsTheAssignedAltitude()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        CommandDispatcher.Dispatch(new DescendMaintainCommand(12000), aircraft, TestDispatch.Context(Random.Shared));
+        Assert.Equal(12000, aircraft.Targets.AssignedAltitude);
+
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
+        Assert.True(aircraft.Procedure.StarViaMode);
+    }
+
+    [Fact]
+    public void DescendViaExceptMaintain_ClearsTheAssignedAltitude()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        CommandDispatcher.Dispatch(new DescendMaintainCommand(12000), aircraft, TestDispatch.Context(Random.Shared));
+        Assert.Equal(12000, aircraft.Targets.AssignedAltitude);
+
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(10000), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
+        Assert.Equal(10000, aircraft.Procedure.StarViaFloor);
+    }
+
+    [Fact]
+    public void DescendVia_Refused_KeepsTheAssignedAltitude()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
+        CommandDispatcher.Dispatch(new DescendMaintainCommand(12000), aircraft, TestDispatch.Context(Random.Shared));
+
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Equal(12000, aircraft.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// A refused transmission carrying a CFIX hands back the transmission id it took, so the aircraft's queue
+    /// snapshot (which carries the counter) is what it was before the refusal.
+    /// </summary>
+    [Fact]
+    public void RefusedCrossFixTransmission_LeavesTheQueueSnapshotUnchanged()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
+        string before = JsonSerializer.Serialize(aircraft.Queue.ToSnapshot());
+        CompoundCommand compound = Assert.IsType<CompoundCommand>(CommandParser.ParseCompound("CFIX SUNOL 40, DVIA", null).Value);
+
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Equal(0, aircraft.Queue.LastTransmissionId);
+        Assert.Equal(before, JsonSerializer.Serialize(aircraft.Queue.ToSnapshot()));
+    }
+
+    /// <summary>
+    /// DVIA restores a superseded crossing from the runway transition the aircraft flies, not the first transition
+    /// that names the fix. CHINS5 at KSEA publishes RADDY differently on its runway 16 and runway 34 transitions.
+    /// </summary>
+    [Fact]
+    public void DescendVia_RestoresTheRestrictionOfTheFlownRunwayTransition()
+    {
+        CifpStarProcedure star = Assert.IsType<CifpStarProcedure>(NavigationDatabase.Instance.GetStar("KSEA", "CHINS5"));
+        NavigationTarget ForRunway(string key) =>
+            DepartureClearanceHandler.ResolveLegsToTargets([.. star.RunwayTransitions[key].Legs]).First(t => t.Name == "RADDY");
+        NavigationTarget north = ForRunway("RW34B");
+        NavigationTarget south = ForRunway("RW16B");
+        Assert.NotEqual(north.AltitudeRestriction, south.AltitudeRestriction);
+
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
+        aircraft.FlightPlan.Destination = "KSEA";
+        aircraft.Procedure.ActiveStarId = "CHINS5";
+        aircraft.Procedure.DestinationRunway = "34R";
+        (double Lat, double Lon) raddy = NavigationDatabase.Instance.GetFixPosition("RADDY")!.Value;
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "RADDY", Position = new LatLon(raddy.Lat, raddy.Lon) });
+
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("RADDY", raddy.Lat, raddy.Lon, 11000, CrossFixAltitudeType.At, null),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+        CommandResult result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, result.Message);
+        NavigationTarget fix = Assert.Single(aircraft.Targets.NavigationRoute);
+        Assert.Equal(north.AltitudeRestriction, fix.AltitudeRestriction);
+        Assert.Equal(north.SpeedRestriction, fix.SpeedRestriction);
     }
 
     // --- CM disables SidViaMode ---

@@ -788,7 +788,12 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
-    internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft)
+    /// <summary>
+    /// Flies direct to <paramref name="cmd"/>'s fixes with its crossing restrictions. Every constrained fix is stamped
+    /// with <paramref name="transmissionId"/>, so a DVIA in the same transmission keeps the crossing and a later one
+    /// supersedes it.
+    /// </summary>
+    internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, int transmissionId)
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
@@ -861,6 +866,7 @@ internal static class FlightCommandHandler
                     RevertAssignedAltitude = revertAssignedAlt,
                     RevertSpeed = revertSpeed,
                     RevertAssignedSpeed = revertAssignedSpeed,
+                    CrossingTransmissionId = ((altRestriction is not null) || (speedRestriction is not null)) ? transmissionId : null,
                 }
             );
         }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class ControlTargetsDto
@@ -37,6 +39,10 @@ public sealed class NavigationTargetDto
     public double? RevertSpeed { get; init; }
     public double? RevertAssignedSpeed { get; init; }
     public double? TerminalCourseMagnetic { get; init; }
+
+    // Additive, no schema bump: absent in older snapshots, which restore as "no CFIX stamp".
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CrossingTransmissionId { get; init; }
 }
 
 public sealed class AltitudeRestrictionDto

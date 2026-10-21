@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -12,6 +13,8 @@ namespace Yaat.Sim.Commands;
 
 internal static class NavigationCommandHandler
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("NavigationCommandHandler");
+
     /// <summary>Renders a fix for command responses / SHOWAT descriptions as "NAME (ID)" when it has
     /// an authored display name (e.g. "LAKE CHABOT (VPCBT)"), or the bare identifier otherwise.</summary>
     private static string FixDisplay(string fix) => PhraseologyVerbalizer.FixDisplayTextUpper(fix);
@@ -153,6 +156,7 @@ internal static class NavigationCommandHandler
                 RevertAssignedAltitude = existing?.RevertAssignedAltitude,
                 RevertSpeed = existing?.RevertSpeed,
                 RevertAssignedSpeed = existing?.RevertAssignedSpeed,
+                CrossingTransmissionId = existing?.CrossingTransmissionId,
             }
         );
 
@@ -206,13 +210,19 @@ internal static class NavigationCommandHandler
         return block;
     }
 
-    internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
+    /// <summary>
+    /// Stamps a crossing restriction on <paramref name="cmd"/>'s fix, with the altitude and speed to revert to once the
+    /// fix is passed. In a transmission that also carries a DVIA (<paramref name="transmissionDescendsVia"/>), before
+    /// or after the CFIX, the crossing is restated with the via clearance: it takes no reverts, and after the DVIA it
+    /// leaves the assigned altitude the DVIA cleared alone.
+    /// </summary>
+    internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, int transmissionId, bool transmissionDescendsVia)
     {
         // Capture current altitude/speed for revert after fix passage
-        double? previousAlt = aircraft.Targets.TargetAltitude;
-        double? previousAssignedAlt = aircraft.Targets.AssignedAltitude;
-        double? previousSpeed = cmd.Speed is not null ? aircraft.Targets.TargetSpeed : null;
-        double? previousAssignedSpeed = cmd.Speed is not null ? aircraft.Targets.AssignedSpeed : null;
+        double? previousAlt = transmissionDescendsVia ? null : aircraft.Targets.TargetAltitude;
+        double? previousAssignedAlt = transmissionDescendsVia ? null : aircraft.Targets.AssignedAltitude;
+        double? previousSpeed = ((cmd.Speed is not null) && !transmissionDescendsVia) ? aircraft.Targets.TargetSpeed : null;
+        double? previousAssignedSpeed = ((cmd.Speed is not null) && !transmissionDescendsVia) ? aircraft.Targets.AssignedSpeed : null;
 
         // Map CrossFixAltitudeType to CifpAltitudeRestrictionType
         CifpAltitudeRestrictionType restrictionType = cmd.AltType switch
@@ -224,6 +234,9 @@ internal static class NavigationCommandHandler
 
         var altRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude);
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
+
+        // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
+        int? crossingTransmissionId = (transmissionId == 0) ? null : transmissionId;
 
         // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
         // place, preserving the rest of the route (fixes before and after) and any restriction
@@ -238,6 +251,7 @@ internal static class NavigationCommandHandler
             existing.AltitudeRestriction = altRestriction;
             existing.RevertAltitude = previousAlt;
             existing.RevertAssignedAltitude = previousAssignedAlt;
+            existing.CrossingTransmissionId = crossingTransmissionId;
             if (speedRestriction is not null)
             {
                 existing.SpeedRestriction = speedRestriction;
@@ -258,13 +272,18 @@ internal static class NavigationCommandHandler
                     RevertAssignedAltitude = previousAssignedAlt,
                     RevertSpeed = previousSpeed,
                     RevertAssignedSpeed = previousAssignedSpeed,
+                    CrossingTransmissionId = crossingTransmissionId,
                 }
             );
         }
 
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
-        // But do set AssignedAltitude for the datablock display.
-        aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA already applied and
+        // cleared it: both orders of "CFIX, DVIA" then end with no assigned altitude.
+        if (!(transmissionDescendsVia && aircraft.Procedure.StarViaMode))
+        {
+            aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        }
 
         if (cmd.Speed is { } spdVal)
         {
@@ -1220,18 +1239,21 @@ internal static class NavigationCommandHandler
         return CommandDispatcher.Ok("Climb via SID");
     }
 
-    internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft)
+    internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft, int transmissionId, bool speedAssignedInBlock)
     {
         // "Descend via the [STAR]" only requires the STAR to be in the cleared route (AIM 5-4-1.a.2);
         // no separate join step is needed. If no STAR is active yet, activate the one in the filed
         // route and overlay its published crossing restrictions onto the live lateral route.
-        if (aircraft.Procedure.ActiveStarId is null && !TryActivateFiledStar(aircraft))
+        if ((aircraft.Procedure.ActiveStarId is null) && !TryActivateFiledStar(aircraft, transmissionId))
         {
             return new CommandResult(false, "No active STAR — descend via requires a STAR in the filed route");
         }
 
+        SupersedeEarlierCrossingRestrictions(aircraft, transmissionId, speedAssignedInBlock);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.StarViaFloor = cmd.Altitude;
+        // The via clearance supersedes any altitude assigned before it (converse of 7110.65 4-5-7.h.11 NOTE 1).
+        aircraft.Targets.AssignedAltitude = null;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
         // it from the next constrained fix in the route.
@@ -1241,29 +1263,16 @@ internal static class NavigationCommandHandler
         // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route
         if (cmd.Speed is { } speed && cmd.SpeedFixName is not null && cmd.SpeedFixLat is not null && cmd.SpeedFixLon is not null)
         {
-            List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
-            bool found = false;
-            for (int i = 0; i < route.Count; i++)
-            {
-                if (string.Equals(route[i].Name, cmd.SpeedFixName, StringComparison.OrdinalIgnoreCase))
-                {
-                    route[i] = new NavigationTarget
-                    {
-                        Name = route[i].Name,
-                        Position = route[i].Position,
-                        AltitudeRestriction = route[i].AltitudeRestriction,
-                        SpeedRestriction = new CifpSpeedRestriction(speed, CifpSpeedRestrictionType.AtOrBelow),
-                        IsFlyOver = route[i].IsFlyOver,
-                    };
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
+            // Set on the fix in place, so its crossing stamp and everything else on it survive.
+            NavigationTarget? speedFix = aircraft.Targets.NavigationRoute.Find(f =>
+                string.Equals(f.Name, cmd.SpeedFixName, StringComparison.OrdinalIgnoreCase)
+            );
+            if (speedFix is null)
             {
                 return new CommandResult(false, $"Fix {FixDisplay(cmd.SpeedFixName)} not found in current route");
             }
+
+            speedFix.SpeedRestriction = new CifpSpeedRestriction(speed, CifpSpeedRestrictionType.AtOrBelow);
 
             return CommandDispatcher.Ok($"Descend via STAR, {speed} knots at {FixDisplay(cmd.SpeedFixName)}");
         }
@@ -1302,14 +1311,14 @@ internal static class NavigationCommandHandler
     /// by fix name — it does not rebuild the route, so fixes the aircraft has already passed are not
     /// re-added. Returns false when the filed route contains no resolvable STAR.
     /// </summary>
-    private static bool TryActivateFiledStar(AircraftState aircraft)
+    private static bool TryActivateFiledStar(AircraftState aircraft, int transmissionId)
     {
         if (FiledProcedureLookup.FindStar(NavigationDatabase.Instance, aircraft.FlightPlan.Destination, aircraft.FlightPlan.Route) is not { } filed)
         {
             return false;
         }
 
-        OverlayStarRestrictions(aircraft, filed.Procedure);
+        OverlayStarRestrictions(aircraft, filed.Procedure, transmissionId);
         aircraft.Procedure.ActiveStarId = filed.Id;
         return true;
     }
@@ -1317,38 +1326,156 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// Copies each published altitude/speed restriction from <paramref name="star"/> onto the matching
     /// fix (by name) already present in the aircraft's navigation route, reusing the same leg→target
-    /// resolution as <c>JARR</c> so the constraint semantics are identical.
+    /// resolution as <c>JARR</c> so the constraint semantics are identical. A fix whose crossing restriction a
+    /// CFIX in this same transmission set keeps it: the controller restated it with the via clearance.
     /// </summary>
-    private static void OverlayStarRestrictions(AircraftState aircraft, CifpStarProcedure star)
+    private static void OverlayStarRestrictions(AircraftState aircraft, CifpStarProcedure star, int transmissionId)
     {
-        var allLegs = new List<CifpLeg>();
-        foreach (CifpTransition transition in star.EnrouteTransitions.Values)
-        {
-            allLegs.AddRange(transition.Legs);
-        }
-        allLegs.AddRange(star.CommonLegs);
-        foreach (CifpTransition transition in star.RunwayTransitions.Values)
-        {
-            allLegs.AddRange(transition.Legs);
-        }
-
-        var byName = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
-        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
-        {
-            if ((target.AltitudeRestriction is not null || target.SpeedRestriction is not null) && !byName.ContainsKey(target.Name))
-            {
-                byName[target.Name] = target;
-            }
-        }
-
+        Dictionary<string, NavigationTarget> byName = PublishedStarRestrictions(star, aircraft);
         foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
+            if (IsStampedBy(fix, transmissionId))
+            {
+                continue;
+            }
+
             if (byName.TryGetValue(fix.Name, out NavigationTarget? source))
             {
                 fix.AltitudeRestriction = source.AltitudeRestriction;
                 fix.SpeedRestriction = source.SpeedRestriction;
             }
         }
+    }
+
+    /// <summary>
+    /// A descend via clearance supersedes a crossing restriction issued before it and not restated with it
+    /// (7110.65 4-5-7.h.9, h.11 NOTES 1-2; AIM 5-2-9.h.8 Example 8). Every route fix a CFIX or a constrained
+    /// direct-to set loses its pending reverts (altitude, assigned altitude, speed, assigned speed), so passing it
+    /// can no longer restore an altitude or speed assigned before the via clearance. A fix a CFIX or constrained
+    /// direct-to in this same transmission stamped keeps its restriction; every other such fix gets the active STAR's
+    /// published restriction back, or none where the STAR publishes none. A superseded crossing speed that is still the
+    /// aircraft's assigned or target speed is dropped too, so the procedure and the default schedule take the speed
+    /// back (7110.65 5-7-1.d; AIM 4-4-12.f.5), unless <paramref name="speedAssignedInBlock"/>: a speed assigned ahead of
+    /// the DVIA in its own block is restated with it (7110.65 5-7-1.c) and stands, whatever it equals.
+    /// </summary>
+    private static void SupersedeEarlierCrossingRestrictions(AircraftState aircraft, int transmissionId, bool speedAssignedInBlock)
+    {
+        Dictionary<string, NavigationTarget>? published = null;
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        {
+            bool controllerSet = (fix.CrossingTransmissionId is not null) || HasPendingRevert(fix);
+            if (!controllerSet)
+            {
+                continue;
+            }
+
+            if (!IsStampedBy(fix, transmissionId))
+            {
+                published ??= ActiveStarRestrictions(aircraft);
+                NavigationTarget? source = published.GetValueOrDefault(fix.Name);
+                if (!speedAssignedInBlock && (fix.SpeedRestriction is { } superseded) && (superseded != source?.SpeedRestriction))
+                {
+                    DropSupersededCrossingSpeed(aircraft, superseded.SpeedKts);
+                }
+
+                fix.AltitudeRestriction = source?.AltitudeRestriction;
+                fix.SpeedRestriction = source?.SpeedRestriction;
+                fix.CrossingTransmissionId = null;
+            }
+
+            fix.RevertAltitude = null;
+            fix.RevertAssignedAltitude = null;
+            fix.RevertSpeed = null;
+            fix.RevertAssignedSpeed = null;
+        }
+    }
+
+    private static void DropSupersededCrossingSpeed(AircraftState aircraft, int speedKts)
+    {
+        if (aircraft.Targets.AssignedSpeed == speedKts)
+        {
+            aircraft.Targets.AssignedSpeed = null;
+        }
+
+        if (aircraft.Targets.TargetSpeed == speedKts)
+        {
+            aircraft.Targets.TargetSpeed = null;
+        }
+    }
+
+    private static bool IsStampedBy(NavigationTarget fix, int transmissionId) =>
+        (transmissionId != 0) && (fix.CrossingTransmissionId == transmissionId);
+
+    private static bool HasPendingRevert(NavigationTarget fix) =>
+        (fix.RevertAltitude is not null)
+        || (fix.RevertAssignedAltitude is not null)
+        || (fix.RevertSpeed is not null)
+        || (fix.RevertAssignedSpeed is not null);
+
+    /// <summary>The active STAR's published restrictions by fix name; empty when the STAR cannot be resolved.</summary>
+    private static Dictionary<string, NavigationTarget> ActiveStarRestrictions(AircraftState aircraft)
+    {
+        string? starId = aircraft.Procedure.ActiveStarId;
+        CifpStarProcedure? star = starId is null ? null : NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, starId);
+        if (star is null)
+        {
+            Log.LogWarning(
+                "{Callsign}: DVIA could not resolve STAR {Star} at {Dest}; crossing restrictions it supersedes are cleared, not restored",
+                aircraft.Callsign,
+                starId,
+                aircraft.FlightPlan.Destination
+            );
+            return new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return PublishedStarRestrictions(star, aircraft);
+    }
+
+    /// <summary>
+    /// The restrictions <paramref name="star"/> publishes on the legs <paramref name="aircraft"/> flies, by fix name,
+    /// in the order <c>JARR</c> builds them: the enroute transition(s) its route is on, the common route, then the
+    /// runway transition for its runway (the assigned runway, else the procedure's destination runway). Where no
+    /// runway transition resolves for it, every runway transition is read, the first to name a fix winning.
+    /// </summary>
+    private static Dictionary<string, NavigationTarget> PublishedStarRestrictions(CifpStarProcedure star, AircraftState aircraft)
+    {
+        var commonFixes = new HashSet<string>(star.CommonLegs.Select(l => l.FixIdentifier), StringComparer.OrdinalIgnoreCase);
+        var routeFixes = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
+        var orderedLegs = new List<CifpLeg>();
+        foreach (CifpTransition transition in star.EnrouteTransitions.Values)
+        {
+            if (transition.Legs.Any(l => routeFixes.Contains(l.FixIdentifier) && !commonFixes.Contains(l.FixIdentifier)))
+            {
+                orderedLegs.AddRange(transition.Legs);
+            }
+        }
+
+        orderedLegs.AddRange(star.CommonLegs);
+
+        string? runway = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Procedure.DestinationRunway;
+        CifpTransition? flownRunwayTransition = string.IsNullOrEmpty(runway) ? null : LookupRunwayTransition(star.RunwayTransitions, runway);
+        if (flownRunwayTransition is not null)
+        {
+            orderedLegs.AddRange(flownRunwayTransition.Legs);
+        }
+        else
+        {
+            foreach (CifpTransition transition in star.RunwayTransitions.Values)
+            {
+                orderedLegs.AddRange(transition.Legs);
+            }
+        }
+
+        var byName = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
+        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs))
+        {
+            if (((target.AltitudeRestriction is not null) || (target.SpeedRestriction is not null)) && !byName.ContainsKey(target.Name))
+            {
+                byName[target.Name] = target;
+            }
+        }
+
+        return byName;
     }
 
     /// <summary>

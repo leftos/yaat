@@ -103,9 +103,24 @@ public static class CommandDispatcher
             return RejectChainedCommand(chainedVerb);
         }
 
+        // One id per transmission that carries a crossing restriction (CFIX or constrained DCTF), shared by every block
+        // it queues, so a DVIA can tell a crossing restated on its own line from an earlier one. Every other
+        // transmission keeps id 0 and leaves the counter alone, and a refused one hands its id back, so neither
+        // changes a snapshot.
+        int lastTransmissionId = aircraft.Queue.LastTransmissionId;
+        if (compound.Blocks.Exists(b => b.Commands.Exists(c => c is CrossFixCommand or ConstrainedForceDirectToCommand)))
+        {
+            ctx = ctx with
+            {
+                TransmissionId = aircraft.Queue.NextTransmissionId(),
+                TransmissionDescendsVia = compound.Blocks.Exists(b => b.Commands.Exists(c => c is DescendViaCommand)),
+            };
+        }
+
         CommandResult? refusal = TryAssumeShadow(aircraft, compound, ctx, out AssumeUndo? autoAssumed);
         if (refusal is not null)
         {
+            aircraft.Queue.RewindTransmissionId(lastTransmissionId);
             return refusal;
         }
 
@@ -122,6 +137,10 @@ public static class CommandDispatcher
         // post-takeoff check-in.
         bool wasOnGround = aircraft.IsOnGround;
         CommandResult result = DispatchCompoundCore(compound, aircraft, ctx);
+        if (!result.Success)
+        {
+            aircraft.Queue.RewindTransmissionId(lastTransmissionId);
+        }
 
         // The gate took a real aircraft only so this command could apply to it. It did not, so hand it back: the
         // aircraft is live traffic again and the refusal is the plain refusal, with nothing claiming a hand-off.
@@ -1105,7 +1124,7 @@ public static class CommandDispatcher
             case ForceDirectToCommand cmd:
                 return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft);
             case ConstrainedForceDirectToCommand cmd:
-                return FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft);
+                return FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft, ctx.TransmissionId);
             case AppendDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, validateDctFixes);
             case AppendForceDirectToCommand cmd:
@@ -1198,11 +1217,11 @@ public static class CommandDispatcher
             case DepartFixCommand cmd:
                 return NavigationCommandHandler.DispatchDepartFix(cmd, aircraft);
             case CrossFixCommand cmd:
-                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft);
+                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft, ctx.TransmissionId, ctx.TransmissionDescendsVia);
             case ClimbViaCommand cmd:
                 return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft);
             case DescendViaCommand cmd:
-                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft);
+                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId, ctx.SpeedAssignedInBlock);
 
             // RWY assigns the arrival/departure runway, which is a route decision rather than a surface one, so it
             // must apply with no phase active too — the tower switch has the same arm for the phase path.
@@ -1531,7 +1550,7 @@ public static class CommandDispatcher
     private static int RemoveQueuedDeleteBlocks(AircraftState aircraft)
     {
         CommandQueue queue = aircraft.Queue;
-        int removed = 0;
+        var removed = new List<CommandBlock>();
         int removedBeforeCursor = 0;
 
         for (int i = queue.Blocks.Count - 1; i >= 0; i--)
@@ -1541,8 +1560,8 @@ public static class CommandDispatcher
                 continue;
             }
 
+            removed.Add(queue.Blocks[i]);
             queue.Blocks.RemoveAt(i);
-            removed++;
             if (i < queue.CurrentBlockIndex)
             {
                 removedBeforeCursor++;
@@ -1550,7 +1569,8 @@ public static class CommandDispatcher
         }
 
         queue.CurrentBlockIndex = Math.Max(0, queue.CurrentBlockIndex - removedBeforeCursor);
-        return removed;
+        CommandQueue.ForgetDroppedDescendVia(removed, queue.Blocks);
+        return removed.Count;
     }
 
     /// <summary>
@@ -3280,10 +3300,13 @@ public static class CommandDispatcher
             }
         }
 
-        // Remove all pending blocks from the queue
+        // Remove all pending blocks from the queue. A survivor whose transmission's DVIA was just dropped no longer
+        // restates anything with a via clearance.
         if (pendingStart < queue.Blocks.Count)
         {
-            queue.Blocks.RemoveRange(pendingStart, queue.Blocks.Count - pendingStart);
+            List<CommandBlock> pending = queue.Blocks.GetRange(pendingStart, queue.Blocks.Count - pendingStart);
+            queue.Blocks.RemoveRange(pendingStart, pending.Count);
+            CommandQueue.ForgetDroppedDescendVia(pending, [.. queue.Blocks, .. preserved]);
         }
 
         return preserved;
@@ -3470,10 +3493,9 @@ public static class CommandDispatcher
         string description = labels.DescriptionPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeCommand));
         string naturalDescription = labels.NaturalPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeNatural));
 
-        return new CommandBlock
+        var block = new CommandBlock
         {
             Trigger = trigger,
-            ApplyAction = BuildApplyAction(applyCommands, ctx),
             ParsedCommands = [.. parsedCommands],
             Commands = tracked,
             Dimensions = dimensions,
@@ -3488,7 +3510,11 @@ public static class CommandDispatcher
             HasTrackCommand = hasTrackCommand,
             HasDeleteCommand = parsedCommands.Exists(c => c is DeleteCommand),
             IsScenarioScripted = ctx.IsScenarioScripted,
+            TransmissionId = ctx.TransmissionId,
+            TransmissionDescendsVia = ctx.TransmissionDescendsVia,
         };
+        block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
+        return block;
     }
 
     /// <summary>
@@ -3560,7 +3586,7 @@ public static class CommandDispatcher
         // and are dispatched by SimulationEngine.ProcessTriggeredTrackBlocks) but stay in ParsedCommands.
         var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
         block.ParsedCommands = matched;
-        block.ApplyAction = BuildApplyAction(applyCommands, ctx);
+        block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
 
         // Dimensions is a coarse pre-filter derived from the commands, not durable state, so the live table
         // wins over the value the writing build serialized: a snapshot taken before surface clearances
@@ -3704,7 +3730,18 @@ public static class CommandDispatcher
         var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
         var labels = new BlockLabels(block.DescriptionPrefix, block.NaturalDescriptionPrefix);
 
-        CommandBlock rebuilt = CreateBlock(keptParsed, block.Trigger, labels, block.SourceCommandText, ctx);
+        // The kept commands still belong to the transmission that queued them, not to the superseding one.
+        CommandBlock rebuilt = CreateBlock(
+            keptParsed,
+            block.Trigger,
+            labels,
+            block.SourceCommandText,
+            ctx with
+            {
+                TransmissionId = block.TransmissionId,
+                TransmissionDescendsVia = block.TransmissionDescendsVia,
+            }
+        );
 
         // Runtime state the surviving commands cannot describe: a partially-elapsed wait, the guard that stops an
         // already-dispatched track command from firing twice, and how far the block's trigger has progressed. All of
@@ -3766,8 +3803,12 @@ public static class CommandDispatcher
     /// the aircraft reaches the hold-short) would hit the <see cref="ApplyCommand"/>
     /// fallback, which has no arm for those verbs and returns a
     /// <see cref="CommandResult.NoDispatcherArm"/> result.
+    ///
+    /// The commands run as part of the transmission that queued <paramref name="block"/>: its
+    /// <see cref="CommandBlock.TransmissionId"/> and <see cref="CommandBlock.TransmissionDescendsVia"/> are read when it
+    /// fires, not captured here, so a site that drops the transmission's DVIA and clears the flag reaches this action.
     /// </summary>
-    internal static Func<AircraftState, bool, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx)
+    internal static Func<AircraftState, bool, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx, CommandBlock block)
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
@@ -3776,7 +3817,7 @@ public static class CommandDispatcher
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
-            DispatchContext current = ctx;
+            DispatchContext current = ctx with { TransmissionId = block.TransmissionId, TransmissionDescendsVia = block.TransmissionDescendsVia };
             HandlerReadback? readback = null;
 
             foreach (ParsedCommand? cmd in captured)
@@ -3830,6 +3871,11 @@ public static class CommandDispatcher
                 if (cmd is ChangeDestinationCommand)
                 {
                     current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
+                }
+
+                if (cmd is SpeedCommand or ForceSpeedCommand)
+                {
+                    current = current with { SpeedAssignedInBlock = true };
                 }
             }
 

@@ -1654,6 +1654,8 @@ CFIX is additive and applies in place: it stamps the restriction on the named fi
 
 **Constrained DCTF** — `DCTF FIX1/A080 FIX2/050 FIX3` attaches altitude constraints inline. The `/` suffix uses the same CFIX altitude format. All constraints are visible to the planner simultaneously, so the aircraft plans descent across multiple waypoints at once.
 
+A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` and earlier crossing restrictions** below), unless the crossing is given in the same transmission as the `DVIA`.
+
 **SID/STAR via mode** — When CIFP procedure data is available, [SID](#glossary) and [STAR](#glossary) fixes carry published altitude and speed restrictions. Via mode controls whether the aircraft follows those restrictions:
 
 | Procedure | Default | Enable via mode | Disable via mode |
@@ -1666,6 +1668,12 @@ CFIX is additive and applies in place: it stamps the restriction on the named fi
 Symmetrically, `CVIA` no longer requires an active SID: when none is active — for example after `CTO RH` or being vectored off the SID — it activates the SID filed in the route and overlays its published crossing restrictions onto the current route. Issue `DCT <SID fix>` first to reload the lateral path, then `CVIA` to climb via.
 
 `CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode).
+
+**`DVIA` and the assigned altitude** — `DVIA` clears the aircraft's assigned altitude: outside the procedure no altitude is assigned, and the datablock shows none, until a new `CM`/`DM`/`CFIX` gives one.
+
+**`DVIA` and earlier crossing restrictions** — a descend via supersedes a `CFIX` or constrained `DCTF` crossing given before it (7110.65 §4-5-7.h; AIM 5-4-1.a.2). For each such fix the pending altitude/speed reverts are dropped, so passing it no longer restores what was assigned before, and the STAR's published restriction at that fix is restored (none where the STAR publishes none), read from the legs the aircraft flies: enroute transition, common route, then the runway transition for its runway. A crossing speed that was superseded and is still the assigned speed is cleared too, so the procedure takes the speed back; a speed assigned ahead of the `DVIA` in the same block (`SPD 250, DVIA`) is kept.
+
+A `CFIX` or constrained `DCTF` in the same transmission as the `DVIA`, before or after it (`,` or `;`), is restated with the via clearance: it keeps its restriction and takes no reverts, and a `CFIX` there sets no assigned altitude. If the transmission's `DVIA` is dropped before it fires (a later lateral command, `DELAT`/`DELCOND`, `NODEL`, a chain abort), the `CFIX` queued with it behaves like a lone `CFIX`, reverts included. `DVIA SPD <speed> <fix>` sets the speed on the fix and keeps its other fields.
 
 ### Military Training Routes and Aerial Refueling
 

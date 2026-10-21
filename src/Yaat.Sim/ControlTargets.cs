@@ -259,6 +259,13 @@ public class NavigationTarget
     /// <summary>AssignedSpeed to restore after sequencing past this fix.</summary>
     public double? RevertAssignedSpeed { get; set; }
 
+    /// <summary>
+    /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose CFIX or constrained DCTF stamped
+    /// this fix's crossing restriction, or null when neither did. A DVIA in the same transmission keeps that
+    /// restriction; a later one replaces it with the published restriction.
+    /// </summary>
+    public int? CrossingTransmissionId { get; set; }
+
     public NavigationTargetDto ToSnapshot() =>
         new()
         {
@@ -281,6 +288,7 @@ public class NavigationTarget
             RevertSpeed = RevertSpeed,
             RevertAssignedSpeed = RevertAssignedSpeed,
             TerminalCourseMagnetic = TerminalCourseMagnetic,
+            CrossingTransmissionId = CrossingTransmissionId,
         };
 
     public static NavigationTarget FromSnapshot(NavigationTargetDto dto) =>
@@ -304,5 +312,6 @@ public class NavigationTarget
             RevertSpeed = dto.RevertSpeed,
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
             TerminalCourseMagnetic = dto.TerminalCourseMagnetic,
+            CrossingTransmissionId = dto.CrossingTransmissionId,
         };
 }

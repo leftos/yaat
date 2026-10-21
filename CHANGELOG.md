@@ -53,6 +53,7 @@
 
 ### Fixed
 
+- `DVIA` clears the assigned altitude and replaces an earlier `CFIX` restriction with the STAR's, so nothing reverts to the old altitude; same-transmission crossings stay.
 - `PTAC … PA` keeps the assigned altitude, else the present altitude rounded toward the climb or descent, never a STAR target, and records it as assigned.
 - A `TAXI` across a runway with no destination ends on the far taxiway once the whole aircraft is past the hold line, not on the runway.
 - A hold (`HOLDP`, `HPP`, `HFIX`) clears the assigned heading when it starts, so the data block drops it and a later `CAPP` flies the procedure.
