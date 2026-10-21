@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Advisory Live Check</title>
+<style>
+  /* Layout: rulings carried, then four decision sections; each section's lanes sit side by side, each lane a dark app stage over its caption. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --tag-d: #8a5a00; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --tag-d: #ffc062; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --tag-d: #ffc062; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1760px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 96ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .ctl code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 18px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 130ch; }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 0 0 6px; }
+  .note-box ul, .note-box ol { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts i { font-style: normal; font: 500 11px var(--f-mono); color: var(--tag-b); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { margin-bottom: 12px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .q { font: 600 14px var(--f-body); color: var(--accent); margin: 0 0 6px; }
+  .art-meta p { margin: 0 0 6px; max-width: 120ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  /* Animation controls and the shared keystroke strip. */
+  .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  .ctl button { font: 600 12.5px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 4px 11px; cursor: pointer; }
+  .ctl button:hover, .ctl button:focus-visible { border-color: var(--accent); outline: none; }
+  .ctl .clock { font: 600 15px var(--f-mono); color: var(--ink); min-width: 9ch; }
+  .ctl input[type=range] { width: 260px; max-width: 100%; }
+  .ctl label { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); cursor: pointer; }
+  .ctl .grp { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+  .ctl .grp > b { color: var(--ink); font-weight: 600; }
+  .keys { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 14px; }
+  .keys .kl { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+  .key { font: 12px var(--f-mono); color: var(--muted); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 7px; min-width: 24px; text-align: center; background: var(--panel); }
+  .key small { display: block; font-size: 9.5px; opacity: .8; }
+  .key.on { color: var(--ink); border-color: var(--muted); }
+  .key.now { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .key.only { border-style: dashed; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(404px, 1fr)); gap: 18px 14px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; flex: 0 0 auto; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); } .tag.d { color: var(--tag-d); }
+  .lane-h h3 { font: 600 16px/1.25 var(--f-display); margin: 0; }
+  .track { display: block; width: 100%; max-width: 402px; height: 34px; }
+  .track .ax { stroke: var(--line); stroke-width: 2; }
+  .track .kt { stroke: var(--muted); stroke-width: 1; opacity: .55; }
+  .track .ut { stroke: var(--muted); stroke-width: 1; opacity: .35; }
+  .track .ck { stroke: none; }
+  .track .en { stroke: var(--ink); stroke-width: 1.5; }
+  .track .ph { stroke: var(--accent); stroke-width: 2; }
+  .track .stb { fill: var(--warn); opacity: .28; }
+  .track text { font: 10px var(--f-mono); fill: var(--muted); }
+  .sum { font-size: 12.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; min-height: 40px; }
+  .sum b { color: var(--ink); }
+  .sum code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 120ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 10px; color-scheme: dark; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; overflow-x: auto; }
+  .flabel { font: 500 11px Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; position: relative; }
+  .menu.w { width: 380px; }
+  .fly { transition: opacity .15s; }
+  .fly.closed { opacity: .32; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; position: relative; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11px Consolas, monospace; color: #a4adb8; padding-left: 10px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .solo-b { font: 600 10px Inter, "Segoe UI", sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #7fd1b9; border: 1px solid #3f6f62; border-radius: 3px; padding: 0 4px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .nm .sub { font: 11px Inter, "Segoe UI", sans-serif; color: #8f969e; }
+  .cmd { padding-left: 12px; font: 12px Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+  .cmd.wait { opacity: .38; }
+  .panel { position: relative; }
+  .grp2 { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp2 code { font: 11px Consolas, monospace; color: #8f969e; }
+  .more { font: 11px Inter, "Segoe UI", sans-serif; color: #6f7883; padding: 2px 11px 6px 34px; }
+  .under { display: flex; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 230px; white-space: pre; overflow: hidden; display: flex; align-items: center; }
+  .tbox.focus { border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .tbox .ph { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; font-size: 12.5px; }
+  .caret { display: inline-block; width: 0; height: 16px; border-left: 1.5px solid #8fc1ff; margin-left: 1px; }
+  .ghost { font: 11px Consolas, monospace; color: #8f969e; margin-top: 3px; white-space: nowrap; }
+  .ghost kbd { font: 10.5px Inter, "Segoe UI", sans-serif; color: #cfd5dc; border: 1px solid #4a4f57; border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; }
+  .adv { padding: 4px 11px 7px; display: flex; flex-direction: column; gap: 6px; }
+  .say { font: italic 12.5px/1.4 Inter, "Segoe UI", sans-serif; color: #cfd5dc; }
+  .say .gap { color: #e0b070; font-style: normal; font: 11.5px Consolas, monospace; }
+  .check { font: 11.5px/1.45 Consolas, monospace; display: flex; flex-wrap: wrap; gap: 1px 9px; color: #8f969e; min-height: 34px; align-content: flex-start; padding: 3px 6px; margin: 0 -6px; border-radius: 4px; transition: background-color .3s; }
+  .check .to { color: #e4e7eb; font-weight: 600; }
+  .check .y { color: #7fd1b9; } .check .n { color: #e0b070; } .check .x { color: #ff9c8a; }
+  .check .hintl { color: #6f7883; font-family: Inter, "Segoe UI", sans-serif; font-size: 11.5px; }
+  .check .busy { color: #8fc1ff; font-style: italic; }
+  .check .dimg { display: contents; }
+  .check .dimg > span { opacity: .4; }
+  .check .stalemk { color: #0b0d10; background: #e0b070; border-radius: 3px; padding: 0 5px; font-weight: 600; }
+  .check.warnl .to { color: #ffb259; }
+  .check .wn { color: #ffb259; font-weight: 600; }
+  .check.pulse { background: rgba(143, 193, 255, .14); }
+  .nochk { font: 11px Inter, "Segoe UI", sans-serif; color: #6f7883; }
+  .bld { display: flex; align-items: center; gap: 7px; margin: 0 4px 2px; padding: 5px 8px; border: 1px dashed #3a414b; border-radius: 4px; font: 11.5px Inter, "Segoe UI", sans-serif; color: #8f969e; }
+  .bld b { color: #cfd5dc; font-weight: 500; }
+  .bld i { font-style: normal; color: #6f7883; margin-left: auto; font-size: 10.5px; }
+  .tgl { display: inline-flex; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; margin: 2px 11px 4px; }
+  .tgl span { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; border-left: 1px solid #3a414b; padding: 4px 10px; display: inline-flex; gap: 5px; align-items: center; }
+  .tgl span:first-child { border-left: 0; }
+  .tgl span code { font: 10.5px Consolas, monospace; color: #8f969e; }
+  .tgl span.on { background: #24406a; color: #fff; }
+  .tgl span.on code { color: #cfe0ff; }
+
+  /* Traffic rows. */
+  .tr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; min-height: 40px; padding: 3px 11px 3px 8px; border-radius: 4px; color: #e4e7eb; }
+  .tr.picked { background: rgba(143, 193, 255, .13); }
+  .tr .mk { font-size: 12px; text-align: center; color: #8fc1ff; }
+  .tr .two { min-width: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+  .tr .l1 { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .tr .cs { font: 600 13px Consolas, monospace; }
+  .tr .ty { font: 12px Consolas, monospace; color: #9aa3ad; }
+  .tr .lg { font: 11.5px Inter, "Segoe UI", sans-serif; color: #e4e7eb; overflow: hidden; text-overflow: ellipsis; }
+  .tr .l2 { font: 11px Consolas, monospace; color: #8f969e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tr .cmd.res { color: #7fd1b9; opacity: 1; }
+  .tr .cmd.resw { color: #ffb259; opacity: 1; }
+
+  /* The aircraft menu stub. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; white-space: nowrap; }
+  .strip { display: flex; gap: 4px; padding: 2px 11px 2px; }
+  .well { width: 34px; height: 34px; border-radius: 5px; background: #1f2226; display: grid; place-items: center; }
+  .well .gly { margin: 0; }
+  .well.open { background: #24406a; }
+  .slabel { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ededed; padding: 4px 11px 6px; }
+  .slabel code { font: 11px Consolas, monospace; color: #b8b8b8; }
+
+  /* The scope excerpt. */
+  .scope { display: block; border-radius: 6px; }
+  .scope-bg { fill: #05080b; }
+  .vm { stroke: #3a4652; stroke-width: 1.2; fill: none; }
+  .rwy { stroke: #6b7886; stroke-width: 3; stroke-linecap: round; }
+  .apt { font: 10px Consolas, monospace; fill: #6b7886; }
+  .vfrp path { fill: none; stroke: #8a7bb0; stroke-width: 1.2; }
+  .vfrp text { font: 9.5px Consolas, monospace; fill: #8a7bb0; }
+  .ckr { font: 10px Consolas, monospace; fill: #5f7fa8; text-anchor: middle; }
+  .tgt circle.dot { fill: none; stroke: #b9d3c2; stroke-width: 1.4; }
+  .tgt line { stroke: #6f8a7a; stroke-width: 1; }
+  .tgt text { font: 11px Consolas, monospace; fill: #9fd8b0; }
+  .tgt.lit circle.dot, .tgt.res circle.dot { stroke: #ffffff; }
+  .tgt.lit text, .tgt.res text { fill: #ffffff; font-weight: 700; }
+  .ring { fill: none; stroke-width: 2; }
+  .ring.lit { stroke: #8fc1ff; }
+  .ring.res { stroke: #7fd1b9; stroke-dasharray: 4 3; }
+  .subj circle { fill: #ffffff; stroke: none; }
+  .subj text { font: 11px Consolas, monospace; fill: #ffffff; }
+  .subj .sel { fill: none; stroke: #ffffff; stroke-width: 1; stroke-dasharray: 3 2; }
+  .subj .vec { stroke: #ffffff; stroke-width: 1; opacity: .6; }
+  .hist { fill: #ffffff; opacity: .35; }
+  .bline { stroke: #8fc1ff; stroke-width: 1.4; stroke-dasharray: 5 4; fill: none; }
+  .bline.res { stroke: #7fd1b9; }
+  .blabel { font: 11px Consolas, monospace; fill: #8fc1ff; }
+  .blabel.res { fill: #7fd1b9; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .lanes { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part D · solo traffic advisory · the live check · mock for the owner's decisions</div>
+  <h1>Solo traffic advisory: how the live check behaves</h1>
+  <p class="lede">The owner chose lane C of the solo advisory mock: the student types the call in the <b>Report traffic in sight</b> flyout as they would say it (<code>2 4 w sr22</code>), the lane B builder sits below for anyone who would rather click, and a <b>live check</b> under the box names the aircraft the sim would resolve the call to and grades each part. This page asks the four things left open about that check. The situation is the earlier page's: <b>N52TW</b>, a PA28 VFR inbound to <b>KOAK</b> at 2,000 ft heading 300, with <b>N22RX</b> (SR22, westbound, 3,500) at 2 o'clock, 4 miles. Positions are illustrative, not from a recording.</p>
+  <p class="lede">Each lane draws the scope excerpt above the flyout rather than under it, so lanes fit side by side; in the app the flyout opens over the scope beside the aircraft menu. The first two sections are animated: press <b>Replay</b>, drag the time bar, or open the page with <code>#t=1200</code> to freeze both at 1.2 s (<code>#t=1200&amp;t2=9000</code> sets the second section separately).</p>
+
+  <section class="note-box" aria-labelledby="carried-h">
+    <h2 id="carried-h">Carried from the owner's rulings (drawn as given, not as lanes)</h2>
+    <ul>
+      <li><b>Say it, with the builder below.</b> The box takes the short form; the lane B builder (clock dial, miles, direction pad, type, altitude) sits under it in solo. It is folded to one line here because no decision on this page touches it.</li>
+      <li><b>The check runs on the client</b>, against the client's aircraft list (<code>MainViewModel.Aircraft</code>), which the server refreshes once per sim-second. It imitates the sim's matcher: tolerance gates, the weighted error and the clean bands.</li>
+      <li><b>Its own solo setting, default Off.</b> With it off the flyout has no check line and the pilot's reply grades the call; every lane here draws it On.</li>
+      <li><b>RPO mode</b> keeps the traffic list whose rows send <code>RTIS {callsign}</code>; nothing on this page applies there.</li>
+    </ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections">
+    <a href="#s1">1 · Check cadence</a><a href="#s2">2 · Drift while typing</a><a href="#s3">3 · Which aircraft stays ringed</a><a href="#s4">4 · Field advisory placement</a><a href="#questions">Open decisions</a>
+  </nav>
+
+  <!-- Section 1 -->
+  <section class="art" id="s1">
+    <div class="art-meta">
+      <h2>1 · Check cadence: when the line re-grades while the student types</h2>
+      <div class="q">When does the check run on what has been typed so far?</div>
+      <p>All four lanes type the same call at the same moments: <b>2 4 w sr22</b>, about 140 ms between letters and half a second of thought between parts, then Enter at 4.3 s. Lane D also presses its preview key (drawn as <code>Ctrl+Space</code>, a placeholder) at 3.5 s. The bar under each lane marks keystrokes (grey) and each run of the check (coloured dots). The switch below sets what lanes B to D show while the text has moved past the last check.</p>
+    </div>
+    <div class="ctl" id="ctl1"></div>
+    <div class="keys" id="keys1"></div>
+    <div class="lanes" id="lanes1"></div>
+  </section>
+
+  <!-- Section 2 -->
+  <section class="art" id="s2">
+    <div class="art-meta">
+      <h2>2 · Snapshot drift: the traffic moves while the student pauses</h2>
+      <div class="q">Does the line re-grade when the aircraft moves, or only when the text changes?</div>
+      <p>The student types <b>2 4 w sr22</b> while N22RX is at 2 o'clock, then pauses. N52TW turns left at standard rate, so N22RX drifts round to 3 o'clock; the client sees each step at its once-a-second update. The student presses Enter one second after the turn ends. Both lanes check on every keystroke while typing, so only the drift differs. The bar marks client updates (faint), check runs (dots) and, in lane B, the stretch the grade is stale (amber).</p>
+      <p>A drift to 3 o'clock stays inside the matcher's clean band (one hour either way), so only the clock mark's detail changes; the switch below continues the turn to 240 so N22RX reaches 4 o'clock, where the grade turns imprecise.</p>
+    </div>
+    <div class="ctl" id="ctl2"></div>
+    <div class="keys" id="keys2"></div>
+    <div class="lanes" id="lanes2"></div>
+  </section>
+
+  <!-- Section 3 -->
+  <section class="art" id="s3">
+    <div class="art-meta">
+      <h2>3 · Which aircraft stays ringed when the call resolves elsewhere</h2>
+      <div class="q">The student pointed at N811CP but typed a call that fits N4417Q better. What does the scope ring?</div>
+      <p>The student clicked <b>N811CP</b> (C182, 4 o'clock, 7 miles, southbound) and typed <b>5 6 nw c182 020</b>. N811CP is southbound, three octants from northwest, so the matcher's direction gate drops it; <b>N4417Q</b> (C182, 6 o'clock, 5 miles, northwestbound, 2,000) fits inside every clean band and the check resolves the call to it. Static: no animation.</p>
+    </div>
+    <div class="lanes" id="lanes3"></div>
+  </section>
+
+  <!-- Section 4 -->
+  <section class="art" id="s4">
+    <div class="art-meta">
+      <h2>4 · Where the field advisory lives</h2>
+      <div class="q">Where does the student give <code>RFIS &lt;clock&gt; &lt;miles&gt;</code>?</div>
+      <p>The field advisory takes the same say-it box (<b>12 5</b>: KOAK at 12 o'clock, 5 miles) but has <b>no live check</b>: the sim runs the field acquisition and echoes the phrase without testing clock or miles (<code>NavigationCommandHandler.cs:1649-1653</code>), and the Session Report counts any values as field proof (<code>SoloTrainingEvaluator.cs:142</code>). A faint “not checked” takes the check line's place in every lane. Static: no animation.</p>
+    </div>
+    <div class="lanes" id="lanes4"></div>
+  </section>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <ol>
+      <li><b>1. Check cadence.</b><span class="opts"><i>a</i> every keystroke · <i>b</i> 300 ms after typing stops · <i>c</i> at a part boundary (Space or Tab) · <i>d</i> only on a preview key. And for b to d: between checks the line shows <i>the last grade dimmed</i>, <i>nothing</i>, or <i>“checking…”</i> (the switch in section 1).</span></li>
+      <li><b>2. Drift while typing.</b><span class="opts"><i>a</i> re-grade on each aircraft-list update as well as on each keystroke · <i>b</i> re-grade on text changes only; dim the grade and mark it stale once a part it graded reads differently.</span></li>
+      <li><b>3. Which aircraft stays ringed.</b><span class="opts"><i>a</i> the pointed row keeps the ring, the resolved aircraft gets a second, dashed ring · <i>b</i> the ring moves to the resolved aircraft · <i>c</i> the ring stays on the pointed row and the check line names the other aircraft in the warning colour (the warning text can go with a or b too).</span></li>
+      <li><b>4. Field advisory placement.</b><span class="opts"><i>a</i> one flyout with a Traffic · Field toggle · <i>b</i> its own strip entry and small flyout · <i>c</i> a section below the traffic list in the same flyout.</span></li>
+    </ol>
+  </section>
+
+  <footer class="foot">The check imitates <code>TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget</code>: gates of 2 h, 2 NM, one octant and 500 ft; clean within 1 h, 1 NM, the exact direction and 100 ft (<code>TrafficAdvisoryMatcher.cs:65-75</code>); the lowest weighted error wins (:134-135); a type matches on its first three letters (:514). Spoken lines follow <code>CommandDescriber.FormatTrafficAdvisoryPhrase</code> (:2750) and <code>FormatFieldAdvisoryPhrase</code> (:2865). The scope, flyout and glyphs are the solo advisory mock's drawing (<code>../yaat-569-d-solo-advisory/index.html</code>), not YAAT's renderer.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  /* ---------- Glyphs and small helpers ---------- */
+  const GL = {
+    RTIS: ["#FFC062", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"],
+    RFIS: ["#FFC062", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"],
+    FOLLOW: ["#DDBDFF", "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"],
+    ELD: ["#DDBDFF", "M5 6h14 M19 6v12 M19 18H9", true],
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${GL[id][2] ? ` opacity=".45"` : ""}><path d="${GL[id][1]}"/></svg>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const fmt = n => n.toLocaleString("en-US");
+  const pad3 = n => String(n).padStart(3, "0");
+  const rad = d => d * Math.PI / 180;
+
+  /* ---------- Traffic: placed from clock and miles off N52TW at heading 300, as on the solo advisory page ---------- */
+  const S = 30;
+  const SUBJ = { cs: "N52TW", type: "PA28", alt: 2000, x: 920, y: 230 };
+  const T = [
+    { cs: "N738SP", type: "C172", clock: 12, nm: 3, alt: 1000, dir: "E", leg: "left downwind 28L" },
+    { cs: "N9152M", type: "C152", clock: 11, nm: 4, alt: 900, dir: "N", leg: "left base 28L" },
+    { cs: "N22RX", type: "SR22", clock: 2, nm: 4, alt: 3500, dir: "W", leg: "over Coliseum" },
+    { cs: "SWA2287", type: "B737", clock: 9, nm: 5, alt: 1600, dir: "NW", leg: "final 30" },
+    { cs: "N4417Q", type: "C182", clock: 6, nm: 5, alt: 2000, dir: "NW", leg: "" },
+    { cs: "N2468W", type: "BE36", clock: 8, nm: 6, alt: 3500, dir: "N", leg: "" },
+    { cs: "N811CP", type: "C182", clock: 4, nm: 7, alt: 2500, dir: "S", leg: "" },
+  ];
+  T.forEach(t => { const b = rad(300 + t.clock * 30); t.x = SUBJ.x + Math.sin(b) * t.nm * S; t.y = SUBJ.y - Math.cos(b) * t.nm * S; });
+  const byCs = new Map(T.map(t => [t.cs, t]));
+  const DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const DIRW = { N: "northbound", NE: "northeastbound", E: "eastbound", SE: "southeastbound", S: "southbound", SW: "southwestbound", W: "westbound", NW: "northwestbound" };
+  const TYPEW = { SR22: "Cirrus SR22", C172: "Cessna 172", C152: "Cessna 152", B737: "Boeing 737", C182: "Cessna 182", BE36: "Bonanza" };
+  const brgOf = t => (Math.atan2(t.x - SUBJ.x, SUBJ.y - t.y) * 180 / Math.PI + 360) % 360;
+  const clockOf = (t, hdg) => { const c = Math.round(((brgOf(t) - hdg + 720) % 360) / 30) % 12; return c === 0 ? 12 : c; };
+  const nmOf = t => Math.round(Math.hypot(t.x - SUBJ.x, t.y - SUBJ.y) / S);
+  const sd = (a, b) => { const d = Math.abs(a - b) % 12; return Math.min(d, 12 - d); };
+  const od = (a, b) => { const d = Math.abs(a - b) % 8; return Math.min(d, 8 - d); };
+  const delta = t => { const d = t.alt - SUBJ.alt; return Math.abs(d) < 100 ? "same altitude" : `${fmt(Math.abs(d))} ${d < 0 ? "below" : "above"}`; };
+
+  /* ---------- The call: parsing the radar short form, the spoken line, the command ---------- */
+  const KIND = { clock: "clock", nm: "miles", dir: "direction", type: "type", alt: "altitude" };
+  const REQ = ["clock", "nm", "dir", "type"];
+  const int = s => (s != null && /^\d+$/.test(s)) ? parseInt(s, 10) : null;
+  function parse(text) {
+    const tk = text.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    if (!tk.length) return null;
+    const c = int(tk[0]);
+    return { clock: (c >= 1 && c <= 12) ? c : null, nm: int(tk[1]), dir: DIRS.includes(tk[2]) ? tk[2] : null, type: tk[3] || null, alt: int(tk[4]) };
+  }
+  const missing = f => REQ.filter(k => f[k] == null);
+  function cmdText(f) {
+    const q = k => f[k] == null ? `‹${KIND[k]}›` : f[k];
+    return `RTIS ${q("clock")} ${q("nm")} ${q("dir")} ${q("type")}${f.alt != null ? ` ${pad3(f.alt)}` : ""}`;
+  }
+  function sayHtml(f) {
+    const g = k => `<span class="gap">‹${KIND[k]}›</span>`;
+    const v = (k, fn) => f[k] == null ? g(k) : esc(fn ? fn(f[k]) : f[k]);
+    const mi = f.nm == null ? g("nm") : `${f.nm} mile${f.nm === 1 ? "" : "s"}`;
+    return `Traffic, ${v("clock")} o'clock, ${mi}, ${v("dir", d => DIRW[d])}, ${v("type", ty => TYPEW[ty] || ty)}${f.alt != null ? `, ${fmt(f.alt * 100)}` : ""}, report it in sight.`;
+  }
+
+  /* ---------- The check: an imitation of TrafficAdvisoryMatcher on the drawn positions ---------- */
+  const typeMatch = (req, act) => (req === act) || ((req.length >= 3) && (req.slice(0, 3) === act.slice(0, 3)));
+  function score(f, t, hdg) {
+    const ce = sd(clockOf(t, hdg), f.clock), me = Math.abs(nmOf(t) - f.nm), de = od(DIRS.indexOf(t.dir), DIRS.indexOf(f.dir));
+    const ae = f.alt == null ? null : Math.abs(Math.round(t.alt / 100) - f.alt);
+    const tm = typeMatch(f.type, t.type);
+    if ((ce > 2) || (me > 2) || (de > 1) || ((ae != null) && (ae > 5))) return null;
+    const marks = [["clock", ce <= 1, ce, " h"], ["miles", me <= 1, me, " NM"], ["direction", de === 0, de, " octant"]];
+    if (ae != null) marks.push(["altitude", ae <= 1, ae * 100, " ft"]);
+    marks.push(["type", tm, t.type, ""]);
+    return { w: ce + me * 2 + de * 2 + (ae || 0) + (tm ? 0 : 5), marks, seen: { clock: clockOf(t, hdg), nm: nmOf(t) } };
+  }
+  function judge(text, hdg) {
+    const f = parse(text);
+    if (!f) return { state: "empty" };
+    const miss = missing(f);
+    if (miss.length) return { state: "incomplete", miss, f };
+    let best = null;
+    T.forEach(t => { const r = score(f, t, hdg); if (r && (!best || r.w < best.w)) best = { ...r, cs: t.cs }; });
+    if (!best) return { state: "refused", f };
+    return { state: "ok", f, cs: best.cs, marks: best.marks, seen: best.seen, clean: best.marks.every(m => m[1]) };
+  }
+  function markHtml(m) {
+    const [label, ok, err, unit] = m;
+    if (label === "type") return ok ? `<span class="y">type ✓</span>` : `<span class="n">type ≈ is ${esc(err)}</span>`;
+    if (ok) return `<span class="y">${label} ✓${err ? ` ±${err}${unit}` : ""}</span>`;
+    return `<span class="n">${label} ≈ ${err}${unit} off</span>`;
+  }
+  function gradeHtml(r, o = {}) {
+    if (r.state === "empty") return `<span class="hintl">type the call as you would say it</span>`;
+    if (r.state === "incomplete") return `<span>needs ${r.miss.map(k => `‹${KIND[k]}›`).join(" ")}</span>`;
+    if (r.state === "refused") return `<span class="x">✗ no traffic fits</span>`;
+    const warn = o.pointed && o.warn && r.cs !== o.pointed ? `<span class="wn">⚠ not ${esc(o.pointed)}, the row you pointed at</span>` : "";
+    return `<span>→ <span class="to">${r.cs}</span></span>${r.marks.map(markHtml).join("")}<span>${r.clean ? "· scores clean" : "· imprecise"}</span>${warn}`;
+  }
+  const lineText = html => { const d = document.createElement("div"); d.innerHTML = html.replace(/<\/span><span/g, "</span> <span"); return d.textContent.replace(/\s+/g, " ").trim(); };
+  /* The sim's reply on Enter, in TrafficAdvisoryMatcher.Grade's words (:448-470). */
+  function simReply(r) {
+    if (r.state !== "ok") return "refused";
+    if (r.clean) return `resolves <b>${r.cs}</b>, scored clean`;
+    const off = r.marks.filter(m => !m[1]).map(m => m[0] === "clock" ? `clock off ${m[2]} hr` : m[0] === "miles" ? `distance off ${m[2]} NM` : `${m[0]} off`);
+    return `resolves <b>${r.cs}</b>, advisory imprecise: ${off.join(", ")}`;
+  }
+
+  /* ---------- The scope excerpt ---------- */
+  const VB = [720, 60, 410, 310];
+  function scope(o) {
+    const hdg = o.hdg;
+    const apt = { x: SUBJ.x + Math.sin(rad(300)) * 5.4 * S, y: SUBJ.y - Math.cos(rad(300)) * 5.4 * S };
+    const rw = (cx, cy, h, len) => { const dx = Math.sin(rad(h)) * len / 2, dy = -Math.cos(rad(h)) * len / 2; return `<line class="rwy" x1="${(cx - dx).toFixed(1)}" y1="${(cy - dy).toFixed(1)}" x2="${(cx + dx).toFixed(1)}" y2="${(cy + dy).toFixed(1)}"/>`; };
+    const vm = `<path class="vm" d="M700 30 C 740 120, 760 220, 730 310 S 760 470, 800 720"/><path class="vm" d="M960 0 L 1130 130"/><circle class="vm" cx="${SUBJ.x}" cy="${SUBJ.y}" r="${5 * S}" stroke-dasharray="2 5"/>`;
+    const rwys = rw(apt.x - 4, apt.y - 14, 283, 34) + rw(apt.x + 4, apt.y - 6, 283, 30) + rw(apt.x + 6, apt.y + 22, 300, 60);
+    const n22 = byCs.get("N22RX");
+    const vp = { x: n22.x - 24, y: n22.y + 18 };
+    const vfrp = `<g class="vfrp"><path d="M${vp.x} ${vp.y - 5} l5 5 l-5 5 l-5 -5z"/><text x="${vp.x - 44}" y="${vp.y + 4}">VPCOL</text></g>`;
+    const ring = Array.from({ length: 12 }, (_, i) => i + 1).map(h => { const b = rad(hdg + h * 30); return `<text class="ckr" x="${(SUBJ.x + Math.sin(b) * 62).toFixed(1)}" y="${(SUBJ.y - Math.cos(b) * 62 + 3.5).toFixed(1)}">${h}</text>`; }).join("");
+    const rings = o.rings || [];
+    const tg = T.map(t => {
+      const left = (t.x < SUBJ.x - 10) || (t.x > 1040);
+      const dx = left ? -12 : 12, tx = left ? t.x - 74 : t.x + 14;
+      const rs = rings.filter(r => r.cs === t.cs);
+      const cls = rs.length ? rs[0].cls : "";
+      const rc = rs.map((r, i) => `<circle class="ring ${r.cls}" cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${13 + i * 5}"/>`).join("");
+      return `<g class="tgt ${cls}">${rc}<circle class="dot" cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="4"/><line x1="${t.x.toFixed(1)}" y1="${t.y.toFixed(1)}" x2="${(t.x + dx).toFixed(1)}" y2="${(t.y - 10).toFixed(1)}"/><text x="${tx.toFixed(1)}" y="${(t.y - 12).toFixed(1)}">${t.cs}</text><text x="${tx.toFixed(1)}" y="${(t.y + 1).toFixed(1)}">${pad3(Math.round(t.alt / 100))} ${t.type}</text></g>`;
+    }).join("");
+    let bl = "";
+    if (o.bline) {
+      const t = byCs.get(o.bline.cs);
+      const lx = (SUBJ.x + t.x) / 2 + 8, ly = (SUBJ.y + t.y) / 2 + 4;
+      bl = `<path class="bline ${o.bline.cls || ""}" d="M${SUBJ.x} ${SUBJ.y} L${t.x.toFixed(1)} ${t.y.toFixed(1)}"/><text class="blabel ${o.bline.cls || ""}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${clockOf(t, hdg)} o'clock · ${nmOf(t)} nm</text>`;
+    }
+    const hv = rad(hdg);
+    const hist = [1, 2, 3, 4].map(i => `<circle class="hist" cx="${(SUBJ.x - Math.sin(rad(300)) * i * 9).toFixed(1)}" cy="${(SUBJ.y + Math.cos(rad(300)) * i * 9).toFixed(1)}" r="1.6"/>`).join("");
+    const subj = `<g class="subj">${hist}<line class="vec" x1="${SUBJ.x}" y1="${SUBJ.y}" x2="${(SUBJ.x + Math.sin(hv) * 40).toFixed(1)}" y2="${(SUBJ.y - Math.cos(hv) * 40).toFixed(1)}"/><circle cx="${SUBJ.x}" cy="${SUBJ.y}" r="4.5"/><rect class="sel" x="${SUBJ.x - 9}" y="${SUBJ.y - 9}" width="18" height="18"/><text x="${SUBJ.x + 14}" y="${SUBJ.y + 4}">${SUBJ.cs}</text><text x="${SUBJ.x + 14}" y="${SUBJ.y + 17}">020 PA28</text></g>`;
+    const w = 380, h = Math.round(w * VB[3] / VB[2]);
+    return `<svg class="scope" viewBox="${VB.join(" ")}" width="${w}" height="${h}" role="img" aria-label="Scope excerpt around N52TW"><rect class="scope-bg" x="${VB[0]}" y="${VB[1]}" width="${VB[2]}" height="${VB[3]}"/>${vm}${rwys}<text class="apt" x="${(apt.x - 30).toFixed(1)}" y="${(apt.y - 30).toFixed(1)}">KOAK</text>${vfrp}<g>${ring}</g>${tg}${bl}${subj}</svg>`;
+  }
+
+  /* ---------- The flyout ---------- */
+  function rowHtml(t, o) {
+    const hdg = o.hdg;
+    const picked = t.cs === o.pointed;
+    const res = o.res === t.cs ? `<span class="cmd ${o.resWarn ? "resw" : "res"}">◎ your call</span>` : `<span class="cmd wait"></span>`;
+    const lg = t.leg ? `<span class="lg">· ${esc(t.leg)}</span>` : "";
+    return `<div class="tr${picked ? " picked" : ""}"><span class="mk">${picked ? "●" : ""}</span><span class="two"><span class="l1"><span class="cs">${esc(t.cs)}</span><span class="ty">· ${esc(t.type)}</span>${lg}</span><span class="l2">${clockOf(t, hdg)} o'clock · ${nmOf(t)} nm · ${delta(t)} · ${DIRW[t.dir]}</span></span>${res}</div>`;
+  }
+  const titleRight = hdg => `${SUBJ.cs} · ${fmt(SUBJ.alt)} · hdg ${pad3(Math.round(hdg))} <span class="solo-b">solo</span>`;
+  function boxRow(o) {
+    const txt = o.typed ? `${esc(o.typed)}` : `<span class="ph">${esc(o.ph || "2 4 w sr22 35, or a callsign")}</span>`;
+    const caret = o.focus ? `<span class="caret"></span>` : "";
+    const prev = o.prev ? `<span class="cmd${o.prevWait ? " wait" : ""}">${esc(o.prev)}</span>` : `<span class="cmd wait">${o.verb || "RTIS"} ···</span>`;
+    return `<div class="mi">${gl(o.glyph || "RTIS")}<span class="nm"><span>${o.label || "Advisory"} <span class="sub">as you would say it</span></span><span class="under"><span class="tbox${o.focus ? " focus" : ""}">${o.typed ? txt + caret : caret + txt}</span></span><span class="ghost">${o.ghost || ""}</span></span>${prev}</div>`;
+  }
+  const builder = () => `<div class="bld"><b>▸ Builder</b> clock · miles · direction · type · altitude<i>lane B, folded here</i></div>`;
+  function ghostOf(text) {
+    const f = parse(text);
+    if (!f) return "next ‹clock›";
+    const k = ["clock", "nm", "dir", "type", "alt"].find(x => f[x] == null);
+    if (!k || k === "alt") return `complete · <kbd>Enter</kbd> sends`;
+    return `next ‹${KIND[k]}›`;
+  }
+  /* o: typed, focus, checkHtml, checkCls, hdg, pointed, res, resWarn, rows, closed */
+  function trafficFlyout(o) {
+    const f = parse(o.typed || "");
+    const prev = f ? cmdText(f) : null;
+    const box = boxRow({ typed: o.typed, focus: o.focus, ghost: ghostOf(o.typed || ""), prev, prevWait: !f || missing(f).length > 0 });
+    const say = f ? `<div class="say">“${sayHtml(f)}”</div>` : "";
+    const adv = `<div class="adv">${say}<div class="check ${o.checkCls || ""}">${o.checkHtml}</div></div>`;
+    const rows = (o.rows || []).map(cs => rowHtml(byCs.get(cs), o)).join("");
+    const more = T.length - (o.rows || []).length;
+    const list = `<div class="panel"><div class="grp2"><span>Airborne · nearest first</span><code>${T.length}</code></div>${rows}${more > 0 ? `<div class="more">${more} more below; the list scrolls</div>` : ""}</div>`;
+    return `<div class="menu m w fly${o.closed ? " closed" : ""}" role="menu" aria-label="Report traffic in sight"><div class="mi title"><span class="et"><b>Report traffic in sight</b></span><span class="r">${titleRight(o.hdg)}</span></div>${box}${adv}${builder()}${sep()}${list}${o.after || ""}</div>`;
+  }
+
+  /* ---------- The aircraft menu stub ---------- */
+  function acMenu(open, wells, label) {
+    const W = { ELD: "Enter left downwind", RFIS: "Report field in sight…", RTIS: "Report traffic in sight…", FOLLOW: "Follow traffic…" };
+    const strip = wells.map(id => `<span class="well${id === open ? " open" : ""}" title="${esc(W[id])}">${gl(id)}</span>`).join("");
+    return `<div class="menu m" role="menu" aria-label="Aircraft menu" style="width:250px"><div class="mtitle">${SUBJ.cs} · ${SUBJ.type}</div><div class="mstate">VFR arrival · KOAK 28L · 2,000 · 105 kt</div><div class="strip">${strip}</div><div class="slabel">${label}</div>${sep()}${["Command…", "All Commands"].map(l => `<div class="mi plain faint"><span>${esc(l)}</span><span class="chev">${l === "Command…" ? "" : "›"}</span></div>`).join("")}</div>`;
+  }
+
+  /* ---------- Animation driver: one per section, with replay, pause, a time bar, a clock and a speed ---------- */
+  const HASH = (() => { const h = location.hash.slice(1); const o = {}; h.split("&").forEach(p => { const m = p.match(/^(t2?|turn)=(\d+)$/); if (m) o[m[1]] = +m[2]; }); return o; })();
+  function makeAnim(ctlEl, sec) {
+    let t = 0, playing = false, last = 0;
+    ctlEl.innerHTML = `<button type="button" data-replay>↻ Replay</button><button type="button" data-pp>❚❚ Pause</button><span class="clock" data-clock>t = 0.00 s</span><input type="range" min="0" max="${sec.end}" step="10" value="0" data-scrub aria-label="Time"><label>speed <select data-speed>${sec.speeds.map(s => `<option value="${s}"${s === sec.speed ? " selected" : ""}>${s}×</option>`).join("")}</select></label>${sec.extra || ""}`;
+    const clock = ctlEl.querySelector("[data-clock]"), scrub = ctlEl.querySelector("[data-scrub]"), pp = ctlEl.querySelector("[data-pp]");
+    let speed = sec.speed;
+    const draw = () => { clock.textContent = `t = ${(t / 1000).toFixed(2)} s`; scrub.value = String(Math.round(t)); sec.render(t); };
+    const sync = () => { pp.textContent = playing ? "❚❚ Pause" : "▶ Play"; };
+    const frame = now => {
+      if (!playing) return;
+      t = Math.min(api.end(), t + (now - last) * speed);
+      last = now;
+      draw();
+      if (t >= api.end()) { playing = false; sync(); return; }
+      requestAnimationFrame(frame);
+    };
+    const play = () => { if (t >= api.end()) t = 0; playing = true; last = performance.now(); sync(); requestAnimationFrame(frame); };
+    const api = {
+      end: () => sec.endFn ? sec.endFn() : sec.end,
+      set: v => { t = Math.max(0, Math.min(api.end(), v)); draw(); },
+      redraw: () => { scrub.max = String(api.end()); draw(); },
+      play, pause: () => { playing = false; sync(); },
+    };
+    ctlEl.querySelector("[data-replay]").addEventListener("click", () => { t = 0; play(); });
+    pp.addEventListener("click", () => { if (playing) api.pause(); else play(); });
+    scrub.addEventListener("input", () => { playing = false; sync(); t = +scrub.value; draw(); });
+    ctlEl.querySelector("[data-speed]").addEventListener("change", e => { speed = +e.target.value; });
+    return api;
+  }
+  function trackSvg(end, o) {
+    const W = 400, x = ms => 6 + (W - 12) * Math.min(1, ms / end);
+    const bands = (o.bands || []).map(([a, b]) => `<rect class="stb" x="${x(a).toFixed(1)}" y="9" width="${Math.max(1, x(b) - x(a)).toFixed(1)}" height="12"/>`).join("");
+    const ut = (o.updates || []).map(ms => `<line class="ut" x1="${x(ms).toFixed(1)}" y1="11" x2="${x(ms).toFixed(1)}" y2="19"/>`).join("");
+    const kt = (o.keys || []).map(ms => `<line class="kt" x1="${x(ms).toFixed(1)}" y1="8" x2="${x(ms).toFixed(1)}" y2="22"/>`).join("");
+    const ck = (o.checks || []).map(ms => `<circle class="ck" cx="${x(ms).toFixed(1)}" cy="15" r="3.6" fill="${o.color}" opacity="${ms <= o.t ? 1 : .3}"/>`).join("");
+    const en = `<line class="en" x1="${x(o.enter).toFixed(1)}" y1="5" x2="${x(o.enter).toFixed(1)}" y2="25"/><text x="${(x(o.enter) + 3).toFixed(1)}" y="32">Enter</text>`;
+    const ph = `<line class="ph" x1="${x(o.t).toFixed(1)}" y1="2" x2="${x(o.t).toFixed(1)}" y2="28"/>`;
+    const n = (o.checks || []).filter(ms => ms <= o.t).length;
+    return `<svg class="track" viewBox="0 0 ${W} 34" preserveAspectRatio="none" aria-label="Timeline"><line class="ax" x1="6" y1="15" x2="${W - 6}" y2="15"/>${bands}${ut}${kt}${ck}${en}${ph}<text x="6" y="32">${n} check${n === 1 ? "" : "s"} run</text></svg>`;
+  }
+  const colorOf = L => getComputedStyle(document.documentElement).getPropertyValue(`--tag-${L}`).trim() || "#888";
+
+  /* ---------- The typed sequence (both animated sections) ---------- */
+  const KEYS = [[350, "2"], [520, " "], [1050, "4"], [1200, " "], [1750, "w"], [1900, " "], [2450, "s"], [2580, "r"], [2720, "2"], [2850, "2"]];
+  const typedAt = ms => KEYS.filter(k => k[0] <= ms).map(k => k[1]).join("");
+  const lastKeyAt = ms => { const k = KEYS.filter(x => x[0] <= ms); return k.length ? k[k.length - 1][0] : 0; };
+  function keyStrip(el, t, extra) {
+    const all = KEYS.map(([ms, k]) => ({ ms, k: k === " " ? "␣" : k.toUpperCase(), only: false })).concat(extra || []);
+    all.sort((a, b) => a.ms - b.ms);
+    el.innerHTML = `<span class="kl">Keys</span>` + all.map(k => `<span class="key${k.ms <= t ? " on" : ""}${(k.ms <= t) && (t - k.ms < 220) ? " now" : ""}${k.only ? " only" : ""}">${esc(k.k)}<small>${(k.ms / 1000).toFixed(2)}${k.only ? ` · ${k.only}` : ""}</small></span>`).join("");
+  }
+
+  /* ================= Section 1: cadence ================= */
+  const PREVIEW = 3500, ENTER1 = 4300, END1 = 5600;
+  const HDG1 = 300;
+  const L1 = {
+    a: { name: "Every keystroke", checks: KEYS.map(k => k[0]),
+      how: "The line re-grades on each key. A part half typed is graded as it stands: <code>s</code> and <code>sr</code> are not SR22 (the matcher wants three letters, <code>TrafficAdvisoryMatcher.cs:514</code>), so the line names N22RX imprecise, then turns clean on <code>sr2</code>.",
+      worst: "The most movement under the student's eyes: amber and green flick by within a second, and stepping a number until it turns green is quickest here." },
+    b: { name: "Debounced, 300 ms after typing stops", checks: [],
+      how: "The line re-grades when the keys rest for 300 ms. The letters of <code>sr22</code>, 130 to 140 ms apart, are graded once, after the last one; the half-second pauses between parts each bring a grade.",
+      worst: "Each grade lands 300 ms after the pause, and a slow typist still sees half parts graded; between grades the line shows the switch's choice." },
+    c: { name: "At a part boundary (Space or Tab)", checks: KEYS.filter(k => k[1] === " ").map(k => k[0]),
+      how: "The line re-grades when a part is finished with Space (or Tab, which takes the ghost's part). Each part is graded once, whole.",
+      worst: "The last part has no boundary before Enter: the student types the type and presses Enter, so the line still reads the grade from before it." },
+    d: { name: "Only on a preview key before Enter", checks: [PREVIEW],
+      how: "Nothing is graded until the student asks with the preview key; then the whole call is graded at once, and again after any edit only when asked.",
+      worst: "The least help, and the student must know the key exists; a student who never presses it gets the setting's Off behaviour with the setting On." },
+  };
+  // Debounce: a check 300 ms after each key not followed by another within 300 ms.
+  L1.b.checks = KEYS.filter((k, i) => !KEYS[i + 1] || (KEYS[i + 1][0] - k[0] > 300)).map(k => k[0] + 300).filter(ms => ms < ENTER1);
+  let between = "dim";
+  function lineAt1(L, t) {
+    const typed = typedAt(t);
+    if (!typed) return { html: gradeHtml({ state: "empty" }) };
+    if (L === "a") return { html: gradeHtml(judge(typed, HDG1)), res: judge(typed, HDG1) };
+    const done = L1[L].checks.filter(ms => ms <= t);
+    const lastCk = done.length ? done[done.length - 1] : null;
+    const ckText = lastCk == null ? null : typedAt(lastCk);
+    if (ckText === typed) { const r = judge(typed, HDG1); return { html: gradeHtml(r), res: r }; }
+    if (L === "d" && lastCk == null) return { html: `<span class="hintl"><kbd style="font:10.5px Inter,sans-serif;color:#cfd5dc;border:1px solid #4a4f57;border-bottom-width:2px;border-radius:3px;padding:0 4px">Ctrl+Space</kbd> checks the call · Enter sends</span>` };
+    if (between === "blank") return { html: "" };
+    if (between === "checking") return { html: `<span class="busy">checking…</span>` };
+    if (lastCk == null) return { html: "" };
+    const r = judge(ckText, HDG1);
+    return { html: `<span class="dimg">${gradeHtml(r)}</span>`, res: r };
+  }
+  const ROWS1 = ["N738SP", "N9152M", "N22RX", "SWA2287"];
+  function buildLanes(el, lanes) {
+    el.innerHTML = Object.entries(lanes).map(([L, d]) => `<section class="lane" id="${el.id}-${L}"><div class="lane-h"><span class="tag ${L}">${L.toUpperCase()}</span><h3>${esc(d.name)}</h3></div><div class="stage"><div data-scope></div><div data-fly></div></div><div data-track></div><div class="sum" data-sum></div><dl class="cap"><dt>How it reads</dt><dd>${d.how}</dd><dt>Cost</dt><dd class="worst">${d.worst}</dd></dl></section>`).join("");
+  }
+  const lanes1 = document.getElementById("lanes1");
+  buildLanes(lanes1, L1);
+  const scopeCache = new WeakMap();
+  const setScope = (el, html) => { if (scopeCache.get(el) !== html) { el.innerHTML = html; scopeCache.set(el, html); } };
+  function render1(t) {
+    keyStrip(document.getElementById("keys1"), t, [{ ms: PREVIEW, k: "Ctrl+Space", only: "lane D" }, { ms: ENTER1, k: "Enter", only: false }]);
+    const sent = t >= ENTER1;
+    const tl = sent ? ENTER1 - 1 : t;
+    Object.keys(L1).forEach(L => {
+      const lane = document.getElementById(`lanes1-${L}`);
+      const ln = lineAt1(L, tl);
+      const resCs = ln.res && ln.res.state === "ok" ? ln.res.cs : null;
+      setScope(lane.querySelector("[data-scope]"), scope({ hdg: HDG1, rings: [{ cs: resCs || "N22RX", cls: resCs ? "res" : "lit" }], bline: { cs: resCs || "N22RX", cls: resCs ? "res" : "" } }));
+      lane.querySelector("[data-fly]").innerHTML = trafficFlyout({ typed: typedAt(tl), focus: !sent, checkHtml: ln.html, hdg: HDG1, pointed: "N22RX", res: resCs, rows: ROWS1, closed: sent });
+      lane.querySelector("[data-track]").innerHTML = trackSvg(END1, { keys: KEYS.map(k => k[0]).concat(L === "d" ? [PREVIEW] : []), checks: L1[L].checks, enter: ENTER1, t, color: colorOf(L) });
+      const atEnter = lineText(lineAt1(L, ENTER1 - 1).html) || "(blank)";
+      lane.querySelector("[data-sum]").innerHTML = sent
+        ? `At Enter the line read <b>${esc(atEnter)}</b>. Enter sends <code>RTIS 2 4 W SR22</code> and closes the flyout; the sim ${simReply(judge("2 4 w sr22", HDG1))}.`
+        : `The check has run <b>${L1[L].checks.filter(ms => ms <= t).length}</b> time${L1[L].checks.filter(ms => ms <= t).length === 1 ? "" : "s"} so far.`;
+    });
+  }
+  const anim1 = makeAnim(document.getElementById("ctl1"), {
+    end: END1, speed: 1, speeds: [0.25, 0.5, 1], render: render1,
+    extra: `<span class="grp" role="radiogroup" aria-label="Between checks"><b>Between checks, lanes B–D show</b><label><input type="radio" name="between" value="dim" checked> the last grade, dimmed</label><label><input type="radio" name="between" value="blank"> nothing</label><label><input type="radio" name="between" value="checking"> “checking…”</label></span>`,
+  });
+  document.querySelectorAll("input[name=between]").forEach(i => i.addEventListener("change", e => { between = e.target.value; anim1.redraw(); }));
+
+  /* ================= Section 2: drift ================= */
+  const TURN0 = 3000, RATE = 3; // deg per second, standard rate
+  let turnTo = 270;
+  const turnMs = () => (300 - turnTo) / RATE * 1000;
+  const enter2 = () => TURN0 + turnMs() + 1000;
+  const end2 = () => enter2() + 1500;
+  // The client's view: the heading as of the last whole-second update.
+  const hdgAt = ms => { const s = Math.floor(ms / 1000) * 1000; return 300 - RATE * Math.max(0, Math.min(turnMs(), s - TURN0)) / 1000; };
+  const updates = () => Array.from({ length: Math.floor(end2() / 1000) }, (_, i) => (i + 1) * 1000);
+  const L2 = {
+    a: { name: "Re-grade when the aircraft moves",
+      how: "The check runs on each keystroke and again on each aircraft-list update (once per sim-second, <code>docs/tick-loop.md:185</code>), so the line follows the drift with no key pressed; it flashes when its text changes.",
+      worst: "The grade can change while the student looks at the scope rather than the line, and a call that was clean when typed can read imprecise at Enter with no edit; it re-runs the matcher every second while the flyout is open." },
+    b: { name: "Re-grade only when the text changes",
+      how: "The grade holds until the student edits. Once a part it graded reads differently on the client (here N22RX's clock), it dims and gets a <b>stale</b> mark; any edit re-grades it. Stale compares the graded parts, not every update, since traffic moves every second.",
+      worst: "A stale grade is still on screen at Enter: the student can send on a dimmed ✓ and get an imprecise reply; the mark has to be read to be any use." },
+  };
+  const lanes2 = document.getElementById("lanes2");
+  buildLanes(lanes2, L2);
+  const TYPED2 = "2 4 w sr22";
+  function render2(t) {
+    keyStrip(document.getElementById("keys2"), t, [{ ms: enter2(), k: "Enter", only: false }]);
+    const sent = t >= enter2();
+    const tl = sent ? enter2() - 1 : t;
+    const hNow = hdgAt(tl);
+    const typed = typedAt(tl);
+    const n22 = byCs.get("N22RX");
+    Object.keys(L2).forEach(L => {
+      const lane = document.getElementById(`lanes2-${L}`);
+      let html, res, cls = "", staleFrom = null;
+      if (L === "a") {
+        res = judge(typed, hNow);
+        html = gradeHtml(res);
+        const s = Math.floor(tl / 1000) * 1000;
+        const before = gradeHtml(judge(typedAt(s - 1), hdgAt(s - 1)));
+        if ((s > TURN0) && (tl - s < 350) && (before !== html) && (lastKeyAt(tl) < s)) cls = "pulse";
+      } else {
+        const tc = lastKeyAt(tl);
+        res = judge(typed, hdgAt(tc));
+        html = gradeHtml(res);
+        if (res.state === "ok") {
+          const t0 = byCs.get(res.cs);
+          // The first update at which a graded part reads differently.
+          for (let ms = Math.ceil((tc + 1) / 1000) * 1000; ms <= enter2(); ms += 1000) {
+            if ((clockOf(t0, hdgAt(ms)) !== res.seen.clock) || (nmOf(t0) !== res.seen.nm)) { staleFrom = ms; break; }
+          }
+          if ((staleFrom != null) && (tl >= staleFrom)) html = `<span class="dimg">${html}</span><span class="stalemk">stale</span><span>N22RX moved since this grade</span>`;
+        }
+      }
+      const resCs = res && res.state === "ok" ? res.cs : null;
+      setScope(lane.querySelector("[data-scope]"), scope({ hdg: hNow, rings: [{ cs: resCs || "N22RX", cls: resCs ? "res" : "lit" }], bline: { cs: resCs || "N22RX", cls: resCs ? "res" : "" } }));
+      lane.querySelector("[data-fly]").innerHTML = trafficFlyout({ typed, focus: !sent, checkHtml: html, checkCls: cls, hdg: hNow, pointed: "N22RX", res: resCs, rows: ROWS1, closed: sent });
+      const checks = L === "a" ? KEYS.map(k => k[0]).concat(updates().filter(ms => (ms > KEYS[KEYS.length - 1][0]) && (ms < enter2()))) : KEYS.map(k => k[0]);
+      let bands = [];
+      if (L === "b") {
+        const r = judge(TYPED2, 300);
+        for (let ms = 3000; ms <= enter2(); ms += 1000) if (clockOf(n22, hdgAt(ms)) !== r.seen.clock) { bands = [[ms, enter2()]]; break; }
+      }
+      lane.querySelector("[data-track]").innerHTML = trackSvg(end2(), { keys: KEYS.map(k => k[0]), updates: updates(), checks, bands, enter: enter2(), t, color: colorOf(L) });
+      const final = judge(TYPED2, hdgAt(enter2()));
+      const atEnter = lineText(html.replace(/class="dimg"/g, "")) || "(blank)";
+      lane.querySelector("[data-sum]").innerHTML = sent
+        ? `At Enter the line read <b>${esc(atEnter)}</b>. Enter sends <code>RTIS 2 4 W SR22</code>; with N52TW on ${pad3(turnTo)} the sim ${simReply(final)}.`
+        : `The client reads N22RX at <b>${clockOf(n22, hNow)} o'clock, ${nmOf(n22)} miles</b> from N52TW on heading ${pad3(Math.round(hNow))} <span style="opacity:.7">(mock note, not in the app)</span>.`;
+    });
+  }
+  const anim2 = makeAnim(document.getElementById("ctl2"), {
+    end: end2(), endFn: end2, speed: 2, speeds: [1, 2, 4], render: render2,
+    extra: `<span class="grp" role="radiogroup" aria-label="Turn"><b>N52TW turns left to</b><label><input type="radio" name="turn" value="270" checked> 270 (N22RX 2 → 3 o'clock)</label><label><input type="radio" name="turn" value="240"> 240 (2 → 4 o'clock)</label></span>`,
+  });
+  document.querySelectorAll("input[name=turn]").forEach(i => i.addEventListener("change", e => { turnTo = +e.target.value; anim2.redraw(); }));
+  keyStrip(document.getElementById("keys2"), 0, []);
+
+  /* ================= Section 3: which aircraft stays ringed ================= */
+  const TYPED3 = "5 6 nw c182 020", POINT3 = "N811CP";
+  const ROWS3 = ["N22RX", "SWA2287", "N4417Q", "N2468W", "N811CP"];
+  const r3 = judge(TYPED3, 300);
+  const L3 = {
+    a: { name: "Pointed row stays ringed; the resolved one gets a second, dashed ring",
+      rings: [{ cs: POINT3, cls: "lit" }, { cs: r3.cs, cls: "res" }], bline: { cs: POINT3, cls: "" }, warn: false,
+      how: "N811CP keeps the solid ring and the bearing line; N4417Q gets the dashed ring in the check's colour, and its row reads ◎ your call. The student sees both at once.",
+      worst: "Two rings on a busy scope; with the call resolving to the pointed row they sit on one target, and a student can miss which ring is which until the colours are learnt." },
+    b: { name: "The ring moves to the resolved aircraft",
+      rings: [{ cs: r3.cs, cls: "res" }], bline: { cs: r3.cs, cls: "res" }, warn: false,
+      how: "The ring and the bearing line follow the call: N4417Q is ringed, N811CP only keeps its ● in the list. The scope shows what the sim will do, not what the student meant.",
+      worst: "The aircraft the student meant loses its ring the moment the call fits something else, so the mismatch shows only as a ring jumping across the scope." },
+    c: { name: "Ring stays on the pointed row; the line warns",
+      rings: [{ cs: POINT3, cls: "lit" }], bline: { cs: POINT3, cls: "" }, warn: true,
+      how: "N811CP stays ringed; the check line names N4417Q in the warning colour and says it is not the row pointed at. The scope never shows where N4417Q is.",
+      worst: "The student must find N4417Q on the scope from its callsign alone; the warning is text, read only if the line is." },
+  };
+  document.getElementById("lanes3").innerHTML = Object.entries(L3).map(([L, d]) => `<section class="lane"><div class="lane-h"><span class="tag ${L}">${L.toUpperCase()}</span><h3>${esc(d.name)}</h3></div><div class="stage">${scope({ hdg: 300, rings: d.rings, bline: d.bline })}${trafficFlyout({ typed: TYPED3, focus: true, checkHtml: gradeHtml(r3, { pointed: POINT3, warn: d.warn }), checkCls: d.warn ? "warnl" : "", hdg: 300, pointed: POINT3, res: r3.cs, resWarn: d.warn, rows: ROWS3 })}</div><dl class="cap"><dt>How it reads</dt><dd>${d.how}</dd><dt>Cost</dt><dd class="worst">${d.worst}</dd></dl></section>`).join("");
+
+  /* ================= Section 4: field advisory placement ================= */
+  const fieldSay = `<div class="say">“Field's at your 12 o'clock, 5 miles, report it in sight.”</div><div class="nochk">not checked: the sim does not grade the field advisory</div>`;
+  const fieldRow = `<div class="tr picked"><span class="mk">●</span><span class="two"><span class="l1"><span class="cs">KOAK</span><span class="ty">· Oakland Intl</span><span class="lg">· destination</span></span><span class="l2">12 o'clock · 5 nm · runways 28L 28R 30</span></span><span class="cmd wait"></span></div>`;
+  const fieldBox = focus => boxRow({ typed: "12 5", focus, glyph: "RFIS", label: "Field advisory", ghost: "complete · <kbd>Enter</kbd> sends", prev: "RFIS 12 5", verb: "RFIS" });
+  const W4 = ["ELD", "RTIS", "FOLLOW"];
+  const L4 = {
+    a: { name: "One flyout, a Traffic · Field toggle",
+      menu: acMenu("RTIS", W4, `Report in sight… <code>RTIS · RFIS</code>`),
+      fly: `<div class="menu m w fly"><div class="mi title"><span class="et"><b>Report in sight</b></span><span class="r">${titleRight(300)}</span></div><div class="tgl" role="group" aria-label="What"><span>Traffic <code>RTIS</code></span><span class="on">Field <code>RFIS</code></span></div>${fieldBox(true)}<div class="adv">${fieldSay}</div>${sep()}${fieldRow}</div>`,
+      how: "One strip well opens one flyout; a toggle under the title switches it between the traffic call (box, check, builder, list) and the field call (box, spoken line, the field row). The toggle remembers its last side per aircraft.",
+      worst: "A click to switch and a state to remember: a student who opens it for traffic and finds the field side up types the wrong call into the right box." },
+    b: { name: "Its own strip entry and small flyout",
+      menu: acMenu("RFIS", ["ELD", "RFIS", "RTIS", "FOLLOW"], `Report field in sight… <code>RFIS</code>`),
+      fly: `<div class="menu m w fly"><div class="mi title"><span class="et"><b>Report field in sight</b></span><span class="r">${titleRight(300)}</span></div>${fieldBox(true)}<div class="adv">${fieldSay}</div>${sep()}${fieldRow}</div>`,
+      how: "Report field in sight keeps its own well, as the solo advisory page drew it; its flyout holds only the field box, the spoken line and the field row, 380 px by about 190.",
+      worst: "One more well on the strip, and two flyouts with the same box that behave differently (one checked, one not)." },
+    c: { name: "A section below the traffic flyout",
+      menu: acMenu("RTIS", W4, `Report traffic or field in sight… <code>RTIS · RFIS</code>`),
+      fly: `<div class="menu m w fly"><div class="mi title"><span class="et"><b>Report traffic in sight</b></span><span class="r">${titleRight(300)}</span></div>${boxRow({ typed: "", focus: false, ghost: "", prev: null })}<div class="adv"><div class="check"><span class="hintl">type the call as you would say it</span></div></div>${builder()}${sep()}<div class="panel"><div class="grp2"><span>Airborne · nearest first</span><code>7</code></div>${["N738SP", "N9152M", "N22RX"].map(cs => rowHtml(byCs.get(cs), { hdg: 300 })).join("")}<div class="more">4 more below; the list scrolls</div></div>${sep()}<div class="grp2"><span>Field · KOAK, destination</span><code>RFIS</code></div>${fieldBox(true)}<div class="adv">${fieldSay}</div></div>`,
+      how: "One flyout holds both: the traffic box, check, builder and list, then a Field section with its own box. Tab or a click moves between the boxes; each Enter sends its own call.",
+      worst: "The tallest flyout, and the field box sits under a 300 px list, often below the fold of a scope near the screen's bottom edge; two boxes in one flyout make it easy to type into the wrong one." },
+  };
+  document.getElementById("lanes4").innerHTML = Object.entries(L4).map(([L, d]) => `<section class="lane"><div class="lane-h"><span class="tag ${L}">${L.toUpperCase()}</span><h3>${esc(d.name)}</h3></div><div class="stage"><div class="flabel">Strip › <b>${L === "b" ? "Report field in sight…" : "Report traffic in sight…"}</b> (the flyout opens beside the menu; drawn below it here)</div>${d.menu}${d.fly}</div><dl class="cap"><dt>How it reads</dt><dd>${d.how}</dd><dt>Cost</dt><dd class="worst">${d.worst}</dd></dl></section>`).join("");
+
+  /* ---------- Start: freeze at #t (and #t2), else play once; #turn=240 picks the longer turn ---------- */
+  if (HASH.turn === 240) { turnTo = 240; document.querySelector("input[name=turn][value='240']").checked = true; anim2.redraw(); }
+  if (HASH.t != null || HASH.t2 != null) {
+    anim1.set(HASH.t != null ? HASH.t : 0);
+    anim2.set(HASH.t2 != null ? HASH.t2 : (HASH.t != null ? HASH.t : 0));
+    anim1.pause(); anim2.pause();
+  } else {
+    anim1.set(0); anim2.set(0);
+    anim1.play(); anim2.play();
+  }
+})();
+</script>
+</body>
+</html>
