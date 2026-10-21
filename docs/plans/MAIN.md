@@ -26,7 +26,6 @@
 - [ ] YAAT-930 Refuse unresolvable route rows and out-of-range speeds in the Cross fix flyout
 - [ ] YAAT-931 Fix the red ground-runway menu hover-preview automation test on main
 - [ ] YAAT-936 Steady the Hold at fix default course near the fix
-- [ ] YAAT-937 Offer Hold at fix (HOLDP) in All Commands › Hold · release vNext
 - [ ] YAAT-945 Dim wrong-stratum airways in the Join airway flyout
 - [ ] YAAT-946 Share the flyouts' keyboard walk between the four flyout lists
 
@@ -643,10 +642,14 @@
 - [ ] YAAT-938 Default approach and missed-approach hold legs to the altitude standard
 - [ ] YAAT-940 Re-time a standard-leg hold when its altitude crosses 14,000 ft
 - [ ] YAAT-941 Stop UserPreferencesTaxiRouteDisplayTests sharing one preferences file
-- [ ] YAAT-948 Resolve PTAC PA to the assigned altitude and record it as assigned · release vNext
 - [ ] YAAT-949 Close the bare-crossing end's review windows (fillet-arc forks, shared probe ends, twice-crossed runway)
 - [ ] YAAT-950 Pass a clearance's hold shorts to the client's taxi route reconstruction
 - [ ] YAAT-952 Apply catalog entries' flight-rules default in All Commands
 - [ ] YAAT-953 Make GeoMath's point projection agree with its great-circle distance
 - [ ] YAAT-954 Refuse or round off-hundred altitudes typed into menu altitude boxes
 - [ ] YAAT-955 Clear the assigned heading at every other off-vector site (pattern, follow, go-around, departures)
+- [/] YAAT-956 Record the via clearance's altitude as assigned on DVIA and CVIA · release vNext
+- [ ] YAAT-957 Await the CRC alias load in the clear-terminal-on-scenario-load tests
+- [ ] YAAT-958 Clear the assigned altitude on CVIA and climb departures to the SID top altitude · release vNext
+- [ ] YAAT-959 Let Point out resolve the same position codes as handoff
+- [ ] YAAT-960 Read the scenario's ATC positions under the room lock in GetOnlineControllers
