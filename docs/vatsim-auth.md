@@ -239,6 +239,8 @@ The room session's rules (`TowerCabRooms`, `CrcClientState.TowerCab.cs`):
 
 - **Offer.** The session is an observer session in the room's ARTCC (the scenario's, else the room's own `CreatorArtccId` with a logged warning; when neither names one, a warning and no offer) whose one position names the scenario's primary airport when it is a Tower Cab airport of that ARTCC, else the ARTCC's first Tower Cab airport (warned).
 - **Following.** While it has joined no CRC session and is attached to, or was offered, a room session, it keeps following its CID's rooms (`FollowsRoomSessions`): a CRC session of the CID binding into a lobby leaves it alone, one binding into another room D moves it to D's room session (`HandleSessionEnded`, then `HandleSessionStarted`), and one started in its own room leaves it where it is.
+
+  A CRC session start offers the CID's waiting Tower Cab its session before `StartSession` answers, so a bind that follows can never be overtaken by a late offer of the lobby session.
 - **Leaving.** `LeaveSession` on the room session is a quiet detach: the viewer is unlisted without `HandleSessionEnded`, forgets the offer, and records the room as declined, so the room is not offered again until its CID next joins a room.
 - **No position.** With no CRC session joined it holds no position, so it may call only `GetServerConfiguration`, `Subscribe`, `Unsubscribe`, `GetSessions`, `JoinSession` and `LeaveSession`; any other method gets `RefuseDirectInvocation`'s error completion.
 - **Acks.** A repeat `JoinSession` to the session it is already in is a plain acknowledgement; for Tower Cab 3D that ack, like an accepted join's answer, is queued behind its earlier session pushes rather than written directly.
