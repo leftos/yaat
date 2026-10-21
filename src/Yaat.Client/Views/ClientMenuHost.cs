@@ -495,14 +495,19 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     }
 
     /// <summary>
-    /// Highlights <paramref name="callsign"/> on every ground view (<see cref="DataBlockViewState.SetMenuHighlight"/>), or
-    /// clears it with null.
+    /// Highlights <paramref name="callsign"/> on every ground and radar view (<see cref="DataBlockViewState.SetMenuHighlight"/>),
+    /// or clears it with null.
     /// </summary>
     public void HighlightAircraft(string? callsign)
     {
         foreach (GroundViewModel ground in main.AllGroundViews)
         {
             ground.DataBlockState.SetMenuHighlight(callsign);
+        }
+
+        foreach (RadarViewModel radar in main.AllRadarViews)
+        {
+            radar.DataBlockState.SetMenuHighlight(callsign);
         }
     }
 
@@ -549,12 +554,24 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// </summary>
     public TaxiRoute? GetRemainingTaxiRoute(string callsign) => (FindAircraft(callsign) is { } ac) ? main.Ground.ResolveRemainingRoute(ac) : null;
 
-    /// <summary>Shows <paramref name="preview"/> on every ground view, so it shows on whichever ground window is open; never on the radar.</summary>
+    /// <summary>
+    /// Shows <paramref name="preview"/> on every ground view, so it shows on whichever ground window is open; the radar's
+    /// cue is <see cref="SetRadarCue"/>.
+    /// </summary>
     public void SetScopePreview(ScopePreview? preview)
     {
         foreach (GroundViewModel ground in main.AllGroundViews)
         {
             ground.ScopePreview = preview;
+        }
+    }
+
+    /// <summary>Shows <paramref name="cue"/> on every radar view, so it shows on whichever radar window is open.</summary>
+    public void SetRadarCue(RadarCue? cue)
+    {
+        foreach (RadarViewModel radar in main.AllRadarViews)
+        {
+            radar.MenuCue = cue;
         }
     }
 

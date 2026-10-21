@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
@@ -154,6 +155,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         RadarDataBlockViewState?
     >(nameof(DataBlockState));
 
+    public static readonly StyledProperty<RadarCue?> MenuCueProperty = AvaloniaProperty.Register<RadarCanvas, RadarCue?>(nameof(MenuCue));
+
     private const float DataBlockPad = 3f;
     private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
 
@@ -165,11 +168,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly RadarDataBlockViewState _localDataBlockState = new();
     private RadarDataBlockViewState State => DataBlockState ?? _localDataBlockState;
 
-    // The state whose offset changes (a drag, the reset menu item, an app tool) repaint this canvas: State while the
-    // canvas is in the visual tree, null otherwise, so a view-model state never holds a detached canvas.
+    // The state whose offset changes (a drag, the reset menu item, an app tool) and menu highlights repaint this canvas:
+    // State while the canvas is in the visual tree, null otherwise, so a view-model state never holds a detached canvas.
     private RadarDataBlockViewState? _watchedDataBlockState;
 
-    /// <summary>The datablock state whose offset changes repaint this canvas now, or null while detached. Test seam.</summary>
+    /// <summary>The datablock state whose offset and highlight changes repaint this canvas now, or null while detached. Test seam.</summary>
     internal RadarDataBlockViewState? WatchedDataBlockState => _watchedDataBlockState;
 
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
@@ -594,6 +597,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(DataBlockStateProperty, value);
     }
 
+    /// <summary>The radar cue a pointed or focused menu row shows (<see cref="RadarViewModel.MenuCue"/>); null for none.</summary>
+    public RadarCue? MenuCue
+    {
+        get => GetValue(MenuCueProperty);
+        set => SetValue(MenuCueProperty, value);
+    }
+
     /// <summary>
     /// Airport id the user's ground view is currently showing (null when none). A ground
     /// aircraft is normally hidden on the radar, but when it has an active speech bubble and its
@@ -828,9 +838,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     private void WatchDataBlockState(RadarDataBlockViewState? state)
     {
-        _watchedDataBlockState?.ManualOffsetsChanged -= MarkDirty;
+        _watchedDataBlockState?.ManualOffsetsChanged -= OnDataBlockStateChanged;
+        _watchedDataBlockState?.HighlightsChanged -= OnDataBlockStateChanged;
         _watchedDataBlockState = state;
-        _watchedDataBlockState?.ManualOffsetsChanged += MarkDirty;
+        _watchedDataBlockState?.ManualOffsetsChanged += OnDataBlockStateChanged;
+        _watchedDataBlockState?.HighlightsChanged += OnDataBlockStateChanged;
+    }
+
+    /// <summary>How many times a change to the watched datablock state has asked this canvas to repaint. Test seam.</summary>
+    internal int DataBlockStateRepaints { get; private set; }
+
+    private void OnDataBlockStateChanged()
+    {
+        DataBlockStateRepaints++;
+        MarkDirty();
     }
 
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
@@ -925,6 +946,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == HistoryCountProperty
             || change.Property == DeconflictModeProperty
             || change.Property == DataBlockStateProperty
+            || change.Property == MenuCueProperty
         )
         {
             MarkDirty();
@@ -1011,7 +1033,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         (string Text, SKPoint Pos)? MvaHover,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine,
-        IReadOnlyDictionary<int, SKRect> RblReadoutRects
+        IReadOnlyDictionary<int, SKRect> RblReadoutRects,
+        ResolvedRadarCue? MenuCue
     );
 
     /// <summary>
@@ -1170,7 +1193,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             mvaHover,
             measurements,
             pendingMeasurement,
-            readoutRects
+            readoutRects,
+            MenuCue?.ResolveAgainst(sorted)
         );
     }
 
@@ -1298,6 +1322,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return (snapshot.DeconflictOffsets, snapshot.RblReadoutRects);
     }
 
+    /// <summary>Builds one render snapshot, as a frame does, and returns the menu cue it ships to the draw. Test seam.</summary>
+    internal ResolvedRadarCue? CaptureMenuCue() => ((RenderSnapshot)CreateRenderSnapshot()!).MenuCue;
+
     private string? FindHoveredFixName(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, Point mousePos)
     {
         const float hitRadius = 20f;
@@ -1365,6 +1392,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.HistoryCount,
             s.MvaHover
         );
+
+        // A menu row's cue rides over targets and datablocks; a measurement stays on top of it.
+        _renderer.DrawMenuCue(canvas, viewport, s.MenuCue);
 
         // Drawn last so a measurement stays readable over targets, datablocks, and video maps.
         _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine, s.RblReadoutRects);

@@ -542,6 +542,7 @@
       <radar:RadarCanvas
         x:Name="Canvas"
         DataBlockState="{Binding DataBlockState}"
+        MenuCue="{Binding MenuCue}"
         Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
         SelectedAircraft="{Binding SelectedAircraft}"
         VideoMaps="{Binding ActiveVideoMaps}"

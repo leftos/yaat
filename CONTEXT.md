@@ -631,6 +631,9 @@ A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.Det
 **Point menu**:
 The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: on the ground, an icon strip of the taxi items that apply, then the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to runway, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
 
+**Radar cue**:
+What a pointed or focused menu row draws on the radar views (`RadarCue`, sent through `IMenuHost.SetRadarCue`): a solid ring on the aircraft the row names, a dashed bearing line to it from the commanded aircraft labelled with its clock position and miles, and a dashed ring on the aircraft the call resolves to when that is another one. It clears when the menu closes; the radar's counterpart of the **scope preview**, which the radar does not draw.
+
 **Scope preview**:
 What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. A pointed or focused Hold short of… stop draws the bar boxed and the aircraft's route solid to it, with no ring. It clears when the menu closes and is not drawn on the radar.
 

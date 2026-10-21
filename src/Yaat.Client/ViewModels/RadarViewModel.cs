@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -100,6 +101,10 @@ public partial class RadarViewModel(
 
     [ObservableProperty]
     private double _rangeNm = 40;
+
+    /// <summary>The radar cue a pointed or focused menu row shows (<see cref="IMenuHost.SetRadarCue"/>); null for none.</summary>
+    [ObservableProperty]
+    private RadarCue? _menuCue;
 
     [ObservableProperty]
     private double _centerLat;

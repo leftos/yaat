@@ -1,4 +1,5 @@
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -881,8 +882,91 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyDictionary<int, SKRect> readoutRects
     ) => _rangeBearingRenderer.Draw(canvas, vp, lines, pending, readoutRects);
 
+    /// <summary>The radius of the rings a menu cue draws around an aircraft symbol.</summary>
+    public const float MenuCueRingRadiusPx = 13f;
+
+    /// <summary>Where a menu cue's bearing label starts, from the bearing line's midpoint: right of it, the baseline just below.</summary>
+    private static readonly SKPoint MenuCueLabelOffset = new(8, 4);
+
+    private static readonly SKColor MenuCueColor = SKColor.Parse("#8fc1ff");
+
+    private static readonly SKColor MenuCueResolvedColor = SKColor.Parse("#7fd1b9");
+
+    private readonly SKPaint _menuCueRingPaint = new()
+    {
+        Color = MenuCueColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _menuCueResolvedRingPaint = new()
+    {
+        Color = MenuCueResolvedColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = SKPathEffect.CreateDash([4, 3], 0),
+    };
+
+    private readonly SKPaint _menuCueLinePaint = new()
+    {
+        Color = MenuCueColor,
+        StrokeWidth = 1.4f,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = SKPathEffect.CreateDash([5, 4], 0),
+    };
+
+    private readonly SKPaint _menuCueLabelPaint = new() { Color = MenuCueColor, IsAntialias = true };
+
+    private readonly SKFont _menuCueLabelFont = PlatformHelper.MonospaceFont(11);
+
+    /// <summary>
+    /// Draws a menu row's radar cue: the dashed bearing line from the commanded aircraft to the target with its label right
+    /// of the midpoint, the solid ring on the target and the dashed teal ring on the other aircraft the call resolves to,
+    /// each only when the cue places it; nothing for null. Called after <see cref="Render" /> so the cue shows over targets
+    /// and datablocks.
+    /// </summary>
+    public void DrawMenuCue(SKCanvas canvas, MapViewport vp, ResolvedRadarCue? cue)
+    {
+        if (cue is null)
+        {
+            return;
+        }
+
+        if (cue.Target is { } target)
+        {
+            (float tx, float ty) = vp.LatLonToScreen(target.Lat, target.Lon);
+            if (cue.From is { } from)
+            {
+                (float fx, float fy) = vp.LatLonToScreen(from.Lat, from.Lon);
+                canvas.DrawLine(fx, fy, tx, ty, _menuCueLinePaint);
+                if (cue.BearingLabel is { } label)
+                {
+                    float x = ((fx + tx) / 2) + MenuCueLabelOffset.X;
+                    float y = ((fy + ty) / 2) + MenuCueLabelOffset.Y;
+                    canvas.DrawText(label, x, y, SKTextAlign.Left, _menuCueLabelFont, _menuCueLabelPaint);
+                }
+            }
+
+            canvas.DrawCircle(tx, ty, MenuCueRingRadiusPx, _menuCueRingPaint);
+        }
+
+        if (cue.ResolvedOther is { } other)
+        {
+            (float ox, float oy) = vp.LatLonToScreen(other.Lat, other.Lon);
+            canvas.DrawCircle(ox, oy, MenuCueRingRadiusPx, _menuCueResolvedRingPaint);
+        }
+    }
+
     public void Dispose()
     {
+        _menuCueRingPaint.Dispose();
+        _menuCueResolvedRingPaint.Dispose();
+        _menuCueLinePaint.Dispose();
+        _menuCueLabelPaint.Dispose();
+        _menuCueLabelFont.Dispose();
         _rangeBearingRenderer.Dispose();
         _videoMapRenderer.Dispose();
         _targetRenderer.Dispose();

@@ -44,7 +44,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 
    Only lines tagged `RblView.Ground` are resolved into the snapshot — radar-view measurements never render here. When a line's far endpoint is off-screen, `RblLabelPlacement` anchors the readout where the line exits the viewport and clamps it fully inside.
 
-   The readout's spot, and any **nudge** it gives an auto-placed data block, come from the shared `RblReadoutPlacement`, exactly as on the radar ([radar-rendering.md](radar-rendering.md), step 10 and "Readout nudges"); `GroundCanvas.ResolvedDataBlockOffset` folds the nudge in for both the draw and the hit-test (`DataBlockRect`).
+   The readout's spot, and any **nudge** it gives an auto-placed data block, come from the shared `RblReadoutPlacement`, exactly as on the radar ([radar-rendering.md](radar-rendering.md), step 11 and "Readout nudges"); `GroundCanvas.ResolvedDataBlockOffset` folds the nudge in for both the draw and the hit-test (`DataBlockRect`).
 
 The route overlays sit **between infrastructure and aircraft** so routes never occlude the aircraft symbols. `DrawHoverRoute` is drawn **last of the overlays** so the transient hover highlight paints on top of any persistent shown route.
 

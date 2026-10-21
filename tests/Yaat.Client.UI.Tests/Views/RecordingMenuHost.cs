@@ -325,6 +325,11 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public void SetScopePreview(ScopePreview? preview) => ScopePreviews.Add(preview);
 
+    /// <summary>Every radar cue the menu asked for, in order, null for a clear; the last is the one shown.</summary>
+    public List<RadarCue?> RadarCues { get; } = [];
+
+    public void SetRadarCue(RadarCue? cue) => RadarCues.Add(cue);
+
     /// <summary>The pushback facings the face items list, whatever the callsign asked about.</summary>
     public List<MenuCommandChoice> PushbackFaceChoices { get; } = [];
 
