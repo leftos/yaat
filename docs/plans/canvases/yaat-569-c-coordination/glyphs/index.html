@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Point Out Glyphs</title>
+<style>
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --warn: #a3520a; --tag: #7a4fbf;
+    --f-body: "Segoe UI", system-ui, sans-serif;
+    --f-mono: "JetBrains Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --warn: #ffb259; --tag: #c4a3ff;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --warn: #ffb259; --tag: #c4a3ff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 16px 64px; }
+  h1 { font-size: 28px; line-height: 1.15; margin: 0 0 8px; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  p { max-width: 90ch; color: var(--muted); margin: 0 0 8px; }
+  p b { color: var(--ink); }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+  .note { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 14px; margin: 16px 0 24px; }
+  .note p { margin: 0 0 4px; }
+  .cand { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 22px; }
+  .cand h2 { font-size: 19px; margin: 0 0 6px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tag); border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .shots { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 10px 0; }
+  figure { margin: 0; background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 10px; max-width: 100%; }
+  figure img { display: block; max-width: 100%; height: auto; }
+  figcaption { font: 11px var(--f-mono); color: #a4adb8; margin-top: 6px; max-width: 420px; }
+  .px1 { image-rendering: pixelated; }
+  pre { margin: 6px 0 10px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: 12px/1.45 var(--f-mono); color: var(--ink); white-space: pre-wrap; word-break: break-all; }
+  dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+  dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+  dd { margin: 0; }
+  dd.worst { color: var(--warn); }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part C · coordination · Point out glyph</div>
+  <h1>Three glyphs for Point out</h1>
+  <p>Point out has no strip glyph today; Initiate handoff draws a sector bracket with an arrow entering it (<code>QuickCommandGlyphs.cs:181</code>). Each candidate below is a path in the grammar <code>QuickCommandGlyphs</code> uses: one SVG path on the 24 × 24 view box, stroked 1.9 with round caps and joins, in the scope grey <code>#DCE2E8</code> (<code>ScopeAndSim(...)</code>). A glyph record carries no dash pattern, so any dashed look is drawn as separate segments in the path, as Expect approach does.</p>
+  <p>Every image is a resvg render of the paths at the sizes <code>QuickCommandStrip.cs</code> uses: a 40 px button, the glyph at 32 px (<code>CellGlyphSize</code>), the submenu notch <code>#9AA3AD</code>, and a 22 px glyph in a menu row.</p>
+
+  <section class="note">
+    <p><b>There is no light theme.</b> The client runs dark only (<code>App.axaml:5</code>, <code>RequestedThemeVariant="Dark"</code>), and the strip's colours are fixed in code rather than theme resources: the well <code>#1F2226</code>, under the pointer <code>#2C3036</code>, pressed <code>#16181B</code>, and latched while its flyout is open <code>#24406A</code> (<code>QuickCommandStrip.cs:79–83</code>). The renders show those three states and the dark Fluent menu surface instead of a light variant.</p>
+  </section>
+
+  <section class="cand" id="a">
+    <h2><span class="tag">A</span>Dotted arrow to a target (the dashed draft, made shippable)</h2>
+    <pre>ScopeAndSim("M2 12h.01 M5 12h.01 M8 12h4 M8.5 8.5l3.5 3.5-3.5 3.5 M19 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8 M19 12h.01")</pre>
+    <div class="shots">
+      <figure><img class="px1" src="strip-a.png" width="202" height="254" alt="Candidate A in the strip at real size"><figcaption>1x, real size. Rows: Track, Initiate handoff, Point out, Squawk at rest; Point out under the pointer; Point out latched. Below: the 22 px menu rows, Initiate handoff over Point out.</figcaption></figure>
+      <figure><img src="detail-a.png" width="408" height="208" alt="Initiate handoff and candidate A at 4x"><figcaption>4x, with the 24-unit grid: Initiate handoff, then A.</figcaption></figure>
+    </div>
+    <dl>
+      <dt>Depicts</dt><dd>A dotted pointer that stops short of a radar target: drawing another controller's attention to the target without moving it anywhere. The draft's <code>stroke-dasharray</code> becomes two dots in the path; the arrow stops short of the ring so the two never touch, and the ring gets a centre dot.</dd>
+      <dt>Worst case</dt><dd class="worst">At 22 px the two dots nearly vanish and it reads as an arrow into a circle: the violet Follow (chevron to a circle) and the blue Direct to and Join radial share that shape, and the teal Push back to is the same idea turned down.</dd>
+    </dl>
+  </section>
+
+  <section class="cand" id="b">
+    <h2><span class="tag">B</span>A pointing hand</h2>
+    <pre>ScopeAndSim("M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10")</pre>
+    <div class="shots">
+      <figure><img class="px1" src="strip-b.png" width="202" height="254" alt="Candidate B in the strip at real size"><figcaption>1x, real size. Rows: Track, Initiate handoff, Point out, Squawk at rest; Point out under the pointer; Point out latched. Below: the 22 px menu rows.</figcaption></figure>
+      <figure><img src="detail-b.png" width="408" height="208" alt="Initiate handoff and candidate B at 4x"><figcaption>4x, with the 24-unit grid: Initiate handoff, then B.</figcaption></figure>
+    </div>
+    <dl>
+      <dt>Depicts</dt><dd>A hand pointing right, the index finger out and two fingers curled, a cuff at the wrist: the literal "point out". It shares no stroke with any glyph in the set.</dd>
+      <dt>Worst case</dt><dd class="worst">The only figurative glyph in a set of diagrams, and at 22 px the two curled fingers merge into a blob, leaving a "finger gun" or a generic select-pointer; nothing in it says another sector or a target.</dd>
+    </dl>
+  </section>
+
+  <section class="cand" id="c">
+    <h2><span class="tag">C</span>A speech bubble holding a target</h2>
+    <pre>ScopeAndSim("M4 4h16a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H11l-4.5 4v-4H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 4z M12 7.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5")</pre>
+    <div class="shots">
+      <figure><img class="px1" src="strip-c.png" width="202" height="254" alt="Candidate C in the strip at real size"><figcaption>1x, real size. Rows: Track, Initiate handoff, Point out, Squawk at rest; Point out under the pointer; Point out latched. Below: the 22 px menu rows.</figcaption></figure>
+      <figure><img src="detail-c.png" width="408" height="208" alt="Initiate handoff and candidate C at 4x"><figcaption>4x, with the 24-unit grid: Initiate handoff, then C.</figcaption></figure>
+    </div>
+    <dl>
+      <dt>Depicts</dt><dd>A speech bubble with a target in it: telling another controller about the target, the coordination a point out is, with nothing moving.</dd>
+      <dt>Worst case</dt><dd class="worst">It sits beside Squawk, the only other boxed glyph in the scope set, and a bubble reads as "talk to the pilot" as readily as "talk to a controller": a later Contact or frequency-change glyph could not use the bubble.</dd>
+    </dl>
+  </section>
+
+  <section class="cand" id="confusables">
+    <h2>Against the rest of the set</h2>
+    <p>Top: A, B and C as strip buttons. Under them, real size and in their family colours, the glyphs each could be mistaken for: the scope set (Track, Initiate handoff, Squawk, Assume, Assume and track, Release held, Check release window, Warp), then Direct to, Join radial, Follow, Push back to, Taxi to runway, Report traffic in sight and Cleared visual.</p>
+    <div class="shots">
+      <figure><img class="px1" src="confusables.png" width="386" height="168" alt="The three candidates over the glyphs they could be confused with"><figcaption>1x, real size.</figcaption></figure>
+    </div>
+  </section>
+
+  <footer>Renders: resvg via the render-svg skill, from SVG scenes built off these exact path strings; the client draws them with Avalonia/Skia, which may anti-alias the 22 px row slightly differently.</footer>
+</div>
+</body>
+</html>
