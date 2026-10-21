@@ -239,7 +239,7 @@ When invoking aviation-sim-expert, always include:
   The VSTest forms (`--filter "FullyQualifiedName~X"`, `--logger trx`) are rejected with `Unknown option`. Test output: see **SimLog in tests** below.
 - **Test ceilings**: Every `dotnet test` runs through the gate with a ceiling, which catches soft hangs from broken graph topology or infinite pathfinder loops; never add a `timeout` of your own inside it. Use **`-TimeoutSeconds 30`** for a filtered/targeted run (`-- --filter-method "*Name*"`) — a targeted YAAT sim run that hasn't finished in 30s is stuck, not slow.
 
-  Use **`-TimeoutSeconds 120`** for a bare full-suite run, which legitimately needs longer. Use **`-TimeoutSeconds 360`** for `pwsh tools/test-all.ps1` (both repos, about 2.5 minutes on an idle machine); every skill that runs it uses this ceiling.
+  Use **`-TimeoutSeconds 120`** for a bare full-suite run, which legitimately needs longer. Use **`-TimeoutSeconds 900`** for `pwsh tools/test-all.ps1` (both repos; the gate's history puts a run at about 11 minutes, p90 12, and a routed run on a loaded machine at about 8 minutes of load-adjusted time); every skill that runs it uses this ceiling.
 
 ### Code Style
 

@@ -23,7 +23,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
   The Discord bot labels `/create-issue` reports `bug`; an unlabelled issue (agent-filed, Linear-synced) is judged from its body. **Triage** places each user submission in `Bug reports and feature requests` and adds it to the open release, and no release is cut while a user-reported bug is open unless the user explicitly agreed to defer it (`prepare-release` step 2.5).
 
-  **An item that blocks one in the open release joins it too**: whenever an **add**, a **split** or a ruling makes an open issue wait on another (a sub-issue of a release item, a tool or fix the release item needs first), add the blocker to the open release and record the relation (`save_issue` with `blocks: ["<the release item>"]`), so the release's issue list shows everything it waits on.
+  **An item that blocks one in the open release joins it too**: whenever an **add**, a **split** or a ruling makes an open issue wait on another (a sub-issue of a release item, a tool or fix the release item needs first), add the blocker to the open release and record the relation (`linear edit <blocker ID> --blocks <the release item ID>`), so the release's issue list shows everything it waits on.
 
   Adding to the open release is `linear release add yaat <ID>...` (`--next` for `vNext+1`, the release after, which never fences work; `--hotfix` for `vHotfix`, the owner's call alone); never the MCP's `addReleases: ["vNext"]`, since every pipeline names its open release `vNext` and the name is ambiguous.
 

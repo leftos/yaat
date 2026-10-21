@@ -151,7 +151,7 @@ A red build stops the release here. Every later Phase 2 command runs with `--no-
 The suite tests yaat + yaat-server in Release configuration, on 2.0's build; failures here would ship to users. Run it in the background:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1 -NoBuild
+pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1 -NoBuild
 ```
 
 If anything fails, stop and surface it. Do not proceed to the version-bump commit (Phase 5) on a red suite — fix forward (or abort the release), then re-run.
@@ -699,7 +699,7 @@ A cherry-picked landing counts as shipped, and the emptied `vHotfix` becomes the
 
 If it exits 2 with `LINEAR_OAUTH_CLIENT_ID is not set`, the shell predates the user variables: run it from PowerShell after `$env:LINEAR_OAUTH_CLIENT_ID = [Environment]::GetEnvironmentVariable('LINEAR_OAUTH_CLIENT_ID','User')` and the same for `LINEAR_OAUTH_CLIENT_SECRET`. After a failure, re-run the same command: it reuses the open `v{version}` release the failed run left.
 
-Then sweep the project statuses with the Linear MCP `save_project`: a project whose every issue is Done or Canceled → `completed` (the snapshot also does this), one with an In Progress issue → `started`. Then regenerate the plan snapshot (`linear snapshot yaat --repo-root "$YAAT"`) and commit `docs/plans/MAIN.md` as `docs: plan snapshot` and push it, if it changed; the deploy is over, so a commit past the tag is safe now.
+Then sweep the project statuses with `linear project yaat "<name>" --state <state>` (states: backlog, planned, started, completed, canceled): a project whose every issue is Done or Canceled → `completed` (the snapshot also does this), one with an In Progress issue → `started`. Then regenerate the plan snapshot (`linear snapshot yaat --repo-root "$YAAT"`) and commit `docs/plans/MAIN.md` as `docs: plan snapshot` and push it, if it changed; the deploy is over, so a commit past the tag is safe now.
 
 ### 8.2 Close the open issues this release fixed
 
