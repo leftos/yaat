@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -20,10 +21,14 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 ///
 /// A parallel-stress test can't gate a marshaling fix (it deadlocks once the read serializes onto the
 /// UI thread). Instead this asserts the contract directly: an off-thread call must marshal onto the UI
-/// thread, so it cannot complete until the UI thread pumps its dispatcher queue.
+/// thread, so it cannot complete until the UI thread pumps its dispatcher queue. The test waits on the
+/// queued Send job rather than a time window, then pumps once.
 /// </summary>
 public class MainViewModelSpeechContextThreadingTests
 {
+    // A hang guard, never a deadline: a passing run leaves each wait as soon as the background call queues its build or returns.
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(2);
+
     [AvaloniaFact]
     public void BuildSpeechContext_InvokedOffUiThread_MarshalsOntoUiThread()
     {
@@ -33,18 +38,24 @@ public class MainViewModelSpeechContextThreadingTests
             vm.Aircraft.Add(new AircraftModel { Callsign = $"UAL{i:000}", Destination = "KOAK" });
         }
 
-        SpeechContext? result = null;
         // Mirror the speech pipeline: pull the context from a Task.Run background thread.
-        Task<SpeechContext> bg = Task.Run(() => result = vm.BuildSpeechContext());
+        Task<SpeechContext> bg = Task.Run(() => vm.BuildSpeechContext());
 
-        // With the guard, the build is queued onto the UI thread and bg cannot complete until this
-        // (UI) thread pumps. On unfixed code it enumerates Aircraft directly off-thread and completes
-        // immediately, failing this assertion.
-        Assert.False(bg.Wait(250), "BuildSpeechContext ran off the UI thread instead of marshaling");
+        // This thread does not pump while it waits, so the background call either queues its build onto the UI thread
+        // (Dispatcher.Invoke, Send priority) and blocks there, or, unmarshalled, runs to completion off the UI thread.
+        // "A Send job is queued" reads as our Invoke: nothing else in src posts at Send today, and a future
+        // Send poster could only make this test pass falsely, never fail a correct product.
+        var waited = Stopwatch.StartNew();
+        while (!bg.IsCompleted && !Dispatcher.UIThread.HasJobsWithPriority(DispatcherPriority.Send))
+        {
+            Assert.True(waited.Elapsed < HangGuard, "BuildSpeechContext neither queued its build on the UI thread nor returned");
+            Thread.Sleep(1);
+        }
+        Assert.False(bg.IsCompleted, "BuildSpeechContext ran off the UI thread instead of marshaling");
 
+        // The queued build runs here, and the background call returns once it has.
         Dispatcher.UIThread.RunJobs();
-        Assert.True(bg.Wait(2000));
-        Assert.NotNull(result);
-        Assert.Equal(40, result!.ActiveCallsigns.Count);
+        Assert.True(bg.Wait(HangGuard), "BuildSpeechContext did not return after its UI-thread build ran");
+        Assert.Equal(40, bg.Result.ActiveCallsigns.Count);
     }
 }
