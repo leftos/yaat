@@ -218,7 +218,9 @@ parallelism settings; `showLiveOutput` there is the config-file equivalent of `-
 
 A probe compiles into a test project without touching tracked files via `-p:CustomAfterMicrosoftCommonTargets=<file>`: the MSBuild file adds the probe source to `Compile`, so nothing in the project or its sources is edited. Delete the file when done.
 
-The same targets file can swap a source file for a variant with `<Compile Remove>` / `<Compile Include>`, building the variant without touching tracked files. A probe run goes through the gate with `-Local -Reason "<why>"` (the gate refuses `-Local` without a reason).
+The same targets file can swap a source file for a variant with `<Compile Remove>` / `<Compile Include>`, building the variant without touching tracked files. A probe run goes through the gate with `--local --reason "<why>"` (the gate refuses `--local` without a reason).
+
+A routed gate snapshot omits the gitignored `.tmp`, so a probe compiled from `.tmp` needs `--local --reason`. Afterwards rebuild the test project so the probe types leave `bin/obj`.
 
 ### Linux runs: CI investigation and cross-platform verification
 
@@ -246,7 +248,7 @@ test csproj must therefore have a `Content` include copying it:
 
 If that include is missing, xUnit silently ignores the file and falls back to its parallel-collection defaults. For
 `tests/Yaat.Client.UI.Tests` — whose `xunit.runner.json` sets `parallelizeTestCollections: false` precisely so the
-`UserPreferences` fixtures don't race the shared `preferences.json` — a missing copy means collections parallelize and races appear. The
+per-test `UserPreferences.FilePath` switch (`[PreferencesFilePerTest]`) isn't raced by a parallel test — a missing copy means collections parallelize and races appear. The
 explanatory comment lives in the Client.UI csproj; the Sim csproj has the same include without comment (the Sim project *wants*
 collection parallelism, so its `xunit.runner.json` sets `parallelizeTestCollections: true`).
 
@@ -266,19 +268,12 @@ order- and load-dependent flakes:
   AvaloniaHeadlessPlatform.ForceRenderTimerTick();` in a loop until the value is stable for two consecutive frames (`SettleDeconfliction`
   in `Views/DataBlockStatePersistenceTests.cs`). Without that, the frame count before the assertion depends on wall-clock timer ticks —
   machine load and what ran earlier in the process — even though the solver itself is deterministic per frame.
-- **One `preferences.json` per process, restored at construction.** `ModuleInit` sets `YAAT_APPDATA_DIR` once per *process*, not per
-  test, `UserPreferences.Save()` is synchronous, and the `MainViewModel` constructor restores persisted UI state (vStrips split
-  mode/ratio, pop-out flags, zoom). A test that mutates persisted state — `SplitStripsEntryAsync`, any `IsXPoppedOut` setter (each
-  persists via `SetPoppedOut`), font size — and doesn't put it back poisons every `MainViewModel` constructed later in the run. Symptom:
-  the *first* assertion of a fresh VM/host fails on its default state (`Assert.Single() Failure: The collection contained 2 items`
-  because the "fresh" host started pre-split), passes in isolation, and flips run-to-run because xUnit's method order is
-  reflection-dependent. Convention: every mutating test restores factory defaults in `finally` (`UserPreferencesFontSizeTests`,
-  `UserPreferencesMvaHintDefaultTests`; split tests call `vm.UnsplitStripsEntry(entry)`), and helpers that construct a `MainViewModel`
-  normalize ambient state before asserting a baseline (`VStripsSplitHostTests.NewSplitHost`). `WindowGeometryHelper` adds a second
-  vector: it persists geometry through a *debounced* `DispatcherTimer` auto-save, so what lands in the file depends on wall-clock timing.
-  "Passes alone, flakes in the suite" here is order × timing, not order alone — tab-content materialization can also lag extra
-  dispatcher/layout passes under load, which is why `WaitForDockedGroundCanvas` is a bounded pump loop with a state-dump `Assert.Fail`
-  rather than a single pass.
+- **Every test gets its own `preferences.json`, bound per `UserPreferences` instance.** `ModuleInit` sets `YAAT_APPDATA_DIR` once per *process*; the assembly-level `[PreferencesFilePerTest]` (`Helpers/PreferencesFilePerTestAttribute.cs`) then calls `UserPreferences.UseFile` before each test with a fresh, empty file at `<per-process root>/tests/<guid>/preferences.json`. An instance reads and writes only the file it was created on, so the `MainViewModel` constructor's restore of persisted UI state (vStrips split, pop-out flags, zoom) starts from defaults and a test never restores preferences in `finally`. `Views/PreferencesIsolationTests.cs` (ordered by `Helpers/MethodNameOrderer.cs`) pins it. `tests/Yaat.Client.Tests` has no hook and uses the default path.
+  - **Why a file per test and not a restore scope:** `WindowGeometryHelper` persists geometry through a *debounced* `DispatcherTimer` auto-save, and a hidden window (the main window is hidden, never closed) fires it during the *next* Avalonia test's pumping, so a scope that restores the file after a test cannot contain it. Binding each instance to its file does.
+  - **Create `UserPreferences` in the test body.** xUnit v3 builds the test class before `Before` runs, so a constructor or field initializer that creates `UserPreferences` binds to the previous test's file.
+  - "Passes alone, flakes in the suite" is still possible from timing: tab-content materialization can lag extra dispatcher/layout passes under load, which is why `WaitForDockedGroundCanvas` is a bounded pump loop with a state-dump `Assert.Fail` rather than a single pass. Helpers that construct a `MainViewModel` still normalize non-preference ambient state before asserting a baseline (`VStripsSplitHostTests.NewSplitHost`).
+- **A context menu's rows share the window as their top level.** Check `PointerTargets.Inside` before hovering a row, or the synthetic pointer lands outside the window (YAAT-904).
+- **A desktop-gated test passes on the builder by being skipped.** A test gated on `InteractiveDesktop.MissingReason` skips in session 0, so a routed run reporting it green proved nothing. Prove it with `--local --reason "desktop-gated UI test"` (YAAT-904, YAAT-985).
 - **Never `await` a `HeadlessUnitTestSession.Dispatch(...)` and then `Dispose()` the session in the same async flow.** The session
   completes the dispatched task on its own dispatcher-loop thread and plain `await` continuations inline onto the completing thread, so
   the disposing code runs *on* the loop it is about to `Task.Wait()` — a permanent self-deadlock (process never exits). A dump shows
@@ -564,7 +559,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 
   A test that types a 3-digit flight ID can collide with a drawn CID and flake. Pin the seed with `harness.SeedSource.Pin(...)`, as `EramConformance.BuildAsync` does, or type a CID no aircraft holds (and assert that precondition). `EramConformanceQaTests` and `EramFlidResolutionTests.FreeCid` flaked this way.
 - **`xunit.runner.json` must be Content-copied to `bin/` in each csproj** or xUnit ignores it. The Client.UI project relies on
-  `parallelizeTestCollections: false` to stop `UserPreferences` racing the shared `preferences.json`; the Sim project sets it `true`
+  `parallelizeTestCollections: false` to keep the per-test `UserPreferences.FilePath` switch single-threaded; the Sim project sets it `true`
   (collection parallelism *on*), which is exactly why the singleton race exists for Sim tests. Diagnose `Expected [...] / Actual []`
   failures here first.
 - **Two ModuleInitializers, different jobs.** Sim's warms CIFP/NavData and sets `GroundNavigator.ThrowOnOrbit = true` (orbits become hard
@@ -607,9 +602,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   [Ticking a phase by hand](#ticking-a-phase-by-hand--steer-and-integrate-at-025-s).
 - **Headless renders only on render-timer ticks.** `RunJobs`/`UpdateLayout` never force one; drive `InvalidateVisual` + `RunJobs` +
   `AvaloniaHeadlessPlatform.ForceRenderTimerTick()` to convergence before reading render-derived state.
-- **UI tests share one `preferences.json` and `MainViewModel` restores it at construction.** Any test that mutates persisted prefs
-  (split mode, pop-out flags, font size) must restore factory defaults in `finally`; a fresh VM failing its *first* default-state assertion
-  is persisted-state leakage, not a view bug.
+- **Every UI test runs on its own empty `preferences.json`** (`[PreferencesFilePerTest]`, bound per `UserPreferences` instance), so no test restores preferences; create `UserPreferences` in the test body, not a constructor or field initializer. A fresh VM failing its *first* default-state assertion is then a real default or a file the test wrote itself, not leakage. Details in [Avalonia headless UI tests](#avalonia-headless-ui-tests).
 - **Never `await` a `HeadlessUnitTestSession.Dispatch` then `Dispose` the session in the same flow** — the continuation inlines onto the
   session loop and `Dispose` deadlocks on itself. Hop via `ContinueWith(..., TaskScheduler.Default)`; `ForceYielding` does not help.
 - **Event-bounded replay loops (`break` on event) have a failure timeout, not a cost** — don't trim their budget; only loops that assert

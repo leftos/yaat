@@ -180,11 +180,10 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
     /// whose pane holds only <see cref="OldLine"/> and whose Up/Down history starts with a fresh command, with the setting
     /// <paramref name="on"/>; the history must come out unchanged. Loading the same scenario keeps its history, so only a
     /// clear could change it. The history is compared with itself before the run, not with a fixed list: the bootstrap
-    /// reloads scenario-1's saved history from the preferences file other tests share.
+    /// reloads scenario-1's saved history from the preferences file.
     /// </summary>
     private static void WithSetting(bool on, Action<MainViewModel> body)
     {
-        using var scope = new PreferencesFileScope();
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Preferences.SetClearTerminalOnScenarioLoad(on);
         vm.ApplyScenarioBootstrap(

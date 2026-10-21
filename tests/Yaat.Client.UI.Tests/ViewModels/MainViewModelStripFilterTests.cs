@@ -13,9 +13,7 @@ public class MainViewModelStripFilterTests
     {
         var vm = new MainViewModel(new FakeFilePickerService())
         {
-            // Set the toggle explicitly rather than relying on the persisted default — the UI-test
-            // suite shares one preferences.json per process, so another test may have persisted a
-            // hidden Strip channel.
+            // Set the toggle explicitly rather than relying on the persisted default.
             ShowStripEntries = true,
         };
         Assert.True(vm.IsEntryVisible(TerminalEntryKind.Strip));
@@ -29,8 +27,7 @@ public class MainViewModelStripFilterTests
     {
         var vm = new MainViewModel(new FakeFilePickerService())
         {
-            // Establish a known baseline so the solo snapshot is deterministic regardless of any
-            // filter state persisted by other tests in the shared preferences.json.
+            // Establish a known baseline so the solo snapshot is deterministic.
             ShowStripEntries = true,
             ShowCommandEntries = true,
         };

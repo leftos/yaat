@@ -267,7 +267,6 @@ public class MainViewModelSessionSettingsTests
     [AvaloniaFact(Timeout = 60_000)]
     public async Task ConfirmingTheSetupDialog_LeavesTheStoredPacingDefaultsAlone()
     {
-        using var scope = new PreferencesFileScope();
         var stored = new UserPreferences();
         stored.SetSoloTrainingMode(true);
         stored.SetSoloPacingRates(50, 35);

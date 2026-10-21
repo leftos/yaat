@@ -75,8 +75,7 @@ public class MainWindowLifecycleTests
         Assert.Null(main.GroundViewWindow);
         Assert.NotNull(main.RadarViewWindow); // other window untouched
 
-        // Every pop-out flip persists to the shared per-process preferences.json, so leave the
-        // state docked — a later test's MainWindow would otherwise boot with the view popped out.
+        // Leave the view docked: the main window outlives the test.
         vm.IsRadarViewPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
     }
@@ -117,9 +116,7 @@ public class MainWindowLifecycleTests
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.IsContentGridVisible);
 
-        // Every pop-out flip persists to the shared per-process preferences.json, so re-dock
-        // everything — a later test's MainWindow would otherwise boot with all views popped out
-        // and no docked GroundCanvas/RadarCanvas to find.
+        // Re-dock everything: the main window outlives the test.
         vm.IsDataGridPoppedOut = false;
         vm.IsGroundViewPoppedOut = false;
         vm.IsRadarViewPoppedOut = false;
@@ -296,8 +293,8 @@ public class MainWindowLifecycleTests
     [AvaloniaFact]
     public void ExtraViews_RestoreFromPreferencesOnBoot()
     {
-        // The ordinals live in the shared per-process preferences.json, which the MainViewModel
-        // constructor reads — so writing them here is what a previous session's shutdown looks like.
+        // The ordinals live in the preferences file, which the MainViewModel constructor reads — so
+        // writing them here is what a previous session's shutdown looks like.
         var seed = new UserPreferences();
         seed.SetExtraRadarViews([new SavedExtraView(2, "KOAK")]);
         seed.SetExtraGroundViews([new SavedExtraView(3, "KSFO")]);
@@ -363,8 +360,7 @@ public class MainWindowLifecycleTests
         return (main, (MainViewModel)main.DataContext!);
     }
 
-    // The open extra-view set persists to the shared per-process preferences.json, so every test that
-    // opens one must leave the set empty — a later test's MainWindow would otherwise boot with windows.
+    // Closes the extra view windows a test opened, which outlive the test otherwise.
     private static void CloseAllExtraViews(MainViewModel vm)
     {
         vm.ReconcileExtraViews([], []);

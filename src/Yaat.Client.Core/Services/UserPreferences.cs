@@ -49,16 +49,23 @@ public sealed partial class UserPreferences
 {
     private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
 
-    private static readonly string ConfigDir = YaatPaths.AppDataRoot;
+    private static string _currentFilePath = YaatPaths.Combine("preferences.json");
 
-    private static readonly string ConfigPath = YaatPaths.Combine("preferences.json");
+    /// <summary>The preferences file a new instance reads and writes; an instance keeps the file it was created on.</summary>
+    public static string FilePath => Volatile.Read(ref _currentFilePath);
 
-    // Process-wide lock to serialize file IO on ConfigPath. All
-    // UserPreferences instances share ConfigPath, so concurrent reads (Load
-    // in the ctor) and writes (Save) would otherwise race on File.Move and
-    // fail with UnauthorizedAccessException (Windows) or trample each
-    // other's intermediate .tmp files (Linux).
+    /// <summary>Points every instance created from now on at <paramref name="path"/>; existing instances keep their own file.</summary>
+    public static void UseFile(string path) => Volatile.Write(ref _currentFilePath, Path.GetFullPath(path));
+
+    // Process-wide lock to serialize preferences file IO. Instances usually
+    // share one file, so concurrent reads (Load in the ctor) and writes (Save)
+    // would otherwise race on File.Move and fail with
+    // UnauthorizedAccessException (Windows) or trample each other's
+    // intermediate .tmp files (Linux).
     private static readonly Lock FileLock = new();
+
+    /// <summary>The preferences file this instance was created on, the only file it reads or writes.</summary>
+    private readonly string _filePath;
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -77,7 +84,8 @@ public sealed partial class UserPreferences
 
     public UserPreferences()
     {
-        _data = Load();
+        _filePath = FilePath;
+        _data = Load(_filePath);
         MigrateLegacyWindowProfiles(_data);
         _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
         _macros = [.. _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion })];
@@ -91,6 +99,7 @@ public sealed partial class UserPreferences
 
     private UserPreferences(SavedPrefs defaults)
     {
+        _filePath = FilePath;
         _data = defaults;
         _commandScheme = CommandScheme.Default();
         _macros = [];
@@ -172,7 +181,7 @@ public sealed partial class UserPreferences
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.LogWarning(ex, "Could not save migrated preferences to {Path}; the migration is retried on the next launch", ConfigPath);
+            Log.LogWarning(ex, "Could not save migrated preferences to {Path}; the migration is retried on the next launch", _filePath);
         }
     }
 
@@ -1961,23 +1970,23 @@ public sealed partial class UserPreferences
         Save();
     }
 
-    private static SavedPrefs Load()
+    private static SavedPrefs Load(string path)
     {
         string json;
         lock (FileLock)
         {
-            if (!File.Exists(ConfigPath))
+            if (!File.Exists(path))
             {
                 return ApplyDefaultServers(new SavedPrefs());
             }
 
             try
             {
-                json = File.ReadAllText(ConfigPath);
+                json = File.ReadAllText(path);
             }
             catch (IOException ex)
             {
-                Log.LogWarning(ex, "Could not read preferences from {Path}", ConfigPath);
+                Log.LogWarning(ex, "Could not read preferences from {Path}", path);
                 return ApplyDefaultServers(new SavedPrefs());
             }
         }
@@ -2004,8 +2013,8 @@ public sealed partial class UserPreferences
         }
 
         // Slow path: recover individual fields so one bad field doesn't wipe everything
-        Log.LogWarning("Full preferences deserialization failed — recovering individual fields from {Path}", ConfigPath);
-        BackupFile();
+        Log.LogWarning("Full preferences deserialization failed — recovering individual fields from {Path}", path);
+        BackupFile(path);
         return RecoverFields(json);
     }
 
@@ -2276,13 +2285,13 @@ public sealed partial class UserPreferences
         }
     }
 
-    private static void BackupFile()
+    private static void BackupFile(string path)
     {
         lock (FileLock)
         {
             try
             {
-                File.Copy(ConfigPath, ConfigPath + ".bak", overwrite: true);
+                File.Copy(path, path + ".bak", overwrite: true);
             }
             catch (IOException ex)
             {
@@ -2343,7 +2352,7 @@ public sealed partial class UserPreferences
             return;
         }
 
-        Directory.CreateDirectory(ConfigDir);
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
 
         // Sync cached conversions back to _data before serializing
         _data.CommandScheme = ToSaved(_commandScheme);
@@ -2355,7 +2364,7 @@ public sealed partial class UserPreferences
         lock (FileLock)
         {
             // The lock serializes against concurrent Save and Load calls from other instances.
-            AtomicFile.WriteAllText(ConfigPath, json);
+            AtomicFile.WriteAllText(_filePath, json);
         }
     }
 

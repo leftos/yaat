@@ -119,9 +119,8 @@ public class DataBlockStatePersistenceTests
         window.ShowAndRunLayout();
         var vm = (MainViewModel)window.DataContext!;
 
-        // Start from a known all-docked state: pop-out flips persist to the shared per-process
-        // preferences.json, so a preceding test can leave the Ground view popped out — its canvas
-        // would then live in a pop-out window instead of the docked tab this test drives.
+        // Start from a known all-docked state: a popped-out Ground view's canvas would live in a
+        // pop-out window instead of the docked tab this test drives.
         vm.IsDataGridPoppedOut = false;
         vm.IsGroundViewPoppedOut = false;
         vm.IsRadarViewPoppedOut = false;

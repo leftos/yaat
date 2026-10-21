@@ -61,8 +61,7 @@ public class MainViewModelPilotVoiceWarningTests
         );
 
     /// <summary>
-    /// A VM joined to a paused room, with pilot voice switched off in the preferences (the default, set explicitly
-    /// because the test process shares one preferences file).
+    /// A VM joined to a paused room, with pilot voice switched off in the preferences (the default, set explicitly).
     /// </summary>
     private static async Task<MainViewModel> JoinedViewModelAsync(bool solo, PromptStub prompt)
     {

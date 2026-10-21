@@ -19,7 +19,6 @@ public class ActiveRunwaysMenuTests
     [AvaloniaFact]
     public void MenuItem_OpensOneWindow_AndASecondClickActivatesIt()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         ActiveRunwaysWindow? opened = null;
         try
@@ -45,7 +44,6 @@ public class ActiveRunwaysMenuTests
     [AvaloniaFact]
     public void MenuItem_IsDisabledUntilAScenarioIsLoaded()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {

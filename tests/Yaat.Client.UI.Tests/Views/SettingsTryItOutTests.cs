@@ -20,7 +20,6 @@ public class SettingsTryItOutTests
     [AvaloniaFact(Timeout = 60_000)]
     public void EnterInTryItOut_LeavesTheWindowOpen_AndAppliesNothing()
     {
-        using var scope = new PreferencesFileScope();
         var window = new SettingsWindow();
         int applied = 0;
         window.ViewModel.Applied += () => applied++;

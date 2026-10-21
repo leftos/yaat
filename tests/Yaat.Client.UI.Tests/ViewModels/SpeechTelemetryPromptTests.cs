@@ -34,7 +34,7 @@ public class SpeechTelemetryPromptTests
     }
 
     /// <summary>
-    /// Puts the shared speech preferences into the state one test starts from and restores what it found.
+    /// Puts the speech preferences into the state one test starts from.
     /// The model sources are blanked while the guard is alive so the speech-enabled toggle's background
     /// prewarm finds nothing configured instead of fetching a model over the network.
     /// </summary>

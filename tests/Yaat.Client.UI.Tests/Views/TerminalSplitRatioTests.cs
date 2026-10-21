@@ -15,8 +15,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>
 /// The docked terminal's size (its share of the main window's tabs + terminal height, read from
 /// <c>ContentGrid</c>'s star rows) is remembered across launches and pop-out toggles, and saved and restored by layouts.
-/// Every test restores the shared preferences.json and puts the live view model's ratio and dock state back, because
-/// the MainWindow outlives the test and its preferences instance writes its whole state on any later save.
+/// Every test docks the terminal again at the end, because the MainWindow outlives the test.
 /// </summary>
 public class TerminalSplitRatioTests
 {
@@ -25,8 +24,7 @@ public class TerminalSplitRatioTests
     [AvaloniaFact]
     public void CaptureCurrent_CarriesTheDockedTerminalShare()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow _, MainViewModel vm, double original) = BootDocked();
+        (MainWindow _, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.4;
@@ -37,15 +35,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public async Task ApplyLayout_DockedWithHalf_SetsTheRowsToHalf_AndRemembersIt()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.25;
@@ -59,15 +56,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public async Task ApplyLayout_SavedBeforeTheSizeWasCaptured_LeavesACustomSplitUnchanged()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.4;
@@ -81,15 +77,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public async Task ApplyLayout_ThatPopsTheTerminalOut_LeavesTheDockedRatioUntouched()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.3;
@@ -113,15 +108,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public void CustomSplit_SurvivesATerminalPopOutAndBack()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.4;
@@ -136,15 +130,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public void CustomSplit_SurvivesEveryTabPoppingOutAndBack()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.4;
@@ -160,18 +153,16 @@ public class TerminalSplitRatioTests
         finally
         {
             SetEveryTabPoppedOut(vm, false);
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public void FreshBoot_AppliesTheSavedSplit()
     {
-        using var scope = new PreferencesFileScope();
-        double original = new UserPreferences().TerminalSplitRatio;
         new UserPreferences().SetTerminalSplitRatio(0.35);
 
-        (MainWindow main, MainViewModel vm, double _) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             Assert.Equal(0.35, vm.TerminalSplitRatio);
@@ -179,15 +170,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public void SplitterDrag_RemembersTheDraggedShare()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.3;
@@ -200,15 +190,14 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
     [AvaloniaFact]
     public void SplitterDrag_PastTheClamp_SnapsTheRowsBackToTheStoredShare()
     {
-        using var scope = new PreferencesFileScope();
-        (MainWindow main, MainViewModel vm, double original) = BootDocked();
+        (MainWindow main, MainViewModel vm) = BootDocked();
         try
         {
             vm.TerminalSplitRatio = 0.4;
@@ -223,7 +212,7 @@ public class TerminalSplitRatioTests
         }
         finally
         {
-            Restore(vm, original);
+            Restore(vm);
         }
     }
 
@@ -253,17 +242,16 @@ public class TerminalSplitRatioTests
         return terminal.Value / (tabs.Value + terminal.Value);
     }
 
-    private static (MainWindow Main, MainViewModel Vm, double OriginalRatio) BootDocked()
+    private static (MainWindow Main, MainViewModel Vm) BootDocked()
     {
         var main = new MainWindow();
         main.Show();
         Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)main.DataContext!;
-        double original = vm.TerminalSplitRatio;
         vm.IsTerminalPoppedOut = false;
         vm.IsDataGridPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
-        return (main, vm, original);
+        return (main, vm);
     }
 
     private static void SetEveryTabPoppedOut(MainViewModel vm, bool poppedOut)
@@ -278,10 +266,9 @@ public class TerminalSplitRatioTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static void Restore(MainViewModel vm, double originalRatio)
+    private static void Restore(MainViewModel vm)
     {
         vm.IsTerminalPoppedOut = false;
-        vm.TerminalSplitRatio = originalRatio;
         Dispatcher.UIThread.RunJobs();
     }
 }

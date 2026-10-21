@@ -188,7 +188,6 @@ public class MainViewModelRecordingBootstrapParityTests
     [AvaloniaFact]
     public void ApplyRecordingResult_AfterTheSettingsBroadcast_FlagFollowsTheTapeNotThePreference()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = VmPreferringAutoClearedToLand();
 
         vm.ApplySessionSettings(TapeSettings(autoClearedToLand: false));
@@ -203,7 +202,6 @@ public class MainViewModelRecordingBootstrapParityTests
     [AvaloniaFact]
     public void ApplyRecordingResult_BeforeTheSettingsBroadcast_FlagFollowsTheTapeNotThePreference()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = VmPreferringAutoClearedToLand();
 
         vm.ApplyRecordingResult(LoadedTape(autoClearedToLand: false));

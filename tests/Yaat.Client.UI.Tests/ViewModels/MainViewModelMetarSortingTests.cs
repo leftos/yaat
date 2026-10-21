@@ -8,8 +8,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// <summary>
 /// The METAR window lists stations alphabetically, with stations favorited for the active
 /// scenario surfaced to the top (alphabetical among themselves). Favorites persist per-scenario
-/// in UserPreferences. Unique scenario keys keep tests independent of the shared per-process
-/// preferences.json and of test ordering.
+/// in UserPreferences.
 /// </summary>
 public class MainViewModelMetarSortingTests
 {

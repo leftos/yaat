@@ -23,7 +23,6 @@ public class SettingsKeyCaptureTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickBookmarkKeyButton_CapturesTheComboAndEndsCapture()
     {
-        using var scope = new PreferencesFileScope();
         var window = new SettingsWindow();
         window.ShowAndRunLayout();
 
@@ -53,7 +52,6 @@ public class SettingsKeyCaptureTests
     [InlineData(Key.Enter, false, false, 1)]
     public void OkAndCancelKeys_AreCapturedWhileCapturing_AndCloseTheWindowOtherwise(Key key, bool capturing, bool staysOpen, int applies)
     {
-        using var scope = new PreferencesFileScope();
         var window = new SettingsWindow();
         int applied = 0;
         window.ViewModel.Applied += () => applied++;
@@ -87,7 +85,6 @@ public class SettingsKeyCaptureTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AClashingCombo_DisablesOkAndApply_AndShowsTheClashUntilResolved()
     {
-        using var scope = new PreferencesFileScope();
         var window = new SettingsWindow();
         window.ShowAndRunLayout();
 

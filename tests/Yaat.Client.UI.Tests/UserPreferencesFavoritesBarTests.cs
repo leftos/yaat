@@ -3,9 +3,7 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
 
-// UserPreferences writes to YaatPaths.AppDataRoot, which ModuleInit redirects to a per-process temp
-// directory. A fresh UserPreferences instance proves the disk round-trip. Tests share that one file,
-// so every mutating test restores the factory default in a finally.
+// UserPreferences writes to this test's own preferences file. A fresh UserPreferences instance proves the disk round-trip.
 public class UserPreferencesFavoritesBarTests
 {
     [Fact]
@@ -20,17 +18,10 @@ public class UserPreferencesFavoritesBarTests
     public void SetShowFavoritesBar_PersistsToDisk()
     {
         var prefs = new UserPreferences();
-        try
-        {
-            prefs.SetShowFavoritesBar(false);
+        prefs.SetShowFavoritesBar(false);
 
-            Assert.False(prefs.ShowFavoritesBar);
-            Assert.False(new UserPreferences().ShowFavoritesBar);
-        }
-        finally
-        {
-            prefs.SetShowFavoritesBar(true);
-        }
+        Assert.False(prefs.ShowFavoritesBar);
+        Assert.False(new UserPreferences().ShowFavoritesBar);
     }
 
     [Fact]
@@ -45,16 +36,9 @@ public class UserPreferencesFavoritesBarTests
     public void SetFavoritesPanelOpen_PersistsToDisk()
     {
         var prefs = new UserPreferences();
-        try
-        {
-            prefs.SetFavoritesPanelOpen(true);
+        prefs.SetFavoritesPanelOpen(true);
 
-            Assert.True(prefs.IsFavoritesPanelOpen);
-            Assert.True(new UserPreferences().IsFavoritesPanelOpen);
-        }
-        finally
-        {
-            prefs.SetFavoritesPanelOpen(false);
-        }
+        Assert.True(prefs.IsFavoritesPanelOpen);
+        Assert.True(new UserPreferences().IsFavoritesPanelOpen);
     }
 }

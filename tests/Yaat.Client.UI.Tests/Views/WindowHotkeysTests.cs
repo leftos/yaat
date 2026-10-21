@@ -165,7 +165,6 @@ public class WindowHotkeysTests
     [InlineData("FavoritesBar", "Ctrl+Shift+F")]
     public void PanelHotkey_DefaultKey_FromAPopOutWindow_TogglesItsFlag(string panel, string defaultKey)
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         PanelHotkey hotkey = Panels[panel];
@@ -200,7 +199,6 @@ public class WindowHotkeysTests
     [InlineData("FavoritesBar")]
     public void PanelHotkey_FromTheMainWindow_TogglesItsFlag(string panel)
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
         PanelHotkey hotkey = Panels[panel];
@@ -225,7 +223,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void PanelHotkey_Rebound_FiresOnTheNewKeyOnly()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Preferences.SetPopOutRadarViewKey("Ctrl+Alt+R");
@@ -251,7 +248,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void PanelHotkey_WithTheCommandInputFocused_FiresAndTypesNothing()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
         DockTerminal(main, vm);
@@ -281,7 +277,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void FavoritesBarHotkey_InsideAStripsWindow_TogglesTheBar_AndDoesNotOpenFind()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.Preferences.SetFavoritesBarKey("Ctrl+Shift+F");
@@ -323,7 +318,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void OpenSettingsKey_DefaultsToCtrlComma_AndFromAPopOutWindow_RequestsNoSection()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         Assert.Equal("Ctrl+OemComma", UserPreferences.CreateDefaults().OpenSettingsKey);
         var vm = new MainViewModel(new FakeFilePickerService());
@@ -347,7 +341,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void OpenSettingsKey_FromTheMainWindow_RequestsNoSection()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
         List<SettingsSectionId?> requests = [];
@@ -370,7 +363,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void OpenSettingsKey_WithTheCommandInputFocused_RequestsNoSectionAndTypesNothing()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
         DockTerminal(main, vm);
@@ -398,7 +390,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void OpenSettingsKey_IsARebindableWindowHotkey_ThatReportsAClash()
     {
-        using var scope = new PreferencesFileScope();
         KeybindDescriptor descriptor = SettingsViewModel.KeybindDescriptors.Single(d => d.Id == "OpenSettings");
         Assert.Equal("Open Settings", descriptor.Name);
         Assert.Equal(KeybindKind.WindowHotkey, descriptor.Kind);
@@ -417,7 +408,6 @@ public class WindowHotkeysTests
     [AvaloniaFact(Timeout = 60_000)]
     public void OpenSettingsKey_WithSettingsClosed_OpensAtGeneral()
     {
-        using var scope = new PreferencesFileScope();
         WindowHotkeys.EnsureRegistered();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
 
@@ -455,7 +445,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void DockedTerminal_FocusRequest_FocusesEmbeddedCommandInput()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
         DockTerminal(main, vm);
 
@@ -477,7 +466,6 @@ public class WindowHotkeysTests
     [AvaloniaFact]
     public void PoppedTerminal_FocusRequest_FocusesTerminalWindowCommandInput()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow? main, MainViewModel? vm) = MainWindowHost.Boot();
 
         try
@@ -502,8 +490,7 @@ public class WindowHotkeysTests
         }
         finally
         {
-            // Re-dock in memory as well as in the scoped file: WindowGeometryHelper.FlushAllSavedGeometries writes every
-            // live window's preferences back on teardown, which would leave the terminal popped out for later tests.
+            // Re-dock the main window, which outlives the test.
             vm.IsTerminalPoppedOut = false;
             Dispatcher.UIThread.RunJobs();
             MainWindowHost.CloseAll(main);
@@ -511,7 +498,7 @@ public class WindowHotkeysTests
     }
 
     // Docks the terminal and settles the layout: the command-input paths below open a flyout or focus the input that is
-    // showing, and the window boots with whatever pop-out state the shared preferences.json holds.
+    // showing.
     private static void DockTerminal(MainWindow main, MainViewModel vm)
     {
         vm.IsTerminalPoppedOut = false;

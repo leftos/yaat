@@ -548,8 +548,7 @@ public sealed class AppToolsTests : AutomationHostFixture
             on.GetProperty("message").GetString()
         );
 
-        // The preference is saved to the run's shared preferences file, and every later MainViewModel seeds its session solo
-        // mode from it, so the test puts it back however it ends.
+        // The view model's session solo mode is seeded from this preference, so the test puts it back however it ends.
         viewModel.Preferences.SetSoloTrainingMode(true);
         try
         {

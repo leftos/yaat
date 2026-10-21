@@ -1,12 +1,10 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
-using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests;
 
-// UserPreferences writes to YaatPaths.AppDataRoot, which ModuleInit redirects to a
-// per-process temp directory. Each test instance rewrites preferences.json from
+// UserPreferences writes to this test's own preferences file. Each test instance rewrites preferences.json from
 // scratch through SetCommandHistory; isolation is guaranteed by xUnit creating a
 // fresh fixture per test method, but tests still scope their data with unique
 // scenario ids so they would not collide even if reordered into one process.
@@ -144,7 +142,7 @@ public class UserPreferencesCommandHistoryTests
     {
         var prefs = new UserPreferences();
         prefs.SetCommandHistory("TEST-held-seed", [new CommandHistoryEntry("", "SEED")]);
-        string path = YaatPaths.Combine("preferences.json");
+        string path = UserPreferences.FilePath;
         CancellationToken ct = TestContext.Current.CancellationToken;
 
         await using (var holder = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))

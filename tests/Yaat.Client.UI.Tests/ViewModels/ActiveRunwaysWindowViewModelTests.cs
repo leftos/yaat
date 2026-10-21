@@ -60,8 +60,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void Rows_AreThePrimaryAirportFirst_ThenTheRestInOrdinalOrder()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("SFO", ["28R"]), ("HWD", ["28L"]), ("OAK", ["30"]));
 
         Assert.Equal([("OAK", "30"), ("HWD", "28L"), ("SFO", "28R")], window.Rows.Select(row => (row.Airport, row.Text)));
@@ -71,8 +69,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void PrimaryAirportWithNoRunways_StillGetsAnEmptyRow_First()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("SFO", ["28R"]));
 
         Assert.Equal([("OAK", ""), ("SFO", "28R")], window.Rows.Select(row => (row.Airport, row.Text)));
@@ -83,8 +79,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void LiveChange_RefreshesUntouchedRows_AndLeavesTheWindowOpen()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         Refresh(vm, ("OAK", ["D28L", "A28R"]));
@@ -96,8 +90,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void LiveChange_KeepsTheTextOfARowTheUserTypedIn()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
         window.Rows[0].Text = "33";
 
@@ -109,8 +101,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void LiveChange_InsertsANewAirportInOrdinalOrder()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("SFO", ["28R"]));
 
         Refresh(vm, ("SFO", ["28R"]), ("HWD", ["28L"]));
@@ -121,8 +111,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void PrimaryAirportChange_ReordersTheRows()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("HWD", ["28L"]));
 
         vm.ActiveScenarioPrimaryAirportId = "HWD";
@@ -133,8 +121,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void LiveChange_KeepsATypedInRowOfADroppedAirport()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
         window.Rows[1].Text = "28L";
 
@@ -146,8 +132,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void LiveChange_RemovesAnUntouchedRowOfADroppedAirport()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
 
         Refresh(vm, ("OAK", ["30"]));
@@ -160,8 +144,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_SendsOnlyTheRowsWhoseTextChanged()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
         window.Rows[0].Text = "28L";
         RecordingSender sender = AcceptAll();
@@ -174,8 +156,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_ARowTheParserRefuses_SendsNothing_AndShowsTheMessageUnderIt()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
         window.Rows[0].Text = "28L";
         window.Rows[1].Text = "28L 99X";
@@ -192,8 +172,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_TheServerRefusesARow_KeepsItsTextWithTheMessage_AndSendsTheOthers()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
         window.Rows[0].Text = "28L";
         window.Rows[1].Text = "28L";
@@ -214,8 +192,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_AnEmptyRow_SendsEveryEnd()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
         window.Rows[0].Text = " ";
         RecordingSender sender = AcceptAll();
@@ -231,8 +207,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_KeepsTheWindowOpen_AndTheAppliedRowsFollowTheRoomAgain()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
         window.Rows[0].Text = "28L";
 
@@ -246,8 +220,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_ARowTheServerEchoesDifferently_TakesTheServersSpelling()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
         window.Rows[0].Text = "28l, 30";
         // The room's list reaches the client before Apply's await resumes, which is why a row cannot keep the spelling it
@@ -268,8 +240,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_KeepsAnEditMadeDuringTheSend()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
         window.Rows[0].Text = "28L";
         var sender = new RecordingSender(_ =>
@@ -287,8 +257,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_WhileOneIsInFlight_SendsNothingMore()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
         window.Rows[0].Text = "28L";
         RecordingSender reentrant = AcceptAll();
@@ -313,8 +281,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_AnUnchangedRowTheClientCannotRead_DoesNotBlockTheOthers()
     {
-        using var scope = new PreferencesFileScope();
-
         // ZZZZ's ends came from the server, so the row is untouched and unchanged; the client's navdata knows no runway
         // there, and reading it would refuse the whole Apply.
         (MainViewModel _, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("ZZZZ", ["99X"]));
@@ -330,8 +296,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_ARowTypedBackToTheListsText_IsLeftAsTheListHasIt()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
         window.Rows[0].Text = "";
         window.Rows[0].Text = "30";
@@ -347,8 +311,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public async Task Apply_StopsSending_OnceTheWindowCloses()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]), ("SFO", ["28R"]));
         window.Rows[0].Text = "28L";
         window.Rows[1].Text = "28L";
@@ -369,8 +331,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void ScenarioUnloaded_ClosesTheWindow()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         vm.ClearScenarioState();
@@ -381,8 +341,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void LeavingTheRoom_ClosesTheWindow()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         vm.ClearRoomState();
@@ -393,8 +351,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void AnotherLoad_ClosesTheWindow()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         // The same scenario id: reloading a scenario is another load even though the id does not move.
@@ -407,8 +363,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void RecordingLoad_ClosesTheWindow()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         // A recording carries the original scenario's id, so this too is only visible in the scope.
@@ -420,8 +374,6 @@ public class ActiveRunwaysWindowViewModelTests
     [AvaloniaFact]
     public void Restart_LeavesTheWindowOpen_AndTheRowsFollowTheRestartsList()
     {
-        using var scope = new PreferencesFileScope();
-
         (MainViewModel vm, ActiveRunwaysWindowViewModel window) = OpenWindow(("OAK", ["30"]));
 
         vm.OnScenarioRestarted(new ScenarioRestartedDto([], Runways(("OAK", ["D28L"]))));

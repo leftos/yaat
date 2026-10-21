@@ -4,10 +4,8 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
 
-// Covers the GPU renderer-backend preference (macOS Metal/OpenGL/Software override). UserPreferences
-// writes to YaatPaths.AppDataRoot, redirected by ModuleInit to a per-process temp dir; a fresh
-// instance proves the disk round-trip. The mutating test restores the default so the Defaults test
-// stays order-tolerant against the shared preferences.json.
+// Covers the GPU renderer-backend preference (macOS Metal/OpenGL/Software override). UserPreferences writes to
+// this test's own preferences file; a fresh instance proves the disk round-trip.
 public class UserPreferencesRendererModeTests
 {
     [Fact]
@@ -24,9 +22,5 @@ public class UserPreferencesRendererModeTests
 
         prefs.SetRendererMode(RendererMode.Software);
         Assert.Equal(RendererMode.Software, new UserPreferences().RendererMode);
-
-        // Restore the default so the Defaults test is order-independent.
-        prefs.SetRendererMode(RendererMode.Auto);
-        Assert.Equal(RendererMode.Auto, new UserPreferences().RendererMode);
     }
 }

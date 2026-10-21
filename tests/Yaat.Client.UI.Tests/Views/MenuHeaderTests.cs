@@ -330,8 +330,7 @@ public class MenuHeaderTests
 
     /// <summary>
     /// A main view model holding the IFR jet the menu is on, on a setting that refuses <see cref="VfrOnlyCommand"/> for it.
-    /// The setting is read, never written: it is a saved preference, and changing it would leak into every later test that
-    /// builds a main view model (the radar goldens offer Pattern only under the default).
+    /// The setting is read, never written.
     /// </summary>
     private static async Task<(MainViewModel Main, AircraftModel Aircraft)> GatedMainAsync()
     {

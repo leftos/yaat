@@ -3,9 +3,7 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
 
-// UserPreferences writes to YaatPaths.AppDataRoot, which ModuleInit redirects to a per-process temp
-// directory. A fresh UserPreferences instance proves the disk round-trip. Tests share that one file,
-// so every mutating test restores the factory default in a finally.
+// UserPreferences writes to this test's own preferences file. A fresh UserPreferences instance proves the disk round-trip.
 public class UserPreferencesClearTerminalOnScenarioLoadTests
 {
     [Fact]
@@ -15,18 +13,9 @@ public class UserPreferencesClearTerminalOnScenarioLoadTests
         Assert.False(prefs.ClearTerminalOnScenarioLoad);
         Assert.False(UserPreferences.CreateDefaults().ClearTerminalOnScenarioLoad);
 
-        try
-        {
-            prefs.SetClearTerminalOnScenarioLoad(true);
+        prefs.SetClearTerminalOnScenarioLoad(true);
 
-            Assert.True(prefs.ClearTerminalOnScenarioLoad);
-            Assert.True(new UserPreferences().ClearTerminalOnScenarioLoad);
-        }
-        finally
-        {
-            prefs.SetClearTerminalOnScenarioLoad(false);
-        }
-
-        Assert.False(new UserPreferences().ClearTerminalOnScenarioLoad);
+        Assert.True(prefs.ClearTerminalOnScenarioLoad);
+        Assert.True(new UserPreferences().ClearTerminalOnScenarioLoad);
     }
 }

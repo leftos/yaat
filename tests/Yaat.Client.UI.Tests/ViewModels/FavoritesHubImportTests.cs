@@ -36,7 +36,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void LiveHub_ReplaceImportOfASetZip_ShowsTheSetInTheBar()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -57,7 +56,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void LiveHub_MergeImportOfALibraryLoadingASet_AddsItToTheLoadedSets_KeepingTheOthers()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -81,7 +79,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_FavoritesImport_ChangesNothingUntilApply_ThenAddsAndLoadsTheSet()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -115,7 +112,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_FavoritesImport_ThenCancel_LeavesTheStoreAndTheBarAsTheyWere()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -147,7 +143,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_TwoFavoritesImportsBeforeOneApply_BothApplyInOrder()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -172,7 +167,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_BlankIdSetAndALayoutLoadingIt_ApplyKeepsTheLayoutPointingAtTheSet()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -214,7 +208,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_FirstStagedCopyOfASession_DeletesCopiesLeftByEarlierSessions()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         string leftover = Path.Combine(SettingsViewModelImportTarget.StagedFavoritesFolder, "left-by-a-crash");
         Directory.CreateDirectory(Path.Combine(leftover, "sets"));
@@ -236,7 +229,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_FirstStagedCopy_KeepsALiveProcesssCopy_AndDeletesDeadAndUnmarkedOnes()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         string pid = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
         string live = LeftoverCopy("live-owner", pid);
@@ -268,7 +260,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_ExportAfterAStagedFavoritesImport_CarriesTheStagedSet()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {
@@ -308,7 +299,6 @@ public class FavoritesHubImportTests : IDisposable
     [AvaloniaFact]
     public void SettingsHub_ExportAllSetsAfterAStagedImportThatLoadsASet_ListsItAmongTheLoadedSets()
     {
-        using var scope = new PreferencesFileScope();
         MainViewModel vm = NewVm();
         try
         {

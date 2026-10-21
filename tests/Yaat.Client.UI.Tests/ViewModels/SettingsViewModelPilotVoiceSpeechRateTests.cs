@@ -7,8 +7,6 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
 /// The Settings → Speech "Speed" control on the solo pilot voice (0.75–1.5 in 0.05 steps, 1.1 default).
-/// The preferences file is shared by every test in the process, so each test puts the rate back to the
-/// 1.1 default when it is done.
 /// </summary>
 public class SettingsViewModelPilotVoiceSpeechRateTests
 {

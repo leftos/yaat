@@ -32,7 +32,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_RefreshesTheLiveViews_AndCancelRollsBackOnlyWhatCameAfterIt()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -68,7 +67,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Ok_CommitsAndCloses()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -91,7 +89,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ToolsMenu_OpensOnGeneral()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, _) = MainWindowHost.Boot();
         try
         {
@@ -108,7 +105,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ToolsSettingsItem_RaisesSettingsRequestedWithGeneral()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         List<SettingsSectionId?> requests = [];
         vm.SettingsRequested += requests.Add;
@@ -129,7 +125,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void PilotVoiceSettingsRequest_OpensOnSpeech()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -148,7 +143,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void SpeechDebugRequest_WhileSettingsIsOpen_ShowsSpeechInTheOpenWindow()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -173,7 +167,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ViewMenuLink_WhileSettingsIsOpenAtSpeech_MovesToThatViewsSection()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -200,7 +193,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ToolsImportExport_OpensTheHubOnExportWithNothingTicked()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, _) = MainWindowHost.Boot();
         try
         {
@@ -220,7 +212,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ToolsImportExport_ImportedColumnLayoutAndDisplayPreference_ReachTheLiveViews()
     {
-        using var scope = new PreferencesFileScope();
         string root = Path.Combine(Path.GetTempPath(), "yaat-settings-host-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
@@ -264,7 +255,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void SettingsGeneralHub_ImportedColumnLayout_HidesTheGridColumnOnApply()
     {
-        using var scope = new PreferencesFileScope();
         string root = Path.Combine(Path.GetTempPath(), "yaat-settings-host-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         (MainWindow main, _) = MainWindowHost.Boot();
@@ -315,7 +305,6 @@ public class SettingsDialogHostTests
         ImportExportTab tab
     )
     {
-        using var scope = new PreferencesFileScope();
         var dialog = new SettingsWindow();
         dialog.Show();
         Dispatcher.UIThread.RunJobs();
@@ -341,7 +330,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ExportSelectedMacros_ExportsOnlyTheSelectedRows_AndIsDisabledWhileNoneIsSelected()
     {
-        using var scope = new PreferencesFileScope();
         var dialog = new SettingsWindow();
         dialog.Show();
         Dispatcher.UIThread.RunJobs();
@@ -388,7 +376,6 @@ public class SettingsDialogHostTests
     [InlineData(null)]
     public void OpenSettings_BlocksInputToOtherWindows_WithoutDisablingThem(string? closeButton)
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         var radar = new RadarViewWindow(vm.Preferences, "RadarView", "Radar View") { DataContext = vm };
         radar.ShowAndRunLayout();
@@ -471,7 +458,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CloseSettings_WithFocusOnAMenu_FocusesTheCommandInput()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, _) = MainWindowHost.Boot();
         try
         {
@@ -507,7 +493,6 @@ public class SettingsDialogHostTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CloseSettings_ReturnsFocusToTheCommandInput()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, _) = MainWindowHost.Boot();
         try
         {

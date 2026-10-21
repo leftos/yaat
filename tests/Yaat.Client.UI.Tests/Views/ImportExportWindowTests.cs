@@ -36,7 +36,6 @@ public class ImportExportWindowTests : IDisposable
     [AvaloniaFact]
     public void OpensOnExport_WithThePreselectionTicked()
     {
-        using var scope = new PreferencesFileScope();
         ImportExportWindow window = Open([SettingsItemType.Favorites], ImportExportTab.Export);
         try
         {
@@ -64,7 +63,6 @@ public class ImportExportWindowTests : IDisposable
     [AvaloniaFact]
     public void OpensOnImport_WhenAskedFor()
     {
-        using var scope = new PreferencesFileScope();
         ImportExportWindow window = Open([SettingsItemType.Macros], ImportExportTab.Import);
         try
         {
@@ -82,7 +80,6 @@ public class ImportExportWindowTests : IDisposable
     [AvaloniaFact]
     public void NewerClientBundle_ShowsTheUnknownEntryAsARowThatCannotBeTicked()
     {
-        using var scope = new PreferencesFileScope();
         string path = WriteNewerClientBundle();
         ImportExportWindow window = Open([], ImportExportTab.Import);
         try
@@ -116,7 +113,6 @@ public class ImportExportWindowTests : IDisposable
     [AvaloniaFact]
     public void BackUpCheckbox_IsTickedByDefault_AndAnImportWithItTickedSaysWhereTheBackupWent()
     {
-        using var scope = new PreferencesFileScope();
         string path = WriteBundle(
             "macros" + SettingsBundleFile.Extension,
             [SettingsBundleItems.Macros([new SavedMacro { Name = "DEP", Expansion = "CTO" }])]
@@ -157,7 +153,6 @@ public class ImportExportWindowTests : IDisposable
     [AvaloniaFact]
     public void AnImportThatFailsAfterTheBackup_StillShowsWhereTheBackupWent()
     {
-        using var scope = new PreferencesFileScope();
         string path = WriteBundle(
             "fails" + SettingsBundleFile.Extension,
             [SettingsBundleItems.Macros([new SavedMacro { Name = "DEP", Expansion = "CTO" }])]
@@ -203,7 +198,6 @@ public class ImportExportWindowTests : IDisposable
     [AvaloniaFact]
     public void CommandVerbsRow_ShowsNoModeChoice_AndSaysWhatTheImportChanges()
     {
-        using var scope = new PreferencesFileScope();
         string path = WriteBundle(
             "verbs" + SettingsBundleFile.Extension,
             [SettingsBundleItems.Macros([new SavedMacro { Name = "DEP", Expansion = "CTO" }]), SettingsBundleItems.Verbs(CommandScheme.Default())]

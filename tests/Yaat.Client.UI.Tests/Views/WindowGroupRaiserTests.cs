@@ -121,24 +121,16 @@ public class WindowGroupRaiserTests : IDisposable
     public void PreferenceOff_ActivationDoesNotRaise()
     {
         var prefs = new UserPreferences();
-        try
-        {
-            prefs.SetRaiseWindowsTogether(false);
-            var window = new Window();
-            WindowGroupRaiser.Attach(window, prefs);
-            int raises = 0;
-            WindowGroupRaiser.GroupRaised += _ => raises++;
+        prefs.SetRaiseWindowsTogether(false);
+        var window = new Window();
+        WindowGroupRaiser.Attach(window, prefs);
+        int raises = 0;
+        WindowGroupRaiser.GroupRaised += _ => raises++;
 
-            window.Show();
-            Dispatcher.UIThread.RunJobs();
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(0, raises);
-        }
-        finally
-        {
-            // Tests share one per-process preferences.json; restore the default.
-            prefs.SetRaiseWindowsTogether(true);
-        }
+        Assert.Equal(0, raises);
     }
 
     [AvaloniaFact]
@@ -176,19 +168,9 @@ public class UserPreferencesRaiseWindowsTogetherTests
     public void RaiseWindowsTogether_DefaultsOn_AndPersists()
     {
         var prefs = new UserPreferences();
-        try
-        {
-            Assert.True(prefs.RaiseWindowsTogether);
+        Assert.True(prefs.RaiseWindowsTogether);
 
-            prefs.SetRaiseWindowsTogether(false);
-            Assert.False(new UserPreferences().RaiseWindowsTogether);
-        }
-        finally
-        {
-            // Tests share one per-process preferences.json; restore the default.
-            prefs.SetRaiseWindowsTogether(true);
-        }
-
-        Assert.True(new UserPreferences().RaiseWindowsTogether);
+        prefs.SetRaiseWindowsTogether(false);
+        Assert.False(new UserPreferences().RaiseWindowsTogether);
     }
 }

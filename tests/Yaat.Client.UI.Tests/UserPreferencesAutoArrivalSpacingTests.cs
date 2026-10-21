@@ -1,12 +1,10 @@
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
-using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests;
 
-// UserPreferences writes to YaatPaths.AppDataRoot, which ModuleInit redirects to a per-process temp
-// directory. A fresh UserPreferences instance proves the disk round-trip.
+// UserPreferences writes to this test's own preferences file. A fresh UserPreferences instance proves the disk round-trip.
 public class UserPreferencesAutoArrivalSpacingTests
 {
     [Theory]
@@ -28,29 +26,20 @@ public class UserPreferencesAutoArrivalSpacingTests
     public void SetSimulationShortcuts_PersistsAutoArrivalSpacingPerType()
     {
         var prefs = new UserPreferences();
-        try
-        {
-            // Invert both defaults so a stale-default read would fail, one at a time so the two keys cannot be
-            // satisfied by a single shared field.
-            SetAutoArrivalSpacing(prefs, gnd: false, twr: true);
+        // Invert both defaults so a stale-default read would fail, one at a time so the two keys cannot be
+        // satisfied by a single shared field.
+        SetAutoArrivalSpacing(prefs, gnd: false, twr: true);
 
-            Assert.False(prefs.GetAutoArrivalSpacingOnOccupiedRunway("GND"));
-            Assert.True(prefs.GetAutoArrivalSpacingOnOccupiedRunway("TWR"));
+        Assert.False(prefs.GetAutoArrivalSpacingOnOccupiedRunway("GND"));
+        Assert.True(prefs.GetAutoArrivalSpacingOnOccupiedRunway("TWR"));
 
-            SetAutoArrivalSpacing(prefs, gnd: false, twr: false);
+        SetAutoArrivalSpacing(prefs, gnd: false, twr: false);
 
-            // Fresh instance reads preferences.json from disk, proving persistence.
-            var reader = new UserPreferences();
-            Assert.False(reader.GetAutoArrivalSpacingOnOccupiedRunway("GND"));
-            Assert.False(reader.GetAutoArrivalSpacingOnOccupiedRunway("TWR"));
-            Assert.False(reader.GetAutoArrivalSpacingOnOccupiedRunway(null));
-        }
-        finally
-        {
-            // Tests share one per-process preferences.json; restore factory defaults (GND on, TWR off) so the
-            // order-independent defaults test above never reads these inverted values.
-            SetAutoArrivalSpacing(prefs, gnd: true, twr: false);
-        }
+        // Fresh instance reads preferences.json from disk, proving persistence.
+        var reader = new UserPreferences();
+        Assert.False(reader.GetAutoArrivalSpacingOnOccupiedRunway("GND"));
+        Assert.False(reader.GetAutoArrivalSpacingOnOccupiedRunway("TWR"));
+        Assert.False(reader.GetAutoArrivalSpacingOnOccupiedRunway(null));
     }
 
     /// <summary>
@@ -158,9 +147,9 @@ public class UserPreferencesAutoArrivalSpacingTests
         );
     }
 
-    private static readonly string PreferencesPath = YaatPaths.Combine("preferences.json");
+    private static string PreferencesPath => UserPreferences.FilePath;
 
-    private static readonly string BackupPath = PreferencesPath + ".bak";
+    private static string BackupPath => PreferencesPath + ".bak";
 
     /// <summary>
     /// A preferences.json holding only the two auto arrival spacing keys, plus <c>preferencesVersion</c> when
@@ -178,44 +167,21 @@ public class UserPreferencesAutoArrivalSpacingTests
 
     /// <summary>
     /// Runs <paramref name="body"/> against a preferences.json holding exactly <paramref name="json"/> (no file at all
-    /// when it is null) and no <c>.bak</c>, then puts back whatever preferences.json and <c>.bak</c> were there before —
-    /// the tests share one per-process preferences.json.
+    /// when it is null) and no <c>.bak</c>.
     /// </summary>
     private static void WithPreferencesFile(string? json, Action body)
     {
-        string? original = File.Exists(PreferencesPath) ? File.ReadAllText(PreferencesPath) : null;
-        string? originalBackup = File.Exists(BackupPath) ? File.ReadAllText(BackupPath) : null;
-        try
+        Directory.CreateDirectory(Path.GetDirectoryName(PreferencesPath)!);
+        File.Delete(BackupPath);
+        if (json is null)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(PreferencesPath)!);
-            File.Delete(BackupPath);
-            if (json is null)
-            {
-                File.Delete(PreferencesPath);
-            }
-            else
-            {
-                File.WriteAllText(PreferencesPath, json);
-            }
-            body();
-        }
-        finally
-        {
-            RestoreFile(PreferencesPath, original);
-            RestoreFile(BackupPath, originalBackup);
-        }
-    }
-
-    private static void RestoreFile(string path, string? contents)
-    {
-        if (contents is null)
-        {
-            File.Delete(path);
+            File.Delete(PreferencesPath);
         }
         else
         {
-            File.WriteAllText(path, contents);
+            File.WriteAllText(PreferencesPath, json);
         }
+        body();
     }
 
     /// <summary>

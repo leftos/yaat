@@ -264,8 +264,8 @@ public class WindowGeometryHelperTests
 
         Assert.DoesNotContain(helper, WindowGeometryHelper.GetActiveHelpers());
 
-        // Flush this helper only. FlushAllSavedGeometries would drag in helpers left registered by
-        // other tests, and each writes its own UserPreferences snapshot over the shared file.
+        // Flush this helper only: FlushAllSavedGeometries would also flush helpers left registered by
+        // other tests.
         helper.FlushSavedGeometry();
 
         SavedWindowGeometry? saved = new UserPreferences().GetWindowGeometry(windowName);

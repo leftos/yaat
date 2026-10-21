@@ -67,7 +67,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Load_ShowsStoredOverrides_AndDefaultsElsewhere()
     {
-        using var scope = new PreferencesFileScope();
         List<QuickCommandEntry> taxiing =
         [
             new CatalogQuickCommandEntry(MenuIds.GroundHoldPosition, MenuFlightRules.IfrOnly),
@@ -97,7 +96,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AddRemove_ChangeOnlyTheStagedList()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Final, MenuIds.TowerClearedToLand, MenuIds.TowerGoAround, MenuIds.TowerExitLeft);
         List<QuickCommandEntry> stored = [.. new UserPreferences().GetQuickCommandList(AircraftSituation.Final)];
         var vm = new SettingsViewModel();
@@ -124,7 +122,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Move_TakesAnInsertPosition()
     {
-        using var scope = new PreferencesFileScope();
         const string a = MenuIds.TowerClearedToLand;
         const string b = MenuIds.TowerGoAround;
         const string c = MenuIds.TowerExitLeft;
@@ -154,7 +151,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void EditingTheDefaultList_SetsIsChanged_AndUndoingTheEditClearsIt()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         QuickCommandSituationRow final = Select(vm, AircraftSituation.Final);
         List<QuickCommandEntry> defaults = Staged(vm);
@@ -177,7 +173,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AddCatalogEntry_RefusesADuplicateOrAnIneligibleId()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Final, MenuIds.TowerClearedToLand, MenuIds.TowerGoAround);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Final);
@@ -199,7 +194,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AvailableCatalogEntries_ChangeOnlyWhenTheListDoes()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
@@ -229,7 +223,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void FlightRulesChoice_EqualToTheCatalogDefault_StoresTheExplicitChoice()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Pattern, MenuIds.PatternFollow, MenuIds.TowerClearedToLand);
         MenuFlightRules catalogDefault = MenuCatalog.Get(MenuIds.PatternFollow).DefaultFlightRules;
         var vm = new SettingsViewModel();
@@ -255,7 +248,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ExplicitStoredChoice_SurvivesAnUnrelatedApply()
     {
-        using var scope = new PreferencesFileScope();
         List<QuickCommandEntry> pattern =
         [
             new CatalogQuickCommandEntry(MenuIds.PatternFollow, MenuCatalog.Get(MenuIds.PatternFollow).DefaultFlightRules),
@@ -276,7 +268,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void FlightRulesOptions_CaptionTheCatalogDefault_AndCustomRowsHaveNoDefault()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Pattern, MenuIds.PatternFollow, MenuIds.TowerClearedToLand);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Pattern);
@@ -298,7 +289,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void StripFlag_MarksTheFirstTenGlyphEntries_InListOrder()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.IfrEnroute, GlyphIds[..9]);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.IfrEnroute);
@@ -325,7 +315,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void StripFlag_GoesByPosition_WhenAnIdIsDuplicated()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.IfrEnroute, [.. GlyphIds[..10], GlyphIds[0]]);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.IfrEnroute);
@@ -338,7 +327,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CustomRow_IsValidatedLikeTryItOut_AndAnInvalidRowBlocksApply()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         Assert.True(vm.CanApply);
@@ -374,7 +362,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CustomRow_BecomesValid_WhenItsMacroIsAdded()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         QuickCommandEntryRow row = AddValidCustom(vm, "West");
@@ -394,7 +381,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CustomRow_BecomesInvalid_WhenItsMacroIsRemoved()
     {
-        using var scope = new PreferencesFileScope();
         var prefs = new UserPreferences();
         prefs.SetMacros([new MacroDefinition { Name = "WD", Expansion = ValidCommand }]);
         prefs.SetQuickCommandList(AircraftSituation.Taxiing, [new CustomQuickCommandEntry("West", "!WD", null, MenuFlightRules.Both)]);
@@ -414,7 +400,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CustomRow_ValidationFlips_WhenAVerbAliasChanges()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         QuickCommandEntryRow row = AddValidCustom(vm, "West");
@@ -434,7 +419,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ResetCommandVerbs_RevalidatesCustomRows()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         QuickCommandEntryRow row = AddValidCustom(vm, "West");
@@ -452,7 +436,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_WritesTheChangedLists_AndLeavesAnUnchangedSituationUnstored()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         AddValidCustom(vm, "  West  ").GroundCommandText = "  ";
@@ -479,7 +462,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Cancel_WithoutApply_WritesNothing()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
         AddValidCustom(vm, "West");
@@ -496,7 +478,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CatalogOffer_GroupsByFamily_AndKeepsTheSelectionAcrossRefills()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition, MenuIds.GroundResumeTaxi);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
@@ -534,7 +515,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CatalogSearch_NarrowsTheOffer_AndClearingItRestoresTheSelection()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
@@ -573,7 +553,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AddCatalogEntryCommand_AddsTheSelection_AndOnlyACatalogActionEnablesIt()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
         var vm = new SettingsViewModel();
         Select(vm, AircraftSituation.Taxiing);
@@ -596,7 +575,6 @@ public class SettingsViewModelQuickCommandsTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ResetSituation_AndResetAll_AreStaged_AndCancelUndoesThem()
     {
-        using var scope = new PreferencesFileScope();
         var prefs = new UserPreferences();
         prefs.SetQuickCommandList(AircraftSituation.Taxiing, [new CatalogQuickCommandEntry(MenuIds.GroundHoldPosition, null)]);
         prefs.SetQuickCommandList(AircraftSituation.Final, [new CatalogQuickCommandEntry(MenuIds.TowerGoAround, null)]);

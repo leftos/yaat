@@ -20,11 +20,6 @@ public class VStripsSplitHostTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         VStripsDockEntryViewModel entry = vm.StripsEntries[0];
-        // The student entry's split mode persists in the per-process shared
-        // preferences.json and is restored by the MainViewModel constructor, so
-        // an earlier test's split would leak in here. Normalize to unsplit so
-        // every test starts from the single-pane baseline regardless of order.
-        vm.UnsplitStripsEntry(entry);
         var host = new VStripsSplitHost { DataContext = entry };
         var window = new Window { Content = host };
         window.Show();
@@ -92,9 +87,6 @@ public class VStripsSplitHostTests
         }
         finally
         {
-            // Restore the shared preferences.json to the unsplit default so the
-            // persisted split can't leak into later-constructed MainViewModels.
-            vm.UnsplitStripsEntry(entry);
             window.Close();
         }
     }
@@ -106,13 +98,12 @@ public class VStripsSplitHostTests
         // MainViewModel restores it at construction — the flow that carries a
         // user's split layout across app restarts.
         (MainViewModel? vm, VStripsDockEntryViewModel? entry, VStripsSplitHost _, Window? window) = NewSplitHost();
-        MainViewModel? restoredVm = null;
         Window? restoredWindow = null;
         try
         {
             await vm.SplitStripsEntryAsync(entry, StripsSplitMode.Stacked);
 
-            restoredVm = new MainViewModel(new FakeFilePickerService());
+            var restoredVm = new MainViewModel(new FakeFilePickerService());
             VStripsDockEntryViewModel restoredEntry = restoredVm.StripsEntries[0];
             Assert.Equal(StripsSplitMode.Stacked, restoredEntry.SplitMode);
             Assert.NotNull(restoredEntry.SecondaryVm);
@@ -127,10 +118,6 @@ public class VStripsSplitHostTests
         }
         finally
         {
-            // Restore the shared preferences.json to the unsplit default so the
-            // persisted split can't leak into later-constructed MainViewModels.
-            vm.UnsplitStripsEntry(entry);
-            restoredVm?.UnsplitStripsEntry(restoredVm.StripsEntries[0]);
             window.Close();
             restoredWindow?.Close();
         }

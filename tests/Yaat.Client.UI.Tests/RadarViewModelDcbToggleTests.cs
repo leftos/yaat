@@ -6,8 +6,7 @@ namespace Yaat.Client.UI.Tests;
 
 // Ctrl+F8 toggles the radar DCB (issue #215). The VM owns the visibility state, resets the
 // sub-menu to Main when hiding (mirroring CRC), and persists through UserPreferences.
-// UserPreferences writes to YaatPaths.AppDataRoot, redirected by ModuleInit to a per-process temp
-// directory; a fresh UserPreferences instance proves the disk round-trip. Each test sets its own
+// UserPreferences writes to this test's own preferences file; a fresh UserPreferences instance proves the disk round-trip. Each test sets its own
 // starting value, so it doesn't depend on the global RadarDcbVisible left by a sibling test.
 public class RadarViewModelDcbToggleTests
 {

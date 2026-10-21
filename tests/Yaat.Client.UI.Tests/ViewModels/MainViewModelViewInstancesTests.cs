@@ -13,7 +13,6 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// The extra Radar/Ground View instances <see cref="MainViewModel"/> owns (issue #434). Ordinal
 /// allocation and persistence, the one app-wide selected aircraft every instance mirrors, the mirrored
 /// ground layout, profile reconciliation, and the restore-on-construction path.
-/// The UI test project shares one preferences.json, so every test restores the persisted ordinals.
 /// </summary>
 public class MainViewModelViewInstancesTests
 {

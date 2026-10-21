@@ -105,8 +105,7 @@ internal sealed class TimelineTestHarness : IDisposable
 
     internal void Settle() => Settle(_window);
 
-    // Show Timeline Bar is saved to the per-process preferences.json every MainWindow reads, so it is
-    // turned back off once the test is done.
+    // Turns Show Timeline Bar back off on the window's view model once the test is done.
     public void Dispose() => Vm.ShowTimelineBar = false;
 
     private static void Settle(Window window)

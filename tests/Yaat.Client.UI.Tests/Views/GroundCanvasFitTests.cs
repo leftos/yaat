@@ -121,10 +121,6 @@ public class GroundCanvasFitTests
         // End-to-end: GroundViewModel with empty UserPreferences, set scenario
         // id, then push layout. The bound canvas must auto-fit and the
         // resulting viewport push-back must persist saved settings.
-        //
-        // Uses a scenario id no other test writes: UserPreferences persists to a single
-        // preferences.json shared by the whole assembly, so reusing an id that a sibling test
-        // saves settings for makes this assertion depend on test execution order.
         const string scenarioId = "scenario-fresh-autofit";
 
         var prefs = new UserPreferences();

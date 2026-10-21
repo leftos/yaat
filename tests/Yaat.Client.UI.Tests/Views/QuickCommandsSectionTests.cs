@@ -50,7 +50,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_SelectingASituation_ShowsItsEntriesInOrder()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition, MenuIds.GroundResumeTaxi);
         Store(AircraftSituation.Final, MenuIds.TowerGoAround, MenuIds.SquawkCode, MenuIds.TowerClearedToLand);
 
@@ -72,7 +71,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_AddCommandFlyout_AddAddsTheSelection()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition, MenuIds.GroundResumeTaxi);
 
         Run(
@@ -116,7 +114,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_DropAfterLastRow_MovesEntryToEnd()
     {
-        using var scope = new PreferencesFileScope();
         string[] ids = [.. GlyphIds.Take(4)];
         Store(AircraftSituation.Taxiing, ids);
 
@@ -138,7 +135,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_DropAtTop_MovesEntryToIndexZero()
     {
-        using var scope = new PreferencesFileScope();
         string[] ids = [.. GlyphIds.Take(4)];
         Store(AircraftSituation.Taxiing, ids);
 
@@ -160,7 +156,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_CaptureLostMidDrag_KeepsOrderAndHidesIndicator()
     {
-        using var scope = new PreferencesFileScope();
         string[] ids = [.. GlyphIds.Take(4)];
         Store(AircraftSituation.Taxiing, ids);
 
@@ -198,8 +193,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_DividerFollowsTenthGlyphEntry()
     {
-        using var scope = new PreferencesFileScope();
-
         // A text-only action third: the strip counts glyph entries, not positions, so the tenth glyph entry is at index 10.
         string[] ids = [.. GlyphIds.Take(2), TextOnlyId, .. GlyphIds.Skip(2)];
         Store(AircraftSituation.Taxiing, ids);
@@ -232,7 +225,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_TenGlyphRowsWithNothingAfter_ShowNoDivider()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, [.. GlyphIds.Take(QuickCommandGlyphs.StripCapacity)]);
 
         Run(
@@ -249,7 +241,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_CatalogRowDefaultCaption_NamesTheCatalogRule()
     {
-        using var scope = new PreferencesFileScope();
         QuickCommandCatalogItem vfrOnly = QuickCommandCatalog.Eligible.First(item => item.DefaultFlightRules == MenuFlightRules.VfrOnly);
         Store(AircraftSituation.Pattern, vfrOnly.Id);
 
@@ -272,7 +263,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_LabelEditableOnlyForCustomRows()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
 
         Run(
@@ -302,7 +292,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_InvalidCustomRow_ShowsWarning()
     {
-        using var scope = new PreferencesFileScope();
         Store(AircraftSituation.Taxiing, MenuIds.GroundHoldPosition);
 
         Run(
@@ -329,7 +318,6 @@ public class QuickCommandsSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_Preview_DrawsFirstTenGlyphEntriesInOrder()
     {
-        using var scope = new PreferencesFileScope();
         string[] ids = [.. GlyphIds.Take(2), TextOnlyId, .. GlyphIds.Skip(2)];
         Store(AircraftSituation.Taxiing, ids);
 

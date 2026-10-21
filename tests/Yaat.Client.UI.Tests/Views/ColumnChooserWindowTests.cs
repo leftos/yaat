@@ -34,7 +34,6 @@ public class ColumnChooserWindowTests : IDisposable
     [InlineData("ExportButton", ImportExportTab.Export)]
     public void ImportExportButton_OpensTheHubWithTheColumnLayoutTicked(string buttonName, ImportExportTab tab)
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -57,7 +56,6 @@ public class ColumnChooserWindowTests : IDisposable
     [AvaloniaFact(Timeout = 60_000)]
     public void ImportedColumnLayout_CancelDropsIt_AndOkAppliesItToThePreferencesAndTheGrid()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
@@ -90,7 +88,6 @@ public class ColumnChooserWindowTests : IDisposable
     [AvaloniaFact(Timeout = 60_000)]
     public void ExportAfterAStagedImport_CarriesTheStagedWidthsAndSort()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         try
         {

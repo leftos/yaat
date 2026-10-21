@@ -21,7 +21,6 @@ public class UserPreferencesExportSourceTests : IDisposable
     [Fact]
     public void ExportMacros_RoundTripsThroughABundle_WithTheSameMacros()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         preferences.SetMacros([
             new MacroDefinition { Name = "DEP", Expansion = "CTO" },
@@ -44,7 +43,6 @@ public class UserPreferencesExportSourceTests : IDisposable
     [Fact]
     public void ExportVerbs_AfterTheSchemeChanges_HasTheNewAliases()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         var source = new UserPreferencesExportSource(preferences, NewStore());
 

@@ -4,7 +4,7 @@ using Yaat.Client.Services;
 namespace Yaat.Client.UI.Tests;
 
 // Scope-marker pins persist per radar view (keyed by scenario id) in preferences.json. A fresh
-// UserPreferences instance reads from disk (redirected to a per-process temp dir by ModuleInit),
+// UserPreferences instance reads from disk (this test's own preferences file),
 // proving the round-trip.
 public class UserPreferencesPinnedMarkersTests
 {

@@ -4,7 +4,6 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
-using Yaat.Sim;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -29,7 +28,6 @@ public class SettingsViewModelImportTargetTests : IDisposable
     [Fact]
     public void Macros_MergeWithOverwriteAndRename_StageInTheRows_AndApplyWritesThem()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         preferences.SetMacros([Saved("HC &hdg", "FH &hdg"), Saved("DEP", "CTO")]);
         var vm = new SettingsViewModel(preferences);
@@ -53,7 +51,6 @@ public class SettingsViewModelImportTargetTests : IDisposable
     [Fact]
     public void Verbs_Replace_OverlaysTheGrid_KeepsUnlistedEdits_AndApplyWritesThem()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel(new UserPreferences());
         var target = new SettingsViewModelImportTarget(vm, NewStore());
         VerbMappingRow edited = vm.VerbMappings.First(r => r.CommandType != CanonicalCommandType.Timer);
@@ -81,7 +78,6 @@ public class SettingsViewModelImportTargetTests : IDisposable
     [Fact]
     public void Preferences_Replace_StageInTheFields_AndApplyWritesThem()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         int savedFontSize = preferences.DataGridFontSize;
         int importedFontSize = (savedFontSize == 15) ? 16 : 15;
@@ -104,10 +100,9 @@ public class SettingsViewModelImportTargetTests : IDisposable
     [Fact]
     public void StagedImports_DiscardedWithTheWindow_LeaveThePreferencesFileUnchanged()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         preferences.SetMacros([Saved("DEP", "CTO")]);
-        string before = File.ReadAllText(YaatPaths.Combine("preferences.json"));
+        string before = File.ReadAllText(UserPreferences.FilePath);
         var vm = new SettingsViewModel(preferences);
         var target = new SettingsViewModelImportTarget(vm, NewStore());
         SettingsBundleEntry preferencesFile = PreferencesFile(preferences, (preferences.DataGridFontSize == 15) ? 16 : 15);
@@ -124,14 +119,13 @@ public class SettingsViewModelImportTargetTests : IDisposable
         SettingsImportPlanner.Apply(SettingsImportPlanner.Plan(preferencesFile, SettingsImportMode.Replace, target), target);
 
         Assert.Equal("PAT=ERD", Describe(vm.MacroRows.Select(r => (r.Name, r.Expansion))));
-        Assert.Equal(before, File.ReadAllText(YaatPaths.Combine("preferences.json")));
+        Assert.Equal(before, File.ReadAllText(UserPreferences.FilePath));
         Assert.Equal("DEP=CTO", Describe(new UserPreferences().Macros.Select(m => (m.Name, m.Expansion))));
     }
 
     [Fact]
     public void ExportFromSettings_CarriesTheStagedUnsavedEdits()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         preferences.SetMacros([Saved("DEP", "CTO")]);
         int savedFontSize = preferences.DataGridFontSize;
@@ -157,7 +151,6 @@ public class SettingsViewModelImportTargetTests : IDisposable
     [Fact]
     public void ColumnLayoutAndLayouts_StageUntilApply_ThenApplyWritesBoth_AndReportsTheColumnLayoutOnlyThatTime()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         string gridBefore = JsonSerializer.Serialize(preferences.GridLayout, UserPreferences.JsonOptions);
         var vm = new SettingsViewModel(preferences);
@@ -193,7 +186,6 @@ public class SettingsViewModelImportTargetTests : IDisposable
     [Fact]
     public void EveryBundledPreference_ExportedWithANonDefaultValue_StagedAndApplied_ComesBackAsExported()
     {
-        using var scope = new PreferencesFileScope();
         JsonObject defaults = UserPreferences.CreateDefaults().ExportBundlePreferences();
         JsonObject nonDefaults = NonDefaultBundledPreferences(defaults);
         var source = new UserPreferences();

@@ -3,8 +3,7 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
 
-// UserPreferences writes to YaatPaths.AppDataRoot, redirected by ModuleInit to a per-process temp
-// directory. Random keys keep these tests independent of ordering and of any recents other tests add.
+// UserPreferences writes to this test's own preferences file.
 public class UserPreferencesRecentScenarioTests
 {
     [Fact]

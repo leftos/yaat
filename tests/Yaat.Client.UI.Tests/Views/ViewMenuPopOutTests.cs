@@ -204,29 +204,18 @@ public class ViewMenuPopOutTests
     [AvaloniaFact]
     public void IsFavoritesBarDocked_FalseWhenBarHiddenOrTerminalPoppedOut()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        try
-        {
-            vm.ShowFavoritesBar = true;
-            vm.IsTerminalPoppedOut = false;
-            Assert.True(vm.IsFavoritesBarDocked);
+        var vm = new MainViewModel(new FakeFilePickerService()) { ShowFavoritesBar = true, IsTerminalPoppedOut = false };
+        Assert.True(vm.IsFavoritesBarDocked);
 
-            // Popped-out Terminal takes the bar with it, so the main window must not show one too.
-            vm.IsTerminalPoppedOut = true;
-            Assert.False(vm.IsFavoritesBarDocked);
+        // Popped-out Terminal takes the bar with it, so the main window must not show one too.
+        vm.IsTerminalPoppedOut = true;
+        Assert.False(vm.IsFavoritesBarDocked);
 
-            vm.ShowFavoritesBar = false;
-            Assert.False(vm.IsFavoritesBarDocked);
+        vm.ShowFavoritesBar = false;
+        Assert.False(vm.IsFavoritesBarDocked);
 
-            vm.IsTerminalPoppedOut = false;
-            Assert.False(vm.IsFavoritesBarDocked);
-        }
-        finally
-        {
-            // Shared per-process preferences.json: restore the factory defaults the other tests read.
-            vm.ShowFavoritesBar = true;
-            vm.IsTerminalPoppedOut = false;
-        }
+        vm.IsTerminalPoppedOut = false;
+        Assert.False(vm.IsFavoritesBarDocked);
     }
 
     [AvaloniaFact]

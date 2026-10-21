@@ -39,7 +39,6 @@ public class SettingsViewModelResetSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void General_KeepsTheInitials()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel { UserInitials = "QX" };
         vm.ApplyCommand.Execute(null);
 
@@ -272,7 +271,6 @@ public class SettingsViewModelResetSectionTests
     [AvaloniaFact(Timeout = 60_000)]
     public void CancelAfterReset_LeavesThePreferencesUnchanged()
     {
-        using var scope = new PreferencesFileScope();
         new UserPreferences().SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false, speechRate: 1.3);
         var window = new SettingsWindow(
             new UserPreferences(),
@@ -302,7 +300,6 @@ public class SettingsViewModelResetSectionTests
         Func<UserPreferences, T> stored
     )
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         edit(vm);
         vm.ApplyCommand.Execute(null);

@@ -19,7 +19,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ApplyThenALaterEdit_KeepsTheAppliedValue_AndLeavesTheLaterEditUncommitted()
     {
-        using var scope = new PreferencesFileScope();
         int original = new UserPreferences().TerminalFontSize;
         var vm = new SettingsViewModel();
         int applied = 0;
@@ -41,7 +40,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_PersistsBothSoloPacingDefaults()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel { SoloParkingInitialCallupIntervalSeconds = 40, SoloArrivalGeneratorRatePercent = 35 };
         vm.ApplyCommand.Execute(null);
 
@@ -58,7 +56,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_LeavesAnUntouchedOffGridPacingDefaultAsStored()
     {
-        using var scope = new PreferencesFileScope();
         new UserPreferences().SetSoloPacingRates(150, 35);
         var vm = new SettingsViewModel();
 
@@ -80,7 +77,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AClashBetweenTwoRows_BlocksApply_AndNamesTheOtherActionOnBoth()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         int applied = 0;
         vm.Applied += () => applied++;
@@ -104,7 +100,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void AClashAndAQuickCommandError_BothBlockApply_AndTheSummaryNamesBoth()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         int canExecuteChanges = 0;
         vm.ApplyCommand.CanExecuteChanged += (_, _) => canExecuteChanges++;
@@ -141,7 +136,6 @@ public class SettingsViewModelApplyTests
     [InlineData(Key.D, "Also used by Ground view debug overlay")]
     public void AClashWithAFixedChord_BlocksApply_AndNamesTheFixedAction(Key key, string message)
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
 
         Capture(vm, "QuickBookmark", key, KeyModifiers.Control);
@@ -154,7 +148,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ExecutingApply_WithAQuickCommandError_PersistsNothing()
     {
-        using var scope = new PreferencesFileScope();
         int original = new UserPreferences().TerminalFontSize;
         var vm = new SettingsViewModel();
         int applied = 0;
@@ -175,7 +168,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ResolvingTheClash_ReEnablesApply_AndClearsBothMessages()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Capture(vm, "TakeControl", Key.L, KeyModifiers.Control | KeyModifiers.Shift);
         Assert.True(vm.HasKeybindClash);
@@ -197,7 +189,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ABareLetter_IsRefusedForAWindowHotkey_ButAFunctionKeyIsAccepted()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         string before = Row(vm, "PopOutRadarView").Combo;
 
@@ -225,7 +216,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void FocusCommandInput_AcceptsABareKey()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
 
         Capture(vm, "FocusInput", Key.F, KeyModifiers.None);
@@ -237,7 +227,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void APushToTalkClash_ShowsOnThePttRow_AndNamesTheSpeechSection()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
 
         vm.StartPttKeyCaptureCommand.Execute(null);
@@ -251,7 +240,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_WritesEveryKeybind_AndANewPreferencesReadsThemBack()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         Key[] functionKeys = [Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F9, Key.F10, Key.F11, Key.F12, Key.F13, Key.F14, Key.F15];
         Assert.Equal(functionKeys.Length, vm.KeybindRows.Count);
@@ -288,7 +276,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_WritesEveryQuickCommandList_AndANewPreferencesReadsThemBack()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         foreach (QuickCommandSituationRow situation in vm.QuickCommandSituations)
         {
@@ -316,7 +303,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ABareLetter_IsAcceptedForPushToTalk()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
 
         vm.StartPttKeyCaptureCommand.Execute(null);
@@ -330,7 +316,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ResettingTheKeysSection_RestoresEveryRowToItsDefault()
     {
-        using var scope = new PreferencesFileScope();
         var vm = new SettingsViewModel();
         var expected = new Dictionary<string, string>
         {
@@ -368,7 +353,6 @@ public class SettingsViewModelApplyTests
     [AvaloniaFact(Timeout = 60_000)]
     public void Apply_WritesOnlyTheAlwaysOnTopSettingsThatChanged()
     {
-        using var scope = new PreferencesFileScope();
         var preferences = new UserPreferences();
         var fired = new List<(string Window, bool IsTopmost)>();
         preferences.WindowTopmostChanged += (window, isTopmost) => fired.Add((window, isTopmost));

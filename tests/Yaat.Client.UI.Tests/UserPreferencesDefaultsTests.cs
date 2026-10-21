@@ -15,7 +15,6 @@ public class UserPreferencesDefaultsTests
     [Fact]
     public void CreateDefaults_ReadsTheFreshFileDefaults_NotTheUsersFile()
     {
-        using var scope = new PreferencesFileScope();
         var user = new UserPreferences();
         user.SetAutoAcceptSettings(enabled: false, delaySeconds: 9);
         user.SetTakeControlKey("Ctrl+Y");
@@ -57,7 +56,6 @@ public class UserPreferencesDefaultsTests
     [Fact]
     public void ASetterOnTheDefaults_Throws_AndLeavesTheUsersFileAlone()
     {
-        using var scope = new PreferencesFileScope();
         new UserPreferences().SetAutoAcceptSettings(enabled: true, delaySeconds: 9);
         var defaults = UserPreferences.CreateDefaults();
 

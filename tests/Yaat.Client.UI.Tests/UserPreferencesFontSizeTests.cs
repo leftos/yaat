@@ -4,11 +4,8 @@ using Yaat.Client.Services;
 namespace Yaat.Client.UI.Tests;
 
 // Covers the Terminal / Interface font sizes and the Strips / vTDLS page-zoom
-// percents added for issue #178. UserPreferences writes to YaatPaths.AppDataRoot,
-// redirected by ModuleInit to a per-process temp directory; a fresh instance reads
-// preferences.json from disk and proves the round-trip. Each mutating test restores
-// the default at the end so the Defaults test stays order-tolerant against the
-// shared preferences.json.
+// percents added for issue #178. UserPreferences writes to this test's own preferences file; a fresh instance reads
+// preferences.json from disk and proves the round-trip.
 public class UserPreferencesFontSizeTests
 {
     private static FontSizePrefs DefaultFontSizes(int terminal, int @interface) =>

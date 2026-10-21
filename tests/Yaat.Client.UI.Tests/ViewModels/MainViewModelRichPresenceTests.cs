@@ -74,8 +74,7 @@ public class MainViewModelRichPresenceTests
         );
 
     /// <summary>
-    /// Runs <paramref name="body"/> with the preferences the presence reads, restoring both
-    /// afterwards: the test process shares one preferences file.
+    /// Runs <paramref name="body"/> with the preferences the presence reads.
     /// </summary>
     private static void WithPreferences(string artccId, bool presenceEnabled, Action<MainViewModel, RecordingPublisher> body)
     {

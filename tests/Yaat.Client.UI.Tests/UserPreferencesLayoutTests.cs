@@ -3,16 +3,12 @@ using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
-using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests;
 
-// Tests share preferences.json (per-process temp dir set by the test fixture's
-// ModuleInitializer). Each test uses unique layout names so concurrent runs do
-// not collide on key. Disk-round-trip assertions read from a fresh UserPreferences
+// Each test starts on its own fresh preferences file. Disk-round-trip assertions read from a fresh UserPreferences
 // to verify persistence; other assertions use the same instance to avoid the
 // inter-instance Save() race noted in Save_ConcurrentWritersDoNotRaceOnTmpFile.
-// Tests delete their own layouts at the end to limit accumulation.
 public class UserPreferencesLayoutTests
 {
     [Fact]
@@ -130,45 +126,31 @@ public class UserPreferencesLayoutTests
             },
         };
 
-        try
-        {
-            new UserPreferences().SaveLayout(layout);
+        new UserPreferences().SaveLayout(layout);
 
-            SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-ExtraOrdinals");
+        SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-ExtraOrdinals");
 
-            Assert.NotNull(reloaded);
-            // Ordinal and airport both ride the layout, so applying it reopens the same windows.
-            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KSFO")], reloaded.ExtraRadarViews);
-            Assert.Equal([new SavedExtraView(2, "KOAK")], reloaded.ExtraGroundViews);
-            // The extra window's geometry rides in the same dictionary as any other non-fixed window name.
-            Assert.Equal(900, reloaded.WindowGeometries["RadarView#2"].Width);
-            Assert.Equal(1, reloaded.WindowGeometries["RadarView#2"].ScreenIndex);
-        }
-        finally
-        {
-            new UserPreferences().DeleteLayout("WPT-ExtraOrdinals");
-        }
+        Assert.NotNull(reloaded);
+        // Ordinal and airport both ride the layout, so applying it reopens the same windows.
+        Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KSFO")], reloaded.ExtraRadarViews);
+        Assert.Equal([new SavedExtraView(2, "KOAK")], reloaded.ExtraGroundViews);
+        // The extra window's geometry rides in the same dictionary as any other non-fixed window name.
+        Assert.Equal(900, reloaded.WindowGeometries["RadarView#2"].Width);
+        Assert.Equal(1, reloaded.WindowGeometries["RadarView#2"].ScreenIndex);
     }
 
     [Fact]
     public void SaveLayout_CapturedBeforeExtraViews_ReadsBackAsNoExtras()
     {
-        try
-        {
-            new UserPreferences().SaveLayout(new SavedLayout { Name = "WPT-NoExtras" });
+        new UserPreferences().SaveLayout(new SavedLayout { Name = "WPT-NoExtras" });
 
-            SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-NoExtras");
+        SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-NoExtras");
 
-            // Empty (not null): applying such a layout closes any extra windows, since a layout is the
-            // whole arrangement rather than a partial overlay.
-            Assert.NotNull(reloaded);
-            Assert.Empty(reloaded.ExtraRadarViews);
-            Assert.Empty(reloaded.ExtraGroundViews);
-        }
-        finally
-        {
-            new UserPreferences().DeleteLayout("WPT-NoExtras");
-        }
+        // Empty (not null): applying such a layout closes any extra windows, since a layout is the
+        // whole arrangement rather than a partial overlay.
+        Assert.NotNull(reloaded);
+        Assert.Empty(reloaded.ExtraRadarViews);
+        Assert.Empty(reloaded.ExtraGroundViews);
     }
 
     [Fact]
@@ -294,20 +276,13 @@ public class UserPreferencesLayoutTests
     [Fact]
     public void SaveLayout_WithoutOpenTabs_RoundTripsAsNull()
     {
-        try
-        {
-            new UserPreferences().SaveLayout(new SavedLayout { Name = "WPT-NoTabs", IsMetarPoppedOut = true });
+        new UserPreferences().SaveLayout(new SavedLayout { Name = "WPT-NoTabs", IsMetarPoppedOut = true });
 
-            SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-NoTabs");
+        SavedLayout? reloaded = new UserPreferences().GetLayout("WPT-NoTabs");
 
-            // Null = saved before open tabs were captured; applying it leaves the open tabs as they are.
-            Assert.NotNull(reloaded);
-            Assert.Null(reloaded.OpenTabs);
-        }
-        finally
-        {
-            new UserPreferences().DeleteLayout("WPT-NoTabs");
-        }
+        // Null = saved before open tabs were captured; applying it leaves the open tabs as they are.
+        Assert.NotNull(reloaded);
+        Assert.Null(reloaded.OpenTabs);
     }
 
     /// <summary>
@@ -344,7 +319,6 @@ public class UserPreferencesLayoutTests
         // Version 1 so loading runs no version migration, whose save would hide whether the old key survives a load.
         var file = new JsonObject { ["preferencesVersion"] = 1, ["windowProfiles"] = legacy };
 
-        using var scope = new PreferencesFileScope();
         File.WriteAllText(PreferencesPath, file.ToJsonString());
 
         var prefs = new UserPreferences();
@@ -393,7 +367,6 @@ public class UserPreferencesLayoutTests
             },
         };
 
-        using var scope = new PreferencesFileScope();
         File.WriteAllText(PreferencesPath, file.ToJsonString());
 
         var prefs = new UserPreferences();
@@ -408,5 +381,5 @@ public class UserPreferencesLayoutTests
         Assert.Equal(["WPT-Both-A", "WPT-Both-B", "WPT-Both-C"], written["layouts"]!.AsArray().Select(l => l!["name"]!.GetValue<string>()));
     }
 
-    private static readonly string PreferencesPath = YaatPaths.Combine("preferences.json");
+    private static string PreferencesPath => UserPreferences.FilePath;
 }

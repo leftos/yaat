@@ -3,8 +3,7 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
 
-// UserPreferences writes to YaatPaths.AppDataRoot, redirected by ModuleInit to a per-process
-// temp directory. A fresh UserPreferences instance reads preferences.json from disk and proves
+// UserPreferences writes to this test's own preferences file. A fresh UserPreferences instance reads preferences.json from disk and proves
 // the round-trip. Unique scenario ids keep tests independent of ordering.
 public class UserPreferencesScenarioAirportTests
 {

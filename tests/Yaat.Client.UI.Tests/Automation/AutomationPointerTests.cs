@@ -105,7 +105,6 @@ public sealed class AutomationPointerTests : AutomationHostFixture
     {
         string? missing = InteractiveDesktop.MissingReason();
         Assert.SkipWhen(missing is not null, missing ?? "");
-        using var scope = new PreferencesFileScope();
         string[] ids = [.. QuickCommandCatalog.Eligible.Where(item => item.Glyph is not null).Take(3).Select(item => item.Id)];
         new UserPreferences().SetQuickCommandList(AircraftSituation.Taxiing, [.. ids.Select(id => new CatalogQuickCommandEntry(id, null))]);
         var window = new SettingsWindow();
@@ -160,8 +159,8 @@ public sealed class AutomationPointerTests : AutomationHostFixture
         finally
         {
             AutomationTools.OpenWindows = previousWindows;
-            // Closing saves the window's geometry through its own preferences, which still hold this test's list: it must land in
-            // the scope's file, so the window closes here rather than in the fixture's Dispose, after the scope has ended.
+            // Closing saves the window's geometry through its own preferences, which still hold this test's list, so the window
+            // closes here, inside the test, rather than in the fixture's Dispose.
             window.Close();
             Windows.Remove(window);
             Dispatcher.UIThread.RunJobs();

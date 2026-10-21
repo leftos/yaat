@@ -60,7 +60,6 @@ public class FavoritesPanelInteractionTests
     [InlineData("FavoritesExportButton", ImportExportTab.Export)]
     public async Task ImportExportButton_OpensTheHubWithFavoritesTicked(string buttonName, ImportExportTab tab)
     {
-        using var scope = new PreferencesFileScope();
         var view = new FavoritesBarView { IsPaletteMode = true };
         var window = new Window
         {

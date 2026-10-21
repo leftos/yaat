@@ -29,8 +29,7 @@ public class MainViewModelSaveWeatherTests
     [AvaloniaFact]
     public async Task SaveWeather_NotConnected_WritesTheFileWithoutTheHashAndWarns()
     {
-        // The save adds a recent-weather entry, which writes the process's shared preferences.json.
-        using var scope = new PreferencesFileScope();
+        // The save adds a recent-weather entry, which writes this test's own preferences file.
         string folder = Path.Combine(Path.GetTempPath(), $"yaat-weather-save-test-{Guid.NewGuid():N}");
         string path = Path.Combine(folder, "live-saved.json");
 

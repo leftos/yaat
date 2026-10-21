@@ -114,9 +114,7 @@ public class MainViewModelStripsTests
     {
         MainViewModel vm = NewVm();
         VStripsDockEntryViewModel entry = vm.StripsEntries[0];
-        // The student entry's split persists in preferences, which the test
-        // process shares across tests — establish a clean baseline instead of
-        // assuming one.
+        // Establish a clean baseline instead of assuming one.
         vm.UnsplitStripsEntry(entry);
         Assert.Equal(StripsSplitMode.None, entry.SplitMode);
         Assert.Null(entry.SecondaryVm);

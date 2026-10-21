@@ -9,8 +9,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// <summary>
 /// The Settings → Speech switch for automatic speech telemetry. Saving it records the answer the one-time
 /// opt-in dialog would otherwise have collected, so the offer never comes back; turning it on takes local
-/// sample capture with it, since there is nothing to upload otherwise. The preferences file is shared by
-/// every test in the process, so each test restores the speech flags it found.
+/// sample capture with it, since there is nothing to upload otherwise.
 /// </summary>
 public class SettingsViewModelSpeechTelemetryTests
 {
@@ -91,7 +90,6 @@ public class SettingsViewModelSpeechTelemetryTests
     [AvaloniaFact(Timeout = 60_000)]
     public void ApplyingTelemetryOnThenOff_InOneWindow_LeavesItOff()
     {
-        using var scope = new PreferencesFileScope();
         var seed = new UserPreferences();
         seed.SetSpeechTelemetryEnabled(false);
         seed.SetSpeechTelemetryPromptShown(false);

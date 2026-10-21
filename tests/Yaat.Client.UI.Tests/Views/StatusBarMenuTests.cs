@@ -23,7 +23,6 @@ public class StatusBarMenuTests
     [InlineData("MicOffText")]
     public void MicMenu_CarriesSpeechSettings_WhichRequestsTheSpeechSection(string indicatorName)
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         List<SettingsSectionId?> requests = [];
         vm.SettingsRequested += requests.Add;
@@ -45,7 +44,6 @@ public class StatusBarMenuTests
     [AvaloniaFact(Timeout = 60_000)]
     public void LiveTrafficMenu_ShowsLiveTrafficLink_OnlyWhileLiveTrafficIsAvailable()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         vm.SessionLiveTrafficEnabled = true;
         vm.LiveTrafficStatus = new LiveTrafficStatusDto(false, false, null, 0, null, null, false);
@@ -77,7 +75,6 @@ public class StatusBarMenuTests
     [AvaloniaFact(Timeout = 60_000)]
     public void LiveTrafficMenu_Click_RestoresTheButtonsFlyoutModeWhenTheFlyoutCloses()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         LoadScenario(main, vm);
         PopupFlyoutBase flyout = SessionFlyout(main);
@@ -103,16 +100,11 @@ public class StatusBarMenuTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void LiveTrafficMenu_ClickedTwiceWhileOpen_StillRestoresTheButtonsFlyoutModeOnClose()
-    {
-        using var scope = new PreferencesFileScope();
-        AssertDoubleClickRestoresDockedFlyoutMode();
-    }
+    public void LiveTrafficMenu_ClickedTwiceWhileOpen_StillRestoresTheButtonsFlyoutModeOnClose() => AssertDoubleClickRestoresDockedFlyoutMode();
 
     [AvaloniaFact(Timeout = 60_000)]
     public void LiveTrafficMenu_ClickedTwice_WithTheTerminalLeftPoppedOutInPreferences_StillRestoresTheDockedFlyoutsMode()
     {
-        using var scope = new PreferencesFileScope();
         new UserPreferences().SetPoppedOut("Terminal", true);
         AssertDoubleClickRestoresDockedFlyoutMode();
     }
@@ -148,7 +140,6 @@ public class StatusBarMenuTests
     [AvaloniaFact(Timeout = 60_000)]
     public void LiveTrafficMenu_WithTheTerminalPoppedOut_OpensTheFlyoutOnTheTerminalCommandInput()
     {
-        using var scope = new PreferencesFileScope();
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
         LoadScenario(main, vm);
         vm.IsTerminalPoppedOut = true;
@@ -187,8 +178,7 @@ public class StatusBarMenuTests
     private static void LoadScenario(MainWindow main, MainViewModel vm)
     {
         vm.ActiveScenarioName = "Test Scenario";
-        // The click opens the flyout on whichever command input is showing, and the window boots with the pop-out state the
-        // shared preferences.json holds, so dock the terminal here. The pop-out test sets it back to true afterwards.
+        // The click opens the flyout on whichever command input is showing, so dock the terminal here.
         vm.IsTerminalPoppedOut = false;
         // The menu item ("Live traffic…") and the flyout's live-traffic row only exist while the server offers live traffic.
         vm.SessionLiveTrafficEnabled = true;

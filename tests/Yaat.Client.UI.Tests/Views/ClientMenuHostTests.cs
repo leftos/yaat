@@ -246,7 +246,6 @@ public class ClientMenuHostTests
     [AvaloniaFact]
     public void CustomQuickCommand_WithMacro_SendsTheExpansion()
     {
-        using var scope = new PreferencesFileScope();
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetMacros([new MacroDefinition { Name = "WD", Expansion = "FH 270" }]);
 
@@ -257,7 +256,6 @@ public class ClientMenuHostTests
     [AvaloniaFact]
     public void CustomQuickCommand_WithRenamedAlias_SendsCanonical()
     {
-        using var scope = new PreferencesFileScope();
         var main = new MainViewModel(new FakeFilePickerService());
         var scheme = CommandScheme.Default();
         scheme.Patterns[CanonicalCommandType.FlyHeading].Aliases = ["TURNTO"];
@@ -270,7 +268,6 @@ public class ClientMenuHostTests
     [AvaloniaFact]
     public void CustomQuickCommand_WithUnknownMacro_SendsTheTextAsTyped()
     {
-        using var scope = new PreferencesFileScope();
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetMacros([]);
 
@@ -281,7 +278,6 @@ public class ClientMenuHostTests
     [AvaloniaFact]
     public void CustomQuickCommand_MacroEditedBetweenMenus_SendsTheNewExpansion()
     {
-        using var scope = new PreferencesFileScope();
         var main = new MainViewModel(new FakeFilePickerService());
         main.Preferences.SetMacros([new MacroDefinition { Name = "WD", Expansion = "FH 270" }]);
         AircraftModel ac = AddCustomQuickCommand(main, "!WD");
