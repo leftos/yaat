@@ -19,6 +19,10 @@ public class DiscordRichPresenceServiceTests
 {
     private const string ClientId = "1551088521731772439";
 
+    // A hang guard, never a bound a passing test has to beat: every wait here is on state the
+    // service reaches in milliseconds, so only a broken or starved process gets anywhere near it.
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(120);
+
     private static readonly byte[] ReadyFrame = Encoding.UTF8.GetBytes("""{"cmd":"DISPATCH","evt":"READY","data":{"v":1}}""");
 
     private static DiscordActivity Activity(string details, string? state) => new(details, state, 1_758_240_000);
@@ -26,7 +30,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task Publish_HandshakesThenSetsTheActivity()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var connection = new FakeConnection();
         var connector = new ScriptedConnector(attempt => attempt == 0 ? connection.ClientStream : null, TimeProvider.System);
         using var service = new DiscordRichPresenceService(ClientId, connector, TimeProvider.System);
@@ -80,7 +84,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task Publish_Twice_SendsOnlyTheLatestOnceConnected()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var connection = new FakeConnection();
         var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var connector = new GatedConnector(opened.Task, connection.ClientStream);
@@ -104,7 +108,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task Clear_ClosesTheConnection()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var connection = new FakeConnection();
         var connector = new ScriptedConnector(attempt => attempt == 0 ? connection.ClientStream : null, TimeProvider.System);
         using var service = new DiscordRichPresenceService(ClientId, connector, TimeProvider.System);
@@ -156,7 +160,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task Ping_IsAnsweredWithPong()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var connection = new FakeConnection();
         var connector = new ScriptedConnector(attempt => attempt == 0 ? connection.ClientStream : null, TimeProvider.System);
         using var service = new DiscordRichPresenceService(ClientId, connector, TimeProvider.System);
@@ -177,7 +181,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task ServerClose_ReconnectsWhileAnActivityIsWanted()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var time = new ManualTimeProvider();
         var first = new FakeConnection();
         var second = new FakeConnection();
@@ -223,7 +227,7 @@ public class DiscordRichPresenceServiceTests
             await WaitUntilAsync(() => connector.Entered, "the worker to enter ConnectAsync");
 
             var dispose = Task.Run(service.Dispose, TestContext.Current.CancellationToken);
-            Task completed = await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            Task completed = await Task.WhenAny(dispose, Task.Delay(HangGuard, TestContext.Current.CancellationToken));
 
             Assert.True(completed == dispose, "Dispose must return even when the connector ignores cancellation");
         }
@@ -240,7 +244,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task HandshakeThatNeverAnswers_TimesOutAndRetries()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var time = new ManualTimeProvider();
         var silent = new FakeConnection();
         var answering = new FakeConnection();
@@ -281,7 +285,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task Clear_DuringHandshake_AbandonsIt()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var connection = new FakeConnection();
         var connector = new ScriptedConnector(attempt => attempt == 0 ? connection.ClientStream : null, TimeProvider.System);
         using var service = new DiscordRichPresenceService(ClientId, connector, TimeProvider.System);
@@ -303,7 +307,7 @@ public class DiscordRichPresenceServiceTests
     [Fact]
     public async Task LongScenarioName_IsClampedTo128Characters()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var deadline = new CancellationTokenSource(HangGuard);
         var connection = new FakeConnection();
         var connector = new ScriptedConnector(attempt => attempt == 0 ? connection.ClientStream : null, TimeProvider.System);
         using var service = new DiscordRichPresenceService(ClientId, connector, TimeProvider.System);
@@ -341,7 +345,7 @@ public class DiscordRichPresenceServiceTests
 
     private static async Task WaitUntilAsync(Func<bool> condition, string what)
     {
-        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        DateTime deadline = DateTime.UtcNow + HangGuard;
         while (DateTime.UtcNow < deadline)
         {
             if (condition())

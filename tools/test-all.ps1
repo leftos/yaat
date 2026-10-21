@@ -120,25 +120,38 @@ function Stop-OnBuildFailure {
 # few seconds rather than a full compile — two MSBuild processes over the same obj/ trees
 # would race for the same intermediates.
 #
-# Output is captured per job and printed in a fixed order once both finish, rather than
-# streamed. Interleaved output from two suites is unreadable exactly when it matters, and the
-# whole run is short enough that live progress is worth less than a legible failure.
+# Output is captured per job and printed in a fixed order once both finish, because interleaved
+# output from two suites is unreadable exactly when it matters. Each line also goes to a log file
+# under .tmp/ as it arrives: that log is what a killed run leaves behind — the last lines of each
+# suite, and which assembly never printed its `passed` line.
 #
 # Both suites share %LOCALAPPDATA%/yaat, deliberately. They only write to it when the navdata
 # or CIFP cache is stale — once per AIRAC cycle — and the loser of that race fails to open the
 # file, catches, and falls back to the bundled TestData copies. Giving each job its own
 # YAAT_APPDATA_DIR would trade that rare, self-healing window for a cold cache on every run.
 function Start-TestJob {
-    param([string]$WorkDir, [string]$Command)
+    param([string]$WorkDir, [string]$Command, [string]$LogPath)
     Start-Job -ScriptBlock {
-        param($workDir, $command)
+        param($workDir, $command, $outputLogPath)
         Set-Location $workDir
-        $output = Invoke-Expression $command 2>&1 | Out-String -Stream
-        [pscustomobject]@{
-            Output   = $output
-            ExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+        # UTF-8 without a BOM and LF endings, flushed per line: the log is the only evidence a
+        # host killed mid-run leaves behind, so it cannot wait for a buffer to fill.
+        $writer = [System.IO.StreamWriter]::new($outputLogPath, $false, [System.Text.UTF8Encoding]::new($false))
+        $writer.NewLine = "`n"
+        $writer.AutoFlush = $true
+        try {
+            $output = Invoke-Expression $command 2>&1 | Out-String -Stream | ForEach-Object {
+                $writer.WriteLine($_)
+                $_
+            }
+            [pscustomobject]@{
+                Output   = $output
+                ExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+            }
+        } finally {
+            $writer.Dispose()
         }
-    } -ArgumentList $WorkDir, $Command
+    } -ArgumentList $WorkDir, $Command, $LogPath
 }
 
 # Prints one finished job's captured output and folds its result into $script:failed.
@@ -212,8 +225,11 @@ if ($BuildOnly) {
     exit 0
 }
 Write-Host "`nRunning both test suites in parallel..." -ForegroundColor Cyan
-$yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
-$serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $serverSimArg $testFilter"
+$yaatLogPath = Join-Path $yaatDir '.tmp\test-all-yaat.log'
+$serverLogPath = Join-Path $yaatDir '.tmp\test-all-server.log'
+$null = New-Item -ItemType Directory -Path (Join-Path $yaatDir '.tmp') -Force
+$yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter" -LogPath $yaatLogPath
+$serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $serverSimArg $testFilter" -LogPath $serverLogPath
 
 $null = Wait-Job -Job $yaatTests, $serverTests
 
