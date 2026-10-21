@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 
@@ -15,10 +16,13 @@ namespace Yaat.Sim.Data.Vnas;
 /// (<c>BuildOpenPositionDto</c>, <c>BuildFlightStripsConfigDto</c>, etc.) stay
 /// in yaat-server because they emit CRC wire-format types.
 /// </summary>
-public static class ArtccConfigResolver
+public static partial class ArtccConfigResolver
 {
     // EDSM SRS §C.1 field 16: an ERAM sector number does not exceed 128.
     private const int MaxEramSectorNumber = 128;
+
+    /// <summary>The TDLS transition name of a SID's no-transition entry.</summary>
+    private const string TdlsNoTransitionName = "- - - -";
 
     // --- Position lookup ---
 
@@ -1681,6 +1685,73 @@ public static class ArtccConfigResolver
         return ParseTdlsAltitudeFt(raw);
     }
 
+    /// <summary>
+    /// The top altitude a bare climb via on <paramref name="sidId"/> climbs to, from the departure airport's TDLS config.
+    /// The SID's entry is looked up in the airport's TDLS SID list, then in each op config's SID list in order (OAK and SFO
+    /// keep their SIDs only there); within an entry the transition is <paramref name="transitionId"/>, else the SID's
+    /// "- - - -" (no-transition) entry, else the first transition carrying a value. That transition's climb-via text
+    /// "EXC(EPT) MAINT(AIN) (altitude)" gives the top, an ATC-assigned one; otherwise its initial altitude does. The first
+    /// entry that yields one wins. The facility's initial-altitude menu never takes part. Null when no entry yields one
+    /// (a plain "CLIMB VIA SID" with no initial altitude, an unknown SID, or no TDLS config).
+    /// </summary>
+    public static TdlsSidTopAltitude? GetSidTdlsTopAltitude(
+        this ArtccConfigRoot? config,
+        string departureAirportId,
+        string? sidId,
+        string? transitionId
+    )
+    {
+        if ((config?.Facility is null) || string.IsNullOrWhiteSpace(departureAirportId) || string.IsNullOrWhiteSpace(sidId))
+        {
+            return null;
+        }
+
+        TdlsConfig? tdls = FindTdlsConfigForAirport(config.Facility, NormalizeFaaAirport(departureAirportId));
+        if (tdls is null)
+        {
+            return null;
+        }
+
+        List<List<TdlsSidConfig>> sidLists = [tdls.Sids, .. tdls.OpConfigs.Select(c => c.Sids)];
+        foreach (TdlsSidConfig sid in sidLists.SelectMany(l => l).Where(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase)))
+        {
+            if ((SidTopTransition(sid, transitionId) is { } transition) && (TransitionTopAltitude(transition) is { } top))
+            {
+                return top;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The transition of <paramref name="sid"/> a climb via reads its top from: <paramref name="transitionId"/>, else the
+    /// "- - - -" (no-transition) entry, else the first transition carrying a top altitude.
+    /// </summary>
+    private static TdlsSidTransitionConfig? SidTopTransition(TdlsSidConfig sid, string? transitionId) =>
+        sid.Transitions.FirstOrDefault(t => (transitionId is not null) && t.Name.Trim().Equals(transitionId, StringComparison.OrdinalIgnoreCase))
+        ?? sid.Transitions.FirstOrDefault(t => t.Name.Trim() == TdlsNoTransitionName)
+        ?? sid.Transitions.FirstOrDefault(t => TransitionTopAltitude(t) is not null);
+
+    /// <summary>
+    /// The climb-via text's "EXC MAINT" altitude on <paramref name="transition"/>, else its initial altitude; null when
+    /// neither parses.
+    /// </summary>
+    private static TdlsSidTopAltitude? TransitionTopAltitude(TdlsSidTransitionConfig transition)
+    {
+        Match exceptMaintain = ExceptMaintainRegex().Match(transition.DefaultClimbvia ?? "");
+        if (exceptMaintain.Success && (ParseTdlsAltitudeFt(exceptMaintain.Groups[1].Value) is { } assigned))
+        {
+            return new TdlsSidTopAltitude(assigned, IsExceptMaintain: true);
+        }
+
+        return ParseTdlsAltitudeFt(transition.DefaultInitialAlt) is { } initial ? new TdlsSidTopAltitude(initial, IsExceptMaintain: false) : null;
+    }
+
+    /// <summary>A TDLS climb-via text's "except maintain" clause, e.g. "CLB VIA SID EXC MAINT 10000FT"; group 1 is the altitude.</summary>
+    [GeneratedRegex(@"\bEXC(?:EPT)?\s+MAINT(?:AIN)?\s+(\S+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ExceptMaintainRegex();
+
     private static TdlsConfig? FindTdlsConfigForAirport(FacilityConfig facility, string normalizedAirport)
     {
         if (facility.TdlsConfiguration is not null && NormalizeFaaAirport(facility.Id).Equals(normalizedAirport, StringComparison.OrdinalIgnoreCase))
@@ -1709,13 +1780,18 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        // TDLS initial altitudes are published as full feet: "4000", "5000", sometimes "4000FT".
+        // TDLS altitudes are published as full feet ("4000", "5000", sometimes "4000FT") or as a flight level ("FL190").
         ReadOnlySpan<char> span = raw.AsSpan().Trim();
+        if (span.StartsWith("FL", StringComparison.OrdinalIgnoreCase))
+        {
+            return int.TryParse(span[2..], NumberStyles.None, CultureInfo.InvariantCulture, out int level) && (level > 0) ? level * 100 : null;
+        }
+
         if (span.EndsWith("FT", StringComparison.OrdinalIgnoreCase))
         {
             span = span[..^2].Trim();
         }
 
-        return int.TryParse(span, out int ft) && ft > 0 ? ft : null;
+        return int.TryParse(span, out int ft) && (ft > 0) ? ft : null;
     }
 }

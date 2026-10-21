@@ -413,8 +413,9 @@ public static class ScenarioExporter
         {
             commands.Add(procedure.StarViaFloor is { } floor ? $"DVIA {Hundreds(floor)}" : "DVIA");
         }
-        else if (procedure.SidViaMode)
+        else if (procedure.ClimbViaTargetFt is not null)
         {
+            // Only a climb via in force: every SID departure flies in via mode, and one cleared to an altitude reloads by CM.
             commands.Add(procedure.SidViaCeiling is { } ceiling ? $"CVIA {Hundreds(ceiling)}" : "CVIA");
         }
         else if ((targets.AssignedAltitude is { } altitude) && (Math.Abs(altitude - state.Altitude) > FlightPhysics.AltitudeSnapFt))

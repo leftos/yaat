@@ -439,6 +439,12 @@ public static class FlightPhysics
             return;
         }
 
+        // A climb via flies to its top altitude at the profile rate, held only under a ceiling still ahead.
+        if (ApplyClimbViaAltitude(aircraft))
+        {
+            return;
+        }
+
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
@@ -487,12 +493,6 @@ public static class FlightPhysics
             if (targetAlt <= aircraft.Altitude)
             {
                 continue;
-            }
-
-            // Apply SID via ceiling (only in via mode)
-            if (aircraft.Procedure.SidViaMode && aircraft.Procedure.SidViaCeiling is { } ceiling)
-            {
-                targetAlt = Math.Min(targetAlt, ceiling);
             }
 
             double altDelta = targetAlt - aircraft.Altitude;
@@ -747,19 +747,16 @@ public static class FlightPhysics
             return;
         }
 
-        if (target.AltitudeRestriction is { } alt)
+        // Under a climb via the target is its top altitude under the ceilings ahead: an at-or-above restriction never is.
+        bool climbVia = ApplyClimbViaAltitude(aircraft);
+        if ((!climbVia) && (target.AltitudeRestriction is { } alt))
         {
             // When not in via mode, infer direction from current altitude vs constraint
             bool isDescending = starVia || (!sidVia && aircraft.Altitude > alt.Altitude1Ft);
             double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending);
             if (resolvedAlt is { } targetAlt)
             {
-                // Apply ceiling/floor limits (only in via mode)
-                if (sidVia && aircraft.Procedure.SidViaCeiling is { } ceiling)
-                {
-                    targetAlt = Math.Min(targetAlt, ceiling);
-                }
-
+                // Apply the STAR floor limit (only in via mode)
                 if (starVia && aircraft.Procedure.StarViaFloor is { } floor)
                 {
                     targetAlt = Math.Max(targetAlt, floor);
@@ -848,6 +845,57 @@ public static class FlightPhysics
         return aircraft.Altitude < alt.Altitude1Ft ? alt.Altitude1Ft : null;
     }
 
+    /// <summary>
+    /// The altitude a climb via flies to now (7110.65 4-5-7.h.10 NOTEs; AIM 5-2-9 Examples 6-7): its top altitude
+    /// (<see cref="AircraftProcedure.ClimbViaTargetFt"/>), lowered by the lowest ceiling on a route fix still ahead — an
+    /// at, an at-or-below, or the upper bound of a between restriction. An at-or-above restriction is never the target:
+    /// the climb to the top altitude meets it. An aircraft already above a ceiling ahead holds its altitude, since a via
+    /// clearance never commands a descent. Null when no climb via is in force.
+    /// </summary>
+    internal static double? ClimbViaAltitude(AircraftState aircraft)
+    {
+        if (aircraft.Procedure.ClimbViaTargetFt is not { } top)
+        {
+            return null;
+        }
+
+        double target = top;
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        {
+            if (
+                (fix.AltitudeRestriction is { } restriction)
+                && (
+                    restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between
+                )
+            )
+            {
+                target = Math.Min(target, restriction.Altitude1Ft);
+            }
+        }
+
+        return Math.Max(target, Math.Min(top, aircraft.Altitude));
+    }
+
+    /// <summary>
+    /// Under a climb via, targets <see cref="ClimbViaAltitude"/> and returns true; while
+    /// <see cref="Phases.Tower.DepartureProcedurePhase"/> flies its coded legs it caps each leg itself, so the target is
+    /// left to it. False when no climb via is in force.
+    /// </summary>
+    private static bool ApplyClimbViaAltitude(AircraftState aircraft)
+    {
+        if (ClimbViaAltitude(aircraft) is not { } climbVia)
+        {
+            return false;
+        }
+
+        if (aircraft.Phases?.CurrentPhase is not Phases.Tower.DepartureProcedurePhase)
+        {
+            aircraft.Targets.TargetAltitude = climbVia;
+        }
+
+        return true;
+    }
+
     private static void ClearProcedureState(AircraftState aircraft)
     {
         aircraft.Procedure.ActiveSidId = null;
@@ -855,6 +903,7 @@ public static class FlightPhysics
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
         // Keep the destination-runway datablock when the aircraft is still committed to a runway

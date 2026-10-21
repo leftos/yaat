@@ -188,9 +188,9 @@ accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a m
    supersedes it.
 4. **Split-block metadata loss** (#281): `SplitBlockNonConflicting` rebuilds a partially-superseded
    block; every `CommandBlock` field must be re-derived or copied. `SplitBlockPreservationTests`
-   pins the full property set by reflection. `TransmissionId` / `TransmissionDescendsVia` belong to the transmission that queued the kept commands, so the rebuilt block copies them rather than taking the superseding transmission's.
+   pins the full property set by reflection. `TransmissionId` / `TransmissionDescendsVia` / `TransmissionClimbsVia` belong to the transmission that queued the kept commands, so the rebuilt block copies them rather than taking the superseding transmission's.
 
-   A queued block dropped before it applied (a later lateral command, `DELAT`/`DELCOND`, `NODEL`, a fire-time chain abort) goes through `CommandQueue.ForgetDroppedDescendVia`: if it held a transmission's DVIA, the surviving blocks of that transmission lose `TransmissionDescendsVia`, so a CFIX queued beside the dropped DVIA fires as a lone CFIX would, with its reverts.
+   A queued block dropped before it applied (a later lateral command, `DELAT`/`DELCOND`, `NODEL`, a fire-time chain abort) goes through `CommandQueue.ForgetDroppedViaClearances`: if it held a transmission's DVIA (or CVIA), the surviving blocks of that transmission lose `TransmissionDescendsVia` (or `TransmissionClimbsVia`), so a CFIX queued beside the dropped via clearance fires as a lone CFIX would, with its reverts.
 5. **Idle-phase stranding** (#407/#311): a new "waiting for a command" ground phase must override
    `IsIdleAwaitingCommands` or untriggered chains behind it strand forever.
 6. **One TRACK table** (#199, CASUP): every run kind — the live room included — dispatches a track

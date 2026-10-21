@@ -362,6 +362,36 @@ public class DescendViaSupersedesEarlierAltitudeTests
         _output.WriteLine($"300 s after DVIA: altitude {aircraft.Altitude:F0}, target {aircraft.Targets.TargetAltitude}");
     }
 
+    /// <summary>
+    /// A DVIA ends a climb via still in force (its top altitude and "except maintain"), so the STAR's restrictions drive
+    /// the descent instead of the climb via holding the aircraft at its top altitude.
+    /// </summary>
+    [Fact]
+    public void DescendVia_AfterClimbVia_ClearsTheClimbViaAndDescendsViaTheStar()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        aircraft.Procedure.ClimbViaTargetFt = 16000;
+        aircraft.Procedure.SidViaCeiling = 16000;
+
+        SendOk(harness, "DVIA");
+        Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
+        Assert.Null(aircraft.Procedure.SidViaCeiling);
+
+        for (int t = 0; (t < 900) && (aircraft.Altitude > 15000); t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        _output.WriteLine($"After DVIA: altitude {aircraft.Altitude:F0}, target {aircraft.Targets.TargetAltitude}");
+        Assert.True(aircraft.Altitude <= 15000, $"the leftover climb via held the aircraft at {aircraft.Altitude:F0} ft");
+    }
+
     [Fact]
     public void DescendViaExceptMaintain_DescentStopsAtTheFloor()
     {

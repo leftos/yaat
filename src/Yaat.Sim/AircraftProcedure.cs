@@ -19,6 +19,12 @@ public class AircraftProcedure
 
     public bool SidViaMode { get; set; }
     public bool StarViaMode { get; set; }
+
+    /// <summary>
+    /// The ATC-assigned "except maintain" altitude of the climb via in force: <c>CVIA nnn</c>'s, or, for a bare CVIA, the
+    /// TDLS climb-via text's "EXC MAINT" altitude. Set and cleared with <see cref="ClimbViaTargetFt"/>; the check-in names
+    /// it. Null when no climb via is in force or its top is not ATC-assigned.
+    /// </summary>
     public int? SidViaCeiling { get; set; }
     public int? StarViaFloor { get; set; }
 
@@ -46,6 +52,19 @@ public class AircraftProcedure
     /// </summary>
     public int? SidInitialAltitudeFt { get; set; }
 
+    /// <summary>
+    /// The altitude a climb via clearance (<c>CVIA</c>) climbs to, resolved once when it is issued: <c>CVIA nnn</c>'s
+    /// altitude; else the TDLS climb-via text's "EXC MAINT" altitude for the SID and filed transition; else that
+    /// transition's TDLS initial altitude; else the highest altitude the SID publishes on its flown legs (a stand-in for
+    /// the charted top, which CIFP does not code); else present altitude. A TDLS value is never raised by a published
+    /// altitude; the TDLS initial-altitude menu and <see cref="SidInitialAltitudeFt"/> never take part. Never below present
+    /// altitude rounded up to 100 ft. In flight a ceiling still ahead lowers it; a floor never raises it. While set it
+    /// outranks every other departure climb target (the CTO altitude, the procedure phase's ceiling, filed cruise). Cleared
+    /// with <see cref="SidViaCeiling"/> by any later altitude clearance, a DVIA or a procedure reset. Null when no CVIA is
+    /// in force.
+    /// </summary>
+    public int? ClimbViaTargetFt { get; set; }
+
     public AircraftProcedureDto ToSnapshot() =>
         new()
         {
@@ -61,6 +80,7 @@ public class AircraftProcedure
             IsExpediting = IsExpediting,
             LastProcedureSpeedKts = LastProcedureSpeedKts,
             SidInitialAltitudeFt = SidInitialAltitudeFt,
+            ClimbViaTargetFt = ClimbViaTargetFt,
         };
 
     public static AircraftProcedure FromSnapshot(AircraftProcedureDto dto) =>
@@ -78,5 +98,6 @@ public class AircraftProcedure
             IsExpediting = dto.IsExpediting,
             LastProcedureSpeedKts = dto.LastProcedureSpeedKts,
             SidInitialAltitudeFt = dto.SidInitialAltitudeFt,
+            ClimbViaTargetFt = dto.ClimbViaTargetFt,
         };
 }

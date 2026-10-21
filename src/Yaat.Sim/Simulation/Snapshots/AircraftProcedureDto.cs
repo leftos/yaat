@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftProcedureDto
@@ -14,4 +16,9 @@ public sealed class AircraftProcedureDto
     public required bool IsExpediting { get; init; }
     public double? LastProcedureSpeedKts { get; init; }
     public int? SidInitialAltitudeFt { get; init; }
+
+    // The climb via target. Additive, no schema bump: omitted while null, so snapshots without a CVIA in force stay
+    // byte-identical, and absent in older snapshots restores no climb via target.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ClimbViaTargetFt { get; init; }
 }

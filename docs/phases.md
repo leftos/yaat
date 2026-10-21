@@ -218,7 +218,9 @@ Legs come from `ProcedureLegResolver.Resolve` (which keeps the fix-less legs `De
 
   A controller `CM`/`DM` — during the phase, or before it started (a `Targets.AssignedAltitude` that differs from the CTO altitude at `OnStart`) — sets the snapshotted `_controllerAltitude` flag and the caps stop writing `TargetAltitude` (AIM §5-2-9.h.3: a plain "maintain" interrupts the SID's vertical navigation).
 
-  A lateral vector (`_overridden`) releases the target to the assigned altitude, else for an IFR aircraft `max(current altitude, SidInitialAltitudeFt)` (a vector never commands a descent), else `_climbCeiling` (7110.65 §4-3-2.c.1); `Finish` releases to the assigned altitude, else `_climbCeiling`. DME / along-track distance is the ARINC `dist_time` field → `LegDistanceNm` (not `Rho`); radial is `Theta`.
+  A `CVIA` (`FlightPhysics.ClimbViaAltitude`: `ClimbViaTargetFt` lowered by an at / at-or-below / between-upper restriction still ahead) puts the SID's restrictions back in force under its top altitude: `ApplyLegAltitudeCap` caps against it instead of `_climbCeiling` even when `_controllerAltitude` is set, and `OnStart` takes it over the CTO altitude.
+
+  A lateral vector (`_overridden`) releases the target to the climb via target, else the assigned altitude, else for an IFR aircraft `max(current altitude, SidInitialAltitudeFt)` (a vector never commands a descent), else `_climbCeiling` (7110.65 §4-3-2.c.1); `Finish` releases to the climb via target, else the assigned altitude, else `_climbCeiling`. DME / along-track distance is the ARINC `dist_time` field → `LegDistanceNm` (not `Rho`); radial is `Theta`.
 - **STARs** handle only the **FM terminator**: `NavigationTarget.TerminalCourseMagnetic` carries the FM outbound course (set by `ResolveLegsToTargets`, including the dedup-collapse case where a TF-to-fix is followed by an FM-from-the-same-fix), which `FlightPhysics.UpdateNavigation`'s empty-route handler flies instead of holding.
 
   There is **no `ArrivalProcedurePhase`** — the typed-leg path is departure-only (sole caller `DepartureClearanceHandler`); approaches/STARs otherwise use the flat `ResolveLegsToTargets`.

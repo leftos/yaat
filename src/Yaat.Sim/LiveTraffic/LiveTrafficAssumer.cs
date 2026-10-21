@@ -633,7 +633,7 @@ public static class LiveTrafficAssumer
             }
 
             ac.Procedure.DepartureRunway = runway.Designator;
-            bool sid = NavigationCommandHandler.TryActivateFiledSid(ac);
+            bool sid = NavigationCommandHandler.TryActivateFiledSid(ac, transmissionId: 0);
             ac.Targets.TargetTrueHeading = lt.ClearedHeadingDeg is { } cleared
                 ? new MagneticHeading(cleared).ToTrue(ac.Declination)
                 : runway.TrueHeading;
@@ -692,7 +692,7 @@ public static class LiveTrafficAssumer
         }
         else if (IsWithinOfAirport(ac, ac.FlightPlan.Departure, ArrivalProfileDistanceNm))
         {
-            NavigationCommandHandler.TryActivateFiledSid(ac);
+            NavigationCommandHandler.TryActivateFiledSid(ac, transmissionId: 0);
         }
 
         notes.AddRange(warnings);

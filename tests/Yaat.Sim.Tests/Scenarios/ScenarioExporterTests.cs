@@ -546,6 +546,45 @@ public class ScenarioExporterTests
         Assert.Equal(["DVIA 080"], ac.PresetCommands.Select(preset => preset.Command));
     }
 
+    /// <summary>
+    /// A SID departure cleared to an altitude with no climb via ("CTO 050") flies its SID in via mode but exports the climb
+    /// to that altitude: a bare CVIA would reload climbing to the SID's top (COAST9: 10,000) instead (AIM 5-2-9.h.10).
+    /// </summary>
+    [Fact]
+    public void SidDeparture_AssignedAltitudeWithoutClimbVia_ExportsCmPreset_NotCvia()
+    {
+        AircraftState departure = OakSidDeparture("COAST9", "RW30", "SXC");
+        departure.Targets.AssignedAltitude = 5000;
+        Assert.Null(departure.Procedure.ClimbViaTargetFt);
+
+        ScenarioExportResult result = Export(departure);
+
+        Assert.Equal(["CM 050"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+    }
+
+    /// <summary>
+    /// A climb via in force exports as one: bare when its top is published (CNDEL5's "CLIMB VIA SID"), with the altitude
+    /// when its top is ATC-assigned (SKYL1's TDLS "CLB VIA SID EXC MAINT 10000FT").
+    /// </summary>
+    [Theory]
+    [InlineData("CNDEL5", "RW30", "SUSEY", "CVIA")]
+    [InlineData("SKYL1", "RW10B", "AVE", "CVIA 100")]
+    public void SidDeparture_BareClimbVia_ExportsCviaPreset(string sidId, string runwayTransition, string enrouteTransition, string expected)
+    {
+        AircraftState departure = OakSidDeparture(sidId, runwayTransition, enrouteTransition);
+        Dispatch(departure, "CM 080");
+        CommandResult cvia = NavigationCommandHandler.DispatchClimbVia(
+            new ClimbViaCommand(null),
+            departure,
+            TestDispatch.Context(new Random(0), artccConfig: TestArtccConfig.LoadZoa())
+        );
+        Assert.True(cvia.Success, cvia.Message);
+
+        ScenarioExportResult result = Export(departure);
+
+        Assert.Equal([expected], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+    }
+
     [Fact]
     public void ShadowWithSuppliedFlightPlan_ExportsIt()
     {
@@ -689,6 +728,47 @@ public class ScenarioExporterTests
         (double Lat, double Lon)? position = NavigationDatabase.Instance.GetFixPosition(fix);
         Assert.NotNull(position);
         return new LatLon(position.Value.Lat, position.Value.Lon);
+    }
+
+    /// <summary>
+    /// A KOAK departure at 3,000 at the first fix of <paramref name="sidId"/> from <paramref name="runwayTransition"/> to
+    /// <paramref name="enrouteTransition"/>, flying the SID in via mode with its published restrictions on the route ahead.
+    /// </summary>
+    private static AircraftState OakSidDeparture(string sidId, string runwayTransition, string enrouteTransition)
+    {
+        CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KOAK", sidId));
+        List<NavigationTarget> route = DepartureClearanceHandler.ResolveLegsToTargets([
+            .. sid.RunwayTransitions[runwayTransition].Legs,
+            .. sid.CommonLegs,
+            .. sid.EnrouteTransitions[enrouteTransition].Legs,
+        ]);
+        LatLon position = route[0].Position;
+        var departure = new AircraftState
+        {
+            Callsign = "SWA2210",
+            AircraftType = "B738",
+            Position = position,
+            TrueHeading = new TrueHeading(GeoMath.BearingTo(position, route[1].Position)),
+            Altitude = 3000,
+            IndicatedAirspeed = 230,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KOAK",
+                Destination = "KLAS",
+                Route = $"{sidId} {enrouteTransition}",
+                Altitude = PlannedAltitude.Ifr(35000),
+                FlightRules = "IFR",
+            },
+        };
+        foreach (NavigationTarget fix in route.Skip(1).DistinctBy(f => f.Name))
+        {
+            departure.Targets.NavigationRoute.Add(fix);
+        }
+
+        departure.Procedure.ActiveSidId = sidId;
+        departure.Procedure.DepartureRunway = runwayTransition[2..];
+        departure.Procedure.SidViaMode = true;
+        return departure;
     }
 
     /// <summary>A generated arrival established on Oakland's OAKES3 STAR, level at 16,000 with the STAR in its filed route.</summary>

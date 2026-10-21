@@ -114,6 +114,7 @@ public static class CommandDispatcher
             {
                 TransmissionId = aircraft.Queue.NextTransmissionId(),
                 TransmissionDescendsVia = compound.Blocks.Exists(b => b.Commands.Exists(c => c is DescendViaCommand)),
+                TransmissionClimbsVia = compound.Blocks.Exists(b => b.Commands.Exists(c => c is ClimbViaCommand)),
             };
         }
 
@@ -1217,9 +1218,15 @@ public static class CommandDispatcher
             case DepartFixCommand cmd:
                 return NavigationCommandHandler.DispatchDepartFix(cmd, aircraft);
             case CrossFixCommand cmd:
-                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft, ctx.TransmissionId, ctx.TransmissionDescendsVia);
+                return NavigationCommandHandler.DispatchCrossFix(
+                    cmd,
+                    aircraft,
+                    ctx.TransmissionId,
+                    ctx.TransmissionDescendsVia,
+                    ctx.TransmissionClimbsVia
+                );
             case ClimbViaCommand cmd:
-                return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft);
+                return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft, ctx);
             case DescendViaCommand cmd:
                 return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId, ctx.SpeedAssignedInBlock);
 
@@ -1569,7 +1576,7 @@ public static class CommandDispatcher
         }
 
         queue.CurrentBlockIndex = Math.Max(0, queue.CurrentBlockIndex - removedBeforeCursor);
-        CommandQueue.ForgetDroppedDescendVia(removed, queue.Blocks);
+        CommandQueue.ForgetDroppedViaClearances(removed, queue.Blocks);
         return removed.Count;
     }
 
@@ -3306,7 +3313,7 @@ public static class CommandDispatcher
         {
             List<CommandBlock> pending = queue.Blocks.GetRange(pendingStart, queue.Blocks.Count - pendingStart);
             queue.Blocks.RemoveRange(pendingStart, pending.Count);
-            CommandQueue.ForgetDroppedDescendVia(pending, [.. queue.Blocks, .. preserved]);
+            CommandQueue.ForgetDroppedViaClearances(pending, [.. queue.Blocks, .. preserved]);
         }
 
         return preserved;
@@ -3512,6 +3519,7 @@ public static class CommandDispatcher
             IsScenarioScripted = ctx.IsScenarioScripted,
             TransmissionId = ctx.TransmissionId,
             TransmissionDescendsVia = ctx.TransmissionDescendsVia,
+            TransmissionClimbsVia = ctx.TransmissionClimbsVia,
         };
         block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
         return block;
@@ -3740,6 +3748,7 @@ public static class CommandDispatcher
             {
                 TransmissionId = block.TransmissionId,
                 TransmissionDescendsVia = block.TransmissionDescendsVia,
+                TransmissionClimbsVia = block.TransmissionClimbsVia,
             }
         );
 
@@ -3805,8 +3814,9 @@ public static class CommandDispatcher
     /// <see cref="CommandResult.NoDispatcherArm"/> result.
     ///
     /// The commands run as part of the transmission that queued <paramref name="block"/>: its
-    /// <see cref="CommandBlock.TransmissionId"/> and <see cref="CommandBlock.TransmissionDescendsVia"/> are read when it
-    /// fires, not captured here, so a site that drops the transmission's DVIA and clears the flag reaches this action.
+    /// <see cref="CommandBlock.TransmissionId"/>, <see cref="CommandBlock.TransmissionDescendsVia"/> and
+    /// <see cref="CommandBlock.TransmissionClimbsVia"/> are read when it fires, not captured here, so a site that drops the
+    /// transmission's DVIA or CVIA and clears its flag reaches this action.
     /// </summary>
     internal static Func<AircraftState, bool, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx, CommandBlock block)
     {
@@ -3817,7 +3827,12 @@ public static class CommandDispatcher
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
-            DispatchContext current = ctx with { TransmissionId = block.TransmissionId, TransmissionDescendsVia = block.TransmissionDescendsVia };
+            DispatchContext current = ctx with
+            {
+                TransmissionId = block.TransmissionId,
+                TransmissionDescendsVia = block.TransmissionDescendsVia,
+                TransmissionClimbsVia = block.TransmissionClimbsVia,
+            };
             HandlerReadback? readback = null;
 
             foreach (ParsedCommand? cmd in captured)

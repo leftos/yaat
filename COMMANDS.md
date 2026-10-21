@@ -1636,8 +1636,8 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `DVIA` | Descend via STAR — enables altitude/speed constraint following on active STAR |
 | `DVIA 240` | Descend via STAR, except maintain FL240 (altitude floor) |
 | `DVIA SPD 180 SUNOL` | Descend via STAR with speed restriction (maintain 180 knots at SUNOL) |
-| `CVIA` | Climb via SID — enables altitude/speed constraint following; self-activates the filed SID if none is active (e.g. after `CTO RH` or vectors) |
-| `CVIA 190` | Climb via SID, except maintain FL190 (altitude ceiling) |
+| `CVIA` | Climb via SID — clears the assigned altitude, enables altitude/speed constraint following and climbs to the SID's top altitude; self-activates the filed SID if none is active (e.g. after `CTO RH` or vectors) |
+| `CVIA 190` | Climb via SID, except maintain FL190 (the top altitude is 19000 ft) |
 | `DEPART SUNOL 270` | Depart fix SUNOL on heading 270 |
 
 `JARR` also accepts aliases `ARR`, `STAR`, `JSTAR`. `JRADO` also accepts `JRAD`. `JRADI` also accepts `JICRS`. `DEPART` also accepts `DEP` and `D`.
@@ -1667,7 +1667,17 @@ A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` 
 
 Symmetrically, `CVIA` no longer requires an active SID: when none is active — for example after `CTO RH` or being vectored off the SID — it activates the SID filed in the route and overlays its published crossing restrictions onto the current route. Issue `DCT <SID fix>` first to reload the lateral path, then `CVIA` to climb via.
 
-`CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode).
+`CVIA 190` and `DVIA 240` enable via mode with an altitude top/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode).
+
+**`CVIA` and the top altitude** — a `CVIA` clears the aircraft's assigned altitude (an interim altitude from before it is cancelled) and climbs to the SID's top altitude, resolved when the `CVIA` is issued, in this order:
+
+1. `CVIA nnn`'s altitude.
+2. The SID's ARTCC TDLS climb-via text "EXC MAINT n" (the TDLS `defaultClimbvia`), for the departure airport and filed transition.
+3. The SID's TDLS initial altitude (`defaultInitialAlt`).
+4. The highest altitude the SID publishes on the legs flown, a stand-in for the charted top altitude, which CIFP does not code.
+5. The present altitude, with a warning in the log.
+
+A TDLS value is never raised by a published altitude, the target is never below the present altitude (a via clearance never commands a descent; use `DM`), and the PDC initial-altitude menu never takes part. In flight the target is the top altitude, lowered only by an at, at-or-below or between restriction still ahead on the route; an at-or-above restriction never raises it. `CTO` with an altitude after a `CVIA`, and any `CM`/`DM`, cancels the climb via; `DVIA` clears it. The pilot's check-in names the top ("for nnn") only for `CVIA nnn` or a TDLS "EXC MAINT" top, and the assigned altitude when no climb via is in force.
 
 **`DVIA` and the assigned altitude** — `DVIA` clears the aircraft's assigned altitude: outside the procedure no altitude is assigned, and the datablock shows none, until a new `CM`/`DM`/`CFIX` gives one.
 

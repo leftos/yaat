@@ -365,7 +365,9 @@ public sealed class InitialClimbPhase : Phase
             or CanonicalCommandType.RelativeLeft
             or CanonicalCommandType.RelativeRight
             or CanonicalCommandType.FlyPresentHeading
-            or CanonicalCommandType.ForceHeading => CommandAcceptance.Allowed,
+            or CanonicalCommandType.ForceHeading
+            // The pilot keeps flying the departure; the climb via retargets the climb.
+            or CanonicalCommandType.ClimbVia => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
     }
@@ -594,6 +596,12 @@ public sealed class InitialClimbPhase : Phase
 
     private double ResolveTargetAltitude(PhaseContext ctx)
     {
+        // A climb via issued before this phase began: its top altitude replaces every altitude below.
+        if (FlightPhysics.ClimbViaAltitude(ctx.Aircraft) is { } climbVia)
+        {
+            return climbVia;
+        }
+
         // 0. Controller-assigned altitude from CM/DM issued during takeoff
         // (stored in Targets.AssignedAltitude by FlightCommandHandler, survives TakeoffPhase)
         if (ctx.Aircraft.Targets.AssignedAltitude is { } targetAssigned)

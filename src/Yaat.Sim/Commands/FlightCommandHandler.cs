@@ -140,6 +140,7 @@ internal static class FlightCommandHandler
     {
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaFloor = null;
     }
@@ -866,7 +867,9 @@ internal static class FlightCommandHandler
                     RevertAssignedAltitude = revertAssignedAlt,
                     RevertSpeed = revertSpeed,
                     RevertAssignedSpeed = revertAssignedSpeed,
-                    CrossingTransmissionId = ((altRestriction is not null) || (speedRestriction is not null)) ? transmissionId : null,
+                    // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
+                    CrossingTransmissionId =
+                        (((altRestriction is not null) || (speedRestriction is not null)) && (transmissionId != 0)) ? transmissionId : null,
                 }
             );
         }
@@ -1143,6 +1146,7 @@ internal static class FlightCommandHandler
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.StarViaFloor = null;
 
         if (
@@ -1169,6 +1173,7 @@ internal static class FlightCommandHandler
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
         aircraft.Procedure.DestinationRunway = null;

@@ -57,12 +57,14 @@ public class ProcedureConstraintTests
     }
 
     [Fact]
-    public void SidViaMode_WithCeiling_CapsAltitude()
+    public void ClimbViaExceptMaintain_CapsAltitude()
     {
         AircraftState aircraft = CreateAircraft(altitude: 3000);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
+        // The state "CVIA 100" leaves: its "except maintain" and the climb via's top altitude.
         aircraft.Procedure.SidViaCeiling = 10000;
+        aircraft.Procedure.ClimbViaTargetFt = 10000;
 
         NavigationTarget target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 15000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);

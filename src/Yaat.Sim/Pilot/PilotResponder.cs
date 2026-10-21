@@ -2523,7 +2523,7 @@ public static class PilotResponder
         {
             bool climbing = target > altitudeFt;
             string verb = climbing ? "climbing" : "descending";
-            (string? toTerm, string? toTts) = AssignedAltitudeClause(aircraft);
+            (string? toTerm, string? toTts) = AltitudeClause(aircraft.Targets.AssignedAltitude);
             return ($"leaving {altTerm} {verb}{toTerm}", $"leaving {altTts} {verb}{toTts}", climbing);
         }
 
@@ -2542,21 +2542,25 @@ public static class PilotResponder
     )
     {
         (string? procTerm, string? procTts) = PhraseologyVerbalizer.ProcedureName(procedureId);
-        // ATC only assigns a "for (altitude)" bottom/top when it differs from the published procedure.
-        (string? forTerm, string? forTts) = AssignedAltitudeClause(aircraft);
+        // "for (altitude)" names an altitude ATC assigned (AIM 5-3-1.b.2.a). Under a climb via that is its "except maintain"
+        // altitude, from CVIA nnn or the TDLS climb-via text, never a published top (AIM 5-2-9.h.9 and initial contact
+        // Example 2); otherwise it is the assigned altitude.
+        bool climbVia = isDeparture && (aircraft.Procedure.ClimbViaTargetFt is not null);
+        double? forAltitude = climbVia ? aircraft.Procedure.SidViaCeiling : aircraft.Targets.AssignedAltitude;
+        (string? forTerm, string? forTts) = AltitudeClause(forAltitude);
         string leadTerm = forTerm.Length == 0 ? $"leaving {altTerm}" : $"leaving {altTerm} for{forTerm}";
         string leadTts = forTts.Length == 0 ? $"leaving {altTts}" : $"leaving {altTts} for{forTts}";
         return ($"{leadTerm}, {verb} the {procTerm} {procType}", $"{leadTts}, {verb} the {procTts} {procType}", isDeparture);
     }
 
     /// <summary>
-    /// The " (altitude)" suffix naming the controller-assigned cleared altitude for a climb/descent
-    /// check-in (AIM 5-3-1.b.2.a "climbing to|descending to (altitude)"). Empty when no discrete
-    /// altitude is assigned (e.g. a descend-via aircraft following published crossings).
+    /// The " (altitude)" suffix naming the cleared altitude for a climb/descent check-in (AIM 5-3-1.b.2.a
+    /// "climbing to|descending to (altitude)"). Empty when <paramref name="altitude"/> is null (no discrete altitude
+    /// cleared, e.g. a descend-via aircraft following published crossings).
     /// </summary>
-    private static (string Term, string Tts) AssignedAltitudeClause(AircraftState aircraft)
+    private static (string Term, string Tts) AltitudeClause(double? altitude)
     {
-        if (aircraft.Targets.AssignedAltitude is not { } assigned)
+        if (altitude is not { } assigned)
         {
             return ("", "");
         }

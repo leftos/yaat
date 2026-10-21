@@ -148,7 +148,7 @@ public static class ConditionalList
                 aircraft.Queue.Blocks.RemoveAt(qi);
             }
 
-            CommandQueue.ForgetDroppedDescendVia(removedBlocks, aircraft.Queue.Blocks);
+            CommandQueue.ForgetDroppedViaClearances(removedBlocks, aircraft.Queue.Blocks);
 
             int beforeDeferred = aircraft.DeferredDispatches.Count;
             aircraft.DeferredDispatches.RemoveAll(d => !d.IsReactionDelay);
@@ -180,7 +180,7 @@ public static class ConditionalList
         {
             CommandBlock removedBlock = aircraft.Queue.Blocks[qi];
             aircraft.Queue.Blocks.RemoveAt(qi);
-            CommandQueue.ForgetDroppedDescendVia([removedBlock], aircraft.Queue.Blocks);
+            CommandQueue.ForgetDroppedViaClearances([removedBlock], aircraft.Queue.Blocks);
         }
         else
         {

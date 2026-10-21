@@ -26,13 +26,16 @@ internal static class DepartureClearanceHandler
     /// <see cref="ControlTargets.AssignedAltitude"/> so the datablock and SALT
     /// observe a single source of truth from issuance —
     /// matching the CM/DM/FA pattern. Bare LUAW (without takeoff) does not
-    /// authorize the climb yet, so leave the field alone in that case.
+    /// authorize the climb yet, so leave the field alone in that case. The altitude is the last clearance, so it cancels
+    /// an earlier climb via's "except maintain" and top altitude (7110.65 4-5-7.h.11 NOTE 1).
     /// </summary>
     private static void SyncControllerAssignedAltitude(AircraftState aircraft, ClearanceType type, int? assignedAltitude)
     {
-        if (type == ClearanceType.ClearedForTakeoff && assignedAltitude is { } v)
+        if ((type == ClearanceType.ClearedForTakeoff) && (assignedAltitude is { } v))
         {
             aircraft.Targets.AssignedAltitude = v;
+            aircraft.Procedure.SidViaCeiling = null;
+            aircraft.Procedure.ClimbViaTargetFt = null;
         }
     }
 
