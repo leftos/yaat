@@ -209,19 +209,27 @@ public sealed class AutomationPointerTests : AutomationHostFixture
         TaxiToRunwayPanel panel = Assert.IsType<TaxiToRunwayPanel>(Assert.Single(taxiTo.Items.OfType<MenuItem>()).Header);
         panel.Strip.Select(panel.Strip.Tabs.ToList().FindIndex(tab => tab.Label == "28R"));
         Render();
-        // The first row takes keyboard focus and previews its route, so the hover goes to the last row, which previews another.
+        // The first row takes keyboard focus and previews its route, so the hover goes to the second row, which previews another
+        // and, unlike the rows further down, lies inside the 400 x 300 window and the rows' scroll viewport.
         Assert.True(panel.Rows.Count > 1, "The 28R tab offers more than one row.");
-        Button row = panel.Rows[^1];
+        Button row = panel.Rows[1];
         object? focusedPreview = main.Ground.PreviewRoute;
+        try
+        {
+            // The menu's rows share the ground window as their top level, so the point is in its client area or hits nothing.
+            WindowPoint at = PointerTargets.CentreOf(row)!;
+            Assert.Null(PointerTargets.Inside(at.TopLevel, at.Point));
+            await SyntheticMouse.HoverAsync(at.TopLevel, at.Point, 0, CancellationToken.None);
 
-        // Headless popups are their own top levels, outside the windows a selector searches, so the hover goes to the row's own.
-        WindowPoint at = PointerTargets.CentreOf(row)!;
-        await SyntheticMouse.HoverAsync(at.TopLevel, at.Point, 0, CancellationToken.None);
+            Assert.NotNull(main.Ground.PreviewRoute);
+            Assert.NotSame(focusedPreview, main.Ground.PreviewRoute);
+        }
+        finally
+        {
+            menu.Close();
+            Render();
+        }
 
-        Assert.NotNull(main.Ground.PreviewRoute);
-        Assert.NotSame(focusedPreview, main.Ground.PreviewRoute);
-        menu.Close();
-        Render();
         Assert.Null(main.Ground.PreviewRoute);
     }
 
