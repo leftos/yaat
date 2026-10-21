@@ -1865,7 +1865,7 @@ public partial class MainViewModel : ObservableObject
 
         NavDataInitialization = InitializeNavDataAsync();
         _ = _vnasConfigService.InitializeAsync();
-        _ = LoadCrcAliasesAsync();
+        CrcAliasLoad = LoadCrcAliasesAsync();
         _ = DelayedStartupUpdateCheckAsync();
     }
 

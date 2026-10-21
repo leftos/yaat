@@ -28,8 +28,14 @@ public partial class MainViewModel
 
     private readonly CrcAliasStore _crcAliases = new();
 
+    /// <summary>
+    /// The most recent CRC alias load, complete once its terminal line (if any) is in the terminal; tests await it
+    /// before clearing or asserting the terminal.
+    /// </summary>
+    public Task CrcAliasLoad { get; private set; } = Task.CompletedTask;
+
     /// <summary>Re-reads the alias files, e.g. after the alias directory changes in Settings.</summary>
-    public void ReloadCrcAliases() => _ = LoadCrcAliasesAsync();
+    public void ReloadCrcAliases() => CrcAliasLoad = LoadCrcAliasesAsync();
 
     /// <summary>
     /// Reloads the alias table off the UI thread. Called at startup and whenever the ARTCC changes, since
@@ -54,7 +60,7 @@ public partial class MainViewModel
                 message += $" ({result.ShadowedByBuiltins.Count} shadowed by YAAT commands: {string.Join(", ", result.ShadowedByBuiltins)})";
             }
 
-            Dispatcher.UIThread.Post(() => AddSystemEntry(message));
+            await Dispatcher.UIThread.InvokeAsync(() => AddSystemEntry(message));
         }
         catch (Exception ex)
         {
@@ -70,7 +76,7 @@ public partial class MainViewModel
     {
         if (text.Equals(".reloadaliases", StringComparison.OrdinalIgnoreCase))
         {
-            _ = LoadCrcAliasesAsync();
+            CrcAliasLoad = LoadCrcAliasesAsync();
             StatusText = "Reloading CRC aliases";
             return true;
         }

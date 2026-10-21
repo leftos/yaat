@@ -158,7 +158,7 @@ public partial class MainViewModel
 
         _preferences.SetArtccId(artccId);
         // The ARTCC picks which CRC alias file pairs with the personal one, so reload them.
-        _ = LoadCrcAliasesAsync();
+        CrcAliasLoad = LoadCrcAliasesAsync();
     }
 
     private async Task RefreshPermittedArtccsAsync()

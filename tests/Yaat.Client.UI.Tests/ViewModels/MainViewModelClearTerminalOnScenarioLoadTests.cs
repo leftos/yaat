@@ -21,7 +21,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
     private const string OldLine = "A line from the previous run";
 
     [AvaloniaFact]
-    public void BroadcastLoad_SettingOn_ClearsWhenTheLoadStarts_AndKeepsTheLoadsOwnLines() =>
+    public Task BroadcastLoad_SettingOn_ClearsWhenTheLoadStarts_AndKeepsTheLoadsOwnLines() =>
         WithSetting(
             on: true,
             vm =>
@@ -37,7 +37,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void LoaderResult_SettingOn_ClearsWhenTheLoadStarts_AndKeepsTheLoadsOwnLines() =>
+    public Task LoaderResult_SettingOn_ClearsWhenTheLoadStarts_AndKeepsTheLoadsOwnLines() =>
         WithSetting(
             on: true,
             vm =>
@@ -52,7 +52,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void FailedLoad_SettingOn_TheFailureReasonFollowsTheClear() =>
+    public Task FailedLoad_SettingOn_TheFailureReasonFollowsTheClear() =>
         WithSetting(
             on: true,
             vm =>
@@ -73,7 +73,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void Load_SettingOff_KeepsTheEarlierLines() =>
+    public Task Load_SettingOff_KeepsTheEarlierLines() =>
         WithSetting(
             on: false,
             vm =>
@@ -89,7 +89,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void Restart_SettingOn_LeavesOnlyTheClientsRestartedLine() =>
+    public Task Restart_SettingOn_LeavesOnlyTheClientsRestartedLine() =>
         WithSetting(
             on: true,
             vm =>
@@ -105,7 +105,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void Restart_SettingOff_KeepsEveryLine() =>
+    public Task Restart_SettingOff_KeepsEveryLine() =>
         WithSetting(
             on: false,
             vm =>
@@ -120,7 +120,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void JoinOrReconnect_SettingOn_KeepsTheLines() =>
+    public Task JoinOrReconnect_SettingOn_KeepsTheLines() =>
         WithSetting(
             on: true,
             vm =>
@@ -133,7 +133,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void JoinWhileAMemberLoads_SettingOn_KeepsTheLines() =>
+    public Task JoinWhileAMemberLoads_SettingOn_KeepsTheLines() =>
         WithSetting(
             on: true,
             vm =>
@@ -145,7 +145,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void ReconnectDuringALoad_SettingOn_KeepsTheLinesSinceTheLoadStarted() =>
+    public Task ReconnectDuringALoad_SettingOn_KeepsTheLinesSinceTheLoadStarted() =>
         WithSetting(
             on: true,
             vm =>
@@ -161,7 +161,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     [AvaloniaFact]
-    public void ARepeatedLoadFlag_SettingOn_KeepsTheLinesSinceTheLoadStarted() =>
+    public Task ARepeatedLoadFlag_SettingOn_KeepsTheLinesSinceTheLoadStarted() =>
         WithSetting(
             on: true,
             vm =>
@@ -176,15 +176,47 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         );
 
     /// <summary>
+    /// The CRC alias load the view model starts at construction runs off the UI thread and its terminal line is posted
+    /// back to it, so awaiting <see cref="MainViewModel.CrcAliasLoad"/> means the line is already in the terminal. Uses a
+    /// temp alias directory, so the case does not depend on a CRC installation.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task CrcAliasLoad_WhenAwaited_HasWrittenItsTerminalLine()
+    {
+        const string AliasFileName = "MyAliases.txt";
+        string[] aliases = [".C172 .echo from a test alias", ".B738 .echo from another test alias"];
+        string directory = Path.Combine(Path.GetTempPath(), $"yaat-crc-alias-load-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllLines(Path.Combine(directory, AliasFileName), aliases);
+            new UserPreferences().SetCrcAliasDirectory(directory);
+
+            var vm = new MainViewModel(new FakeFilePickerService());
+            await vm.CrcAliasLoad;
+
+            Assert.Contains($"CRC aliases: {aliases.Length} loaded from {AliasFileName}", vm.TerminalEntries.Select(entry => entry.Message));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Runs <paramref name="body"/> on a view model already running scenario-1, the scenario every load here loads again,
     /// whose pane holds only <see cref="OldLine"/> and whose Up/Down history starts with a fresh command, with the setting
     /// <paramref name="on"/>; the history must come out unchanged. Loading the same scenario keeps its history, so only a
     /// clear could change it. The history is compared with itself before the run, not with a fixed list: the bootstrap
     /// reloads scenario-1's saved history from the preferences file.
     /// </summary>
-    private static void WithSetting(bool on, Action<MainViewModel> body)
+    private static async Task WithSetting(bool on, Action<MainViewModel> body)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
+        await vm.CrcAliasLoad;
         vm.Preferences.SetClearTerminalOnScenarioLoad(on);
         vm.ApplyScenarioBootstrap(
             new ScenarioBootstrap
