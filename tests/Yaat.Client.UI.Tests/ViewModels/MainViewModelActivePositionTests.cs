@@ -17,7 +17,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 public class MainViewModelActivePositionTests
 {
     private static OnlineControllerDto Controller(string? tcp) =>
-        new("OAK_TWR", "OAK Tower", "120.000", "OAK", "Oakland", "Tower", tcp, null, "Real Name", true, true);
+        new("OAK_TWR", "OAK Tower", "120.000", "OAK", "Oakland", "Tower", tcp, null, "Real Name", true, true, tcp);
 
     [AvaloniaFact]
     public async Task SetActiveTcpFromServer_SeedsIndicator_WithoutSendingAs()
@@ -89,6 +89,83 @@ public class MainViewModelActivePositionTests
         Assert.Equal("3Y", vm.ActiveTcpOptions[0]); // current TCP listed first
         Assert.Contains("4U", vm.ActiveTcpOptions);
         Assert.Equal(2, vm.ActiveTcpOptions.Count); // 3Y + 4U; the duplicate and the null-TCP entry are dropped
+    }
+
+    private static readonly ActivePositionDto SfoDep = new(
+        "SFO_DEP",
+        "Area D Sutro",
+        "NorCal Approach",
+        "135.100",
+        "NCT",
+        "Northern California TRACON",
+        "Tracon",
+        "4U"
+    );
+
+    private static PositionDisplayConfigDto Config(string tcp, ActivePositionDto? activePosition) => new([], [], [], tcp, activePosition);
+
+    private static ScenarioBootstrap Bootstrap(PositionDisplayConfigDto config) =>
+        new()
+        {
+            ScenarioId = "scenario-1",
+            ScenarioName = "SFO Departures",
+            PrimaryAirportId = "SFO",
+            PositionDisplayConfig = config,
+            FlightStripsConfig = null,
+            Aircraft = [],
+            ElapsedSeconds = 0,
+        };
+
+    [AvaloniaFact]
+    public void ScenarioBootstrap_SetsActivePositionAndTcp()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.ApplyScenarioBootstrap(Bootstrap(Config("4U", SfoDep)));
+
+        Assert.Equal(SfoDep, vm.ActivePosition);
+        Assert.Equal("4U", vm.ActiveTcp);
+    }
+
+    [AvaloniaFact]
+    public void PositionDisplayChanged_SetsActivePositionAndTcp()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyScenarioBootstrap(Bootstrap(Config("4U", SfoDep)));
+        ActivePositionDto suuSouth = new("SUU_S_APP", "South", "Travis Approach", "119.900", "SUU", "Travis RAPCON", "Tracon", "SUU_S_APP");
+
+        vm.OnPositionDisplayChanged(Config("1S", suuSouth));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(suuSouth, vm.ActivePosition);
+        Assert.Equal("1S", vm.ActiveTcp);
+    }
+
+    [AvaloniaFact]
+    public void ScenarioUnload_ClearsActivePosition()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyScenarioBootstrap(Bootstrap(Config("4U", SfoDep)));
+
+        vm.ClearScenarioState();
+
+        Assert.Null(vm.ActivePosition);
+        Assert.Null(vm.ActiveTcp);
+    }
+
+    /// <summary>
+    /// A dropdown pick changes the TCP before the server answers (and the server may not answer at all), so the position the server
+    /// last described no longer applies: it is dropped until the server's next update names the new one.
+    /// </summary>
+    [AvaloniaFact]
+    public void UserPick_DropsTheActivePosition_UntilTheServerAnswers()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.SetActivePositionFromServer(Config("4U", SfoDep));
+
+        vm.ActiveTcp = "1S";
+
+        Assert.Null(vm.ActivePosition);
     }
 
     [AvaloniaFact]

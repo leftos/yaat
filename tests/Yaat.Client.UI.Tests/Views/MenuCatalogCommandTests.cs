@@ -55,9 +55,7 @@ public class MenuCatalogCommandTests
         (MenuIds.TrackTrack, "", "TRACK"),
         (MenuIds.TrackDrop, "", "DROP"),
         (MenuIds.TrackAcceptHandoff, "", "ACCEPT"),
-        (MenuIds.TrackInitiateHandoff, PositionOrCode, "HO 1234"),
         (MenuIds.TrackCancelHandoff, "", "CANCEL"),
-        (MenuIds.TrackPointOut, PositionOrCode, "PO 1234"),
         (MenuIds.TrackAcknowledgePointout, "", "OK"),
         (MenuIds.SquawkCode, PositionOrCode, "SQ 1234"),
         (MenuIds.SquawkRandom, "", "RANDSQ"),
@@ -211,6 +209,9 @@ public class MenuCatalogCommandTests
         MenuIds.ProceduresJoinAirway,
         MenuIds.ProceduresJoinRadialOutbound,
         MenuIds.ProceduresJoinRadialInbound,
+        // Initiate handoff… and Point out… open the coordination flyouts; CoordinationFlyoutTests clicks their rows and box.
+        MenuIds.TrackInitiateHandoff,
+        MenuIds.TrackPointOut,
         // PTAC… opens the PTAC flyout; PtacFlyoutTests clicks its rows and boxes.
         MenuIds.ProceduresPtac,
         MenuIds.SpawnDelay,

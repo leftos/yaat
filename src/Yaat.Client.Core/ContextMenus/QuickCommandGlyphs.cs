@@ -179,6 +179,9 @@ public static class QuickCommandGlyphs
             [MenuIds.TowerClearedOption] = Pattern("M2 20h20 M6 16c2-6 4-9 6-9 M12 7c2 0 4 3 6 9 M12 7V3"),
             [MenuIds.TrackTrack] = ScopeAndSim("M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 9v6 M9 12h6"),
             [MenuIds.TrackInitiateHandoff] = ScopeAndSim("M14 4h6v16h-6 M3 12h12 M11 8l4 4-4 4"),
+            [MenuIds.TrackPointOut] = ScopeAndSim(
+                "M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10"
+            ),
             [MenuIds.SquawkCode] = ScopeAndSim("M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2"),
             [MenuIds.LiveTrafficAssume] = ScopeAndSim("M12 3v10 M8 9l4 4 4-4 M4 17v4h16v-4"),
             [MenuIds.LiveTrafficAssumeAndTrack] = ScopeAndSim("M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 7v8 M9 12l3 3 3-3"),

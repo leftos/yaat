@@ -605,6 +605,9 @@ A clickable, templated context-menu row that sends a command: an optional glyph,
 **Glyph row**:
 A clickable context-menu row led by a quick-command glyph, with a label, an optional dimmed note and the command text (`MenuGlyphRow`, drawn by `MenuGlyphRowTemplate`); a dimmed one stays clickable. The pattern entries' runway flyout rows are glyph rows, the glyph rotated to the runway's true course less 270°.
 
+**Handoff code**:
+The shortest code that names exactly one position to `HO` in the room's scenario (the TCP or ERAM code, else the callsign, else `callsign@code`), sent by the server on each `OnlineControllerDto` (`RoomEngine.SelectionCodeFor`) and by the Initiate handoff… flyout as the row's command; null with no scenario loaded.
+
 **Hold short ladder**:
 The Hold short of… designed flyout (`HoldShortLadder`): the aircraft's route from where it is to where it ends as a list of **stops**, each a bar along the route (runway bars two amber lines, taxiway bars teal dashed) with its name, where, distance and `HS` command, nearest first, under a line for the aircraft itself (`now, taxiing on D`) and over a dimmed, unclickable last row for where the route ends (`Spot 5 · route ends here`). Holding short, it starts after the held bar.
 
@@ -622,6 +625,9 @@ The menu a right-click on empty map (radar) or on a taxi node, runway threshold 
 
 **Scope preview**:
 What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. A pointed or focused Hold short of… stop draws the bar boxed and the aircraft's route solid to it, with no ring. It clears when the menu closes and is not drawn on the radar.
+
+**Staffed position**:
+A position in the room's controller list that has a controller signed on (a live CRC client or a scenario auto-connect position, `OnlineControllerDto.IsActive`), as against a standby one. The Initiate handoff… and Point out… flyouts list only staffed positions.
 
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.

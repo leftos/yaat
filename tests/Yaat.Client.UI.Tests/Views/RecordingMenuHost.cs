@@ -294,6 +294,17 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     TimeProvider IMenuHost.Clock => Clock;
 
+    /// <summary>The room's controller list the coordination flyouts read, handed over live (not copied); empty by default.</summary>
+    public List<OnlineControllerDto> Controllers { get; } = [];
+
+    /// <summary>The TCP the controller operates as; none by default.</summary>
+    public string? ActiveTcp { get; set; }
+
+    /// <summary>The position the controller operates as, as the server describes it; none by default.</summary>
+    public ActivePositionDto? ActivePosition { get; set; }
+
+    public MenuPositions GetPositions() => new(Controllers, ActiveTcp, ActivePosition);
+
     /// <summary>The airborne traffic the Report traffic in sight… list offers, whatever the callsign asked about; none by default.</summary>
     public List<MenuTrafficRow> NearbyTraffic { get; } = [];
 

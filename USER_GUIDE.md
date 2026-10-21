@@ -326,6 +326,14 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 - **Track**, **Data Block**, **Squawk**, then the view's own items (the radar's **Display** and **Draw route**, the ground's **Display**; the Aircraft List has none), and **Favorite Commands**.
 
   **Track** lists only what the track's own state calls for, the same items on every view: an untracked aircraft gets **Initiate Track**; an aircraft being tracked gets **Initiate handoff…**, **Point out…** and **Drop track**; a handoff in progress gets **Accept handoff** and **Cancel handoff**; and a pointout awaiting an answer gets **Acknowledge pointout**. States that overlap show both groups, separated.
+
+  **Initiate handoff…** and **Point out…** each open a flyout titled "Initiate handoff" or "Point out", with `{callsign} · owned by {code}` on the right. The box ("Hand off to" / "Point out to", placeholder "TCP, sector, callsign or frequency") has focus and shows the command Enter would send, `HO ···` or `PO ···` while it is empty.
+
+  Below it the staffed positions are listed as code, name and frequency, with the command each sends: your own position on top (unless it owns the track), then the positions grouped by facility, yours first, then "Towers", the Center and the rest (such as "Northern California TRACON · NCT" and "Oakland ARTCC · ZOA").
+
+  Typing filters the rows by the start of the code, the name or a word of it, the callsign or the frequency, and outlines the first match; Enter sends it, and a click sends any row. The list is read when the flyout opens and does not move while it is open.
+
+  The track's owner stays in the list, greyed and marked "owns the track", and cannot be picked. **Point out…** lists only positions with a STARS TCP. A code that matches no staffed position shows "Not a staffed position: sent as typed", and Enter sends what you typed for the sim to answer. Point out has a pointing-hand icon, so you can add it to the quick-command strip in **Settings › Input › Quick commands**.
 - **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** and **Release to live feed**.
 - **Delete** and the RPO assignment items.
 

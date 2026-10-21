@@ -81,6 +81,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     /// <summary>A clock of its own that moves only when the test advances it, not the real host's, so no flyout timer outlives a test.</summary>
     public TimeProvider Clock { get; } = new ManualClock();
 
+    public MenuPositions GetPositions() => inner.GetPositions();
+
     public bool IsOnTaxiRoute(string callsign, string otherCallsign) => inner.IsOnTaxiRoute(callsign, otherCallsign);
 
     public void HighlightAircraft(string? callsign) => inner.HighlightAircraft(callsign);

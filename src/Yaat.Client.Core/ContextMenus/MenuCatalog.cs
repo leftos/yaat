@@ -76,20 +76,18 @@ public static class MenuCatalog
         Leaf(MenuIds.TrackTrack, "Initiate Track", "TRACK", (ac, _) => AircraftCommandApplicability.IsUntracked(ac)),
         Leaf(MenuIds.TrackDrop, "Drop track", "DROP", (ac, _) => AircraftCommandApplicability.IsOwned(ac)),
         Leaf(MenuIds.TrackAcceptHandoff, "Accept handoff", "ACCEPT", (ac, _) => AircraftCommandApplicability.HasHandoffInProgress(ac)),
-        new(
+        FlyoutEntry(
             MenuIds.TrackInitiateHandoff,
             "Initiate handoff…",
-            MenuFlightRules.Both,
             (ac, _) => AircraftCommandApplicability.IsOwned(ac),
-            (_, context, host) => BuildInput("Initiate handoff…", "Position ID", BlankInput.Closes, input => $"HO {input}", context, host)
+            (label, ac, context, host) => CoordinationFlyout.Build(label, CoordinationVerb.Handoff, ac, context, host)
         ),
         Leaf(MenuIds.TrackCancelHandoff, "Cancel handoff", "CANCEL", (ac, _) => AircraftCommandApplicability.HasHandoffInProgress(ac)),
-        new(
+        FlyoutEntry(
             MenuIds.TrackPointOut,
             "Point out…",
-            MenuFlightRules.Both,
             (ac, _) => AircraftCommandApplicability.IsOwned(ac),
-            (_, context, host) => BuildInput("Point out…", "Position ID", BlankInput.Closes, input => $"PO {input}", context, host)
+            (label, ac, context, host) => CoordinationFlyout.Build(label, CoordinationVerb.PointOut, ac, context, host)
         ),
         Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", (ac, _) => AircraftCommandApplicability.HasPendingPointout(ac)),
         CheckedInputLeaf(
@@ -185,10 +183,10 @@ public static class MenuCatalog
         Picker(MenuIds.ProceduresJoinStar, JoinStarLabel, BuildJoinStar),
         Leaf(MenuIds.ProceduresClimbViaSid, "Climb via SID", "CVIA", Always),
         Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
-        FlyoutEntry(MenuIds.ProceduresCrossFix, "Cross fix…", FixValueFlyout.BuildCross),
-        FlyoutEntry(MenuIds.ProceduresDepartFix, "Depart fix…", FixValueFlyout.BuildDepart),
-        FlyoutEntry(MenuIds.ProceduresPtac, "PTAC…", PtacFlyout.Build),
-        FlyoutEntry(MenuIds.ProceduresJoinAirway, "Join airway…", JoinAirwayFlyout.Build),
+        FlyoutEntry(MenuIds.ProceduresCrossFix, "Cross fix…", Always, FixValueFlyout.BuildCross),
+        FlyoutEntry(MenuIds.ProceduresDepartFix, "Depart fix…", Always, FixValueFlyout.BuildDepart),
+        FlyoutEntry(MenuIds.ProceduresPtac, "PTAC…", Always, PtacFlyout.Build),
+        FlyoutEntry(MenuIds.ProceduresJoinAirway, "Join airway…", Always, JoinAirwayFlyout.Build),
         JoinRadialEntry(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", RadialSide.Outbound),
         JoinRadialEntry(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound…", RadialSide.Inbound),
         new(
@@ -1318,12 +1316,17 @@ public static class MenuCatalog
         new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => DirectToFlyout.Build(label, verb, ac, context, host));
 
     /// <summary>
-    /// A flyout entry offered always: the Cross fix or Depart fix flyout (<see cref="FixValueFlyout"/>) or the Join airway flyout
-    /// (<see cref="JoinAirwayFlyout"/>) that <paramref name="build"/> makes, its menu row reading <paramref name="label"/>,
+    /// A flyout entry offered where <paramref name="isApplicable"/> holds: the Cross fix or Depart fix flyout
+    /// (<see cref="FixValueFlyout"/>), the PTAC flyout, the Join airway flyout (<see cref="JoinAirwayFlyout"/>) or a coordination
+    /// flyout (<see cref="CoordinationFlyout"/>) that <paramref name="build"/> makes, its menu row reading <paramref name="label"/>,
     /// ellipsis included.
     /// </summary>
-    private static MenuCatalogEntry FlyoutEntry(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem> build) =>
-        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => build(label, ac, context, host));
+    private static MenuCatalogEntry FlyoutEntry(
+        string id,
+        string label,
+        Func<IMenuAircraft?, MenuContext, bool> isApplicable,
+        Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem> build
+    ) => new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => build(label, ac, context, host));
 
     /// <summary>
     /// A join-radial entry (<c>JRADO</c> / <c>JRADI</c>): the join radial flyout (<see cref="JoinRadialFlyout"/>) opening on

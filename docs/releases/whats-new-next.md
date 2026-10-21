@@ -66,6 +66,10 @@ With the course empty, a fix further along the route is held on the leg from the
 
 PTAC… under All Commands › Procedures opens a flyout too: a PTAC / Forced toggle, Heading and Altitude boxes (empty sends the present value, `PH` or `PA`) and the destination's approaches, each row showing the whole command such as `PTAC 280 025 I28R`. "The expected approach" row sends no approach id.
 
+Initiate handoff… and Point out…, under Track, open a flyout instead of a "Position ID" popup. Type a TCP, sector, callsign or frequency to filter the staffed positions, listed as code, name and frequency under their facility (yours first, then Towers, the Center and the rest), with your own position on top; Enter sends `HO` or `PO` for the outlined row.
+
+The track's owner is greyed as "owns the track", Point out lists only positions with a STARS TCP, and a code that matches nothing is sent as typed. Point out has a pointing-hand icon, so it can join the quick-command strip.
+
 ## GFS winds aloft
 
 Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft vary across the sector instead of being one set of layers, and the METAR window says where they came from. A second line under the weather name reads, for example, "Winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast": the forecast run and the forecast hour the grid was fetched for.

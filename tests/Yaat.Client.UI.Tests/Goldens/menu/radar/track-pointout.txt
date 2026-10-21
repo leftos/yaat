@@ -125,8 +125,10 @@ Favorite Commands
   (no items) [disabled]
 ---
 Track
-  Initiate handoff… picker:input
-  Point out… picker:input
+  Initiate handoff…
+    coordination flyout
+  Point out…
+    coordination flyout
   Drop track
   ---
   Acknowledge pointout

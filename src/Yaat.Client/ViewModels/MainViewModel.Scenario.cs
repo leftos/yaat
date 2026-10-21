@@ -884,7 +884,7 @@ public partial class MainViewModel
         _ = BootstrapStudentTdlsAsync(bootstrap.PrimaryAirportId);
 
         // Seed the active-position indicator with the student position (server default) before any AS.
-        SetActiveTcpFromServer(bootstrap.PositionDisplayConfig?.TcpCode);
+        SetActivePositionFromServer(bootstrap.PositionDisplayConfig);
 
         // Scenario auto-connect ATC positions appear in the controller list.
         _ = RefreshOnlineControllersAsync();
@@ -1095,7 +1095,7 @@ public partial class MainViewModel
         );
 
         // Active position no longer applies without a scenario; hide the indicator.
-        SetActiveTcpFromServer(null);
+        SetActivePositionFromServer(null);
 
         // Scenario positions are gone; refresh to leave only live CRC controllers (if any).
         _ = RefreshOnlineControllersAsync();

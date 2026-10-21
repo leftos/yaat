@@ -1508,7 +1508,32 @@ public sealed record ScenarioExportResultDto(string? Json, string? Name, int Air
 /// <summary>One exported aircraft that needs the scenario author's attention, and why.</summary>
 public sealed record ScenarioExportFlagDto(string Callsign, string Reason);
 
-public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
+/// <summary>
+/// The display config of the position the controller operates as (<see cref="TcpCode"/>), and that position itself
+/// (<see cref="ActivePosition"/>), null when the server does not find its config entry.
+/// </summary>
+public record PositionDisplayConfigDto(
+    List<int?> MapGroupMapIds,
+    List<string> MapGroupTcpCodes,
+    List<string> UnderlyingAirports,
+    string TcpCode,
+    ActivePositionDto? ActivePosition
+);
+
+/// <summary>
+/// The position the controller operates as: its callsign, name, radio name, frequency (preformatted MHz, "135.100"), facility,
+/// position type (<c>Artcc</c>, <c>Tracon</c>, <c>Atct</c>, <c>Other</c>) and the code that names exactly it to <c>HO</c>.
+/// </summary>
+public record ActivePositionDto(
+    string Callsign,
+    string Name,
+    string? RadioName,
+    string Frequency,
+    string? FacilityId,
+    string? FacilityName,
+    string PositionType,
+    string HandoffCode
+);
 
 /// <summary>One room in a room list.</summary>
 /// <param name="CreatorArtccId">The ARTCC the room was created under.</param>
@@ -1887,7 +1912,8 @@ public record OnlineControllerDto(
     string? RadioName,
     string RealName,
     bool IsActive,
-    bool IsScenarioPosition
+    bool IsScenarioPosition,
+    string? HandoffCode
 )
 {
     public string StatusText => IsActive ? "Active" : "Standby";

@@ -285,4 +285,18 @@ public interface IMenuHost
     /// every view; only the list's click carries a multi-row selection, so only its call is ever non-empty.
     /// </summary>
     Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns);
+
+    /// <summary>
+    /// The room's controller list as last refreshed, staffed and standby positions alike, and the TCP the controller operates
+    /// as, which the Initiate handoff… and Point out… flyouts read as they open (<see cref="MenuPositions"/>).
+    /// </summary>
+    MenuPositions GetPositions();
 }
+
+/// <summary>
+/// What the coordination flyouts (<see cref="CoordinationFlyout"/>) list: the room's <paramref name="Controllers"/>, staffed
+/// (<see cref="OnlineControllerDto.IsActive"/>) and standby alike, and the student's <paramref name="ActiveTcp"/>, the TCP the
+/// controller operates as, and that <paramref name="ActivePosition"/> as the server describes it; each null before a scenario loads,
+/// and the position also when the server did not find it.
+/// </summary>
+public sealed record MenuPositions(IReadOnlyList<OnlineControllerDto> Controllers, string? ActiveTcp, ActivePositionDto? ActivePosition);

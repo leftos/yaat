@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
 
@@ -28,6 +29,23 @@ public partial class MainViewModel
 
     /// <summary>Whether the active-position dropdown is shown (only once a scenario has supplied a TCP).</summary>
     public bool ShowActiveTcpSelector => !string.IsNullOrEmpty(ActiveTcp);
+
+    /// <summary>
+    /// The position the controller operates as (name, frequency, facility, handoff code), as the server last sent it with the
+    /// active TCP; null before a scenario loads, when the server did not find the position, and from a dropdown pick until the
+    /// server's next update.
+    /// </summary>
+    public ActivePositionDto? ActivePosition { get; private set; }
+
+    /// <summary>
+    /// Sets the active position and its TCP from the server's <paramref name="config"/> (bootstrap seed or
+    /// <c>PositionDisplayChanged</c>); null clears both.
+    /// </summary>
+    internal void SetActivePositionFromServer(PositionDisplayConfigDto? config)
+    {
+        ActivePosition = config?.ActivePosition;
+        SetActiveTcpFromServer(config?.TcpCode);
+    }
 
     /// <summary>
     /// Sets the current operating TCP from the server (bootstrap seed or <c>PositionDisplayChanged</c>)
@@ -99,6 +117,9 @@ public partial class MainViewModel
             return;
         }
 
+        // The position the server last described is the old TCP's; drop it so readers fall back to the TCP until the server's
+        // PositionDisplayChanged names the new one (it may never come: the server skips it while replaying).
+        ActivePosition = null;
         _ = SetActivePositionFromDropdownAsync(value);
     }
 

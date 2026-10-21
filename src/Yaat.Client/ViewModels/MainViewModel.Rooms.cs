@@ -1130,13 +1130,13 @@ public partial class MainViewModel
         });
     }
 
-    private void OnPositionDisplayChanged(PositionDisplayConfigDto config)
+    internal void OnPositionDisplayChanged(PositionDisplayConfigDto config)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             // Fires only on a standalone AS [TCP] (not a one-shot AS [TCP] [command]), so the
             // active-position indicator follows persistent position changes but not per-command ones.
-            SetActiveTcpFromServer(config.TcpCode);
+            SetActivePositionFromServer(config);
             // Stashed so a Radar View window opened later starts on the same position's display config.
             _lastPositionDisplayConfig = config;
             foreach (RadarViewModel radar in AllRadarViews)

@@ -52,6 +52,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public TimeProvider Clock => TimeProvider.System;
 
+    public MenuPositions GetPositions() => new([.. main.OnlineControllers], main.ActiveTcp, main.ActivePosition);
+
     public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
 
     public Task SendGatedAsync(string callsign, string command, string initials) =>
