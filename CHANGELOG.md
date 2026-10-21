@@ -48,9 +48,11 @@
 - All Commands › Hold offers Hold at fix… to IFR aircraft in the air, opening the same flyout as the quick command.
 - `APT` given to an airborne aircraft also switches it to the new airport's ground map, so a following `LAND` or `ATXI` resolves names there.
 - `PTAC PH` keeps an assigned heading the aircraft is still turning to, and its turn direction, reading back "Fly heading"; `FPH` is unchanged.
+- `CM` and `DM` cancel any climb via or descend via, not only the one in their own direction.
 
 ### Fixed
 
+- `PTAC … PA` keeps the assigned altitude, else the present altitude rounded toward the climb or descent, never a STAR target, and records it as assigned.
 - A `TAXI` across a runway with no destination ends on the far taxiway once the whole aircraft is past the hold line, not on the runway.
 - A hold (`HOLDP`, `HPP`, `HFIX`) clears the assigned heading when it starts, so the data block drops it and a later `CAPP` flies the procedure.
 - `HOLDP` flies the inbound course as the magnetic course it was issued, not as a true course several degrees off.

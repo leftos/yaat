@@ -70,7 +70,7 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | `DesiredAccelRate` | `double?` kt/s (+ = accel) | `PushbackPhase` only (`CategoryPerformance.TugAccelRate`, 0.3 kt/s: a tow picks up speed at the towbar rate, not the aircraft's breakaway rate) | `UpdateSpeed` **accel branch only** | Re-published every tick by the phase and nulled in its `OnEnd`; null = category default |
 | `SpeedFloor` / `SpeedCeiling` | `double?` KIAS | floor/ceiling handlers, AIM 5-4-1 procedural memory | `UpdateSpeed`, `UpdateSpeedPlanning`, `ApplyFixConstraints` | Persist; enforced continuously |
 | `AssignedMagneticHeading` | `MagneticHeading?` | `FH`/`TL`/`TR`/`FPH`/`PTAC` | (UI/autopilot only — not consumed by the integrator) | Persists for the UI until the aircraft leaves the vector (direct, route and procedure joins, approach clearances, hold start) or is re-vectored |
-| `AssignedAltitude` | `double?` ft MSL | `CM`/`DM` | (UI/autopilot only) | Persists for the UI |
+| `AssignedAltitude` | `double?` ft MSL | `CM`/`DM`, `FA`, `CFIX`, `CAPP`/`PTAC` (crossing altitude; PTAC always), `CTO`, military-route clearances, `WARP`, live-traffic assume | (UI/autopilot only) | Persists for the UI |
 | `AssignedSpeed` | `double?` KIAS | `SPD`/`SLOW`/`RFAS` | (UI/autopilot only) | Persists for the UI |
 | `HasExplicitSpeedCommand` | `bool` | `SPD` handler | guards the auto speed schedule + planner + `AutoCancelSpeedAtFinal` | Cleared on bare altitude commands |
 | `HasExplicitTurnRate` | `bool` | `TRATE` handler | prevents pattern phases overwriting `TurnRateOverride` | Cleared on `TRATE` (no arg), Warp, phase-clear |

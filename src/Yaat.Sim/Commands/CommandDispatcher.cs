@@ -3870,7 +3870,8 @@ public static class CommandDispatcher
             return;
         }
 
-        bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand);
+        // PTAC always assigns an altitude (explicit or PA), so it counts as an altitude assignment here
+        bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand or PositionTurnAltitudeClearanceCommand);
         bool procedureCleared = aircraft.Procedure.ActiveSidId is null && aircraft.Procedure.ActiveStarId is null;
 
         if (procedureCleared)

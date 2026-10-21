@@ -88,6 +88,60 @@ public class ProcedureCommandTests
         Assert.Equal(10000, aircraft.Procedure.StarViaFloor);
     }
 
+    // --- CM/DM cancel any via clearance, whichever direction (7110.65 §4-5-7.h.11 NOTE 1) ---
+
+    [Fact]
+    public void Cm_DuringDescendVia_CancelsStarVia()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 15000);
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.StarViaFloor = 10000;
+
+        CommandResult result = CommandDispatcher.Dispatch(new ClimbMaintainCommand(17000), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.False(aircraft.Procedure.StarViaMode);
+        Assert.Null(aircraft.Procedure.StarViaFloor);
+        Assert.Equal(17000.0, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Dm_DuringClimbVia_CancelsSidVia()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 9000);
+        aircraft.Procedure.ActiveSidId = "PORTE3";
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.SidViaCeiling = 19000;
+
+        CommandResult result = CommandDispatcher.Dispatch(new DescendMaintainCommand(7000), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.False(aircraft.Procedure.SidViaMode);
+        Assert.Null(aircraft.Procedure.SidViaCeiling);
+        Assert.Equal(7000.0, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void CmOrAbove_DuringDescendVia_CancelsStarVia()
+    {
+        AircraftState aircraft = CreateAircraft(altitude: 7500);
+        aircraft.Procedure.ActiveStarId = "BDEGA3";
+        aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.StarViaFloor = 5000;
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ClimbMaintainCommand(5500, AltitudeAssignmentModifier.AtOrAbove),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(aircraft.Procedure.StarViaMode);
+        Assert.Null(aircraft.Procedure.StarViaFloor);
+        Assert.Equal(5500.0, aircraft.Targets.AltitudeFloor);
+    }
+
     // --- CM disables SidViaMode ---
 
     [Fact]

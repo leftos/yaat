@@ -93,7 +93,10 @@ public class ControlTargets
     /// </summary>
     public MagneticHeading? AssignedMagneticHeading { get; set; }
 
-    /// <summary>Controller-assigned altitude (CM/DM). Null when not explicitly assigned.</summary>
+    /// <summary>
+    /// The controller-assigned altitude (for a VFR at-or-above/at-or-below restriction, its bound).
+    /// Null when not explicitly assigned.
+    /// </summary>
     public double? AssignedAltitude { get; set; }
 
     /// <summary>Controller-assigned speed (SPD/SLOW/RFAS). Null when not explicitly assigned.</summary>

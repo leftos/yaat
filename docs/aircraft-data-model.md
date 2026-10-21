@@ -77,7 +77,7 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
   `PreferredTurnDirection`, `TurnRateOverride`, plus the `*Floor`/`*Ceiling` envelope clamps (`AltitudeFloor`/`AltitudeCeiling`,
   `SpeedFloor`/`SpeedCeiling`). Physics steers/climbs/accelerates toward these.
 - **`Assigned*` (controller-intent record)** — `AssignedMagneticHeading`, `AssignedAltitude`, `AssignedSpeed`, plus the `HasExplicitSpeedCommand` /
-  `HasExplicitTurnRate` latches. These record what the controller explicitly commanded so auto-scheduling (altitude-based speed, pattern turn rate)
+  `HasExplicitTurnRate` latches. These record what the controller explicitly commanded (`AssignedAltitude`: `CM`/`DM`, `FA`, `CFIX`, the `CAPP`/`PTAC` altitude, `CTO`, military-route clearances, `WARP`, live-traffic assume) so auto-scheduling (altitude-based speed, pattern turn rate)
   does not silently override an instruction. `AssignedMagneticHeading` is the vector: it is cleared when the aircraft leaves it (direct, route and procedure joins, approach clearances, and the start of an IFR or VFR hold; a queued hold keeps it until it starts).
 
 `NavigationRoute` is a **get-only** `List<NavigationTarget>` — the DCT waypoint queue. Each `NavigationTarget` (`ControlTargets.cs:156`) carries the

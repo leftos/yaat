@@ -118,8 +118,7 @@ internal static class FlightCommandHandler
         }
 
         string prev = PreviousAltitude(aircraft, cmd.Altitude);
-        aircraft.Procedure.SidViaMode = false;
-        aircraft.Procedure.SidViaCeiling = null;
+        CancelViaClearances(aircraft);
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AltitudeFloor = null;
@@ -130,6 +129,19 @@ internal static class FlightCommandHandler
         SetPatternAltitudeOverride(aircraft, cmd.Altitude);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
+    }
+
+    /// <summary>
+    /// A new altitude clearance (CM, DM, a VFR altitude restriction, PTAC, force altitude) cancels any
+    /// climb via or descend via, whichever direction (7110.65 §4-5-7.h.11 NOTE 1): the new altitude
+    /// replaces the procedure's altitude restrictions.
+    /// </summary>
+    internal static void CancelViaClearances(AircraftState aircraft)
+    {
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaFloor = null;
     }
 
     /// <summary>
@@ -150,8 +162,7 @@ internal static class FlightCommandHandler
 
     private static CommandResult ApplyVfrAltitudeRestriction(ClimbMaintainCommand cmd, AircraftState aircraft)
     {
-        aircraft.Procedure.SidViaMode = false;
-        aircraft.Procedure.SidViaCeiling = null;
+        CancelViaClearances(aircraft);
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
@@ -177,8 +188,7 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft)
     {
         string prev = PreviousAltitude(aircraft, cmd.Altitude);
-        aircraft.Procedure.StarViaMode = false;
-        aircraft.Procedure.StarViaFloor = null;
+        CancelViaClearances(aircraft);
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AltitudeFloor = null;
@@ -193,10 +203,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyForceAltitude(ForceAltitudeCommand cmd, AircraftState aircraft)
     {
-        aircraft.Procedure.SidViaMode = false;
-        aircraft.Procedure.SidViaCeiling = null;
-        aircraft.Procedure.StarViaMode = false;
-        aircraft.Procedure.StarViaFloor = null;
+        CancelViaClearances(aircraft);
         aircraft.Altitude = cmd.Altitude;
         aircraft.VerticalSpeed = 0;
         aircraft.Targets.TargetAltitude = cmd.Altitude;

@@ -47,6 +47,12 @@ public static class ApproachCommandHandler
     /// </summary>
     private const double PtacAssignedHeadingToleranceDeg = 1.0;
 
+    /// <summary>How far the altitude target must be from the present altitude for <c>PTAC PA</c> to round toward it.</summary>
+    private const double PtacTargetDirectionMinFt = 50.0;
+
+    /// <summary>The vertical speed that counts as climbing or descending for <c>PTAC PA</c>'s rounding when no target decides it.</summary>
+    private const double PtacVerticalSpeedDirectionMinFpm = 100.0;
+
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
         ResolvedApproach resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
@@ -439,8 +445,8 @@ public static class ApproachCommandHandler
         // Resolve heading: explicit, the assigned heading PH keeps in force, or present (7110.65 §5-9-4)
         PtacHeading resolvedHeading = ResolvePtacHeading(cmd, aircraft);
         int heading = resolvedHeading.Heading;
-        // Resolve altitude: explicit or present
-        int altitude = cmd.Altitude ?? (int)(aircraft.Targets.TargetAltitude ?? aircraft.Altitude);
+        // Resolve altitude before anything clears the via state it reads
+        int altitude = ResolvePtacAltitude(cmd, aircraft);
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
@@ -455,7 +461,13 @@ public static class ApproachCommandHandler
             aircraft.Targets.PreferredTurnDirection = null;
         }
 
+        // The PTAC altitude is the new assigned altitude and cancels the earlier vertical clearance, as CM/DM do
         aircraft.Targets.TargetAltitude = altitude;
+        aircraft.Targets.AssignedAltitude = altitude;
+        aircraft.Targets.AltitudeFloor = null;
+        aircraft.Targets.AltitudeCeiling = null;
+        FlightCommandHandler.CancelViaClearances(aircraft);
+        aircraft.Procedure.IsExpediting = false;
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -536,6 +548,63 @@ public static class ApproachCommandHandler
         }
 
         return new PtacHeading((int)Math.Round(aircraft.MagneticHeading.Degrees), FromPh: true, KeepTurnDirection: false);
+    }
+
+    /// <summary>
+    /// The altitude a PTAC clears the aircraft to maintain. An explicit altitude argument is used as
+    /// given. <c>PA</c> keeps the altitude still assigned (7110.65 §4-5-7.h.11 NOTE 1, §5-6-2.d NOTE):
+    /// the last assigned altitude, unless a descend via or climb via was issued after it or it is the
+    /// bound of a VFR at-or-above/at-or-below restriction. Otherwise
+    /// PA is the present altitude rounded to 100 ft toward the direction of travel, so the aircraft
+    /// never turns back through an altitude it has left: down while descending, up while climbing
+    /// (<see cref="PtacVerticalDirection"/>), to the nearest 100 ft when level. A procedure target is never the assigned
+    /// altitude.
+    /// </summary>
+    private static int ResolvePtacAltitude(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft)
+    {
+        if (cmd.Altitude is { } explicitAltitude)
+        {
+            return explicitAltitude;
+        }
+
+        bool viaInForce = aircraft.Procedure.StarViaMode || aircraft.Procedure.SidViaMode;
+        // A VFR "at or above" / "at or below" restriction records its bound as AssignedAltitude; a bound is not an altitude to maintain
+        bool vfrBoundInForce = (aircraft.Targets.AltitudeFloor is not null) || (aircraft.Targets.AltitudeCeiling is not null);
+        if (!viaInForce && !vfrBoundInForce && (aircraft.Targets.AssignedAltitude is { } assigned))
+        {
+            return (int)Math.Round(assigned);
+        }
+
+        double hundreds = aircraft.Altitude / 100.0;
+        double rounded = PtacVerticalDirection(aircraft) switch
+        {
+            < 0 => Math.Floor(hundreds),
+            > 0 => Math.Ceiling(hundreds),
+            _ => Math.Round(hundreds, MidpointRounding.AwayFromZero),
+        };
+        return (int)(rounded * 100);
+    }
+
+    /// <summary>
+    /// Which way the aircraft is travelling vertically for <see cref="ResolvePtacAltitude"/>: toward its
+    /// altitude target when one is set at least <see cref="PtacTargetDirectionMinFt"/> away, else by its
+    /// vertical speed when that is at least <see cref="PtacVerticalSpeedDirectionMinFpm"/> either way,
+    /// else level (0). Negative is descending, positive climbing.
+    /// </summary>
+    private static int PtacVerticalDirection(AircraftState aircraft)
+    {
+        double present = aircraft.Altitude;
+        if (aircraft.Targets.TargetAltitude is { } target && (Math.Abs(target - present) >= PtacTargetDirectionMinFt))
+        {
+            return Math.Sign(target - present);
+        }
+
+        if (Math.Abs(aircraft.VerticalSpeed) >= PtacVerticalSpeedDirectionMinFpm)
+        {
+            return Math.Sign(aircraft.VerticalSpeed);
+        }
+
+        return 0;
     }
 
     /// <summary>
