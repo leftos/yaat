@@ -37,8 +37,8 @@
       "user": "5703da5682eac4dc"
     },
     "drive-owned-app-in-process": {
-      "repo": "fcc9b721a853cb6e",
-      "user": "db0a27091136c67f"
+      "repo": "76beb372009974b2",
+      "user": "be66d24a8139e90d"
     },
     "emulation-per-call": {
       "declined": "no CDP or webview",
@@ -225,17 +225,17 @@
       "user": "f211fee3057bfaec"
     },
     "wait-for-conditions": {
-      "repo": "e1605cad6e03e055",
-      "user": "9bb1d20171a07155"
+      "repo": "7f727e0ccc48c920",
+      "user": "5ba0317410bb3123"
     },
     "waits-bounded-outcome-as-data": {
-      "repo": "4d804875f18a63af",
-      "user": "1e1fedbd7932f9f8"
+      "repo": "08d7c916a4dd6fc6",
+      "user": "c375cca2a2c76a41"
     },
     "what-capture-misses": {
       "repo": "f8c5f0f6b948b211",
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 8
+  "user_revision": 9
 }

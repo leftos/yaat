@@ -38,6 +38,8 @@ Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Pipe\PipeClient.cs:11-28, 60-72, 151
 <!-- rule: waits-bounded-outcome-as-data -->
 
 The host clamps every wait (`wait_for` 100-30000 ms; `wait_until` 100-600000 ms, because a montage take runs about 315 s) and the server waits for the answer for the clamped wait plus 5 s, never the default 30 s request timeout, so the transport never cuts a full-length wait short. `wait_until` answers a timeout as a result, not an error (`not met in <N> ms at sim <S> s` plus each condition's last value and each `then` action's outcome); `batch_drive` returns JSON `{passed, steps, failedAt}` and never an MCP error, so the agent reads `passed`; where a timeout is an error (`wait_for`), its `TIMEOUT` carries the selector's last match count. An agent can then tell "never matched" from "matched the wrong count".
+
+The client's own clamp is the backstop: `wait_until` stops polling at its clamped `timeoutMs` on the client's clock and answers not met, so a wait whose cancel from the server was lost still ends.
 Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Tools\PipeTools.cs:25-47, 70-82; Tools\BatchTools.cs:38-50, 77-86; D:\yaat\src\Yaat.Client\Automation\Protocol\ErrorDetails.cs:30-34; tests WaitForAndFilePickTests.cs:138 (`WaitFor_LongTimeout_NotCutByClientTimeout`). Seen: documented.
 
 ### Own the processes you start: identify them by handle and start time, kill them on a failed launch
@@ -88,6 +90,8 @@ Source: D:\yaat\docs\architecture.md:164; D:\yaat\tests\Yaat.ClientDriver.Mcp.Te
 <!-- rule: drive-owned-app-in-process -->
 
 A survey of desktop-automation MCPs found that no tool driving an app from outside its process fully avoids stealing focus (Windows-MCP, terminator, WinAppDriver, NovaWindows and FlaUI-MCP all foreground the window or move the cursor); the ones that never do run a named pipe inside the app. So a YAAT client with a live pipe is driven over it, and everything else (CRC, a client started without automation mode) falls back to UI Automation; the route is chosen per pid by "is there a live pipe", and the input-mode setting does not touch pipe calls.
+
+The one call worth answering outside the pipe is a wait on the client's own output: the server can read the client log (`%LOCALAPPDATA%/yaat/yaat-client.log`, which `tail_yaat_log` already reads) itself, which also works while the client's UI thread is blocked and the pipe cannot answer. Today `log_matches` runs inside the client, on the UI thread.
 Source: D:\yaat\docs\research\2026-10-01-desktop-automation-mcp-survey.md; D:\yaat\docs\client-driver-mcp.md:3, "Routes rejected for background driving". Seen: researched (survey 2026-10-01).
 
 ### Drive the real client, and write down what each lesser route cannot see
@@ -166,6 +170,12 @@ Source: D:\yaat\docs\client-driver-mcp.md:65; D:\yaat\docs\plans\client-driver-m
 <!-- rule: wait-for-conditions -->
 
 Element conditions use `wait_for` (100 ms poll inside the app); simulation conditions use `wait_until` on the app's own state (aircraft phase, on ground, landed, a log line, the scenario clock), also polled every 100 ms, which can take its screenshot and run its `then` actions (pause, set rate, stop the recording) at the very poll the condition held. Without it, hitting a given sim second depended on tool-call latency and timed checks needed background timers because the harness blocks foreground sleeps. A fixed sequence goes through `batch_drive` (1-100 steps, `assert wait` defaulting to 1000 ms, `assert no_errors`, first failure stops it, 300 s cap), which replaced a hand-written runner with hard-coded 500 ms, 3000 ms and 8000 ms sleeps and closes the round-trip gap in which ids went stale.
+
+A wait on the client's output can start from a point before the call, so a line printed just before the wait still counts; `log_matches` today counts only lines added after the call. When the effect cannot be named in advance (a dialog, a context menu), wait for the UI to change: diff the visible controls, the focus owner and the top popup against a baseline the first gesture takes. The pipe has no such wait yet.
+
+Because timeouts stretch under load, a timeout is never a pause: hold for sim time with `sim_seconds` (`atLeast`), the scenario clock, never a wall-clock wait. When moments count from an effect's start, pass the call that starts it with the wait, so the client makes it at the poll the clock starts from with no round trip between (a call followed by a wait missed the effect's start, measured in another project); `wait_until` takes `then` actions after the match but no starting action yet.
+
+Wait on the value needed, not "not empty" (a placeholder text holds too early), and read whether a condition errored or read `absent` before it held.
 Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Tools\PipeTools.cs:42-47, 70-82; Tools\BatchTools.cs:14-55; D:\yaat\docs\client-driver-mcp.md:38-40, 78; D:\yaat\docs\plans\client-driver-mcp-friction.md:32, 37; D:\yaat\docs\research\2026-10-02-godot-mcp-ideas-for-client-driver.md:24. Seen: friction #17, recurred.
 
 ### Wait out the navigation-data load, and every other load, on the signal that it finished
