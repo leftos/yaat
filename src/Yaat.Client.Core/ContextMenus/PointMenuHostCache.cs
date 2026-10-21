@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -90,7 +91,16 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         inner.ShowListPopup(items, selected, onPick);
 
-    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => inner.ShowRichListPopup(list, onPick);
+    public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials) =>
+        inner.SendForResultAsync(callsign, command, initials);
+
+    public IReadOnlyList<TrafficAdvisoryCandidate> GetAdvisoryCandidates() => inner.GetAdvisoryCandidates();
+
+    public IDisposable ObserveAircraftUpdates(Action onUpdate) => inner.ObserveAircraftUpdates(onUpdate);
+
+    public LatLon? GetFixPosition(string name) => inner.GetFixPosition(name);
+
+    public IReadOnlyList<string> GetReportingPointsNear(LatLon position) => inner.GetReportingPointsNear(position);
 
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
 

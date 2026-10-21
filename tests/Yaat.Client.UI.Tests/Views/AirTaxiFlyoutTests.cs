@@ -713,7 +713,18 @@ public class AirTaxiFlyoutTests
         );
 
     private static RecordingMenuHost HostWith(string id, AirTaxiMenu menu) =>
-        new("") { Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(id, null)]), AirTaxi = menu };
+        new("")
+        {
+            Session = new(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(id, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
+            AirTaxi = menu,
+        };
 
     private static AircraftModel Parked() =>
         new()

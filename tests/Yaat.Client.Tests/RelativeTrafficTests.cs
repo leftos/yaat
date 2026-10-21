@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests;
@@ -22,7 +23,10 @@ public class RelativeTrafficTests
         };
 
     private static MenuContext Context(AircraftModel? previousSelection, string callsign = "N172SP") =>
-        new(new MenuClick(callsign, previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For));
+        new(
+            new MenuClick(callsign, previousSelection, null, []),
+            new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+        );
 
     // --- HasRelativeContext -----------------------------------------------------
 

@@ -1,4 +1,5 @@
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
 
@@ -160,6 +161,18 @@ public interface IMenuAircraft
     /// files: the type the sim flies and lands, which a menu judges performance by (a runway too short to land on).
     /// </summary>
     string BaseAircraftType { get; }
+
+    /// <summary>The type of the aircraft physically flying as the sim names it, prefix and suffix included (<c>H/B763/L</c>).</summary>
+    string AircraftType { get; }
+
+    /// <summary>The ground track in degrees true, the traffic-advisory matcher's direction of flight.</summary>
+    double TrueTrack { get; }
+
+    /// <summary>Whether the aircraft is banked past the traffic-advisory matcher's maneuvering limit, as the sim judges it.</summary>
+    bool IsManeuvering { get; }
+
+    /// <summary>Where the aircraft sits in a traffic pattern, as the sim classifies it; null outside a pattern.</summary>
+    PatternPosition? PatternPosition { get; }
 
     /// <summary>
     /// The performance category of the aircraft physically flying, by <see cref="AircraftCategorization.Categorize"/> on its

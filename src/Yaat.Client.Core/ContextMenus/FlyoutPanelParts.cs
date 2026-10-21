@@ -20,11 +20,17 @@ namespace Yaat.Client.ContextMenus;
 internal static class FlyoutPanelParts
 {
     private static readonly IImmutableSolidColorBrush SeparatorBrush = new ImmutableSolidColorBrush(Color.Parse("#3D3D3D"));
-    private static readonly IImmutableSolidColorBrush ToggleLine = new ImmutableSolidColorBrush(Color.Parse("#3A414B"));
-    private static readonly IImmutableSolidColorBrush ToggleFill = new ImmutableSolidColorBrush(Color.Parse("#23272C"));
     private static readonly IImmutableSolidColorBrush ToggleOnFill = new ImmutableSolidColorBrush(Color.Parse("#24406A"));
     private static readonly IImmutableSolidColorBrush ChipLine = new ImmutableSolidColorBrush(Color.Parse("#33383F"));
     private static readonly IImmutableSolidColorBrush CodeBrush = new ImmutableSolidColorBrush(Color.Parse("#9AA3AD"));
+    private static readonly IImmutableSolidColorBrush ChoiceEdge = new ImmutableSolidColorBrush(Color.Parse("#8FC1FF"));
+    private static readonly IImmutableSolidColorBrush ChoiceText = new ImmutableSolidColorBrush(Color.Parse("#CFD5DC"));
+
+    /// <summary>The line of a verb toggle, a segmented control, a stepper and a choice button.</summary>
+    public static IImmutableSolidColorBrush ToggleLine { get; } = new ImmutableSolidColorBrush(Color.Parse("#3A414B"));
+
+    /// <summary>The resting fill of a verb toggle, a segmented control, a stepper and a choice button.</summary>
+    public static IImmutableSolidColorBrush ToggleFill { get; } = new ImmutableSolidColorBrush(Color.Parse("#23272C"));
 
     /// <summary>The grey of a panel flyout's title line and its other quiet labels.</summary>
     public static IImmutableSolidColorBrush TitleBrush { get; } = new ImmutableSolidColorBrush(Color.Parse("#A4ADB8"));
@@ -144,8 +150,64 @@ internal static class FlyoutPanelParts
         return toggle;
     }
 
-    /// <summary>A verb toggle: <paramref name="toggles"/> side by side in one rounded outline.</summary>
-    public static Border ToggleStrip(IEnumerable<ToggleButton> toggles)
+    /// <summary>
+    /// One button of a segmented control in a <see cref="ToggleStrip"/>: <paramref name="label"/> on the toggle's fill, lit with
+    /// its on fill when <paramref name="on"/>; every button but the <paramref name="first"/> has a line on its left. A disabled
+    /// button keeps its fill and text; the caller fades it.
+    /// </summary>
+    public static Button SegmentButton(string label, bool first, bool on)
+    {
+        IBrush fill = on ? ToggleOnFill : ToggleFill;
+        IBrush text = on ? Brushes.White : ChoiceText;
+        var button = new Button
+        {
+            Content = label,
+            FontSize = 12,
+            Padding = new Thickness(9, 4),
+            CornerRadius = new CornerRadius(0),
+            BorderThickness = new Thickness(first ? 0 : 1, 0, 0, 0),
+            BorderBrush = ToggleLine,
+            Background = fill,
+            Foreground = text,
+        };
+        button.Resources["ButtonBackgroundPointerOver"] = on ? ToggleOnFill : ChipLine;
+        button.Resources["ButtonBorderBrushPointerOver"] = ToggleLine;
+        button.Resources["ButtonForegroundPointerOver"] = Brushes.White;
+        button.Resources["ButtonBackgroundPressed"] = ToggleOnFill;
+        button.Resources["ButtonBorderBrushPressed"] = ToggleLine;
+        button.Resources["ButtonForegroundPressed"] = Brushes.White;
+        button.Resources["ButtonBackgroundDisabled"] = fill;
+        button.Resources["ButtonBorderBrushDisabled"] = ToggleLine;
+        button.Resources["ButtonForegroundDisabled"] = text;
+        return button;
+    }
+
+    /// <summary>
+    /// Paints a choice button (an hour of a dial, a direction of a pad) on the toggle's fill and line, lit with the toggle's on
+    /// fill and a light blue edge when <paramref name="on"/>; under the pointer its edge turns light blue.
+    /// </summary>
+    public static void PaintChoice(Button button, bool on)
+    {
+        IBrush fill = on ? ToggleOnFill : ToggleFill;
+        IBrush text = on ? Brushes.White : ChoiceText;
+        button.Background = fill;
+        button.BorderBrush = on ? ChoiceEdge : ToggleLine;
+        button.BorderThickness = new Thickness(1);
+        button.Foreground = text;
+        button.Resources["ButtonBackgroundPointerOver"] = fill;
+        button.Resources["ButtonBorderBrushPointerOver"] = ChoiceEdge;
+        button.Resources["ButtonForegroundPointerOver"] = text;
+        button.Resources["ButtonBackgroundPressed"] = ToggleOnFill;
+        button.Resources["ButtonBorderBrushPressed"] = ChoiceEdge;
+        button.Resources["ButtonForegroundPressed"] = Brushes.White;
+    }
+
+    /// <summary>Draws <paramref name="control"/>'s text in the monospace font.</summary>
+    public static void Mono(TemplatedControl control) =>
+        control.Bind(TemplatedControl.FontFamilyProperty, control.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+
+    /// <summary>A verb toggle or segmented control: <paramref name="toggles"/> side by side in one rounded outline.</summary>
+    public static Border ToggleStrip(IEnumerable<Button> toggles)
     {
         var buttons = new StackPanel { Orientation = Orientation.Horizontal };
         buttons.Children.AddRange(toggles);

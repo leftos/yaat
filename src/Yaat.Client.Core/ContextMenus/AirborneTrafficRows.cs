@@ -18,17 +18,9 @@ public static class AirborneTrafficRows
     /// <summary>How far away, in NM, an aircraft a traffic flyout lists with nothing typed may be.</summary>
     public const double ListedRadiusNm = 10;
 
-    private static readonly string[] DirectionWords =
-    [
-        "northbound",
-        "northeastbound",
-        "eastbound",
-        "southeastbound",
-        "southbound",
-        "southwestbound",
-        "westbound",
-        "northwestbound",
-    ];
+    /// <summary>The directions of flight as words, north first and clockwise, in the order of <see cref="SoloAdvisoryText.Directions"/>.</summary>
+    public static IReadOnlyList<string> DirectionWords { get; } =
+    ["northbound", "northeastbound", "eastbound", "southeastbound", "southbound", "southwestbound", "westbound", "northwestbound"];
 
     /// <summary>
     /// <paramref name="target"/> as a traffic flyout row seen from <paramref name="from"/>, its direction of flight from
@@ -48,7 +40,7 @@ public static class AirborneTrafficRows
     public static string DirectionWord(double trueTrackDegrees)
     {
         double normalized = ((trueTrackDegrees % 360) + 360) % 360;
-        int index = (int)Math.Round(normalized / 45, MidpointRounding.AwayFromZero) % DirectionWords.Length;
+        int index = (int)Math.Round(normalized / 45, MidpointRounding.AwayFromZero) % DirectionWords.Count;
         return DirectionWords[index];
     }
 

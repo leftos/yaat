@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
@@ -544,7 +545,10 @@ public class AircraftCommandApplicabilityTests
 
     /// <summary>A menu context for the <see cref="Ac"/> aircraft, with <paramref name="previousSelection"/> selected before it.</summary>
     private static MenuContext Context(AircraftModel? previousSelection) =>
-        new(new MenuClick("TST123", previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For));
+        new(
+            new MenuClick("TST123", previousSelection, null, []),
+            new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+        );
 
     /// <summary>Another on-ground aircraft, selected before the right-click, which makes the ground menu relative.</summary>
     private static AircraftModel OtherGroundAircraft()
@@ -854,7 +858,10 @@ public class AircraftCommandApplicabilityTests
     ];
 
     private static MenuContext TrackMenuContext() =>
-        new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, VfrCommandsForIfr.None, QuickCommandDefaults.For));
+        new(
+            new MenuClick("TST123", null, null, []),
+            new MenuSession("XX", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+        );
 
     /// <summary>The Track entries the catalog offers for <paramref name="ac"/>, in <see cref="TrackIds"/> order.</summary>
     private static string[] ShownTrackIds(AircraftModel? ac)

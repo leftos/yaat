@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -18,7 +19,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// The Report traffic in sight… and Follow traffic… flyouts outside solo training: one layout, the title line, the Traffic box
 /// with the command Enter sends, then the eight nearest other airborne aircraft within 10 NM, two lines each, the box's filter
 /// reaching every other airborne aircraft. Follow lists the aircraft reported in sight first and greys the rest until Force
-/// turns them into <c>FOLLOWF</c>. In solo, Report traffic in sight… keeps the rich-list popup and Force is hidden.
+/// turns them into <c>FOLLOWF</c>. In solo, Force is hidden (Report traffic in sight… there is SoloAdvisoryFlyoutTests').
 /// </summary>
 public class AirborneTrafficFlyoutTests
 {
@@ -392,23 +393,6 @@ public class AirborneTrafficFlyoutTests
         Assert.Equal([(Callsign, "FOLLOW AC02", Initials)], host.Sent);
     }
 
-    [AvaloniaFact]
-    public void Solo_ReportKeepsTodaysPopup()
-    {
-        RecordingMenuHost host = HostWith([.. Enumerable.Range(1, 7).Select(i => Row($"AC{i:00}", i))]);
-
-        MenuItem report = Report(Pilot(), Solo(), host);
-
-        MenuPickerDescriptor picker = Assert.IsType<MenuPickerDescriptor>(report.Tag);
-        Assert.Equal(MenuPickerDescriptor.RichList, picker.Kind);
-        Assert.Equal(
-            ["AC01 · C172", "AC02 · C172", "AC03 · C172", "AC04 · C172", "AC05 · C172", "---", "Any traffic (no target)", "Other callsign…"],
-            picker.Items
-        );
-        report.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        Assert.Equal("Nearest traffic", Assert.Single(host.RichListPopups).Title);
-    }
-
     // --- Harness ----------------------------------------------------------------------------
 
     private static MenuAirborneTrafficRow Row(string callsign, double nm) => new(new MenuTrafficRow(callsign, "C172", nm, 12, 0), "eastbound", null);
@@ -440,7 +424,9 @@ public class AirborneTrafficFlyoutTests
                     [
                         new CatalogQuickCommandEntry(MenuIds.ApproachReportTrafficInSight, null),
                         new CatalogQuickCommandEntry(MenuIds.PatternFollow, null),
-                    ]
+                    ],
+                SoloAdvisoryPrefill.TrueValues,
+                false
             ),
         };
         host.AirborneTraffic.AddRange(traffic);

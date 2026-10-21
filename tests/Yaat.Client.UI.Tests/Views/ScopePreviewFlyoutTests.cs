@@ -9,6 +9,7 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -257,7 +258,14 @@ public class ScopePreviewFlyoutTests
     {
         var host = new RecordingMenuHost("")
         {
-            Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)]),
+            Session = new(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
         };
         host.HoldShortChoices.Add(
             new HoldShortChoice(
@@ -305,7 +313,9 @@ public class ScopePreviewFlyoutTests
                 Initials,
                 false,
                 VfrCommandsForIfr.None,
-                _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null), new CatalogQuickCommandEntry(MenuIds.GroundFollow, null)]
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null), new CatalogQuickCommandEntry(MenuIds.GroundFollow, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
             ),
         };
         host.GroundTraffic.AddRange(traffic);

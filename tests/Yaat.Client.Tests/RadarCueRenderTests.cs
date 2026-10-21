@@ -90,6 +90,24 @@ public class RadarCueRenderTests
     }
 
     [Fact]
+    public void ResolvedWithNoTarget_DrawsTheDashedRingAlone()
+    {
+        AircraftModel from = Airborne("N52TW", FromPosition);
+        AircraftModel resolved = Airborne("N22RX", TargetPosition);
+        MapViewport vp = Viewport();
+        (float rx, float ry) = vp.LatLonToScreen(TargetPosition.Lat, TargetPosition.Lon);
+
+        ResolvedRadarCue? cue = new RadarCue(from.Callsign, null, resolved.Callsign, ShowBearingLabel: true).ResolveAgainst([from, resolved]);
+
+        Assert.Equal(new ResolvedRadarCue(null, TargetPosition, null, null), cue);
+        using SKBitmap bitmap = Render(vp, cue);
+        List<SKColor> ring = [.. RingSamples(rx, ry).Select(point => PixelAt(bitmap, point))];
+        Assert.Contains(ring, IsTeal);
+        Assert.Contains(ring, IsBackground);
+        Assert.DoesNotContain(bitmap.Pixels, IsHighlightBlue);
+    }
+
+    [Fact]
     public void BearingLabel_HiddenWhenShowBearingLabelFalse()
     {
         AircraftModel from = Airborne("N52TW", FromPosition);

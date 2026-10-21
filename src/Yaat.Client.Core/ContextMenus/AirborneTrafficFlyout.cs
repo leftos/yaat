@@ -153,7 +153,15 @@ public static class AirborneTrafficFlyout
             return entry;
         }
 
-        AirborneTrafficContent.Attach(entry, verb, aircraft, context, host);
+        if ((verb == AirborneTrafficVerb.ReportInSight) && context.SoloTrainingMode)
+        {
+            SoloAdvisoryContent.Attach(entry, aircraft, context, host);
+        }
+        else
+        {
+            AirborneTrafficContent.Attach(entry, verb, aircraft, context, host);
+        }
+
         return entry;
     }
 

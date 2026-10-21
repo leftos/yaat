@@ -151,17 +151,65 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         }
     }
 
-    /// <summary>Every rich-row picker shown, in order.</summary>
-    public List<MenuRichList> RichListPopups { get; } = [];
+    /// <summary>The sim's answer every <see cref="SendForResultAsync"/> hands back; an accepted command by default.</summary>
+    public CommandResultDto? SendResult { get; set; } = new(true, null);
 
-    /// <summary>Records the list and, for a non-empty input, picks the row whose label is the input.</summary>
-    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick)
+    /// <summary>
+    /// The answer still in flight that <see cref="SendForResultAsync"/> hands back while set, which the test completes; null
+    /// (answer <see cref="SendResult"/> at once) by default.
+    /// </summary>
+    public TaskCompletionSource<CommandResultDto?>? PendingSend { get; set; }
+
+    /// <summary>Records the send in <see cref="Sent"/> and answers <see cref="PendingSend"/>, else <see cref="SendResult"/>.</summary>
+    public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials)
     {
-        RichListPopups.Add(list);
-        if (input.Length > 0)
+        Sent.Add((callsign, command, initials));
+        return PendingSend?.Task ?? Task.FromResult(SendResult);
+    }
+
+    /// <summary>The aircraft the live check matches against, the commanded one included; none by default.</summary>
+    public List<TrafficAdvisoryCandidate> AdvisoryCandidates { get; } = [];
+
+    /// <summary>How many times <see cref="GetAdvisoryCandidates"/> was asked.</summary>
+    public int AdvisoryCandidateReads { get; private set; }
+
+    public IReadOnlyList<TrafficAdvisoryCandidate> GetAdvisoryCandidates()
+    {
+        AdvisoryCandidateReads++;
+        return [.. AdvisoryCandidates];
+    }
+
+    private readonly List<Action> _aircraftUpdateObservers = [];
+
+    /// <summary>How many observers follow the aircraft updates now.</summary>
+    public int AircraftUpdateObserverCount => _aircraftUpdateObservers.Count;
+
+    public IDisposable ObserveAircraftUpdates(Action onUpdate)
+    {
+        _aircraftUpdateObservers.Add(onUpdate);
+        return new Unsubscriber(() => _aircraftUpdateObservers.Remove(onUpdate));
+    }
+
+    /// <summary>Tells every observer an aircraft update arrived, as the client does on each one it receives.</summary>
+    public void RaiseAircraftUpdate()
+    {
+        foreach (Action observer in _aircraftUpdateObservers.ToList())
         {
-            onPick(list.Rows.First(row => (row.IsPickable) && (row.Label == input)));
+            observer();
         }
+    }
+
+    /// <summary>The host places no fix.</summary>
+    public LatLon? GetFixPosition(string name) => null;
+
+    /// <summary>The reporting points every position is answered with; none by default.</summary>
+    public List<string> ReportingPoints { get; } = [];
+
+    public IReadOnlyList<string> GetReportingPointsNear(LatLon position) => [.. ReportingPoints];
+
+    private sealed class Unsubscriber(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 
     /// <summary>The minimum vectoring altitude every position is answered with; none by default.</summary>
@@ -228,7 +276,8 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     }
 
     /// <summary>The session the menu is built with: initials "AB", no solo training, no VFR commands for IFR aircraft.</summary>
-    public MenuSession Session { get; init; } = new("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For);
+    public MenuSession Session { get; init; } =
+        new("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false);
 
     /// <summary>The callsign lists the RPO items were asked for, in order; the host answers none.</summary>
     public List<IReadOnlyList<string>> RpoRequests { get; } = [];

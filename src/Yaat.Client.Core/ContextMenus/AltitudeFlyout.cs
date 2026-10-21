@@ -230,7 +230,7 @@ public static class AltitudeFlyout
         }
 
         string floor = sector.FloorFtMsl.ToString("N0", CultureInfo.InvariantCulture);
-        rows.Insert(lineIndex, new MenuRichRow("", $"MVA {floor} here (sector {sector.Sector})", "", MenuRichRowKind.MvaLine, null, []));
+        rows.Insert(lineIndex, new MenuRichRow("", $"MVA {floor} here (sector {sector.Sector})", "", MenuRichRowKind.MvaLine, null));
         return (selected >= lineIndex) ? selected + 1 : selected;
     }
 
@@ -280,10 +280,10 @@ public static class AltitudeFlyout
         if (altitude < mvaFloor)
         {
             string hint = (mark.Length > 0) ? $"{mark} · below MVA" : "below MVA";
-            return new MenuRichRow(glyph, label, hint, MenuRichRowKind.BelowMva, command, []);
+            return new MenuRichRow(glyph, label, hint, MenuRichRowKind.BelowMva, command);
         }
 
-        return new MenuRichRow(glyph, label, (mark.Length > 0) ? mark : command, kind, command, []);
+        return new MenuRichRow(glyph, label, (mark.Length > 0) ? mark : command, kind, command);
     }
 
     /// <summary>A row's glyph and, for the ● and ◆ rows, the mark its hint names; the ↑ and ↓ rows have none.</summary>

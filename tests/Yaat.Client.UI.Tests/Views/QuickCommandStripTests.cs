@@ -120,7 +120,14 @@ public class QuickCommandStripTests
         // a row's command still closes the flyout and the menu.
         var host = new RecordingMenuHost("")
         {
-            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)]),
+            Session = new(
+                "AB",
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
         };
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30"));
         AircraftModel ac = Fixture("taxiing");
@@ -222,7 +229,14 @@ public class QuickCommandStripTests
     ) =>
         new("")
         {
-            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
+            Session = new(
+                "AB",
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
             TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search)),
         };
 

@@ -96,6 +96,14 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public string BaseAircraftType { get; init; } = "";
 
+    public string AircraftType { get; init; } = "";
+
+    public double TrueTrack { get; init; }
+
+    public bool IsManeuvering { get; init; }
+
+    public PatternPosition? PatternPosition { get; init; }
+
     public AircraftCategory Category { get; init; } = AircraftCategory.Jet;
 
     public int? FiledVfrCruiseFeet => null;

@@ -171,10 +171,7 @@ public static class MenuCatalog
         Picker(
             MenuIds.ApproachReportTrafficInSight,
             "Report traffic in sight…",
-            (label, ac, context, host) =>
-                context.SoloTrainingMode
-                    ? BuildReportTrafficInSight(label, context, host)
-                    : AirborneTrafficFlyout.BuildReportInSight(label, ac, context, host)
+            (label, ac, context, host) => AirborneTrafficFlyout.BuildReportInSight(label, ac, context, host)
         ),
         Leaf(MenuIds.ApproachReportBase, "Turning base", "REPORT BASE", Always),
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
@@ -1342,83 +1339,6 @@ public static class MenuCatalog
             (ac, context, host) => HoldFlyout.BuildTurns(label, preset, ac, context, host)
         );
 
-    /// <summary>The Report traffic in sight… free-text box's placeholder, for a target callsign or none.</summary>
-    private const string TrafficInSightPlaceholder = "Target callsign (optional)";
-
-    /// <summary>How many aircraft the solo-training Report traffic in sight… picker lists.</summary>
-    private const int SoloTrafficInSightRows = 5;
-
-    /// <summary>
-    /// The Report traffic in sight… picker solo training keeps: with airborne traffic (<see cref="IMenuHost.GetAirborneTraffic"/>),
-    /// a titled list of the <see cref="SoloTrafficInSightRows"/> nearest (<see cref="TrafficInSightList"/>), each row sending
-    /// <c>RTIS {callsign}</c>, then Any traffic sending a bare <c>RTIS</c> and Other callsign… opening the free-text box; with
-    /// none, the free-text box alone. The box sends <c>RTIS {input}</c>, or a bare <c>RTIS</c> when left blank.
-    /// </summary>
-    private static MenuItem BuildReportTrafficInSight(string label, MenuContext context, IMenuHost host)
-    {
-        List<MenuTrafficRow> traffic = [.. host.GetAirborneTraffic(context.Callsign).Take(SoloTrafficInSightRows).Select(row => row.Traffic)];
-        if (traffic.Count == 0)
-        {
-            return BuildInput(label, TrafficInSightPlaceholder, BlankInput.Submits, FormatTrafficInSight, context, host);
-        }
-
-        MenuRichList list = TrafficInSightList(context.Callsign, traffic);
-        var item = new MenuItem
-        {
-            Header = label,
-            Tag = new MenuPickerDescriptor(MenuPickerDescriptor.RichList, [.. list.Rows.Select(row => row.Label)]),
-        };
-        item.Click += (_, _) => host.ShowRichListPopup(list, row => PickTrafficInSight(row, context, host));
-        return item;
-    }
-
-    /// <summary>Sends a traffic row's or Any traffic's command, or opens the free-text box for Other callsign….</summary>
-    private static void PickTrafficInSight(MenuRichRow row, MenuContext context, IMenuHost host)
-    {
-        if (row.Kind == MenuRichRowKind.Prompt)
-        {
-            host.ShowInputPopup(
-                TrafficInSightPlaceholder,
-                BlankInput.Submits,
-                "",
-                0,
-                input => Accept(Send(FormatTrafficInSight(input), context, host))
-            );
-        }
-        else if (row.Command is { } command)
-        {
-            _ = Send(command, context, host);
-        }
-    }
-
-    /// <summary>
-    /// The Nearest traffic list for <paramref name="callsign"/>: one row per aircraft of <paramref name="traffic"/> in its
-    /// order, <c>{callsign} · {type}</c> with its clock position, whole nm and altitude difference as columns, then a rule,
-    /// <c>Any traffic (no target)</c> and <c>Other callsign…</c>. Opens on the first row.
-    /// </summary>
-    private static MenuRichList TrafficInSightList(string callsign, IReadOnlyList<MenuTrafficRow> traffic)
-    {
-        List<MenuRichRow> rows =
-        [
-            .. traffic.Select(row => new MenuRichRow(
-                "",
-                string.IsNullOrWhiteSpace(row.AircraftType) ? row.Callsign : $"{row.Callsign} · {row.AircraftType}",
-                "",
-                MenuRichRowKind.Traffic,
-                $"RTIS {row.Callsign}",
-                [
-                    $"{row.ClockPosition} o'clock",
-                    $"{RelativeGeometry.WholeNm(row.DistanceNm)} nm",
-                    RelativeGeometry.AltitudeDeltaColumn(row.AltitudeDeltaFeet),
-                ]
-            )),
-            new MenuRichRow("", "---", "", MenuRichRowKind.Separator, null, []),
-            new MenuRichRow("", "Any traffic (no target)", "RTIS", MenuRichRowKind.Action, "RTIS", []),
-            new MenuRichRow("", "Other callsign…", "", MenuRichRowKind.Prompt, null, []),
-        ];
-        return new MenuRichList("Nearest traffic", $"{callsign} · report traffic in sight", rows, 0);
-    }
-
     /// <summary>The altitude at and above which the picker lists Mach rows (7110.65 5-7-1.g).</summary>
     private const double MachRowFloorFeet = 24000;
 
@@ -1749,9 +1669,6 @@ public static class MenuCatalog
         List<object> items = [.. runways];
         return BuildList(label, items, items[0], picked => Send($"CVA {picked}", context, host), host);
     }
-
-    /// <summary>The traffic-in-sight request: bare <c>RTIS</c> for a blank answer, else <c>RTIS</c> naming the target.</summary>
-    private static string FormatTrafficInSight(string input) => string.IsNullOrWhiteSpace(input) ? "RTIS" : $"RTIS {input}";
 
     /// <summary>
     /// The Join STAR item: with a filed STAR (<see cref="FiledStar"/>) a leaf naming it that sends <c>JARR</c> for it;

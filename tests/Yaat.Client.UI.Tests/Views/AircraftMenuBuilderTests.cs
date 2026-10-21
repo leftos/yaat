@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Situation;
@@ -121,7 +122,9 @@ public class AircraftMenuBuilderTests
                     [
                         new CatalogQuickCommandEntry(MenuIds.GroundPushback, null),
                         new CatalogQuickCommandEntry(MenuIds.CoordinationCheckReleaseWindow, null),
-                    ]
+                    ],
+                SoloAdvisoryPrefill.TrueValues,
+                false
             ),
         };
 
@@ -580,6 +583,13 @@ public class AircraftMenuBuilderTests
     private static RecordingMenuHost JoinApproachHost() =>
         new("")
         {
-            Session = new MenuSession("AB", false, VfrCommandsForIfr.EnterFinalOnly, _ => [new CatalogQuickCommandEntry(MenuIds.ApproachJoin, null)]),
+            Session = new MenuSession(
+                "AB",
+                false,
+                VfrCommandsForIfr.EnterFinalOnly,
+                _ => [new CatalogQuickCommandEntry(MenuIds.ApproachJoin, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
         };
 }

@@ -9,6 +9,7 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
@@ -291,7 +292,14 @@ public class GiveWayFlyoutTests
     {
         var host = new RecordingMenuHost("")
         {
-            Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null)]),
+            Session = new(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
         };
         host.GroundTraffic.AddRange(traffic);
         return host;

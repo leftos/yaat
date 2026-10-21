@@ -11,7 +11,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c>,
 /// <c>[bold]</c> (a command row whose header template draws text bold: <see cref="MenuCommandRow.IsHighlighted"/>) and
 /// its <see cref="MenuPickerDescriptor"/> (<c>picker:list [a, b]</c>, <c>picker:filteredList [a, b]</c>,
-/// <c>picker:input</c> or <c>picker:richList [FL410, …, MVA 5,000 here (sector SCK_M), …]</c>); the quick-command strip
+/// or <c>picker:input</c>); the quick-command strip
 /// (<see cref="QuickCommandStrip"/>) as one node naming its buttons' catalog ids in order, <c>strip: [id, id, …]</c>; the
 /// Taxi to runway panel (<see cref="TaxiToRunwayPanel"/>) as its tabs, <c>tabs: [30 assigned [selected], 12 [none], …]</c>,
 /// then the selected tab's lines at the same depth; a

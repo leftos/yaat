@@ -213,7 +213,7 @@ public class MenuCatalogCommandTests
         // PTAC… opens the PTAC flyout; PtacFlyoutTests clicks its rows and boxes.
         MenuIds.ProceduresPtac,
         // Report traffic in sight… and Follow traffic… open the traffic flyouts over the host's airborne traffic (Report traffic in
-        // sight… keeps the rich-list popup in solo, below); AirborneTrafficFlyoutTests clicks their rows and box.
+        // sight… opens the solo advisory flyout in solo, below); AirborneTrafficFlyoutTests and SoloAdvisoryFlyoutTests click them.
         MenuIds.ApproachReportTrafficInSight,
         MenuIds.PatternFollow,
         MenuIds.SpawnDelay,
@@ -538,11 +538,11 @@ public class MenuCatalogCommandTests
         MenuRichList apart = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 5000 }, new RecordingMenuHost(""));
         MenuRichList same = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 3000 }, new RecordingMenuHost(""));
 
-        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000", []), Row(apart, "3,000"));
-        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000", []), Row(apart, "5,000"));
-        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000", []), Row(apart, "4,000"));
-        Assert.Equal(new MenuRichRow("↓", "2,000", "DM 2000", MenuRichRowKind.Descend, "DM 2000", []), Row(apart, "2,000"));
-        Assert.Equal(new MenuRichRow("●", "3,000", "now · assigned", MenuRichRowKind.NowAssigned, "CM 3000", []), Row(same, "3,000"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000"), Row(apart, "3,000"));
+        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000"), Row(apart, "5,000"));
+        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000"), Row(apart, "4,000"));
+        Assert.Equal(new MenuRichRow("↓", "2,000", "DM 2000", MenuRichRowKind.Descend, "DM 2000"), Row(apart, "2,000"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now · assigned", MenuRichRowKind.NowAssigned, "CM 3000"), Row(same, "3,000"));
         Assert.DoesNotContain(same.Rows, row => row.Kind is MenuRichRowKind.Assigned or MenuRichRowKind.Now);
     }
 
@@ -603,8 +603,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList popup = OpenMaintainAndPick(new FakeMenuAircraft { AltitudeFeet = 3000 }, host, "2,500");
 
-        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500", []), Row(popup, "2,500"));
-        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600", []), Row(popup, "2,600"));
+        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500"), Row(popup, "2,500"));
+        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600"), Row(popup, "2,600"));
         Assert.All(
             popup.Rows.Where(row => (row.Kind != MenuRichRowKind.MvaLine) && (AltitudeOf(row) < 2600)),
             row => Assert.Equal(MenuRichRowKind.BelowMva, row.Kind)
@@ -613,13 +613,13 @@ public class MenuCatalogCommandTests
 
         var lowHost = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList apart = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 2000, AssignedAltitude = 1500 }, lowHost);
-        Assert.Equal(new MenuRichRow("●", "2,000", "now · below MVA", MenuRichRowKind.BelowMva, "DM 2000", []), Row(apart, "2,000"));
-        Assert.Equal(new MenuRichRow("◆", "1,500", "assigned · below MVA", MenuRichRowKind.BelowMva, "DM 1500", []), Row(apart, "1,500"));
+        Assert.Equal(new MenuRichRow("●", "2,000", "now · below MVA", MenuRichRowKind.BelowMva, "DM 2000"), Row(apart, "2,000"));
+        Assert.Equal(new MenuRichRow("◆", "1,500", "assigned · below MVA", MenuRichRowKind.BelowMva, "DM 1500"), Row(apart, "1,500"));
         Assert.Equal("1,500", apart.Rows[apart.SelectedIndex].Label);
 
         var sameHost = new RecordingMenuHost("") { Mva = ("12", 2600) };
         MenuRichList same = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 2000, AssignedAltitude = 2000 }, sameHost);
-        Assert.Equal(new MenuRichRow("●", "2,000", "now · assigned · below MVA", MenuRichRowKind.BelowMva, "CM 2000", []), Row(same, "2,000"));
+        Assert.Equal(new MenuRichRow("●", "2,000", "now · assigned · below MVA", MenuRichRowKind.BelowMva, "CM 2000"), Row(same, "2,000"));
     }
 
     [AvaloniaFact]
@@ -628,7 +628,7 @@ public class MenuCatalogCommandTests
         MenuRichList popup = OpenMaintain(new FakeMenuAircraft { AltitudeFeet = 3000, AssignedAltitude = 12300 }, new RecordingMenuHost(""));
 
         MenuRichRow assigned = Row(popup, "12,300");
-        Assert.Equal(new MenuRichRow("◆", "12,300", "assigned", MenuRichRowKind.Assigned, "CM 12300", []), assigned);
+        Assert.Equal(new MenuRichRow("◆", "12,300", "assigned", MenuRichRowKind.Assigned, "CM 12300"), assigned);
         int index = popup.Rows.ToList().IndexOf(assigned);
         Assert.Equal(index, popup.SelectedIndex);
         Assert.Equal("12,500", popup.Rows[index - 1].Label);
@@ -651,7 +651,7 @@ public class MenuCatalogCommandTests
 
         MenuRichList popup = OpenMaintain(aircraft, new RecordingMenuHost(""));
 
-        Assert.Equal(new MenuRichRow("◆", "FL250", "assigned", MenuRichRowKind.Assigned, "CM 25000", []), popup.Rows[0]);
+        Assert.Equal(new MenuRichRow("◆", "FL250", "assigned", MenuRichRowKind.Assigned, "CM 25000"), popup.Rows[0]);
         Assert.Equal(0, popup.SelectedIndex);
         Assert.Equal((int)(Math.Floor(ceiling.Value / 500) * 500), AltitudeOf(popup.Rows[1]));
     }
@@ -696,7 +696,6 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Assert.Equal("Maintain altitude", item.Header as string);
         item.IsSubMenuOpen = true;
-        Assert.Empty(host.RichListPopups);
         AltitudeFlyoutHost holder = Assert.IsType<AltitudeFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header);
         return Assert.IsType<MaintainAltitudePanel>(holder.Child);
     }
@@ -1022,118 +1021,34 @@ public class MenuCatalogCommandTests
 
         Assert.Null(item.Tag);
         Assert.Equal("report traffic in sight flyout", Assert.IsType<MenuItem>(Assert.Single(item.Items)).Header?.ToString());
-        Assert.Empty(host.RichListPopups);
         Assert.Empty(host.Sent);
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_BlankAnswer_SendsBareRtis()
+    public void ReportTrafficInSight_Solo_NoTraffic_OffersNoFlyout()
     {
-        var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), new RecordingMenuHost(""));
 
-        Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
-
-        Assert.Equal(["Target callsign (optional)"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "RTIS", Initials)], host.Sent);
+        Assert.NotNull(item);
+        Assert.Empty(item.Items);
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_AsksWithBlankSubmits()
-    {
-        var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
-
-        Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
-
-        Assert.Equal(BlankInput.Submits, host.LastBlankInput);
-    }
-
-    [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_NoNearbyTraffic_KeepsInputBox()
-    {
-        var host = new RecordingMenuHost("AAL12");
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
-
-        Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
-
-        Assert.Empty(host.RichListPopups);
-        Assert.Equal([(Callsign, "RTIS AAL12", Initials)], host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_ListsNearestTrafficThenAnyAndOther()
+    public void ReportTrafficInSight_Solo_OpensTheSoloAdvisoryFlyout()
     {
         RecordingMenuHost host = TrafficHost("", null);
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
 
-        Click(
-            AssertPicker(
-                item,
-                "Report traffic in sight…",
-                MenuPickerDescriptor.RichList,
-                ["AAL601 · B738", "N302AB", "---", "Any traffic (no target)", "Other callsign…"]
-            )
-        );
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host));
 
-        MenuRichList list = Assert.Single(host.RichListPopups);
-        Assert.Equal("Nearest traffic", list.Title);
-        Assert.Equal(0, list.SelectedIndex);
-        Assert.Equal(
-            new MenuRichRow("", "AAL601 · B738", "", MenuRichRowKind.Traffic, "RTIS AAL601", ["2 o'clock", "4 nm", "1,500 below"]),
-            list.Rows[0]
-        );
-        Assert.Equal(["2 o'clock", "4 nm", "1,500 below"], list.Rows[0].Columns);
-        Assert.Equal(["11 o'clock", "7 nm", "same altitude"], list.Rows[1].Columns);
-        Assert.Equal(
-            [MenuRichRowKind.Traffic, MenuRichRowKind.Traffic, MenuRichRowKind.Separator, MenuRichRowKind.Action, MenuRichRowKind.Prompt],
-            list.Rows.Select(row => row.Kind)
-        );
-        Assert.Equal([true, true, false, true, true], list.Rows.Select(row => row.IsPickable));
+        Assert.IsType<SoloAdvisoryFlyoutHost>(Assert.IsType<MenuItem>(Assert.Single(item.Items)).Header);
         Assert.Empty(host.Sent);
     }
 
-    [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_RowSendsRtisCallsign()
-    {
-        RecordingMenuHost host = TrafficHost("N302AB", null);
-
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host)!);
-
-        Assert.Equal([(Callsign, "RTIS N302AB", Initials)], host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_AnyTrafficSendsBareRtis()
-    {
-        RecordingMenuHost host = TrafficHost("Any traffic (no target)", null);
-
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host)!);
-
-        Assert.Equal([(Callsign, "RTIS", Initials)], host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void ReportTrafficInSight_Solo_OtherCallsignOpensInput()
-    {
-        RecordingMenuHost typed = TrafficHost("Other callsign…", "UAL5");
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), typed)!);
-
-        Assert.Equal(["Target callsign (optional)"], typed.InputPlaceholders);
-        Assert.Equal(BlankInput.Submits, typed.LastBlankInput);
-        Assert.Equal([(Callsign, "RTIS UAL5", Initials)], typed.Sent);
-
-        RecordingMenuHost blank = TrafficHost("Other callsign…", "");
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), blank)!);
-
-        Assert.Equal([(Callsign, "RTIS", Initials)], blank.Sent);
-    }
-
-    /// <summary>A menu context in solo training, where Report traffic in sight… keeps its rich-list popup.</summary>
+    /// <summary>A menu context in solo training, where Report traffic in sight… opens the solo advisory flyout.</summary>
     private static MenuContext SoloContext() => TestMenuContext.Create(Callsign, Initials, null, true, VfrCommandsForIfr.EnterFinalOnly);
 
     /// <summary>
-    /// A host answering two aircraft of nearby traffic, picking the rich-list row <paramref name="pick"/> and typing
+    /// A host answering two aircraft of nearby traffic, answering a picker with <paramref name="pick"/> and an input with
     /// <paramref name="typed"/>.
     /// </summary>
     private static RecordingMenuHost TrafficHost(string pick, string? typed)

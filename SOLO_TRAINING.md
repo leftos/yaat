@@ -263,6 +263,8 @@ The full syntax and behavior details live in [Command Reference: Solo Training C
 
 Structured `RTIS` accepts the radar clock form or any of the three VFR descriptive forms (relative position, pattern leg, landmark); the altitude is optional and matching is tolerant, so a within-tolerance-but-imprecise call still counts with a low-severity coaching note.
 
+In the client, Report traffic in sight… opens a flyout where you type the advisory as you would say it (`2 4 w sr22 35`) and Enter sends the structured `RTIS`; it has no bare-`RTIS` or callsign entry. The session settings **Pre-fill traffic advisories** (leave the clock, miles and direction for you to work out) and **Live advisory check** (grade the call as you type it) change what it shows; see the [User Guide](USER_GUIDE.md).
+
 Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
 
 ## Built-In Safeguards

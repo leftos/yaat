@@ -1,14 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Shapes;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
@@ -17,12 +13,11 @@ using Yaat.Client.Views.Radar.Flyouts;
 namespace Yaat.Client.Views;
 
 /// <summary>
-/// The popups every view's menu host opens its pickers through: free-text input, a list, a type-to-filter list, a
-/// titled list of marked rows, the warp popup, and the Command… and Note… flyouts. Each popup is
-/// code-built into its anchor's overlay layer with <see cref="PlacementMode.Pointer"/>, so it opens at the pointer on the
-/// radar, the ground view and the aircraft list alike. Every popup light-dismisses on a click outside it; the input,
-/// filtered-list, rich-list and warp popups also close on Escape, while the list popup light-dismisses only. A popup
-/// opens on the next dispatcher turn so the context menu closing in the same message does not dismiss it at once.
+/// The popups every view's menu host opens its pickers through: free-text input, a list, the warp popup, and the Command…
+/// and Note… flyouts. Each popup is code-built into its anchor's overlay layer with <see cref="PlacementMode.Pointer"/>, so
+/// it opens at the pointer on the radar, the ground view and the aircraft list alike. Every popup light-dismisses on a click
+/// outside it; the input and warp popups also close on Escape, while the list popup light-dismisses only. A popup opens on
+/// the next dispatcher turn so the context menu closing in the same message does not dismiss it at once.
 /// </summary>
 internal static class MenuPopups
 {
@@ -36,19 +31,6 @@ internal static class MenuPopups
     private static readonly IBrush PickerForeground = new SolidColorBrush(Color.Parse("#CCC"));
     private static readonly IBrush WarpHeaderForeground = new SolidColorBrush(Color.Parse("#DDD"));
     private static readonly IBrush WarpLabelForeground = new SolidColorBrush(Color.Parse("#999"));
-    private static readonly IBrush RichHintForeground = new SolidColorBrush(Color.Parse("#a8adb4"));
-
-    /// <summary>The rich list's width, as the mock draws it: its floor when its columns need less room.</summary>
-    private const double RichListWidth = 300;
-
-    /// <summary>The most the rich list grows to fit its columns.</summary>
-    private const double RichListMaxWidth = 420;
-
-    /// <summary>How many rows PageUp and PageDown move the rich list's selection.</summary>
-    private const int RichListPageRows = 10;
-
-    /// <summary>The tallest the rich list's rows grow before they scroll.</summary>
-    private const double RichListMaxHeight = 320;
 
     /// <summary>The values the warp popup opens with; a heading, altitude or speed of zero or less opens blank.</summary>
     internal sealed record WarpSeed(string Callsign, string Frd, int Heading, int Altitude, int Speed);
@@ -316,46 +298,6 @@ internal static class MenuPopups
         Open(anchor, popup, "warp");
     }
 
-    /// <summary>
-    /// Opens the titled picker of <paramref name="list"/>'s rows: the title and subtitle over a list of marked rows at
-    /// least <see cref="RichListWidth"/> wide and grown to fit its columns, opening with the selected row centred.
-    /// Clicking a row that can be picked (<see cref="MenuRichRow.IsPickable"/>) closes the picker and hands the row to
-    /// <paramref name="onPick"/>; a rule takes no click. Up and Down move the selection, Enter picks the selected row and
-    /// Escape closes the picker.
-    /// </summary>
-    public static void ShowRichList(Control anchor, MenuRichList list, Action<MenuRichRow> onPick)
-    {
-        Popup popup = NewPopup(anchor);
-        var listBox = new ListBox
-        {
-            MaxHeight = RichListMaxHeight,
-            FontSize = 13,
-            Background = PickerBackground,
-            Foreground = PickerForeground,
-            ItemsPanel = new FuncTemplate<Panel?>(() => new StackPanel()),
-        };
-        ApplyMonoFont(anchor, listBox);
-        foreach (MenuRichRow row in list.Rows)
-        {
-            listBox.Items.Add(RichRowItem(row));
-        }
-
-        var picker = new RichListPicker(popup, listBox, list, onPick);
-        var root = new StackPanel
-        {
-            MinWidth = RichListWidth,
-            MaxWidth = RichListMaxWidth,
-            Children = { RichListHeader(list), RichHairline(), listBox },
-        };
-        Grid.SetIsSharedSizeScope(listBox, true);
-        popup.Child = PickerBorder(root, new Thickness(0, 0, 0, 6));
-        popup.Child.AddHandler(InputElement.KeyDownEvent, picker.OnKeyDown, RoutingStrategies.Tunnel);
-        listBox.SelectionChanged += (_, _) => picker.OnSelectionChanged();
-        popup.Opened += (_, _) => picker.OnOpened();
-
-        Open(anchor, popup, "rich-list");
-    }
-
     /// <summary>Opens the Command… flyout for <paramref name="callsign"/> on <paramref name="anchor"/>.</summary>
     public static void ShowCommand(Control anchor, string callsign, Func<string, Task> onSubmit) =>
         Open(anchor, CommandFlyout.Build(anchor, callsign, onSubmit), "command");
@@ -438,259 +380,6 @@ internal static class MenuPopups
     }
 
     private static string PositiveOrBlank(int value) => value > 0 ? value.ToString() : "";
-
-    /// <summary>The rich list's title, bold, over its dim subtitle.</summary>
-    private static StackPanel RichListHeader(MenuRichList list) =>
-        new()
-        {
-            Margin = new Thickness(12, 8),
-            Spacing = 2,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = list.Title,
-                    FontSize = 13,
-                    FontWeight = FontWeight.SemiBold,
-                    Foreground = WarpHeaderForeground,
-                },
-                new TextBlock
-                {
-                    Text = list.Subtitle,
-                    FontSize = 12,
-                    Foreground = RichHintForeground,
-                },
-            },
-        };
-
-    private static Border RichHairline() => new() { Height = 1, Background = PickerBorderBrush };
-
-    /// <summary>
-    /// A row of the rich list: a separator as a disabled hairline, every other row as its mark, value, columns and hint.
-    /// </summary>
-    private static ListBoxItem RichRowItem(MenuRichRow row) =>
-        row.Kind switch
-        {
-            MenuRichRowKind.Separator => UnpickableRichItem(
-                new Border
-                {
-                    Height = 1,
-                    Margin = new Thickness(12, 4),
-                    Background = PickerBorderBrush,
-                }
-            ),
-            _ => new ListBoxItem
-            {
-                Padding = new Thickness(0),
-                MinHeight = 0,
-                Content = RichRowContent(row),
-            },
-        };
-
-    private static ListBoxItem UnpickableRichItem(Control content) =>
-        new()
-        {
-            IsEnabled = false,
-            Focusable = false,
-            Padding = new Thickness(0),
-            MinHeight = 0,
-            Content = content,
-        };
-
-    /// <summary>
-    /// A marked row: a 22 px glyph column, the value, its columns (a traffic row's clock position, distance and altitude
-    /// difference) each right-aligned in its own width-shared column, and the hint right-aligned in 11 px. A traffic row
-    /// has no glyph, so its value starts in the first column.
-    /// </summary>
-    private static Border RichRowContent(MenuRichRow row)
-    {
-        bool traffic = row.Kind == MenuRichRowKind.Traffic;
-        var glyph = new TextBlock { Text = row.Glyph, Foreground = PickerForeground };
-        var label = new TextBlock { Text = row.Label };
-        var hint = new TextBlock
-        {
-            Text = row.Hint,
-            FontSize = 11,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = RichHintForeground,
-        };
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(traffic ? "*" : "22,*") };
-        if (!traffic)
-        {
-            Grid.SetColumn(label, 1);
-            grid.Children.Add(glyph);
-        }
-
-        grid.Children.Add(label);
-        for (int i = 0; i < row.Columns.Count; i++)
-        {
-            var cell = new TextBlock
-            {
-                Text = row.Columns[i],
-                FontSize = 12,
-                Margin = new Thickness(10, 0, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto) { SharedSizeGroup = $"MenuRichColumn{i}" });
-            Grid.SetColumn(cell, grid.ColumnDefinitions.Count - 1);
-            grid.Children.Add(cell);
-        }
-
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        Grid.SetColumn(hint, grid.ColumnDefinitions.Count - 1);
-        grid.Children.Add(hint);
-        return new Border { Padding = new Thickness(12, 4), Child = grid };
-    }
-
-    /// <summary>
-    /// The state of one open rich list: whether a selection change is the popup's own (opening, an arrow key) rather than the
-    /// controller's click, which alone picks.
-    /// </summary>
-    private sealed class RichListPicker(Popup popup, ListBox listBox, MenuRichList list, Action<MenuRichRow> onPick)
-    {
-        private bool _ignoreSelection = true;
-
-        public void OnOpened()
-        {
-            listBox.UpdateLayout();
-            Select(list.SelectedIndex);
-            listBox.Focus();
-            _ignoreSelection = false;
-        }
-
-        public void OnSelectionChanged()
-        {
-            if (!_ignoreSelection && (SelectedRow() is { IsPickable: true } row))
-            {
-                Pick(row);
-            }
-        }
-
-        /// <summary>
-        /// Enter picks the selected row, Escape closes, and Up, Down, PageUp, PageDown, Home and End move the selection
-        /// without sending; each of them is handled.
-        /// </summary>
-        public void OnKeyDown(object? sender, KeyEventArgs e)
-        {
-            switch (e.Key)
-            {
-                case Key.Enter:
-                    PickSelected();
-                    break;
-                case Key.Escape:
-                    popup.Close();
-                    break;
-                default:
-                    if (NavigationStart(e.Key) is not { } navigation)
-                    {
-                        return;
-                    }
-
-                    SelectIfAny(PickableRowNear(navigation.Start, navigation.Step));
-                    break;
-            }
-
-            e.Handled = true;
-        }
-
-        private MenuRichRow? SelectedRow() => (listBox.SelectedIndex >= 0) ? list.Rows[listBox.SelectedIndex] : null;
-
-        private void PickSelected()
-        {
-            if (SelectedRow() is { IsPickable: true } row)
-            {
-                Pick(row);
-            }
-        }
-
-        private void Pick(MenuRichRow row)
-        {
-            _ignoreSelection = true;
-            popup.Close();
-            onPick(row);
-        }
-
-        private void SelectIfAny(int? index)
-        {
-            if (index is { } row)
-            {
-                Select(row);
-            }
-        }
-
-        /// <summary>
-        /// Where a navigation key's search starts and which way it runs: Up and Down one row, PageUp and PageDown
-        /// <see cref="RichListPageRows"/> rows, Home the top and End the bottom; null for any other key.
-        /// </summary>
-        private (int Start, int Step)? NavigationStart(Key key)
-        {
-            int selected = listBox.SelectedIndex;
-            return key switch
-            {
-                Key.Up => (selected - 1, -1),
-                Key.Down => (selected + 1, 1),
-                Key.PageUp => (selected - RichListPageRows, -1),
-                Key.PageDown => (selected + RichListPageRows, 1),
-                Key.Home => (0, 1),
-                Key.End => (list.Rows.Count - 1, -1),
-                _ => null,
-            };
-        }
-
-        /// <summary>
-        /// The row the controller can pick nearest <paramref name="start"/> (clamped to the list), searched first in
-        /// <paramref name="step"/>'s direction, so a rule is stepped over; null when the list has no such row.
-        /// </summary>
-        private int? PickableRowNear(int start, int step)
-        {
-            if (list.Rows.Count == 0)
-            {
-                return null;
-            }
-
-            int clamped = Math.Clamp(start, 0, list.Rows.Count - 1);
-            return PickableRowFrom(clamped, step) ?? PickableRowFrom(clamped, -step);
-        }
-
-        private int? PickableRowFrom(int start, int step)
-        {
-            for (int i = start; (i >= 0) && (i < list.Rows.Count); i += step)
-            {
-                if (list.Rows[i].IsPickable)
-                {
-                    return i;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Selects row <paramref name="index"/> as the popup's own change and scrolls its middle to the viewport's middle,
-        /// clamped at the list's ends.
-        /// </summary>
-        private void Select(int index)
-        {
-            bool wasIgnoring = _ignoreSelection;
-            _ignoreSelection = true;
-            listBox.SelectedIndex = index;
-            _ignoreSelection = wasIgnoring;
-
-            ScrollViewer? scroller = listBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if ((scroller?.Content is not Visual content) || (listBox.ContainerFromIndex(index) is not { } row))
-            {
-                Log.LogDebug("MenuPopups: rich list row {Index} not laid out; not centred", index);
-                return;
-            }
-
-            Point? top = row.TranslatePoint(new Point(0, 0), content);
-            double middle = (top?.Y ?? row.Bounds.Y) + (row.Bounds.Height / 2);
-            double maxOffset = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
-            scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(middle - (scroller.Viewport.Height / 2), 0, maxOffset));
-        }
-    }
 
     /// <summary>The index of <paramref name="selected"/> in <paramref name="items"/>, else -1.</summary>
     private static int SeedIndex(IReadOnlyList<object> items, object? selected)

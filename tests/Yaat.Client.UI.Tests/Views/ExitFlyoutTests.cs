@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
@@ -615,7 +616,9 @@ public class ExitFlyoutTests
                 Initials,
                 false,
                 VfrCommandsForIfr.None,
-                _ => [new CatalogQuickCommandEntry(MenuIds.TowerExitLeft, null), new CatalogQuickCommandEntry(MenuIds.TowerExitRight, null)]
+                _ => [new CatalogQuickCommandEntry(MenuIds.TowerExitLeft, null), new CatalogQuickCommandEntry(MenuIds.TowerExitRight, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
             ),
         };
 

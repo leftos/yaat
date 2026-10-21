@@ -8,6 +8,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
@@ -313,7 +314,30 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(anchor, items, selected, onPick);
 
-    public void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick) => MenuPopups.ShowRichList(anchor, list, onPick);
+    public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials) =>
+        main.SendCommandForViewCoreAsync(callsign, command, initials);
+
+    /// <summary>
+    /// Every aircraft in the main view model's list but the delayed spawns, as matcher candidates: the sim matches against its
+    /// world (<c>SimulationWorld.GetSnapshot</c>), which a delayed spawn joins only once it spawns, while live-traffic shadows
+    /// are in it.
+    /// </summary>
+    public IReadOnlyList<TrafficAdvisoryCandidate> GetAdvisoryCandidates() =>
+        [.. main.Aircraft.Where(ac => !ac.IsDelayed).Select(AdvisoryCandidates.From)];
+
+    /// <summary>Follows <see cref="MainViewModel.AircraftModelUpdated"/>, raised on the UI thread once per burst of aircraft updates.</summary>
+    public IDisposable ObserveAircraftUpdates(Action onUpdate)
+    {
+        main.AircraftModelUpdated += onUpdate;
+        return new AircraftUpdateSubscription(main, onUpdate);
+    }
+
+    public LatLon? GetFixPosition(string name) => (NavigationDatabase.Instance.GetFixPosition(name) is { } fix) ? new LatLon(fix.Lat, fix.Lon) : null;
+
+    public IReadOnlyList<string> GetReportingPointsNear(LatLon position) =>
+        SoloAdvisoryModel.ReportingPoints(
+            NavigationDatabase.Instance.FixesWithin(position, TrafficAdvisoryMatcher.LandmarkRadiusNm).Select(fix => (fix.Name, fix.DistanceNm))
+        );
 
     /// <summary>The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>.</summary>
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
@@ -610,7 +634,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             main.Preferences.UserInitials,
             main.SessionSoloTrainingMode,
             main.VfrCommandsForIfr,
-            situation => QuickCommandListFor(main.Preferences, situation)
+            situation => QuickCommandListFor(main.Preferences, situation),
+            main.SessionSoloAdvisoryPrefill,
+            main.SessionSoloAdvisoryLiveCheck
         );
 
     /// <summary>
@@ -667,4 +693,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         ((aircraft is not null) && string.Equals(aircraft.Callsign, callsign, StringComparison.Ordinal))
             ? aircraft
             : main.Aircraft.FirstOrDefault(a => string.Equals(a.Callsign, callsign, StringComparison.Ordinal));
+
+    /// <summary>One <see cref="ObserveAircraftUpdates"/> handle: disposing it stops the calls.</summary>
+    private sealed class AircraftUpdateSubscription(MainViewModel main, Action onUpdate) : IDisposable
+    {
+        public void Dispose() => main.AircraftModelUpdated -= onUpdate;
+    }
 }

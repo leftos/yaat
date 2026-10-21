@@ -8,12 +8,15 @@ namespace Yaat.Client.ContextMenus;
 /// clock and miles between them, and a dashed ring on the aircraft the call resolves to when that is another one.
 /// </summary>
 /// <param name="FromCallsign">The aircraft the menu commands, where the bearing line starts.</param>
-/// <param name="TargetCallsign">The aircraft the row names: ringed solid, where the bearing line ends.</param>
+/// <param name="TargetCallsign">
+/// The aircraft the row names: ringed solid, where the bearing line ends; null when no row is pointed at, which leaves the
+/// resolved aircraft's dashed ring alone.
+/// </param>
 /// <param name="ResolvedCallsign">
 /// The aircraft the call resolves to, ringed dashed when it is not <paramref name="TargetCallsign"/>; null for none.
 /// </param>
 /// <param name="ShowBearingLabel">Whether the bearing line carries its <c>{clock} o'clock · {nm} nm</c> label.</param>
-public sealed record RadarCue(string FromCallsign, string TargetCallsign, string? ResolvedCallsign, bool ShowBearingLabel)
+public sealed record RadarCue(string FromCallsign, string? TargetCallsign, string? ResolvedCallsign, bool ShowBearingLabel)
 {
     /// <summary>
     /// Where each end of the cue is among <paramref name="aircraft"/>, the aircraft a radar view draws: an end whose
@@ -22,7 +25,7 @@ public sealed record RadarCue(string FromCallsign, string TargetCallsign, string
     /// </summary>
     public ResolvedRadarCue? ResolveAgainst(IReadOnlyList<IMenuAircraft> aircraft)
     {
-        IMenuAircraft? target = Find(aircraft, TargetCallsign);
+        IMenuAircraft? target = (TargetCallsign is null) ? null : Find(aircraft, TargetCallsign);
         IMenuAircraft? resolvedOther = ((ResolvedCallsign is { } resolved) && (resolved != TargetCallsign)) ? Find(aircraft, resolved) : null;
         if ((target is null) && (resolvedOther is null))
         {

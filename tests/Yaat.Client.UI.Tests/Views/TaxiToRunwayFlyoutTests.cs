@@ -177,7 +177,14 @@ public class TaxiToRunwayFlyoutTests
     {
         var host = new RecordingMenuHost("")
         {
-            Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
+            Session = new(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
         };
 
         TaxiToRunwayPanel panel = Panel(OpenStripFlyout(host));
@@ -215,7 +222,14 @@ public class TaxiToRunwayFlyoutTests
         );
         var host = new RecordingMenuHost("")
         {
-            Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
+            Session = new(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
             TaxiToRunway = new TaxiToRunwayMenu(ends),
         };
 
@@ -895,7 +909,14 @@ public class TaxiToRunwayFlyoutTests
     ) =>
         new("")
         {
-            Session = new(Initials, false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)]),
+            Session = new(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
+                SoloAdvisoryPrefill.TrueValues,
+                false
+            ),
             TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search)),
         };
 

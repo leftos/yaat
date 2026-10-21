@@ -250,7 +250,39 @@ public partial class MainViewModel
             }
 
             ScheduleShownRouteRefresh();
+            ScheduleAircraftModelUpdated();
         });
+    }
+
+    /// <summary>
+    /// Raised on the UI thread once after each burst of aircraft updates the client receives has been applied to
+    /// <see cref="Aircraft"/> (<see cref="ScheduleAircraftModelUpdated"/>), not once per aircraft.
+    /// </summary>
+    public event Action? AircraftModelUpdated;
+
+    private bool _aircraftModelUpdatedScheduled;
+
+    /// <summary>
+    /// Coalesces <see cref="AircraftModelUpdated"/> as <see cref="ScheduleShownRouteRefresh"/> coalesces the route rebuilds: the
+    /// server broadcasts one <see cref="OnAircraftUpdated"/> per aircraft, and an observer's pass reads every aircraft, so raising
+    /// the event per update made a busy tick O(n²) on the UI thread. It is raised once, at background priority, after the burst.
+    /// </summary>
+    private void ScheduleAircraftModelUpdated()
+    {
+        if (_aircraftModelUpdatedScheduled)
+        {
+            return;
+        }
+
+        _aircraftModelUpdatedScheduled = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () =>
+            {
+                _aircraftModelUpdatedScheduled = false;
+                AircraftModelUpdated?.Invoke();
+            },
+            Avalonia.Threading.DispatcherPriority.Background
+        );
     }
 
     private bool _shownRouteRefreshScheduled;

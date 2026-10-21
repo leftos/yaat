@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -27,7 +28,10 @@ public class QuickCommandVisibilityRulesTests
         };
 
     private static MenuContext Context(VfrCommandsForIfr mode) =>
-        new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, mode, QuickCommandDefaults.For));
+        new(
+            new MenuClick("TST123", null, null, []),
+            new MenuSession("XX", false, mode, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+        );
 
     private static bool Shows(AircraftModel aircraft, string id, VfrCommandsForIfr mode)
     {

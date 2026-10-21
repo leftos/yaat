@@ -46,6 +46,7 @@
 - Left and right 360s at fix share one fix flyout with a side toggle, offered to VFR aircraft aloft.
 - PTAC… opens a live flyout: a PTAC / Forced toggle, heading and altitude boxes that leave `PH` / `PA` when empty, and the destination's approaches.
 - Report traffic in sight… and Follow traffic… open live flyouts of the eight nearest airborne aircraft; pointing at a row rings it on the radar.
+- In solo training, Report traffic in sight… opens a flyout where the student types the advisory, helped by a builder and an optional live check.
 - Follow traffic… is offered to any VFR aircraft aloft and in All Commands › Approach; traffic not reported in sight is greyed unless Force is on.
 - Initiate handoff… and Point out… open flyouts of the staffed positions grouped by facility, yours first, each row showing code, name and frequency.
 - All Commands › Hold offers Hold at fix… to IFR aircraft in the air, opening the same flyout as the quick command.

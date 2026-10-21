@@ -50,16 +50,15 @@ public class AltitudeFlyoutTests
         MaintainAltitudePanel panel = open.Panel;
 
         Assert.True(open.Flyout.IsOpen);
-        Assert.Empty(host.RichListPopups);
         Assert.Equal("Maintain altitude", panel.List.Title);
         Assert.Equal("now 3,000 · assigned 5,000", panel.List.Subtitle);
         Assert.Equal(AltitudeFlyout.BoxPlaceholder, panel.Box.PlaceholderText);
         Assert.True(panel.Box.IsKeyboardFocusWithin, "the altitude box does not hold focus at open");
-        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000", []), Row(panel, "3,000"));
-        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000", []), Row(panel, "5,000"));
-        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000", []), Row(panel, "4,000"));
-        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600", []), Row(panel, "2,600"));
-        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500", []), Row(panel, "2,500"));
+        Assert.Equal(new MenuRichRow("●", "3,000", "now", MenuRichRowKind.Now, "CM 3000"), Row(panel, "3,000"));
+        Assert.Equal(new MenuRichRow("◆", "5,000", "assigned", MenuRichRowKind.Assigned, "CM 5000"), Row(panel, "5,000"));
+        Assert.Equal(new MenuRichRow("↑", "4,000", "CM 4000", MenuRichRowKind.Climb, "CM 4000"), Row(panel, "4,000"));
+        Assert.Equal(new MenuRichRow("↓", "2,600", "DM 2600", MenuRichRowKind.Descend, "DM 2600"), Row(panel, "2,600"));
+        Assert.Equal(new MenuRichRow("↓", "2,500", "below MVA", MenuRichRowKind.BelowMva, "DM 2500"), Row(panel, "2,500"));
         AssertMvaLineBetween(panel, "MVA 2,600 here (sector 12)", 2600, 2500);
         Assert.Equal("5,000", panel.List.Rows[panel.List.SelectedIndex].Label);
 

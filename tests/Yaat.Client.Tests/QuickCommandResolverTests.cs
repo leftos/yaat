@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
@@ -55,7 +56,10 @@ public class QuickCommandResolverTests
     private static MenuContext Context() => Context(QuickCommandDefaults.For);
 
     private static MenuContext Context(Func<AircraftSituation, IReadOnlyList<QuickCommandEntry>> lists) =>
-        new(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, VfrCommandsForIfr.None, lists));
+        new(
+            new MenuClick("TST123", null, null, []),
+            new MenuSession("XX", false, VfrCommandsForIfr.None, lists, SoloAdvisoryPrefill.TrueValues, false)
+        );
 
     private static List<QuickCommandEntry> Entries(params string[] ids) => [.. ids.Select(id => new CatalogQuickCommandEntry(id, null))];
 
@@ -309,7 +313,10 @@ public class QuickCommandResolverTests
     public void VfrOnlyCustomEntry_ReachesAnIfrAircraft_OnlyUnderAll(VfrCommandsForIfr mode, bool kept)
     {
         List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Left traffic", "MLT", null, MenuFlightRules.VfrOnly)];
-        var context = new MenuContext(new MenuClick("TST123", null, null, []), new MenuSession("XX", false, mode, QuickCommandDefaults.For));
+        var context = new MenuContext(
+            new MenuClick("TST123", null, null, []),
+            new MenuSession("XX", false, mode, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+        );
 
         QuickCommandResolution resolution = QuickCommandResolver.Resolve(entries, Airborne("IFR", AircraftSituation.IfrEnroute), context, _ => true);
 

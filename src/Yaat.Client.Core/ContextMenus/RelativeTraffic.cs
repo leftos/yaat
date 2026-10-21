@@ -57,8 +57,8 @@ public static class RelativeTraffic
 
     /// <summary>
     /// True when the selected aircraft may follow the right-clicked one in the air: it is airborne and has reported
-    /// that callsign as traffic in sight. Mirrors the sim's FOLLOW gate (airborne + traffic in sight) in
-    /// <c>CommandDispatcher.TryAirborneFollow</c>.
+    /// that callsign as traffic in sight. Stricter than the sim's FOLLOW gate in <c>CommandDispatcher.TryAirborneFollow</c>,
+    /// which checks only the traffic-in-sight flag.
     /// </summary>
     public static bool ShouldOfferFollow(IMenuAircraft selected, string rightClickedCallsign) =>
         (!selected.IsOnGround)

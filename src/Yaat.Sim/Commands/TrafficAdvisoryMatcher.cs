@@ -80,7 +80,7 @@ public static class TrafficAdvisoryMatcher
     // candidate set, then lowest weighted error wins.
     private const int RelativeOctantGate = 1; // ±45°
     private const int PatternMilesGateNm = 2;
-    private const double LandmarkRadiusNm = 2.0;
+    public const double LandmarkRadiusNm = 2.0;
     private const double LandmarkExactNm = 1.0;
 
     /// <summary>
@@ -438,7 +438,8 @@ public static class TrafficAdvisoryMatcher
         return index < 0 ? 0 : index;
     }
 
-    private static int RelativeBearingOctant(TrafficAdvisoryCandidate recipient, TrafficAdvisoryCandidate target)
+    /// <summary>The octant of <paramref name="target"/> off <paramref name="recipient"/>'s nose, 0 (NOSE) clockwise to 7 (NL).</summary>
+    public static int RelativeBearingOctant(TrafficAdvisoryCandidate recipient, TrafficAdvisoryCandidate target)
     {
         double bearing = GeoMath.BearingTo(recipient.Position, target.Position);
         double relative = NormalizeDegrees(bearing - recipient.TrueHeadingDeg);
@@ -520,7 +521,8 @@ public static class TrafficAdvisoryMatcher
         return Math.Min(diff, 8 - diff);
     }
 
-    private static bool TypeMatches(TrafficAdvisoryCandidate target, string requestedType)
+    /// <summary>Whether <paramref name="requestedType"/> names <paramref name="target"/>'s type, as every resolver grades the type.</summary>
+    public static bool TypeMatches(TrafficAdvisoryCandidate target, string requestedType)
     {
         string requested = NormalizeType(requestedType);
         string actual = NormalizeType(target.BaseAircraftType);

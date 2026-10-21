@@ -574,6 +574,36 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// Every fix within <paramref name="radiusNm"/> of <paramref name="position"/>, nearest first, ties by name as
+    /// <see cref="FixesNear"/> breaks them. Only the fixes inside the radius are kept and sorted, so a small radius costs one
+    /// latitude check per fix and no sort of the whole database. Reads the same fixes as <see cref="GetFixTuples"/>.
+    /// </summary>
+    /// <param name="position">Where distances are measured from.</param>
+    /// <param name="radiusNm">The farthest a listed fix is, in nautical miles.</param>
+    public IReadOnlyList<NearbyFix> FixesWithin(LatLon position, double radiusNm)
+    {
+        double latitudeSpan = radiusNm / 60.0;
+        List<NearbyFix> near = [];
+        foreach ((string name, double lat, double lon) in GetFixTuples())
+        {
+            if (Math.Abs(lat - position.Lat) > latitudeSpan)
+            {
+                continue;
+            }
+
+            var fixPosition = new LatLon(lat, lon);
+            double distanceNm = GeoMath.DistanceNm(position, fixPosition);
+            if (distanceNm <= radiusNm)
+            {
+                near.Add(new NearbyFix(name, fixPosition, distanceNm));
+            }
+        }
+
+        near.Sort(NearestFirst);
+        return near;
+    }
+
+    /// <summary>
     /// Every radial navaid (<see cref="IsRadialNavaid"/>: a VOR, VORTAC or TACAN) whose name starts with
     /// <paramref name="namePrefix"/> (ignoring case; an empty prefix matches every one), nearest to <paramref name="position"/>
     /// first, however far, ties by name as <see cref="FixesNear"/> breaks them.

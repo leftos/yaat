@@ -2747,7 +2747,7 @@ public static class CommandDescriber
         return details.Altitude is { } altitude ? $"{basePart} {altitude / 100:000}" : basePart;
     }
 
-    internal static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details)
+    public static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details)
     {
         string basePart =
             $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, "
@@ -2758,7 +2758,7 @@ public static class CommandDescriber
     private static string FormatTrafficRelativeCanonical(TrafficRelativeDetails details) =>
         $"RTIS {details.Position} {details.Miles} {details.AircraftType}";
 
-    internal static string FormatTrafficRelativePhrase(TrafficRelativeDetails details) =>
+    public static string FormatTrafficRelativePhrase(TrafficRelativeDetails details) =>
         $"Traffic, off your {RelativePositionWord(details.Position)}, {FormatMiles(details.Miles)}, "
         + $"{FormatVfrType(details.AircraftType)}, report it in sight.";
 
@@ -2773,7 +2773,7 @@ public static class CommandDescriber
         return $"RTIS {PatternLegToken(details.Leg)} {side}{details.Miles} {details.RunwayId} {details.AircraftType}";
     }
 
-    internal static string FormatTrafficPatternPhrase(TrafficPatternDetails details)
+    public static string FormatTrafficPatternPhrase(TrafficPatternDetails details)
     {
         string side = details.Side switch
         {
@@ -2786,7 +2786,7 @@ public static class CommandDescriber
             + $"{FormatVfrType(details.AircraftType)}, report it in sight.";
     }
 
-    internal static string FormatTrafficLandmarkPhrase(TrafficLandmarkDetails details)
+    public static string FormatTrafficLandmarkPhrase(TrafficLandmarkDetails details)
     {
         string name = NavigationDatabase.Instance.GetFixFriendlyName(details.FixName);
         return $"Traffic, over {name}, {FormatVfrType(details.AircraftType)}, report it in sight.";
@@ -2862,7 +2862,7 @@ public static class CommandDescriber
         return $"{article} {formatted}";
     }
 
-    internal static string FormatFieldAdvisoryPhrase(FieldAdvisoryDetails details) =>
+    public static string FormatFieldAdvisoryPhrase(FieldAdvisoryDetails details) =>
         $"Field's at your {details.Clock} o'clock, {FormatMiles(details.Miles)}, report it in sight.";
 
     internal static string FormatSafetyAlertPhrase(SafetyAlertDetails details)

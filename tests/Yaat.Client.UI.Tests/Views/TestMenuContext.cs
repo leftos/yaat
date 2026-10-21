@@ -1,4 +1,5 @@
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -16,6 +17,6 @@ internal static class TestMenuContext
     ) =>
         new(
             new MenuClick(callsign, previousSelection, null, []),
-            new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr, QuickCommandDefaults.For)
+            new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
         );
 }

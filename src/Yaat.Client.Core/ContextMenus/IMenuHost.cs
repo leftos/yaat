@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -24,6 +25,33 @@ public interface IMenuHost
     /// <paramref name="initials"/> through the "VFR commands for IFR aircraft" gate, as typed input and favorites go.
     /// </summary>
     Task SendGatedAsync(string callsign, string command, string initials);
+
+    /// <summary>
+    /// For <paramref name="callsign"/>, sends <paramref name="command"/> on behalf of <paramref name="initials"/> and hands back
+    /// the sim's answer, which a flyout that stays open on a refusal reads; null when the command never reached the sim.
+    /// </summary>
+    Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials);
+
+    /// <summary>
+    /// Every aircraft the client holds, as the traffic-advisory matcher's candidates (<see cref="AdvisoryCandidates.From"/>),
+    /// the commanded aircraft included; the solo advisory flyout's live check matches against them.
+    /// </summary>
+    IReadOnlyList<TrafficAdvisoryCandidate> GetAdvisoryCandidates();
+
+    /// <summary>
+    /// Calls <paramref name="onUpdate"/> on the UI thread once after each burst of aircraft updates the client receives, until
+    /// the returned handle is disposed; the solo advisory flyout re-runs its live check on it while open.
+    /// </summary>
+    IDisposable ObserveAircraftUpdates(Action onUpdate);
+
+    /// <summary>Where the navigation data puts the fix <paramref name="name"/>; null when it has none by that name.</summary>
+    LatLon? GetFixPosition(string name);
+
+    /// <summary>
+    /// The reporting points the over form offers for an aircraft at <paramref name="position"/>: the fixes within the matcher's
+    /// landmark radius, nearest first, at most <see cref="SoloAdvisoryModel.MaxReportingPoints"/>.
+    /// </summary>
+    IReadOnlyList<string> GetReportingPointsNear(LatLon position);
 
     /// <summary>
     /// Opens the surface's free-text input showing <paramref name="placeholder"/>, holding <paramref name="initialText"/>
@@ -88,13 +116,6 @@ public interface IMenuHost
     /// closest to it) highlighted when it is not null, and hands the picked item to <paramref name="onPick"/>.
     /// </summary>
     void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick);
-
-    /// <summary>
-    /// Opens the surface's titled picker of <paramref name="list"/>'s rows, with its selected row centred, and hands the
-    /// row the controller picks to <paramref name="onPick"/>; a row that cannot be picked (<see cref="MenuRichRow.IsPickable"/>)
-    /// is never handed over.
-    /// </summary>
-    void ShowRichListPopup(MenuRichList list, Action<MenuRichRow> onPick);
 
     /// <summary>
     /// The minimum vectoring altitude sector covering <paramref name="position"/>: its name and floor in feet MSL; null
