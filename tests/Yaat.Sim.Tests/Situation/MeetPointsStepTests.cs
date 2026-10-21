@@ -15,7 +15,7 @@ namespace Yaat.Sim.Tests.Situation;
 /// within the 1,500 ft look-ahead, at that junction; a parked aircraft carries none and is no one's partner; an aircraft at
 /// another airport is no one's partner; the rows survive a snapshot round-trip.
 ///
-/// <para>The FOLLOW montage's H2 clip at KOAK: N738SP taxis from GA16 via F, C, B to runway 28R while N52417, parked on K until
+/// <para>The KOAK H2 ground scene: N738SP taxis from GA16 via F, C, B to runway 28R while N52417, parked on K until
 /// t=36, then taxis north on K across F, so the two routes meet at the F/K/L junction until N52417 has crossed it.</para>
 /// </summary>
 public class MeetPointsStepTests(ITestOutputHelper output)

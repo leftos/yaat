@@ -17,7 +17,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// category's taxi brake rate, comes to rest with its nose at the hold line, and reports holding short at the taxiway it
 /// is on.
 ///
-/// <para>The FOLLOW montage's H1 clip (<c>tools/montage/follow/H1</c>): at KOAK, N52417 taxis from GA13 via F, C, B to
+/// <para>The KOAK H1 ground scene: at KOAK, N52417 taxis from GA13 via F, C, B to
 /// runway 28R, cleared across runway 33 at C; N738SP, parked at GA16, is told <c>FOLLOWG N52417</c> with no route of its
 /// own, so it falls in behind the lead and, holding no crossing clearance, stops at the runway 33 holding position on C.
 /// The recording showed it stop from 20 kt to 0 in one second, 115 ft short of the bar, and report "holding short runway

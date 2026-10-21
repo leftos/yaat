@@ -17,7 +17,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// inside its taxi-rate stopping distance. Stopped there, it leaves the traffic the room the conflict detector wants, so the
 /// traffic crosses without being stopped, and the give-way releases behind it.
 ///
-/// <para>The FOLLOW montage's H2 clip (<c>tools/montage/follow/H2</c>): at KOAK, N738SP taxis from GA16 via F, C, B to
+/// <para>The KOAK H2 ground scene: at KOAK, N738SP taxis from GA16 via F, C, B to
 /// runway 28R while N52417, told to taxi at t=36, taxis north on K across F towards the east GA ramp; at t=56 N738SP is
 /// told <c>GIVEWAY N52417</c> and gives way on F at the F/K/L junction.</para>
 /// </summary>

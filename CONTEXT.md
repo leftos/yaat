@@ -851,11 +851,5 @@ A Markdown page with one short section and one screenshot per major feature a re
 **Hotfix**:
 A release that ships only the items in the Linear release `vHotfix`, ahead of `vNext` and without the rest of `main`: built from `hotfix/v<version>` branches in both repos, cut at the last release and holding cherry-picked (`-x`) commits, tagged `v<version>`, and deleted after the tag is pushed (`prepare-release`, "Hotfix or regular").
 
-**Reel release**:
-The Linear release `vNext reels` in the yaat pipeline, holding the sizzle reels for what `vNext` ships. It never fences work and never blocks a cut; at the cut it is renamed `<version> reels` and a fresh one opens.
-
-**Sizzle reel**:
-A short captioned video showing a major feature a release introduces or reworks, made from scripted scenes replayed in the client and recorded with the client driver, after the release is cut, in a session with no builds running (the FOLLOW reel: docs/plans/follow-video-montage.md). Reel issues live in the reel release, never in `vNext`.
-
 **vHotfix**:
 The Linear release in the yaat pipeline holding the issues a hotfix will ship (`linear release add yaat --hotfix <ID>`). While it holds an open issue it fences the repo ahead of `vNext`; completing the hotfix turns it into the released `<version>`.

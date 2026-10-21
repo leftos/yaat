@@ -7,7 +7,7 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// The KOAK north-field ground clips of the FOLLOW montage (<c>tools/montage/follow/H1</c> and <c>H2</c>): two VFR C172s,
+/// The KOAK north-field ground scenes H1 and H2: two VFR C172s,
 /// N52417 and N738SP, on the real KOAK layout, driven by the clip's script one sim-second at a time. Each clip test inlines
 /// its clip's <c>scenario.json</c> and replays its <c>script.txt</c> through <see cref="RunScript"/>.
 /// </summary>

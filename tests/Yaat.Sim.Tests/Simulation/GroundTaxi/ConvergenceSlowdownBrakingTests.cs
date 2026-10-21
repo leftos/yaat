@@ -13,7 +13,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// A taxiing aircraft the ground conflict detector slows for a converging aircraft brakes at its category's taxi brake
 /// rate; the convergence slowdown never takes speed off it faster than its brakes can.
 ///
-/// <para>The FOLLOW montage's H2 clip (<c>tools/montage/follow/H2</c>) at KOAK: N738SP taxis from GA16 via F, C, B to
+/// <para>The KOAK H2 ground scene: N738SP taxis from GA16 via F, C, B to
 /// runway 28R while N52417 taxis north on K across F. Both routes run through node 439, so the pair classifies as
 /// converging once N738SP's route reaches it, about 860 ft out. The recording (seed 20261001) showed N738SP drop from
 /// 20.0 to 9.5 kt between t=42 and t=43 and from 16.0 to 8.6 kt between t=51 and t=52, before any controller

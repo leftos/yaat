@@ -29,13 +29,13 @@ Phase 1 asks which one. Every phase below is the regular path unless a step carr
 | 1.3 | `PREV_TAG` is the tag the hotfix branch is cut from: the latest tag merged into `main` |
 | 1.4 | A revision bump, above the last release and below the next regular one |
 | 1.6 | Cut `hotfix/v{version}` in both repos and cherry-pick the items' commits |
-| 2.2, 2.3, 2.4, 2.11 | Skipped: a hotfix recomputes no cache, consolidates no recordings, refreshes no screenshots and has no showcase or reels |
+| 2.2, 2.3, 2.4, 2.11 | Skipped: a hotfix recomputes no cache, consolidates no recordings, refreshes no screenshots and has no showcase |
 | 2.5 | Not applied: a hotfix ships only `vHotfix` items, and open user bugs wait for the regular cut |
 | 2.7, 2.8 | Run over the hotfix branches, `$PREV_TAG..hotfix/v{version}` in yaat and `$SERVER_BASE..hotfix/v{version}` in yaat-server |
 | 5.2, 5.4, 5.5 | Done on the branch |
 | 6.3 | Branches and tags are pushed separately, in both repos |
 | 7.2, 7.5 | The hotfix image build and deploy commands |
-| 8.1, 8.4 | `release complete --hotfix`, then delete the branches |
+| 8.1, 8.3 | `release complete --hotfix`, then delete the branches |
 
 ## Phase 1: Ground the run
 
@@ -334,15 +334,13 @@ A milestone heading records what the change was motivated by, and a milestone-dr
 
 Skipping the check leaves both errors available: a bullet that under-states its reach, and a needless narrowing of correct behavior because the reviewer trusted a heading instead of a call site.
 
-### 2.11 Check the feature showcase and the reels (subagent)
+### 2.11 Check the feature showcase (subagent)
 
 A minor or major version bump (1.4) ships a **feature showcase** (`CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`.
 
-A revision bump ships none, so on one this step checks only the reels below; a `whats-new-next.md` left from earlier work waits for the next minor release. A missing showcase is not a release failure: `release.yml` and the Discord announcement add the "What's new" link only when the file exists.
+A revision bump ships none, so on one this step is skipped; a `whats-new-next.md` left from earlier work waits for the next minor release. A missing showcase is not a release failure: `release.yml` and the Discord announcement add the "What's new" link only when the file exists.
 
 On a minor or major bump, read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section and check every candidate has its section; a missing one is written before the cut (step 3.2), its screenshot a `whats-new-<topic>` scene.
-
-**Sizzle reels never block a cut.** Reel issues live in the Linear release `vNext reels` in the yaat pipeline, not in `vNext`, and are recorded and edited after the cut in a session with no builds running. A feature that warrants a reel and has none is returned for step 3.1, which puts it to the user, one question per candidate: plan a reel (an **add** joined to `vNext reels` with the MCP `save_issue` `setReleases`), or none. Step 8.2 renames the reel release after the cut.
 
 ### 2.12 Audit `### Fixed` for same-release follow-ups
 
@@ -371,7 +369,7 @@ In one message, report each audit's result and ask for each decision its step de
 - the doc gaps (2.8)
 - the issue matches to close (2.9)
 - the reach corrections (2.10)
-- the missing showcase sections and the reel candidates (2.11, one question per candidate)
+- the missing showcase sections (2.11)
 - the Fixed-bullet candidates (2.12)
 
 ### 3.2 Land the agreed work
@@ -677,7 +675,7 @@ If it's still a draft (deploy skipped, failed, the commit check refused, or `rel
 
 ## Phase 8: Close out
 
-Needs the release public (step 7.6, or 7.3 on the client-only path). Launch 8.1 and 8.3 together; 8.2 follows 8.1's `release complete`.
+Needs the release public (step 7.6, or 7.3 on the client-only path). Launch 8.1 and 8.2 together.
 
 ### 8.1 Complete the Linear release — no confirmation
 
@@ -703,17 +701,13 @@ If it exits 2 with `LINEAR_OAUTH_CLIENT_ID is not set`, the shell predates the u
 
 Then sweep the project statuses with the Linear MCP `save_project`: a project whose every issue is Done or Canceled → `completed` (the snapshot also does this), one with an In Progress issue → `started`. Then regenerate the plan snapshot (`linear snapshot yaat --repo-root "$YAAT"`) and commit `docs/plans/MAIN.md` as `docs: plan snapshot` and push it, if it changed; the deploy is over, so a commit past the tag is safe now.
 
-### 8.2 Roll the reel release
-
-After 8.1's `linear release complete`, rename `vNext reels` to `<version> reels` (the MCP `save_release`) and create a fresh `vNext reels` (stage Planned) for the next release's reels.
-
-### 8.3 Close the open issues this release fixed
+### 8.2 Close the open issues this release fixed
 
 Close each issue the user approved in 3.1 from 2.9's table. When closing, comment with the version, the implementing commit SHA, and a short description of the shipped behavior in user terms — the reporter should be able to tell whether their case is handled without reading the diff.
 
-### 8.4 On a hotfix: move the changelog bullets and delete the branches
+### 8.3 On a hotfix: move the changelog bullets and delete the branches
 
-Skip on a regular release, and skip 8.2 on a hotfix: it has no reels.
+Skip on a regular release.
 
 On `main`, move the hotfix items' bullets out of `## Unreleased` into a `## {version}` heading (dated like its siblings) directly below it, and commit and push that as a `docs:` commit once the release is public. The branch carries the same bullets as its own section (step 1.6).
 
