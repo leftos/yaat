@@ -4,16 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-989 Stop FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch flaking on nav data · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-137 Fix the SessionPersistenceTests Directory.Move flake under test-all · release vNext — Urgent · Singles
-- [ ] YAAT-169 Investigate the MainViewModelSpeechContextThreadingTests suite-load flake · release vNext — Urgent · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — Urgent · Singles
-- [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128 · release vNext — Urgent · Backlog
-- [ ] YAAT-646 Make CrcJoinSessionTests' Tower Cab move into another room's session load-proof · release vNext — Urgent · Backlog
-- [ ] YAAT-784 Make ChangeDetectionTests' concurrent remove-and-clear test load-proof · release vNext — Urgent · Backlog
-- [ ] YAAT-957 Await the CRC alias load in the clear-terminal-on-scenario-load tests · release vNext — Urgent · Backlog
-- [ ] YAAT-972 Fix the GetSimTime_NoMainWindow_AnswersTheNoStateError flake · release vNext — Urgent · Backlog
-- [ ] YAAT-973 Fix the PushbackTargets_Gate26_Seed_ShowsSeedAtOnce flake · release vNext — Urgent · Backlog
 
 ## Context-menu quick commands (#471)
 
@@ -672,3 +663,6 @@
 - [ ] YAAT-992 Client driver: wait for any UI change, and start the effect with the wait
 - [ ] YAAT-994 Resolve NavData and CIFP offline in Yaat.Client.Tests
 - [ ] YAAT-995 Stop ManagedStackCapture's ClrMD snapshot clones outliving the capture
+- [ ] YAAT-1002 Don't fail a prepare-restart on a held backup delete; log the swallowed rollback failure
+- [ ] YAAT-1003 Decide vEDST's HandleSessionStarted before StartSession answers (late fire-and-forget read)
+- [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
