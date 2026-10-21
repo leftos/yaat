@@ -122,6 +122,7 @@ public sealed class AutomationPointerTests : AutomationHostFixture
         // The lower half of the second row: the drop lands after it.
         Control second = entries.ContainerFromItem(rows[1])!;
         Point to = second.TranslatePoint(new Point(second.Bounds.Width / 2, second.Bounds.Height * 0.75), window)!.Value;
+        RenderUntilHit(window, from, handle);
         var viewModel = new MainViewModel(new FakeFilePickerService());
         Func<IReadOnlyList<Window>> previousWindows = AutomationTools.OpenWindows;
         AutomationTools.OpenWindows = () => [window];
@@ -462,6 +463,21 @@ public sealed class AutomationPointerTests : AutomationHostFixture
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
         Render();
+    }
+
+    // Hit testing reads the compositor's last processed frame, and a batch committed while an earlier one is unprocessed waits a
+    // frame, so the rows a settle laid out can reach the hit test a tick later.
+    private static void RenderUntilHit(Window window, Point point, Visual target)
+    {
+        const int HangGuardFrames = 100;
+        for (int frames = 0; (window.InputHitTest(point) as Visual)?.GetSelfAndVisualAncestors().Contains(target) != true; frames++)
+        {
+            Assert.True(
+                frames < HangGuardFrames,
+                $"After {HangGuardFrames} frames, {point} still hits {window.InputHitTest(point)?.GetType().Name ?? "nothing"}, not the {target.GetType().Name}."
+            );
+            Render();
+        }
     }
 
     private static void Render()
