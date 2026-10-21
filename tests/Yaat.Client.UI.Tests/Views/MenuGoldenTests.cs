@@ -271,7 +271,7 @@ public class MenuGoldenTests
 
         // Waited for only once every menu is rendered: a wait yields the UI thread, and the main view model's own
         // background jobs would then change what a later fixture renders. Waiting keeps no plan outliving the render.
-        await Task.WhenAll(pushPlans).WaitAsync(ClientMenuHostGroundTests.SettleTimeout, TestContext.Current.CancellationToken);
+        await Task.WhenAll(pushPlans).WaitAsync(ClientMenuHostGroundTests.SettleHangGuard, TestContext.Current.CancellationToken);
         return goldens;
     }
 

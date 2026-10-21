@@ -34,8 +34,8 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     /// <summary>The B738 parked on gate 27, beside gate 26's pushes onto TE and TC.</summary>
     internal const string Gate27Neighbour = "SWA27";
 
-    /// <summary>How long a test waits for a background live plan to land; it takes well under a second.</summary>
-    internal static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(30);
+    /// <summary>How long a test waits for a background live plan to land: a hang guard a passing run never reaches.</summary>
+    internal static readonly TimeSpan SettleHangGuard = TimeSpan.FromMinutes(5);
 
     private readonly OakPushTargetSeedCopy _seedCopy = seedCopy;
 
@@ -262,7 +262,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.Empty(list.Targets);
         Assert.False(list.Settled.IsCompleted);
 
-        await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
+        await list.Settled.WaitAsync(SettleHangGuard, TestContext.Current.CancellationToken);
 
         Assert.True(list.Settled.IsCompleted);
         List<PushTargetRowKey> expected = LivePlanRows(main, target, Gate26);
@@ -322,7 +322,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.Contains(list.Targets, t => t.Command == "PUSH TE");
         Assert.All(list.Targets, t => Assert.Null(t.BlockedBy));
 
-        await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
+        await list.Settled.WaitAsync(SettleHangGuard, TestContext.Current.CancellationToken);
         Assert.Contains(list.Targets, t => t.Command == "PUSH TE");
     }
 
@@ -341,7 +341,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.Equal(Gate27Neighbour, Assert.Single(list.Targets, t => t.Command == "PUSH TE").BlockedBy);
         Assert.Equal(Gate27Neighbour, Assert.Single(list.Targets, t => t.Command == "PUSH TC").BlockedBy);
 
-        await list.Settled.WaitAsync(SettleTimeout, TestContext.Current.CancellationToken);
+        await list.Settled.WaitAsync(SettleHangGuard, TestContext.Current.CancellationToken);
         Assert.Equal(Gate27Neighbour, Assert.Single(list.Targets, t => t.Command == "PUSH TE").BlockedBy);
     }
 

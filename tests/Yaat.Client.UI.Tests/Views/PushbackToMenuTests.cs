@@ -841,5 +841,5 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
 
     /// <summary>Waits for the list's background live plan to land, so no plan outlives its test.</summary>
     private static Task Settle(PushTargetList list) =>
-        list.Settled.WaitAsync(ClientMenuHostGroundTests.SettleTimeout, TestContext.Current.CancellationToken);
+        list.Settled.WaitAsync(ClientMenuHostGroundTests.SettleHangGuard, TestContext.Current.CancellationToken);
 }
