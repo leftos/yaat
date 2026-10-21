@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff Point-out Flyouts</title>
+<style>
+  /* Layout: settled and found notes, today's popup, then one artboard whose lanes each draw four states of the flyout. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 120ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts i { font-style: normal; font: 500 11px var(--f-mono); color: var(--tag-b); }
+  .nd { font: 600 10.5px var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--warn); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+  .ok { font: 600 10.5px var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--tag-a); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 80ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .side { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+
+  .lanes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .recb { font: 600 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--panel); background: var(--tag-a); border-radius: 3px; padding: 1px 6px; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; max-width: 150ch; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 96ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 380px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; gap: 1px; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .cmd.bad { color: #e08a8a; opacity: 1; }
+  .panel { max-height: 300px; overflow-y: auto; scrollbar-color: #555 transparent; position: relative; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .hint { font: 12px Inter, "Segoe UI", sans-serif; color: #8f969e; padding: 6px 11px 8px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; }
+
+  /* The box. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 230px; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .bnote { font: 11px Inter, "Segoe UI", sans-serif; color: #e0b070; min-height: 0; }
+  .bnote:empty { display: none; }
+
+  /* Position rows: code, label (name over callsign and frequency), command. */
+  .pr { display: grid; grid-template-columns: 20px 42px minmax(0, 1fr) auto; align-items: center; min-height: 30px; padding: 2px 11px 2px 8px; border-radius: 4px; cursor: pointer; color: #e4e7eb; border-left: 3px solid transparent; }
+  .pr:hover { background: rgba(255, 255, 255, .085); }
+  .pr.kfocus { outline: 1px solid #8fc1ff; outline-offset: -1px; }
+  .pr .ag { font-size: 12px; text-align: center; color: #5b8def; }
+  .pr .code { font: 600 13px "JetBrains Mono", Consolas, monospace; }
+  .pr .lab { min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; }
+  .pr .lab .n { font: 13px Inter, "Segoe UI", sans-serif; white-space: nowrap; flex: 0 0 auto; }
+  .pr .lab .s { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pr .lab .s i { font-style: normal; color: #7fd1b9; }
+  .pr.own { opacity: .5; cursor: default; }
+  .pr.own:hover { background: transparent; }
+  .pr.likely { background: #2f4a6e; border-left-color: #5b8def; }
+  .pr.likely:hover { background: #355381; }
+  .pr.gap { cursor: default; border: 1px dashed #ffc062; border-left-width: 1px; margin: 2px 4px; }
+  .pr.gap:hover { background: transparent; }
+  .pr.gap .n { color: #ffc062; }
+  .pr .flag { font: 10px "JetBrains Mono", Consolas, monospace; color: #ffc062; border: 1px solid #ffc062; border-radius: 3px; padding: 0 3px; flex: 0 0 auto; }
+
+  /* Code chips (lane C). */
+  .chipgrp { padding: 4px 11px 2px; }
+  .chipgrp .cg { font-size: 11px; color: #a4adb8; padding: 3px 0 3px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { font: 12.5px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #33383f; border-radius: 3px; height: 28px; min-width: 44px; padding: 0 7px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+  .chip:hover { background: #2e343b; border-color: #5a6573; }
+  .chip.kfocus { background: #24406a; border-color: #8fc1ff; color: #fff; }
+  .chip.own { opacity: .45; cursor: default; }
+  .chip.likely { border-color: #5b8def; }
+  .chip.likely::after { content: ""; position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: #5b8def; }
+  .chip.flagged::before { content: ""; position: absolute; left: 2px; bottom: 2px; width: 0; height: 0; border-right: 5px solid transparent; border-bottom: 5px solid #ffc062; }
+  .readout { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; padding: 7px 11px 8px; border-top: 1px solid #3d3d3d; margin-top: 6px; min-height: 34px; }
+  .readout b { font: 700 13px "JetBrains Mono", Consolas, monospace; color: #fff; }
+  .readout code { font: 12px "JetBrains Mono", Consolas, monospace; color: #A8CAFF; }
+  .readout .k { color: #8f969e; }
+
+  /* The aircraft menu stub and today's popup. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; white-space: nowrap; }
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; gap: 4px; align-items: center; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .inpop .tbox { width: 160px; }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+  .ctl { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 0 10px; font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; padding: 2px 10px; }
+  .ctl.h { color: #e4e7eb; font-weight: 600; padding-top: 6px; grid-template-columns: 1fr; }
+  .ctl code { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; }
+
+  .callout { max-width: 400px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .measure { font: 12px var(--f-mono); color: var(--muted); white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 0 0 18px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { width: 100%; }
+    .tbox { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part C · coordination · mock for the owner's decisions</div>
+  <h1>Initiate handoff and Point out flyouts</h1>
+  <p class="lede">The aircraft menu's <b>Track › Initiate handoff…</b> and <b>Track › Point out…</b> open today's bare input popup, “Position ID”, and send <code>HO</code> or <code>PO</code> with whatever was typed (<code>MenuCatalog.cs</code> lines 79–93, <code>BuildInput</code>). The instructor has to know that Oakland Tower is <code>3O</code> and Center sector 44 is <code>C44</code>; nothing lists who is staffed.</p>
+  <p class="lede">The page draws the flyout three ways (lanes A, B, C). Each lane shows four states: Initiate handoff as it opens, the box filtered by <code>oak</code>, a typed code that matches no staffed position (<code>3S</code>), and Point out, which shares the layout. Every box is live: type in it, press Enter, or click a row or chip; the line under the lane says what would be sent.</p>
+  <p class="lede">The situation: scenario <b>S3-NCTC-3 | Area C Complete</b> (<code>docs/atctrainer-scenario-examples/01J02M96SPYP4JV55R5RMVCQBS.json</code>). The student works <b>3Y</b>, OAK_APP, NorCal Area C Combined, and the scenario connects 19 ATC positions. The aircraft is <b>KFB7</b>, a CL60 from KVNY to KOAK on the EMZOH4, owned by 3Y. Positions, TCPs and frequencies come from <code>docs/vnas-artcc-config-examples/zoa.json</code>.</p>
+
+  <section class="note-box" aria-labelledby="note-h">
+    <h2 id="note-h">Carried from parts X5 and B (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Every quick command gets a designed flyout; single-box inputs become inline boxes.</b> The “Position ID” popup becomes the box at the top of the flyout.</li>
+      <li><b>The keyboard model of part B.</b> Focus lands in the box; typing filters; the first match is outlined and Enter sends it, else the typed text upper-cased, as today. Down moves into the rows, Up from the first row returns to the box, and Escape closes the flyout.</li>
+      <li><b>Screen edge and width</b> (X2b ruling 5): FlipX | SlideY, no shrinking of lists, the 480 px cap. Every flyout here is 380 px wide.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">What the client knows about positions (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>A list exists, but the menu cannot reach it.</b> <code>MainViewModel.OnlineControllers</code> (<code>MainViewModel.Controllers.cs:55</code>) holds one <code>OnlineControllerDto</code> per staffed position (<code>ServerConnection.cs:1879</code>): Callsign, Name, Frequency, FacilityId, FacilityName, PositionType, Tcp, RadioName, RealName, IsActive, IsScenarioPosition.
+        <span class="opts">The server fills it with the room's live CRC clients and the scenario's auto-connect ATC positions (<code>OnlineControllerService</code>). The Controllers tab draws it grouped by facility. <code>IMenuHost</code> has no member that hands it to a menu: <span class="nd">needs a host member</span>, no new server data.</span></li>
+      <li><b>No row argument for every position.</b> <code>OnlineControllerDto.Tcp</code> is set only from a STARS TCP (<code>ArtccConfigService.BuildOnlineControllerDto</code>). It is null for the ERAM sector OAK_44_CTR (whose argument is <code>C44</code>) and for MER_TWR, which has no TCP; for both, <code>HandoffId</code> falls back to the facility id, <code>ZOA</code> or <code>MER</code>, and <code>HO ZOA</code> names no position.
+        <span class="opts">Travis's SUU_S_APP is <code>1S</code>, the same code as NCT's Seca (MRY_APP). The server already computes the shortest code that names exactly one position, for <code>AS</code> (<code>RoomEngine.SelectionCodeFor</code>: TCP or <code>C</code>+sector, else callsign, else callsign@code). <span class="nd">needs new data</span>: that code on each <code>OnlineControllerDto</code>.</span></li>
+      <li><b>Unstaffed positions are not listed.</b> <code>HO 3S</code> (Area C Sunol, not staffed in this scenario) resolves from the ARTCC config on the server (<code>TrackResolver.ResolveTcpToOwner</code>). The client's only config list, <code>ScenarioPositionDto</code> (<code>ServerConnection.cs:1742</code>), carries Id, Callsign and Name only: no TCP, no frequency, no facility.
+        <span class="opts">Naming <code>3S</code> in the flyout, or refusing a code that names nothing, <span class="nd">needs new data</span>.</span></li>
+      <li><b>No “next sector” anywhere.</b> The aircraft carries Owner, OwnerSectorCode, HandoffPeer, HandoffPeerSectorCode and PointoutStatus (<code>IMenuAircraft.cs:200–218</code>), its Destination and its NavigationRoute; nothing on the client or the hub says which sector the route enters next, and no field names the position that handed the aircraft over.
+        <span class="opts">The destination's tower is derivable (Destination <code>KOAK</code> against an online FacilityId <code>OAK</code>). Anything else in lane B's Likely group <span class="nd">needs new data</span>.</span></li>
+      <li><b>Glyphs.</b> Initiate handoff has a strip glyph (<code>QuickCommandGlyphs.cs:181</code>, scope grey). Point out has none; the page draws a dashed draft.</li>
+    </ul>
+  </section>
+
+  <div id="measure"></div>
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open questions for the owner</h2>
+    <ol class="nl">
+      <li><b>1. Layout.</b><span class="opts"><i>A</i> one list by facility · <i>B</i> a Likely group over the list · <i>C</i> code chips with a readout line.</span></li>
+      <li><b>2. Which positions the flyout offers.</b><span class="opts"><i>a</i> the staffed positions only (the data exists) · <i>b</i> staffed, then every unstaffed position of the student's facility, greyed (needs new data) · <i>c</i> staffed only, and an unstaffed code reaches the sim only when typed (as drawn).</span></li>
+      <li><b>3. Enter on a code that matches no row.</b><span class="opts"><i>a</i> send it as typed, as today, and let the sim refuse it (as drawn) · <i>b</i> refuse it under the box, “Not a known position” (needs the config list of question 2b).</span></li>
+      <li><b>4. One flyout or two.</b><span class="opts"><i>a</i> two entries, two flyouts with one layout (as drawn) · <i>b</i> one flyout with a Handoff <code>HO</code> / Point out <code>PO</code> toggle · <i>c</i> b, plus Force <code>HOF</code> as a third toggle, which no menu offers today.</span></li>
+      <li><b>5. The owner's own row.</b><span class="opts"><i>a</i> shown greyed, “owns the track”, not clickable (as drawn) · <i>b</i> left out.</span></li>
+      <li><b>6. What a row is labelled by.</b><span class="opts"><i>a</i> code, then the position name for a radar position and the radio name for a tower (“Area A Morgan”, “Oakland Tower”), then callsign and frequency small (as drawn) · <i>b</i> code and callsign only · <i>c</i> code and frequency only.</span></li>
+    </ol>
+  </section>
+
+  <footer class="foot">The aircraft menu follows the built menu (bold title, state line, the Track submenu as <code>SharedMenuGroups.Track</code> builds it). Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px, stroke 1.9; Initiate handoff's in the scope grey <code>#DCE2E8</code>, Point out's a dashed draft. Open the page with <code>#measure</code> to list every flyout's rendered size.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const SCOPE = "#DCE2E8";
+  const GL = {
+    HO: [SCOPE, "M14 4h6v16h-6 M3 12h12 M11 8l4 4-4 4"],
+    PO: [SCOPE, "M3 12h10 M9 8l4 4-4 4 M18.5 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7", true],
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${GL[id][0]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${GL[id][2] ? ` stroke-dasharray="3 1.6"` : ""}><path d="${GL[id][1]}"/></svg>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner, after = "") => `<div class="frame"><div class="flabel">${label}</div>${inner}${after}</div>`;
+  const note = html => `<div class="callout" role="note">${html}</div>`;
+  const titleLine = (html, right) => `<div class="mi title"><span class="et">${html}</span><span class="r">${right}</span></div>`;
+
+  /* ---------- Data: S3-NCTC-3's staffed positions, from zoa.json ---------- */
+  /* code: what the row shows and sends; flag: why that code is not in OnlineControllerDto today. */
+  const P = [
+    { code: "3Y", cs: "OAK_APP", name: "Area C Combined", freq: "125.100", fac: "NCT", own: true },
+    { code: "1M", cs: "SJC_M_APP", name: "Area A Morgan", freq: "124.525", fac: "NCT" },
+    { code: "1L", cs: "SJC_L_APP", name: "Area A Licke", freq: "120.100", fac: "NCT" },
+    { code: "1T", cs: "SJC_DEP", name: "Area A Toga", freq: "121.300", fac: "NCT" },
+    { code: "2B", cs: "SFO_B_APP", name: "Area B Boulder", freq: "133.950", fac: "NCT" },
+    { code: "2F", cs: "SFO_F_APP", name: "Area B Foster", freq: "120.350", fac: "NCT" },
+    { code: "2N", cs: "SFO_N_APP", name: "Area B Niles", freq: "134.500", fac: "NCT" },
+    { code: "2Z", cs: "SFO_Z_APP", name: "Area B Cedar", freq: "128.325", fac: "NCT" },
+    { code: "4R", cs: "OAK_DEP", name: "Area D Richmond", freq: "120.900", fac: "NCT" },
+    { code: "5P", cs: "SMF_P_APP", name: "Area E Paradise", freq: "123.700", fac: "NCT" },
+    { code: "3O", cs: "OAK_TWR", name: "Oakland Tower", freq: "127.200", fac: "TWR", dest: true },
+    { code: "3E", cs: "HWD_TWR", name: "Hayward Tower", freq: "120.200", fac: "TWR" },
+    { code: "3L", cs: "LVK_TWR", name: "Livermore Tower", freq: "118.100", fac: "TWR" },
+    { code: "3P", cs: "MOD_TWR", name: "Modesto Tower", freq: "125.300", fac: "TWR" },
+    { code: "3Z", cs: "SCK_TWR", name: "Stockton Tower", freq: "120.300", fac: "TWR" },
+    { code: "1P", cs: "PAO_TWR", name: "Palo Alto Tower", freq: "118.600", fac: "TWR" },
+    { code: "2S", cs: "SQL_TWR", name: "San Carlos Tower", freq: "119.000", fac: "TWR" },
+    { code: "MER_TWR", cs: "MER_TWR", name: "Castle Tower", freq: "118.175", fac: "TWR", flag: "no TCP: Tcp is null and HandoffId reads MER; the callsign is the code" },
+    { code: "C44", cs: "OAK_44_CTR", name: "Sector 44", freq: "127.950", fac: "ZOA", flag: "an ERAM sector: Tcp is null and HandoffId reads ZOA" },
+    { code: "1S", cs: "SUU_S_APP", name: "Travis South", freq: "119.900", fac: "SUU", flag: "1S is also NCT's Seca (MRY_APP)" },
+  ];
+  const GROUPS = [
+    { k: "NCT", label: "NorCal Approach · NCT" },
+    { k: "TWR", label: "Towers" },
+    { k: "ZOA", label: "Oakland Center · ZOA" },
+    { k: "SUU", label: "Travis RAPCON · SUU" },
+  ];
+  const AC = { cs: "KFB7", type: "CL60", state: "Arrival · KVNY–KOAK · 6,000 · 210 kt · EMZOH4", owner: "3Y" };
+  const VERB = { HO: { title: "Initiate handoff", label: "Hand off to" }, PO: { title: "Point out", label: "Point out to" } };
+  const byCode = new Map(P.map(p => [p.code, p]));
+
+  /* ---------- Rows and chips ---------- */
+  const flagHtml = p => p.flag ? `<span class="flag" title="${esc(p.flag)}">needs data</span>` : "";
+  function row(p, verb, o = {}) {
+    const sub = o.why ? `<i>${esc(o.why)}</i>` : `${esc(p.cs)} ${esc(p.freq)}`;
+    const cmd = p.own ? "owns the track" : `${verb} ${p.code}`;
+    return `<div class="pr${p.own ? " own" : ""}${o.likely ? " likely" : ""}" role="menuitem" tabindex="${p.own ? -1 : 0}" data-code="${esc(p.code)}"${o.likely ? " data-likely" : ""}><span class="ag">${o.likely ? "●" : ""}</span><span class="code">${esc(p.code.length > 4 ? "—" : p.code)}</span><span class="lab"><span class="n">${esc(p.name)}</span><span class="s" title="${esc(p.cs)} ${esc(p.freq)}">${sub}</span>${flagHtml(p)}</span><span class="cmd${p.own ? " wait" : ""}">${esc(cmd)}</span></div>`;
+  }
+  const grouped = (verb, skipLikely) => GROUPS.map(g => {
+    const rows = P.filter(p => p.fac === g.k && !(skipLikely && p.dest && verb === "HO")).map(p => row(p, verb)).join("");
+    return rows ? `<div data-group><div class="grp">${esc(g.label)}</div>${rows}</div>` : "";
+  }).join("");
+  const gapRow = text => `<div class="pr gap" role="note"><span class="ag">○</span><span class="code">··</span><span class="lab"><span class="n">${esc(text)}</span><span class="flag">needs new data</span></span><span class="cmd wait"></span></div>`;
+  const noMatch = `<div class="hint" data-nomatch hidden></div>`;
+
+  function listA(verb) { return `<div class="panel">${grouped(verb, false)}${noMatch}</div>`; }
+  function listB(verb) {
+    const likely = verb === "HO"
+      ? row(byCode.get("3O"), verb, { likely: true, why: "destination tower" }) + gapRow("Next sector on the route")
+      : gapRow("Next airspace on the route");
+    return `<div class="panel"><div data-group><div class="grp">Likely <code>${verb === "HO" ? "destination tower, then the route" : "from the route"}</code></div>${likely}</div><div class="grp" style="padding-top:9px">All staffed</div>${grouped(verb, true)}${noMatch}</div>`;
+  }
+  function listC(verb) {
+    const grp = GROUPS.map(g => {
+      const chips = P.filter(p => p.fac === g.k).map(p => `<button type="button" class="chip${p.own ? " own" : ""}${p.dest && verb === "HO" ? " likely" : ""}${p.flag ? " flagged" : ""}" data-code="${esc(p.code)}" title="${esc(`${p.name} · ${p.cs} ${p.freq}`)}"${p.own ? ` tabindex="-1"` : ""}>${esc(p.code)}</button>`).join("");
+      return `<div class="chipgrp" data-group><div class="cg">${esc(g.label)}</div><div class="chips">${chips}</div></div>`;
+    }).join("");
+    return `<div class="panel" style="max-height:none">${grp}${noMatch}</div><div class="readout" data-readout></div>`;
+  }
+
+  /** One position flyout. kind: "a" | "b" | "c"; preset: the box's text. */
+  function posFly(kind, verb, preset = "") {
+    const list = kind === "a" ? listA(verb) : kind === "b" ? listB(verb) : listC(verb);
+    const box = `<div class="mi" role="menuitem">${gl(verb)}<span class="nm"><span>${esc(VERB[verb].label)}</span><span class="under"><input class="tbox focus" type="text" data-box value="${esc(preset)}" placeholder="TCP, sector, callsign or frequency" aria-label="${esc(VERB[verb].label)}" autocomplete="off" spellcheck="false"></span><span class="bnote" data-bnote></span></span><span></span><span class="cmd wait" data-prev>${verb} ···</span></div>`;
+    return `<div class="menu m w fly" role="menu" aria-label="${esc(VERB[verb].title)}" data-verb="${verb}" data-kind="${kind}">${titleLine(`<b>${esc(VERB[verb].title)}</b>`, `${AC.cs} · owned by ${AC.owner}`)}${box}${sep()}${list}</div>`;
+  }
+
+  /* ---------- Filtering ---------- */
+  function matches(p, t) {
+    if (!t) return true;
+    const T = t.toUpperCase();
+    if (p.code.startsWith(T) || p.cs.startsWith(T) || p.freq.startsWith(t)) return true;
+    if (T.length >= 2 && (p.cs.includes(T) || p.name.toUpperCase().split(/\s+/).some(w => w.startsWith(T)))) return true;
+    return false;
+  }
+  function refresh(m) {
+    const verb = m.dataset.verb;
+    const b = m.querySelector("[data-box]");
+    const t = b.value.trim();
+    const T = t.toUpperCase();
+    const els = [...m.querySelectorAll("[data-code]")];
+    let first = null, exact = null;
+    els.forEach(el => {
+      const p = byCode.get(el.dataset.code);
+      const ok = matches(p, t);
+      el.hidden = !ok;
+      el.classList.remove("kfocus");
+      if (ok && t && !p.own) { if (!first) first = el; if (!exact && p.code === T) exact = el; }
+    });
+    m.querySelectorAll(".pr.gap").forEach(g => { g.hidden = !!t; });
+    m.querySelectorAll("[data-group]").forEach(g => { g.hidden = ![...g.querySelectorAll("[data-code], .pr.gap")].some(e => !e.hidden); });
+    const allGrp = [...m.querySelectorAll(".grp")].find(g => g.textContent === "All staffed");
+    if (allGrp) allGrp.hidden = ![...m.querySelectorAll("[data-group]")].slice(1).some(g => !g.hidden);
+    const pick = exact || first;
+    if (pick) pick.classList.add("kfocus");
+    const nm = m.querySelector("[data-nomatch]");
+    const prev = m.querySelector("[data-prev]");
+    const bn = m.querySelector("[data-bnote]");
+    const anyShown = els.some(e => !e.hidden);
+    nm.hidden = !t || anyShown;
+    nm.innerHTML = `No staffed position matches <code>${esc(T)}</code>. Enter sends <code>${verb} ${esc(T)}</code> as typed; the sim answers after the flyout closes.`;
+    bn.textContent = "";
+    if (!t) { prev.textContent = `${verb} ···`; prev.className = "cmd wait"; }
+    else if (pick) { prev.textContent = `${verb} ${pick.dataset.code}`; prev.className = "cmd"; }
+    else { prev.textContent = `${verb} ${T}`; prev.className = "cmd"; bn.textContent = "Not a staffed position: sent as typed"; }
+    m.querySelectorAll(".chip.own").forEach(c => { if (!c.hidden) c.classList.remove("kfocus"); });
+    const ro = m.querySelector("[data-readout]");
+    if (ro) ro.innerHTML = readout(verb, pick ? byCode.get(pick.dataset.code) : null, t);
+  }
+  function readout(verb, p, t) {
+    if (p) return `<b>${esc(p.code)}</b> · ${esc(p.name)} · ${esc(p.cs)} ${esc(p.freq)} · <code>${verb} ${esc(p.code)}</code> · <span class="k">Enter sends</span>${p.flag ? `<br><span class="k">needs data: ${esc(p.flag)}</span>` : ""}`;
+    if (t) return `<span class="k">No chip for</span> <b>${esc(t.toUpperCase())}</b> <span class="k">· Enter sends</span> <code>${verb} ${esc(t.toUpperCase())}</code> <span class="k">as typed</span>`;
+    const d = byCode.get("3O");
+    return verb === "HO" ? `<span class="k">Point at a chip to name it. ● on</span> <b>3O</b> <span class="k">marks the destination tower (${esc(d.name)}).</span>` : `<span class="k">Point at a chip to name it; type a code, callsign or frequency to filter.</span>`;
+  }
+
+  /* ---------- Today ---------- */
+  const trackSub = `<div class="menu m" role="menu" aria-label="Track">${[["Initiate handoff…", true], ["Point out…", false], ["Drop track", false]].map(([l, hot], i) => `<div class="mi plain${hot ? " hot" : ""}"><span>${esc(l)}</span><span>${i === 2 ? `<span class="cmd">DROP</span>` : ""}</span><span class="chev"></span></div>`).join("")}</div>`;
+  const acMenu = `<div class="menu m" role="menu" aria-label="Aircraft menu"><div class="mtitle">${AC.cs} · ${AC.type}</div><div class="mstate">${esc(AC.state)}</div>${sep()}${["Command…", "Track", "Data Block", "All Commands"].map(l => `<div class="mi plain${l === "Track" ? " hot" : " faint"}"><span>${esc(l)}</span><span></span><span class="chev">${l === "Command…" ? "" : "›"}</span></div>`).join("")}</div>`;
+  const inputPopup = `<div class="inpop m"><input class="tbox" type="text" placeholder="Position ID" aria-label="Position ID" autocomplete="off" spellcheck="false" data-oldbox><span class="btn">OK</span><span class="btn">Clear</span></div>`;
+  const ctlTab = `<div class="menu m" style="width:330px" aria-label="Controllers tab">${["NCT - Northern California TRACON"].map(h => `<div class="ctl h">${esc(h)}</div>`).join("")}${P.filter(p => p.fac === "NCT").slice(1, 5).map(p => `<div class="ctl"><code>${p.code}</code><span>${esc(p.name)}</span><span>${p.freq}</span><span>Active</span></div>`).join("")}<div class="ctl h">OAK - Oakland Intl ATCT</div><div class="ctl"><code>3O</code><span>LC1</span><span>127.200</span><span>Active</span></div><div class="ctl h">ZOA - Oakland ARTCC</div><div class="ctl"><code>ZOA</code><span>Sector 44</span><span>127.950</span><span>Active</span></div></div>`;
+  const d0 = {
+    id: "d0-today", title: "Today · a one-box popup, “Position ID”", sends: "HO <typed> · PO <typed>",
+    intro: [
+      "Track › Initiate handoff… and Point out… (offered while the track is owned, <code>AircraftCommandApplicability.IsOwned</code>) close the menu and open <code>MenuPopups.ShowInput</code> at the pointer. Enter sends <code>HO</code> or <code>PO</code> with the text as typed; a blank box closes the popup.",
+      "The list the instructor needs sits in another window: the Controllers tab, grouped by facility, with the handoff id in its left column. For Center sector 44 that column reads <code>ZOA</code> (the facility id, since the DTO's Tcp is null), which is not what <code>HO</code> takes.",
+    ],
+    lanes: [{ kind: "a", name: "As built", hint: "Type in the popup and press Enter to see what it sends.",
+      body: `<div class="pair">${frame("Aircraft menu › <b>Track</b>", `<div class="pair">${acMenu}${trackSub}</div>`)}${frame("Initiate handoff… › <b>input popup</b>", inputPopup)}${frame("Controllers tab (another window), part of it", ctlTab)}</div>`,
+      how: "One box, two buttons; whatever is typed is sent, upper-cased by the parser.",
+      worst: "The instructor types the handoff id the Controllers tab shows for Oakland Center, <code>ZOA</code>; <code>HO ZOA</code> is sent, the popup has closed, and the refusal arrives in the terminal." }],
+  };
+
+  /* ---------- 1. The flyout ---------- */
+  const states = kind => `<div class="pair">${frame("Track › Initiate handoff… › <b>flyout</b>, as it opens", posFly(kind, "HO"))}${frame("typed <b>oak</b>", posFly(kind, "HO", "oak"))}${frame("typed <b>3S</b>: no staffed match", posFly(kind, "HO", "3S"))}${frame("Track › Point out… › <b>flyout</b>, as it opens", posFly(kind, "PO"))}</div>`;
+  const d1 = {
+    id: "d1-layout", title: "1 · The position list: one list, a Likely group, or code chips", sends: "HO <code> · PO <code>",
+    intro: [
+      "All lanes: the title line names the verb, the aircraft and its owner; the box takes a TCP (<code>2B</code>), an ERAM sector (<code>C44</code>), an interfacility code (<code>Δ3</code>), a callsign (<code>OAK_TWR</code>) or a frequency (<code>127.2</code>), the forms <code>HO</code> resolves (COMMANDS.md, Track Operations). Its command column previews what Enter sends. Typing filters by code, callsign, name or frequency; the first match is outlined.",
+      "Rows and chips list the 19 staffed positions plus the student's own 3Y, greyed (the sim refuses a handoff to the owner). A row or chip marked <b>needs data</b> sends a code the client cannot produce from today's DTO (see the note above).",
+    ],
+    lanes: [
+      { kind: "a", rec: true, name: "One list, grouped by facility, the student's facility first", body: states("a"),
+        how: "The box, then one 300 px panel: NorCal Approach (the student's facility, by TCP), Towers (by TCP), Oakland Center, Travis. Each row: code, position name (the radio name for a tower, whose position name is only “LC”), callsign and frequency small, and the whole command. A click sends; Enter sends the outlined row.",
+        worst: "The panel shows the first ten of the 20 rows before it scrolls, so Towers and Center are below the fold until something is typed; typing <code>oak</code> leaves four rows (OAK_APP greyed, OAK_DEP, OAK_TWR, OAK_44_CTR) and Enter sends the first, <code>HO 4R</code>, when Oakland Tower was meant." },
+      { kind: "b", name: "A Likely group over the same list", body: states("b"),
+        how: "Lane A with a Likely group on top. For a handoff: the destination's tower when it is staffed (KOAK → 3O, filled, ●), then the next sector on the route. For a point out: the airspace the route crosses next. The dashed rows are what the client cannot compute; they show only what needs building.",
+        worst: "Of the Likely group only the destination tower exists; without new data it is one row, right for an arrival on final and wrong for a departure or an overflight, where the instructor learns to skip a row that is usually wrong." },
+      { kind: "c", name: "Code chips by facility, a readout line under them", body: states("c"),
+        how: "The codes as chips, grouped as lane A, the way a scope user thinks of positions; the line under them names the outlined or pointed-at chip (name, callsign, frequency, command). The destination tower's chip carries a ● dot; a chip whose code needs data a corner mark.",
+        worst: "Nothing names a chip until it is pointed at: an instructor who does not know NorCal's TCPs reads 2B, 2F, 2N, 2Z and must hover each; MER_TWR, which has no TCP, gets a chip wider than the rest and a code no scope user would type." },
+    ],
+  };
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const lane = l => `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3>${l.rec ? `<span class="recb">recommended</span>` : ""}</div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.hint || "Click a row or a chip, or type in a box and press Enter, to see what it sends."}</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-head"><div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div></div>
+      <div class="lanes">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  const ARTS = [d0, d1];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.id === "d0-today" ? "Today" : a.title.split(":")[0])}</a>`).join("") + `<a href="#questions">Open questions</a>`;
+  document.querySelectorAll(".menu.fly").forEach(refresh);
+
+  /* ---------- Interaction ---------- */
+  function sendFor(m, code, from) {
+    const p = byCode.get(code);
+    if (p && p.own) { say(from, `3Y owns the track: the sim refuses a handoff or point out to the owner; sends nothing.`); return; }
+    const flag = p && p.flag ? ` <span class="nd">needs data</span> ${esc(p.flag)}.` : "";
+    say(from, `Sends <code>${m.dataset.verb} ${esc(code)}</code> for ${AC.cs} and closes the flyout and the menu.${flag}`);
+  }
+  document.addEventListener("click", e => {
+    const el = e.target.closest("[data-code]");
+    const m = e.target.closest(".menu.fly");
+    if (el && m) { sendFor(m, el.dataset.code, el); return; }
+    const g = e.target.closest(".pr.gap");
+    if (g) say(g, "A placeholder for data the client does not have; sends nothing.");
+  });
+  document.addEventListener("pointerover", e => {
+    const c = e.target.closest(".chip");
+    const m = c && c.closest(".menu.fly");
+    if (!m) return;
+    const ro = m.querySelector("[data-readout]");
+    if (ro) ro.innerHTML = readout(m.dataset.verb, byCode.get(c.dataset.code), "").replace("Enter sends", "a click sends");
+  });
+  document.addEventListener("input", e => { const m = e.target.closest(".menu.fly"); if (m && e.target.matches("[data-box]")) refresh(m); });
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (e.key !== "Enter") return;
+    if (t.matches("[data-oldbox]")) { const v = t.value.trim().toUpperCase(); say(t, v ? `Sends <code>HO ${esc(v)}</code> and closes the popup.` : "Blank: closes the popup, sends nothing."); return; }
+    const m = t.closest(".menu.fly");
+    if (!m) return;
+    if (t.matches("[data-box]")) {
+      e.preventDefault();
+      const v = t.value.trim().toUpperCase();
+      if (!v) { say(t, "Empty: Enter sends nothing and the flyout stays open."); return; }
+      const k = m.querySelector(".kfocus");
+      if (k) { sendFor(m, k.dataset.code, t); return; }
+      say(t, `Sends <code>${m.dataset.verb} ${esc(v)}</code> as typed and closes the flyout; no staffed position matched it, so whether the sim knows it is learned afterwards.`);
+      return;
+    }
+    if (t.matches(".pr")) { e.preventDefault(); t.click(); }
+  });
+
+  /* ---------- #measure lists every flyout's rendered size ---------- */
+  if (location.hash === "#measure") {
+    const lines = [...document.querySelectorAll(".frame")].map(f => {
+      const mm = f.querySelector(".menu.fly, .inpop");
+      if (!mm) return null;
+      const r = mm.getBoundingClientRect();
+      const tag = f.closest("[data-lane]").querySelector(".tag").textContent;
+      return `${f.closest(".art").id.split("-")[0]} ${tag} · ${f.querySelector(".flabel").textContent.slice(0, 60)}: ${Math.round(r.width)} × ${Math.round(r.height)}`;
+    }).filter(Boolean);
+    document.getElementById("measure").innerHTML = `<div class="measure">${esc(lines.join("\n"))}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
