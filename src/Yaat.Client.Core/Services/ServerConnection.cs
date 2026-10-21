@@ -1385,7 +1385,17 @@ public record AircraftDto(
     // How the aircraft leaves the stand it is parked on, "PushBack", "TaxiOut" or "Either"; null when it is not at a
     // stand. Kept name-for-name in sync with the server's AircraftStateDto; the menus hide the push entries for a
     // taxi-out stand only.
-    string? StandDeparture = null
+    string? StandDeparture = null,
+    // The traffic-advisory matcher's inputs the fields above do not carry, kept name-for-name in sync with the server's
+    // AircraftStateDto (built there by Yaat.Sim.Commands.TrafficAdvisoryCandidate.From). TrueTrack is the ground track,
+    // degrees true; IsManeuvering is the matcher's own bank test. The pattern triple is the sim's classification of the
+    // active pattern or final phase (leg, side, distance to the threshold in NM): all null outside a pattern, the side null
+    // on final. Sent, never re-derived on the client.
+    double TrueTrack = 0,
+    bool IsManeuvering = false,
+    Yaat.Sim.Phases.PatternEntryLeg? PatternLeg = null,
+    Yaat.Sim.Phases.PatternDirection? PatternSide = null,
+    double? PatternDistanceNm = null
 );
 
 /// <summary>

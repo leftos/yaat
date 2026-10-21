@@ -2792,7 +2792,7 @@ public static class CommandDescriber
         return $"Traffic, over {name}, {FormatVfrType(details.AircraftType)}, report it in sight.";
     }
 
-    private static string RelativePositionWord(string position) =>
+    internal static string RelativePositionWord(string position) =>
         position.ToUpperInvariant() switch
         {
             "NOSE" => "nose",
@@ -2941,7 +2941,7 @@ public static class CommandDescriber
 
     private static string FormatMiles(int miles) => miles == 1 ? "1 mile" : $"{miles} miles";
 
-    private static string DirectionWord(string direction) =>
+    internal static string DirectionWord(string direction) =>
         direction.ToUpperInvariant() switch
         {
             "N" => "northbound",

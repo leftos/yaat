@@ -476,6 +476,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `GroundRendererTugTests.cs` (renders `DrawAircraft` to an offscreen bitmap: the tug body paints only when `AircraftModel.TowbarHeading` is set, lands on the towbar side of the nose axis, and is skipped once it would render under `GroundRenderer.MinTugPx`). `AircraftModelTowbarHeadingTests.cs` (`AircraftModel.TowbarHeading` follows `AircraftDto.TowbarTrueHeadingDeg` on both `FromDto` and `UpdateFromDto`, including back to null when the tug detaches)
   - **Cruise speed display**: `AircraftModelCruiseSpeedDisplayTests.cs` (a Mach or classified plan shows M/SC in the summary and cruise display, a knots plan keeps its suffix, no speed shows the altitude alone, the editor SPD box is empty with the Mach as placeholder for a Mach plan, `FromDto`/`UpdateFromDto` carry both fields)
+  - **Traffic-advisory wire fields**: `AircraftModelTrafficAdvisoryTests.cs` (`FromDto`/`UpdateFromDto` land `TrueTrack`, `IsManeuvering` and the pattern triple as `AircraftModel.PatternPosition`; no side on final; leaving the pattern clears it).
   - **Favorites sharing**: `FavoriteExportTests.cs` (set/library zip round-trips, merge vs replace, the #437 user library under `TestData/favorites/` — 452 favorites merged into Global)
   - **Discord Rich Presence**: `DiscordIpcFrameTests.cs` (frame round-trip, the little-endian header, oversize / negative length refused, a peer closing mid-frame).
 
@@ -1466,7 +1467,8 @@ Commands/CompoundPolicy.cs          # Shared client+server chained-command polic
                                     # ASSUME/UNASSUME are in the set (a spaced "ASSUME ; H 180" parses as one UnsupportedCommand and slips this
                                     # pre-check, so CommandDispatcher carries its own guard with the same message)
                                     # IsFlightPlanCommand: identifies DA/FP/RMK (flight-plan amend commands that skip replay and bypass dispatch)
-Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
+Commands/TrafficAdvisoryCandidate.cs  # TrafficAdvisoryCandidate (the matcher's per-aircraft input: position, heading, track, type, IsManeuvering, AssignedRunwayId, PatternPosition; From/FromAll build it from AircraftState) + PatternPosition (leg, side, distance) — plain data, so a client with the hub DTO can build one too
+Commands/TrafficAdvisoryMatcher.cs  # Public. Shared RTIS/SAFAL target matching over TrafficAdvisoryCandidate: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/CfrWindow.cs               # CFR types: ReleaseWindow, CfrAlertKind, CfrAction/CfrPhase, FAA-fixed −2/+1 window constants (7110.65 §4-3-4.e.5)
 Commands/CfrWindowResolver.cs       # Pure HHMM→absolute-UTC window resolver (nearest-instant) + CfrAlertEvaluator (early/late/expired-grounded)

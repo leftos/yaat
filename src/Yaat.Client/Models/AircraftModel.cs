@@ -1099,6 +1099,24 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private StandDeparture? _standDeparture;
 
+    /// <summary>The ground track, degrees true (<see cref="AircraftDto.TrueTrack"/>): the traffic-advisory matcher's direction of flight.</summary>
+    [ObservableProperty]
+    private double _trueTrack;
+
+    /// <summary>
+    /// Whether the aircraft is banked past the traffic-advisory matcher's maneuvering threshold
+    /// (<see cref="AircraftDto.IsManeuvering"/>).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isManeuvering;
+
+    /// <summary>
+    /// Where the aircraft sits in a traffic pattern, as the server's sim classifies it (<see cref="AircraftDto.PatternLeg"/>,
+    /// <see cref="AircraftDto.PatternSide"/>, <see cref="AircraftDto.PatternDistanceNm"/>); null when it is not in a pattern.
+    /// </summary>
+    [ObservableProperty]
+    private PatternPosition? _patternPosition;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1399,8 +1417,15 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.MeetPoints = dto.MeetPoints;
         model.TaxiTurnAboutShape = model.ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         model.StandDeparture = model.ParseStandDeparture(dto.StandDeparture, Log);
+        model.TrueTrack = dto.TrueTrack;
+        model.IsManeuvering = dto.IsManeuvering;
+        model.PatternPosition = ToPatternPosition(dto);
         return model;
     }
+
+    /// <summary>The pattern triple the server sends, as one value; null when the leg or the distance is absent (not in a pattern).</summary>
+    internal static PatternPosition? ToPatternPosition(AircraftDto dto) =>
+        ((dto.PatternLeg is { } leg) && (dto.PatternDistanceNm is { } distanceNm)) ? new PatternPosition(leg, dto.PatternSide, distanceNm) : null;
 
     public void UpdateFromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
@@ -1529,6 +1554,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         ExitsAhead = dto.ExitsAhead;
         MeetPoints = dto.MeetPoints;
         StandDeparture = ParseStandDeparture(dto.StandDeparture, Log);
+        TrueTrack = dto.TrueTrack;
+        IsManeuvering = dto.IsManeuvering;
+        PatternPosition = ToPatternPosition(dto);
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

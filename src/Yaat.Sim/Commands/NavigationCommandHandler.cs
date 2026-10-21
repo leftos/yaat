@@ -1915,10 +1915,11 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficAdvisory(ReportTrafficAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        IReadOnlyList<AircraftState>? snapshot = ctx.ListAircraft?.Invoke();
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
-            aircraft,
+            TrafficAdvisoryCandidate.From(aircraft),
             cmd.Details,
-            ctx.ListAircraft?.Invoke(),
+            TrafficAdvisoryCandidate.FromAll(snapshot),
             out string error
         );
         if (match is null)
@@ -1926,16 +1927,35 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, error);
         }
 
-        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
-        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficAdvisoryPhrase(cmd.Details)) : acquisition;
+        return AcknowledgeResolvedAdvisory(aircraft, match, snapshot, ctx, CommandDescriber.FormatTrafficAdvisoryPhrase(cmd.Details));
+    }
+
+    /// <summary>
+    /// Runs the in-sight report against the aircraft an advisory resolved to (looked up by callsign in the snapshot the
+    /// candidates were built from) and answers with <paramref name="phrase"/> when the report is accepted.
+    /// </summary>
+    private static CommandResult AcknowledgeResolvedAdvisory(
+        AircraftState aircraft,
+        TrafficAdvisoryTargetMatch match,
+        IReadOnlyList<AircraftState>? snapshot,
+        DispatchContext ctx,
+        string phrase
+    )
+    {
+        AircraftState target =
+            snapshot?.FirstOrDefault(candidate => candidate.Callsign.Equals(match.Target.Callsign, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"Resolved traffic {match.Target.Callsign} is not in the aircraft list it was resolved from");
+        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, target.Callsign, target, ctx);
+        return acquisition.Success ? CommandDispatcher.Ok(phrase) : acquisition;
     }
 
     internal static CommandResult DispatchReportTrafficRelative(ReportTrafficRelativeCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        IReadOnlyList<AircraftState>? snapshot = ctx.ListAircraft?.Invoke();
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(
-            aircraft,
+            TrafficAdvisoryCandidate.From(aircraft),
             cmd.Details,
-            ctx.ListAircraft?.Invoke(),
+            TrafficAdvisoryCandidate.FromAll(snapshot),
             out string error
         );
         if (match is null)
@@ -1943,16 +1963,16 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, error);
         }
 
-        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
-        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficRelativePhrase(cmd.Details)) : acquisition;
+        return AcknowledgeResolvedAdvisory(aircraft, match, snapshot, ctx, CommandDescriber.FormatTrafficRelativePhrase(cmd.Details));
     }
 
     internal static CommandResult DispatchReportTrafficPattern(ReportTrafficPatternCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        IReadOnlyList<AircraftState>? snapshot = ctx.ListAircraft?.Invoke();
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
-            aircraft,
+            TrafficAdvisoryCandidate.From(aircraft),
             cmd.Details,
-            ctx.ListAircraft?.Invoke(),
+            TrafficAdvisoryCandidate.FromAll(snapshot),
             out string error
         );
         if (match is null)
@@ -1960,8 +1980,7 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, error);
         }
 
-        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
-        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficPatternPhrase(cmd.Details)) : acquisition;
+        return AcknowledgeResolvedAdvisory(aircraft, match, snapshot, ctx, CommandDescriber.FormatTrafficPatternPhrase(cmd.Details));
     }
 
     internal static CommandResult DispatchReportTrafficLandmark(ReportTrafficLandmarkCommand cmd, AircraftState aircraft, DispatchContext ctx)
@@ -1973,11 +1992,12 @@ internal static class NavigationCommandHandler
         }
 
         var landmark = new LatLon(position.Value.Lat, position.Value.Lon);
+        IReadOnlyList<AircraftState>? snapshot = ctx.ListAircraft?.Invoke();
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
-            aircraft,
+            TrafficAdvisoryCandidate.From(aircraft),
             landmark,
             cmd.Details.AircraftType,
-            ctx.ListAircraft?.Invoke(),
+            TrafficAdvisoryCandidate.FromAll(snapshot),
             out string error
         );
         if (match is null)
@@ -1985,13 +2005,17 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, error);
         }
 
-        CommandResult acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
-        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficLandmarkPhrase(cmd.Details)) : acquisition;
+        return AcknowledgeResolvedAdvisory(aircraft, match, snapshot, ctx, CommandDescriber.FormatTrafficLandmarkPhrase(cmd.Details));
     }
 
     internal static CommandResult DispatchSafetyAlert(SafetyAlertCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        AircraftState? target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        TrafficAdvisoryCandidate? target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(
+            TrafficAdvisoryCandidate.From(aircraft),
+            cmd.Details,
+            TrafficAdvisoryCandidate.FromAll(ctx.ListAircraft?.Invoke()),
+            out string error
+        );
         if (target is null)
         {
             return new CommandResult(false, error);

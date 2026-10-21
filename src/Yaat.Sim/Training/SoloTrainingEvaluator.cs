@@ -133,6 +133,9 @@ public sealed class SoloTrainingEvaluator
         IReadOnlyList<AircraftState> knownAircraft
     )
     {
+        var recipient = TrafficAdvisoryCandidate.From(aircraft);
+        // Built on the first advisory or safety alert in the compound, not for every accepted command.
+        var candidates = new Lazy<List<TrafficAdvisoryCandidate>>(() => [.. knownAircraft.Select(TrafficAdvisoryCandidate.From)]);
         foreach (ParsedCommand parsedCommand in EnumerateImmediatelyAppliedCommands(command))
         {
             if (parsedCommand is ContactCommand or FrequencyChangeApprovedCommand)
@@ -147,7 +150,7 @@ public sealed class SoloTrainingEvaluator
             {
                 RecordResolvedAdvisory(
                     aircraft,
-                    TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, knownAircraft, out _),
+                    TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(recipient, rtis.Details, candidates.Value, out _),
                     scenarioElapsedSeconds
                 );
             }
@@ -155,7 +158,7 @@ public sealed class SoloTrainingEvaluator
             {
                 RecordResolvedAdvisory(
                     aircraft,
-                    TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(aircraft, relative.Details, knownAircraft, out _),
+                    TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(recipient, relative.Details, candidates.Value, out _),
                     scenarioElapsedSeconds
                 );
             }
@@ -163,7 +166,7 @@ public sealed class SoloTrainingEvaluator
             {
                 RecordResolvedAdvisory(
                     aircraft,
-                    TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(aircraft, pattern.Details, knownAircraft, out _),
+                    TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(recipient, pattern.Details, candidates.Value, out _),
                     scenarioElapsedSeconds
                 );
             }
@@ -173,17 +176,22 @@ public sealed class SoloTrainingEvaluator
                 TrafficAdvisoryTargetMatch? match = position is null
                     ? null
                     : TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
-                        aircraft,
+                        recipient,
                         new LatLon(position.Value.Lat, position.Value.Lon),
                         landmark.Details.AircraftType,
-                        knownAircraft,
+                        candidates.Value,
                         out _
                     );
                 RecordResolvedAdvisory(aircraft, match, scenarioElapsedSeconds);
             }
             else if (parsedCommand is SafetyAlertCommand safetyAlert)
             {
-                AircraftState? target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, safetyAlert.Details, knownAircraft, out _);
+                TrafficAdvisoryCandidate? target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(
+                    recipient,
+                    safetyAlert.Details,
+                    candidates.Value,
+                    out _
+                );
                 if (target is not null)
                 {
                     _safetyAlertProofs.Add(new SafetyAlertProof(aircraft.Callsign, target.Callsign, scenarioElapsedSeconds));

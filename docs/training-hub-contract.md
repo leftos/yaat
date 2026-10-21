@@ -583,13 +583,24 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Both go null when the turn-about leg completes with nothing else on the DTO changing (the `TaxiRoute` string is the same), so each has its own fingerprint slot (`TrainingDtoFingerprint.TaxiTurnAboutShape`, `TaxiTurnAboutTargetNodeId`).
 
   The client parses the name into `AircraftModel.TaxiTurnAboutShape` (an unknown name logs a warning and reads as `None`) and carries `AircraftModel.TaxiTurnAboutTargetNodeId`; the ground overlay draws exactly the sent shape from the sent node ([ground-rendering.md](ground-rendering.md)).
-- `StandDeparture` (a string, `null` by default, the last `AircraftStateDto` / `AircraftDto` field) is how the aircraft leaves the stand it is parked on, by `StandDeparture` name: `"PushBack"`, `"TaxiOut"` or `"Either"` (a tug push and a taxi-out are both normal), from `ParkedStandDeparture.Of(ac, ac.Ground.Layout)` ([ground/pushback.md](ground/pushback.md), "Stand departure").
+- `StandDeparture` (a string, `null` by default) is how the aircraft leaves the stand it is parked on, by `StandDeparture` name: `"PushBack"`, `"TaxiOut"` or `"Either"` (a tug push and a taxi-out are both normal), from `ParkedStandDeparture.Of(ac, ac.Ground.Layout)` ([ground/pushback.md](ground/pushback.md), "Stand departure").
 
   It is null when the aircraft is not in `AtParkingPhase`, or its parking spot names no parking stand or helipad of its layout.
 
   Like `AsdexFix` it is a derived field fingerprinted by its inputs rather than its value, so `CaptureTrainingDto` never computes it per tick: the phase name and `ParkingSpot` are already fingerprinted, the airport sidecars are fixed for the process, and the layout's identity has its own slot (`TrainingDtoFingerprint.GroundLayoutAirportId`).
 
   The client parses the name into `AircraftModel.StandDeparture` / `IMenuAircraft.StandDeparture` (an unknown name logs a warning and reads as null), and `AircraftCommandApplicability.CanPushBack` hides the push entries for `TaxiOut` only.
+- `TrueTrack` (a double, degrees true), `IsManeuvering` (a bool), `PatternLeg` (`PatternEntryLeg?`), `PatternSide` (`PatternDirection?`) and `PatternDistanceNm` (a double?) are the last five `AircraftStateDto` / `AircraftDto` fields, after `StandDeparture`: the inputs of the traffic-advisory matcher that the other fields do not carry.
+
+  They exist so a client can build a `TrafficAdvisoryCandidate` and run the sim's own `TrafficAdvisoryMatcher` ([solo-training-evaluation.md](solo-training-evaluation.md)).
+
+  `DtoConverter` builds them from the sim: `TrueTrack` is `ac.TrueTrack.Degrees`, `IsManeuvering` is `TrafficAdvisoryMatcher.IsManeuvering(ac.BankAngle)` (a bool, so a turn's changing bank does not rebroadcast the aircraft), and the pattern triple is `TrafficAdvisoryCandidate.PatternPositionOf(ac)`: the sim's classification of the active pattern or final phase against the assigned runway (leg, side, distance to the threshold in NM).
+
+  All three pattern fields are null when the aircraft is not in a pattern, and `PatternSide` is null on final. They are sent as numbers and enums, never re-derived on the client. The candidate's `BaseAircraftType` is not on the wire: the client derives it from `AircraftType` (`AircraftState.StripTypePrefix`), and `AssignedRunwayId` is not a separate field.
+
+  Each has its own `TrainingDtoFingerprint` slot (`TrueTrack`, `IsManeuvering`, `PatternLeg`, `PatternSide`, `PatternDistanceNm`, appended after `GroundLayoutAirportId`): the maneuvering flag flips on a bank change alone, and the pattern triple changes on a phase change that may leave every other slot standing.
+
+  The client lands them as `AircraftModel.TrueTrack`, `IsManeuvering` and `PatternPosition` (a `PatternPosition` record built by `AircraftModel.ToPatternPosition`, null unless both the leg and the distance are sent).
 - `HasTaxiwayHoldShortAhead` (a bool, right after `HasActiveTaxiRoute` in `AircraftStateDto` / `AircraftDto`) is `FollowingPhase.DrivenRouteOf(aircraft)?.HasTaxiwayHoldShortAhead()` (`DtoConverter`): the route the aircraft drives is incomplete and its next uncleared hold short ahead is a taxiway or spot bar, the one a bare `RES` pre-clears (`TaxiRoute.NextUnclearedHoldShortAhead`, `TaxiRoute.IsTaxiwayClassHoldShort`). For a `FOLLOWG` follower the driven route is its follow route, which carries no hold short, so the flag is false for followers. The client lands it on `AircraftModel` / `IMenuAircraft.HasTaxiwayHoldShortAhead`, and `AircraftCommandApplicability.CanResumeTaxi` offers "Resume taxi" to a rolling aircraft on it. It is its own `TrainingDtoFingerprint` field (`AircraftChangeTracker`), since the route's cleared bars are not fingerprinted, so clearing a bar rebroadcasts the aircraft.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters

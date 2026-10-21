@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 
@@ -47,9 +48,9 @@ public sealed record FieldAdvisoryDetails(int Clock, int Miles);
 public sealed record SafetyAlertDetails(int Clock, int Miles, SafetyAlertTurn? Turn, SafetyAlertVertical? Vertical);
 
 /// <summary>A resolved traffic-advisory target plus a grade of how accurate the controller's call was.</summary>
-public sealed record TrafficAdvisoryTargetMatch(AircraftState Target, AdvisoryMatchQuality Quality, string ImpreciseDetail);
+public sealed record TrafficAdvisoryTargetMatch(TrafficAdvisoryCandidate Target, AdvisoryMatchQuality Quality, string ImpreciseDetail);
 
-internal static class TrafficAdvisoryMatcher
+public static class TrafficAdvisoryMatcher
 {
     private static readonly string[] Directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
@@ -83,15 +84,21 @@ internal static class TrafficAdvisoryMatcher
     private const double LandmarkExactNm = 1.0;
 
     /// <summary>
+    /// Whether an aircraft banked <paramref name="bankDeg"/> counts as maneuvering, which widens and de-weights the clock
+    /// gate because its instantaneous heading is unreliable.
+    /// </summary>
+    public static bool IsManeuvering(double bankDeg) => Math.Abs(bankDeg) > ManeuveringBankDeg;
+
+    /// <summary>
     /// Resolve the aircraft a structured traffic advisory most likely describes. Candidates must fall within
     /// per-field tolerance gates; among those, the lowest weighted field error wins (clock is de-weighted and
     /// widened when the recipient is maneuvering). Returns the target plus an accuracy grade, or null with a
     /// reason in <paramref name="error"/> when nothing is close enough.
     /// </summary>
     public static TrafficAdvisoryTargetMatch? ResolveStructuredTrafficTarget(
-        AircraftState recipient,
+        TrafficAdvisoryCandidate recipient,
         TrafficAdvisoryDetails details,
-        IReadOnlyList<AircraftState>? aircraft,
+        IReadOnlyList<TrafficAdvisoryCandidate>? aircraft,
         out string error
     )
     {
@@ -101,15 +108,14 @@ internal static class TrafficAdvisoryMatcher
             return null;
         }
 
-        bool maneuvering = Math.Abs(recipient.BankAngle) > ManeuveringBankDeg;
-        int clockGate = maneuvering ? ClockGateSectorsManeuvering : ClockGateSectorsStable;
-        double clockWeight = maneuvering ? 0.5 : 1.0;
+        int clockGate = recipient.IsManeuvering ? ClockGateSectorsManeuvering : ClockGateSectorsStable;
+        double clockWeight = recipient.IsManeuvering ? 0.5 : 1.0;
 
         TrafficAdvisoryTargetMatch? best = null;
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (AircraftState target in aircraft)
+        foreach (TrafficAdvisoryCandidate target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -157,10 +163,10 @@ internal static class TrafficAdvisoryMatcher
     /// leniency is allowed to find the conflict, but an ambiguous picture fails rather than guessing the
     /// wrong aircraft.
     /// </summary>
-    public static AircraftState? ResolveSafetyAlertTarget(
-        AircraftState recipient,
+    public static TrafficAdvisoryCandidate? ResolveSafetyAlertTarget(
+        TrafficAdvisoryCandidate recipient,
         SafetyAlertDetails details,
-        IReadOnlyList<AircraftState>? aircraft,
+        IReadOnlyList<TrafficAdvisoryCandidate>? aircraft,
         out string error
     )
     {
@@ -170,8 +176,7 @@ internal static class TrafficAdvisoryMatcher
             return null;
         }
 
-        bool maneuvering = Math.Abs(recipient.BankAngle) > ManeuveringBankDeg;
-        int clockGate = maneuvering ? ClockGateSectorsManeuvering : ClockGateSectorsStable;
+        int clockGate = recipient.IsManeuvering ? ClockGateSectorsManeuvering : ClockGateSectorsStable;
 
         var eligible = aircraft
             .Where(target => !target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
@@ -198,9 +203,9 @@ internal static class TrafficAdvisoryMatcher
     /// must fall within one octant and the stated distance, and the lowest weighted error wins.
     /// </summary>
     public static TrafficAdvisoryTargetMatch? ResolveRelativeTrafficTarget(
-        AircraftState recipient,
+        TrafficAdvisoryCandidate recipient,
         TrafficRelativeDetails details,
-        IReadOnlyList<AircraftState>? aircraft,
+        IReadOnlyList<TrafficAdvisoryCandidate>? aircraft,
         out string error
     )
     {
@@ -215,7 +220,7 @@ internal static class TrafficAdvisoryMatcher
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (AircraftState target in aircraft)
+        foreach (TrafficAdvisoryCandidate target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -259,20 +264,20 @@ internal static class TrafficAdvisoryMatcher
             );
         }
 
-        error = best is null ? $"Unable, no traffic {details.Miles} mile(s) off your {details.Position}" : "";
+        error = best is null ? $"Unable, no traffic {details.Miles} mile(s) off your {CommandDescriber.RelativePositionWord(details.Position)}" : "";
         return best;
     }
 
     /// <summary>
     /// Resolve the aircraft a VFR pattern-leg advisory describes ("2-mile right base for runway 28R, a
-    /// Mooney"). Each candidate is classified from its active pattern/final phase against its own assigned
-    /// runway; the leg, side (ignored on final), and stated distance must match, and the lowest weighted
-    /// error wins.
+    /// Mooney"). Each candidate's pattern position (classified from its active pattern/final phase against its own
+    /// assigned runway) must be on the stated runway; the leg, side (ignored on final), and stated distance must
+    /// match, and the lowest weighted error wins.
     /// </summary>
     public static TrafficAdvisoryTargetMatch? ResolvePatternTrafficTarget(
-        AircraftState recipient,
+        TrafficAdvisoryCandidate recipient,
         TrafficPatternDetails details,
-        IReadOnlyList<AircraftState>? aircraft,
+        IReadOnlyList<TrafficAdvisoryCandidate>? aircraft,
         out string error
     )
     {
@@ -282,24 +287,24 @@ internal static class TrafficAdvisoryMatcher
             return null;
         }
 
+        string runwayId = RunwayIdentifier.NormalizeDesignator(details.RunwayId);
         TrafficAdvisoryTargetMatch? best = null;
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (AircraftState target in aircraft)
+        foreach (TrafficAdvisoryCandidate target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            RunwayInfo? runway = target.Phases?.AssignedRunway;
-            if ((runway is null) || !runway.IsActiveEnd(details.RunwayId))
+            if (!runwayId.Equals(target.AssignedRunwayId, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (PatternCommandHandler.ClassifyPatternPosition(target, runway) is not { } position)
+            if (target.PatternPosition is not { } position)
             {
                 continue;
             }
@@ -343,9 +348,21 @@ internal static class TrafficAdvisoryMatcher
             );
         }
 
-        error = best is null ? $"Unable, no traffic on the {details.Leg} leg for runway {details.RunwayId}" : "";
+        error = best is null ? $"Unable, no traffic on {PatternLegPhrase(details.Leg)} for runway {details.RunwayId}" : "";
         return best;
     }
+
+    // Controllers say "on final", never "on the final leg".
+    private static string PatternLegPhrase(PatternEntryLeg leg) =>
+        leg switch
+        {
+            PatternEntryLeg.Upwind => "the upwind leg",
+            PatternEntryLeg.Crosswind => "the crosswind leg",
+            PatternEntryLeg.Downwind => "the downwind leg",
+            PatternEntryLeg.Base => "the base leg",
+            PatternEntryLeg.Final => "final",
+            _ => throw new ArgumentOutOfRangeException(nameof(leg), leg, "Unknown pattern leg"),
+        };
 
     /// <summary>
     /// Resolve the aircraft a VFR landmark advisory describes ("over the Oakland Coliseum, a Skyhawk").
@@ -353,10 +370,10 @@ internal static class TrafficAdvisoryMatcher
     /// of it win by nearest distance (then type), and grade Exact within <see cref="LandmarkExactNm"/>.
     /// </summary>
     public static TrafficAdvisoryTargetMatch? ResolveLandmarkTrafficTarget(
-        AircraftState recipient,
+        TrafficAdvisoryCandidate recipient,
         LatLon landmark,
         string aircraftType,
-        IReadOnlyList<AircraftState>? aircraft,
+        IReadOnlyList<TrafficAdvisoryCandidate>? aircraft,
         out string error
     )
     {
@@ -370,7 +387,7 @@ internal static class TrafficAdvisoryMatcher
         double bestError = double.MaxValue;
         string? bestCallsign = null;
 
-        foreach (AircraftState target in aircraft)
+        foreach (TrafficAdvisoryCandidate target in aircraft)
         {
             if (target.Callsign.Equals(recipient.Callsign, StringComparison.OrdinalIgnoreCase))
             {
@@ -421,27 +438,27 @@ internal static class TrafficAdvisoryMatcher
         return index < 0 ? 0 : index;
     }
 
-    private static int RelativeBearingOctant(AircraftState recipient, AircraftState target)
+    private static int RelativeBearingOctant(TrafficAdvisoryCandidate recipient, TrafficAdvisoryCandidate target)
     {
         double bearing = GeoMath.BearingTo(recipient.Position, target.Position);
-        double relative = NormalizeDegrees(bearing - recipient.TrueHeading.Degrees);
+        double relative = NormalizeDegrees(bearing - recipient.TrueHeadingDeg);
         return (int)Math.Round(relative / 45.0, MidpointRounding.AwayFromZero) % 8;
     }
 
-    public static int ClockFrom(AircraftState recipient, AircraftState target)
+    public static int ClockFrom(TrafficAdvisoryCandidate recipient, TrafficAdvisoryCandidate target)
     {
         double bearing = GeoMath.BearingTo(recipient.Position, target.Position);
-        double relative = NormalizeDegrees(bearing - recipient.TrueHeading.Degrees);
+        double relative = NormalizeDegrees(bearing - recipient.TrueHeadingDeg);
         int sector = (int)Math.Round(relative / 30.0, MidpointRounding.AwayFromZero) % 12;
         return sector == 0 ? 12 : sector;
     }
 
-    public static int MilesFrom(AircraftState recipient, AircraftState target) =>
+    public static int MilesFrom(TrafficAdvisoryCandidate recipient, TrafficAdvisoryCandidate target) =>
         Math.Max(1, (int)Math.Round(GeoMath.DistanceNm(recipient.Position, target.Position), MidpointRounding.AwayFromZero));
 
-    public static string DirectionFrom(AircraftState target)
+    public static string DirectionFrom(TrafficAdvisoryCandidate target)
     {
-        int index = (int)Math.Round(NormalizeDegrees(target.TrueTrack.Degrees) / 45.0, MidpointRounding.AwayFromZero) % 8;
+        int index = (int)Math.Round(NormalizeDegrees(target.TrueTrackDeg) / 45.0, MidpointRounding.AwayFromZero) % 8;
         return Directions[index];
     }
 
@@ -480,7 +497,8 @@ internal static class TrafficAdvisoryMatcher
 
     private static string Describe(TrafficAdvisoryDetails details)
     {
-        string basePart = $"traffic {details.Clock} o'clock, {details.Miles} mile(s), {details.Direction}bound, {details.AircraftType}";
+        string basePart =
+            $"traffic {details.Clock} o'clock, {details.Miles} mile(s), {CommandDescriber.DirectionWord(details.Direction)}, {details.AircraftType}";
         return details.Altitude is { } altitude ? $"{basePart}, {altitude:N0}" : basePart;
     }
 
@@ -502,7 +520,7 @@ internal static class TrafficAdvisoryMatcher
         return Math.Min(diff, 8 - diff);
     }
 
-    private static bool TypeMatches(AircraftState target, string requestedType)
+    private static bool TypeMatches(TrafficAdvisoryCandidate target, string requestedType)
     {
         string requested = NormalizeType(requestedType);
         string actual = NormalizeType(target.BaseAircraftType);
@@ -527,7 +545,8 @@ internal static class TrafficAdvisoryMatcher
             || TokenContains(record.Manufacturer, requested);
     }
 
-    private static int AltitudeBucket(AircraftState target) => (int)Math.Round(target.Altitude / 100.0, MidpointRounding.AwayFromZero) * 100;
+    private static int AltitudeBucket(TrafficAdvisoryCandidate target) =>
+        (int)Math.Round(target.AltitudeFt / 100.0, MidpointRounding.AwayFromZero) * 100;
 
     private static string NormalizeType(string value) => new([.. value.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit)]);
 

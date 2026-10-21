@@ -28,9 +28,9 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState other = TargetAt("N346G", recipient, clock: 12, distanceNm: 4.0, trackTrue: 180, altitude: 2500);
 
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             new TrafficAdvisoryDetails(11, 2, "S", "C172", 2000),
-            [recipient, intended, other],
+            Candidates(recipient, intended, other),
             out string error
         );
 
@@ -48,9 +48,9 @@ public sealed class TrafficAdvisoryMatcherTests
 
         // clock off 2 (9 vs 11), altitude off 300 ft (2100 vs 1800) — both within the gate, beyond Exact.
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             new TrafficAdvisoryDetails(11, 2, "S", "C172", 1800),
-            [recipient, target],
+            Candidates(recipient, target),
             out _
         );
 
@@ -68,14 +68,33 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState target = TargetAt("N9225L", recipient, clock: 6, distanceNm: 10.0, trackTrue: 0, altitude: 6000);
 
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             new TrafficAdvisoryDetails(11, 2, "S", "C172", 2000),
-            [recipient, target],
+            Candidates(recipient, target),
             out string error
         );
 
         Assert.Null(match);
         Assert.Contains("no aircraft matches", error);
+    }
+
+    [Theory]
+    [InlineData("W", "westbound")]
+    [InlineData("NE", "northeastbound")]
+    public void OutOfTolerance_Refusal_SpellsTheDirectionOfFlight(string token, string word)
+    {
+        // 7110.65 2-1-21 phrases the direction of flight as a word ("SOUTHBOUND", "NORTHEASTBOUND"), never the bare token.
+        AircraftState recipient = Recipient(headingTrue: 150);
+        AircraftState target = TargetAt("N9225L", recipient, clock: 6, distanceNm: 10.0, trackTrue: 0, altitude: 6000);
+
+        TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
+            TrafficAdvisoryCandidate.From(recipient),
+            new TrafficAdvisoryDetails(5, 4, token, "SR22", 3500),
+            Candidates(recipient, target),
+            out string error
+        );
+
+        Assert.Equal($"Unable, no aircraft matches traffic 5 o'clock, 4 mile(s), {word}, SR22, 3,500", error);
     }
 
     [Fact]
@@ -86,9 +105,9 @@ public sealed class TrafficAdvisoryMatcherTests
 
         // No altitude stated (4-field form). Altitude must not gate or penalize even though it is way off.
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             new TrafficAdvisoryDetails(11, 2, "S", "C172", null),
-            [recipient, target],
+            Candidates(recipient, target),
             out _
         );
 
@@ -109,8 +128,22 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState targetForBanked = TargetAt("N9225L", banked, clock: 8, distanceNm: 3.0, trackTrue: 180, altitude: 2100);
         var details = new TrafficAdvisoryDetails(11, 2, "S", "C172", 2000);
 
-        Assert.Null(TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(stable, details, [stable, targetForStable], out _));
-        Assert.NotNull(TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(banked, details, [banked, targetForBanked], out _));
+        Assert.Null(
+            TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
+                TrafficAdvisoryCandidate.From(stable),
+                details,
+                Candidates(stable, targetForStable),
+                out _
+            )
+        );
+        Assert.NotNull(
+            TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(
+                TrafficAdvisoryCandidate.From(banked),
+                details,
+                Candidates(banked, targetForBanked),
+                out _
+            )
+        );
     }
 
     // ── VFR relative-position form ──────────────────────────────────────────
@@ -123,9 +156,9 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState behind = TargetAt("N222", recipient, clock: 6, distanceNm: 2.0, trackTrue: 0, altitude: 2000);
 
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             new TrafficRelativeDetails("NR", 2, "C172"),
-            [recipient, noseRight, behind],
+            Candidates(recipient, noseRight, behind),
             out string error
         );
 
@@ -142,7 +175,12 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState behind = TargetAt("N222", recipient, clock: 6, distanceNm: 2.0, trackTrue: 0, altitude: 2000);
 
         Assert.Null(
-            TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(recipient, new TrafficRelativeDetails("NR", 2, "C172"), [recipient, behind], out _)
+            TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(
+                TrafficAdvisoryCandidate.From(recipient),
+                new TrafficRelativeDetails("NR", 2, "C172"),
+                Candidates(recipient, behind),
+                out _
+            )
         );
     }
 
@@ -157,9 +195,9 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState onFinal = PatternCandidate("N222", runway, new FinalApproachPhase(), distanceNm: 5.0);
 
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             new TrafficPatternDetails(PatternEntryLeg.Base, PatternDirection.Right, 2, "28R", "C172"),
-            [recipient, onBase, onFinal],
+            Candidates(recipient, onBase, onFinal),
             out string error
         );
 
@@ -178,9 +216,9 @@ public sealed class TrafficAdvisoryMatcherTests
 
         Assert.Null(
             TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
-                recipient,
+                TrafficAdvisoryCandidate.From(recipient),
                 new TrafficPatternDetails(PatternEntryLeg.Base, PatternDirection.Right, 2, "28R", "C172"),
-                [recipient, onLeftBase],
+                Candidates(recipient, onLeftBase),
                 out _
             )
         );
@@ -195,12 +233,46 @@ public sealed class TrafficAdvisoryMatcherTests
 
         Assert.Null(
             TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
-                recipient,
+                TrafficAdvisoryCandidate.From(recipient),
                 new TrafficPatternDetails(PatternEntryLeg.Base, PatternDirection.Right, 2, "28R", "C172"),
-                [recipient, farBase],
+                Candidates(recipient, farBase),
                 out _
             )
         );
+    }
+
+    [Theory]
+    [InlineData(PatternEntryLeg.Base, "Unable, no traffic on the base leg for runway 28R")]
+    [InlineData(PatternEntryLeg.Downwind, "Unable, no traffic on the downwind leg for runway 28R")]
+    [InlineData(PatternEntryLeg.Final, "Unable, no traffic on final for runway 28R")]
+    public void Pattern_Refusal_NamesTheLegInWords(PatternEntryLeg leg, string expected)
+    {
+        AircraftState recipient = Recipient(headingTrue: 280);
+
+        TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
+            TrafficAdvisoryCandidate.From(recipient),
+            new TrafficPatternDetails(leg, leg == PatternEntryLeg.Final ? null : PatternDirection.Right, 2, "28R", "C172"),
+            Candidates(recipient),
+            out string error
+        );
+
+        Assert.Equal(expected, error);
+    }
+
+    [Fact]
+    public void Relative_Refusal_SpellsThePosition()
+    {
+        AircraftState recipient = Recipient(headingTrue: 150);
+        AircraftState behind = TargetAt("N222", recipient, clock: 6, distanceNm: 2.0, trackTrue: 0, altitude: 2000);
+
+        TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(
+            TrafficAdvisoryCandidate.From(recipient),
+            new TrafficRelativeDetails("NR", 2, "C172"),
+            Candidates(recipient, behind),
+            out string error
+        );
+
+        Assert.Equal("Unable, no traffic 2 mile(s) off your nose and to the right", error);
     }
 
     // ── VFR landmark form ───────────────────────────────────────────────────
@@ -214,10 +286,10 @@ public sealed class TrafficAdvisoryMatcherTests
         AircraftState far = AircraftAt("N222", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 5.0));
 
         TrafficAdvisoryTargetMatch? match = TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
-            recipient,
+            TrafficAdvisoryCandidate.From(recipient),
             landmark,
             "C172",
-            [recipient, near, far],
+            Candidates(recipient, near, far),
             out string error
         );
 
@@ -234,8 +306,18 @@ public sealed class TrafficAdvisoryMatcherTests
         var landmark = new LatLon(37.7516, -122.2005);
         AircraftState far = AircraftAt("N222", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 5.0));
 
-        Assert.Null(TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(recipient, landmark, "C172", [recipient, far], out _));
+        Assert.Null(
+            TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
+                TrafficAdvisoryCandidate.From(recipient),
+                landmark,
+                "C172",
+                Candidates(recipient, far),
+                out _
+            )
+        );
     }
+
+    private static List<TrafficAdvisoryCandidate> Candidates(params AircraftState[] aircraft) => [.. aircraft.Select(TrafficAdvisoryCandidate.From)];
 
     private static BasePhase MakeBasePhase(RunwayInfo runway, PatternDirection side) =>
         new() { Waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, side, null, null, null, authoredRunway: null) };

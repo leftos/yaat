@@ -1962,10 +1962,7 @@ internal static class PatternCommandHandler
     /// a pattern or final-approach phase. Used by VFR pattern-leg traffic advisories to match a call like
     /// "two-mile right base for 28R" to the aircraft it describes.
     /// </summary>
-    internal static (PatternEntryLeg Leg, PatternDirection? Side, double DistanceNm)? ClassifyPatternPosition(
-        AircraftState aircraft,
-        RunwayInfo runway
-    )
+    internal static PatternPosition? ClassifyPatternPosition(AircraftState aircraft, RunwayInfo runway)
     {
         Phase? phase = aircraft.Phases?.CurrentPhase;
         PatternEntryLeg? leg = phase switch
@@ -1996,7 +1993,7 @@ internal static class PatternCommandHandler
                 ? finalDist
                 : GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
 
-        return (leg.Value, side, distanceNm);
+        return new PatternPosition(leg.Value, side, distanceNm);
     }
 
     private static CommandResult RebuildPatternFromLeg(AircraftState aircraft, PatternEntryLeg leg, AirportGroundLayout? groundLayout = null)

@@ -203,6 +203,9 @@ compound and:
 - `ContactCommand` / `FrequencyChangeApprovedCommand` → sets `HasLeftStudentFrequency` (aircraft stops being a
   student-service recipient).
 - `ReportFieldAdvisoryCommand` → adds to `_fieldAdvisoryProofs`.
+- The advisory commands resolve through the public `TrafficAdvisoryMatcher`, which reads `TrafficAdvisoryCandidate` records, not `AircraftState`: the recipient is `TrafficAdvisoryCandidate.From(aircraft)` and the candidates are built once, lazily, from `knownAircraft`. A match's `Target` is a candidate.
+
+  The record carries the callsign, position, heading, track, altitude, type, `IsManeuvering`, `AssignedRunwayId` and the `PatternPosition` triple (leg, side, distance); the training-hub DTO carries the same inputs ([training-hub-contract.md](training-hub-contract.md)).
 - `ReportTrafficAdvisoryCommand` → resolves the structured target via `TrafficAdvisoryMatcher` (best-candidate
   within tolerance, not exact match) and adds a recipient→target key to `_advisoryProofs`. If the match graded
   `Imprecise`, also appends an `ImpreciseAdvisoryProof` that `SampleImpreciseAdvisories` turns into a one-shot
@@ -217,6 +220,7 @@ compound and:
   form is an intentional informal VFR-tower convention (not codified in 7110.65, which defines only clock and cardinal
   azimuth — AIM §4-1-15) and must not be "corrected" to clock-only; the pattern (§3-10-4) and landmark (§2-1-21.b.1)
   forms are grounded in published phraseology.
+  The refusal text a student reads when nothing matches is spoken, not tokenised: direction and relative position go through `CommandDescriber.DirectionWord` / `RelativePositionWord` ("westbound", "off your nose and to the right"), and the pattern leg reads "on final" or "the base leg", never "the Final leg".
 - `SafetyAlertCommand` → appends a `SafetyAlertProof` (tracked for overuse).
 - `WakeAdvisoryCommand` / `ClearedForTakeoffCommand{CautionWakeTurbulence}` / `ClearedToLandCommand{CautionWakeTurbulence}`
   → appends a `WakeAdvisoryProof`.

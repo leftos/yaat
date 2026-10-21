@@ -105,6 +105,7 @@
 - With RPO "show pilot speech" on, the terminal and speech bubble show the pilot's written line, not the spelled-out spoken form.
 - An aircraft past a runway's hold line now fouls that runway: clearances onto it warn, and one sitting close in sends arrivals around.
 - A number typed into the session settings flyout is sent once you stop typing, press Enter or leave the box, instead of once per digit.
+- Solo traffic advisory replies spell out directions and positions, such as "westbound", "off your nose and to the right" and "on final".
 
 ## v0.16.3-beta [2026/10/15]
 
