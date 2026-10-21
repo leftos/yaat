@@ -4,7 +4,8 @@
 
 ## Do first
 
-- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — Urgent · Singles
+- [ ] YAAT-1012 Make LaunchYaat_PipeClosesMidLaunch_ReportsTheExitCode load-proof — Urgent · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Context-menu quick commands (#471)
 
@@ -34,6 +35,8 @@
 - [ ] YAAT-961 Do not grey a TCP-only student row when the track owner has no sector code
 - [ ] YAAT-962 Send the active position to students on ERAM or no-TCP positions
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
+- [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
+- [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
 
 ## Bug reports and feature requests
 
@@ -390,6 +393,7 @@
 - [ ] YAAT-998 Move the WaitForAndFilePick and ZOrder wall-clock bounds onto HeldClock
 - [ ] YAAT-999 Commit the suspend rig under tools/ and point the load-proof docs at it
 - [ ] YAAT-1008 Stop the automation host accepting pipe clients after Dispose on Unix
+- [ ] YAAT-1013 Boil settled mocks down to a decision record and a rebuild recipe
 
 ## Singles
 
@@ -668,3 +672,4 @@
 - [ ] YAAT-1003 Decide vEDST's HandleSessionStarted before StartSession answers (late fire-and-forget read)
 - [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
 - [ ] YAAT-1007 Check two UI tests that set the navdata singleton outside a scope
+- [ ] YAAT-1011 Pin and document the Tower Cab room-attach contract: kick-then-offer, kick-only isForcible, position fallbacks
