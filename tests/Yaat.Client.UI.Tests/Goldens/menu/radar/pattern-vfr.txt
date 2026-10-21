@@ -2,7 +2,7 @@
 N307AB · C172 [disabled]
 Downwind · 1,000 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-strip: [tower.cleared-to-land, tower.cleared-option, tower.touch-and-go, pattern.extend, pattern.short-approach, pattern.left-360, pattern.right-360, pattern.turn-base, tower.go-around]
+strip: [tower.cleared-to-land, tower.cleared-option, tower.touch-and-go, pattern.follow, pattern.extend, pattern.short-approach, pattern.left-360, pattern.right-360, pattern.turn-base, tower.go-around]
 ---
 Command…
 Note…
@@ -60,7 +60,8 @@ All Commands
     Cleared visual approach (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
     ---
     Report field in sight
-    Report traffic in sight… picker:input
+    Report traffic in sight… · no other aircraft airborne [disabled]
+    Follow traffic… · no other aircraft airborne [disabled]
     ---
     Report when…
       Turning base

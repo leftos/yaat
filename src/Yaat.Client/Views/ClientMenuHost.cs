@@ -30,9 +30,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 {
     private static readonly ILogger Log = AppLog.CreateLogger("ClientMenuHost");
 
-    /// <summary>The most aircraft the Report traffic in sight… list offers.</summary>
-    private const int MaxNearbyTraffic = 5;
-
     /// <summary>The most fixes a menu fix box suggests, as many as the command bar's suggestion list shows.</summary>
     private const int MaxFixSuggestions = 10;
 
@@ -512,11 +509,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     }
 
     /// <summary>
-    /// The other airborne aircraft in the main view model's list, nearest <paramref name="callsign"/> first and at most
-    /// <see cref="MaxNearbyTraffic"/>, leaving out delayed spawns and live-traffic shadows; empty when
-    /// <paramref name="callsign"/> is not in the list.
+    /// Every other airborne aircraft in the main view model's list, nearest <paramref name="callsign"/> first, each with its
+    /// direction of flight from its <see cref="AircraftModel.TrueTrack"/> and its leg from its <see cref="AircraftModel.PatternPosition"/>,
+    /// leaving out delayed spawns and live-traffic shadows; empty when <paramref name="callsign"/> is not in the list.
     /// </summary>
-    public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign)
+    public IReadOnlyList<MenuAirborneTrafficRow> GetAirborneTraffic(string callsign)
     {
         if (FindAircraft(callsign) is not { } ac)
         {
@@ -527,9 +524,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         [
             .. main
                 .Aircraft.Where(other => (other.Callsign != callsign) && !other.IsOnGround && !other.IsDelayed && !other.IsLiveTraffic)
-                .Select(other => RelativeGeometry.TrafficRow(ac, other))
-                .OrderBy(row => row.DistanceNm)
-                .Take(MaxNearbyTraffic),
+                .Select(other => AirborneTrafficRows.Row(ac, other, other.TrueTrack, other.PatternPosition))
+                .OrderBy(row => row.Traffic.DistanceNm),
         ];
     }
 

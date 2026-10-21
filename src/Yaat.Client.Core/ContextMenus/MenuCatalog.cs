@@ -168,7 +168,14 @@ public static class MenuCatalog
         .. ApproachPickerIds.Select(ApproachPicker),
         Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
         Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
-        Picker(MenuIds.ApproachReportTrafficInSight, "Report traffic in sight…", BuildReportTrafficInSight),
+        Picker(
+            MenuIds.ApproachReportTrafficInSight,
+            "Report traffic in sight…",
+            (label, ac, context, host) =>
+                context.SoloTrainingMode
+                    ? BuildReportTrafficInSight(label, context, host)
+                    : AirborneTrafficFlyout.BuildReportInSight(label, ac, context, host)
+        ),
         Leaf(MenuIds.ApproachReportBase, "Turning base", "REPORT BASE", Always),
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
         Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
@@ -410,8 +417,8 @@ public static class MenuCatalog
             MenuIds.PatternFollow,
             "Follow traffic…",
             MenuFlightRules.VfrOnly,
-            CanFollowTraffic,
-            (_, context, host) => BuildInput("Follow traffic…", "Traffic callsign (optional)", BlankInput.Submits, FormatFollow, context, host)
+            CanFlyVfrManeuverAloft,
+            (ac, context, host) => AirborneTrafficFlyout.BuildFollow("Follow traffic…", ac, context, host)
         ),
         new(
             MenuIds.NavigationOnCourse,
@@ -431,25 +438,12 @@ public static class MenuCatalog
 
     /// <summary>
     /// A VFR maneuver in the air: make closed traffic (<c>MLT</c> / <c>MRT</c>, which puts the aircraft into the pattern) and
-    /// left or right 360s at a fix (<c>HFIXL</c> / <c>HFIXR</c>). Offered to an IFR aircraft only under the controller's full VFR
-    /// setting. On the ground closed traffic only records the pattern side, which the takeoff clearance's closed-traffic
+    /// left or right 360s at a fix (<c>HFIXL</c> / <c>HFIXR</c>), and follow traffic (<c>FOLLOW</c>, whose flyout greys the traffic
+    /// not reported in sight). Offered to an IFR aircraft only under the controller's full VFR setting. On the ground closed traffic only records the pattern side, which the takeoff clearance's closed-traffic
     /// modifiers already cover.
     /// </summary>
     private static Func<IMenuAircraft?, MenuContext, bool> CanFlyVfrManeuverAloft =>
         (ac, context) => AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr) && (ac is { IsOnGround: false });
-
-    /// <summary>
-    /// Follow traffic in the air (<c>FOLLOW</c>): a VFR command the sim takes only after the aircraft reported traffic in
-    /// sight (<see cref="IMenuAircraft.LastReportedTrafficCallsign"/>), which a bare <c>FOLLOW</c> follows.
-    /// </summary>
-    private static Func<IMenuAircraft?, MenuContext, bool> CanFollowTraffic =>
-        (ac, context) =>
-            AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr)
-            && (ac is { IsOnGround: false })
-            && !string.IsNullOrEmpty(ac.LastReportedTrafficCallsign);
-
-    /// <summary><c>FOLLOW</c> with the typed callsign, or bare (the last traffic reported in sight) when the input is blank.</summary>
-    private static string FormatFollow(string input) => string.IsNullOrWhiteSpace(input) ? "FOLLOW" : $"FOLLOW {input.Trim()}";
 
     /// <summary>
     /// A pattern entry's label and the verb it sends, with the runway after it when one is given. A method rather than
@@ -1351,15 +1345,18 @@ public static class MenuCatalog
     /// <summary>The Report traffic in sight… free-text box's placeholder, for a target callsign or none.</summary>
     private const string TrafficInSightPlaceholder = "Target callsign (optional)";
 
+    /// <summary>How many aircraft the solo-training Report traffic in sight… picker lists.</summary>
+    private const int SoloTrafficInSightRows = 5;
+
     /// <summary>
-    /// The Report traffic in sight… picker: with airborne traffic near the aircraft (<see cref="IMenuHost.GetNearbyTraffic"/>),
-    /// a titled list of it (<see cref="TrafficInSightList"/>), each row sending <c>RTIS {callsign}</c>, then Any traffic
-    /// sending a bare <c>RTIS</c> and Other callsign… opening the free-text box; with none, the free-text box alone. The
-    /// box sends <c>RTIS {input}</c>, or a bare <c>RTIS</c> when left blank.
+    /// The Report traffic in sight… picker solo training keeps: with airborne traffic (<see cref="IMenuHost.GetAirborneTraffic"/>),
+    /// a titled list of the <see cref="SoloTrafficInSightRows"/> nearest (<see cref="TrafficInSightList"/>), each row sending
+    /// <c>RTIS {callsign}</c>, then Any traffic sending a bare <c>RTIS</c> and Other callsign… opening the free-text box; with
+    /// none, the free-text box alone. The box sends <c>RTIS {input}</c>, or a bare <c>RTIS</c> when left blank.
     /// </summary>
-    private static MenuItem BuildReportTrafficInSight(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    private static MenuItem BuildReportTrafficInSight(string label, MenuContext context, IMenuHost host)
     {
-        IReadOnlyList<MenuTrafficRow> traffic = host.GetNearbyTraffic(context.Callsign);
+        List<MenuTrafficRow> traffic = [.. host.GetAirborneTraffic(context.Callsign).Take(SoloTrafficInSightRows).Select(row => row.Traffic)];
         if (traffic.Count == 0)
         {
             return BuildInput(label, TrafficInSightPlaceholder, BlankInput.Submits, FormatTrafficInSight, context, host);

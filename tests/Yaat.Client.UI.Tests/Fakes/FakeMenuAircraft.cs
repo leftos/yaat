@@ -41,6 +41,8 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public string? LastReportedTrafficCallsign { get; init; }
 
+    public string? FollowingCallsign { get; init; }
+
     public bool IsHeld => false;
 
     public string? HoldKind => null;

@@ -180,11 +180,12 @@ public interface IMenuHost
     void HighlightAircraft(string? callsign);
 
     /// <summary>
-    /// The other airborne aircraft nearest <paramref name="callsign"/>, nearest first and capped by the host, each as seen
-    /// from it (<see cref="RelativeGeometry.TrafficRow"/>), which the Report traffic in sight… list offers; never a delayed
-    /// spawn or a live-traffic shadow. Empty when there are none or <paramref name="callsign"/> is not found.
+    /// Every other airborne aircraft in the sim, at any distance, nearest <paramref name="callsign"/> first, each as seen from
+    /// it with its direction of flight and pattern leg (<see cref="AirborneTrafficRows.Row"/>), which the Report traffic in
+    /// sight… and Follow traffic… flyouts list and filter; never a delayed spawn or a live-traffic shadow. Empty when there are
+    /// none or <paramref name="callsign"/> is not found.
     /// </summary>
-    IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign);
+    IReadOnlyList<MenuAirborneTrafficRow> GetAirborneTraffic(string callsign);
 
     /// <summary>
     /// The Hold short of… ladder for <paramref name="callsign"/>'s taxi route: the line naming the route, the line saying

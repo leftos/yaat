@@ -68,6 +68,12 @@ public interface IMenuAircraft
     /// </summary>
     string? LastReportedTrafficCallsign { get; }
 
+    /// <summary>
+    /// The callsign of the aircraft this one follows (<c>FOLLOW</c>), or null when it follows none; the Follow traffic… flyout
+    /// marks that aircraft's row <c>following</c>.
+    /// </summary>
+    string? FollowingCallsign { get; }
+
     /// <summary>True while a hold directive is keeping the aircraft stopped.</summary>
     bool IsHeld { get; }
 

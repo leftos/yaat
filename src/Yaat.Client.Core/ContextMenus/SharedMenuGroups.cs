@@ -567,6 +567,7 @@ public static class SharedMenuGroups
         menu.Items.Add(new Separator());
         TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
+        AddIfApplicable(menu.Items, MenuIds.PatternFollow, aircraft, context, host);
         menu.Items.Add(new Separator());
         menu.Items.Add(ReportWhen(aircraft, context, host));
         return menu;

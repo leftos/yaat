@@ -57,7 +57,7 @@ All Commands
     Cleared visual approach… picker:list [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     ---
     Report field in sight
-    Report traffic in sight… picker:input
+    Report traffic in sight… · no other aircraft airborne [disabled]
     ---
     Report when…
       Turning base

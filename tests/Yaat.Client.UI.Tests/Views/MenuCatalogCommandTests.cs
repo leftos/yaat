@@ -86,7 +86,6 @@ public class MenuCatalogCommandTests
         (MenuIds.HoldPresentRight, "", "HPPR"),
         (MenuIds.ApproachClearedVisual, "28R", "CVA 28R"),
         (MenuIds.ApproachReportFieldInSight, "", "RFIS"),
-        (MenuIds.ApproachReportTrafficInSight, "AAL12", "RTIS AAL12"),
         (MenuIds.ApproachReportBase, "", "REPORT BASE"),
         (MenuIds.ApproachReportFinal, "", "REPORT FINAL"),
         (MenuIds.ApproachReportCrosswind, "", "REPORT CROSSWIND"),
@@ -131,7 +130,6 @@ public class MenuCatalogCommandTests
         (MenuIds.PatternCircleAirport, "", "CA"),
         (MenuIds.PatternMakeLeftTraffic, "", "MLT"),
         (MenuIds.PatternMakeRightTraffic, "", "MRT"),
-        (MenuIds.PatternFollow, Fix, "FOLLOW SUNOL"),
         (MenuIds.NavigationOnCourse, "", "OC"),
         (MenuIds.GroundPushback, "", "PUSH"),
         (MenuIds.GroundHoldPosition, "", "HOLD"),
@@ -214,6 +212,10 @@ public class MenuCatalogCommandTests
         MenuIds.TrackPointOut,
         // PTAC… opens the PTAC flyout; PtacFlyoutTests clicks its rows and boxes.
         MenuIds.ProceduresPtac,
+        // Report traffic in sight… and Follow traffic… open the traffic flyouts over the host's airborne traffic (Report traffic in
+        // sight… keeps the rich-list popup in solo, below); AirborneTrafficFlyoutTests clicks their rows and box.
+        MenuIds.ApproachReportTrafficInSight,
+        MenuIds.PatternFollow,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
@@ -768,7 +770,9 @@ public class MenuCatalogCommandTests
     public void RenamedEntry_LabelAndHeader_ReadAsItsCommand(string id, string label, string header)
     {
         Assert.Equal(label, MenuCatalog.Get(id).Label);
-        Assert.Equal(header, MenuCatalog.Get(id).Build(null, Context(), new RecordingMenuHost(""))?.Header as string);
+        // Other aircraft airborne, so a traffic entry (Follow traffic…) builds its flyout rather than its no-traffic reason.
+        RecordingMenuHost host = TrafficHost("", null);
+        Assert.Equal(header, MenuCatalog.Get(id).Build(null, Context(), host)?.Header as string);
     }
 
     [AvaloniaTheory]
@@ -1008,11 +1012,25 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
     }
 
+    /// <summary>Outside solo training, Report traffic in sight… is the traffic flyout over the host's airborne traffic, not a picker.</summary>
     [AvaloniaFact]
-    public void ReportTrafficInSight_BlankAnswer_SendsBareRtis()
+    public void ReportTrafficInSight_OutsideSolo_OpensTheTrafficFlyout()
+    {
+        RecordingMenuHost host = TrafficHost("", null);
+
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host));
+
+        Assert.Null(item.Tag);
+        Assert.Equal("report traffic in sight flyout", Assert.IsType<MenuItem>(Assert.Single(item.Items)).Header?.ToString());
+        Assert.Empty(host.RichListPopups);
+        Assert.Empty(host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ReportTrafficInSight_Solo_BlankAnswer_SendsBareRtis()
     {
         var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
 
         Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
 
@@ -1021,10 +1039,10 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_AsksWithBlankSubmits()
+    public void ReportTrafficInSight_Solo_AsksWithBlankSubmits()
     {
         var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
 
         Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
 
@@ -1032,10 +1050,10 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_NoNearbyTraffic_KeepsInputBox()
+    public void ReportTrafficInSight_Solo_NoNearbyTraffic_KeepsInputBox()
     {
         var host = new RecordingMenuHost("AAL12");
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
 
         Click(AssertPicker(item, "Report traffic in sight…", MenuPickerDescriptor.Input, []));
 
@@ -1044,10 +1062,10 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_ListsNearestTrafficThenAnyAndOther()
+    public void ReportTrafficInSight_Solo_ListsNearestTrafficThenAnyAndOther()
     {
         RecordingMenuHost host = TrafficHost("", null);
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host);
 
         Click(
             AssertPicker(
@@ -1076,40 +1094,43 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_RowSendsRtisCallsign()
+    public void ReportTrafficInSight_Solo_RowSendsRtisCallsign()
     {
         RecordingMenuHost host = TrafficHost("N302AB", null);
 
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host)!);
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host)!);
 
         Assert.Equal([(Callsign, "RTIS N302AB", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_AnyTrafficSendsBareRtis()
+    public void ReportTrafficInSight_Solo_AnyTrafficSendsBareRtis()
     {
         RecordingMenuHost host = TrafficHost("Any traffic (no target)", null);
 
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host)!);
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), host)!);
 
         Assert.Equal([(Callsign, "RTIS", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
-    public void ReportTrafficInSight_OtherCallsignOpensInput()
+    public void ReportTrafficInSight_Solo_OtherCallsignOpensInput()
     {
         RecordingMenuHost typed = TrafficHost("Other callsign…", "UAL5");
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), typed)!);
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), typed)!);
 
         Assert.Equal(["Target callsign (optional)"], typed.InputPlaceholders);
         Assert.Equal(BlankInput.Submits, typed.LastBlankInput);
         Assert.Equal([(Callsign, "RTIS UAL5", Initials)], typed.Sent);
 
         RecordingMenuHost blank = TrafficHost("Other callsign…", "");
-        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), blank)!);
+        Click(MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, SoloContext(), blank)!);
 
         Assert.Equal([(Callsign, "RTIS", Initials)], blank.Sent);
     }
+
+    /// <summary>A menu context in solo training, where Report traffic in sight… keeps its rich-list popup.</summary>
+    private static MenuContext SoloContext() => TestMenuContext.Create(Callsign, Initials, null, true, VfrCommandsForIfr.EnterFinalOnly);
 
     /// <summary>
     /// A host answering two aircraft of nearby traffic, picking the rich-list row <paramref name="pick"/> and typing
@@ -1118,8 +1139,8 @@ public class MenuCatalogCommandTests
     private static RecordingMenuHost TrafficHost(string pick, string? typed)
     {
         var host = new RecordingMenuHost(pick) { InputAnswer = typed };
-        host.NearbyTraffic.Add(new MenuTrafficRow("AAL601", "B738", 4.2, 2, -1500));
-        host.NearbyTraffic.Add(new MenuTrafficRow("N302AB", "", 6.5, 11, 0));
+        host.AirborneTraffic.Add(new MenuAirborneTrafficRow(new MenuTrafficRow("AAL601", "B738", 4.2, 2, -1500), "northbound", null));
+        host.AirborneTraffic.Add(new MenuAirborneTrafficRow(new MenuTrafficRow("N302AB", "", 6.5, 11, 0), "southbound", null));
         return host;
     }
 

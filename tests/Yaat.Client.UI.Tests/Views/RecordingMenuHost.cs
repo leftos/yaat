@@ -305,10 +305,13 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public MenuPositions GetPositions() => new(Controllers, ActiveTcp, ActivePosition);
 
-    /// <summary>The airborne traffic the Report traffic in sight… list offers, whatever the callsign asked about; none by default.</summary>
-    public List<MenuTrafficRow> NearbyTraffic { get; } = [];
+    /// <summary>
+    /// The airborne traffic the Report traffic in sight… and Follow traffic… flyouts list, whatever the callsign asked about,
+    /// in the order given; none by default.
+    /// </summary>
+    public List<MenuAirborneTrafficRow> AirborneTraffic { get; } = [];
 
-    public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => NearbyTraffic;
+    public IReadOnlyList<MenuAirborneTrafficRow> GetAirborneTraffic(string callsign) => [.. AirborneTraffic];
 
     public HoldShortMenu GetHoldShortChoices(string callsign) =>
         new(HoldShortRouteLine, HoldShortMeLine, [.. HoldShortChoices], HoldShortDestination);

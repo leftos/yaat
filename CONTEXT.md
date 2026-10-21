@@ -656,7 +656,7 @@ The session settings an aircraft menu's predicates read (`MenuSession`): the use
 The block at the top of an aircraft's menu, under its header, while another aircraft is selected: `For {selected} (selected)`, a line saying where the clicked aircraft is from the selected one, and the items sent as the selected aircraft (Report in sight and Follow in the air, Follow and Give way to on the ground), then `For {clicked}` over the clicked aircraft's own items (`SharedMenuGroups.AddForSection`).
 
 **Traffic row**:
-One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands: in the air a `MenuTrafficRow` (callsign and type, distance, clock position, altitude difference), on the ground a `MenuGroundTrafficRow` (callsign, type, distance in feet, state such as `taxiing on W · ahead`).
+One other aircraft as a menu's traffic list shows it, seen from the aircraft the menu commands: in the air a `MenuAirborneTrafficRow` (a `MenuTrafficRow`: callsign and type, distance, clock position, altitude difference; plus direction of flight and pattern leg), on the ground a `MenuGroundTrafficRow` (callsign, type, distance in feet, state such as `taxiing on W · ahead`).
 
 **Gone row**:
 A Follow… or Give way to… row whose aircraft has left the ground, a Hold short of… stop the route has left, or a Preset taxi route row the host no longer returns, while the pointer holds the open flyout's list in place: dimmed, reading `gone`, disabled, skipped by the keyboard and sending nothing.

@@ -125,7 +125,7 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public void HighlightAircraft(string? callsign) => inner.HighlightAircraft(callsign);
 
-    public IReadOnlyList<MenuTrafficRow> GetNearbyTraffic(string callsign) => inner.GetNearbyTraffic(callsign);
+    public IReadOnlyList<MenuAirborneTrafficRow> GetAirborneTraffic(string callsign) => inner.GetAirborneTraffic(callsign);
 
     public HoldShortMenu GetHoldShortChoices(string callsign) => inner.GetHoldShortChoices(callsign);
 

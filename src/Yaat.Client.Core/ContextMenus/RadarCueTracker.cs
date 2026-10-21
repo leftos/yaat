@@ -40,7 +40,11 @@ internal sealed class RadarCueTracker(IMenuHost host, Func<string, RadarCue?> cu
         Apply();
     }
 
-    private void Unpoint(string key)
+    /// <summary>
+    /// Forgets that the pointer is on the row standing for <paramref name="key"/>, as leaving it does: for a row that goes away
+    /// or is disabled under the pointer, which raises no <see cref="InputElement.PointerExited"/>.
+    /// </summary>
+    public void Unpoint(string key)
     {
         if (_pointed == key)
         {

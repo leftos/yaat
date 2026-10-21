@@ -15,6 +15,7 @@ using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -45,7 +46,7 @@ public class ClientMenuHostTests
     }
 
     [AvaloniaFact]
-    public void GetNearbyTraffic_NearestFirst_ExcludesSelfDelayedAndShadows()
+    public void GetAirborneTraffic_NearestFirst_EveryOne_ExcludesSelfDelayedAndShadows()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var at = new LatLon(37.5, -122.0);
@@ -68,16 +69,40 @@ public class ClientMenuHostTests
         main.Aircraft.Add(onGround);
         var host = new ClientMenuHost(main, self, new Border());
 
-        IReadOnlyList<MenuTrafficRow> rows = host.GetNearbyTraffic("N302AB");
+        IReadOnlyList<MenuAirborneTrafficRow> rows = host.GetAirborneTraffic("N302AB");
 
-        Assert.Equal(["AAL1", "AAL2", "AAL3", "AAL4", "AAL5"], rows.Select(row => row.Callsign));
-        Assert.Equal(new MenuTrafficRow("AAL1", "B738", rows[0].DistanceNm, 12, 100), rows[0]);
-        Assert.Equal(1, RelativeGeometry.WholeNm(rows[0].DistanceNm));
-        Assert.Empty(host.GetNearbyTraffic("NOPE"));
+        Assert.Equal(["AAL1", "AAL2", "AAL3", "AAL4", "AAL5", "AAL6", "AAL7"], rows.Select(row => row.Callsign));
+        Assert.Equal(new MenuTrafficRow("AAL1", "B738", rows[0].Traffic.DistanceNm, 12, 100), rows[0].Traffic);
+        Assert.Equal(1, RelativeGeometry.WholeNm(rows[0].Traffic.DistanceNm));
+        Assert.Empty(host.GetAirborneTraffic("NOPE"));
+    }
+
+    /// <summary>The direction of flight comes from the target's true track and its leg from the sim's pattern position.</summary>
+    [AvaloniaFact]
+    public void GetAirborneTraffic_DirectionFromTrueTrack_LegFromPatternPosition()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        var at = new LatLon(37.5, -122.0);
+        AircraftModel self = Airborne("N302AB", at, 3000);
+        AircraftModel pattern = Airborne("N738SP", new LatLon(at.Lat + 0.01, at.Lon), 1000);
+        pattern.TrueTrack = 95;
+        pattern.AssignedRunway = "28L";
+        pattern.PatternPosition = new PatternPosition(PatternEntryLeg.Downwind, PatternDirection.Left, 1.2);
+        AircraftModel cruising = Airborne("N22RX", new LatLon(at.Lat + 0.02, at.Lon), 3500);
+        cruising.TrueTrack = 268;
+        main.Aircraft.Add(self);
+        main.Aircraft.Add(pattern);
+        main.Aircraft.Add(cruising);
+        var host = new ClientMenuHost(main, self, new Border());
+
+        IReadOnlyList<MenuAirborneTrafficRow> rows = host.GetAirborneTraffic("N302AB");
+
+        Assert.Equal(("eastbound", "left downwind 28L"), (rows[0].Direction, rows[0].Leg));
+        Assert.Equal(("westbound", (string?)null), (rows[1].Direction, rows[1].Leg));
     }
 
     [AvaloniaFact]
-    public void GetNearbyTraffic_TypeDropsTheEquipmentSuffix()
+    public void GetAirborneTraffic_TypeDropsTheEquipmentSuffix()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var at = new LatLon(37.5, -122.0);
@@ -88,7 +113,7 @@ public class ClientMenuHostTests
         main.Aircraft.Add(heavy);
         var host = new ClientMenuHost(main, self, new Border());
 
-        Assert.Equal("B77W", Assert.Single(host.GetNearbyTraffic("N302AB")).AircraftType);
+        Assert.Equal("B77W", Assert.Single(host.GetAirborneTraffic("N302AB")).Traffic.AircraftType);
     }
 
     private static AircraftModel Airborne(string callsign, LatLon position, double altitude) =>

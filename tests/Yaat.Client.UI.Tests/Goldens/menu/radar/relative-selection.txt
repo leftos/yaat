@@ -64,7 +64,8 @@ All Commands
     Cleared visual approach (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
     ---
     Report field in sight
-    Report traffic in sight… picker:richList [AAL602 · B738, ---, Any traffic (no target), Other callsign…]
+    Report traffic in sight…
+      report traffic in sight flyout
     ---
     Report when…
       Turning base
