@@ -5,20 +5,14 @@
 ## Do first
 
 - [ ] YAAT-558 Stop QuickCommandsSection_DragReordersARow flaking under load · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-667 Stop MethodStep_TimeoutMs_IsTheAnswerTimeout flaking under load · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-705 Make RecordToolsTests.Mark_SimClockBlocked load-proof · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-821 Find the Yaat.Client.Tests test that stalls a local full suite on a busy machine · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-989 Stop FavoriteButtonClick_InPaletteMode_ReachesCommandDispatch flaking on nav data · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [/] YAAT-993 Make DiscordRichPresenceServiceTests' wall-clock waits hang guards · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-137 Fix the SessionPersistenceTests Directory.Move flake under test-all · release vNext — Urgent · Singles
 - [ ] YAAT-169 Investigate the MainViewModelSpeechContextThreadingTests suite-load flake · release vNext — Urgent · Singles
-- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — Urgent · Singles
+- [/] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — Urgent · Singles
 - [ ] YAAT-372 ERAM conformance test flakes when the harness aircraft's random CID is 128 · release vNext — Urgent · Backlog
-- [ ] YAAT-484 Make two client-driver MCP timing tests pass under machine load · release vNext — Urgent · Backlog
 - [ ] YAAT-646 Make CrcJoinSessionTests' Tower Cab move into another room's session load-proof · release vNext — Urgent · Backlog
-- [ ] YAAT-749 Find the Yaat.Client.Tests hang that stalls a suite run with two child test hosts · release vNext — Urgent · Backlog
 - [ ] YAAT-784 Make ChangeDetectionTests' concurrent remove-and-clear test load-proof · release vNext — Urgent · Backlog
-- [ ] YAAT-797 Make QuickCommandsSection_DragReordersARow hold under load · release vNext — Urgent · Backlog
 - [ ] YAAT-957 Await the CRC alias load in the clear-terminal-on-scenario-load tests · release vNext — Urgent · Backlog
 - [ ] YAAT-972 Fix the GetSimTime_NoMainWindow_AnswersTheNoStateError flake · release vNext — Urgent · Backlog
 - [ ] YAAT-973 Fix the PushbackTargets_Gate26_Seed_ShowsSeedAtOnce flake · release vNext — Urgent · Backlog
@@ -82,6 +76,7 @@
 - [ ] YAAT-26 Pilot AI solo training Wave 2: M11.2 pilot-initiated requests
 - [ ] YAAT-27 Typed command arguments: audit the remaining argument slots (step 2)
 - [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop
+- [ ] YAAT-996 Extract the client driver into a shared Avalonia driver repo (yamv adopts it)
 
 ## STT tuning
 
@@ -402,6 +397,8 @@
 - [ ] YAAT-987 Close open popups before the UI test fixture closes its window
 - [ ] YAAT-988 Run the UI test project's Nightly tests somewhere
 - [ ] YAAT-990 Remove the UI tests' leftover preference-restore code
+- [ ] YAAT-997 Move BatchToolsTests' remaining wall-clock races onto HeldClock
+- [ ] YAAT-998 Move the WaitForAndFilePick and ZOrder wall-clock bounds onto HeldClock
 
 ## Singles
 
@@ -673,3 +670,5 @@
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
 - [ ] YAAT-991 Client driver: server-side wait on the client log, from a point before the call
 - [ ] YAAT-992 Client driver: wait for any UI change, and start the effect with the wait
+- [ ] YAAT-994 Resolve NavData and CIFP offline in Yaat.Client.Tests
+- [ ] YAAT-995 Stop ManagedStackCapture's ClrMD snapshot clones outliving the capture
