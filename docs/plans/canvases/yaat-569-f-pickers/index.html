@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runway and STAR Pickers</title>
+<style>
+  /* Layout: carried rulings and found notes, today's surfaces, then one artboard per state whose lanes sit side by side as columns. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .switches code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 0 0 24px; font-size: 13px; color: var(--muted); }
+  .switches label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; }
+  .switches b { color: var(--ink); font-weight: 600; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 124ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts i { font-style: normal; font: 600 11px var(--f-mono); color: var(--tag-b); }
+  .nd { font: 600 10.5px var(--f-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--warn); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 110ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.one { grid-template-columns: minmax(0, 1fr); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 110ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-direction: column; gap: 14px; }
+  .stage.row { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 440px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send], .mi[data-open] { cursor: pointer; }
+  .mi[data-send]:hover, .mi[data-open]:hover { background: rgba(255, 255, 255, .085); }
+  .mi:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; display: inline-flex; gap: 8px; align-items: center; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 0 auto; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .kind { padding-left: 14px; font-size: 11px; color: #a4adb8; white-space: nowrap; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .cmd.force { color: #ffb259; opacity: 1; }
+  .mi.short { opacity: .5; }
+  .mi.dim > :not(.nm), .mi.dim .nm > .n { opacity: .5; }
+  .mi.dim .cmd { opacity: .35; }
+  .mi.dim { cursor: default; }
+  .mi.sel { background: #3a3a3a; }
+  .bdg { flex: 0 0 auto; border: 1px solid #e0a84a; color: #e0a84a; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .bdg.filed { border-color: #6ee0ce; color: #6ee0ce; }
+  .mono { font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
+  .panel { max-height: 300px; overflow-y: auto; scrollbar-color: #555 transparent; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .muted-line { font: 12.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 8px 11px 8px; }
+  .force-t { font: 11px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 1px 6px; cursor: pointer; }
+  .force-t.on { background: #4a3417; border-color: #ffb259; color: #ffd8a6; }
+
+  /* Tabs, as FlyoutTabStrip draws them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px; padding: 3px 8px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+  .tab small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab[aria-selected="true"] small { color: #c9d6e8; }
+  .tab:hover { background: #2e343b; }
+  .tab[aria-selected="true"]:hover { background: #2a4b7a; }
+
+  /* Boxes. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 230px; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .pre { font: 12px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 4px 6px; }
+
+  /* Today's popups. */
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; gap: 4px; align-items: center; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .inpop .tbox { width: 160px; font-family: Inter, "Segoe UI", sans-serif; }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+  .lbox { background: #1f1f1f; border: 1px solid #505050; width: 120px; padding: 2px 0; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .lbox div { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; padding: 6px 10px; }
+  .lbox div.sel { background: #3a5a8a; }
+
+  /* The aircraft menu stub with its quick-command strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; white-space: nowrap; }
+  .strip { display: flex; gap: 4px; padding: 2px 11px 2px; }
+  .well { width: 34px; height: 34px; border-radius: 5px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .well .gly { margin: 0; }
+  .well.open { background: #24406a; }
+  .well.inert { opacity: .38; }
+  .slabel { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ededed; padding: 4px 11px 6px; }
+  .slabel code { font: 11px "JetBrains Mono", Consolas, monospace; color: #b8b8b8; }
+  .slabel .why { color: #9a9a9a; }
+
+  .callout { max-width: 420px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · part F · runway, STAR and procedure pickers · mock for the owner's decisions</div>
+  <h1>Runway and STAR picker flyouts</h1>
+  <p class="lede">Family F is every menu entry that still ends in the list popup or a bare text box because it picks a runway or a STAR: <b>Cleared visual approach</b> (<code>CVA {rwy}</code>) and its “(other)…” list, <b>Join STAR</b> (<code>JARR {star}</code>) and its “(other)…” list, the no-data text boxes of those two and of the five <b>pattern entries</b>, and the <b>Custom…</b> row of <b>Cleared for takeoff</b>. Converting them retires <code>ShowListPopup</code>.</p>
+  <p class="lede">The page draws three lanes side by side for each state: <b>A</b> one flyout per verb with the default pinned first, <b>B</b> one list with the default highlighted where it falls, <b>C</b> Cleared visual folded into the built Cleared approach flyout and Join STAR into a tabbed STAR flyout. Then the no-data state (two options) and the takeoff Custom row (one treatment and a variant). Rows, tabs, boxes and toggles are live; the line under each lane says what a click or Enter sends.</p>
+  <p class="lede">Runways, approaches, STARs and their transitions are real (the bundled CIFP and NavData); callsigns, positions and the room's runway setup (KOAK landing 30 and 28R) are illustrative.</p>
+
+  <section class="note-box" aria-labelledby="carried-h">
+    <h2 id="carried-h">Carried from earlier parts (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Flyout language.</b> Title line with the aircraft on the right; glyph rows whose command column shows what a click or Enter sends; the outlined row is what Enter sends; separators; a 300 px list (parts B, C, D).</li>
+      <li><b>Approach flyout</b> (part X3, as built): runway tabs in the room's order then the pattern-entry order, a Visual row first on each tab, the default pinned above the tabs, the airport-level <code>CVA {airport}</code> row at an untowered field, a visual row greyed “field not in sight” until <code>RFIS</code>, the <b>Force</b> toggle turning every row forced, Cancel IFR… last.</li>
+      <li><b>Pattern-entry runway flyout</b> (YAAT-521): room arrival ends first, a separator, the rest, ends too short for the type dimmed “short” and still clickable.</li>
+      <li><b>Empty state</b> (parts D, ground): an entry with nothing to offer keeps its strip button, faded and inert, its label line naming why, and its All Commands row disabled with the same note.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found while drawing (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>Today's list cannot send its first entry.</b> <code>ShowList</code> pre-selects <code>items[0]</code> (<code>MenuCatalog.cs:1670</code>, <code>:1713</code>; <code>MenuPopups.cs:194-198</code>) and sends only on <code>SelectionChanged</code>, so clicking the highlighted 10L or AANET1 changes nothing and sends nothing. <code>MenuPopupsTests.cs:333</code> picks index 2 only.</li>
+      <li><b>Cleared visual is offered to VFR aircraft.</b> It is a <code>Picker</code> with <code>Always</code> and <code>MenuFlightRules.Both</code> (<code>MenuCatalog.cs:169</code>, <code>:915-916</code>), shown in All Commands › Approach for any airborne aircraft; the sim clears only IFR aircraft for <code>CVA</code> (COMMANDS.md :490), which the approach flyout already gates (<code>ApproachFlyoutModel.cs:272-276</code>).</li>
+      <li><b>The standalone Cleared visual misses what the approach flyout has:</b> no <code>CVA {airport}</code> row at an untowered field, no “field not in sight” greying, no short marks, and runway order (10L first, too short for an A320) rather than the room's (<code>MenuCatalog.cs:1635-1671</code>).</li>
+      <li><b>The pattern entries have an “(other)” companion too</b> (<code>SharedMenuGroups.cs:683</code>, <code>MenuCatalog.BuildPatternEntryOther</code> :812): already a flyout, so not a <code>ShowListPopup</code> caller, but decision 2 decides it as well.</li>
+      <li><b>“No STARs” is not rare.</b> Livermore (KLVK) and Half Moon Bay (KHAF) have runways and approaches but no STAR in the bundled CIFP, so Join STAR's free-text fallback is reached by any IFR arrival there.</li>
+      <li><b>CTO Custom's blank send repeats a row.</b> Both takeoff sets start with Cleared for takeoff <code>CTO</code> (<code>TakeoffFlyout.cs:230</code>, <code>:255</code>), which is what Custom… sends blank (<code>BlankInput.Submits</code>, <code>MenuCatalog.cs:766</code>). Its popup box is 160 px (<code>MenuPopups.cs:61</code>) under a 41-character placeholder (<code>:479</code>).</li>
+    </ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="switches" role="group" aria-label="Page switches">
+    <label><input type="checkbox" id="sw-field" checked> <b>Field reported in sight</b></label><span>off: visual rows grey “field not in sight” until Force is on.</span>
+    <label><input type="checkbox" id="sw-blank"> <b>Blank Custom sends <code>CTO</code></b></label><span>decision 5; off: a blank Custom box sends nothing.</span>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <ol class="nl">
+      <li><b>1. Lane.</b><span class="opts"><i>A</i> one flyout per verb, the default pinned first and focused · <i>B</i> one list, the default highlighted where it falls · <i>C</i> Cleared visual opens the Cleared approach flyout on its visual row; Join STAR becomes a tabbed STAR flyout with entry-fix, runway and Descend via rows.</span></li>
+      <li><b>2. “(other)…” companions.</b><span class="opts"><i>a</i> drop them: one entry, the flyout holds every choice · <i>b</i> keep an All Commands-only “(other)…” opening the same flyout. And the pattern entries' own “(other)” flyout: <i>c</i> the same answer · <i>d</i> leave it.</span></li>
+      <li><b>3. No-data state</b> (Cleared visual, Join STAR, the five pattern entries). <span class="opts"><i>a</i> a box in the flyout under a line saying why · <i>b</i> nothing to pick: inert strip button, disabled entry, the command bar for the rest.</span></li>
+      <li><b>4. CTO Custom row.</b><span class="opts"><i>A</i> an inline box row, always open · <i>B</i> a Custom… row that opens its box in place.</span></li>
+      <li><b>5. Blank Custom.</b><span class="opts"><i>a</i> sends nothing (the first row already sends <code>CTO</code>) · <i>b</i> sends <code>CTO</code>, as today.</span></li>
+      <li><b>6. Runway rows in lanes A and B.</b><span class="opts"><i>a</i> the pattern-entry order: room runways first, short ones dimmed last (lane A as drawn) · <i>b</i> runway order, unmarked (today's list, lane B as drawn).</span></li>
+      <li><b>7. Field in sight and Force in lanes A and B.</b><span class="opts"><i>a</i> as the approach flyout: greyed until reported, a Force toggle sending <code>CVAF</code> (as drawn) · <i>b</i> neither: rows always live, the sim refuses.</span></li>
+    </ol>
+  </section>
+
+  <footer class="foot">Glyphs are the built <code>QuickCommandGlyphs</code> and <code>TakeoffFlyout</code> paths at 22 px, stroke 1.9: the Cleared visual eye and Cleared approach arrow in the flight blue <code>#A8CAFF</code>, the pattern entry and takeoff rows in violet <code>#DDBDFF</code>, the strip's tower buttons in amber <code>#FFC062</code>. Join STAR has no glyph, so its rows show an empty dashed slot. Short runways are for an A320 (5,433 ft needed; 10L 5,336, 15 and 33 3,376 ft LDA, as the X3 visuals mock measured). The takeoff glyphs are drawn unrotated. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const FLIGHT = "#A8CAFF", TOWER = "#FFC062", PATTERN = "#DDBDFF";
+  const P = {
+    CAPP: "M3 12L21 5 M3 12L21 19 M3 12h18",
+    EYE: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+    RFIS: "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2",
+    CM: "M3 18l7-7 4 4 7-7 M15 8h6v6",
+    DCT: "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4",
+    DVIA: "M3 4h5v5h5v5h5v5 M15 16l3 3 3-3",
+    ELD: "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z M11 7.4 L9.4 9 L11 10.6 M6.35 20.65 L10.15 16.85 M10.15 16.85 h-3 M10.15 16.85 v3",
+    ERD: "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z M11 13.4 L9.4 15 L11 16.6 M6.35 3.35 L10.15 7.15 M10.15 7.15 h-3 M10.15 7.15 v-3",
+    CTO: "M2 20h20 M5 16L19 6 M13 6h6v6",
+    LUAW: "M6 21V3 M18 21V3 M10 9v6 M14 9v6",
+    HDG: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z",
+    RH: "M9 11h10v2H9z M9 12H2.5 M2.5 12l2.2-2.2 M2.5 12l2.2 2.2",
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (path, color, faint) => `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${faint ? ` opacity=".45"` : ""}><path d="${path}"/></svg>`;
+  const blankG = `<span class="gly blank" aria-hidden="true"></span>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const grp = (l, r = "") => `<div class="grp"><span>${l}</span><code>${r}</code></div>`;
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+  const titleLine = (title, right) => `<div class="mi title"><span class="et"><b>${esc(title)}</b></span><span class="r">${right}</span></div>`;
+
+  /* ---------- State ---------- */
+  let FIELD = true;
+  let BLANK_CTO = false;
+  const FORCED = new Set();
+  const TABS = {};
+  const OPEN = new Set();
+  const BUILD = {};
+  /** Registers a menu builder under key and returns its first render. */
+  const reg = (key, fn) => { BUILD[key] = fn; return fn(); };
+  const redraw = key => { const el = document.querySelector(`[data-key="${key}"]`); if (el) el.outerHTML = BUILD[key](); };
+
+  /* ---------- Data ---------- */
+  const KOAK = {
+    id: "KOAK", towered: true,
+    runwayOrder: ["10L", "10R", "12", "15", "28L", "28R", "30", "33"],
+    room: ["30", "28R"],
+    short: new Set(["10L", "15", "33"]),
+    approaches: {
+      "30": [["ILS RWY 30", "ILS", "I30"], ["LOC RWY 30", "LOC", "L30"], ["RNAV (GPS) Y RWY 30", "RNAV Y", "R30-Y"], ["RNAV (RNP) Z RWY 30", "RNP Z", "H30-Z"]],
+      "28R": [["ILS RWY 28R", "ILS", "I28R"], ["LOC RWY 28R", "LOC", "L28R"], ["RNAV (GPS) Y RWY 28R", "RNAV Y", "R28RY"], ["RNAV (RNP) Z RWY 28R", "RNP Z", "H28RZ"]],
+      "10R": [["RNAV (GPS) RWY 10R", "RNAV", "R10R"], ["VOR RWY 10R", "VOR", "S10R"]],
+      "12": [["ILS RWY 12", "ILS", "I12"], ["LOC RWY 12", "LOC", "L12"], ["RNAV (GPS) Y RWY 12", "RNAV Y", "R12-Y"], ["RNAV (RNP) Z RWY 12", "RNP Z", "H12-Z"]],
+      "28L": [["RNAV (GPS) Y RWY 28L", "RNAV Y", "R28LY"], ["RNAV (RNP) Z RWY 28L", "RNP Z", "H28LZ"]],
+      "10L": [["RNAV (GPS) RWY 10L", "RNAV", "R10L"]],
+      "15": [], "33": [],
+    },
+  };
+  const KHAF = {
+    id: "KHAF", towered: false, runwayOrder: ["12", "30"], room: [], short: new Set(),
+    approaches: { "12": [["RNAV (GPS) RWY 12", "RNAV", "R12"]], "30": [["RNAV (GPS) RWY 30", "RNAV", "R30"]] },
+  };
+  /** The pattern-entry order: room arrival ends, then the rest landable first, each part in runway order; "|" marks the separator. */
+  const patternOrder = apt => {
+    const rest = apt.runwayOrder.filter(r => !apt.room.includes(r));
+    const tail = [...rest.filter(r => !apt.short.has(r)), ...rest.filter(r => apt.short.has(r))];
+    return apt.room.length ? [...apt.room, "|", ...tail] : tail;
+  };
+  const STARS = {
+    AANET1: { enr: ["RBUCL", "SPAMY"], rwy: ["12"] },
+    EMZOH4: { enr: ["RGOOD"], rwy: ["30", "28R", "28L", "12"] },
+    OAKES3: { enr: ["MRLET", "RPARK", "RUSME"], rwy: ["30", "28R", "28L", "12"] },
+    PIRAT3: { enr: ["ALCOA", "CINNY", "HUNTS", "PAINT", "PASIF", "WUSES"], rwy: [] },
+    PXN6: { enr: ["AVE", "GMN"], rwy: [] },
+    WNDSR2: { enr: ["RBUCL", "SPAMY"], rwy: ["30", "28R", "28L"] },
+  };
+  const STAR_IDS = Object.keys(STARS);
+  const starNote = id => {
+    const s = STARS[id];
+    const via = s.enr.length > 3 ? `${s.enr.slice(0, 3).join(", ")} +${s.enr.length - 3}` : s.enr.join(", ");
+    return `via ${via}${s.rwy.length ? ` · RWY ${s.rwy.join(" ")}` : ""}`;
+  };
+  const AC = {
+    vis: { cs: "UAL455", type: "A320", state: "IFR arrival · KOAK · 6,000 · 210 kt", apt: KOAK, def: "28R" },
+    visNo: { cs: "UAL455", type: "A320", state: "IFR arrival · KOAK · 6,000 · 210 kt", apt: KOAK, def: null },
+    unt: { cs: "N4417Q", type: "C182", state: "IFR arrival · KHAF · 4,000 · 130 kt", apt: KHAF, def: null },
+    star: { cs: "SWA1957", type: "B737", dest: "KOAK", filed: "OAKES3" },
+    starNo: { cs: "SWA1957", type: "B737", dest: "KOAK", filed: null },
+  };
+
+  /* ---------- Rows ---------- */
+  /** One glyph row: o.g glyph, o.n name, o.notes, o.badge, o.kind, o.cmd, o.short, o.dim (+ o.why), o.forced, o.focus, o.sel, o.mono. */
+  function row(o) {
+    const cls = ["mi"];
+    if (o.short) cls.push("short");
+    if (o.dim) cls.push("dim");
+    if (o.focus && !o.dim) cls.push("kfocus");
+    if (o.sel) cls.push("sel");
+    const notes = (o.notes || []).filter(Boolean).map(t => `<span class="note">· ${esc(t)}</span>`).join("");
+    const badge = o.badge ? `<span class="bdg${o.badgeCls ? ` ${o.badgeCls}` : ""}">${esc(o.badge)}</span>` : "";
+    const attrs = o.dim ? ` data-dim="${esc(o.why)}" aria-disabled="true" tabindex="-1"` : ` data-send="${esc(o.cmd)}" tabindex="0"`;
+    const g = o.g === null ? "" : (o.g || blankG);
+    const grid = o.g === null ? ` style="grid-template-columns:minmax(0,1fr) auto auto"` : "";
+    return `<div class="${cls.join(" ")}" role="menuitem"${attrs}${grid}>${g}<span class="nm"><span class="n${o.mono ? " mono" : ""}">${esc(o.n)}</span>${badge}${notes}</span><span class="kind">${esc(o.kind || "")}</span><span class="cmd${o.forced ? " force" : ""}">${esc(o.cmd)}</span></div>`;
+  }
+  const NOT_IN_SIGHT = "Field not in sight — issue RFIS first";
+  /** A visual row for target (a runway or an airport) under menu key's Force state. */
+  function visRow(target, key, o = {}) {
+    const forced = FORCED.has(key);
+    const dim = !FIELD && !forced;
+    const notes = [...(o.notes || [])];
+    if (o.isShort) notes.push("short");
+    if (dim) notes.push("field not in sight");
+    return row({
+      g: o.plain ? null : gl(P.EYE, FLIGHT), n: o.name || (o.plain ? target : `Visual RWY ${target}`), mono: o.plain, notes, badge: o.badge,
+      cmd: `${forced ? "CVAF" : "CVA"} ${target}`, short: o.isShort && !o.plain, dim, why: NOT_IN_SIGHT, forced, focus: o.focus, sel: o.sel,
+    });
+  }
+  const forceBtn = key => `<button type="button" class="force-t${FORCED.has(key) ? " on" : ""}" data-force="${key}" title="Forced rows fold the field-in-sight report in (RPO only)">Force</button>`;
+  const fly = (key, inner, label) => `<div class="menu m w fly" role="menu" aria-label="${esc(label)}" data-key="${key}">${inner}</div>`;
+
+  /** A box row: label, placeholder, the command template ({} is the text) and the bare command a blank sends (null: nothing). */
+  function boxRow(o) {
+    const pre = o.pre ? `<span class="pre">${esc(o.pre)}</span>` : "";
+    const prev0 = o.bare ? o.bare : `${o.tpl.replace(" {}", "")} ···`;
+    return `<div class="mi" role="menuitem" data-boxrow>${o.g || blankG}<span class="nm col"><span class="n">${esc(o.label)}</span><span class="under">${pre}<input class="tbox${o.focus ? " focus" : ""}" type="text" data-box data-tpl="${esc(o.tpl)}" data-bare="${esc(o.bare || "")}" placeholder="${esc(o.ph)}" aria-label="${esc(o.label)}" autocomplete="off" spellcheck="false"></span></span><span></span><span class="cmd${o.bare ? "" : " wait"}" data-prev>${esc(prev0)}</span></div>`;
+  }
+
+  /* ---------- Lane A: one Cleared visual flyout ---------- */
+  function cvaA(ac, key) {
+    const apt = ac.apt;
+    let h = titleLine("Cleared visual approach", `${ac.cs} · ${apt.id}${forceBtn(key)}`);
+    const pinned = [];
+    if (!apt.towered) pinned.push(visRow(apt.id, key, { name: `Visual approach ${apt.id}`, notes: ["pilot picks the runway"], focus: !ac.def }));
+    if (ac.def) pinned.push(visRow(ac.def, key, { badge: "default", focus: true, isShort: apt.short.has(ac.def) }));
+    if (pinned.length) h += pinned.join("") + sep();
+    let first = !pinned.length;
+    const rows = patternOrder(apt).filter(r => r !== ac.def).map(r => {
+      if (r === "|") return sep();
+      const out = visRow(r, key, { isShort: apt.short.has(r), focus: first });
+      first = false;
+      return out;
+    });
+    const roomNote = apt.room.length ? grp("Room runways, then the rest · short last", `${apt.runwayOrder.length - (ac.def ? 1 : 0)}`) : grp("Runways", `${apt.runwayOrder.length}`);
+    h += roomNote + `<div class="panel">${rows.join("").replace(/^<div class="msep" role="separator"><\/div>/, "")}</div>`;
+    return fly(key, h, "Cleared visual approach");
+  }
+
+  /* ---------- Lane B: one list, the default highlighted ---------- */
+  function cvaB(ac, key) {
+    const apt = ac.apt;
+    let h = titleLine("Cleared visual approach", `${ac.cs} · ${apt.id}${forceBtn(key)}`);
+    const items = [...(apt.towered ? [] : [apt.id]), ...apt.runwayOrder];
+    const hi = ac.def || items[0];
+    const rows = items.map(r => visRow(r, key, { plain: true, name: r === apt.id ? `${apt.id} · any runway` : r, sel: r === hi, focus: r === hi, badge: r === ac.def ? "default" : null }));
+    h += sep() + `<div class="panel">${rows.join("")}</div>`;
+    return fly(key, h, "Cleared visual approach");
+  }
+
+  /* ---------- Lane C: the built Cleared approach flyout, opened on the visual row ---------- */
+  function apprC(ac, key) {
+    const apt = ac.apt;
+    const forced = FORCED.has(key);
+    const capp = forced ? "CAPPF" : "CAPP";
+    let h = titleLine("Cleared approach", `${ac.cs} · ${apt.id}${forceBtn(key)}`);
+    const pinned = [];
+    if (ac.def) {
+      const first = apt.approaches[ac.def][0];
+      pinned.push(row({ g: gl(P.CAPP, FLIGHT), n: `Cleared ${first[1]} ${ac.def}`, badge: "default", kind: first[1], cmd: `${capp} ${first[2]}`, forced }));
+    }
+    if (!apt.towered) pinned.push(visRow(apt.id, key, { name: `Visual approach ${apt.id}`, notes: ["pilot picks the runway"] }));
+    if (pinned.length) h += pinned.join("") + sep();
+    const tabs = patternOrder(apt).filter(r => r !== "|");
+    const selDefault = ac.def ? tabs.indexOf(ac.def) : 0;
+    const sel = TABS[key] ?? selDefault;
+    h += `<div class="tabs" role="tablist">${tabs.map((r, i) => `<span class="tab" role="tab" tabindex="0" aria-selected="${i === sel}" data-tab="${key}|${i}">${r}<small>${apt.approaches[r].length + 1}</small></span>`).join("")}</div>`;
+    const r = tabs[sel];
+    const isShort = apt.short.has(r);
+    const rows = [visRow(r, key, { isShort, focus: true })];
+    apt.approaches[r].forEach(a => rows.push(row({ g: gl(P.CAPP, FLIGHT), n: a[0], notes: isShort ? ["short"] : [], kind: a[1], cmd: `${capp} ${a[2]}`, short: isShort, forced })));
+    h += `<div class="panel">${rows.join("")}</div>` + sep();
+    h += boxRow({ g: gl(P.CAPP, FLIGHT), label: "Approach", ph: "id, e.g. I28R", tpl: `${capp} {}` });
+    h += sep() + row({ n: "Cancel IFR…", cmd: "CIFR" });
+    return fly(key, h, "Cleared approach");
+  }
+
+  /* ---------- Join STAR ---------- */
+  const starRow = (id, o = {}) => row({ g: o.plain ? null : blankG, n: id, mono: o.plain, notes: o.plain ? [] : [starNote(id)], badge: o.filed ? "filed" : null, badgeCls: "filed", cmd: `JARR ${id}`, focus: o.focus, sel: o.sel });
+  function starA(ac, key) {
+    let h = titleLine("Join STAR", `${ac.cs} · ${ac.dest}`);
+    if (ac.filed) h += starRow(ac.filed, { filed: true, focus: true }) + sep();
+    const rest = STAR_IDS.filter(s => s !== ac.filed);
+    h += grp(`${ac.dest} STARs`, `${rest.length}`) + `<div class="panel">${rest.map((s, i) => starRow(s, { focus: !ac.filed && i === 0 })).join("")}</div>`;
+    return fly(key, h, "Join STAR");
+  }
+  function starB(ac, key) {
+    let h = titleLine("Join STAR", `${ac.cs} · ${ac.dest}`);
+    const hi = ac.filed || STAR_IDS[0];
+    h += sep() + `<div class="panel">${STAR_IDS.map(s => starRow(s, { plain: true, sel: s === hi, focus: s === hi, filed: s === ac.filed })).join("")}</div>`;
+    return fly(key, h, "Join STAR");
+  }
+  function starC(ac, key) {
+    let h = titleLine("Join STAR", `${ac.cs} · ${ac.dest}`);
+    const order = ac.filed ? [ac.filed, ...STAR_IDS.filter(s => s !== ac.filed)] : STAR_IDS;
+    const sel = TABS[key] ?? 0;
+    h += `<div class="tabs" role="tablist">${order.map((s, i) => `<span class="tab" role="tab" tabindex="0" aria-selected="${i === sel}" data-tab="${key}|${i}">${s}${s === ac.filed ? "<small>◆ filed</small>" : ""}</span>`).join("")}</div>`;
+    const id = order[sel], s = STARS[id];
+    let rows = row({ g: blankG, n: `Join ${id}`, notes: ["nearest fix ahead"], badge: id === ac.filed ? "filed" : null, badgeCls: "filed", cmd: `JARR ${id}`, focus: true });
+    rows += grp("Join at", `${s.enr.length}`) + s.enr.map(f => row({ g: blankG, n: f, cmd: `JARR ${id} ${f}` })).join("");
+    rows += s.rwy.length
+      ? grp("For runway · sets the landing runway", `${s.rwy.length}`) + s.rwy.map(r => row({ g: blankG, n: `Runway ${r}`, cmd: `JARR ${id} ${r}` })).join("")
+      : `<div class="muted-line">${id} has no runway transitions.</div>`;
+    h += `<div class="panel">${rows}</div>` + sep();
+    h += row({ g: gl(P.DVIA, FLIGHT), n: "Descend via STAR", notes: [ac.filed ? `${ac.filed}'s restrictions` : "the joined STAR's restrictions"], cmd: "DVIA" });
+    return fly(key, h, "Join STAR");
+  }
+
+  /* ---------- The aircraft menu stub ---------- */
+  function acMenu(o) {
+    const cells = o.cells.map(c => `<span class="well${c.open ? " open" : ""}${c.inert ? " inert" : ""}" title="${esc(c.l)}">${gl(c.p, c.c)}</span>`).join("");
+    const rows = (o.rows || ["Command…", "All Commands"]).map(l => `<div class="mi plain faint"><span>${esc(l)}</span><span></span><span class="chev">${l === "All Commands" ? "›" : ""}</span></div>`).join("");
+    return `<div class="menu m" role="menu" aria-label="Aircraft menu" style="width:290px"><div class="mtitle">${esc(o.title)}</div><div class="mstate">${esc(o.state)}</div><div class="strip">${cells}</div><div class="slabel">${o.label}</div>${sep()}${rows}</div>`;
+  }
+  const CELL = {
+    CAPP: { p: P.CAPP, c: FLIGHT, l: "Cleared approach" }, RFIS: { p: P.RFIS, c: TOWER, l: "Report field in sight" },
+    EYE: { p: P.EYE, c: FLIGHT, l: "Cleared visual approach" }, CM: { p: P.CM, c: FLIGHT, l: "Maintain altitude" }, DCT: { p: P.DCT, c: FLIGHT, l: "Direct to" },
+    ELD: { p: P.ELD, c: PATTERN, l: "Enter left downwind" }, ERD: { p: P.ERD, c: PATTERN, l: "Enter right downwind" },
+  };
+  const cells = (ids, open, inert) => ids.map(id => ({ ...CELL[id], open: id === open, inert: id === inert }));
+  /** A submenu excerpt: rows of [label, cmd, flags]. */
+  const excerpt = (rows, width = 330) => `<div class="menu m" role="menu" style="width:${width}px">${rows.map(([l, c, f]) => l === "-" ? sep() : `<div class="mi plain${f === "faint" ? " faint" : ""}"><span>${l}</span><span class="cmd">${esc(c || "")}</span><span class="chev">${f === "sub" ? "›" : ""}</span></div>`).join("")}</div>`;
+
+  /* ---------- Today ---------- */
+  const inpop = ph => `<div class="inpop m"><input class="tbox" type="text" placeholder="${esc(ph)}" aria-label="${esc(ph)}" autocomplete="off" spellcheck="false"><span class="btn">OK</span><span class="btn">Clear</span></div>`;
+  const lbox = items => `<div class="lbox m" role="listbox">${items.map((t, i) => `<div class="${i === 0 ? "sel" : ""}">${t}</div>`).join("")}</div>`;
+  const ctoToday = `<div class="menu m" role="menu" style="width:330px">${["Cleared for takeoff|CTO", "Fly heading|CTO ···", "Fly runway heading|CTO RH"].map(s => { const [l, c] = s.split("|"); return `<div class="mi plain faint"><span>${l}</span><span class="cmd">${c}</span><span></span></div>`; }).join("")}${sep()}<div class="mi plain"><span>Custom…</span><span class="cmd"></span><span></span></div></div>`;
+  const today = {
+    id: "f0-today", title: "Today · leaves, “(other)…” lists and text boxes", sends: "CVA <rwy> · JARR <star> · ELD [rwy] · CTO [text]",
+    intro: [
+      "With a default (an assigned runway, or the runway of the active or expected approach; a STAR filed in the route) the entry is a one-click leaf, and All Commands adds an “(other)…” entry opening the list popup. Without a default the entry is the list itself. With no runway or STAR data it is a bare text box.",
+      "The pattern entries already open the YAAT-521 runway flyout, falling back to a text box only with no airport at all. Cleared for takeoff's flyout ends in Custom…, a text box popup.",
+    ],
+    lanes: [{ kind: "a", name: "As built",
+      body: () => `<div class="stage row">
+        ${frame("Strip › <b>Cleared visual approach 28R</b>: a leaf", acMenu({ title: "UAL455 · A320", state: AC.vis.state, cells: cells(["CAPP", "RFIS", "EYE", "CM", "DCT"], "EYE"), label: "Cleared visual approach 28R <code>CVA 28R</code>" }))}
+        ${frame("All Commands › <b>Approach</b> (excerpt)", excerpt([["Cleared approach", "", "faint"], ["Expect approach", "", "faint"], ["Cleared visual approach 28R", "CVA 28R"], ["Cleared visual approach (other)…", ""], ["-"], ["Report field in sight…", "", "faint"]]))}
+        ${frame("“(other)…” or no default › <b>list popup</b>", `<div class="pair">${lbox(KOAK.runwayOrder)}<div class="callout"><b>10L is pre-selected:</b> a click on it sends nothing; only another row sends (<code>MenuPopups.cs:179-198</code>).</div></div>`)}
+        ${frame("No runway data › <b>input popup</b> · <code>CVA {text}</code>", inpop("Runway (e.g. 28R)"))}
+        ${frame("All Commands › <b>Procedures</b> (excerpt)", excerpt([["Join STAR OAKES3", "JARR OAKES3"], ["Join STAR (other)…", ""], ["Climb via SID", "", "faint"], ["Descend via STAR", "", "faint"]]))}
+        ${frame("Join STAR list (KOAK)", lbox(STAR_IDS))}
+        ${frame("No STARs (KLVK) › <b>input popup</b> · <code>JARR {text}</code>", inpop("STAR name"))}
+        ${frame("Pattern entry, no airport › <b>input popup</b> · blank sends <code>ELD</code>", inpop("Runway (optional)"))}
+        ${frame("Tower › <b>Cleared for takeoff 30</b> › Custom…", `<div class="pair">${ctoToday}${inpop("CTO arg (e.g. RH 3000, LT 270, DCT BERKS)")}</div>`)}
+      </div>`,
+      how: "Leaves send at once; lists send on a pick and close; text boxes send what is typed, unchecked, and close (blank closes, except the pattern entries and CTO Custom…, where blank sends the bare verb).",
+      worst: "No default and a short first runway: the list opens on 10L, an A320 cannot use it, and the instructor cannot send it anyway, because the pre-selected row ignores its own click." }],
+  };
+
+  /* ---------- 1. Cleared visual ---------- */
+  const laneCva = (ac, suffix, extra) => [
+    { kind: "a", name: "One flyout, default pinned", body: () => frame(extra.a, reg(`cA${suffix}`, () => cvaA(ac, `cA${suffix}`))), how: extra.howA, worst: extra.worstA },
+    { kind: "b", name: "A list, default highlighted", body: () => frame(extra.b, reg(`cB${suffix}`, () => cvaB(ac, `cB${suffix}`))), how: extra.howB, worst: extra.worstB },
+    { kind: "c", name: "Folded into Cleared approach", body: () => frame(extra.c, reg(`cC${suffix}`, () => apprC(ac, `cC${suffix}`))), how: extra.howC, worst: extra.worstC },
+  ];
+  const f1 = {
+    id: "f1-default", title: "1a · Cleared visual with a default runway", sends: "CVA <rwy> · CVAF <rwy> (Force) · CAPP <id> (lane C)",
+    intro: [
+      "<b>UAL455</b>, an A320, IFR to <b>KOAK</b> at 6,000, runway <b>28R</b> assigned. The room lands 30 and 28R. Turn <b>Field reported in sight</b> off to see the visual rows wait for <code>RFIS</code>.",
+    ],
+    lanes: laneCva(AC.vis, "1", {
+      a: "Strip › <b>Cleared visual approach</b> › flyout", b: "Strip › <b>Cleared visual approach</b> › list", c: "Strip › <b>Cleared visual approach</b> › Cleared approach flyout",
+      howA: "The strip's eye button and the All Commands entry open one flyout: 28R pinned first with <b>default</b> and focused, so the button and Enter send <code>CVA 28R</code>; every other runway below in the pattern-entry order.",
+      worstA: "Today one click sends <code>CVA 28R</code>; now it is the button and Enter, and a click on the 30 row just under the default clears the other room runway.",
+      howB: "One list in runway order, 28R highlighted and focused where it falls; any row sends on a click. Closest to today's popup: no glyph turn, no short marks.",
+      worstB: "The default is sixth of eight; with 16 ends (KORD) it scrolls out of sight, and nothing says that 10L at the top is too short for an A320.",
+      howC: "Cleared visual opens the built Cleared approach flyout on the default runway's tab, its Visual row focused; greying, Force, the airport row and Cancel IFR are that flyout's own. No Cleared visual builder remains.",
+      worstC: "The pinned row above the focused one is <code>Cleared ILS 28R</code>: a click on the top row clears the ILS, not the visual the eye button promised.",
+    }),
+  };
+  const f2 = {
+    id: "f1b-nodefault", title: "1b · Cleared visual with no default", sends: "CVA <rwy>",
+    intro: ["The same UAL455 with nothing assigned and no approach expected: no default runway."],
+    lanes: laneCva(AC.visNo, "2", {
+      a: "flyout, no default: the first room runway focused", b: "list, no default: the first row highlighted", c: "Cleared approach flyout on the room's first tab",
+      howA: "No pinned row: the runways in the pattern-entry order, the first room runway (30) focused, short ones last and dimmed.",
+      worstA: "With no room runways set, the first row is 10R (landable, in runway order): Enter sends <code>CVA 10R</code> though nobody chose it.",
+      howB: "Runway order, the first row highlighted, as today's <code>items[0]</code>.",
+      worstB: "Enter sends <code>CVA 10L</code>, 5,336 ft, which an A320 (5,433 ft needed) cannot use; the list does not say so.",
+      howC: "Opens on the room's first tab (30), its Visual row focused; no pinned row.",
+      worstC: "Eight tabs: the visual rows for 12, 28L and 10R are each a tab click away, where A and B show every runway at once.",
+    }),
+  };
+  const f3 = {
+    id: "f1c-untowered", title: "1c · Cleared visual at an untowered field", sends: "CVA KHAF · CVA <rwy>",
+    intro: [
+      "<b>N4417Q</b>, a C182, IFR to <b>KHAF</b> (Half Moon Bay: runways 12 and 30, RNAV approaches R12 and R30, no tower in the room). The airport-level form <code>CVA KHAF</code> lets the pilot pick the runway (COMMANDS.md :1521).",
+      "Towered, for contrast: at KOAK (1a, 1b) no lane offers <code>CVA OAK</code>, which the sim refuses at a towered field.",
+    ],
+    lanes: laneCva(AC.unt, "3", {
+      a: "flyout: the airport row pinned, then the runways", b: "list: the airport row first", c: "Cleared approach flyout, as built at KHAF",
+      howA: "With no default the airport row is pinned and focused, “pilot picks the runway”; the runways follow.",
+      worstA: "Enter on open hands the runway to the pilot; the instructor who wants 30 has to step past the focused airport row.",
+      howB: "The airport row heads the list as “KHAF · any runway”, highlighted with no default.",
+      worstB: "In a list of runways the airport row reads as one more runway, and it is the one Enter sends.",
+      howC: "As built: the airport row pinned, tabs 12 and 30, each with its Visual and RNAV rows, the Approach box, Cancel IFR….",
+      worstC: "The eye button opens a flyout titled Cleared approach whose tabs are mostly RNAV rows the visual clearance does not need.",
+    }),
+  };
+
+  /* ---------- 2. Join STAR ---------- */
+  const laneStar = (ac, suffix, extra) => [
+    { kind: "a", name: "One flyout, filed STAR pinned", body: () => frame(extra.a, reg(`sA${suffix}`, () => starA(ac, `sA${suffix}`))), how: extra.howA, worst: extra.worstA },
+    { kind: "b", name: "A list, filed STAR highlighted", body: () => frame(extra.b, reg(`sB${suffix}`, () => starB(ac, `sB${suffix}`))), how: extra.howB, worst: extra.worstB },
+    { kind: "c", name: "A tabbed STAR flyout", body: () => frame(extra.c, reg(`sC${suffix}`, () => starC(ac, `sC${suffix}`))), how: extra.howC, worst: extra.worstC },
+  ];
+  const f4 = {
+    id: "f2-filed", title: "2a · Join STAR with a filed STAR", sends: "JARR <star> · JARR <star> <fix> · JARR <star> <rwy> · DVIA",
+    intro: [
+      "<b>SWA1957</b>, a B737, IFR to KOAK, its route filing <b>OAKES3</b>. KOAK's STARs in the bundled CIFP: AANET1, EMZOH4, OAKES3, PIRAT3, PXN6, WNDSR2, with their entry transitions and runway transitions (RW28B serves 28L and 28R).",
+    ],
+    lanes: laneStar(AC.star, "1", {
+      a: "All Commands › Procedures › <b>Join STAR</b> › flyout", b: "All Commands › Procedures › <b>Join STAR</b> › list", c: "All Commands › Procedures › <b>Join STAR</b> › tabbed flyout",
+      howA: "OAKES3 pinned with <b>filed</b> and focused; the other five below, alphabetical, each noting its entry and runway transitions. A row sends <code>JARR {star}</code>.",
+      worstA: "<code>JARR OAKES3</code> joins at the nearest fix ahead: joining via RUSME or for runway 28R still means typing in the command bar.",
+      howB: "Six names, alphabetical, OAKES3 highlighted third.",
+      worstB: "Bare names: nothing but the highlight says which is filed, and the highlight is lost to the first row the pointer crosses.",
+      howC: "A tab per STAR, the filed one first (◆). A tab offers Join (nearest fix ahead), Join at each entry fix, and For runway each runway transition; Descend via STAR (<code>DVIA</code>) sits under the tabs, folding that Procedures entry in.",
+      worstC: "PIRAT3 has six entry fixes and no runway transitions; at KSFO (13 STARs) the tab bar wraps to two lines before any row shows.",
+    }),
+  };
+  const f5 = {
+    id: "f2b-nofiled", title: "2b · Join STAR with none filed", sends: "JARR <star>",
+    intro: ["The same SWA1957 with a route that files no STAR."],
+    lanes: laneStar(AC.starNo, "2", {
+      a: "flyout, none filed: the first STAR focused", b: "list, none filed: the first row highlighted", c: "tabbed flyout, none filed: the first tab",
+      howA: "No pinned row; the six STARs alphabetical, the first focused.",
+      worstA: "Enter sends <code>JARR AANET1</code>, the alphabetical first, a STAR that serves runway 12 only.",
+      howB: "The first row highlighted, as today's <code>items[0]</code>.",
+      worstB: "The same <code>JARR AANET1</code> on Enter; today that row cannot even be clicked.",
+      howC: "The first tab (AANET1) selected.",
+      worstC: "The first tab is alphabetical, not the STAR for the direction of arrival: the flyout does not know which STAR fits.",
+    }),
+  };
+
+  /* ---------- 3. No data ---------- */
+  const noDataBox = (key, o) => reg(key, () => fly(key, `${titleLine(o.title, o.right)}<div class="muted-line">${o.why}</div>${sep()}${boxRow(o.box)}`, o.title));
+  const f6 = {
+    id: "f3-nodata", title: "3 · No runway or STAR data: what replaces the text box", sends: "CVA <text> · JARR <text> · ELD [rwy]",
+    intro: [
+      "Three aircraft with nothing to pick. <b>N22RX</b> (SR22, IFR) files no destination, so Cleared visual has no runways. <b>SKW5321</b> (E175, IFR to <b>KLVK</b>: runways 7L/7R/25L/25R and three approaches) finds no STAR at Livermore in the CIFP. <b>N52TW</b> (PA28, VFR, no flight plan) has neither destination nor departure airport, so the pattern entries have no runways.",
+      "This state is the same in lanes A and B. Under lane C the Cleared approach flyout already answers “no approaches” with its Approach box alone, which sends <code>CAPP</code>, not <code>CVA</code>.",
+    ],
+    lanes: [
+      { kind: "a", name: "A box in the flyout",
+        body: () => `${frame("Cleared visual approach, no destination", noDataBox("nA1", { title: "Cleared visual approach", right: "N22RX · no destination", why: "No runways: N22RX files no destination. Name the runway, and the airport if it is not the destination.", box: { g: gl(P.EYE, FLIGHT), label: "Runway", ph: "28R, or 28R OAK", tpl: "CVA {}", focus: true } }))}
+          ${frame("Join STAR at KLVK", noDataBox("nA2", { title: "Join STAR", right: "SKW5321 · KLVK", why: "No STARs at KLVK in the navigation data.", box: { label: "STAR", ph: "e.g. OAK.OAKES3", tpl: "JARR {}", focus: true } }))}
+          ${frame("Enter left downwind, no airport (and the other four entries)", noDataBox("nA3", { title: "Enter left downwind", right: "N52TW · no airport", why: "No runways: N52TW has no destination or departure airport.", box: { g: gl(P.ELD, PATTERN), label: "Runway (optional)", ph: "e.g. 28R", tpl: "ELD {}", bare: "ELD", focus: true } }))}`,
+        how: "The flyout opens with one muted line saying why there is nothing to pick, then a focused box whose command column previews Enter: <code>CVA 28R OAK</code>, <code>JARR OAK.OAKES3</code>, <code>ELD 28R</code>. Blank: Cleared visual and Join STAR send nothing; a pattern entry sends the bare verb, as today.",
+        worst: "The box sends what is typed, unchecked: <code>CVA 82R</code> goes out and the sim refuses it after the flyout has closed." },
+      { kind: "b", name: "Nothing to pick",
+        body: () => `${frame("Strip: the eye button inert", acMenu({ title: "N22RX · SR22", state: "IFR · no destination · 7,000", cells: cells(["CAPP", "RFIS", "EYE", "CM", "DCT"], "", "EYE"), label: "Cleared visual approach <span class=\"why\">· no runways known</span>" }))}
+          ${frame("All Commands › Approach, Procedures (excerpts)", `<div class="pair">${excerpt([["Cleared approach", "", "sub"], ["Cleared visual approach · no runways known", "", "faint"]], 340)}${excerpt([["Join STAR · no STARs at KLVK", "", "faint"], ["Climb via SID", "", "faint"], ["Descend via STAR", ""]], 280)}</div>`)}
+          ${frame("Strip: the pattern entries inert", acMenu({ title: "N52TW · PA28", state: "VFR · no flight plan · 2,500", cells: cells(["ELD", "ERD", "CM", "DCT"], "", "ELD").map((c, i) => i === 1 ? { ...c, inert: true } : c), label: "Enter left downwind <span class=\"why\">· no runways known</span>" }))}`,
+        how: "No flyout opens: the strip button is faded and inert, its label naming why, and the All Commands entry is disabled with the same note, as the traffic flyouts do with nothing airborne. The command bar stays the way to type it.",
+        worst: "N22RX's instructor knows the field is OAK but has no menu path to <code>CVA 28R OAK</code> and must type the whole command." },
+    ],
+  };
+
+  /* ---------- 4. CTO Custom ---------- */
+  function ctoFly(key, mode) {
+    const open = OPEN.has(key);
+    let h = row({ g: gl(P.CTO, PATTERN), n: "Cleared for takeoff", cmd: "CTO", focus: false });
+    h += `<div class="mi" role="menuitem">${gl(P.HDG, PATTERN)}<span class="nm col"><span class="n">Fly heading</span><span class="under"><input class="tbox" style="width:90px" type="text" placeholder="e.g. 270" aria-label="Heading" autocomplete="off" spellcheck="false"></span></span><span></span><span class="cmd wait">CTO ···</span></div>`;
+    h += row({ g: gl(P.RH, PATTERN), n: "Fly runway heading", cmd: "CTO RH" });
+    h += sep();
+    const box = { g: blankG, label: "Custom", ph: "RH 3000, LT 270, DCT BERKS, IMM", tpl: "CTO {}", bare: BLANK_CTO ? "CTO" : null, pre: "CTO", focus: mode === "B" };
+    if (mode === "A" || open) h += boxRow(box);
+    if (mode === "B" && !open) h += `<div class="mi" role="menuitem" tabindex="0" data-open="${key}">${blankG}<span class="nm"><span class="n">Custom…</span><span class="note">· opens a box here</span></span><span></span><span class="cmd wait">CTO ···</span></div>`;
+    return fly(key, h, "Cleared for takeoff");
+  }
+  const f7 = {
+    id: "f4-cto", title: "4 · Cleared for takeoff's Custom row", sends: "CTO <text> · CTO (blank, decision 5b)",
+    intro: [
+      "<b>UAL1517</b>, an A320, IFR, holding short of runway <b>30</b> at KOAK. The IFR rows are as built (<code>TakeoffFlyout.Items</code>); a VFR aircraft's flyout has the altitude box and fourteen rows before Custom. The placeholder lists what Custom is for: a modifier string after <code>CTO</code> (<code>RH 3000</code>, <code>LT 270</code>, <code>DCT BERKS</code>, <code>IMM</code>, <code>CWT</code>).",
+      "Switch <b>Blank Custom sends CTO</b> to see decision 5's two answers.",
+    ],
+    lanes: [
+      { kind: "a", name: "Inline box row (treatment)",
+        body: () => frame("Strip › <b>Cleared for takeoff 30</b> › flyout, Custom always open", reg("tA", () => ctoFly("tA", "A"))),
+        how: "The last row is a box with <code>CTO</code> fixed before it; the command column previews the whole command (<code>CTO LT 270</code>); Enter sends and closes, as any row does. One click into the box, no popup.",
+        worst: "An instructor who types the whole command (<code>CTO RH</code>) into it sends <code>CTO CTO RH</code>: the fixed prefix has to read as part of the box." },
+      { kind: "b", name: "A row that opens its box (variant)",
+        body: () => `${frame("as it opens: Custom… a row", reg("tB1", () => ctoFly("tB1", "B")))}${frame("after a click on Custom…: the box in place, focused", (() => { OPEN.add("tB2"); return reg("tB2", () => ctoFly("tB2", "B")); })())}`,
+        how: "Custom… stays a row; a click or Enter swaps it for the box in place, focused; Escape folds it back.",
+        worst: "Two clicks where A needs one, and at the bottom of the fifteen-row VFR flyout the box can open below the screen edge." },
+    ],
+  };
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const stageOf = html => html.trimStart().startsWith('<div class="stage') ? html : `<div class="stage">${html}</div>`;
+  const lane = l => `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      ${stageOf(l.body())}
+      <div class="sent" data-sent>Click a row, a tab or the Force toggle, or type in a box and press Enter, to see what it sends.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="lanes${a.lanes.length === 1 ? " one" : ""}">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  const ARTS = [today, f1, f2, f3, f4, f5, f6, f7];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  const NAV = ["Today", "1a Visual · default", "1b Visual · no default", "1c Visual · untowered", "2a STAR · filed", "2b STAR · none filed", "3 No data", "4 CTO Custom"];
+  document.getElementById("index").innerHTML = ARTS.map((a, i) => `<a href="#${a.id}">${esc(NAV[i])}</a>`).join("") + `<a href="#questions">Open decisions</a>`;
+  const redrawAll = () => Object.keys(BUILD).forEach(redraw);
+
+  /* ---------- Interaction ---------- */
+  const boxCommand = b => {
+    const v = b.value.trim().toUpperCase();
+    if (v) return b.dataset.tpl.replace("{}", v);
+    return b.dataset.bare || null;
+  };
+  document.addEventListener("input", e => {
+    const b = e.target.closest("[data-box]");
+    if (!b) return;
+    const prev = b.closest("[data-boxrow]").querySelector("[data-prev]");
+    const c = boxCommand(b);
+    prev.textContent = c || `${b.dataset.tpl.replace(" {}", "")} ···`;
+    prev.className = `cmd${c ? "" : " wait"}`;
+  });
+  document.addEventListener("keydown", e => {
+    const b = e.target.closest("[data-box]");
+    if (!b || e.key !== "Enter") return;
+    e.preventDefault();
+    const c = boxCommand(b);
+    say(b, c ? `Sends <code>${esc(c)}</code> and closes the flyout and the menu.` : "Blank: Enter sends nothing and the flyout stays open.");
+  });
+  document.addEventListener("click", e => {
+    const f = e.target.closest("[data-force]");
+    if (f) { const k = f.dataset.force; FORCED.has(k) ? FORCED.delete(k) : FORCED.add(k); redraw(k); const n = document.querySelector(`[data-key="${k}"]`); say(n, FORCED.has(k) ? "Force on: every row sends its forced form (<code>CVAF</code>, <code>CAPPF</code>), which folds the field-in-sight report in (RPO only)." : "Force off."); return; }
+    const t = e.target.closest("[data-tab]");
+    if (t) { const [k, i] = t.dataset.tab.split("|"); TABS[k] = Number(i); redraw(k); const n = document.querySelector(`[data-key="${k}"]`); say(n, `Tab ${esc(t.firstChild.textContent)}: its rows replace the list; the box text and the pinned rows stay.`); return; }
+    const o = e.target.closest("[data-open]");
+    if (o) { const k = o.dataset.open; OPEN.add(k); redraw(k); const n = document.querySelector(`[data-key="${k}"]`); n.querySelector("[data-box]")?.focus(); say(n, "Custom… opens its box in place, focused; Escape folds it back."); return; }
+    const d = e.target.closest("[data-dim]");
+    if (d) { say(d, `Greyed: the sim would answer “${esc(d.dataset.dim)}”; sends nothing. Turn Force on, or report the field in sight first.`); return; }
+    const r = e.target.closest("[data-send]");
+    if (r) say(r, `Sends <code>${esc(r.dataset.send)}</code> and closes the flyout and the menu.`);
+  });
+  document.getElementById("sw-field").addEventListener("change", e => { FIELD = e.target.checked; redrawAll(); });
+  document.getElementById("sw-blank").addEventListener("change", e => { BLANK_CTO = e.target.checked; ["tA", "tB1", "tB2"].forEach(redraw); });
+})();
+</script>
+</body>
+</html>
