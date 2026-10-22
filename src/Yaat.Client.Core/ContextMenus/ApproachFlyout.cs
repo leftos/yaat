@@ -41,12 +41,12 @@ public static class ApproachFlyout
     private const string PanelRowClass = "approach-flyout-panel";
 
     /// <summary>
-    /// The <paramref name="spec"/> verb's entry, labelled with its label: one menu row holding the flyout, its model built from
-    /// <paramref name="aircraft"/> when the flyout or the submenu first opens.
+    /// The <paramref name="spec"/> verb's entry, labelled <paramref name="label"/>: one menu row holding the flyout, its model
+    /// built from <paramref name="aircraft"/> when the flyout or the submenu first opens.
     /// </summary>
-    public static MenuItem Build(ApproachVerbSpec spec, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static MenuItem Build(string label, ApproachVerbSpec spec, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var entry = new MenuItem { Header = spec.Label };
+        var entry = new MenuItem { Header = label };
         QuickCommandStrip.FollowInFlyout(entry, new ApproachFlyoutContent(entry, spec, aircraft, context, host));
         return entry;
     }
@@ -300,29 +300,43 @@ public sealed class ApproachFlyoutPanel : StackPanel
         _cancelIfr?.Strip.IsVisible = false;
     }
 
-    /// <summary>
-    /// Focuses the default row, else the selected tab's first live row, else the first focusable control, once laid out and
-    /// while <paramref name="isOpen"/> still holds.
-    /// </summary>
+    /// <summary>Focuses <see cref="OpeningFocus"/> once laid out and while <paramref name="isOpen"/> still holds.</summary>
     internal void FocusOpeningLater(Func<bool> isOpen) =>
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (!isOpen())
+                if (isOpen())
                 {
-                    return;
+                    Focus(OpeningFocus);
                 }
-
-                Control? first =
-                    _pinned.Select(pinned => pinned.Button).FirstOrDefault(button => button.IsEnabled && IsDefault(button))
-                    ?? LiveRows().FirstOrDefault()
-                    ?? Focusables().FirstOrDefault();
-                Focus(first);
             },
             DispatcherPriority.Loaded
         );
 
+    /// <summary>
+    /// What the flyout focuses as it opens: the live default row, else the selected tab's first live row, else the first
+    /// focusable control. A flyout that opens on its visual row (<see cref="ApproachVerbSpec.OpensOnVisual"/>) focuses the
+    /// selected tab's live visual row first, else the live airport-level visual row, and nothing when neither exists, so it
+    /// never falls through to an instrument row.
+    /// </summary>
+    public Control? OpeningFocus
+    {
+        get
+        {
+            IEnumerable<Button> pinned = _pinned.Select(pinned => pinned.Button).Where(button => button.IsEnabled);
+            if (_model.Spec.OpensOnVisual)
+            {
+                return LiveRows().FirstOrDefault(button => IsKind(button, ApproachRowKind.Visual))
+                    ?? pinned.FirstOrDefault(button => IsKind(button, ApproachRowKind.Airport));
+            }
+
+            return pinned.FirstOrDefault(IsDefault) ?? LiveRows().FirstOrDefault() ?? Focusables().FirstOrDefault();
+        }
+    }
+
     private static bool IsDefault(Button button) => button.Content is ApproachRow { Badge: ApproachFlyoutModel.DefaultBadge };
+
+    private static bool IsKind(Button button, ApproachRowKind kind) => (button.Content is ApproachRow row) && (row.Kind == kind);
 
     private void Focus(Control? control)
     {

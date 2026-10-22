@@ -64,7 +64,6 @@ public class SpeedFlyoutTests
 
         Assert.NotNull(open.Flyout);
         Assert.True(open.Flyout.IsOpen);
-        Assert.Empty(host.ListPopups);
         Assert.Empty(host.InputPlaceholders);
         Assert.Equal($"Assign speed · now 250 kt · {PresentMach(250, 35_000)}", panel.Title);
         Assert.Equal(SpeedFlyout.BoxPlaceholder, panel.Box.PlaceholderText);

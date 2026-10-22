@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -766,6 +767,39 @@ public class ApproachFlyoutTests
         Press(flyout, Key.Escape);
         Assert.False(flyout.IsOpen);
         Assert.True(menu.IsOpen);
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>
+    /// Cleared visual approach opens on the visual row, and an aircraft that has not reported the field in sight has no live
+    /// visual row and no airport-level row: nothing is focused (the scroller holds the focus), so Enter sends nothing rather
+    /// than falling through to an instrument row (ruling 1). Opened from All Commands, where the entry shows before the report.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_FieldNotReported_FocusesNoRow_AndEnterSendsNothing()
+    {
+        TestVnasData.EnsureInitialized();
+        RecordingMenuHost host = KoakHost("OAK");
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
+        MenuItem entry = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(Arrival("KOAK"), context, host));
+        var window = new Window { Width = 900, Height = 900 };
+        window.Show();
+        var menu = new ContextMenu { Items = { entry } };
+        menu.Open(window);
+        Dispatcher.UIThread.RunJobs();
+        entry.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        ApproachFlyoutPanel panel = Assert.IsType<ApproachFlyoutPanel>(
+            Assert.IsType<ApproachFlyoutHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header).Child
+        );
+
+        Assert.False(panel.Rows[0].IsEnabled, "the visual row waits for a field-in-sight report");
+        Assert.Same(panel.Scroll, window.FocusManager?.GetFocusedElement());
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
         Assert.Empty(host.Sent);
     }
 

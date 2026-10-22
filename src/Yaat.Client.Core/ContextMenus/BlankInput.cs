@@ -5,7 +5,4 @@ public enum BlankInput
 {
     /// <summary>A blank submit closes the popup and sends nothing.</summary>
     Closes,
-
-    /// <summary>A blank submit hands <c>""</c> to the callback.</summary>
-    Submits,
 }

@@ -5,7 +5,6 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
@@ -29,7 +28,6 @@ internal static class MenuPopups
     private static readonly IBrush InputRefusalForeground = new SolidColorBrush(Color.Parse("#e08a8a"));
     private static readonly IBrush PickerBackground = new SolidColorBrush(Color.Parse("#222"));
     private static readonly IBrush PickerBorderBrush = new SolidColorBrush(Color.Parse("#555"));
-    private static readonly IBrush PickerForeground = new SolidColorBrush(Color.Parse("#CCC"));
     private static readonly IBrush WarpHeaderForeground = new SolidColorBrush(Color.Parse("#DDD"));
     private static readonly IBrush WarpLabelForeground = new SolidColorBrush(Color.Parse("#999"));
 
@@ -41,9 +39,9 @@ internal static class MenuPopups
     /// <paramref name="initialText"/> with the caret at <paramref name="caretIndex"/> (clamped to the text). Enter or OK
     /// hands the trimmed text to <paramref name="onSubmit"/>: a null return closes the popup, and a returned reason
     /// keeps it open and shows that one line under the box, the typed text left as it was. A blank submit follows
-    /// <paramref name="blank"/> — <see cref="BlankInput.Submits"/> calls it with <c>""</c>, <see cref="BlankInput.Closes"/>
-    /// does not call it and closes. Clear and Escape close it without calling it. While a submit is in flight, another
-    /// Enter or OK does nothing, so a slow send is never fired twice.
+    /// <paramref name="blank"/>: <see cref="BlankInput.Closes"/> does not call it and closes. Clear and Escape close it
+    /// without calling it. While a submit is in flight, another Enter or OK does nothing, so a slow send is never fired
+    /// twice.
     /// </summary>
     public static void ShowInput(
         Control anchor,
@@ -156,97 +154,6 @@ internal static class MenuPopups
         };
 
         Open(anchor, popup, "input");
-    }
-
-    /// <summary>
-    /// Opens a list of <paramref name="items"/> with <paramref name="selected"/> (else the nearest integer item to it)
-    /// selected and scrolled into view. Selecting another item, a click on the selected one, or Enter on it once the list
-    /// has focus, closes the list and hands it to <paramref name="onPick"/>.
-    /// </summary>
-    public static void ShowList(Control anchor, IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
-    {
-        Popup popup = NewPopup(anchor);
-        var listBox = new ListBox
-        {
-            MaxHeight = 300,
-            Width = 120,
-            FontSize = 12,
-            Background = PickerBackground,
-            Foreground = PickerForeground,
-            ItemsSource = items,
-        };
-        ApplyMonoFont(anchor, listBox);
-
-        bool ignoreSelection = true;
-        void Pick(object picked)
-        {
-            if (ignoreSelection)
-            {
-                return;
-            }
-
-            ignoreSelection = true;
-            popup.Close();
-            _ = onPick(picked);
-        }
-
-        listBox.SelectionChanged += (_, e) =>
-        {
-            if ((e.AddedItems.Count > 0) && (e.AddedItems[0] is { } picked))
-            {
-                Pick(picked);
-            }
-        };
-
-        // The selection changes before the tap arrives, so a click on the selected row never reaches SelectionChanged:
-        // the tap picks it, and a click on another row has already set ignoreSelection by the time it arrives.
-        listBox.Tapped += (_, e) =>
-        {
-            if (listBox.SelectedItem is not { } current)
-            {
-                return;
-            }
-
-            ListBoxItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
-            if ((row is null) || (listBox.IndexFromContainer(row) != listBox.SelectedIndex))
-            {
-                return;
-            }
-
-            e.Handled = true;
-            Pick(current);
-        };
-
-        // The list handles Enter itself before an ordinary handler runs, so this one takes handled events too.
-        listBox.AddHandler(
-            InputElement.KeyDownEvent,
-            (_, e) =>
-            {
-                if ((e.Key != Key.Enter) || (listBox.SelectedItem is not { } current))
-                {
-                    return;
-                }
-
-                e.Handled = true;
-                Pick(current);
-            },
-            handledEventsToo: true
-        );
-
-        popup.Child = PickerBorder(listBox, new Thickness(0));
-        popup.Opened += (_, _) =>
-        {
-            int index = SeedIndex(items, selected);
-            if (index >= 0)
-            {
-                listBox.SelectedIndex = index;
-                listBox.ScrollIntoView(items[index]);
-            }
-
-            ignoreSelection = false;
-        };
-
-        Open(anchor, popup, "list");
     }
 
     /// <summary>
@@ -425,18 +332,4 @@ internal static class MenuPopups
     }
 
     private static string PositiveOrBlank(int value) => value > 0 ? value.ToString() : "";
-
-    /// <summary>The index of <paramref name="selected"/> in <paramref name="items"/>, else -1.</summary>
-    private static int SeedIndex(IReadOnlyList<object> items, object? selected)
-    {
-        for (int i = 0; i < items.Count; i++)
-        {
-            if (Equals(items[i], selected))
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
 }

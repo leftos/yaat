@@ -33,7 +33,7 @@ All Commands
       Turn left direct — CTO TLDCT ···
       Turn right direct — CTO TRDCT ···
       ---
-      Custom… picker:input
+      Custom — CTO
   Draw taxi route…
   ---
   Ask pilot to say…

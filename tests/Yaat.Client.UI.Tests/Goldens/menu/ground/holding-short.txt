@@ -19,7 +19,7 @@ All Commands
       Fly heading — CTO ···
       Fly runway heading — CTO RH
       ---
-      Custom… picker:input
+      Custom — CTO
   Draw taxi route…
   ---
   Ask pilot to say…

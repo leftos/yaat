@@ -1,8 +1,13 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -146,17 +151,16 @@ public class PatternEntryFlyoutTests
     }
 
     [AvaloniaFact]
-    public void Flyout_OtherCompanion_ListsTheSameOrderedRotatedRows()
+    public void Flyout_WithAnAssignedRunway_IsTheSameFlyout()
     {
         RecordingMenuHost host = Host("A28R", "30");
         MenuItem flyout = Flyout(MenuIds.PatternEnterLeftBase, Arrival("B738", ""), host);
 
-        MenuItem? other = MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterLeftBase, Arrival("B738", "30"), Context(), host);
+        MenuItem assigned = Flyout(MenuIds.PatternEnterLeftBase, Arrival("B738", "30"), host);
 
-        Assert.NotNull(other);
-        Assert.Equal("Enter left base (other)", other.Header as string);
-        Assert.Equal(Outline(flyout), Outline(other));
-        Assert.Equal(Row(flyout, "28R"), Row(other, "28R"));
+        Assert.Equal("Enter left base", assigned.Header as string);
+        Assert.Equal(Outline(flyout), Outline(assigned));
+        Assert.Equal(Row(flyout, "28R"), Row(assigned, "28R"));
     }
 
     [AvaloniaFact]
@@ -223,6 +227,76 @@ public class PatternEntryFlyoutTests
         Assert.Equal(landsWest, none);
         Assert.Equal(landsWest, unknown);
     }
+
+    /// <summary>
+    /// The pattern entry's runway flyout opens on the aircraft's assigned runway row, so Enter sends that row the way the
+    /// one-click strip button used to, with no mark on the row for it (ruling 3). 30 is the room's second active end, so a
+    /// flyout that focused its first row would focus 28R instead.
+    /// </summary>
+    [AvaloniaFact]
+    public void Flyout_WithAnAssignedRunway_OpensOnItsRow_AndEnterSendsIt()
+    {
+        TestVnasData.EnsureInitialized();
+        RecordingMenuHost host = Host("A28R", "30");
+        MenuItem flyout = Flyout(MenuIds.PatternEnterLeftDownwind, Arrival("C172", "30"), host);
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var menu = new ContextMenu { Items = { flyout } };
+        menu.Open(window);
+        Dispatcher.UIThread.RunJobs();
+        flyout.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Runway 30", FocusedRow(window));
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal([(Callsign, "ELD 30", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// A pattern entry opened from the quick-command strip, whose flyout never raises <c>SubmenuOpened</c>, focuses the
+    /// assigned runway's row too, so Enter sends that row: the strip button used to send it in one click (ruling 3).
+    /// </summary>
+    [AvaloniaFact]
+    public void StripFlyout_WithAnAssignedRunway_OpensOnItsRow_AndEnterSendsIt()
+    {
+        TestVnasData.EnsureInitialized();
+        RecordingMenuHost host = Host("A28R", "30");
+        MenuCatalogEntry catalog = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind);
+        MenuItem built = catalog.Build(Arrival("C172", "30"), Context(), host) ?? throw new InvalidOperationException("no Enter left downwind entry");
+        var menu = new ContextMenu();
+        MenuItem strip = Assert.IsType<MenuItem>(
+            QuickCommandStrip.FromBuilt(menu, [(new QuickCommandStripItem(catalog, QuickCommandGlyphs.For(catalog.Id)!), built)])
+        );
+        menu.Items.Add(strip);
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        menu.Open(window);
+        Dispatcher.UIThread.RunJobs();
+        menu.UpdateLayout();
+        Button button = Assert.Single(QuickCommandStrip.Buttons(strip));
+        QuickCommandStrip.OpenSubmenu(button);
+        Dispatcher.UIThread.RunJobs();
+        MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+        Assert.IsAssignableFrom<Control>(flyout.Popup.Child).UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Runway 30", FocusedRow(window));
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal([(Callsign, "ELD 30", Initials)], host.Sent);
+    }
+
+    /// <summary>The row's label the menu row holding keyboard focus stands for, or "none".</summary>
+    private static string FocusedRow(Window window) =>
+        (window.FocusManager?.GetFocusedElement() is Visual focused)
+        && (focused.GetSelfAndVisualAncestors().OfType<MenuItem>().FirstOrDefault()?.Header is MenuGlyphRow row)
+            ? row.Label
+            : "none";
 
     [AvaloniaFact]
     public void DepartureOnlyActiveRunway_IsGroupedWithTheInactive()

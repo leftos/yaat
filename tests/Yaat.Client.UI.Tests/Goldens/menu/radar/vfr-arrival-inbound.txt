@@ -56,7 +56,6 @@ All Commands
       approach flyout, built when it opens
     Expect approach
       approach flyout, built when it opens
-    Cleared visual approach… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
     ---
     Report field in sight…
       report field in sight flyout
@@ -79,9 +78,9 @@ All Commands
         ---
         All reports
   Procedures
-    Join STAR… picker:list [AANET1, EMZOH4, OAKES3, PIRAT3, PXN6, WNDSR2]
+    Join STAR
+      join STAR flyout
     Climb via SID
-    Descend via STAR
     Cross fix…
       cross fix flyout
     Depart fix…

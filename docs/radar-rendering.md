@@ -503,12 +503,9 @@ The right-click aircraft menu is the one the ground view and the aircraft list s
 Each phase action exposes a **one-click top-level item** resolved from aircraft state, with the scrollable submenu as the
 *override* — not the default. Promoted here from the `feedback_smart_defaults_in_menus` memory:
 
-- "Cleared visual approach `<rwy>`" resolves the runway via `MenuCatalog.SmartVisualRunway` (`Yaat.Client.Core/ContextMenus/`)
-  — `AssignedRunway`, else the runway of `ActiveApproachId`, else `ExpectedApproach`. If a smart runway exists it's the
-  top item (`approach.cleared-visual`) and `MenuCatalog.BuildClearedVisualOther` adds the "(other)…" picker under the same ID.
-- "Join STAR `<id>`" resolves via `MenuCatalog.FiledStar` by scanning the filed route for a STAR known at the destination;
-  `BuildJoinStarOther` adds the "(other)…" list.
-- The other `Build…Other` companions (`BuildClearedVisualOther`, `BuildJoinStarOther`, added by `SharedMenuGroups.AddCompanion`) do the same for their pickers; the airway and fix pickers are flyouts with a box instead (Join airway, Cross fix, Depart fix, Hold at fix: [client-context-menus.md](client-context-menus.md)).
+- "Cleared visual approach" (`approach.cleared-visual`, IFR aircraft only) resolves the runway via `MenuCatalog.SmartVisualRunway` (`Yaat.Client.Core/ContextMenus/`) — `AssignedRunway`, else the runway of `ActiveApproachId`, else `ExpectedApproach` — and opens the Cleared approach flyout on that runway's tab; the other runways are the flyout's other tabs.
+- "Join STAR" resolves the filed STAR via `MenuCatalog.FiledStar` by scanning the filed route for a STAR known at the destination; `JoinStarFlyout.Tabs` puts it first as the selected tab, the destination's other STARs following as tabs.
+- The runway and STAR pickers are flyouts with every choice in them, no "override" companion item; the airway and fix pickers are flyouts with a box (Join airway, Cross fix, Depart fix, Hold at fix: [client-context-menus.md](client-context-menus.md)).
 
 When adding a new phase action, add **both** the smart-default item and the override path.
 
@@ -523,7 +520,7 @@ All in `Yaat.Client.Core/ContextMenus/MenuCatalog.cs` unless named:
 - `FixList.DirectToRoute` (`Yaat.Client.Core/ContextMenus/FixList.cs`) — the Direct to flyout's route rows for an aircraft with a navigating-to fix: `NavigationRoute` from that fix on, then the filed route's fixes after the last occurrence of the nav route's last fix, then the destination; each once, ignoring case, keeping the nav route's spelling, the departure airport never listed. With no navigating-to fix the list is `RouteFixNames()`. Typing in the flyout's box adds a bounded search of every fix (`FixList.Matches`: the 50 nearest the aircraft, however far); see [client-context-menus.md](client-context-menus.md) (Direct to flyout). Tests: `Yaat.Client.UI.Tests/Views/FixListDirectToRouteTests.cs`.
 - `SpeedValues` — the Assign speed flyout's chips (a `SpeedChoices`: the knots, and the Mach hundredths; `RNS` and `RFAS` are the flyout's own rows, `FinalApproachKnots` the second's note): knots in tens from the type's `AircraftPerformance.ApproachSpeed` rounded up to the highest of its cruise, climb and descent schedule at the altitude and its profile knot fields (`AircraftProfileDatabase.Get`), plus 20 kt (10 for pistons), capped at 250 below 10,000 ft unless waived. At FL240 and above, a type with a Mach value in its profile (else the jet baseline) adds Mach chips (0.01 steps, 0.60–0.92), and the top chip's IAS caps the knots. With no filed type: 150–350. Tests: `Yaat.Client.UI.Tests/Views/MenuCatalogSpeedTests.cs`.
 - `FiledAirways` — airway IDs found in the filed route.
-- `DestinationStars` — STARs for the aircraft's destination airport; `RunwayDesignators.ForAirport` (`Yaat.Client.Core/ContextMenus/`) — its runway ends in display form, sorted by `RunwayDesignatorComparer`.
+- `JoinStarFlyout.Tabs` — STARs for the aircraft's destination airport (`NavigationDatabase.GetStars`), one tab each; `RunwayDesignators.ForAirport` (`Yaat.Client.Core/ContextMenus/`) — its runway ends in display form, sorted by `RunwayDesignatorComparer`.
 
 New pickers must follow this rule (echoes the `feedback_no_global_navdata_pickers` memory). See
 [aircraft-data-model.md](aircraft-data-model.md) for the `AircraftModel` fields (`Route`, `NavigationRoute`, `Destination`,

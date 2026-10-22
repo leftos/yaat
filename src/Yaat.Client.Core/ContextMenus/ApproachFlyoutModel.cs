@@ -49,6 +49,13 @@ public sealed record ApproachVerbSpec
 
     /// <summary>The default row's label for an approach's short name (<c>Join ILS 30</c>) or <c>visual {runway}</c>.</summary>
     public required Func<string, string> DefaultLabel { get; init; }
+
+    /// <summary>
+    /// Whether the flyout opens on its visual row (Cleared visual approach): on the default runway's tab
+    /// (<see cref="MenuCatalog.SmartVisualRunway"/>), focusing that tab's visual row, else the airport-level visual row, rather
+    /// than the pinned default row.
+    /// </summary>
+    public required bool OpensOnVisual { get; init; }
 }
 
 /// <summary>What an approach flyout row stands for.</summary>
@@ -287,7 +294,7 @@ public sealed class ApproachFlyoutModel
             OffersForce: (spec.ForceToggleVerb is not null) && !context.SoloTrainingMode,
             HasBox: !airportOnly,
             CancelIfr: spec.OffersCancelIfr ? CancelIfrFor(aircraft, context, (approaches.Count == 0) && !airportOnly) : null,
-            SelectedTab: OpeningTab(aircraft, tabs, defaultRow)
+            SelectedTab: OpeningTab(spec, aircraft, tabs, defaultRow)
         );
         return new ApproachFlyoutModel(spec, aircraft?.SituationFlags ?? SituationFlags.None, pinned, tabs, options);
     }
@@ -555,14 +562,27 @@ public sealed class ApproachFlyoutModel
         (runway.Length > 0) && (TabOf(tabs, runway) is { } tab) && tabs[tab].Rows[0].IsShort;
 
     /// <summary>
-    /// The default row's tab, else the default runway's (<see cref="MenuCatalog.SmartVisualRunway"/>), else the first; -1
+    /// The default row's tab, else the default runway's (<see cref="MenuCatalog.SmartVisualRunway"/>), else the first; a flyout
+    /// that opens on its visual row (<see cref="ApproachVerbSpec.OpensOnVisual"/>) takes the default runway's tab first. -1
     /// without tabs.
     /// </summary>
-    private static int OpeningTab(IMenuAircraft? aircraft, List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs, RowSource? defaultRow)
+    private static int OpeningTab(
+        ApproachVerbSpec spec,
+        IMenuAircraft? aircraft,
+        List<(ApproachFlyoutTab Tab, List<RowSource> Rows)> tabs,
+        RowSource? defaultRow
+    )
     {
         if (tabs.Count == 0)
         {
             return -1;
+        }
+
+        string? smart = MenuCatalog.SmartVisualRunway(aircraft);
+        int? smartTab = (smart is null) ? null : TabOf(tabs, RunwayIdentifier.NormalizeDesignator(smart));
+        if (spec.OpensOnVisual && (smartTab is { } visualTab))
+        {
+            return visualTab;
         }
 
         if ((defaultRow?.DefaultOf is { } defaultRunway) && (TabOf(tabs, defaultRunway) is { } defaultTab))
@@ -570,8 +590,7 @@ public sealed class ApproachFlyoutModel
             return defaultTab;
         }
 
-        string? smart = MenuCatalog.SmartVisualRunway(aircraft);
-        return ((smart is not null) && (TabOf(tabs, RunwayIdentifier.NormalizeDesignator(smart)) is { } smartTab)) ? smartTab : 0;
+        return smartTab ?? 0;
     }
 
     /// <summary>Cancel IFR for an IFR aircraft airborne below FL180: pinned at the top with no instrument approach, else last.</summary>

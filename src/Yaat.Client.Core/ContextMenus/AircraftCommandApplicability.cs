@@ -170,6 +170,9 @@ public static class AircraftCommandApplicability
     /// <summary>True when the aircraft is operating under VFR.</summary>
     public static bool IsVfr(IMenuAircraft? ac) => ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>True when the aircraft is operating under IFR.</summary>
+    public static bool IsIfr(IMenuAircraft? ac) => ac is not null && string.Equals(ac.FlightRules, "IFR", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Whether a VFR-only command may be offered for this aircraft: always for a VFR aircraft,
     /// and for an IFR aircraft only when the controller opted into the full set.

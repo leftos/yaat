@@ -115,10 +115,10 @@ public class ClearedForTakeoffFlyoutTests
     {
         MenuItem flyout = Flyout(Departure("VFR", "KSFO"), new RecordingMenuHost(""), VfrCommandsForIfr.None);
 
-        Assert.Equal(["Initial altitude · default climb", .. VfrRows, "---", "Custom…"], Outline(flyout));
+        Assert.Equal(["Initial altitude · default climb", .. VfrRows, "---", "Custom — CTO"], Outline(flyout));
         Assert.DoesNotContain(Outline(flyout), line => line.Contains("360", StringComparison.Ordinal));
         Assert.IsType<Separator>(flyout.Items[^2]);
-        Assert.Equal("Custom…", Assert.IsType<MenuItem>(flyout.Items[^1]).Header as string);
+        Assert.Equal(TakeoffFlyout.CustomLabel, Assert.IsType<TakeoffFlyoutRow>(Assert.IsType<MenuItem>(flyout.Items[^1]).Header).Label);
     }
 
     [AvaloniaFact]
@@ -126,7 +126,7 @@ public class ClearedForTakeoffFlyoutTests
     {
         MenuItem flyout = TaggedFlyout(Departure("IFR", "KSFO"), VfrCommandsForIfr.None);
 
-        Assert.Equal(["Cleared for takeoff — CTO", "Fly heading — CTO ···", "Fly runway heading — CTO RH", "---", "Custom…"], Outline(flyout));
+        Assert.Equal(["Cleared for takeoff — CTO", "Fly heading — CTO ···", "Fly runway heading — CTO RH", "---", "Custom — CTO"], Outline(flyout));
         Assert.False(Row(flyout, "Fly heading").CanSend);
 
         Row(flyout, "Fly heading").InputText = "270";
@@ -174,7 +174,7 @@ public class ClearedForTakeoffFlyoutTests
                     !row.StartsWith("Cleared for takeoff", StringComparison.Ordinal) && !row.StartsWith("Fly heading", StringComparison.Ordinal)
                 ),
                 "---",
-                "Custom…",
+                "Custom — CTO",
             ],
             Outline(flyout)
         );
@@ -306,7 +306,8 @@ public class ClearedForTakeoffFlyoutTests
         Assert.Equal(QuickCommandGlyphFamily.Pattern, Altitude(flyout).Glyph.Family);
         Assert.Equal(0, Row(flyout, "Cleared for takeoff").Glyph.RotationDegrees);
         Assert.Equal(0, Row(flyout, "Fly heading").Glyph.RotationDegrees);
-        foreach (TakeoffFlyoutRow row in rows.Where(row => row.Label is not ("Cleared for takeoff" or "Fly heading")))
+        Assert.Equal(0, Row(flyout, TakeoffFlyout.CustomLabel).Glyph.RotationDegrees);
+        foreach (TakeoffFlyoutRow row in rows.Where(row => row.Label is not ("Cleared for takeoff" or "Fly heading" or TakeoffFlyout.CustomLabel)))
         {
             Assert.Equal(turn, row.Glyph.RotationDegrees, 6);
             Assert.False(row.Glyph.MirroredTopToBottom);
@@ -444,16 +445,66 @@ public class ClearedForTakeoffFlyoutTests
         Dispatcher.UIThread.RunJobs();
 
         List<string> visited = [FocusedRow(window)];
-        for (int press = 0; (press < 30) && (visited[^1] != "Custom…"); press++)
+        for (int press = 0; (press < 30) && (visited[^1] != "Custom — CTO"); press++)
         {
             Press(window, PhysicalKey.ArrowDown);
             visited.Add(FocusedRow(window));
         }
 
-        Assert.Equal("Custom…", visited[^1]);
+        Assert.Equal("Custom — CTO", visited[^1]);
         Assert.Contains("Turn left direct — CTO TLDCT ···", visited);
         Assert.Contains("Turn right direct — CTO TRDCT ···", visited);
         Assert.Empty(host.Sent);
+    }
+
+    /// <summary>
+    /// The Custom row's inline box takes the text typed into the real box and Enter sends it (<c>CTO 28R</c>), the box the
+    /// flyout draws rather than text set on the row.
+    /// </summary>
+    [AvaloniaFact]
+    public void CustomBox_TypedRunway_ReachesTheSentCommand()
+    {
+        var host = new RecordingMenuHost("");
+        StripFlyout open = OpenStripFlyout(Departure("VFR", "KSFO"), host);
+        TextBox box = CustomBox(open);
+
+        TypeInto(box, "28R");
+
+        Assert.True(box.IsKeyboardFocusWithin, "the Custom box took no keyboard focus");
+        Assert.Equal("CTO 28R", Assert.IsType<TakeoffFlyoutRow>(RowItem(open.Items, TakeoffFlyout.CustomLabel).Header).ShownCommand);
+
+        Press(open.Window, PhysicalKey.Enter);
+
+        Assert.Equal([(Callsign, "CTO 28R", Initials)], host.Sent);
+        Assert.False(open.Menu.IsOpen);
+    }
+
+    /// <summary>
+    /// The Custom box takes Space as a real key press, so a handler that took it for the row's activation would send early:
+    /// typing <c>DCT</c>, Space, <c>BERKS</c> sends nothing until Enter, then <c>CTO DCT BERKS</c> whole.
+    /// </summary>
+    [AvaloniaFact]
+    public void CustomBox_TypedSpace_SendsTheWholeModifier()
+    {
+        var host = new RecordingMenuHost("");
+        StripFlyout open = OpenStripFlyout(Departure("VFR", "KSFO"), host);
+        TextBox box = CustomBox(open);
+
+        TypeInto(box, "DCT");
+        Press(open.Window, PhysicalKey.Space);
+
+        Assert.Empty(host.Sent);
+        Assert.True(open.Flyout.IsOpen, "Space activated the row instead of reaching the box");
+        Type(box, " BERKS");
+
+        Assert.True(box.IsKeyboardFocusWithin, "the Custom box took no keyboard focus");
+        Assert.Equal("DCT BERKS", box.Text);
+        Assert.Equal("CTO DCT BERKS", Assert.IsType<TakeoffFlyoutRow>(RowItem(open.Items, TakeoffFlyout.CustomLabel).Header).ShownCommand);
+
+        Press(open.Window, PhysicalKey.Enter);
+
+        Assert.Equal([(Callsign, "CTO DCT BERKS", Initials)], host.Sent);
+        Assert.False(open.Menu.IsOpen);
     }
 
     /// <summary>With the suggestion list open and none highlighted, one Enter in a fix box sends the row.</summary>
@@ -568,9 +619,18 @@ public class ClearedForTakeoffFlyoutTests
     private static void TypeInto(TextBox box, string text)
     {
         ClickOn(box);
+        Type(box, text);
+    }
+
+    /// <summary>Types <paramref name="text"/> through the window's keyboard into the box that already holds the focus.</summary>
+    private static void Type(TextBox box, string text)
+    {
         TopLevel.GetTopLevel(box)!.KeyTextInput(text);
         Dispatcher.UIThread.RunJobs();
     }
+
+    /// <summary>The Custom row's inline box.</summary>
+    private static TextBox CustomBox(StripFlyout open) => BoxOf(RowItem(open.Items, TakeoffFlyout.CustomLabel));
 
     private static void Press(Window window, PhysicalKey key)
     {

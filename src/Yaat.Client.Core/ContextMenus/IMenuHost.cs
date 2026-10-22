@@ -56,10 +56,9 @@ public interface IMenuHost
     /// <summary>
     /// Opens the surface's free-text input showing <paramref name="placeholder"/>, holding <paramref name="initialText"/>
     /// with the caret at <paramref name="caretIndex"/>, and hands the submitted text to <paramref name="onSubmit"/>. A
-    /// blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/> closes the popup without calling
-    /// it, <see cref="BlankInput.Submits"/> hands it <c>""</c>. <paramref name="onSubmit"/> returns null when it took
-    /// the text (having sent what it should); a non-null return is the one-line reason it refused the text, which the
-    /// popup shows under its box, staying open.
+    /// blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/> closes the popup without calling it.
+    /// <paramref name="onSubmit"/> returns null when it took the text (having sent what it should); a non-null return is
+    /// the one-line reason it refused the text, which the popup shows under its box, staying open.
     /// </summary>
     void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task<string?>> onSubmit);
 
@@ -110,12 +109,6 @@ public interface IMenuHost
     /// <paramref name="node"/>, which the point menu's Push to needs; false when the aircraft or the node is not found.
     /// </summary>
     bool CanTugReach(string callsign, GroundNodeDto node);
-
-    /// <summary>
-    /// Opens the surface's list popup over <paramref name="items"/>, with <paramref name="selected"/> (or the item
-    /// closest to it) highlighted when it is not null, and hands the picked item to <paramref name="onPick"/>.
-    /// </summary>
-    void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick);
 
     /// <summary>
     /// The minimum vectoring altitude sector covering <paramref name="position"/>: its name and floor in feet MSL; null

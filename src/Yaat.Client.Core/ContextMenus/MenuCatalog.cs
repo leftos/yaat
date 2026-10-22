@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -167,7 +168,13 @@ public static class MenuCatalog
         HoldTurnsEntry(MenuIds.HoldFixLeft, "Left 360s at fix…", HoldTurns.Left),
         HoldTurnsEntry(MenuIds.HoldFixRight, "Right 360s at fix…", HoldTurns.Right),
         .. ApproachPickerIds.Select(ApproachPicker),
-        Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
+        new(
+            MenuIds.ApproachClearedVisual,
+            ClearedVisualLabel,
+            MenuFlightRules.IfrOnly,
+            (ac, _) => AircraftCommandApplicability.IsIfr(ac),
+            (ac, context, host) => BuildClearedVisual(ClearedVisualLabel, ac, context, host)
+        ),
         FlyoutEntry(MenuIds.ApproachReportFieldInSight, "Report field in sight…", Always, FieldAdvisoryFlyout.Build),
         Picker(
             MenuIds.ApproachReportTrafficInSight,
@@ -436,9 +443,9 @@ public static class MenuCatalog
 
     /// <summary>
     /// A VFR maneuver in the air: make closed traffic (<c>MLT</c> / <c>MRT</c>, which puts the aircraft into the pattern) and
-    /// left or right 360s at a fix (<c>HFIXL</c> / <c>HFIXR</c>), and follow traffic (<c>FOLLOW</c>, whose flyout greys the traffic
-    /// not reported in sight). Offered to an IFR aircraft only under the controller's full VFR setting. On the ground closed traffic only records the pattern side, which the takeoff clearance's closed-traffic
-    /// modifiers already cover.
+    /// left or right 360s at a fix (<c>HFIXL</c> / <c>HFIXR</c>), and follow traffic (<c>FOLLOW</c>, whose flyout greys the
+    /// traffic not reported in sight). Offered to an IFR aircraft only under the controller's full VFR setting. On the ground
+    /// closed traffic only records the pattern side, which the takeoff clearance's closed-traffic modifiers already cover.
     /// </summary>
     private static Func<IMenuAircraft?, MenuContext, bool> CanFlyVfrManeuverAloft =>
         (ac, context) => AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr) && (ac is { IsOnGround: false });
@@ -476,13 +483,10 @@ public static class MenuCatalog
     /// <summary>The Release (HFR) entry's label, which the header shows under the title on every view.</summary>
     private const string ReleaseHeldLabel = "Release (HFR)";
 
-    /// <summary>The placeholder of the Cleared for takeoff submenu's free-text item.</summary>
-    private const string ClearedForTakeoffPlaceholder = "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)";
-
-    /// <summary>The visual-approach entry's label, which its smart-default leaf and its "(other)" companion extend.</summary>
+    /// <summary>The visual-approach entry's label.</summary>
     private const string ClearedVisualLabel = "Cleared visual approach";
 
-    /// <summary>The Join STAR entry's label, which its filed-STAR leaf and its "(other)" companion extend.</summary>
+    /// <summary>The Join STAR entry's label.</summary>
     private const string JoinStarLabel = "Join STAR";
 
     /// <summary>The separators a filed route's tokens are split on.</summary>
@@ -749,7 +753,7 @@ public static class MenuCatalog
     /// The Cleared for takeoff flyout, the same on the quick-command strip and in All Commands › Tower on every view:
     /// headed with the held runway, else the assigned one (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>),
     /// then the IFR or VFR rows and the initial-altitude box (<see cref="TakeoffFlyout"/>), then the trailing separator and
-    /// Custom item: blank sends a bare <c>CTO</c>, anything else is trimmed and sent after it.
+    /// the Custom box row, always open (<see cref="TakeoffFlyout.CustomItem"/>).
     /// </summary>
     private static MenuItem BuildClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -760,24 +764,14 @@ public static class MenuCatalog
         }
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(
-            BuildInput(
-                "Custom…",
-                ClearedForTakeoffPlaceholder,
-                BlankInput.Submits,
-                input => string.IsNullOrWhiteSpace(input) ? "CTO" : $"CTO {input.Trim()}",
-                context,
-                host
-            )
-        );
+        menu.Items.Add(TakeoffFlyout.CustomItem(context, host));
         return menu;
     }
 
     /// <summary>
-    /// A pattern entry: with a runway assigned, a leaf naming it that sends the verb for the runway as assigned;
-    /// otherwise a flyout over the aircraft's airport's runway ends (<see cref="BuildPatternRunwayFlyout"/>), or free text
-    /// when there are none, where a blank answer sends the bare verb and any other is sent after it as typed.
-    /// <see cref="BuildPatternEntryOther"/> offers the runways beside an assigned one.
+    /// A pattern entry: the flyout over the aircraft's airport's runway ends (<see cref="BuildPatternRunwayFlyout"/>), an
+    /// assigned runway among them; without runway ends there, a leaf naming the assigned runway that sends the verb for it as
+    /// assigned; with neither, disabled with the reason beside its label and its strip button inert.
     /// </summary>
     private static MenuCatalogEntry PatternEntry(string id, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
         new(id, PatternEntrySpec(id).Label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildPatternEntry(id, ac, context, host));
@@ -785,39 +779,18 @@ public static class MenuCatalog
     private static MenuItem BuildPatternEntry(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         (string label, string command) = PatternEntrySpec(id);
+        if (BuildPatternRunwayFlyout(id, label, aircraft, context, host) is { } flyout)
+        {
+            return flyout;
+        }
+
         if (aircraft is { AssignedRunway.Length: > 0 })
         {
             string runway = aircraft.AssignedRunway;
             return BuildSend($"{label} {RunwayIdentifier.ToDisplayDesignator(runway)}", $"{command} {runway}", context, host);
         }
 
-        if (BuildPatternRunwayFlyout(id, label, aircraft, context, host) is { } flyout)
-        {
-            return flyout;
-        }
-
-        return BuildInput(
-            $"{label}{Ellipsis}",
-            "Runway (optional)",
-            BlankInput.Submits,
-            input => string.IsNullOrWhiteSpace(input) ? command : $"{command} {input}",
-            context,
-            host
-        );
-    }
-
-    /// <summary>
-    /// A pattern entry's companion, which shares its id: the runway flyout (<see cref="BuildPatternRunwayFlyout"/>)
-    /// labelled "(other)", offered beside an assigned runway; null without an assigned runway or without runways.
-    /// </summary>
-    internal static MenuItem? BuildPatternEntryOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (aircraft is not { AssignedRunway.Length: > 0 })
-        {
-            return null;
-        }
-
-        return BuildPatternRunwayFlyout(id, $"{PatternEntrySpec(id).Label} (other)", aircraft, context, host);
+        return Unavailable(label, (PatternRunwayChoices.AirportOf(aircraft) is { } airport) ? NoRunwayDataReason(airport) : NoAirportReason);
     }
 
     /// <summary>
@@ -825,8 +798,9 @@ public static class MenuCatalog
     /// (<see cref="PatternRunwayChoices.For"/>): the room's arrival or both-way active ends, a separator, then the rest,
     /// the ends too short for the physical type (<see cref="IMenuAircraft.BaseAircraftType"/>) last in each group, dimmed
     /// with a "short" note and still clickable. Each row draws the entry's glyph turned to the end
-    /// (<see cref="PatternRunwayChoices.Glyph"/>) and sends entry <paramref name="id"/>'s command for it. Null when the
-    /// aircraft has no airport or the navigation data no runways there.
+    /// (<see cref="PatternRunwayChoices.Glyph"/>) and sends entry <paramref name="id"/>'s command for it. The aircraft's
+    /// assigned runway row, when it has one here, takes the focus as the submenu or the strip's flyout opens, so Enter sends
+    /// that row's command. Null when the aircraft has no airport or the navigation data no runways there.
     /// </summary>
     private static MenuItem? BuildPatternRunwayFlyout(string id, string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -843,6 +817,7 @@ public static class MenuCatalog
 
         string command = PatternEntrySpec(id).Command;
         var flyout = new MenuItem { Header = label };
+        MenuItem? assigned = null;
         for (int i = 0; i < choices.Count; i++)
         {
             if ((i > 0) && choices[i - 1].IsActive && !choices[i].IsActive)
@@ -850,11 +825,65 @@ public static class MenuCatalog
                 flyout.Items.Add(new Separator());
             }
 
-            flyout.Items.Add(BuildPatternRunwayRow(id, command, choices[i], context, host));
+            MenuItem row = BuildPatternRunwayRow(id, command, choices[i], context, host);
+            flyout.Items.Add(row);
+            if (IsAssignedRunway(aircraft, choices[i]))
+            {
+                assigned = row;
+            }
+        }
+
+        if (assigned is not null)
+        {
+            QuickCommandStrip.FollowInFlyout(flyout, new AssignedRunwayFocus(assigned));
+            flyout.SubmenuOpened += (_, _) =>
+                Dispatcher.UIThread.Post(
+                    () =>
+                    {
+                        if (flyout.IsSubMenuOpen)
+                        {
+                            assigned.Focus(NavigationMethod.Directional);
+                        }
+                    },
+                    DispatcherPriority.Loaded
+                );
         }
 
         return flyout;
     }
+
+    /// <summary>
+    /// Focuses the assigned runway's row when the quick-command strip opens the entry's flyout, where the submenu
+    /// (<see cref="MenuItem.IsSubMenuOpen"/>) never opens, unless the flyout closed before the focus ran.
+    /// </summary>
+    private sealed class AssignedRunwayFocus(MenuItem row) : IStripFlyoutContent
+    {
+        private bool _open;
+
+        public void Opened(ItemCollection items, Action close)
+        {
+            _open = true;
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    if (_open)
+                    {
+                        row.Focus(NavigationMethod.Directional);
+                    }
+                },
+                DispatcherPriority.Loaded
+            );
+        }
+
+        public void PointerInside(bool inside) { }
+
+        public void Closed() => _open = false;
+    }
+
+    /// <summary>Whether <paramref name="choice"/> is the runway <paramref name="aircraft"/> is assigned.</summary>
+    private static bool IsAssignedRunway(IMenuAircraft? aircraft, PatternRunwayChoice choice) =>
+        (aircraft?.AssignedRunway is { Length: > 0 } assigned)
+        && string.Equals(RunwayIdentifier.ToDisplayDesignator(assigned), choice.Designator, StringComparison.OrdinalIgnoreCase);
 
     private static MenuItem BuildPatternRunwayRow(string id, string command, PatternRunwayChoice choice, MenuContext context, IMenuHost host)
     {
@@ -1274,22 +1303,6 @@ public static class MenuCatalog
     /// <summary>Whether the aircraft is navigating to a fix, which an appended direct-to follows.</summary>
     private static Func<IMenuAircraft?, MenuContext, bool> IsNavigatingToFix => (ac, _) => !string.IsNullOrEmpty(ac?.NavigatingTo);
 
-    private static Task Send(string command, MenuContext context, IMenuHost host) => host.SendAsync(context.Callsign, command, context.Initials);
-
-    /// <summary>
-    /// A list picker: the host's list popup offers <paramref name="items"/> with <paramref name="selected"/>
-    /// highlighted, and the pick reaches <paramref name="onPick"/>. The item's descriptor carries the texts the popup lists.
-    /// </summary>
-    private static MenuItem BuildList(string label, IReadOnlyList<object> items, object? selected, Func<object, Task> onPick, IMenuHost host)
-    {
-        var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, PickerTexts(items)) };
-        item.Click += (_, _) => host.ShowListPopup(items, selected, onPick);
-        return item;
-    }
-
-    /// <summary>The display texts of a popup's values, as the popup itself shows them.</summary>
-    private static List<string> PickerTexts(IReadOnlyList<object> values) => [.. values.Select(value => value.ToString() ?? "")];
-
     /// <summary>
     /// A data-block altitude entry: the one-box altitude flyout (<see cref="AltitudeFlyout.BuildBox"/>) of <paramref name="kind"/>.
     /// </summary>
@@ -1523,7 +1536,7 @@ public static class MenuCatalog
     private static MenuCatalogEntry ApproachPicker(string id)
     {
         ApproachVerbSpec spec = ApproachSpec(id);
-        return new(id, spec.Label, MenuFlightRules.Both, Always, (ac, context, host) => ApproachFlyout.Build(spec, ac, context, host));
+        return new(id, spec.Label, MenuFlightRules.Both, Always, (ac, context, host) => ApproachFlyout.Build(spec.Label, spec, ac, context, host));
     }
 
     /// <summary>
@@ -1557,6 +1570,12 @@ public static class MenuCatalog
         };
 
     /// <summary>
+    /// The Cleared visual approach entry's flyout: Cleared approach's own (its rows, field-in-sight greying, Force toggle and
+    /// Cancel IFR), opened on its visual row.
+    /// </summary>
+    internal static ApproachVerbSpec ClearedVisualSpec => ApproachSpec(MenuIds.ApproachCleared) with { OpensOnVisual = true };
+
+    /// <summary>
     /// An approach verb with no visual rows, no Force toggle, no Cancel IFR and unforced rows, its glyph the entry
     /// <paramref name="id"/>'s.
     /// </summary>
@@ -1571,13 +1590,14 @@ public static class MenuCatalog
             OffersCancelIfr = false,
             GlyphId = id,
             DefaultLabel = defaultLabel,
+            OpensOnVisual = false,
         };
 
     /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
     internal static IReadOnlyList<CifpApproachProcedure> DestinationApproaches(IMenuAircraft? aircraft) =>
         aircraft is { Destination.Length: > 0 } ? NavigationDatabase.Instance.GetApproaches(aircraft.Destination) : [];
 
-    /// <summary>The destination's runway designators, which the visual-approach picker lists; none without a destination.</summary>
+    /// <summary>The destination's runway designators, whose presence offers the Cleared visual approach flyout; none without a destination.</summary>
     private static IReadOnlyList<string> DestinationRunways(IMenuAircraft? aircraft) =>
         aircraft is { Destination.Length: > 0 } ? RunwayDesignators.ForAirport(aircraft.Destination) : [];
 
@@ -1629,90 +1649,58 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The visual-approach item: with a default runway (<see cref="SmartVisualRunway"/>) a leaf naming it that sends
-    /// <c>CVA</c> for it; otherwise a picker over the destination's runways, or free text when it has none.
-    /// <see cref="BuildClearedVisualOther"/> offers the other runways beside a default.
+    /// The Cleared visual approach entry: the Cleared approach flyout (<see cref="ClearedVisualSpec"/>) opened on the default
+    /// runway's tab (<see cref="SmartVisualRunway"/>) with its visual row focused. Disabled with the reason beside its label,
+    /// its strip button inert, when there is no runway to clear a visual approach to: no destination, or a destination without
+    /// runway data. Offered to IFR aircraft only (the sim clears only an IFR one for a visual).
     /// </summary>
     private static MenuItem BuildClearedVisual(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (SmartVisualRunway(aircraft) is { } runway)
+        string? reason = aircraft switch
         {
-            return BuildSend($"{label} {RunwayIdentifier.ToDisplayDesignator(runway)}", $"CVA {runway}", context, host);
-        }
-
-        IReadOnlyList<string> runways = DestinationRunways(aircraft);
-        if (runways.Count > 0)
-        {
-            return BuildVisualRunwayList($"{label}{Ellipsis}", runways, context, host);
-        }
-
-        return BuildInput($"{label}{Ellipsis}", "Runway (e.g. 28R)", BlankInput.Closes, input => $"CVA {input}", context, host);
+            not { Destination.Length: > 0 } => NoDestinationReason,
+            _ when DestinationRunways(aircraft).Count == 0 => NoRunwayDataReason(aircraft.Destination),
+            _ => null,
+        };
+        return (reason is null) ? ApproachFlyout.Build(label, ClearedVisualSpec, aircraft, context, host) : Unavailable(label, reason);
     }
 
     /// <summary>
-    /// The visual-approach item's companion, which shares its id: a picker over the destination's runways labelled
-    /// "(other)", offered beside a default runway; null without a default or without runways.
-    /// </summary>
-    internal static MenuItem? BuildClearedVisualOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (SmartVisualRunway(aircraft) is null)
-        {
-            return null;
-        }
-
-        IReadOnlyList<string> runways = DestinationRunways(aircraft);
-        return runways.Count > 0 ? BuildVisualRunwayList($"{ClearedVisualLabel} (other){Ellipsis}", runways, context, host) : null;
-    }
-
-    /// <summary>A list picker over <paramref name="runways"/>, the first highlighted, that sends <c>CVA</c> for the pick.</summary>
-    private static MenuItem BuildVisualRunwayList(string label, IReadOnlyList<string> runways, MenuContext context, IMenuHost host)
-    {
-        List<object> items = [.. runways];
-        return BuildList(label, items, items[0], picked => Send($"CVA {picked}", context, host), host);
-    }
-
-    /// <summary>
-    /// The Join STAR item: with a filed STAR (<see cref="FiledStar"/>) a leaf naming it that sends <c>JARR</c> for it;
-    /// otherwise a picker over the destination's STARs, or free text when it has none.
-    /// <see cref="BuildJoinStarOther"/> offers the other STARs beside a filed one.
+    /// The Join STAR entry: the tabbed STAR flyout over the destination's STARs (<see cref="JoinStarFlyout"/>), the filed STAR
+    /// (<see cref="FiledStar"/>) first. Disabled with the reason beside its label, its strip button inert, without a
+    /// destination or at a destination with no STARs.
     /// </summary>
     private static MenuItem BuildJoinStar(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (FiledStar(aircraft) is { } star)
+        if (aircraft is not { Destination.Length: > 0 })
         {
-            return BuildSend($"{label} {star}", $"JARR {star}", context, host);
+            return Unavailable(label, NoDestinationReason);
         }
 
-        IReadOnlyList<string> stars = DestinationStars(aircraft);
-        if (stars.Count > 0)
-        {
-            return BuildStarList($"{label}{Ellipsis}", stars, context, host);
-        }
-
-        return BuildInput($"{label}{Ellipsis}", "STAR name", BlankInput.Closes, input => $"JARR {input}", context, host);
+        IReadOnlyList<JoinStarTab> tabs = JoinStarFlyout.Tabs(aircraft.Destination, FiledStar(aircraft));
+        return (tabs.Count > 0) ? JoinStarFlyout.Build(label, tabs, context, host) : Unavailable(label, $"no STARs at {aircraft.Destination}");
     }
 
     /// <summary>
-    /// The Join STAR item's companion, which shares its id: a picker over the destination's STARs labelled "(other)",
-    /// offered beside a filed STAR; null without a filed STAR or without STARs.
+    /// An entry with nothing to pick: disabled, headed with <paramref name="label"/> and <paramref name="reason"/> faint beside
+    /// it (<see cref="MenuDisabledReasonRow"/>), its strip button faded and inert.
     /// </summary>
-    internal static MenuItem? BuildJoinStarOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    private static MenuItem Unavailable(string label, string reason)
     {
-        if (FiledStar(aircraft) is null)
-        {
-            return null;
-        }
-
-        IReadOnlyList<string> stars = DestinationStars(aircraft);
-        return stars.Count > 0 ? BuildStarList($"{JoinStarLabel} (other){Ellipsis}", stars, context, host) : null;
+        var item = new MenuItem { Header = label };
+        MenuDisabledReasonRow.Apply(item, label, reason);
+        QuickCommandStrip.MarkInert(item, $"{label} · {reason}");
+        return item;
     }
 
-    /// <summary>A list picker over <paramref name="stars"/>, the first highlighted, that sends <c>JARR</c> for the pick.</summary>
-    private static MenuItem BuildStarList(string label, IReadOnlyList<string> stars, MenuContext context, IMenuHost host)
-    {
-        List<object> items = [.. stars];
-        return BuildList(label, items, items[0], picked => Send($"JARR {picked}", context, host), host);
-    }
+    /// <summary>Why an entry that picks at the aircraft's destination has nothing to pick when it has none.</summary>
+    internal const string NoDestinationReason = "no destination";
+
+    /// <summary>Why a pattern entry has nothing to pick for an aircraft with neither a destination nor a departure airport.</summary>
+    internal const string NoAirportReason = "no airport";
+
+    /// <summary>Why an entry that picks a runway at <paramref name="airport"/> has nothing to pick there.</summary>
+    internal static string NoRunwayDataReason(string airport) => $"no runway data at {airport}";
 
     /// <summary>
     /// The STAR the flight plan files: the first route token the navigation data resolves as a STAR into the
@@ -1734,19 +1722,6 @@ public static class MenuCatalog
         }
 
         return null;
-    }
-
-    /// <summary>The destination's STAR ids, sorted ignoring case; none without an aircraft or a destination.</summary>
-    private static IReadOnlyList<string> DestinationStars(IMenuAircraft? aircraft)
-    {
-        if (aircraft is not { Destination.Length: > 0 })
-        {
-            return [];
-        }
-
-        List<string> ids = [.. NavigationDatabase.Instance.GetStars(aircraft.Destination).Select(star => star.ProcedureId)];
-        ids.Sort(StringComparer.OrdinalIgnoreCase);
-        return ids;
     }
 
     /// <summary>The non-blank tokens of a filed route, split on spaces and dots.</summary>

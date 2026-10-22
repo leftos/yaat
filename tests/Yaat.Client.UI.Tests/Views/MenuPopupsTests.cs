@@ -213,37 +213,6 @@ public class MenuPopupsTests
         Assert.DoesNotContain(popup, OverlayLayer.GetOverlayLayer(anchor)!.Children);
     }
 
-    /// <summary>A field opened with <see cref="BlankInput.Submits"/> hands "" to the callback on a blank submit.</summary>
-    [AvaloniaFact]
-    public async Task Input_BlankSubmit_Submits_HandsEmptyToTheCallback()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        var submitted = new TaskCompletionSource<string>();
-
-        MenuPopups.ShowInput(
-            anchor,
-            Placeholder,
-            "",
-            0,
-            BlankInput.Submits,
-            value =>
-            {
-                submitted.TrySetResult(value);
-                return Task.FromResult<string?>(null);
-            }
-        );
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        TextBox textBox = FindTextBox(anchor);
-        textBox.Text = "   ";
-        RaiseKey(textBox, Key.Enter);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Equal("", await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.False(popup.IsOpen, "A blank submit should still close the popup.");
-    }
-
     /// <summary>A field opened with <see cref="BlankInput.Closes"/> sends nothing on a blank submit.</summary>
     [AvaloniaFact]
     public void Input_BlankSubmit_Closes_SendsNothing()
@@ -304,85 +273,7 @@ public class MenuPopupsTests
         Assert.Equal("NOTE MONITOR 121.5", await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
     }
 
-    // --- The list, filtered-list and warp popups ------------------------------------------------
-
-    /// <summary>
-    /// The list popup opens on its seed, the first item as every caller passes it, and hands back the item a click selects, then
-    /// closes.
-    /// </summary>
-    [AvaloniaFact]
-    public void List_ClickPicksTheItem()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        object? picked = null;
-        MenuPopups.ShowList(
-            anchor,
-            ["SUNOL", "OAK", "EMZOH"],
-            "SUNOL",
-            value =>
-            {
-                picked = value;
-                return Task.CompletedTask;
-            }
-        );
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        Assert.True(popup.IsOpen, "The list popup should open on its anchor.");
-        ListBox list = FindListBox(anchor);
-        Assert.Equal<object?>("SUNOL", list.SelectedItem);
-        Assert.Null(picked);
-
-        list.SelectedIndex = 2;
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Equal<object?>("EMZOH", picked);
-        Assert.False(popup.IsOpen, "A pick should close the list popup.");
-    }
-
-    /// <summary>A click on the row of the item the list opened on picks that item, closes the popup and reports it once.</summary>
-    [AvaloniaFact]
-    public void List_ClickOnTheSelectedFirstItem_PicksIt()
-    {
-        (Popup popup, ListBox list, List<object> picks) = ShowListPopup();
-        Assert.Equal<object?>("SUNOL", list.SelectedItem);
-
-        ClickOn(Row(list, "SUNOL"));
-
-        Assert.Equal<object?>("SUNOL", Assert.Single(picks));
-        Assert.False(popup.IsOpen, "A pick should close the list popup.");
-    }
-
-    /// <summary>Enter on the item the list opened on picks that item once the list has focus, closes the popup and reports it once.</summary>
-    [AvaloniaFact]
-    public void List_EnterOnTheSelectedItem_PicksIt()
-    {
-        (Popup popup, ListBox list, List<object> picks) = ShowListPopup();
-        Assert.Equal<object?>("SUNOL", list.SelectedItem);
-        ListBoxItem row = Row(list, "SUNOL");
-        Assert.True(row.Focus(), "The list's row should take focus for Enter to reach the list.");
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        TopLevel root = TopLevel.GetTopLevel(row) ?? throw new InvalidOperationException($"{row.GetType().Name} is in no top level");
-        Headless.KeyPressQwerty(root, PhysicalKey.Enter, RawInputModifiers.None);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Equal<object?>("SUNOL", Assert.Single(picks));
-        Assert.False(popup.IsOpen, "A pick should close the list popup.");
-    }
-
-    /// <summary>A click on another row picks it once through the selection path.</summary>
-    [AvaloniaFact]
-    public void List_ClickOnAnotherItem_PicksItOnce()
-    {
-        (Popup popup, ListBox list, List<object> picks) = ShowListPopup();
-        Assert.Equal<object?>("SUNOL", list.SelectedItem);
-
-        ClickOn(Row(list, "EMZOH"));
-
-        Assert.Equal<object?>("EMZOH", Assert.Single(picks));
-        Assert.False(popup.IsOpen, "A pick should close the list popup.");
-    }
+    // --- The warp popup -----------------------------------------------------------------------
 
     /// <summary>The warp popup opens seeded with the aircraft's values and hands back FRD, heading, altitude and speed.</summary>
     [AvaloniaFact]
@@ -465,70 +356,6 @@ public class MenuPopupsTests
         Assert.False(popup.IsOpen, $"The warp popup should close on {how}.");
     }
 
-    // --- The client host's Custom… on the ground --------------------------------------------
-
-    /// <summary>
-    /// On the ground canvas, the client host's takeoff Custom… opens the input popup there, and a submit goes to the main
-    /// view model's send. That send needs a server a test cannot reach (a real <c>ServerConnection</c> with no seam), so
-    /// the failure it shows in the status line proves the hand-off; <c>MenuCatalogCommandTests</c>' recording host pins
-    /// the composed command text.
-    /// </summary>
-    [AvaloniaFact]
-    public async Task ClientHost_CustomTakeoff_OnTheGround_OpensTheInputPopupAndSendsThroughMain()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization;
-        var view = new GroundView { DataContext = main.Ground };
-        var window = new Window { DataContext = main, Content = view };
-        window.ShowAndRunLayout();
-
-        AircraftModel ac = TaxiingJet();
-        var host = new ClientMenuHost(main, ac, view.Canvas);
-
-        Click(CustomTakeoff(ac, host));
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(view);
-        Assert.True(popup.IsOpen, "Clicking Custom… should open the input popup on the ground canvas.");
-        TextBox textBox = FindTextBox(view);
-        Assert.Equal(Placeholder, textBox.PlaceholderText);
-        textBox.Text = "  LT 270 ";
-        RaiseKey(textBox, Key.Enter);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.StartsWith("Command error:", main.StatusText);
-    }
-
-    // --- Custom… on the menu's anchor ----------------------------------------------------------
-
-    /// <summary>
-    /// The takeoff Custom… opens the input popup on the control the menu was built with. The composed command text stays
-    /// pinned by <c>MenuCatalogCommandTests</c>' recording host; this test pins the popup the menu opens.
-    /// </summary>
-    [AvaloniaFact]
-    public void ClientHost_CustomTakeoff_OpensThePopupOnTheMenuAnchor()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        var anchor = new Border();
-        var window = new Window { Content = anchor };
-        window.ShowAndRunLayout();
-
-        AircraftModel ac = TaxiingJet();
-        main.Aircraft.Add(ac);
-        var host = new ClientMenuHost(main, ac, anchor);
-
-        Click(CustomTakeoff(ac, host));
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        Assert.True(popup.IsOpen, "Clicking Custom… should open the list's input popup on its flyout anchor.");
-        Assert.Equal(Placeholder, FindTextBox(anchor).PlaceholderText);
-
-        RaiseKey(FindTextBox(anchor), Key.Escape);
-        HeadlessWindowExtensions.PumpDispatcher();
-        Assert.False(popup.IsOpen, "Escape should close the list's input popup.");
-    }
-
     /// <summary>
     /// The client host's input popup, opened on the control the menu was built with, hands the text the controller typed
     /// to the submit callback.
@@ -571,10 +398,10 @@ public class MenuPopupsTests
 
     /// <summary>
     /// The aircraft list's menu, built through <see cref="DataGridView.BuildAircraftMenu"/>, opens its input popups on
-    /// the DataGrid the right-click came from, so the takeoff Custom… places its popup there.
+    /// the DataGrid the right-click came from, so Data Block › Scratchpad… places its popup there.
     /// </summary>
     [AvaloniaFact]
-    public void DataGridMenu_CustomInputPopup_OpensOnTheGrid()
+    public void DataGridMenu_InputPopup_OpensOnTheGrid()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         AircraftModel ac = TaxiingJet();
@@ -584,19 +411,12 @@ public class MenuPopupsTests
         new Window { Content = grid }.ShowAndRunLayout();
 
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, grid, ac, null, [ac]);
-        MenuItem tower = menu
-            .Items.OfType<MenuItem>()
-            .Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader)
-            .Items.OfType<MenuItem>()
-            .Single(m => (m.Header as string) == "Tower");
-        MenuItem takeoff = tower
-            .Items.OfType<MenuItem>()
-            .Single(m => ((m.Header as string) ?? "").StartsWith("Cleared for takeoff", StringComparison.Ordinal));
-        Click(Assert.IsType<MenuItem>(takeoff.Items[^1]));
+        MenuItem dataBlock = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Data Block");
+        Click(dataBlock.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Scratchpad…"));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(grid);
-        Assert.True(popup.IsOpen, "Clicking Custom… should open the list's input popup.");
+        Assert.True(popup.IsOpen, "Clicking Scratchpad… should open the list's input popup.");
         Assert.Same(grid, popup.PlacementTarget);
     }
 
@@ -612,17 +432,6 @@ public class MenuPopupsTests
             CurrentPhase = "Taxiing",
             AssignedRunway = "30",
         };
-
-    /// <summary>The takeoff submenu's trailing Custom… item over <paramref name="host"/>, asserting it is there.</summary>
-    private static MenuItem CustomTakeoff(AircraftModel aircraft, IMenuHost host)
-    {
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
-        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, context, host);
-        Assert.NotNull(cto);
-        MenuItem custom = Assert.IsType<MenuItem>(cto.Items[^1]);
-        Assert.Equal("Custom…", custom.Header as string);
-        return custom;
-    }
 
     private static (Window window, Control anchor) ShowAnchorWindow()
     {
@@ -653,13 +462,6 @@ public class MenuPopupsTests
         return textBox!;
     }
 
-    private static ListBox FindListBox(Control anchor)
-    {
-        ListBox? listBox = FindPopup(anchor).Child?.GetLogicalDescendants().OfType<ListBox>().FirstOrDefault();
-        Assert.NotNull(listBox);
-        return listBox!;
-    }
-
     private static Button FindButton(Control anchor, string content)
     {
         Button? button = FindPopup(anchor).Child?.GetLogicalDescendants().OfType<Button>().FirstOrDefault(b => (b.Content as string) == content);
@@ -668,54 +470,6 @@ public class MenuPopupsTests
     }
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-
-    /// <summary>The three-item list popup opened over a fresh anchor window, with every item it has picked so far.</summary>
-    private static (Popup Popup, ListBox List, List<object> Picks) ShowListPopup()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        List<object> picks = [];
-        MenuPopups.ShowList(
-            anchor,
-            ["SUNOL", "OAK", "EMZOH"],
-            "SUNOL",
-            value =>
-            {
-                picks.Add(value);
-                return Task.CompletedTask;
-            }
-        );
-        HeadlessWindowExtensions.PumpDispatcher();
-        return (FindPopup(anchor), FindListBox(anchor), picks);
-    }
-
-    /// <summary>The realized row container of <paramref name="item"/>, after a frame has laid the popup out.</summary>
-    private static ListBoxItem Row(ListBox list, object item)
-    {
-        Render();
-        ListBoxItem? row = list.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(container => Equals(container.DataContext, item));
-        Assert.NotNull(row);
-        return row;
-    }
-
-    /// <summary>Pumps the dispatcher and one render tick, so the popup's rows are laid out and hit-testable.</summary>
-    private static void Render()
-    {
-        HeadlessWindowExtensions.PumpDispatcher();
-        Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        HeadlessWindowExtensions.PumpDispatcher();
-    }
-
-    /// <summary>Presses and releases the left button over the middle of <paramref name="target"/>, through its top level's mouse.</summary>
-    private static void ClickOn(Control target)
-    {
-        TopLevel top = TopLevel.GetTopLevel(target) ?? throw new InvalidOperationException($"{target.GetType().Name} is in no top level");
-        Point centre =
-            target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), top)
-            ?? throw new InvalidOperationException($"{target.GetType().Name} has no position in its top level");
-        Headless.MouseDown(top, centre, MouseButton.Left);
-        Headless.MouseUp(top, centre, MouseButton.Left);
-        HeadlessWindowExtensions.PumpDispatcher();
-    }
 
     private static void RaiseKey(Control control, Key key) =>
         control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });

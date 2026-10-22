@@ -26,9 +26,7 @@ public class MenuTreeSnapshotTests
         );
 
         var heading = new MenuItem { Header = "Heading" };
-        heading.Items.Add(new MenuItem { Header = "Fly heading", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, ["5", "10", "15"]) });
         heading.Items.Add(new MenuItem { Header = "Heading...", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) });
-        heading.Items.Add(new MenuItem { Header = "Empty list", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, []) });
         var nested = new MenuItem { Header = "Nested" };
         nested.Items.Add(new MenuItem { Header = "Leaf" });
         heading.Items.Add(nested);
@@ -44,9 +42,7 @@ public class MenuTreeSnapshotTests
             "Show route [checked]\n",
             "Locked [disabled] [checked]\n",
             "Heading\n",
-            "  Fly heading picker:list [5, 10, 15]\n",
             "  Heading... picker:input\n",
-            "  Empty list picker:list []\n",
             "  Nested\n",
             "    Leaf\n",
             "<TextBox>\n",

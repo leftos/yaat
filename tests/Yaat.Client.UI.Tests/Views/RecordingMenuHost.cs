@@ -35,8 +35,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public List<string?> FieldElevationRequests { get; } = [];
 
-    public List<(IReadOnlyList<string> Items, object? Selected)> ListPopups { get; } = [];
-
     public List<string> DrawRouteCallsigns { get; } = [];
 
     public List<(string Callsign, string Frd, int Heading, int Altitude, int Speed)> WarpPopups { get; } = [];
@@ -141,15 +139,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public bool TugReaches { get; init; } = true;
 
     public bool CanTugReach(string callsign, GroundNodeDto node) => TugReaches;
-
-    public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
-    {
-        ListPopups.Add(([.. items.Select(i => i.ToString() ?? "")], selected));
-        if (input.Length > 0)
-        {
-            _ = onPick(items.First(i => i.ToString() == input));
-        }
-    }
 
     /// <summary>The sim's answer every <see cref="SendForResultAsync"/> hands back; an accepted command by default.</summary>
     public CommandResultDto? SendResult { get; set; } = new(true, null);

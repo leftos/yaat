@@ -544,9 +544,9 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Approach submenu: the approach entries (each opening its verb's approach flyout), the visual approach (with its
-    /// "(other)" runway picker beside a default runway), the in-sight requests, then the Report when… submenu. The header
-    /// names the active approach, else the expected one.
+    /// The Approach submenu: the approach entries (each opening its verb's approach flyout), the visual approach for an IFR
+    /// aircraft (the Cleared approach flyout opened on its visual row), the in-sight requests, then the Report when… submenu.
+    /// The header names the active approach, else the expected one.
     /// </summary>
     public static MenuItem Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -562,8 +562,7 @@ public static class SharedMenuGroups
             TryAdd(menu.Items, TryLeaf(id, aircraft, context, host));
         }
 
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedVisual, aircraft, context, host));
-        AddCompanion(menu.Items, MenuCatalog.BuildClearedVisualOther(aircraft, context, host));
+        AddIfApplicable(menu.Items, MenuIds.ApproachClearedVisual, aircraft, context, host);
 
         menu.Items.Add(new Separator());
         TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
@@ -599,17 +598,21 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Procedures submenu: join STAR (with its "(other)" STAR picker beside a filed STAR), climb via SID and
-    /// descend via STAR, the cross and depart fix flyouts, PTAC, the join airway flyout, then the two join-radial entries,
-    /// each opening the join radial flyout on its own side.
+    /// The Procedures submenu: join STAR (the tabbed STAR flyout, which holds Descend via STAR), climb via SID, descend via
+    /// STAR only while Join STAR offers no flyout, the cross and depart fix flyouts, PTAC, the join airway flyout, then the two
+    /// join-radial entries, each opening the join radial flyout on its own side.
     /// </summary>
     public static MenuItem Procedures(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Procedures" };
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinStar, aircraft, context, host));
-        AddCompanion(menu.Items, MenuCatalog.BuildJoinStarOther(aircraft, context, host));
+        MenuItem? joinStar = TryLeaf(MenuIds.ProceduresJoinStar, aircraft, context, host);
+        TryAdd(menu.Items, joinStar);
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
+        if (joinStar is not { IsEnabled: true })
+        {
+            TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
+        }
+
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresPtac, aircraft, context, host));
@@ -669,9 +672,9 @@ public static class SharedMenuGroups
     ];
 
     /// <summary>
-    /// The Pattern submenu, state-aware: the pattern entries that apply, each with its "(other)" runway picker beside an
-    /// assigned runway, then the leg turns, the spacing adjustments, the orbits and Circle airport, each block after a
-    /// separator when it has an item and items precede it. Null when nothing applies, so the caller omits the submenu.
+    /// The Pattern submenu, state-aware: the pattern entries that apply, each its runway flyout, then the leg turns, the
+    /// spacing adjustments, the orbits and Circle airport, each block after a separator when it has an item and items precede
+    /// it. Null when nothing applies, so the caller omits the submenu.
     /// </summary>
     public static MenuItem? Pattern(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -681,7 +684,6 @@ public static class SharedMenuGroups
             if (IsApplicable(id, aircraft, context))
             {
                 TryAdd(menu.Items, TryLeaf(id, aircraft, context, host));
-                AddCompanion(menu.Items, MenuCatalog.BuildPatternEntryOther(id, aircraft, context, host));
             }
         }
 
@@ -929,15 +931,6 @@ public static class SharedMenuGroups
         foreach (Control control in controls)
         {
             items.Add(control);
-        }
-    }
-
-    /// <summary>Adds an entry's "(other)" companion item, or nothing when the entry offers none (the item is null).</summary>
-    private static void AddCompanion(ItemCollection items, MenuItem? companion)
-    {
-        if (companion is not null)
-        {
-            items.Add(companion);
         }
     }
 

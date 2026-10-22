@@ -88,9 +88,6 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public string? DescribePoint(LatLon position) => inner.DescribePoint(position);
 
-    public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        inner.ShowListPopup(items, selected, onPick);
-
     public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials) =>
         inner.SendForResultAsync(callsign, command, initials);
 

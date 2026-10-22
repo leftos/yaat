@@ -311,9 +311,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>The primary ground view model's tug planner check (<see cref="GroundViewModel.CanPushRouteTo"/>).</summary>
     public bool CanTugReach(string callsign, GroundNodeDto node) => (FindAircraft(callsign) is { } ac) && main.Ground.CanPushRouteTo(ac, node.Id);
 
-    public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        MenuPopups.ShowList(anchor, items, selected, onPick);
-
     public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials) =>
         main.SendCommandForViewCoreAsync(callsign, command, initials);
 

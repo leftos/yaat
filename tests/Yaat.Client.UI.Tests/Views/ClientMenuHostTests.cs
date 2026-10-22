@@ -128,52 +128,6 @@ public class ClientMenuHostTests
         };
 
     /// <summary>
-    /// On the radar, the host's list picker opens the shared menu popup on the radar canvas's overlay, seeded with the
-    /// current value, and a pick hands the item back and closes it.
-    /// </summary>
-    [AvaloniaFact]
-    public void ListPicker_OnTheRadar_OpensTheSharedPopup()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        var view = new RadarView { DataContext = main.Radar };
-        var window = new Window { DataContext = main, Content = view };
-        window.ShowAndRunLayout();
-        try
-        {
-            IMenuHost host = new ClientMenuHost(main, null, view.Canvas);
-            object? picked = null;
-            host.ShowListPopup(
-                ["090", "180", "270"],
-                "180",
-                value =>
-                {
-                    picked = value;
-                    return Task.CompletedTask;
-                }
-            );
-            HeadlessWindowExtensions.PumpDispatcher();
-
-            var overlay = OverlayLayer.GetOverlayLayer(view);
-            Assert.NotNull(overlay);
-            Popup popup = Assert.Single(overlay.Children.OfType<Popup>());
-            Assert.True(popup.IsOpen, "The list picker should open the shared popup.");
-            ListBox list = Assert.Single(popup.Child!.GetLogicalDescendants().OfType<ListBox>());
-            Assert.Equal<object?>("180", list.SelectedItem);
-
-            list.SelectedIndex = 2;
-            HeadlessWindowExtensions.PumpDispatcher();
-
-            Assert.Equal<object?>("270", picked);
-            Assert.False(popup.IsOpen, "A pick should close the popup.");
-            Assert.DoesNotContain(popup, overlay.Children);
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    /// <summary>
     /// The flight-plan editor opens on the named aircraft, found in the main view model's list when it is not the menu's
     /// own; a callsign no longer in the list opens nothing.
     /// </summary>

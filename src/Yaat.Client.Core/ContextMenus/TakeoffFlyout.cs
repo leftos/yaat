@@ -24,6 +24,9 @@ internal enum TakeoffRowInput
 
     /// <summary>A fix box that suggests fixes as the command bar does.</summary>
     Fix,
+
+    /// <summary>The Custom box, its fixed <c>CTO</c> prefix drawn inside it: what is typed is sent after the prefix.</summary>
+    Custom,
 }
 
 /// <summary>
@@ -98,7 +101,7 @@ internal sealed class TakeoffFlyoutRow
     /// <summary>The command for the row's box text, without the altitude; null when the text cannot be sent.</summary>
     public required Func<string, string?> CommandFor { get; init; }
 
-    /// <summary>What the command column shows while the row cannot send: <c>CTO TLDCT ···</c>.</summary>
+    /// <summary>What the command column shows while the row cannot send: <c>CTO TLDCT ···</c>; empty for a row that always sends.</summary>
     public required string Placeholder { get; init; }
 
     /// <summary>The altitude box whose text the command appends; null for a row that takes no altitude.</summary>
@@ -193,6 +196,24 @@ internal static class TakeoffFlyout
     /// <summary>The name of the heading row's text box.</summary>
     public const string HeadingBoxName = "TakeoffHeadingBox";
 
+    /// <summary>The name of the Custom row's text box.</summary>
+    public const string CustomBoxName = "TakeoffCustomBox";
+
+    /// <summary>The Custom row's label.</summary>
+    public const string CustomLabel = "Custom";
+
+    /// <summary>What the empty Custom box reads after its <c>CTO</c> prefix: the modifiers it is for.</summary>
+    public const string CustomPlaceholder = "RH 3000, LT 270, DCT BERKS, IMM";
+
+    /// <summary>
+    /// The Custom box row that ends the flyout after a separator, always open: what is typed is trimmed and sent after
+    /// <c>CTO</c>, and a blank box sends a bare <c>CTO</c>; a click on the row or Enter in its box sends.
+    /// </summary>
+    internal static MenuItem CustomItem(MenuContext context, IMenuHost host) => new RowMaker(0, null, context, host).Custom();
+
+    /// <summary>The command for the Custom box's text: <c>CTO</c>, then the text trimmed when it is not blank.</summary>
+    internal static string CustomCommand(string text) => string.IsNullOrWhiteSpace(text) ? "CTO" : $"CTO {text.Trim()}";
+
     /// <summary>What a command shows in place of an argument its box cannot give yet.</summary>
     internal const string Unfilled = "···";
     private const string RunwayPath = "M9 11h10v2H9z";
@@ -217,7 +238,10 @@ internal static class TakeoffFlyout
     private static readonly QuickCommandGlyph TakeoffGlyph = Upright("M2 20h20 M5 16L19 6 M13 6h6v6");
     private static readonly QuickCommandGlyph HeadingGlyph = Upright("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z");
 
-    /// <summary>The flyout's items for <paramref name="aircraft"/>, in order, without the trailing separator and Custom….</summary>
+    /// <summary>
+    /// The flyout's items for <paramref name="aircraft"/>, in order, without the trailing separator and Custom box row
+    /// (<see cref="CustomItem"/>).
+    /// </summary>
     internal static IReadOnlyList<Control> Items(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         bool isVfr = AircraftCommandApplicability.IsVfr(aircraft);
@@ -372,6 +396,21 @@ internal static class TakeoffFlyout
                 true
             );
 
+        public MenuItem Custom() =>
+            Item(
+                new TakeoffFlyoutRow
+                {
+                    Glyph = TakeoffGlyph,
+                    Label = CustomLabel,
+                    Input = TakeoffRowInput.Custom,
+                    CommandFor = CustomCommand,
+                    Placeholder = "",
+                    Altitude = null,
+                    FixSuggestions = host.SuggestFixes,
+                },
+                true
+            );
+
         public MenuItem OnCourse(QuickCommandGlyph glyph, bool available) =>
             Item(
                 new TakeoffFlyoutRow
@@ -465,6 +504,7 @@ internal static class TakeoffFlyout
 internal sealed class TakeoffFlyoutRowTemplate : FuncDataTemplate<TakeoffFlyoutRow>
 {
     private const double BoxWidth = 96;
+    private const double CustomBoxWidth = 260;
 
     /// <summary>The one template every row uses.</summary>
     public static TakeoffFlyoutRowTemplate Instance { get; } = new();
@@ -521,16 +561,40 @@ internal sealed class TakeoffFlyoutRowTemplate : FuncDataTemplate<TakeoffFlyoutR
         {
             TakeoffRowInput.Heading => HeadingBox(row),
             TakeoffRowInput.Fix => FixBox(row),
+            TakeoffRowInput.Custom => CustomBox(row),
             _ => null,
         };
         if (box is not null)
         {
-            box.Width = BoxWidth;
+            box.Width = (row.Input == TakeoffRowInput.Custom) ? CustomBoxWidth : BoxWidth;
             box.Margin = new Thickness(0, 3, 0, 0);
             box.HorizontalAlignment = HorizontalAlignment.Left;
             TakeoffFlyout.KeepClicksInside(box);
         }
 
+        return box;
+    }
+
+    /// <summary>The Custom box: its fixed <c>CTO</c> prefix drawn inside it, before the text, in the monospace font.</summary>
+    private static TextBox CustomBox(TakeoffFlyoutRow row)
+    {
+        var prefix = new TextBlock
+        {
+            Text = "CTO",
+            Opacity = 0.7,
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        prefix.Bind(TextBlock.FontFamilyProperty, prefix.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+        var box = new TextBox
+        {
+            Name = TakeoffFlyout.CustomBoxName,
+            Text = row.InputText,
+            PlaceholderText = TakeoffFlyout.CustomPlaceholder,
+            InnerLeftContent = prefix,
+        };
+        AutomationProperties.SetName(box, "Custom takeoff after CTO");
+        box.TextChanged += (_, _) => row.InputText = box.Text ?? "";
         return box;
     }
 

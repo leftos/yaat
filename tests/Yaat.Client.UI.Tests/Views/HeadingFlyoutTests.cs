@@ -116,7 +116,6 @@ public class HeadingFlyoutTests
         StripFlyout open = OpenStripFlyout(MenuIds.HeadingFly, Aircraft(270), host);
 
         Assert.True(open.Flyout.IsOpen);
-        Assert.Empty(host.ListPopups);
         Assert.Equal(
             [
                 "Fly heading · now 270",

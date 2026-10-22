@@ -45,7 +45,6 @@ public class MenuCatalogSpeedTests
         MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
         Assert.NotNull(item);
         item.IsSubMenuOpen = true;
-        Assert.Empty(host.ListPopups);
         return Assert.IsType<SpeedFlyoutPanel>(Assert.IsType<SpeedFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child);
     }
 

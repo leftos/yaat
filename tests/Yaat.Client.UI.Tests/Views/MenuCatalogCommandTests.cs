@@ -1,10 +1,13 @@
 using System.Globalization;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -17,6 +20,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
@@ -85,7 +89,6 @@ public class MenuCatalogCommandTests
         (MenuIds.SpeedFinalApproach, "", "RFAS"),
         (MenuIds.HoldPresentLeft, "", "HPPL"),
         (MenuIds.HoldPresentRight, "", "HPPR"),
-        (MenuIds.ApproachClearedVisual, "28R", "CVA 28R"),
         (MenuIds.ApproachReportBase, "", "REPORT BASE"),
         (MenuIds.ApproachReportFinal, "", "REPORT FINAL"),
         (MenuIds.ApproachReportCrosswind, "", "REPORT CROSSWIND"),
@@ -97,7 +100,6 @@ public class MenuCatalogCommandTests
         (MenuIds.ApproachReportOffCrosswind, "", "REPORT OFF CROSSWIND"),
         (MenuIds.ApproachReportOffDownwind, "", "REPORT OFF DOWNWIND"),
         (MenuIds.ApproachReportOffAll, "", "REPORT OFF"),
-        (MenuIds.ProceduresJoinStar, StarId, "JARR EMZOH4"),
         (MenuIds.ProceduresClimbViaSid, "", "CVIA"),
         (MenuIds.ProceduresDescendViaStar, "", "DVIA"),
         (MenuIds.TowerLineUpAndWait, "", "LUAW"),
@@ -110,11 +112,6 @@ public class MenuCatalogCommandTests
         (MenuIds.TowerLowApproach, "", "LA"),
         (MenuIds.TowerGoAround, "", "GA"),
         (MenuIds.TowerCancelLanding, "", "CLC"),
-        (MenuIds.PatternEnterLeftDownwind, "28R", "ELD 28R"),
-        (MenuIds.PatternEnterRightDownwind, "28R", "ERD 28R"),
-        (MenuIds.PatternEnterLeftBase, "28R", "ELB 28R"),
-        (MenuIds.PatternEnterRightBase, "28R", "ERB 28R"),
-        (MenuIds.PatternEnterFinal, "28R", "EF 28R"),
         (MenuIds.PatternTurnCrosswind, "", "TC"),
         (MenuIds.PatternTurnDownwind, "", "TD"),
         (MenuIds.PatternTurnBase, "", "TB"),
@@ -145,6 +142,14 @@ public class MenuCatalogCommandTests
     /// </summary>
     private static readonly string[] HostBuiltIds =
     [
+        // Flyouts with nothing to send without an aircraft (disabled with a reason): their own tests pin their sends.
+        MenuIds.ApproachClearedVisual,
+        MenuIds.ProceduresJoinStar,
+        MenuIds.PatternEnterLeftDownwind,
+        MenuIds.PatternEnterRightDownwind,
+        MenuIds.PatternEnterLeftBase,
+        MenuIds.PatternEnterRightBase,
+        MenuIds.PatternEnterFinal,
         MenuIds.FavoritesMenu,
         MenuIds.LiveTrafficAssumeAndTrack,
         MenuIds.SimControlWarp,
@@ -427,7 +432,6 @@ public class MenuCatalogCommandTests
         HeadingFlyoutPanel panel = HeadingFlyoutTests.PanelOf(item);
 
         Assert.Equal(magnetic, panel.Rose.PresentHeading, 6);
-        Assert.Empty(host.ListPopups);
     }
 
     [AvaloniaFact]
@@ -730,7 +734,6 @@ public class MenuCatalogCommandTests
 
         Assert.NotNull(item);
         item.IsSubMenuOpen = true;
-        Assert.Empty(host.ListPopups);
         SpeedFlyoutPanel panel = Assert.IsType<SpeedFlyoutPanel>(
             Assert.IsType<SpeedFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
         );
@@ -762,7 +765,6 @@ public class MenuCatalogCommandTests
     [InlineData(MenuIds.GroundBreakConflict, "Ignore ground conflicts (15 s)", "Ignore ground conflicts (15 s)")]
     [InlineData(MenuIds.AltitudeMaintain, "Maintain altitude", "Maintain altitude")]
     [InlineData(MenuIds.HoldPattern, "Hold at fix…", "Hold at fix…")]
-    [InlineData(MenuIds.PatternEnterFinal, "Make straight-in", "Make straight-in…")]
     [InlineData(MenuIds.PatternFollow, "Follow traffic…", "Follow traffic…")]
     [InlineData(MenuIds.SpeedFinalApproach, "Reduce to final approach speed", "Reduce to final approach speed")]
     [InlineData(MenuIds.ApproachReportNMileFinal, "At N-mile final…", "At N-mile final…")]
@@ -792,7 +794,6 @@ public class MenuCatalogCommandTests
         panel.RouteRows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.Equal(command, DirectToFlyout.VerbText(panel.Verb));
-        Assert.Empty(host.ListPopups);
         Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], host.Sent);
     }
 
@@ -963,37 +964,44 @@ public class MenuCatalogCommandTests
         );
     }
 
+    /// <summary>
+    /// Cleared visual approach opens the Cleared approach flyout (ruling 1, lane C) on the default runway's tab, focusing that
+    /// tab's visual row rather than the pinned default row Cleared approach itself focuses; the row sends <c>CVA</c>.
+    /// </summary>
     [AvaloniaFact]
-    public void ClearedVisual_NoDefaultWithRunways_UsesListTier()
+    public void ClearedVisual_OpensTheClearedApproachFlyoutOnTheDefaultRunwaysVisualRow()
     {
         TestVnasData.EnsureInitialized();
-        string[] runways = [.. RunwayDesignators.ForAirport(ApproachAirport)];
-        Assert.Contains("28R", runways);
-        var host = new RecordingMenuHost("28R");
-        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport };
+        var host = new RecordingMenuHost("");
+        FakeMenuAircraft aircraft = VisualArrival() with { AssignedRunway = "30" };
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Cleared visual approach…", MenuPickerDescriptor.List, runways));
+        MenuItem? entry = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
+        Assert.Equal("Cleared visual approach", entry?.Header as string);
+        ApproachFlyoutPanel panel = OpenApproachFlyout(entry);
+        ApproachFlyoutPanel cleared = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host));
 
-        Assert.Equal<object?>(runways[0], Assert.Single(host.ListPopups).Selected);
-        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host));
+        Assert.StartsWith("Cleared approach", panel.Lines[0]);
+        Assert.StartsWith("30 ", panel.Strip.Tabs[panel.Strip.SelectedIndex].Label);
+        Button opening = Assert.IsType<Button>(panel.OpeningFocus);
+        Assert.Equal(ApproachRowKind.Visual, Assert.IsType<ApproachRow>(opening.Content).Kind);
+        Assert.Equal(ApproachFlyoutModel.DefaultBadge, Assert.IsType<ApproachRow>(Assert.IsType<Button>(cleared.OpeningFocus).Content).Badge);
+        opening.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal([(Callsign, "CVA 30", Initials)], host.Sent);
     }
 
+    /// <summary>With no default runway, Cleared visual approach opens on the first tab's visual row.</summary>
     [AvaloniaFact]
-    public void ClearedVisualOther_BesideADefaultRunway_ListsTheRunwaysAndSendsCva()
+    public void ClearedVisual_NoDefault_OpensOnTheFirstTabsVisualRow()
     {
         TestVnasData.EnsureInitialized();
-        string[] runways = [.. RunwayDesignators.ForAirport(ApproachAirport)];
-        Assert.Contains("28R", runways);
-        var host = new RecordingMenuHost("28R");
-        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "30" };
+        var host = new RecordingMenuHost("");
 
-        Assert.Equal("Cleared visual approach 30", MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host)?.Header as string);
-        MenuItem? other = MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host);
-        Click(AssertPicker(other, "Cleared visual approach (other)…", MenuPickerDescriptor.List, runways));
+        ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(VisualArrival(), Context(), host));
 
-        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+        Assert.Equal(0, panel.Strip.SelectedIndex);
+        Assert.Same(panel.Rows[0], panel.OpeningFocus);
+        Assert.Equal(ApproachRowKind.Visual, Assert.IsType<ApproachRow>(panel.Rows[0].Content).Kind);
     }
 
     /// <summary>A scenario's expected approach in shorthand (R28L for KOAK's R28LY) still gives the visual approach its runway.</summary>
@@ -1002,13 +1010,11 @@ public class MenuCatalogCommandTests
     {
         TestVnasData.EnsureInitialized();
         var host = new RecordingMenuHost("");
-        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "R28L" };
+        FakeMenuAircraft aircraft = VisualArrival() with { ExpectedApproach = "R28L" };
 
         Assert.Equal("28L", MenuCatalog.SmartVisualRunway(aircraft));
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Assert.Equal("Cleared visual approach 28L", item.Header as string);
-        Click((MenuItem)item);
+        ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host));
+        Assert.IsType<Button>(panel.OpeningFocus).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.Equal([(Callsign, "CVA 28L", Initials)], host.Sent);
     }
@@ -1019,14 +1025,63 @@ public class MenuCatalogCommandTests
     {
         TestVnasData.EnsureInitialized();
         var host = new RecordingMenuHost("");
-        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "VIS28R" };
+        FakeMenuAircraft aircraft = VisualArrival() with { ExpectedApproach = "VIS28R" };
 
         Assert.Equal("28R", MenuCatalog.SmartVisualRunway(aircraft));
-        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Click((MenuItem)item);
+        ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host));
+        Assert.IsType<Button>(panel.OpeningFocus).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// Cleared visual approach is offered to an IFR aircraft only (ruling 2): a VFR aircraft's Approach submenu has no such
+    /// entry, greyed or otherwise, where an IFR aircraft's does.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_IsOfferedToIfrAircraftOnly()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        FakeMenuAircraft ifr = VisualArrival();
+        FakeMenuAircraft vfr = VisualArrival() with { FlightRules = "VFR" };
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.ApproachClearedVisual);
+
+        Assert.Equal(MenuFlightRules.IfrOnly, entry.DefaultFlightRules);
+        Assert.True(entry.IsApplicable(ifr, Context()));
+        Assert.False(entry.IsApplicable(vfr, Context()));
+        Assert.Contains("Cleared visual approach", SharedMenuGroups.Approach(ifr, Context(), host).Items.Select(Describe));
+        Assert.DoesNotContain("Cleared visual approach", SharedMenuGroups.Approach(vfr, Context(), host).Items.Select(Describe));
+    }
+
+    /// <summary>An IFR arrival to <see cref="ApproachAirport"/> that has reported the field in sight, so its visual rows are live.</summary>
+    private static FakeMenuAircraft VisualArrival() =>
+        new()
+        {
+            Destination = ApproachAirport,
+            FlightRules = "IFR",
+            SituationFlags = SituationFlags.HasReportedFieldInSight,
+        };
+
+    /// <summary>Opens <paramref name="entry"/>'s approach flyout and returns its panel.</summary>
+    private static ApproachFlyoutPanel OpenApproachFlyout(MenuItem? entry)
+    {
+        MenuItem item = Assert.IsType<MenuItem>(entry);
+        item.IsSubMenuOpen = true;
+        return Assert.IsType<ApproachFlyoutPanel>(Assert.IsType<ApproachFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child);
+    }
+
+    /// <summary>
+    /// Asserts <paramref name="entry"/> is disabled with <paramref name="reason"/> beside <paramref name="label"/> (ruling 3, nothing
+    /// to pick) and its strip button inert.
+    /// </summary>
+    private static void AssertUnavailable(MenuItem? entry, string label, string reason)
+    {
+        Assert.NotNull(entry);
+        Assert.False(entry.IsEnabled);
+        Assert.Equal(new MenuDisabledReasonRow(label, reason), entry.Header);
+        Assert.True(QuickCommandStrip.IsInert(entry));
+        Assert.Empty(entry.Items);
     }
 
     /// <summary>Outside solo training, Report traffic in sight… is the traffic flyout over the host's airborne traffic, not a picker.</summary>
@@ -1105,35 +1160,31 @@ public class MenuCatalogCommandTests
         );
     }
 
+    /// <summary>A destination without runway data leaves Cleared visual approach nothing to pick (ruling 3): disabled, inert.</summary>
     [AvaloniaFact]
-    public void ClearedVisual_NoDefaultNoRunways_UsesInputTier()
+    public void ClearedVisual_NoRunwayData_IsDisabledWithTheReason()
     {
         TestVnasData.EnsureInitialized();
         Assert.Empty(NavigationDatabase.Instance.GetRunways(UnknownAirport));
-        var host = new RecordingMenuHost("28R");
-        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
+        var host = new RecordingMenuHost("");
+        FakeMenuAircraft aircraft = VisualArrival() with { Destination = UnknownAirport };
 
         MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Cleared visual approach…", MenuPickerDescriptor.Input, []));
 
-        Assert.Equal(["Runway (e.g. 28R)"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+        AssertUnavailable(item, "Cleared visual approach", "no runway data at ZZZZ");
     }
 
+    /// <summary>Without a destination, Cleared visual approach has nothing to pick (ruling 3): disabled with the reason, inert.</summary>
     [AvaloniaFact]
-    public void ClearedVisual_DefaultFromAssignedRunway_LabelsAndSendsCva()
+    public void ClearedVisual_NoDestination_IsDisabledWithTheReason()
     {
         var host = new RecordingMenuHost("");
-        var aircraft = new FakeMenuAircraft { AssignedRunway = "09L" };
+        var aircraft = new FakeMenuAircraft { AssignedRunway = "09L", SituationFlags = SituationFlags.HasReportedFieldInSight };
 
         MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Assert.Equal("Cleared visual approach 9L", item.Header as string);
-        Assert.Null(item.Tag);
-        Click((MenuItem)item);
 
-        Assert.Equal([(Callsign, "CVA 09L", Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host));
+        AssertUnavailable(item, "Cleared visual approach", "no destination");
+        Assert.Empty(host.Sent);
     }
 
     [AvaloniaFact]
@@ -1176,21 +1227,21 @@ public class MenuCatalogCommandTests
         );
     }
 
+    /// <summary>
+    /// At a destination with no STARs (KLVK), Join STAR has nothing to pick (ruling 3): disabled with the reason, its strip
+    /// button inert, and the separate Descend via STAR entry stays in Procedures.
+    /// </summary>
     [AvaloniaFact]
-    public void JoinStar_NoStarsNoDefault_UsesInputTier()
+    public void JoinStar_NoStars_IsDisabledWithTheReason()
     {
         TestVnasData.EnsureInitialized();
-        Assert.Empty(NavigationDatabase.Instance.GetStars(UnknownAirport));
-        var host = new RecordingMenuHost(StarId);
-        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport, Route = $"SUNOL {StarId}" };
+        Assert.Empty(NavigationDatabase.Instance.GetStars("KLVK"));
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = "KLVK", Route = $"SUNOL {StarId}" };
 
-        Click(
-            AssertPicker(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host), "Join STAR…", MenuPickerDescriptor.Input, [])
-        );
-
-        Assert.Equal(["STAR name"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, "JARR EMZOH4", Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host));
+        AssertUnavailable(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host), "Join STAR", "no STARs at KLVK");
+        AssertUnavailable(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(new FakeMenuAircraft(), Context(), host), "Join STAR", "no destination");
+        Assert.Contains("Descend via STAR", SharedMenuGroups.Procedures(aircraft, Context(), host).Items.Select(Describe));
     }
 
     /// <summary>
@@ -1237,54 +1288,181 @@ public class MenuCatalogCommandTests
         );
         panel.Rows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Empty(host.ListPopups);
         Assert.Empty(host.InputPlaceholders);
         Assert.Equal([(Callsign, "JAWY V25", Initials)], host.Sent);
         Assert.Equal("V25", Assert.IsType<JoinAirwayCommand>(CommandParser.Parse("JAWY V25").Value).AirwayId);
     }
 
+    /// <summary>
+    /// SWA1957 to KOAK filing OAKES3: the Join STAR flyout (ruling 1, lane C) has a tab per KOAK STAR, the filed one first marked
+    /// ◆ and selected; its rows are Join, Join at each entry fix and For runway each runway its transitions serve (RW28B gives
+    /// 28L and 28R), each sending a <c>JARR</c> the parser reads; Descend via STAR sits under the tabs and leaves Procedures.
+    /// </summary>
     [AvaloniaFact]
-    public void JoinStar_FiledStar_LeafPlusOtherList()
+    public void JoinStar_FiledStar_TabbedFlyout_FiledFirst()
     {
         TestVnasData.EnsureInitialized();
-        string[] stars =
+        CifpStarProcedure oakes = NavigationDatabase.Instance.GetStar(ApproachAirport, "OAKES3") ?? throw new InvalidOperationException("No OAKES3.");
+        Assert.NotEmpty(oakes.EnrouteTransitions);
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = $"RUSME.OAKES3.{ApproachAirport}" };
+
+        MenuItem? entry = MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host);
+        Assert.Equal("Join STAR", entry?.Header as string);
+        JoinStarFlyoutPanel panel = OpenStarFlyout(entry);
+
+        List<string> rows =
         [
-            .. NavigationDatabase.Instance.GetStars(ApproachAirport).Select(s => s.ProcedureId).Order(StringComparer.OrdinalIgnoreCase),
+            "Join · filed · nearest fix ahead — JARR OAKES3",
+            .. oakes.EnrouteTransitions.Keys.Order(StringComparer.OrdinalIgnoreCase).Select(fix => $"Join at {fix} — JARR OAKES3 {fix}"),
+            "For runway 12 — JARR OAKES3 12",
+            "For runway 28L — JARR OAKES3 28L",
+            "For runway 28R — JARR OAKES3 28R",
+            "For runway 30 — JARR OAKES3 30",
         ];
-        Assert.Contains(StarId, stars);
-        string other = stars.First(s => s != StarId);
-        var host = new RecordingMenuHost(other);
-        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = $"RGOOD.{StarId}.{ApproachAirport}" };
+        Assert.Equal(["Join STAR", "[OAKES3 ◆] | AANET1 | EMZOH4 | PIRAT3 | PXN6 | WNDSR2", .. rows, "---", "Descend via STAR — DVIA"], panel.Lines);
+        Assert.All(rows, row => Assert.True(CommandParser.Parse(row[(row.IndexOf("— ", StringComparison.Ordinal) + 2)..]).IsSuccess, row));
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Assert.Equal("Join STAR EMZOH4", item.Header as string);
-        Assert.Null(item.Tag);
-        Click((MenuItem)item);
-        Click(AssertPicker(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host), "Join STAR (other)…", MenuPickerDescriptor.List, stars));
+        panel.Rows[^2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        panel.DescendViaRow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal([(Callsign, "JARR OAKES3 28R", Initials), (Callsign, "DVIA", Initials)], host.Sent);
 
-        Assert.Equal<object?>(stars[0], Assert.Single(host.ListPopups).Selected);
-        Assert.Equal([(Callsign, "JARR EMZOH4", Initials), (Callsign, $"JARR {other}", Initials)], host.Sent);
+        panel.Strip.Select(1);
+        Assert.Equal("OAKES3 ◆ | [AANET1] | EMZOH4 | PIRAT3 | PXN6 | WNDSR2", panel.Lines[1]);
+        Assert.Equal("Join · nearest fix ahead — JARR AANET1", panel.Lines[2]);
+        Assert.DoesNotContain("Descend via STAR", SharedMenuGroups.Procedures(aircraft, Context(), host).Items.Select(Describe));
     }
 
+    /// <summary>With no STAR filed, the Join STAR flyout's tabs are alphabetical and the first is selected.</summary>
     [AvaloniaFact]
-    public void JoinStar_NoFiledStar_ListsTheStars()
+    public void JoinStar_NoFiledStar_FirstTabSelected()
     {
         TestVnasData.EnsureInitialized();
-        string[] stars =
-        [
-            .. NavigationDatabase.Instance.GetStars(ApproachAirport).Select(s => s.ProcedureId).Order(StringComparer.OrdinalIgnoreCase),
-        ];
-        Assert.Contains(StarId, stars);
-        var host = new RecordingMenuHost(StarId);
+        var host = new RecordingMenuHost("");
         var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = "" };
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Join STAR…", MenuPickerDescriptor.List, stars));
+        JoinStarFlyoutPanel panel = OpenStarFlyout(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host));
+        panel.Rows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal<object?>(stars[0], Assert.Single(host.ListPopups).Selected);
-        Assert.Equal([(Callsign, "JARR EMZOH4", Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host));
+        Assert.Equal("[AANET1] | EMZOH4 | OAKES3 | PIRAT3 | PXN6 | WNDSR2", panel.Lines[1]);
+        Assert.Equal([(Callsign, "JARR AANET1", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// Right and Left switch the Join STAR flyout to the next and previous tab and focus a row on the tab that lands, so a
+    /// second Enter sends that tab's row (the keyboard contract in <see cref="JoinStarFlyoutPanel"/>).
+    /// </summary>
+    [AvaloniaFact]
+    public void JoinStar_LeftAndRight_SwitchTabs_AndFocusARowOnTheNewTab()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = $"RUSME.OAKES3.{ApproachAirport}" };
+        (Window window, JoinStarFlyoutPanel panel) = OpenStarFlyoutInWindow(
+            MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host)
+        );
+
+        Assert.Same(panel.Rows[0], FocusedButton(window));
+        int opening = panel.Strip.SelectedIndex;
+
+        PressKey(window, Key.Right);
+
+        Assert.Equal(opening + 1, panel.Strip.SelectedIndex);
+        Assert.Same(panel.Rows[0], FocusedButton(window));
+        Assert.Contains("[AANET1]", panel.Lines[1]);
+
+        PressKey(window, Key.Left);
+
+        Assert.Equal(opening, panel.Strip.SelectedIndex);
+        Assert.Same(panel.Rows[0], FocusedButton(window));
+        Assert.Contains("[OAKES3 ◆]", panel.Lines[1]);
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>Down and Tab walk the tab's rows and reach Descend via STAR under them; Up walks back through them.</summary>
+    [AvaloniaFact]
+    public void JoinStar_DownAndTab_WalkTheRowsToDescendViaStar_AndUpWalksBack()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = $"RUSME.OAKES3.{ApproachAirport}" };
+        (Window window, JoinStarFlyoutPanel panel) = OpenStarFlyoutInWindow(
+            MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host)
+        );
+
+        for (int step = 1; step < panel.Rows.Count; step++)
+        {
+            PressKey(window, Key.Down);
+        }
+
+        Assert.Same(panel.Rows[^1], FocusedButton(window));
+        PressKey(window, Key.Tab);
+        Assert.Same(panel.DescendViaRow, FocusedButton(window));
+        PressKey(window, Key.Up);
+        Assert.Same(panel.Rows[^1], FocusedButton(window));
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>Up at the first row and Down or Tab at Descend via STAR stay where they are, at either end of the walk.</summary>
+    [AvaloniaFact]
+    public void JoinStar_UpAndDown_StopAtEitherEnd()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = $"RUSME.OAKES3.{ApproachAirport}" };
+        (Window window, JoinStarFlyoutPanel panel) = OpenStarFlyoutInWindow(
+            MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host)
+        );
+
+        PressKey(window, Key.Up);
+        Assert.Same(panel.Rows[0], FocusedButton(window));
+        PressKey(window, Key.Tab, RawInputModifiers.Shift);
+        Assert.Same(panel.Rows[0], FocusedButton(window));
+
+        for (int step = 0; step <= panel.Rows.Count; step++)
+        {
+            PressKey(window, Key.Down);
+        }
+
+        Assert.Same(panel.DescendViaRow, FocusedButton(window));
+        PressKey(window, Key.Down);
+        Assert.Same(panel.DescendViaRow, FocusedButton(window));
+        PressKey(window, Key.Tab);
+        Assert.Same(panel.DescendViaRow, FocusedButton(window));
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>Opens <paramref name="entry"/>'s Join STAR flyout over a shown window, so its keyboard focus is real.</summary>
+    private static (Window Window, JoinStarFlyoutPanel Panel) OpenStarFlyoutInWindow(MenuItem? entry)
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var menu = new ContextMenu { Items = { Assert.IsType<MenuItem>(entry) } };
+        menu.Open(window);
+        Dispatcher.UIThread.RunJobs();
+        MenuItem item = Assert.IsType<MenuItem>(menu.Items[0]);
+        item.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        JoinStarFlyoutPanel panel = Assert.IsType<JoinStarFlyoutPanel>(
+            Assert.IsType<JoinStarFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child
+        );
+        return (window, panel);
+    }
+
+    /// <summary>The button holding the window's keyboard focus, or null when no row holds it.</summary>
+    private static Button? FocusedButton(Window window) =>
+        (window.FocusManager?.GetFocusedElement() as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault();
+
+    private static void PressKey(Window window, Key key, RawInputModifiers modifiers = RawInputModifiers.None) => window.DispatchKey(key, modifiers);
+
+    /// <summary>Opens <paramref name="entry"/>'s Join STAR flyout and returns its panel.</summary>
+    private static JoinStarFlyoutPanel OpenStarFlyout(MenuItem? entry)
+    {
+        MenuItem item = Assert.IsType<MenuItem>(entry);
+        item.IsSubMenuOpen = true;
+        return Assert.IsType<JoinStarFlyoutPanel>(Assert.IsType<JoinStarFlyoutHost>(Assert.Single(item.Items.OfType<MenuItem>()).Header).Child);
     }
 
     /// <summary>
@@ -1407,26 +1585,39 @@ public class MenuCatalogCommandTests
     [InlineData("", "CTO")]
     [InlineData("   ", "CTO")]
     [InlineData("  RH 3000 ", "CTO RH 3000")]
+    [InlineData("28R", "CTO 28R")]
     public void Tower_CtoCustom_BlankSendsCto_TextIsTrimmed(string input, string command)
-    {
-        var host = new RecordingMenuHost(input);
-
-        List<MenuItem> children = ClearedForTakeoffChildItems(host);
-
-        Click(Assert.Single(children, m => m.Header is "Custom…"));
-        Assert.Equal(["CTO arg (e.g. RH 3000, LT 270, DCT BERKS)"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, command, Initials)], host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void Tower_CtoCustom_AsksWithBlankSubmits()
     {
         var host = new RecordingMenuHost("");
 
         List<MenuItem> children = ClearedForTakeoffChildItems(host);
+        MenuItem custom = Assert.Single(children, m => m.Header is TakeoffFlyoutRow { Label: TakeoffFlyout.CustomLabel });
+        ((TakeoffFlyoutRow)custom.Header!).InputText = input;
 
-        Click(Assert.Single(children, m => m.Header is "Custom…"));
-        Assert.Equal(BlankInput.Submits, host.LastBlankInput);
+        Click(custom);
+        Assert.Empty(host.InputPlaceholders);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// The Custom row is an inline box row, always open (ruling 4): the last item, after a separator, a box whose fixed <c>CTO</c>
+    /// prefix is drawn inside it, and no popup.
+    /// </summary>
+    [AvaloniaFact]
+    public void Tower_CtoCustom_IsAnInlineBoxRow_WithTheCtoPrefixInTheBox()
+    {
+        var host = new RecordingMenuHost("");
+
+        List<MenuItem> children = ClearedForTakeoffChildItems(host);
+        MenuItem custom = children[^1];
+        TakeoffFlyoutRow row = Assert.IsType<TakeoffFlyoutRow>(custom.Header);
+        Control view = Assert.IsAssignableFrom<Control>(custom.HeaderTemplate?.Build(row));
+        TextBox box = view.GetLogicalDescendants().OfType<TextBox>().Single(b => b.Name == TakeoffFlyout.CustomBoxName);
+
+        Assert.Equal(TakeoffRowInput.Custom, row.Input);
+        Assert.Equal("CTO", Assert.IsType<TextBlock>(box.InnerLeftContent).Text);
+        Assert.Equal("Custom — CTO", row.ToString());
+        Assert.Null(custom.Tag);
     }
 
     /// <summary>The Cleared for takeoff submenu's items for a VFR departure lined up on 30, which is offered every one.</summary>
@@ -2153,12 +2344,12 @@ public class MenuCatalogCommandTests
                 "Turn left direct — CTO TLDCT ···",
                 "Turn right direct — CTO TRDCT ···",
                 "---",
-                "Custom…",
+                "Custom — CTO",
             ],
             cto.Items.Select(DescribeRow)
         );
 
-        foreach (MenuItem child in cto.Items.OfType<MenuItem>().Where(i => (i.Header as string) != "Custom…"))
+        foreach (MenuItem child in cto.Items.OfType<MenuItem>().Where(i => (i.Header as TakeoffFlyoutRow)?.Label != TakeoffFlyout.CustomLabel))
         {
             Click(child);
         }
@@ -2178,7 +2369,7 @@ public class MenuCatalogCommandTests
         MenuItem cto = CtoSubmenu(ac, new RecordingMenuHost(""));
         Assert.Equal("Cleared for takeoff 30", cto.Header as string);
         Assert.Equal(
-            ["Cleared for takeoff — CTO", "Fly heading — CTO ···", "Fly runway heading — CTO RH", "---", "Custom…"],
+            ["Cleared for takeoff — CTO", "Fly heading — CTO ···", "Fly runway heading — CTO RH", "---", "Custom — CTO"],
             cto.Items.Select(DescribeRow)
         );
     }
@@ -2189,7 +2380,7 @@ public class MenuCatalogCommandTests
     {
         MenuItem cto = CtoSubmenu(OnGround("LinedUpAndWaiting", "IFR", "30"), new RecordingMenuHost(""));
 
-        Assert.Equal("Custom…", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
+        Assert.Equal(TakeoffFlyout.CustomLabel, Assert.IsType<TakeoffFlyoutRow>(Assert.IsType<MenuItem>(cto.Items[^1]).Header).Label);
         Assert.IsType<Separator>(cto.Items[^2]);
 
         AircraftModel ac = OnGround("Taxiing", "IFR", "30");
@@ -2199,7 +2390,7 @@ public class MenuCatalogCommandTests
 
         Assert.NotNull(clientCto);
         Assert.IsType<Separator>(clientCto.Items[^2]);
-        Assert.Equal("Custom…", Assert.IsType<MenuItem>(clientCto.Items[^1]).Header as string);
+        Assert.Equal(TakeoffFlyout.CustomLabel, Assert.IsType<TakeoffFlyoutRow>(Assert.IsType<MenuItem>(clientCto.Items[^1]).Header).Label);
     }
 
     // CTO where the sim takes it and never once rolling: a hold-short naming a runway (held, else assigned), taxiing
@@ -2574,7 +2765,7 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "TB", Initials)], host.Sent);
         // Under the default setting an IFR aircraft keeps only the straight-in final entry: no circuit legs, no maneuvers.
         Assert.NotNull(enterFinalOnly);
-        Assert.Equal(["Make straight-in…"], enterFinalOnly.Items.Select(Describe));
+        Assert.Equal(["Make straight-in · no airport"], enterFinalOnly.Items.Select(Describe));
         Assert.Null(none);
     }
 
@@ -2589,12 +2780,12 @@ public class MenuCatalogCommandTests
             .Get(MenuIds.PatternEnterLeftDownwind)
             .Build(new FakeMenuAircraft { Destination = ApproachAirport, Departure = UnknownAirport }, Context(), host);
         Click(PatternRunwayRow(flyout, "Enter left downwind", [.. RunwayDesignators.ForAirport(ApproachAirport)], "28R"));
-        MenuItem? input = MenuCatalog
+        MenuItem? none = MenuCatalog
             .Get(MenuIds.PatternEnterLeftDownwind)
             .Build(new FakeMenuAircraft { Destination = UnknownAirport, Departure = ApproachAirport }, Context(), host);
-        Click(AssertPicker(input, "Enter left downwind…", MenuPickerDescriptor.Input, []));
+        AssertUnavailable(none, "Enter left downwind", "no runway data at ZZZZ");
 
-        Assert.Equal([(Callsign, "ELD 28R", Initials), (Callsign, "ELD 28R", Initials)], host.Sent);
+        Assert.Equal([(Callsign, "ELD 28R", Initials)], host.Sent);
     }
 
     /// <summary>
@@ -2622,37 +2813,25 @@ public class MenuCatalogCommandTests
             FlightRules = "VFR",
         };
 
-    [AvaloniaTheory]
-    [InlineData("", "ELD")]
-    [InlineData("   ", "ELD")]
-    [InlineData("28R ", "ELD 28R ")]
-    public void PatternEntry_NoDefaultNoRunways_UsesInputTier_BlankSendsTheBareVerb_TextUntrimmed(string input, string command)
-    {
-        TestVnasData.EnsureInitialized();
-        Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
-        var host = new RecordingMenuHost(input);
-        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
-
-        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Enter left downwind…", MenuPickerDescriptor.Input, []));
-
-        Assert.Equal(["Runway (optional)"], host.InputPlaceholders);
-        Assert.Equal([(Callsign, command, Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterLeftDownwind, aircraft, Context(), host));
-    }
-
+    /// <summary>
+    /// A pattern entry with nothing to pick (ruling 3): with no airport at all, disabled with "no airport"; at an airport without
+    /// runway data, disabled naming it; either way its strip button inert and no box.
+    /// </summary>
     [AvaloniaFact]
-    public void PatternEntry_InputTier_AsksWithBlankSubmits()
+    public void PatternEntry_NoAirportOrNoRunwayData_IsDisabledWithTheReason()
     {
         TestVnasData.EnsureInitialized();
         Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
         var host = new RecordingMenuHost("");
-        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind).Build(aircraft, Context(), host);
-        Click(AssertPicker(item, "Enter left downwind…", MenuPickerDescriptor.Input, []));
-
-        Assert.Equal(BlankInput.Submits, host.LastBlankInput);
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind);
+        AssertUnavailable(entry.Build(new FakeMenuAircraft(), Context(), host), "Enter left downwind", "no airport");
+        AssertUnavailable(
+            entry.Build(new FakeMenuAircraft { Destination = UnknownAirport }, Context(), host),
+            "Enter left downwind",
+            "no runway data at ZZZZ"
+        );
+        Assert.Empty(host.InputPlaceholders);
     }
 
     [AvaloniaFact]
@@ -2670,9 +2849,12 @@ public class MenuCatalogCommandTests
         Click((MenuItem)item);
 
         Assert.Equal([(Callsign, "EF 09L", Initials)], host.Sent);
-        Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterFinal, aircraft, Context(), host));
     }
 
+    /// <summary>
+    /// Without a destination the entry lists the departure runways; with a runway assigned it is the same flyout, not a leaf
+    /// beside an "(other)" flyout (ruling 2: one entry per verb, its flyout holding every choice).
+    /// </summary>
     [AvaloniaFact]
     public void PatternEntry_NoDestination_ListsTheDepartureRunways()
     {
@@ -2685,13 +2867,9 @@ public class MenuCatalogCommandTests
 
         MenuItem? list = MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(noDefault, Context(), host);
         Click(PatternRunwayRow(list, "Enter right base", runways, "28R"));
-        Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterRightBase, noDefault, Context(), host));
+        MenuItem? assigned = MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(withDefault, Context(), host);
+        Click(PatternRunwayRow(assigned, "Enter right base", runways, "28R"));
 
-        Assert.Equal("Enter right base 30", MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(withDefault, Context(), host)?.Header as string);
-        MenuItem? other = MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterRightBase, withDefault, Context(), host);
-        Click(PatternRunwayRow(other, "Enter right base (other)", runways, "28R"));
-
-        Assert.Empty(host.ListPopups);
         Assert.Equal([(Callsign, "ERB 28R", Initials), (Callsign, "ERB 28R", Initials)], host.Sent);
     }
 
@@ -2711,6 +2889,7 @@ public class MenuCatalogCommandTests
         item switch
         {
             Separator => "---",
+            MenuItem { Header: MenuDisabledReasonRow reason } => reason.ToString(),
             MenuItem menuItem => menuItem.Header as string ?? "",
             _ => item?.GetType().Name ?? "null",
         };

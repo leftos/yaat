@@ -10,8 +10,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// Renders a context menu as plain text, one line per node, depth-first in <c>Items</c> order with two spaces of
 /// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c>,
 /// <c>[bold]</c> (a command row whose header template draws text bold: <see cref="MenuCommandRow.IsHighlighted"/>) and
-/// its <see cref="MenuPickerDescriptor"/> (<c>picker:list [a, b]</c>, <c>picker:filteredList [a, b]</c>,
-/// or <c>picker:input</c>); the quick-command strip
+/// its <see cref="MenuPickerDescriptor"/> (<c>picker:input</c>); the quick-command strip
 /// (<see cref="QuickCommandStrip"/>) as one node naming its buttons' catalog ids in order, <c>strip: [id, id, …]</c>; the
 /// Taxi to runway panel (<see cref="TaxiToRunwayPanel"/>) as its tabs, <c>tabs: [30 assigned [selected], 12 [none], …]</c>,
 /// then the selected tab's lines at the same depth; a

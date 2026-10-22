@@ -47,9 +47,6 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public bool CanTugReach(string callsign, GroundNodeDto node) => inner.CanTugReach(callsign, node);
 
-    public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        inner.ShowListPopup(items, selected, onPick);
-
     public Task<CommandResultDto?> SendForResultAsync(string callsign, string command, string initials) =>
         inner.SendForResultAsync(callsign, command, initials);
 
