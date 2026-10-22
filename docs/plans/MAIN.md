@@ -4,7 +4,15 @@
 
 ## Do first
 
-- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — High · Singles
+- [ ] YAAT-1039 Make AutomationHostTests.Dispose_NoClientCanConnectAfterwards_Repeated load-proof · release vNext — Urgent · No project
+- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
+
+## Context-menu flyouts (feat/context-menu-flyouts)
+
+- [ ] YAAT-1034 Context-menu flyouts and All Commands (feat/context-menu-flyouts) · release vNext
+  - [/] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
+  - [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
+  - [ ] YAAT-1035 Warp… popup sends a sub-1000 ft altitude as hundreds (800 ft becomes 80,000 ft)
 
 ## Context-menu quick commands (#471)
 
@@ -32,10 +40,9 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
 - [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only
-- [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
 - [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
+- [ ] YAAT-1032 Add a midfield-downwind pattern report (REPORT MIDFIELD) · release vNext
 
 ## Bug reports and feature requests
 
@@ -47,7 +54,6 @@
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext
-- [ ] YAAT-1029 Keep the cleared altitude when it already meets a crossing's at-or-above or at-or-below bound · release vNext
 
 ## Say again
 
@@ -212,7 +218,6 @@
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
-- [/] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross · release vNext
 - [ ] YAAT-751 Name the intersection in the ready call at an intersection departure bar
 - [ ] YAAT-752 Name W1, not T - RAMP, in a follower's hold warning at the OAK runway 30 bar
 - [ ] YAAT-753 Line up on the end the aircraft holds at when CTO names a combined runway id
@@ -674,3 +679,10 @@
 - [ ] YAAT-1021 Take an unlinked CRC or vEDST joiner off the session's joined list when the session ends
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 - [ ] YAAT-1031 Keep an auto-cleared crossing the aircraft can no longer stop short of when the active runways change
+
+## No project
+
+- [ ] YAAT-1033 Honour a CAPP crossing restriction's at-or-above / at-or-below prefix
+- [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position
+- [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude
+- [ ] YAAT-1038 Make the dotnet-format hook restore (or refuse) in a worktree with no local restore
