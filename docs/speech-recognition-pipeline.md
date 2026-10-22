@@ -300,9 +300,7 @@ depend on LM-Kit and PortAudio native libraries.
   keep airline flight numbers out of the snap: a digit extension would
   mean the number itself was misheard, which is too risky to guess. Two
   or more candidate extensions are ambiguous and keep the heard base.
-  The mangled trailing token is deliberately **not** consumed — it stays
-  in the command text, where the rule matcher's no-match advance skips
-  it, rather than risking eating a real command word.
+  On a leading callsign the mangled token is deliberately **not** consumed: it stays in the command text, where the rule matcher's no-match advance skips it, rather than risking eating a real command word. On a trailing callsign (`TryParseTrailing`, and `TrafficCallsignNormalizer.TrafficTailStart`) the parse must reach the end of the transcript, so `CallsignParser.TryReachEnd` accepts up to `ParsedCallsign.SnapAddedLetters` leftover tokens, each alphabetic, not a NATO word, and starting with the letter the snap added at its position ("november 9225 lien" → N9225L, "november 514 rain mic" → N514RM); the trailing `TokensConsumed` covers them. "november 9225 immediately" is not a trailing callsign. Only the phonetic GA form sets `SnapAddedLetters`; the hybrid and bare-token forms never strip a following token.
 
 ## LLM Fallback Mapper
 

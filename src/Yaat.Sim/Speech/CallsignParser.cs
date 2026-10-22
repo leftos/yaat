@@ -28,7 +28,16 @@ public static class CallsignParser
     // other country prefixes (C-, G-, etc.) can be added later.
     private const string NovemberWord = "november";
 
-    public sealed record ParsedCallsign(string IcaoCallsign, int TokensConsumed);
+    public sealed record ParsedCallsign(string IcaoCallsign, int TokensConsumed)
+    {
+        /// <summary>
+        /// Letters the unique-extension snap appended to the heard GA tail ("N9225" → active "N9225L" adds 1);
+        /// 0 when nothing was snapped. Bounds how many mangled suffix tokens a trailing parse may absorb.
+        /// Only the phonetic GA form ("november 9225 …") sets it; the hybrid ("november N9225") and bare-token
+        /// ("N9225") forms snap too but always leave it 0, so a trailing parse of those never absorbs a token.
+        /// </summary>
+        public int SnapAddedLetters { get; init; }
+    }
 
     /// <summary>
     /// Try to parse a callsign from the leading tokens of a transcript.
@@ -69,18 +78,51 @@ public static class CallsignParser
                 continue;
             }
             ParsedCallsign? match = TryParseAt(tokens, i, forward: true, activeCallsigns);
-            if (match is not null)
+            if ((match is not null) && TryReachEnd(tokens, i, match, out int consumed))
             {
-                // Ensure the parse consumed through to the end of the transcript
-                // (no leftover tokens after the callsign).
-                if (i + match.TokensConsumed == tokens.Count)
-                {
-                    return new ParsedCallsign(match.IcaoCallsign, match.TokensConsumed);
-                }
+                return new ParsedCallsign(match.IcaoCallsign, consumed);
             }
         }
         return null;
     }
+
+    /// <summary>
+    /// True when <paramref name="match"/>, parsed from <paramref name="start"/>, runs to the end of the transcript.
+    /// A snapped GA tail also reaches the end when the tokens left after it are the mangled suffix the snap
+    /// stands in for: at most one per added letter, the k-th starting with the k-th added letter, each
+    /// alphabetic and not a NATO letter word ("november 9225 lien" with active N9225L; "november 514 rain mic"
+    /// with active N514RM). <paramref name="consumed"/> then counts those tokens too, so a trailing caller
+    /// strips them with the callsign.
+    /// </summary>
+    private static bool TryReachEnd(List<string> tokens, int start, ParsedCallsign match, out int consumed)
+    {
+        consumed = match.TokensConsumed;
+        int leftover = tokens.Count - (start + match.TokensConsumed);
+        if (leftover == 0)
+        {
+            return true;
+        }
+        if (leftover > match.SnapAddedLetters)
+        {
+            return false;
+        }
+        string addedLetters = match.IcaoCallsign[^match.SnapAddedLetters..];
+        int firstLeftover = tokens.Count - leftover;
+        for (int k = 0; k < leftover; k++)
+        {
+            if (!IsMangledSuffixToken(tokens[firstLeftover + k], addedLetters[k]))
+            {
+                return false;
+            }
+        }
+        consumed += leftover;
+        return true;
+    }
+
+    private static bool IsMangledSuffixToken(string token, char addedLetter) =>
+        (char.ToUpperInvariant(token[0]) == char.ToUpperInvariant(addedLetter))
+        && token.All(char.IsAsciiLetter)
+        && !NatoPhoneticAlphabet.TryGetLetter(token, out _);
 
     /// <summary>
     /// The start of the earliest callsign that directly follows a traffic cue and runs to the end of
@@ -95,7 +137,7 @@ public static class CallsignParser
                 continue;
             }
             ParsedCallsign? traffic = TryParseAt(tokens, j, forward: true, activeCallsigns);
-            if ((traffic is not null) && (j + traffic.TokensConsumed == tokens.Count))
+            if ((traffic is not null) && TryReachEnd(tokens, j, traffic, out _))
             {
                 return j;
             }
@@ -373,14 +415,14 @@ public static class CallsignParser
                     scan++;
                 }
                 string callsign = sb.ToString();
-                string resolved = FuzzyResolve(callsign, activeCallsigns);
-                return new ParsedCallsign(resolved, scan - startIndex);
+                (string resolved, int addedLetters) = FuzzyResolve(callsign, activeCallsigns);
+                return new ParsedCallsign(resolved, scan - startIndex) { SnapAddedLetters = addedLetters };
             }
             // Hybrid: "november N9225L" where Whisper already emitted the canonical form.
             if (digitStart < tokens.Count && IsUsGaIcaoToken(tokens[digitStart]))
             {
                 string callsign = tokens[digitStart].ToUpperInvariant();
-                string resolved = FuzzyResolve(callsign, activeCallsigns);
+                string resolved = FuzzyResolve(callsign, activeCallsigns).Resolved;
                 return new ParsedCallsign(resolved, 2);
             }
             return null;
@@ -393,7 +435,7 @@ public static class CallsignParser
         if (IsUsGaIcaoToken(tokens[startIndex]))
         {
             string callsign = tokens[startIndex].ToUpperInvariant();
-            string resolved = FuzzyResolve(callsign, activeCallsigns);
+            string resolved = FuzzyResolve(callsign, activeCallsigns).Resolved;
             return new ParsedCallsign(resolved, 1);
         }
 
@@ -446,7 +488,7 @@ public static class CallsignParser
             }
 
             string callsign = chosenIcao + flightNumber;
-            string resolved = FuzzyResolve(callsign, activeCallsigns);
+            string resolved = FuzzyResolve(callsign, activeCallsigns).Resolved;
             return new ParsedCallsign(resolved, consumed);
         }
 
@@ -463,14 +505,15 @@ public static class CallsignParser
     /// meant). Letter-only extensions keep airline flight numbers out of the snap — a digit
     /// extension would mean the STT dropped part of the number itself, which is too risky to
     /// guess. Two or more active extensions → ambiguous → return the candidate unchanged.
+    /// <c>AddedLetters</c> is how many letters the snap appended, 0 when it did not snap.
     /// </summary>
-    private static string FuzzyResolve(string candidate, IReadOnlyCollection<string> activeCallsigns)
+    private static (string Resolved, int AddedLetters) FuzzyResolve(string candidate, IReadOnlyCollection<string> activeCallsigns)
     {
         foreach (string active in activeCallsigns)
         {
             if (string.Equals(active, candidate, StringComparison.OrdinalIgnoreCase))
             {
-                return active;
+                return (active, 0);
             }
         }
 
@@ -488,11 +531,11 @@ public static class CallsignParser
             }
             if (uniqueExtension is not null)
             {
-                return candidate;
+                return (candidate, 0);
             }
             uniqueExtension = active;
         }
-        return uniqueExtension ?? candidate;
+        return (uniqueExtension is null) ? (candidate, 0) : (uniqueExtension, uniqueExtension.Length - candidate.Length);
     }
 
     /// <summary>

@@ -219,6 +219,67 @@ public class CallsignParserTests
         Assert.Equal("AAL2231", result!.IcaoCallsign);
     }
 
+    // --- TryParseTrailing: unique-extension snap at the end of the transcript ---
+    // The trailing parse must reach the last token, so the mangled suffix token the snap stands in
+    // for is counted into TokensConsumed: the callers strip it with the callsign.
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffix_SnapsToUniqueActiveExtension()
+    {
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseTrailing(
+            "reduce speed to 230 november 9225 lien",
+            ["N9225L", "UAL234", "N346G"]
+        );
+        Assert.NotNull(result);
+        Assert.Equal("N9225L", result!.IcaoCallsign);
+        Assert.Equal(3, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffix_TwoLetterExtension_ElidesTwoTokens()
+    {
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseTrailing("turn left heading 270 november 514 rain mic", ["N514RM", "UAL234"]);
+        Assert.NotNull(result);
+        Assert.Equal("N514RM", result!.IcaoCallsign);
+        Assert.Equal(4, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffix_TwoLetterExtension_OneLeftoverToken()
+    {
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseTrailing("turn left heading 270 november 514 rain", ["N514RM", "UAL234"]);
+        Assert.NotNull(result);
+        Assert.Equal("N514RM", result!.IcaoCallsign);
+        Assert.Equal(3, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseTrailing_SnappedGaTail_LeftoverWordNotStartingWithTheAddedLetter_ReturnsNull() =>
+        // "immediately" does not start with the L the snap added, so it is a real word, not the mangled suffix.
+        Assert.Null(CallsignParser.TryParseTrailing("descend and maintain 3000 november 9225 immediately", ["N9225L"]));
+
+    [Fact]
+    public void TryParseTrailing_SnappedGaTail_TwoLeftoverWordsNotMatchingTheAddedLetters_ReturnsNull() =>
+        Assert.Null(CallsignParser.TryParseTrailing("turn left heading 270 november 514 expedite now", ["N514RM"]));
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffix_AmbiguousActiveExtensions_ReturnsNull() =>
+        // Two active callsigns extend N9225, so nothing is snapped and "lien" is a leftover token.
+        Assert.Null(CallsignParser.TryParseTrailing("reduce speed to 230 november 9225 lien", ["N9225L", "N9225R"]));
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffix_DigitLeftoverToken_ReturnsNull() =>
+        Assert.Null(CallsignParser.TryParseTrailing("reduce speed to 230 november 9225 lien 5", ["N9225LS"]));
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffix_UnmatchedNatoLeftoverToken_ReturnsNull() =>
+        // "romeo" is a clean NATO letter that the snapped N9225LS does not end in, so it is not a mangled suffix.
+        Assert.Null(CallsignParser.TryParseTrailing("reduce speed to 230 november 9225 lien romeo", ["N9225LS"]));
+
+    [Fact]
+    public void TryParseTrailing_TruncatedGaSuffixAfterTrafficCue_IsNotTheAddressedAircraft() =>
+        Assert.Null(CallsignParser.TryParseTrailing("hold short of bravo behind november 9225 lien", ["N9225L"]));
+
     // --- IcaoToSpoken (primary paired form) ---
 
     [Theory]

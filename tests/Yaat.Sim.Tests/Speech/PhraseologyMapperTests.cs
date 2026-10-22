@@ -892,6 +892,15 @@ public class PhraseologyMapperTests
     }
 
     [Fact]
+    public void Callsign_Trailing_UsGaMangledSuffix_SnapsAndStripsTheSuffixToken()
+    {
+        MapResult? result = PhraseologyMapper.Map("reduce speed to 230 november 9225 lien", new MapContext(["N9225L", "UAL234"], []));
+        Assert.NotNull(result);
+        Assert.Equal("N9225L", result!.Callsign);
+        Assert.Equal("SPD 230", result.CanonicalCommand);
+    }
+
+    [Fact]
     public void Callsign_Leading_UsGa()
     {
         MapResult? result = PhraseologyMapper.Map("november one two three four five cleared for takeoff", NoContext);
