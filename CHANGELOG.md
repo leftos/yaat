@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Popping out a second vStrips tab while the vTDLS tab is selected no longer leaves the main window showing a blank tab.
+
 ## v0.17.0-beta [2026/10/22]
 
 ### Highlights

@@ -378,15 +378,13 @@ the canonical command (`"SWA123 FH 270"`) so the `CallsignPrefixResolver` path a
 The main tab control has a fixed-index layout, hard-coded in both the VM arithmetic and the View materialization:
 
 ```
-0 = Aircraft List (DataGrid)   1 = Ground View   2 = Radar View
-3 .. 3+StripsEntries.Count-1   = Strips tabs (student entry first)
+0 = Aircraft List (DataGrid)   1 = Ground View   2 = Radar View   3 = Controllers   4 = METAR
+5 .. 5+StripsEntries.Count-1   = Strips tabs (student entry first)
 then TdlsEntries               = vTDLS tabs (student entry first)
 ```
 
 `GroundViewTabIndex = 1` (`MainViewModel.cs:64`) is the only named constant; the rest is positional.
-`IsTabVisible(index)` (`MainViewModel.cs:528`) and `FindNextVisibleTabIndex` (`MainViewModel.cs:503`) compute
-`stripsBase = 3` and `tdlsBase = stripsBase + StripsEntries.Count` directly — the same order
-`MainWindow.axaml.cs` appends `TabItem`s via `tabControl.Items.Add`. Reordering tabs means touching both sides.
+`IsTabVisible(index)` and `FindNextVisibleTabIndex` (`MainViewModel.cs`) compute `stripsBase` and `tdlsBase = stripsBase + StripsEntries.Count` directly. `MainWindow.axaml.cs` keeps the physical order in step: `AttachStripsEntry` inserts each strips `TabItem` before the first vTDLS tab, so a strips tab opened after the student vTDLS tab still lands in the strips block, and vTDLS tabs append at the end (`MainWindowTabOrderTests` pins it). Reordering tabs means touching both sides.
 
 `EnsureSelectedTabVisible` (`MainViewModel.cs:443`) shifts `SelectedTabIndex` off a popped-out tab to the next docked
 one (wrapping; returns the same index when everything is popped out, in which case the whole tab area is hidden via
