@@ -495,9 +495,14 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         var starter = new ScriptedStarter(() => Process.GetCurrentProcess());
         ProcessTools tools = NewTools(directory, starter);
+        // Hang guards: the launch's 300 s deadline is not a bound the pipe's answer has to beat, and the launch guard only
+        // catches a launch that ignores its own deadline.
+        var launchHangGuard = TimeSpan.FromSeconds(360);
         try
         {
-            string result = await tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 15);
+            string result = await tools
+                .LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 300)
+                .WaitAsync(launchHangGuard, TestContext.Current.CancellationToken);
 
             string[] lines = Lines(result);
             Assert.Equal(
@@ -587,8 +592,12 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
         try
         {
-            // A cancelled wait reports the cancellation itself, not a coded MCP error, as the pipe calls do.
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tools.LaunchYaatAsync(cancellation.Token, appDataDir, exePath, 30));
+            // A cancelled wait reports the cancellation itself, not a coded MCP error, as the pipe calls do. The 300 s deadline
+            // and the launch guard are hang guards the cancellation never has to beat.
+            var launchHangGuard = TimeSpan.FromSeconds(360);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                tools.LaunchYaatAsync(cancellation.Token, appDataDir, exePath, 300).WaitAsync(launchHangGuard, TestContext.Current.CancellationToken)
+            );
 
             Assert.True(child.HasExited);
         }
@@ -735,7 +744,11 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         string exePath = NewDummyClientExe();
         string childExecutable = "cmd.exe";
         string pipeName = $"yaat-stub-host-{Guid.NewGuid():N}";
-        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // Hang guards: the launch's 300 s deadline is not a bound the child's exit has to beat, since the wait fails as soon
+        // as the child has exited. The launch guard only catches a launch that ignores its own deadline, and the stub's
+        // ceiling outlives both, so a passing run never reaches any of them.
+        var launchHangGuard = TimeSpan.FromSeconds(360);
+        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(600));
         Task? server = null;
         Process? child = null;
         int childPid = 0;
@@ -760,7 +773,9 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         try
         {
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 15)
+                tools
+                    .LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 300)
+                    .WaitAsync(launchHangGuard, TestContext.Current.CancellationToken)
             );
 
             Assert.StartsWith($"The client (pid {childPid}) exited with code 7 before opening a window", failure.Message, StringComparison.Ordinal);
