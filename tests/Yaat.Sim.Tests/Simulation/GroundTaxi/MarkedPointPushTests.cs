@@ -37,7 +37,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
     [Fact]
     public void PushmToAMarkedPoint_FromAStandThatIsNotALeg_InstallsTheTowAndHoldsOnThePoint()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -65,7 +65,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
     [Fact]
     public void PushmToAMarkedPoint_SnapshotMidTow_RestoresAndEndsWhereTheUninterruptedTowDoes()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -78,7 +78,8 @@ public class MarkedPointPushTests(ITestOutputHelper output)
         AssertRestsOn(point, uninterrupted);
 
         SfoGround interrupted =
-            SfoGroundHarness.Build(output, autoCross: false) ?? throw new InvalidOperationException("SFO loaded once and not again");
+            SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)
+            ?? throw new InvalidOperationException("SFO loaded once and not again");
         AircraftState before = SfoGroundHarness.SpawnParked(interrupted, Callsign, Narrowbody, Stand);
         Assert.True(interrupted.Engine.SendCommand(Callsign, command).Success);
         for (int second = 0; second < towSeconds / 2; second++)
@@ -91,7 +92,8 @@ public class MarkedPointPushTests(ITestOutputHelper output)
         StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
 
         SfoGround restoredGround =
-            SfoGroundHarness.Build(output, autoCross: false) ?? throw new InvalidOperationException("SFO loaded once and not again");
+            SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)
+            ?? throw new InvalidOperationException("SFO loaded once and not again");
         restoredGround.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restored = restoredGround.Engine.FindAircraft(Callsign) ?? throw new InvalidOperationException("the restore lost the aircraft");
         PushbackPhase restoredMove = Assert.IsType<PushbackPhase>(restored.Phases!.CurrentPhase);
@@ -115,7 +117,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
     [Fact]
     public void FaceAmendment_DuringATowToAMarkedPoint_RefusedAsKeepingItsPlan()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -134,7 +136,7 @@ public class MarkedPointPushTests(ITestOutputHelper output)
     [Fact]
     public void FaceAmendment_DuringAForcedPush_RefusedAsKeepingItsPlan()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

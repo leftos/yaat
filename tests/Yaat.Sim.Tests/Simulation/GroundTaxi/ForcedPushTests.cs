@@ -95,7 +95,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void PushPastAParkedNeighbour_PlainRefusesAndSuggestsPushf_PushfFliesPastIt()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -227,7 +227,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void PushOntoATaxiwayItWasNotSentTo_PlainRefusesAndSuggests_PushfNotesTheTaxiway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -254,7 +254,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void TargetOnARunwayHoldingPosition_RefusedAlike_NoSuggestion()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -279,7 +279,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void TargetPastTheSanityGuard_PushfRefuses()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -299,7 +299,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void OutlinesOverlappingAtTheStart_PushfRefuses()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -336,7 +336,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void PushfToAnAircraftNotAtAStand_RefusedWithNoSuggestion()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -356,7 +356,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void ForcedTowFlag_SetOnInstall_ClearedOnCompletion()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -375,7 +375,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A $6B")]
     public void ForcedTowFlag_ClearedByACommandThatClearsTheTow(string command)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -427,7 +427,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void NoTemplateFits_PushfTakesTheGeometricFallbackOntoTheSpot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -483,7 +483,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void PlainRefusalWhoseForcedFormOverlapsAtTheStart_SuggestsNothing()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -508,7 +508,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void RefusedPushm_SuggestsPushmf()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -527,7 +527,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void ForcedTowEnteringTwoTaxiways_NotesEach()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -555,7 +555,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [InlineData("B25", "PUSHF $1", "(forced: nose fouls taxiway Y, coordinate with ground)")]
     public void ForcedPlan_NotesTheRuleItBreaks(string stand, string command, string note)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -600,7 +600,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void ForcedPushWhosePathCrossesARunway_RefusedAlike_NoSuggestion()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -622,7 +622,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void ForcedPushWhosePathReachesAHoldingPosition_RefusedAlike_NoSuggestion()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -660,7 +660,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void ForcedTowFlag_ClearedByAPlainAmendment()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -682,7 +682,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     [Fact]
     public void ForcedTowFlag_SetByAForcedAmendment()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -703,7 +703,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     /// <summary>The pilot's readback of <paramref name="command"/> off <paramref name="gate"/> with no other aircraft about.</summary>
     private HandlerReadback? PlainReadback(string gate, string command)
     {
-        SfoGround ground = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        SfoGround ground = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value;
         SfoGroundHarness.SpawnParked(ground, Pusher, Narrowbody, gate);
         CommandResult result = ground.Engine.SendCommand(Pusher, command);
         Assert.True(result.Success, result.Message);
@@ -713,7 +713,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     /// <summary>The tug moves <paramref name="command"/> installs off <paramref name="gate"/>, or null without SFO's layout.</summary>
     private IReadOnlyList<TugMove>? InstalledMoves(string gate, string command)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }
@@ -750,7 +750,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = airport,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return (engine, layout);

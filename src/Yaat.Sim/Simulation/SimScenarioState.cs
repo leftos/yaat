@@ -3,6 +3,7 @@ using System.Text.Json;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Coast;
@@ -166,13 +167,13 @@ public sealed class SimScenarioState
 
     // Settings affecting command dispatch
     public bool AutoClearedToLand { get; set; }
-    public bool AutoCrossRunway { get; set; }
+    public AutoCrossRunwayMode AutoCrossRunwayMode { get; set; }
 
     /// <summary>
     /// When true, an aircraft that vacates a runway between two parallels auto-advances to hold
     /// short of the parallel runway when it is reachable on the same exit taxiway with no
     /// intervening taxiway intersection (issue #175). When false, the aircraft stops at the landing
-    /// runway's exit hold-short. Independent of <see cref="AutoCrossRunway"/> — the aircraft still
+    /// runway's exit hold-short. Independent of <see cref="AutoCrossRunwayMode"/> — the aircraft still
     /// requires an explicit CROSS to cross the parallel.
     ///
     /// Defaults to false here so pre-feature recordings replay faithfully; the user-facing default
@@ -570,7 +571,7 @@ public sealed class SimScenarioState
             PrimaryAirportId = PrimaryAirportId,
             ElapsedSeconds = ElapsedSeconds,
             AutoClearedToLand = AutoClearedToLand,
-            AutoCrossRunway = AutoCrossRunway,
+            AutoCrossRunwayMode = AutoCrossRunwayMode,
             AutoPullUpToParallel = AutoPullUpToParallel,
             AutoGoAroundOnOccupiedRunway = AutoGoAroundOnOccupiedRunway,
             AutoRejectTakeoffOnOccupiedRunway = AutoRejectTakeoffOnOccupiedRunway,

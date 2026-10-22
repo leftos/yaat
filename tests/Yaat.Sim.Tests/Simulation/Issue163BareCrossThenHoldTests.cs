@@ -110,7 +110,7 @@ public class Issue163BareCrossThenHoldTests(ITestOutputHelper output)
             PrimaryAirportId = "OAK",
             // AutoCross OFF so 28R/10L remains an uncleared hold-short the
             // controller must clear with bare CROSS.
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult taxiResult = engine.SendCommand("JSX163", "RWY 30 TAXI C B W");

@@ -65,7 +65,7 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         AircraftState aircraft = SpawnAt(layout, start.Position, lineHeading, type);

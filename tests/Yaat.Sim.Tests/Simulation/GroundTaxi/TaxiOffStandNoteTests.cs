@@ -246,7 +246,7 @@ public class TaxiOffStandNoteTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return new SfoGround(engine, layout);

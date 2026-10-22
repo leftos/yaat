@@ -140,7 +140,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = true,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.All,
         };
 
         CommandResult result = engine.SendCommand(callsign, $"TAXIAUTO {runway.Designator}");

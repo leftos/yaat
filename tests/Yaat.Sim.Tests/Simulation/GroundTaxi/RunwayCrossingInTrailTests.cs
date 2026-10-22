@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
 /// Two E75Ls cross SFO's runway 01L/19R in trail on taxiway F with the crossing pre-cleared
-/// (<c>AutoCrossRunway</c>). Both hold their route position on the crossing's entry segment while they cross, so
+/// (<c>AutoCrossRunwayMode</c>). Both hold their route position on the crossing's entry segment while they cross, so
 /// the ground detector reads them as a same-edge in-trail pair for the whole crossing. The follower must keep its
 /// gap behind the leader and both must clear the far-side hold-short: ordering the pair by straight-line distance to
 /// the entry segment's end node makes a leader already past that node read as the trailer, and the detector then
@@ -72,7 +72,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void TwoInTrail_CrossSfoRunway_KeepTheirGapAndBothClearIt()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -159,7 +159,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void InTrail_LeaderStopsPastTheFarBar_FollowerKeepsItsCrossingSpeedUntilTheStopRing()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -259,7 +259,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [InlineData(PistonType)]
     public void Crossing_TrafficComesToRestPastTheFarBar_FollowerBrakesOntoTheStopRingAtItsTaxiRate(string type)
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -325,7 +325,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [InlineData(false)]
     public void Hold_InTheTaxiBeforeTheCrossingStarts_ReadsBackHoldingOnTheRunwayAndBrakesAtTheHoldRate(bool nosePastTheMarking)
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -386,7 +386,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void Hold_WithinBrakingDistanceOfTheCrossingsEnd_HandsBackAndBrakesOnWithoutStoppingDead()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -443,7 +443,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [InlineData(2.0, false)]
     public void HeldOnRunwayEnd_NoseShortOfTheNearMarking_NamesTheRunwayOnlyWhenTheHoldStopsItPastTheMarking(double speedKts, bool onRunway)
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -474,7 +474,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [InlineData(false)]
     public void NearLine_TrafficAheadCallMadeBeforeASnapshot_IsNotRepeatedAfterTheRestore(bool preCleared)
     {
-        if (SfoGroundHarness.Build(output, autoCross: preCleared) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: preCleared ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -493,7 +493,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         }
 
         Assert.Single(TrafficAheadCalls(warnings));
-        SfoGround restored = RestoreFrom(SnapshotJson(ground), preCleared);
+        SfoGround restored = RestoreFrom(SnapshotJson(ground), preCleared ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off);
         List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
         for (int second = 0; second < 2 * NearLineRestSeconds; second++)
         {
@@ -512,7 +512,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void NearLine_SnapshotTheSecondBeforeTheTrafficAheadCall_StillMakesTheCallAfterTheRestore()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -532,7 +532,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
 
         Assert.True(calledAt > 0, $"{follower.Callsign} never made the holding-short call");
         output.WriteLine($"{follower.Callsign} made the call at t={calledAt}; restoring the snapshot taken before that second");
-        SfoGround restored = RestoreFrom(json, autoCross: true);
+        SfoGround restored = RestoreFrom(json, autoCrossMode: AutoCrossRunwayMode.All);
         List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
         for (int second = 0; second < 2 * NearLineRestSeconds; second++)
         {
@@ -549,7 +549,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void NearLine_RewoundToHoldingShortThenCrossed_StillMakesTheTrafficAheadCall()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -561,7 +561,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         TickUntilAtRest(ground, follower, ref enteredCrossing);
         Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
 
-        SfoGround restored = RestoreFrom(SnapshotJson(ground), autoCross: false);
+        SfoGround restored = RestoreFrom(SnapshotJson(ground), autoCrossMode: AutoCrossRunwayMode.Off);
         List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
         AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(FollowingCallsign));
         string end = RunwayCrossingEnd.Nearest(restoredFollower, SfoGroundHarness.CrossingRunway, restored.Layout);
@@ -578,9 +578,9 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     private static string SnapshotJson(SfoGround ground) => JsonSerializer.Serialize(ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 
     /// <summary>A fresh SFO engine restored from <paramref name="json"/> (<see cref="SnapshotJson"/>).</summary>
-    private SfoGround RestoreFrom(string json, bool autoCross)
+    private SfoGround RestoreFrom(string json, AutoCrossRunwayMode autoCrossMode)
     {
-        SfoGround restored = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCross));
+        SfoGround restored = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCrossMode));
         restored.Engine.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -614,7 +614,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [InlineData(false)]
     public void NearLine_TrafficAtRestJustPastTheFarBar_FollowerHoldsAtTheNearMarkingOnceThenCrossesWhenItMovesOn(bool preCleared)
     {
-        if (SfoGroundHarness.Build(output, autoCross: preCleared) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: preCleared ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -673,7 +673,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void NearLine_TrafficStopsOnceTheFollowerIsPastItsCommitPoint_FollowerCommitsToTheCrossing()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -733,7 +733,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [InlineData(true)]
     public void Crossing_ComesToRestNotClearOfTheRunway_SaysSoOnceAboutThreeSecondsLater(bool giveWay)
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -772,7 +772,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     [Fact]
     public void Crossing_NotClearCallMadeBeforeASnapshot_IsNotRepeatedAfterTheRestore()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -784,7 +784,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         int calledAt = SfoGroundHarness.TickUntil(ground.Engine, () => NotClearCalls(warnings).Count > 0, NotClearWatchSeconds, eachSecond: null);
         Assert.True(calledAt > 0, $"{follower.Callsign} never made the not-clear call");
 
-        SfoGround restored = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCross: true));
+        SfoGround restored = Assert.IsType<SfoGround>(SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All));
         string json = JsonSerializer.Serialize(ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
         restored.Engine.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))

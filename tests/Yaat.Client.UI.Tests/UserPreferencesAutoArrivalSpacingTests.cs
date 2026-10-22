@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests;
 
@@ -62,6 +63,23 @@ public class UserPreferencesAutoArrivalSpacingTests
             }
         );
     }
+
+    /// <summary>
+    /// A file saved before the three-state auto-cross carries the on/off <c>autoCrossRunway</c>: on loads as All, off as Off. A
+    /// file holding <c>autoCrossRunwayMode</c> reads that and ignores the old key.
+    /// </summary>
+    [Theory]
+    [InlineData("{ \"preferencesVersion\": 1, \"autoCrossRunway\": true }", AutoCrossRunwayMode.All)]
+    [InlineData("{ \"preferencesVersion\": 1, \"autoCrossRunway\": false }", AutoCrossRunwayMode.Off)]
+    // An unreadable field sends the file through field-by-field recovery, which carries the old switch over the same way.
+    [InlineData("{ \"savedServers\": 5, \"autoCrossRunway\": true }", AutoCrossRunwayMode.All)]
+    [InlineData("{ \"savedServers\": 5, \"autoCrossRunway\": false }", AutoCrossRunwayMode.Off)]
+    [InlineData(
+        "{ \"preferencesVersion\": 1, \"autoCrossRunway\": true, \"autoCrossRunwayMode\": \"InactiveOnly\" }",
+        AutoCrossRunwayMode.InactiveOnly
+    )]
+    public void AutoCrossRunwayMode_FileWithOnlyTheOldSwitch_LoadsItAsTheMode(string json, AutoCrossRunwayMode expected) =>
+        WithPreferencesFile(json, () => Assert.Equal(expected, new UserPreferences().AutoCrossRunwayMode));
 
     /// <summary>A file already at version 1 is left alone, so a user who turned TWR back on keeps that choice.</summary>
     [Fact]
@@ -194,7 +212,7 @@ public class UserPreferencesAutoArrivalSpacingTests
             prefs.AutoClearedToLandTwr,
             prefs.AutoClearedToLandApp,
             prefs.AutoClearedToLandCtr,
-            prefs.AutoCrossRunway,
+            prefs.AutoCrossRunwayMode,
             prefs.AutoPullUpToParallel,
             prefs.AutoGoAroundOnOccupiedRunway,
             prefs.AutoRejectTakeoffOnOccupiedRunway,

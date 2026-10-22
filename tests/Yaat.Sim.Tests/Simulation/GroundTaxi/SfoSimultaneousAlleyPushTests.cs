@@ -78,7 +78,7 @@ public class SfoSimultaneousAlleyPushTests
     [Fact]
     public void FiveAlley_TailToTail_BothPushesComplete_NeitherHeldLong()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return;

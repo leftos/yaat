@@ -49,7 +49,7 @@ public class RecordingSchemaUpgraderTests
             RngSeed = 42,
             ElapsedSeconds = elapsed,
             AutoClearedToLand = false,
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             ValidateDctFixes = false,
             IsPaused = false,
             SimRate = 1.0,

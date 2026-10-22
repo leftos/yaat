@@ -30,7 +30,7 @@ public class SfoPushOntoATests(ITestOutputHelper output)
     [InlineData("C11")]
     public void PushA_EndsOnAOnTheStandHeading_AndPushfAFliesTheSamePlan(string gate)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -82,7 +82,7 @@ public class SfoPushOntoATests(ITestOutputHelper output)
     /// <summary>The tug moves <c>PUSHF A</c> installs off <paramref name="gate"/> in a fresh world.</summary>
     private List<TugMove> ForcedMoves(string gate)
     {
-        SfoGround ground = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        SfoGround ground = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value;
         AircraftState pusher = SfoGroundHarness.SpawnParked(ground, Pusher, Narrowbody, gate);
         CommandResult forced = ground.Engine.SendCommand(Pusher, "PUSHF A");
         List<TugMove> moves = QueuedMoves(pusher);

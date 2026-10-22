@@ -251,7 +251,7 @@ Tests: `LoadOverlayViewModelTests` and `MainViewModelLoadOverlayTests` (`tests/Y
 
 `ApplySessionSettings` writes 24 `Session*` `[ObservableProperty]` fields from the 23 fields of `SessionSettingsDto`, and the session-settings flyout binds them.
 
-They are `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway` and `SessionAutoArrivalSpacingOnOccupiedRunway`.
+They are `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunwayMode` (+ `SessionAutoCrossRunwayModeIndex`, the flyout combo's index), `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway` and `SessionAutoArrivalSpacingOnOccupiedRunway`.
 
 They also include `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` + `SessionLiveTrafficFilter` (see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them), `SessionValidateDctFixes` and `SessionSoloTrainingMode`.
 
@@ -267,7 +267,7 @@ Auto-accept is two flyout controls over one wire value: the hub carries a single
 
 `SessionAutoAcceptWire` (`Yaat.Client.Core/Services/SessionAutoAcceptWire.cs`) maps between them: `ToWire(enabled, delay)` sends the delay or `-1`, and `FromWire(wireDelay, previousDelay)` turns a negative delay into Enabled false with the previous delay kept, so turning the checkbox back on restores it. The `AutoAccept` commit (`SendAutoAcceptDelayAsync`) sends `ToWire` of the pair, read at commit time.
 
-The guard is `_isApplyingSessionSettings`. `ApplySessionSettings(SessionSettingsDto)` sets it `true`, writes the properties, then sets it `false`. Every sending `OnXxxChanged` handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayChanged`, `OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
+The guard is `_isApplyingSessionSettings`. `ApplySessionSettings(SessionSettingsDto)` sets it `true`, writes the properties, then sets it `false`. Every sending `OnXxxChanged` handler early-returns while the flag is set (e.g. `OnSessionAutoCrossRunwayModeChanged`, `OnSessionSoloGoAroundProbabilityPercentChanged`), so the broadcast lands without echoing back.
 
 ### Typed values and the committer
 

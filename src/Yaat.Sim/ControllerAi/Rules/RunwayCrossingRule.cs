@@ -10,7 +10,7 @@ namespace Yaat.Sim.ControllerAi.Rules;
 /// position and clears the crossing itself once <see cref="RunwayCrossingGate"/> says the runway is free, naming the
 /// runway end the aircraft is at. When Local is staffed, Ground holds the aircraft short and asks once on the terminal
 /// (the coordination bus that lets an AI Local answer is later work); a crossing still uncleared two minutes after the
-/// request is a <see cref="AiAnomalyKind.CoordinationTimeout"/>. A route pre-cleared by the AutoCrossRunway setting
+/// request is a <see cref="AiAnomalyKind.CoordinationTimeout"/>. A crossing the AutoCrossRunwayMode setting pre-cleared
 /// never shows an uncleared bar, so standing approval needs no special case.
 /// </summary>
 public sealed class RunwayCrossingRule : IDecisionRule

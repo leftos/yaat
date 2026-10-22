@@ -377,7 +377,14 @@
 
             <CheckBox Content="{Binding SessionAutoClearedToLandLabel}" IsChecked="{Binding SessionAutoClearedToLand}" />
 
-            <CheckBox Content="Auto Cross-Runway" IsChecked="{Binding SessionAutoCrossRunway}" />
+            <StackPanel Spacing="2">
+              <TextBlock Text="Auto Cross-Runway:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <ComboBox
+                ItemsSource="{x:Static vm:SettingsViewModel.AutoCrossRunwayModeOptions}"
+                SelectedIndex="{Binding SessionAutoCrossRunwayModeIndex}"
+                HorizontalAlignment="Stretch"
+              />
+            </StackPanel>
 
             <CheckBox Content="Auto Pull-Up to Parallel" IsChecked="{Binding SessionAutoPullUpToParallel}" />
 

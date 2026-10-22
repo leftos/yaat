@@ -120,7 +120,7 @@ public sealed class OakTaxiToOccupiedStandTests
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
 

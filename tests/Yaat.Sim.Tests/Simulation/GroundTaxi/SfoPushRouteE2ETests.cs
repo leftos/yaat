@@ -129,7 +129,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushFromD15ToSixA_PushesStraightThenOntoTheLineThenPulls_WithoutPivotOrCrab()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -163,7 +163,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmFromD15_ComesToRestNoseOutOnTheSecondSpot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -191,7 +191,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmFromD15_EndingOnAGate_ParksTheAircraftThere()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -222,7 +222,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmEndingOnAGate_WithAFacing_Refused()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -247,7 +247,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmFromD15_PushesStraightThenOntoEachLineThenCreepsOntoTheLastSpot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -312,7 +312,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmFromTheAlley_FirstLegAheadOfTheNose_RunsAsAPull()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -344,7 +344,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmHeldMidMove_ResumesOnTheLegItWasRunning()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -405,7 +405,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void TaxiMidMove_DropsEveryQueuedLeg()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -443,7 +443,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmMidMove_ReplacesTheRunningMoveAndItsQueuedLegs()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -497,7 +497,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmMidPush_FirstNewMoveIsAPull_StopsAndDwellsBeforePulling()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -547,7 +547,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmWhileAPullDwells_FirstNewMoveIsAPull_StillWaitsTheFullDwellBeforePulling()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -596,7 +596,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     [Fact]
     public void RefusedPushm_LeavesTheAircraftsPhaseUntouched()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

@@ -95,7 +95,7 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult result = engine.SendCommand("N172JX", "TAXI J CROSS 28R");

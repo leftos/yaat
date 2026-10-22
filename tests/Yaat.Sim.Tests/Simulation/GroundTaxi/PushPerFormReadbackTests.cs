@@ -134,7 +134,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PushToGateNode_ReadsGatePark()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -148,7 +148,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PushToSpotNode_ReadsAsTheSpot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -320,7 +320,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PushToMarkedPointOnATaxiway_RefusedNamingTheTaxiway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -355,7 +355,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void TypedPushmToAMarkedPoint_ReachesThePlannerThroughTheEngine_WhichRefusesItsForcedPull()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -386,7 +386,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void TypedPushmWithAFacingOnAPassedPoint_Refused()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -466,7 +466,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PushToSpotBehindACondition_PilotReadsTheSpotBackFromTheCommand()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -486,7 +486,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void TailAmendmentMidPush_ReadsPushAmendedTailTheCardinalTyped()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -505,7 +505,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [Fact]
     public void PushTail_Answering_QueuesThePilotReadbackInTheTableWords()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -542,7 +542,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     /// layout is missing.
     /// </summary>
     private (string Readback, PilotSpeechText Spoken)? Push(string gate, string aircraftType, string command) =>
-        SfoGroundHarness.Build(output, autoCross: false) is { } ground ? Send(ground, gate, aircraftType, command) : null;
+        SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is { } ground ? Send(ground, gate, aircraftType, command) : null;
 
     /// <summary>
     /// A push off D15 to the plain (not spot, stand or helipad) node next to spot 6A on its lane, with
@@ -550,7 +550,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     /// </summary>
     private (string Readback, int NodeId)? PushToLaneNode(string facing)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

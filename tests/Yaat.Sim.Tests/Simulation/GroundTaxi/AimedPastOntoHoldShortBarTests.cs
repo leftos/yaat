@@ -45,7 +45,7 @@ public sealed class AimedPastOntoHoldShortBarTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAimedPastOntoAHoldShortNode_StopsAtThePaintedBar_NotAtTheNode()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

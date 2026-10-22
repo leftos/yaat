@@ -155,7 +155,7 @@ public class RunwayCrossingFarSideGateTests(ITestOutputHelper output)
     [Fact]
     public void LeaderHeldByItsOwnGateAtTheNextRunwaysNearLine_Blocks()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -272,7 +272,7 @@ public class RunwayCrossingFarSideGateTests(ITestOutputHelper output)
 
     private GateFixture? Gate()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return null;
         }

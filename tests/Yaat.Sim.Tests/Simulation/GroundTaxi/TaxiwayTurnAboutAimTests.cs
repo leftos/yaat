@@ -1656,7 +1656,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = airportId.ToUpperInvariant(),
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
 

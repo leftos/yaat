@@ -278,7 +278,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         foreach (GroundNode stand in layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Edges.Count > 0)).OrderBy(n => n.Id))
         {
             (SimulationEngine Engine, AirportGroundLayout Layout) candidate = Assert.NotNull(
-                FollowCornerGeometry.NewEngine(output, autoCross: false)
+                FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)
             );
             AircraftState aircraft = PushFrom(candidate, stand);
             if (
@@ -374,7 +374,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     [Fact]
     public void RejectedTakeoff_NewestTrailEdgeFarBehind_StartsAtTheTaxiStartPick()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }

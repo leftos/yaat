@@ -214,7 +214,7 @@ public class PushbackMoveBoundaryTests
     [Fact]
     public void ClearedMidMoveStopsDead()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return;
@@ -413,7 +413,7 @@ public class PushbackMoveBoundaryTests
     /// <returns>The run, or null to skip.</returns>
     private PushRun? RunPush()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return null;

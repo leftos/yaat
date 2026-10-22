@@ -46,7 +46,7 @@ public class SfoSpot10JoinATests
     [MemberData(nameof(RecordedCallsigns))]
     public void RecordedPoseOnB5_TaxiA_JoinsAWithoutTurningAbout(string callsign)
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

@@ -43,7 +43,7 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
         );
 
         StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
-        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCross: false));
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off));
         restoredGround.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restored = Assert.IsType<AircraftState>(restoredGround.Engine.World.GetSnapshot().FirstOrDefault(a => a.Callsign == Follower));
         HoldingShortPhase restoredHold = Assert.IsType<HoldingShortPhase>(restored.Phases?.CurrentPhase);
@@ -137,7 +137,7 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
 
         (SfoGround ground, AircraftState follower, _) = staged;
         string json = JsonSerializer.Serialize(ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCross: false));
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off));
         restoredGround.Engine.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );

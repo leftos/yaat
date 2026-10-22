@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Tests;
 
@@ -103,6 +104,55 @@ public class SettingsBundlePreferencesTests
         Assert.Equal(passwordBefore, preferences.AdminPassword);
         Assert.Equal(modelBefore, preferences.LlmModelPath);
         preferences.SetShowAtpa(atpaBefore);
+    }
+
+    /// <summary>
+    /// A bundle exported before the three-state auto-cross carries the on/off <c>autoCrossRunway</c>: on imports as All runways,
+    /// off as Off, and the key reports as applied.
+    /// </summary>
+    [Theory]
+    [InlineData(true, AutoCrossRunwayMode.All)]
+    [InlineData(false, AutoCrossRunwayMode.Off)]
+    public void AutoCrossRunway_FromABundleBeforeTheMode_ImportsAsTheMode(bool autoCrossRunway, AutoCrossRunwayMode expected)
+    {
+        var preferences = new UserPreferences();
+        AutoCrossRunwayMode before = preferences.AutoCrossRunwayMode;
+        try
+        {
+            preferences.ImportBundlePreferences(new JsonObject { ["autoCrossRunwayMode"] = nameof(AutoCrossRunwayMode.InactiveOnly) });
+
+            PreferencesImportResult result = preferences.ImportBundlePreferences(new JsonObject { ["autoCrossRunway"] = autoCrossRunway });
+
+            Assert.Equal(["autoCrossRunway"], result.AppliedKeys);
+            Assert.Empty(result.IgnoredKeys);
+            Assert.Equal(expected, new UserPreferences().AutoCrossRunwayMode);
+        }
+        finally
+        {
+            preferences.ImportBundlePreferences(new JsonObject { ["autoCrossRunwayMode"] = before.ToString() });
+        }
+    }
+
+    /// <summary>A bundle carrying both keys imports the mode and ignores the older switch.</summary>
+    [Fact]
+    public void AutoCrossRunway_BundleWithBothKeys_ImportsTheMode()
+    {
+        var preferences = new UserPreferences();
+        AutoCrossRunwayMode before = preferences.AutoCrossRunwayMode;
+        try
+        {
+            PreferencesImportResult result = preferences.ImportBundlePreferences(
+                new JsonObject { ["autoCrossRunway"] = true, ["autoCrossRunwayMode"] = nameof(AutoCrossRunwayMode.InactiveOnly) }
+            );
+
+            Assert.Equal(["autoCrossRunwayMode"], result.AppliedKeys);
+            Assert.Equal(["autoCrossRunway"], result.IgnoredKeys);
+            Assert.Equal(AutoCrossRunwayMode.InactiveOnly, new UserPreferences().AutoCrossRunwayMode);
+        }
+        finally
+        {
+            preferences.ImportBundlePreferences(new JsonObject { ["autoCrossRunwayMode"] = before.ToString() });
+        }
     }
 
     [Fact]

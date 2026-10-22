@@ -251,7 +251,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     /// </summary>
     private Funnel? StageAll()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             output.WriteLine("SKIP: SFO layout or navdata unavailable");

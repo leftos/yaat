@@ -45,7 +45,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
     [Fact]
     public void PushOntoTaxiwayFacingJunction_EndsNoseTowardTheJunctionOnTheLeastTurn()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -89,7 +89,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
     [Fact]
     public void PushAF1_FromD7_EndsTailNorthOneRadiusShort()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -220,7 +220,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
     [Fact]
     public void PushAF1_FromD10_AsRendered()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -311,7 +311,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
     /// </summary>
     private void AssertPushEndsLinedUpOnA(string gate)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

@@ -88,7 +88,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     [Fact]
     public void HsT_IssuedFarOut_HoldsAtTheBar()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -119,7 +119,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     [Fact]
     public void HsT_IssuedAtTheBar_BrakesAndReportsUnable()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;

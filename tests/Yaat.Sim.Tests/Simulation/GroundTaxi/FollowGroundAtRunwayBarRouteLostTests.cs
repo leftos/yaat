@@ -264,7 +264,7 @@ public class FollowGroundAtRunwayBarRouteLostTests(ITestOutputHelper output) : F
 
         string json = JsonSerializer.Serialize(lost.Ground.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
         Assert.Contains("BrakingLostRoute", json, StringComparison.OrdinalIgnoreCase);
-        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCross: false));
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off));
         restoredGround.Engine.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -335,7 +335,7 @@ public class FollowGroundAtRunwayBarRouteLostTests(ITestOutputHelper output) : F
     [Fact]
     public void BarsOnRestOfRoute_RouteTurningOffShortOfTheBar_DoesNotCrossIt()
     {
-        if (SfoGroundHarness.Build(Output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

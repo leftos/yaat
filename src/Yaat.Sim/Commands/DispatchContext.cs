@@ -70,7 +70,8 @@ public sealed record DispatchContext
 
     public required bool ValidateDctFixes { get; init; }
 
-    public required bool AutoCrossRunway { get; init; }
+    /// <summary>Which runway crossings the scenario pre-clears (<see cref="SimScenarioState.AutoCrossRunwayMode"/>).</summary>
+    public required AutoCrossRunwayMode AutoCrossRunwayMode { get; init; }
 
     public required bool SoloTrainingMode { get; init; }
 

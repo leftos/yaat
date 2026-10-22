@@ -199,7 +199,7 @@ public class OakPushTeThenTaxiTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         GroundNode parking = layout.FindParkingByName(stand) ?? throw new InvalidOperationException($"OAK layout has no parking named '{stand}'");

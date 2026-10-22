@@ -175,7 +175,7 @@ public class AiAnsweredCallupE2ETests
             FindAircraft = engine.FindAircraft,
             ListAircraft = () => engine.World.GetSnapshot(),
             ValidateDctFixes = engine.Scenario!.ValidateDctFixes,
-            AutoCrossRunway = engine.Scenario.AutoCrossRunway,
+            AutoCrossRunwayMode = engine.Scenario.AutoCrossRunwayMode,
             SoloTrainingMode = engine.Scenario.SoloTrainingMode,
             SoloRpoCommandsAllowed = engine.Scenario.SoloRpoCommandsAllowed,
             RpoShowPilotSpeech = engine.Scenario.RpoShowPilotSpeech,

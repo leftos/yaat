@@ -559,7 +559,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
             return;
         }
 
-        spawned.Engine.Scenario!.AutoCrossRunway = true;
+        spawned.Engine.Scenario!.AutoCrossRunwayMode = AutoCrossRunwayMode.All;
         for (int second = 0; second < 6; second++)
         {
             spawned.Engine.TickOneSecond();
@@ -1846,7 +1846,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void AutoCross_ToggledOffAndOnAfterTheStoredRouteStarts_StillHoldsAtTheLandingRunwaysRecrossing()
     {
-        if (StoreAcrossBothOakRunways() is not { } stored)
+        if (StoreAcrossBothOakRunways(AutoCrossRunwayMode.All, []) is not { } stored)
         {
             return;
         }
@@ -1859,9 +1859,9 @@ public sealed class TaxiOnLandingRolloutRulingTests
         HoldShortPoint recross = active.HoldShortPoints.First(h => h.NodeId == stored.Recross.NodeId);
         HoldShortPoint other = active.HoldShortPoints.First(h => h.NodeId == stored.Other.NodeId);
 
-        ToggleAutoCross(engine, autoCross: false);
+        ToggleAutoCross(engine, autoCrossMode: AutoCrossRunwayMode.Off);
         Assert.False(other.IsCleared, $"auto-cross off left {other.TargetName} cleared");
-        ToggleAutoCross(engine, autoCross: true);
+        ToggleAutoCross(engine, autoCrossMode: AutoCrossRunwayMode.All);
         Assert.True(other.IsCleared, $"auto-cross on left {other.TargetName} uncleared");
         Assert.False(recross.IsCleared, "auto-cross on cleared the landing runway's re-crossing");
 
@@ -1883,7 +1883,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void AutoCross_ToggledDuringTheRollout_UpdatesTheStoredRoute()
     {
-        if (StoreAcrossBothOakRunways() is not { } stored)
+        if (StoreAcrossBothOakRunways(AutoCrossRunwayMode.All, []) is not { } stored)
         {
             return;
         }
@@ -1894,12 +1894,12 @@ public sealed class TaxiOnLandingRolloutRulingTests
         Assert.Same(stored.Stored, aircraft.Phases?.TaxiRoute);
         Assert.True(stored.Other.IsCleared && stored.Other.ClearedByAutoCross, $"auto-cross did not clear {stored.Other.TargetName}");
 
-        ToggleAutoCross(engine, autoCross: false);
+        ToggleAutoCross(engine, autoCrossMode: AutoCrossRunwayMode.Off);
         Assert.False(stored.Other.IsCleared, $"auto-cross off left the stored route's {stored.Other.TargetName} bar cleared");
         Assert.False(stored.Other.ClearedByAutoCross);
         Assert.False(stored.Recross.IsCleared);
 
-        ToggleAutoCross(engine, autoCross: true);
+        ToggleAutoCross(engine, autoCrossMode: AutoCrossRunwayMode.All);
         Assert.True(stored.Other.IsCleared, $"auto-cross on left the stored route's {stored.Other.TargetName} bar uncleared");
         Assert.False(stored.Recross.IsCleared, "auto-cross on cleared the landing runway's re-crossing");
     }
@@ -1908,7 +1908,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void AutoCross_RecrossingMark_SurvivesASnapshot()
     {
-        if (StoreAcrossBothOakRunways() is not { } stored)
+        if (StoreAcrossBothOakRunways(AutoCrossRunwayMode.All, []) is not { } stored)
         {
             return;
         }
@@ -1921,7 +1921,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
         TaxiRoute route = restored.Phases?.TaxiRoute ?? throw new Xunit.Sdk.XunitException("the stored route was not restored");
         HoldShortPoint recross = route.HoldShortPoints.First(h => h.NodeId == stored.Recross.NodeId);
         Assert.True(recross.RecrossesLandingRunway, "the mark did not survive the snapshot");
-        TaxiRouteAutoCross.Apply(route, autoCross: true);
+        TaxiRouteAutoCross.Apply(route, AutoCrossRunwayMode.All, []);
         Assert.False(recross.IsCleared, "auto-cross cleared the restored re-crossing");
     }
 
@@ -1929,17 +1929,44 @@ public sealed class TaxiOnLandingRolloutRulingTests
     private sealed record StoredAcrossBoth(ShortFinalArrival.Spawned Spawned, TaxiRoute Stored, HoldShortPoint Recross, HoldShortPoint Other);
 
     /// <summary>
-    /// OAK 28R B738 with scenario auto-cross on, <c>TAXI C B W W1 30</c> 6 s after touchdown: stored behind the rollout's exit, the
-    /// route joins C north of 28R, re-crosses 28R and crosses 28L.
+    /// Inactive runways only on a route stored on the rollout leaves the landing runway's re-crossing to a <c>CROSS</c> whether
+    /// or not active runways are named (7110.65 3-10-9.b.2), while 28L, not active, is pre-cleared: OAK 28R, a TAXI joining C
+    /// north of 28R to runway 30.
     /// </summary>
-    private StoredAcrossBoth? StoreAcrossBothOakRunways()
+    [Theory]
+    [InlineData("")]
+    [InlineData("30")]
+    public void AutoCross_InactiveOnlyOnAStoredRolloutRoute_LeavesTheLandingRunwaysRecrossing(string activeAtOak)
+    {
+        if (
+            StoreAcrossBothOakRunways(AutoCrossRunwayMode.InactiveOnly, activeAtOak.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            is not { } stored
+        )
+        {
+            return;
+        }
+
+        Assert.False(stored.Recross.IsCleared, "Inactive runways only cleared the landing runway's re-crossing");
+        Assert.True(stored.Other.IsCleared && stored.Other.ClearedByAutoCross, $"Inactive runways only left {stored.Other.TargetName} uncleared");
+    }
+
+    /// <summary>
+    /// OAK 28R B738 under the auto-cross <paramref name="mode"/> with <paramref name="activeAtOak"/> the active runways at OAK,
+    /// <c>TAXI C B W W1 30</c> 6 s after touchdown: stored behind the rollout's exit, the route joins C north of 28R, re-crosses
+    /// 28R and crosses 28L.
+    /// </summary>
+    private StoredAcrossBoth? StoreAcrossBothOakRunways(AutoCrossRunwayMode mode, string[] activeAtOak)
     {
         if (Touchdown("OAK", "28R", "B738") is not { } spawned)
         {
             return null;
         }
 
-        spawned.Engine.Scenario!.AutoCrossRunway = true;
+        spawned.Engine.Scenario!.AutoCrossRunwayMode = mode;
+        spawned.Engine.Scenario.ActiveRunways = ActiveRunways.Empty.With(
+            "OAK",
+            [.. activeAtOak.Select(runway => new ActiveRunway(runway, ActiveRunwayUse.Both))]
+        );
         for (int second = 0; second < 6; second++)
         {
             spawned.Engine.TickOneSecond();
@@ -1962,10 +1989,10 @@ public sealed class TaxiOnLandingRolloutRulingTests
     }
 
     /// <summary>Flips the scenario's auto-cross mid-session as the server and a replayed toggle do.</summary>
-    private static void ToggleAutoCross(SimulationEngine engine, bool autoCross)
+    private static void ToggleAutoCross(SimulationEngine engine, AutoCrossRunwayMode autoCrossMode)
     {
-        engine.Scenario!.AutoCrossRunway = autoCross;
-        engine.World.ApplyAutoCrossToActiveTaxiRoutes(autoCross);
+        engine.Scenario!.AutoCrossRunwayMode = autoCrossMode;
+        engine.World.ApplyAutoCrossToActiveTaxiRoutes(autoCrossMode, engine.Scenario.ActiveRunways);
     }
 
     /// <summary>

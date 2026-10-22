@@ -165,7 +165,7 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = layout.AirportId,
-                AutoCrossRunway = true,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.All,
             },
         };
         return engine;

@@ -5,6 +5,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -302,7 +303,7 @@ public class SoloAdvisorySettingsTests
             DepartureAutoDeleteDistanceNm: null,
             AutoAcceptDelaySeconds: -1,
             AutoClearedToLand: false,
-            AutoCrossRunway: false,
+            AutoCrossRunwayMode: AutoCrossRunwayMode.Off,
             AutoPullUpToParallel: false,
             AutoGoAroundOnOccupiedRunway: false,
             AutoRejectTakeoffOnOccupiedRunway: false,

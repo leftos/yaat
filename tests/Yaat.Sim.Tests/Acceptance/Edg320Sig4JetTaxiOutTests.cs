@@ -80,7 +80,7 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = true,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.All,
         };
 
         CommandResult result = engine.SendCommand("EDG320", "TAXIAUTO 28R");

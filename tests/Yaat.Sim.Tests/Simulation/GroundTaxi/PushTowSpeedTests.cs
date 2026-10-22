@@ -223,7 +223,7 @@ public class PushTowSpeedTests(PushTowSpeedTests.Fixture fixture, ITestOutputHel
 
     private static PushRun? Fly(ITestOutputHelper output, string gate, string aircraftType, string command)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

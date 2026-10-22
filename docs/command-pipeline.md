@@ -257,7 +257,7 @@ Threaded through `DispatchCompound` and every handler. Holds:
 | `Weather` | wind/visibility for visual detection (RTIS/RFIS) |
 | `FindAircraft` | callsign → `AircraftState?` lookup for relative commands |
 | `ValidateDctFixes` | strict mode for direct-to off-route fixes |
-| `AutoCrossRunway` | whether to auto-issue runway crossing clearances |
+| `AutoCrossRunwayMode` | which runway crossings to pre-clear (Off / All / InactiveOnly, the last judged against `ActiveRunways`) |
 | `SoloTrainingMode`, `RpoShowPilotSpeech` | scenario flags |
 | `TerminalEmitter` | broadcasts SAY-class verbs to the terminal log; **null in dry-run / tests**, otherwise SAYs would fire twice |
 | `PreserveConditionals` | true **only** when a deferred dispatch fires its payload (`SimulationEngine.ProcessDeferredDispatches`); makes that payload preserve pending triggered conditionals + sibling deferrals instead of superseding them. Every other call site passes false |

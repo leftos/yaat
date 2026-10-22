@@ -139,7 +139,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiTo5A_FromD2LeadOut_EndsAlongT5A()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -172,7 +172,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT7aToSpot7A_FromOffLane_EndsAlongT7A()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -225,7 +225,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT7aToSpot7A_FromTheRamp_LinesUpFacingTaxiwayA()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -285,7 +285,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void SpotLineUp_RestoredMidPull_KeepsThePullSpeed()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -336,7 +336,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void SpotLineUp_NeverCrossesAnOccupiedStand()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -386,7 +386,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT7aToSpot7A_PushedBackOntoTaxiwayA_DoesNotLineUp()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -418,7 +418,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [InlineData(0.0, 20.0)]
     public void TaxiT7aToSpot7A_WithTheWingOverTaxiwayA_DoesNotLineUp(double alongAFt, double downT7aFt)
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -456,7 +456,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [InlineData(180.0, "C208")]
     public void TaxiT7aToSpot7A_OnT7aBetweenAAndTheSpot_DoesNotLineUp(double turnedFromIntoRampDeg, string type)
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -476,7 +476,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT7aToSpot7A_OnT7aBetweenAAndTheSpot_JetFacingARefusesToTurnAround()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -525,7 +525,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT5AT5aTo5A_FromD2_KeepsTheNamedTaxiways()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -548,7 +548,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void SpotLineUp_ExplicitHoldShortAndWarnings_Survive()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -583,7 +583,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void SpotLineUp_PullIndex_FollowsPrependAndTruncate()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -636,7 +636,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TryPlanSpotLineUp_EachRefusal_KeepsTheResolvedRoute()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -784,7 +784,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiT7aToSpot7A_FromTaxiwayA_EntersFacingIntoTheRamp()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -817,7 +817,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiAT7aSpotToGate_FromTaxiwayA_EntersTheRampThroughSpot7A()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -961,7 +961,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void TaxiSpot7A_To7B_EndsAlongT7B()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -1055,7 +1055,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     [Fact]
     public void SpotAlignmentRun_IsOneFuselage_NotAFlatHundredFeet()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;

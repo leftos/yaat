@@ -43,7 +43,7 @@ public class SpotExitReacquireCapTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = true,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.All,
             },
         };
         AircraftState aircraft = SpawnParked(layout, stand);

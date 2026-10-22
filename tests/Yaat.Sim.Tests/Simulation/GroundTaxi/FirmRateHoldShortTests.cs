@@ -314,7 +314,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
     public void HoldShort_MovedStopPastAStraightNode_ReachesTheMovedStopAtACrawl()
     {
         const string Type = "B738";
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -1232,7 +1232,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
     {
         // SFO, not KOAK: no KOAK runway bar sits a short hop past a junction a fillet arc leads to, and it is the arc that
         // makes the projection's measurement matter.
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return null;
         }
@@ -1881,7 +1881,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return new SfoGround(engine, layout);

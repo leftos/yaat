@@ -352,7 +352,7 @@ resolution. It returns `null` when the snapshot is absent — same silent-skip c
 
 `SfoGroundHarness` (`Helpers/SfoGroundHarness.cs`) is the multi-aircraft KSFO fixture behind the SFO ground-technique tests
 (`SfoVideoRoutePinTests`, `SfoDepartureFunnelTests`, `SfoSixAlleyChoreographyTests`, `SfoSimultaneousAlleyPushTests`,
-`SfoYankeePushTests`). `Build(output, autoCross)` returns an `SfoGround(Engine, Layout)` record (null ⇒ skip) with `RngSeed = 42`;
+`SfoYankeePushTests`). `Build(output, autoCrossMode)` returns an `SfoGround(Engine, Layout)` record (null ⇒ skip) with `RngSeed = 42`;
 spawns resolve everything **by name** — `SpawnParked(gate)`, `SpawnAtSpot(spot)`, `SpawnAtHoldShort(rwy, twy, toward)`,
 `SpawnAtJunction(twyA, twyB)` — and go through one `SpawnAt(node, heading, phase)` that starts the phase and adds the aircraft to the
 world. `TickUntil(engine, predicate, maxSeconds, each)` drives `TickOneSecond` and returns the second the predicate first held or -1;

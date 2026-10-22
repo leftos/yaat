@@ -325,7 +325,7 @@ public sealed class NodeAimedEntryOntoFilletTests(ITestOutputHelper output)
     /// </summary>
     private FilletCase? BuildCase(double standOffFt, double standOffBearingRelDeg, double headingRelDeg)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

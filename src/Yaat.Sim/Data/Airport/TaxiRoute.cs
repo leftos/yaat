@@ -834,7 +834,7 @@ public sealed class HoldShortPoint
     public bool IsCleared { get; set; }
 
     /// <summary>
-    /// True when <see cref="IsCleared"/> was set by the AutoCrossRunway scenario toggle
+    /// True when <see cref="IsCleared"/> was set by the scenario auto-cross (<see cref="AutoCrossRunwayMode"/>)
     /// (either at TAXI-resolution time or via a mid-session toggle that re-evaluated
     /// already-active routes). Distinguishes AutoCross-driven clearance from other
     /// sources (first-crossing-resume, explicit CROSS keyword, future user CTO commands)
@@ -843,7 +843,7 @@ public sealed class HoldShortPoint
     public bool ClearedByAutoCross { get; set; }
 
     /// <summary>
-    /// True at a re-crossing of the runway just landed on, on a route a TAXI stored during the landing rollout: the AutoCrossRunway
+    /// True at a re-crossing of the runway just landed on, on a route a TAXI stored during the landing rollout: the auto-cross
     /// scenario toggle never clears it, at TAXI time or mid-session, so only an explicit <c>CROSS</c> does (7110.65 3-10-9.b.2).
     /// </summary>
     public bool RecrossesLandingRunway { get; set; }

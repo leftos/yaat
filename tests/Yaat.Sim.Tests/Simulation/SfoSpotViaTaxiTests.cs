@@ -46,7 +46,7 @@ public class SfoSpotViaTaxiTests(ITestOutputHelper output)
     [Fact]
     public void TaxiViaSpot7_ToE2_EndsAtParkingE2()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -90,7 +90,7 @@ public class SfoSpotViaTaxiTests(ITestOutputHelper output)
     [Fact]
     public void TaxiViaSpot7B_ToE2_NeverParksAtSpot()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;

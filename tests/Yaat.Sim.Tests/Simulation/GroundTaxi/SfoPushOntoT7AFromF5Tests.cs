@@ -37,7 +37,7 @@ public class SfoPushOntoT7AFromF5Tests(ITestOutputHelper output)
     [Fact]
     public void PushT7A_FromF5_E75L_CompletesOnT7AEnd_ThenTaxiT7A7ATaxisFromThere()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

@@ -109,7 +109,7 @@ public sealed class SeaCrossingNotYetReachedTests
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "SEA",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
 

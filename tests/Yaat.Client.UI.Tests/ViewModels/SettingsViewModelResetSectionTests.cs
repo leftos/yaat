@@ -9,6 +9,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
@@ -71,7 +72,7 @@ public class SettingsViewModelResetSectionTests
             vm =>
             {
                 vm.AutoAcceptDelaySeconds = 9;
-                vm.AutoCrossRunway = true;
+                vm.SelectedAutoCrossRunwayModeIndex = (int)AutoCrossRunwayMode.InactiveOnly;
                 vm.SelectedAutoDeleteIndex = 2;
                 vm.SoloParkingInitialCallupIntervalSeconds = 40;
                 vm.SoloArrivalGeneratorRatePercent = 35;
@@ -81,7 +82,7 @@ public class SettingsViewModelResetSectionTests
             vm =>
                 (
                     vm.AutoAcceptDelaySeconds,
-                    vm.AutoCrossRunway,
+                    (AutoCrossRunwayMode)vm.SelectedAutoCrossRunwayModeIndex,
                     SettingsViewModel.IndexToAutoDeleteOverride(vm.SelectedAutoDeleteIndex),
                     SoloPacing.ParkingInitialCallupIntervalSecondsToRate(vm.SoloParkingInitialCallupIntervalSeconds),
                     vm.SoloArrivalGeneratorRatePercent,
@@ -91,7 +92,7 @@ public class SettingsViewModelResetSectionTests
             p =>
                 (
                     p.AutoAcceptDelaySeconds,
-                    p.AutoCrossRunway,
+                    p.AutoCrossRunwayMode,
                     p.AutoDeleteOverride,
                     p.SoloParkingInitialCallupRatePercent,
                     p.SoloArrivalGeneratorRatePercent,

@@ -238,7 +238,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void BridgesAlongE_StaleCurrentTaxiwayE_KeepsNoteForE()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -271,7 +271,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void StaleE_OnF_RouteBehind_StartsAtFarEndOnE()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -294,7 +294,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void StaleE_OnF_RouteBehind_JetHeldAfterPushTurnsAbout()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -323,7 +323,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void OnF_TurnsAboutTowardTheFarEnd_Warns()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -346,7 +346,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void OnF_RouteAheadThroughTheJunction_DoesNotWarn()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -796,7 +796,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     [Fact]
     public void AtABNode_NosedAlongB_LaneEdgeIsTheBEdgeAlongTheNoseAndFaceIsItsReverse()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

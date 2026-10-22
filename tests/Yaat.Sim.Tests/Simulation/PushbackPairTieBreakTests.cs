@@ -126,7 +126,7 @@ public class PushbackPairTieBreakTests
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         LatLon origin = layout.FindParkingByName("S7")!.Position;

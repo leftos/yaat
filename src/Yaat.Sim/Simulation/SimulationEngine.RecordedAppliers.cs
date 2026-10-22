@@ -202,6 +202,13 @@ public sealed partial class SimulationEngine
         }
     }
 
+    /// <summary>A replayed auto-cross mode change: the scenario takes the mode, and every assigned route is re-checked against it.</summary>
+    private void ApplyAutoCrossRunwayMode(SimScenarioState scenario, AutoCrossRunwayMode mode)
+    {
+        scenario.AutoCrossRunwayMode = mode;
+        World.ApplyAutoCrossToActiveTaxiRoutes(mode, scenario.ActiveRunways);
+    }
+
     internal void ApplySettingChange(RecordedSettingChange setting)
     {
         SimScenarioState? scenario = Scenario;
@@ -222,11 +229,17 @@ public sealed partial class SimulationEngine
                     scenario.AutoClearedToLand = ctl;
                 }
                 break;
+            case "AutoCrossRunwayMode":
+                if (Enum.TryParse(setting.Value, out AutoCrossRunwayMode acrMode) && Enum.IsDefined(acrMode))
+                {
+                    ApplyAutoCrossRunwayMode(scenario, acrMode);
+                }
+                break;
             case "AutoCrossRunway":
+                // A recording made before the three-state mode carries the on/off switch: on pre-cleared every crossing.
                 if (bool.TryParse(setting.Value, out bool acr))
                 {
-                    scenario.AutoCrossRunway = acr;
-                    World.ApplyAutoCrossToActiveTaxiRoutes(acr);
+                    ApplyAutoCrossRunwayMode(scenario, acr ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off);
                 }
                 break;
             case "AutoPullUpToParallel":

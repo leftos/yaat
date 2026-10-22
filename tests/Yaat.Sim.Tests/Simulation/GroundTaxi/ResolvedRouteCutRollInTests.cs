@@ -26,7 +26,7 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
     [Fact]
     public void TaxiToStandTheLongWayRound_CutsAcrossAndRollsInOnStandHeading()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -74,7 +74,7 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
     [Fact]
     public void PlainTaxiToD1_FromD3_StaysInsideTheRamp()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

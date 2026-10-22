@@ -5,6 +5,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -22,7 +23,7 @@ public class MainViewModelSessionSettingsTests
                 DepartureAutoDeleteDistanceNm: null,
                 AutoAcceptDelaySeconds: 5,
                 AutoClearedToLand: true,
-                AutoCrossRunway: true,
+                AutoCrossRunwayMode: AutoCrossRunwayMode.All,
                 AutoPullUpToParallel: true,
                 AutoGoAroundOnOccupiedRunway: true,
                 AutoRejectTakeoffOnOccupiedRunway: true,
@@ -44,7 +45,7 @@ public class MainViewModelSessionSettingsTests
         Assert.Equal("Parked", vm.ActiveAutoDeleteMode);
         Assert.Equal(5, vm.SessionAutoAcceptDelaySeconds);
         Assert.True(vm.SessionAutoClearedToLand);
-        Assert.True(vm.SessionAutoCrossRunway);
+        Assert.Equal(AutoCrossRunwayMode.All, vm.SessionAutoCrossRunwayMode);
         Assert.True(vm.SessionAutoGoAroundOnOccupiedRunway);
         Assert.True(vm.SessionAutoArrivalSpacingOnOccupiedRunway);
         Assert.True(vm.SessionLiveTrafficEnabled);
@@ -70,7 +71,7 @@ public class MainViewModelSessionSettingsTests
                 DepartureAutoDeleteDistanceNm: null,
                 AutoAcceptDelaySeconds: 5,
                 AutoClearedToLand: false,
-                AutoCrossRunway: false,
+                AutoCrossRunwayMode: AutoCrossRunwayMode.Off,
                 AutoPullUpToParallel: false,
                 AutoGoAroundOnOccupiedRunway: false,
                 AutoRejectTakeoffOnOccupiedRunway: false,
@@ -102,7 +103,7 @@ public class MainViewModelSessionSettingsTests
                 DepartureAutoDeleteDistanceNm: null,
                 AutoAcceptDelaySeconds: -1,
                 AutoClearedToLand: false,
-                AutoCrossRunway: false,
+                AutoCrossRunwayMode: AutoCrossRunwayMode.Off,
                 AutoPullUpToParallel: false,
                 AutoGoAroundOnOccupiedRunway: false,
                 AutoRejectTakeoffOnOccupiedRunway: false,
@@ -139,7 +140,7 @@ public class MainViewModelSessionSettingsTests
                 EffectiveAutoDeleteMode: "Parked",
                 AutoAcceptDelaySeconds: 5,
                 AutoClearedToLand: true,
-                AutoCrossRunway: true,
+                AutoCrossRunwayMode: AutoCrossRunwayMode.All,
                 ValidateDctFixes: true,
                 SoloTrainingMode: true,
                 SoloParkingInitialCallupRatePercent: 100,
@@ -154,7 +155,7 @@ public class MainViewModelSessionSettingsTests
         Assert.Equal("Parked", vm.ActiveAutoDeleteMode);
         Assert.Equal(5, vm.SessionAutoAcceptDelaySeconds);
         Assert.True(vm.SessionAutoClearedToLand);
-        Assert.True(vm.SessionAutoCrossRunway);
+        Assert.Equal(AutoCrossRunwayMode.All, vm.SessionAutoCrossRunwayMode);
         Assert.True(vm.SessionValidateDctFixes);
         Assert.True(vm.SessionSoloTrainingMode);
         Assert.Equal(20, vm.SessionSoloParkingInitialCallupIntervalSeconds);
@@ -210,7 +211,7 @@ public class MainViewModelSessionSettingsTests
             DepartureAutoDeleteDistanceNm: distanceNm,
             AutoAcceptDelaySeconds: -1,
             AutoClearedToLand: false,
-            AutoCrossRunway: false,
+            AutoCrossRunwayMode: AutoCrossRunwayMode.Off,
             AutoPullUpToParallel: false,
             AutoGoAroundOnOccupiedRunway: false,
             AutoRejectTakeoffOnOccupiedRunway: false,

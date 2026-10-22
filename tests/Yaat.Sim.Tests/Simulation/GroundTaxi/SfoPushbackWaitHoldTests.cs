@@ -54,7 +54,7 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
     [Fact]
     public void ScriptedTaxi_WaitsForThePushbackToFinish()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -132,7 +132,7 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
     [Fact]
     public void InstructorTaxi_MidPush_StillTakesTheTugOffImmediately()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -171,7 +171,7 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
     [Fact]
     public void ScriptedHoldShort_BehindAHeldTaxi_WaitsAndApplies()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -261,7 +261,7 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
     [Fact]
     public void ScriptedSquawk_BehindAHeldTaxi_StillFiresOnTime()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -329,7 +329,7 @@ public sealed class SfoPushbackWaitHoldTests(ITestOutputHelper output)
     [Fact]
     public void OutOfOrderPresets_RefusedCommandAheadOfTheHeldOne_IsHeldAndAppliedAfterIt()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

@@ -9,6 +9,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Services;
@@ -355,7 +356,12 @@ public sealed partial class UserPreferences
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
-    public bool AutoCrossRunway => _data.AutoCrossRunway;
+
+    /// <summary>Which runway crossings a new session pre-clears: the Scenario defaults choice the session flyout starts from.</summary>
+    public AutoCrossRunwayMode AutoCrossRunwayMode =>
+        (Enum.TryParse<AutoCrossRunwayMode>(_data.AutoCrossRunwayMode, out AutoCrossRunwayMode mode) && Enum.IsDefined(mode))
+            ? mode
+            : AutoCrossRunwayMode.Off;
     public bool AutoPullUpToParallel => _data.AutoPullUpToParallel;
     public bool AutoGoAroundOnOccupiedRunway => _data.AutoGoAroundOnOccupiedRunway;
     public bool AutoRejectTakeoffOnOccupiedRunway => _data.AutoRejectTakeoffOnOccupiedRunway;
@@ -1066,7 +1072,7 @@ public sealed partial class UserPreferences
         bool autoClearedToLandTwr,
         bool autoClearedToLandApp,
         bool autoClearedToLandCtr,
-        bool autoCrossRunway,
+        AutoCrossRunwayMode autoCrossRunwayMode,
         bool autoPullUpToParallel,
         bool autoGoAroundOnOccupiedRunway,
         bool autoRejectTakeoffOnOccupiedRunway,
@@ -1078,7 +1084,7 @@ public sealed partial class UserPreferences
         _data.AutoClearedToLandTwr = autoClearedToLandTwr;
         _data.AutoClearedToLandApp = autoClearedToLandApp;
         _data.AutoClearedToLandCtr = autoClearedToLandCtr;
-        _data.AutoCrossRunway = autoCrossRunway;
+        _data.AutoCrossRunwayMode = autoCrossRunwayMode.ToString();
         _data.AutoPullUpToParallel = autoPullUpToParallel;
         _data.AutoGoAroundOnOccupiedRunway = autoGoAroundOnOccupiedRunway;
         _data.AutoRejectTakeoffOnOccupiedRunway = autoRejectTakeoffOnOccupiedRunway;
@@ -2020,6 +2026,8 @@ public sealed partial class UserPreferences
                     (doc.RootElement.TryGetProperty("preferencesVersion", out JsonElement version) && version.TryGetInt32(out int number))
                         ? number
                         : 0;
+                saved.AutoCrossRunwayMode = LoadAutoCrossRunwayMode(JsonNode.Parse(json)!.AsObject());
+
                 return ApplyDefaultServers(saved);
             }
         }
@@ -2126,7 +2134,7 @@ public sealed partial class UserPreferences
             MvaHintDefaultTwr = GetFieldOr(obj, "mvaHintDefaultTwr", false),
             MvaHintDefaultApp = GetFieldOr(obj, "mvaHintDefaultApp", true),
             MvaHintDefaultCtr = GetFieldOr(obj, "mvaHintDefaultCtr", true),
-            AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
+            AutoCrossRunwayMode = LoadAutoCrossRunwayMode(obj),
             AutoPullUpToParallel = GetFieldOr(obj, "autoPullUpToParallel", true),
             AutoGoAroundOnOccupiedRunway = GetFieldOr(obj, "autoGoAroundOnOccupiedRunway", true),
             AutoRejectTakeoffOnOccupiedRunway = GetFieldOr(obj, "autoRejectTakeoffOnOccupiedRunway", true),
@@ -2283,6 +2291,23 @@ public sealed partial class UserPreferences
         }
 
         return prefs;
+    }
+
+    /// <summary>
+    /// The saved auto-cross mode: <c>autoCrossRunwayMode</c> when the file has it, else the on/off <c>autoCrossRunway</c> an
+    /// older file saved, on as <see cref="Yaat.Sim.Data.Airport.AutoCrossRunwayMode.All"/> (what it pre-cleared) and off as
+    /// <see cref="Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off"/>. Only the new key is written back.
+    /// </summary>
+    private static string LoadAutoCrossRunwayMode(JsonObject obj)
+    {
+        if (obj.ContainsKey("autoCrossRunwayMode"))
+        {
+            return GetFieldOr(obj, "autoCrossRunwayMode", nameof(Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off));
+        }
+
+        return GetFieldOr(obj, "autoCrossRunway", false)
+            ? nameof(Yaat.Sim.Data.Airport.AutoCrossRunwayMode.All)
+            : nameof(Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off);
     }
 
     private static T GetFieldOr<T>(JsonObject obj, string name, T fallback)
@@ -2520,7 +2545,9 @@ public sealed partial class UserPreferences
         public bool MvaHintDefaultTwr { get; set; }
         public bool MvaHintDefaultApp { get; set; } = true;
         public bool MvaHintDefaultCtr { get; set; } = true;
-        public bool AutoCrossRunway { get; set; }
+
+        // An AutoCrossRunwayMode name, stored as a string (like SoloAdvisoryPrefill) so enum reordering can't misassign it.
+        public string AutoCrossRunwayMode { get; set; } = nameof(Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off);
         public bool AutoPullUpToParallel { get; set; } = true;
         public bool AutoGoAroundOnOccupiedRunway { get; set; } = true;
         public bool AutoRejectTakeoffOnOccupiedRunway { get; set; } = true;

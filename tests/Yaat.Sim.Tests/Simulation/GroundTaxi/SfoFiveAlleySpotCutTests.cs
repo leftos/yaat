@@ -70,7 +70,7 @@ public class SfoFiveAlleySpotCutTests
     [Fact]
     public void GateD2_TaxiToSpot5A_LinesUpOnT5AFacingAlpha()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return;

@@ -103,9 +103,11 @@ Absent fields restore as no route and no latch, and a follow restored with no fo
 
 **The run profile is not a field.** `SimulationEngine.RunProfile` (live / replay / test / soak — [tick-loop.md](tick-loop.md) § the engine's partial files) is host state: the host that drives the engine sets it, and it is never captured into or restored from a snapshot. Restoring a live snapshot into a replaying room must not make the room live.
 
-**An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunway` and `AutoPullUpToParallel` are bare `bool`s (false), the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same.
+**An "on by default" scenario setting still defaults to `false` on the Sim side.** `SimScenarioState.AutoCrossRunwayMode` (enum, `Off`) and `AutoPullUpToParallel` (bare `bool`, false) default off, the `PhaseContext` fallback is `Scenario?.X ?? false`, and the `ScenarioSnapshotDto` field is the same.
 
-The on-by-default lives only in the client's `UserPreferences` (`AutoPullUpToParallel` defaults true there), which pushes the value to the server at scenario bootstrap (`MainViewModel.SendAutoCrossRunway` / `SendAutoPullUpToParallel`).
+The on-by-default lives only in the client's `UserPreferences` (`AutoPullUpToParallel` defaults true there), which pushes the value to the server at scenario bootstrap (`MainViewModel.SendAutoCrossRunwayMode` / `SendAutoPullUpToParallel`).
+
+**The auto-cross switch is a three-state mode in the snapshot.** `ScenarioSnapshotDto.AutoCrossRunwayMode` (Off / All / InactiveOnly) replaced the on/off `AutoCrossRunway`; `SnapshotSchemaMigrator` (V35) maps a snapshot's old `true` to `All` and `false` or absent to `Off`, then drops the legacy field. A recorded `RecordedSettingChange` named `AutoCrossRunway` replays the same way (`true` = All), and `AutoCrossRunwayMode` carries the mode name.
 
 The reason is replay fidelity: `engine.Replay(recording, t)` builds a fresh `SimScenarioState`, so a Sim-side default of `true` would switch the feature on for every recording made before it existed and diverge those replays (aircraft auto-pulling up before the recorded `TAXI`/`RES`). A new opt-out toggle mirrors this pair end to end and flips only the client default.
 
@@ -418,7 +420,7 @@ Tests: `RoomLogStoreTests`, `FileLoggerRoomScopeTests`, `SessionLogAnonymizerTes
 
   That is why a recording load applies the tape's t≤0 actions before the first second plays: both load paths call `RecordingManager.ApplyTapeStartActions`, which runs a `ReconstructionHost` over `ActionLog` through t=0, as reconstruction does, and moves `PlaybackCursor` past them.
 
-  The tape's t≤0 settings already hold by then: `ScenarioLifecycleService.ReloadRecording` starts the scenario on the defaults plus those records (`StartOnTapeSettings`) before any preset dispatches, so a preset TAXI resolves under the tape's `AutoCrossRunway` and not the room's.
+  The tape's t≤0 settings already hold by then: `ScenarioLifecycleService.ReloadRecording` starts the scenario on the defaults plus those records (`StartOnTapeSettings`) before any preset dispatches, so a preset TAXI resolves under the tape's `AutoCrossRunwayMode` and not the room's.
 
   A rewind or seek from t=0 (`ReloadTapeForRewindAsync`) and the export and migration snapshot generation (`ReloadForRewind`, `RoomEngine.CreateTempReplayEngine`) start the same way, and the room's own value never leaks in.
 

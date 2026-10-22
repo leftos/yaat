@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -37,7 +38,7 @@ public class CompressionRoundTripTests
                             RngSeed = 42,
                             ElapsedSeconds = 0,
                             AutoClearedToLand = false,
-                            AutoCrossRunway = false,
+                            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                             ValidateDctFixes = true,
                             IsPaused = false,
                             SimRate = 1,

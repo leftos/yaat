@@ -546,7 +546,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     [Fact]
     public void TaxiwayHoldShort_AtTheEndOfAFreeSpaceLeg_SetsBackAlongTheLeg()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -581,7 +581,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     [Fact]
     public void TaxiwayHoldShort_LegShorterThanSetback_StopsAtTheLegStart()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -605,7 +605,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     [Fact]
     public void StoppedAircraftInsideTheSetback_ReadsBackHoldShort()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }
@@ -649,7 +649,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
 
     private (SfoGround Ground, AircraftState Aircraft, HoldShortPoint Bar)? HoldShortOfTOnB(string callsign, string type)
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return null;
@@ -684,7 +684,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     [Fact]
     public void TaxiwayHoldShort_OnASpotTypedJunctionNode_KeepsTheTaxiwaySetback()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;
@@ -851,7 +851,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = airportId,
-                AutoCrossRunway = true,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.All,
             },
         };
         return new SfoGround(engine, layout);
@@ -898,7 +898,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     [Fact]
     public void TaxiwayHoldShort_ArmedMidTaxiWithTheFloorBehindTheAircraft_IsUnmakeable()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;

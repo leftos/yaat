@@ -10,6 +10,7 @@ using Yaat.Client.Services;
 using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels;
 
@@ -320,7 +321,7 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoClearedToLandCtr;
 
     [ObservableProperty]
-    private bool _autoCrossRunway;
+    private int _selectedAutoCrossRunwayModeIndex;
 
     [ObservableProperty]
     private bool _autoPullUpToParallel;
@@ -730,6 +731,10 @@ public partial class SettingsViewModel : ObservableObject
     // maps directly to the enum value. Only shown on macOS (IsMacOs), where the choice has an effect.
     public static IReadOnlyList<string> RendererModeOptions { get; } = ["Automatic (recommended)", "Metal", "OpenGL", "Software"];
 
+    // Order must match the AutoCrossRunwayMode enum (Off, All, InactiveOnly) — SelectedAutoCrossRunwayModeIndex and the session
+    // flyout's SessionAutoCrossRunwayModeIndex map directly to the enum value.
+    public static IReadOnlyList<string> AutoCrossRunwayModeOptions { get; } = ["Off", "All runways", "Inactive runways only"];
+
     // Order must match the VfrCommandsForIfr enum (None, EnterFinalOnly, All) —
     // SelectedVfrCommandsForIfrIndex maps directly to the enum value.
     public static IReadOnlyList<string> VfrCommandsForIfrOptions { get; } =
@@ -820,7 +825,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
-        _autoCrossRunway = _preferences.AutoCrossRunway;
+        _selectedAutoCrossRunwayModeIndex = (int)_preferences.AutoCrossRunwayMode;
         _autoPullUpToParallel = _preferences.AutoPullUpToParallel;
         _autoGoAroundOnOccupiedRunway = _preferences.AutoGoAroundOnOccupiedRunway;
         _autoRejectTakeoffOnOccupiedRunway = _preferences.AutoRejectTakeoffOnOccupiedRunway;
@@ -1075,7 +1080,7 @@ public partial class SettingsViewModel : ObservableObject
             AutoClearedToLandTwr,
             AutoClearedToLandApp,
             AutoClearedToLandCtr,
-            AutoCrossRunway,
+            (AutoCrossRunwayMode)SelectedAutoCrossRunwayModeIndex,
             AutoPullUpToParallel,
             AutoGoAroundOnOccupiedRunway,
             AutoRejectTakeoffOnOccupiedRunway,
@@ -1973,7 +1978,7 @@ public partial class SettingsViewModel : ObservableObject
         AutoClearedToLandTwr = defaults.AutoClearedToLandTwr;
         AutoClearedToLandApp = defaults.AutoClearedToLandApp;
         AutoClearedToLandCtr = defaults.AutoClearedToLandCtr;
-        AutoCrossRunway = defaults.AutoCrossRunway;
+        SelectedAutoCrossRunwayModeIndex = (int)defaults.AutoCrossRunwayMode;
         AutoPullUpToParallel = defaults.AutoPullUpToParallel;
         AutoGoAroundOnOccupiedRunway = defaults.AutoGoAroundOnOccupiedRunway;
         AutoRejectTakeoffOnOccupiedRunway = defaults.AutoRejectTakeoffOnOccupiedRunway;

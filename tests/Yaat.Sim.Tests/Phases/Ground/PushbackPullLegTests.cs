@@ -62,7 +62,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     [Fact]
     public void PullLeg_TowsNoseFirst_PushbackHeadingStaysNullAndTheLegCloses()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -103,7 +103,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     [Fact]
     public void PushLeg_StillReversesTailFirst_PushbackHeadingSetOnEveryTick()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -141,7 +141,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     [Fact]
     public void PullLeg_TargetOffToOneSide_SteersTheNoseOntoTheBearingItTravels()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -183,7 +183,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     [Fact]
     public void PullLineCapture_NeverTurnsTheNoseTighterThanTheRadius()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -312,7 +312,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
     [Fact]
     public void MidMoveSnapshot_RoundTripsEveryField_AndTheRestoredMoveFinishes()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -354,7 +354,7 @@ public class PushbackPullLegTests(ITestOutputHelper output)
         Assert.Equal(phase.HasRampPriority(ac), restored.HasRampPriority(ac));
 
         // A fresh engine, so the original aircraft still on the same path cannot hold the restored one.
-        SfoGround restoredGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        SfoGround restoredGround = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value;
         AircraftState twin = SfoGroundHarness.SpawnAt(restoredGround, "PSH3", AircraftType, (stand, new TrueHeading(noseDeg)), restored);
         twin.Position = ac.Position;
         twin.TrueHeading = ac.TrueHeading;

@@ -370,7 +370,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
         return aircraft;
     }

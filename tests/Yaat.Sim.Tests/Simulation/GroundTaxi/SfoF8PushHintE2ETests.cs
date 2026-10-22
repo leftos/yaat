@@ -71,7 +71,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushToSevenA_LinesUpAlongTheLane()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -122,7 +122,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [InlineData("F5", "B738", "7B")]
     public void PushToEachLaneSpot_RestsOnItWithoutOverswinging(string gate, string aircraftType, string spotName)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -176,7 +176,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [Fact]
     public void PushmSevenASevenB_PassesSevenAAndComesToRestOnSevenB()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -553,7 +553,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [InlineData("F5", "B738", "7B")]
     public void MeasureStandEncroachment_ReportsEveryStandTheFlownOutlineEnters(string gate, string aircraftType, string spotName)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -604,12 +604,12 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [InlineData("F5", "B738", "7B", "F6")]
     public void PushPastAnOccupiedStand_RefusesOrKeepsTheOutlinesApart(string gate, string pusherType, string spotName, string standName)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } empty)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } empty)
         {
             return;
         }
 
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } occupied)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } occupied)
         {
             return;
         }
@@ -705,7 +705,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [InlineData("B738", "7B", false)]
     public void PushWithFSixOccupied_IsFlownClearOfTheParkedAircraftOrRefused(string pusherType, string spotName, bool mustBeAccepted)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -869,7 +869,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [InlineData("B738")]
     public void PushWithEOneOccupied_IsAcceptedAndKeepsToTheLanesTurn(string pusherType)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -916,7 +916,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     [InlineData("7B")]
     public void PushWithStandsEmpty_StaysOutOfFSixAndEOneOrSaysWhy(string spotName)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

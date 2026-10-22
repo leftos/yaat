@@ -27,7 +27,7 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void PushM4FromGateB2_EndsOnM4_ThenTaxiM4M2Accepted()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

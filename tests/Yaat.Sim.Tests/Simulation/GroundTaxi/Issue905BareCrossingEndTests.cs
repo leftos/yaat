@@ -97,7 +97,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(start.Layout, "COS", start.Node, start.HeadingDeg);
         var taxi = new TaxiCommand(Path: ["A2", "C2"], HoldShorts: [], Expedite: false);
 
-        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, start.Layout, autoCrossRunway: true);
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, start.Layout, autoCrossRunwayMode: AutoCrossRunwayMode.All);
         output.WriteLine($"result: {result.Success} — {result.Message}");
 
         Assert.True(result.Success, result.Message);
@@ -237,7 +237,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "COS",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult taxi = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "TAXI A2 C2");

@@ -79,7 +79,7 @@ public sealed class HoldShortPointDto
     public HoldShortReason? Reason { get; init; }
 
     /// <summary>
-    /// Tracks whether <see cref="IsSatisfied"/> was driven by the AutoCrossRunway
+    /// Tracks whether <see cref="IsSatisfied"/> was driven by the auto-cross (AutoCrossRunwayMode)
     /// scenario toggle. Defaults to false on legacy snapshots (schema &lt; 7), which
     /// is correct: pre-feature recordings had no notion of AutoCross-attributed
     /// clearance, so a subsequent toggle-OFF on replay must not revert their

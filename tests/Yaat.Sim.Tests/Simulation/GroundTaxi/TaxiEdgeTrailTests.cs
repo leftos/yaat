@@ -34,7 +34,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void RecordsEdgesAcrossTaxiToCrossingToExit()
     {
-        if (Start(autoCross: false, route: "TAXI B W 30", edgesBack: 1) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.Off, route: "TAXI B W 30", edgesBack: 1) is not { } run)
         {
             return;
         }
@@ -66,7 +66,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void SurvivesTaxiReplacement()
     {
-        if (Start(autoCross: true, route: "TAXI B W 30", edgesBack: 1) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.All, route: "TAXI B W 30", edgesBack: 1) is not { } run)
         {
             return;
         }
@@ -96,7 +96,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void CapsAtAbout3000Ft()
     {
-        if (Start(autoCross: true, route: "TAXI B W 30", edgesBack: 1) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.All, route: "TAXI B W 30", edgesBack: 1) is not { } run)
         {
             return;
         }
@@ -129,7 +129,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void ClearedWhenAirborne()
     {
-        if (Start(autoCross: false, route: "TAXI B 28R", edgesBack: 3) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.Off, route: "TAXI B 28R", edgesBack: 3) is not { } run)
         {
             return;
         }
@@ -155,7 +155,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void SnapshotRoundTrip_TrailMatchesUninterrupted()
     {
-        if (Start(autoCross: true, route: "TAXI B W 30", edgesBack: 1) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.All, route: "TAXI B W 30", edgesBack: 1) is not { } run)
         {
             return;
         }
@@ -164,7 +164,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
             TickUntil(run.Engine, HoldBudgetSeconds, () => run.Aircraft.Ground.TaxiEdgeTrail.Edges.Count >= 2),
             "trail never reached two edges"
         );
-        SimulationEngine restoredEngine = NewEngine(run.GroundData, autoCross: true);
+        SimulationEngine restoredEngine = NewEngine(run.GroundData, autoCrossMode: AutoCrossRunwayMode.All);
         restoredEngine.RestoreFromSnapshot(RoundTrip(run.Engine.CaptureSnapshot()));
         AircraftState restored = Assert.IsType<AircraftState>(restoredEngine.FindAircraft(Callsign));
         Assert.Equal(run.Aircraft.Ground.TaxiEdgeTrail.Edges, restored.Ground.TaxiEdgeTrail.Edges);
@@ -189,7 +189,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void WarpG_ClearsTheTrail()
     {
-        if (Start(autoCross: true, route: "TAXI B W 30", edgesBack: 1) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.All, route: "TAXI B W 30", edgesBack: 1) is not { } run)
         {
             return;
         }
@@ -268,7 +268,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     [Fact]
     public void StoppedAircraft_TrailUnchanged()
     {
-        if (Start(autoCross: false, route: "TAXI B W 30", edgesBack: 3) is not { } run)
+        if (Start(autoCrossMode: AutoCrossRunwayMode.Off, route: "TAXI B W 30", edgesBack: 3) is not { } run)
         {
             return;
         }
@@ -440,7 +440,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
     /// An engine with the C560 spawned <paramref name="edgesBack"/> B edges short of the near 28R bar, facing it, and cleared
     /// <paramref name="route"/>; null when navdata or the KOAK layout is unavailable.
     /// </summary>
-    private TrailRun? Start(bool autoCross, string route, int edgesBack)
+    private TrailRun? Start(AutoCrossRunwayMode autoCrossMode, string route, int edgesBack)
     {
         TestVnasData.EnsureInitialized();
         var groundData = new TestAirportGroundData();
@@ -450,7 +450,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
             return null;
         }
 
-        SimulationEngine engine = NewEngine(groundData, autoCross);
+        SimulationEngine engine = NewEngine(groundData, autoCrossMode);
         List<GroundNode> bar28R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
         List<GroundNode> bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B");
         GroundNode nearBar28R = bar28R.OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L[0].Position)).First();
@@ -533,7 +533,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
             )
         );
 
-    private SimulationEngine NewEngine(TestAirportGroundData groundData, bool autoCross)
+    private SimulationEngine NewEngine(TestAirportGroundData groundData, AutoCrossRunwayMode autoCrossMode)
     {
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData, PushPlanStore.CreateShipped())
@@ -545,7 +545,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = AirportId,
-                AutoCrossRunway = autoCross,
+                AutoCrossRunwayMode = autoCrossMode,
             },
         };
     }

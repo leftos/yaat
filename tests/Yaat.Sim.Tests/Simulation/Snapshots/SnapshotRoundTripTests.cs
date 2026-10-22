@@ -214,6 +214,27 @@ public class SnapshotRoundTripTests
     }
 
     [Theory]
+    [InlineData(", \"AutoCrossRunway\": true", AutoCrossRunwayMode.All)]
+    [InlineData(", \"AutoCrossRunway\": false", AutoCrossRunwayMode.Off)]
+    [InlineData("", AutoCrossRunwayMode.Off)]
+    public void Scenario_AutoCrossRunway_MigratesToAnAutoCrossRunwayModeFromBeforeV35(string legacyField, AutoCrossRunwayMode expected)
+    {
+        string json =
+            "{ \"SchemaVersion\": 34, \"ElapsedSeconds\": 10, \"Rng\": { \"S0\": 1, \"S1\": 2, \"S2\": 3, \"S3\": 4 }, \"Aircraft\": [],"
+            + " \"Scenario\": { \"ScenarioId\": \"t\", \"ScenarioName\": \"T\", \"RngSeed\": 1, \"ElapsedSeconds\": 10, \"SimRate\": 1"
+            + legacyField
+            + " } }";
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(expected, snapshot.Scenario.AutoCrossRunwayMode);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+        // The legacy field is read once and dropped, so a rewritten snapshot no longer carries it.
+        Assert.DoesNotContain("\"AutoCrossRunway\"", JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default), StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData(InitialCallupPlan.RunwaySayOnly, PilotPendingRequestKind.Clearance)]
     [InlineData(InitialCallupPlan.RunwayNoPreset, PilotPendingRequestKind.Release)]
     public void RunwayPlansAndTheNewRequestKinds_RoundTrip(InitialCallupPlan plan, PilotPendingRequestKind kind)
@@ -625,7 +646,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 42,
                 ElapsedSeconds = 60,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 SoloTrainingMode = true,
                 SoloParkingInitialCallupRatePercent = 45,
@@ -684,7 +705,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 0,
                 ElapsedSeconds = 0,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,
@@ -713,7 +734,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 0,
                 ElapsedSeconds = 0,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,
@@ -741,7 +762,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 42,
                 ElapsedSeconds = 30,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,
@@ -838,7 +859,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 42,
                 ElapsedSeconds = 60,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,
@@ -985,7 +1006,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 42,
                 ElapsedSeconds = 120,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,
@@ -1027,7 +1048,7 @@ public class SnapshotRoundTripTests
                 RngSeed = 42,
                 ElapsedSeconds = 60,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,
@@ -1156,7 +1177,7 @@ public class SnapshotRoundTripTests
                             RngSeed = 42,
                             ElapsedSeconds = 0,
                             AutoClearedToLand = false,
-                            AutoCrossRunway = false,
+                            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                             ValidateDctFixes = true,
                             IsPaused = false,
                             SimRate = 1,

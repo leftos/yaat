@@ -162,7 +162,7 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output) : Issue315
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "SFO",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult taxi = engine.SendCommand(SyntheticCallsign, "TAXI C 28R");

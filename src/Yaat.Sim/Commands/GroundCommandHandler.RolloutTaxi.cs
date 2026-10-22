@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -453,7 +454,12 @@ public static partial class GroundCommandHandler
         TaxiRoute route = stored.Route;
         string landedRunway = aircraft.Phases?.ClearedRunwayId ?? aircraft.Phases?.AssignedRunway?.Designator ?? "";
         string? crossLabel = ClearLandingRunwayBar(inputs.Layout, route, landedRunway);
-        ApplyAutoCrossExceptLandingRunway(route, inputs.Options.AutoCrossRunway, landedRunway);
+        ApplyAutoCrossExceptLandingRunway(
+            route,
+            inputs.Options.AutoCrossRunwayMode,
+            inputs.Options.ActiveRunways.For(inputs.Layout.AirportId),
+            landedRunway
+        );
         ApplyCrossKeywords(route, stored.Taxi);
         PrefixClearOfRunwayAdvisory(route);
 
@@ -534,7 +540,12 @@ public static partial class GroundCommandHandler
     /// (<see cref="HoldShortPoint.RecrossesLandingRunway"/>), so no auto-cross clears it, now or after a mid-session toggle; then
     /// auto-cross applies as on any route (<see cref="TaxiRouteAutoCross.Apply"/>).
     /// </summary>
-    private static void ApplyAutoCrossExceptLandingRunway(TaxiRoute route, bool autoCross, string landedRunway)
+    private static void ApplyAutoCrossExceptLandingRunway(
+        TaxiRoute route,
+        AutoCrossRunwayMode mode,
+        IReadOnlyList<ActiveRunway> activeAtAirport,
+        string landedRunway
+    )
     {
         if (landedRunway.Length > 0)
         {
@@ -553,7 +564,7 @@ public static partial class GroundCommandHandler
             }
         }
 
-        TaxiRouteAutoCross.Apply(route, autoCross);
+        TaxiRouteAutoCross.Apply(route, mode, activeAtAirport);
     }
 
     /// <summary>

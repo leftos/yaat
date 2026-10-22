@@ -47,12 +47,12 @@ internal static class SfoGroundHarness
     /// Builds an engine over the committed SFO layout with a minimal scenario attached.
     /// </summary>
     /// <param name="output">Test output the sim log is routed to.</param>
-    /// <param name="autoCross">Value for <c>SimScenarioState.AutoCrossRunway</c>.</param>
+    /// <param name="autoCrossMode">Value for <c>SimScenarioState.AutoCrossRunwayMode</c>.</param>
     /// <returns>
     /// The engine and the SFO layout, or null when navdata or the SFO layout is unavailable —
     /// the repo's silent-skip convention for missing test data.
     /// </returns>
-    internal static SfoGround? Build(ITestOutputHelper output, bool autoCross)
+    internal static SfoGround? Build(ITestOutputHelper output, AutoCrossRunwayMode autoCrossMode)
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -77,7 +77,7 @@ internal static class SfoGroundHarness
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "SFO",
-                AutoCrossRunway = autoCross,
+                AutoCrossRunwayMode = autoCrossMode,
             },
         };
         return new SfoGround(engine, layout);

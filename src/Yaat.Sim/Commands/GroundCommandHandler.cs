@@ -84,13 +84,13 @@ public static partial class GroundCommandHandler
         AircraftState aircraft,
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
-        bool autoCrossRunway = false
+        AutoCrossRunwayMode autoCrossRunwayMode = AutoCrossRunwayMode.Off
     ) =>
         TryTaxi(
             aircraft,
             taxi,
             groundLayout,
-            new TaxiDispatch(autoCrossRunway, IsScenarioScripted: false, ResultReachesController: true, ListAircraft: null)
+            new TaxiDispatch(autoCrossRunwayMode, ActiveRunways.Empty, IsScenarioScripted: false, ResultReachesController: true, ListAircraft: null)
         );
 
     /// <summary>
@@ -101,7 +101,11 @@ public static partial class GroundCommandHandler
         TryTaxiCore(aircraft, taxi, groundLayout, TaxiCoreOptions.For(dispatch, isTaxiAuto: false));
 
     /// <summary>How a <c>TAXI</c> or <c>TAXIAUTO</c> reached the handler.</summary>
-    /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
+    /// <param name="AutoCrossRunwayMode">Which runway crossings the scenario pre-clears.</param>
+    /// <param name="ActiveRunways">
+    /// The room's active runways (<see cref="DispatchContext.ActiveRunways"/>), which <see cref="AutoCrossRunwayMode.InactiveOnly"/>
+    /// leaves to a <c>CROSS</c>.
+    /// </param>
     /// <param name="IsScenarioScripted">
     /// No controller issued it: a scenario preset or an AI controller (<see cref="DispatchContext.IsScenarioScripted"/>).
     /// </param>
@@ -112,14 +116,16 @@ public static partial class GroundCommandHandler
     /// </param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
     internal sealed record TaxiDispatch(
-        bool AutoCrossRunway,
+        AutoCrossRunwayMode AutoCrossRunwayMode,
+        ActiveRunways ActiveRunways,
         bool IsScenarioScripted,
         bool ResultReachesController,
         Func<IReadOnlyList<AircraftState>>? ListAircraft
     );
 
     /// <summary>The dispatch-level switches a TAXI or TAXIAUTO resolves under.</summary>
-    /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
+    /// <param name="AutoCrossRunwayMode">Which runway crossings the scenario pre-clears.</param>
+    /// <param name="ActiveRunways">The room's active runways (<see cref="TaxiDispatch.ActiveRunways"/>).</param>
     /// <param name="IsTaxiAuto">
     /// The command is TAXIAUTO (or TAXIALL), the RPO's unrestricted auto-route: a bare runway destination may be routed from
     /// afar, a bare gate or spot destination is not confined to the ramp, and the readback carries no advisory about
@@ -131,7 +137,8 @@ public static partial class GroundCommandHandler
     /// </param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
     private sealed record TaxiCoreOptions(
-        bool AutoCrossRunway,
+        AutoCrossRunwayMode AutoCrossRunwayMode,
+        ActiveRunways ActiveRunways,
         bool IsTaxiAuto,
         bool IsScenarioScripted,
         bool ResultReachesController,
@@ -142,7 +149,14 @@ public static partial class GroundCommandHandler
         /// The options a TAXI (<paramref name="isTaxiAuto"/> false) or TAXIAUTO dispatched as <paramref name="dispatch"/> resolves under.
         /// </summary>
         public static TaxiCoreOptions For(TaxiDispatch dispatch, bool isTaxiAuto) =>
-            new(dispatch.AutoCrossRunway, isTaxiAuto, dispatch.IsScenarioScripted, dispatch.ResultReachesController, dispatch.ListAircraft);
+            new(
+                dispatch.AutoCrossRunwayMode,
+                dispatch.ActiveRunways,
+                isTaxiAuto,
+                dispatch.IsScenarioScripted,
+                dispatch.ResultReachesController,
+                dispatch.ListAircraft
+            );
 
         /// <summary>
         /// A controller issued the clearance and hears the readback, so a type with no room to turn about may refuse it as
@@ -377,7 +391,7 @@ public static partial class GroundCommandHandler
             }
         }
 
-        TaxiRouteAutoCross.Apply(route, options.AutoCrossRunway);
+        TaxiRouteAutoCross.Apply(route, options.AutoCrossRunwayMode, options.ActiveRunways.For(groundLayout.AirportId));
         ApplyCrossKeywords(route, taxi);
         PrefixClearOfRunwayAdvisory(route);
 
@@ -1741,7 +1755,13 @@ public static partial class GroundCommandHandler
             aircraft,
             autoTaxi,
             groundLayout,
-            new TaxiDispatch(AutoCrossRunway: false, isScenarioScripted, ResultReachesController: !isScenarioScripted, ListAircraft: null)
+            new TaxiDispatch(
+                AutoCrossRunwayMode.Off,
+                ActiveRunways.Empty,
+                isScenarioScripted,
+                ResultReachesController: !isScenarioScripted,
+                ListAircraft: null
+            )
         );
 
     /// <summary>

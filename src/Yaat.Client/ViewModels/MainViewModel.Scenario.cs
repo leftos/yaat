@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Discord;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels;
@@ -744,7 +745,7 @@ public partial class MainViewModel
         _ = SendSoloTrainingMode();
         _ = SendRpoShowPilotSpeech();
         _ = SendAutoClearedToLand();
-        _ = SendAutoCrossRunway();
+        _ = SendAutoCrossRunwayMode();
         _ = SendAutoPullUpToParallel();
         _ = SendAutoGoAroundOnOccupiedRunway();
         _ = SendAutoRejectTakeoffOnOccupiedRunway();
@@ -1091,7 +1092,26 @@ public partial class MainViewModel
             entry.Vm.Clear();
         }
         ApplySessionSettings(
-            new SessionSettingsDto(null, null, null, -1, false, false, true, true, true, true, true, false, 100, 100, 0, false, false, false)
+            new SessionSettingsDto(
+                null,
+                null,
+                null,
+                -1,
+                false,
+                AutoCrossRunwayMode.Off,
+                true,
+                true,
+                true,
+                true,
+                true,
+                false,
+                100,
+                100,
+                0,
+                false,
+                false,
+                false
+            )
         );
 
         // Active position no longer applies without a scenario; hide the indicator.

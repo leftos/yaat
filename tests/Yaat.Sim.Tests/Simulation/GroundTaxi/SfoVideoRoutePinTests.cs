@@ -139,7 +139,7 @@ public class SfoVideoRoutePinTests
 
     private (TaxiRoute Route, AirportGroundLayout Layout)? Resolve(string startKind, string startName, string command)
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return null;

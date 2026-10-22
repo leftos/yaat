@@ -194,7 +194,7 @@ internal static class TaxiCoverageRunner
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = pair.AirportId,
-            AutoCrossRunway = true,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.All,
         };
 
         using IDisposable? recorder = MaybeAttachRecorder(engine, pair, aircraft.Callsign, output);

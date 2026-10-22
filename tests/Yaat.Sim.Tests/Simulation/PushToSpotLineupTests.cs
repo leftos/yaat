@@ -430,7 +430,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "SFO",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
     private static AircraftState MakeGroundAircraft(

@@ -3112,7 +3112,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// </summary>
     private (SfoGround Ground, AircraftState Aircraft)? SpawnHeldAfterPushOnM2()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }
@@ -3176,7 +3176,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             );
             Assert.True(movingAt > 0, "the push never got moving");
             StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
-            ground = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+            ground = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value;
             ground.Engine.RestoreFromSnapshot(snapshot);
             aircraft = Assert.IsType<AircraftState>(ground.Engine.FindAircraft(aircraft.Callsign));
             Assert.IsType<PushbackPhase>(aircraft.Phases?.CurrentPhase);
@@ -3215,7 +3215,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// </summary>
     private (SfoGround Ground, AircraftState Aircraft, GroundNode Behind)? SpawnOnM2(string type)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }
@@ -3285,7 +3285,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = airportId,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return new SfoGround(engine, layout);
@@ -3411,7 +3411,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnB_MidEdge_Sfo_ApproachLegStartsAtTheAircraft()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -3439,7 +3439,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiOnB_MidEdge_Sfo_KeepsTaxiSpeed()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

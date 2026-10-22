@@ -77,7 +77,7 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = AirportId,
-            AutoCrossRunway = true,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.All,
         };
 
         CommandResult result = engine.SendCommand(Callsign, Command);

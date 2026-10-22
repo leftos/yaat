@@ -139,7 +139,7 @@ public class SfoSixAlleyArrivalAheadOfPushTests
     /// <returns>The built alley, or null to skip.</returns>
     private Alley? Setup(string pusherGate, string spotName, string gateName)
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return null;

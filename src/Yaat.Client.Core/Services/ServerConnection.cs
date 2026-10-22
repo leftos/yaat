@@ -736,10 +736,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetAutoClearedToLand", enabled);
     }
 
-    public async Task SetAutoCrossRunwayAsync(bool enabled)
+    public async Task SetAutoCrossRunwayModeAsync(Yaat.Sim.Data.Airport.AutoCrossRunwayMode mode)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync("SetAutoCrossRunway", enabled);
+        await _connection!.InvokeAsync("SetAutoCrossRunwayMode", mode);
     }
 
     public async Task SetAutoPullUpToParallelAsync(bool enabled)
@@ -1433,7 +1433,7 @@ public record LoadScenarioResultDto(
     double? DepartureAutoDeleteDistanceNm = null,
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
-    bool AutoCrossRunway = false,
+    Yaat.Sim.Data.Airport.AutoCrossRunwayMode AutoCrossRunwayMode = Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off,
     bool AutoPullUpToParallel = false,
     bool AutoGoAroundOnOccupiedRunway = false,
     bool AutoRejectTakeoffOnOccupiedRunway = false,
@@ -1599,7 +1599,7 @@ public record RoomStateDto(
     double? DepartureAutoDeleteDistanceNm = null,
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
-    bool AutoCrossRunway = false,
+    Yaat.Sim.Data.Airport.AutoCrossRunwayMode AutoCrossRunwayMode = Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off,
     bool AutoPullUpToParallel = false,
     bool AutoGoAroundOnOccupiedRunway = false,
     bool AutoRejectTakeoffOnOccupiedRunway = false,
@@ -1739,7 +1739,7 @@ public record ScenarioLoadedDto(
     double? DepartureAutoDeleteDistanceNm = null,
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
-    bool AutoCrossRunway = false,
+    Yaat.Sim.Data.Airport.AutoCrossRunwayMode AutoCrossRunwayMode = Yaat.Sim.Data.Airport.AutoCrossRunwayMode.Off,
     bool AutoPullUpToParallel = false,
     bool AutoGoAroundOnOccupiedRunway = false,
     bool AutoRejectTakeoffOnOccupiedRunway = false,
@@ -1841,7 +1841,7 @@ public record SessionSettingsDto(
     double? DepartureAutoDeleteDistanceNm,
     int AutoAcceptDelaySeconds,
     bool AutoClearedToLand,
-    bool AutoCrossRunway,
+    Yaat.Sim.Data.Airport.AutoCrossRunwayMode AutoCrossRunwayMode,
     bool AutoPullUpToParallel,
     bool AutoGoAroundOnOccupiedRunway,
     bool AutoRejectTakeoffOnOccupiedRunway,

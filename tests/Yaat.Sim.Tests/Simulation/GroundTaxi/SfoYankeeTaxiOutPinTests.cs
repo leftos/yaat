@@ -55,7 +55,7 @@ public class SfoYankeeTaxiOutPinTests
     [Fact]
     public void E75L_PushYTowardA1_EndsOnY_TaxiesOutWithoutReversal()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return;

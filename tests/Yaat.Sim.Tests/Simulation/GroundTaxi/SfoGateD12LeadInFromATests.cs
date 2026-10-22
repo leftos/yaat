@@ -53,7 +53,7 @@ public class SfoGateD12LeadInFromATests(ITestOutputHelper output)
     /// <summary>SKW1222 (E75L) held short of K on B is cleared <c>TAXI {route} @{stand}</c>; null when SFO data is missing.</summary>
     private (TaxiRoute Route, AirportGroundLayout Layout)? Taxi(string taxiways, string stand)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

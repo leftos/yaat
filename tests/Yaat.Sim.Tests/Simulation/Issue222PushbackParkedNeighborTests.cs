@@ -141,7 +141,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         AircraftState pusher = SpawnParked(engine, layout, Pusher, "B737", "25");

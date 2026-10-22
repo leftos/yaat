@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 
@@ -550,6 +551,12 @@ internal static class ActionArms
             }
 
             scenario.ActiveRunways = scenario.ActiveRunways.With(airport, parsed.Runways);
+            if (scenario.AutoCrossRunwayMode == AutoCrossRunwayMode.InactiveOnly)
+            {
+                // A runway that became active re-arms its own auto-cleared crossings; one that went inactive is pre-cleared.
+                ctx.Engine.World.ApplyAutoCrossToActiveTaxiRoutes(scenario.AutoCrossRunwayMode, scenario.ActiveRunways);
+            }
+
             ctx.Host.OnActiveRunwaysChanged();
         }
 

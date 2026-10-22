@@ -383,7 +383,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
         return string.Create(CultureInfo.InvariantCulture, $"~{point.Lat:F6}/{point.Lon:F6}");
     }
 
-    private static SfoGround? BuildSfo(ITestOutputHelper output) => SfoGroundHarness.Build(output, autoCross: false);
+    private static SfoGround? BuildSfo(ITestOutputHelper output) => SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off);
 
     /// <summary>An engine over the committed KOAK layout, as <see cref="SfoGroundHarness.Build"/> builds one over SFO's.</summary>
     private static SfoGround? BuildOak(ITestOutputHelper output)
@@ -405,7 +405,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return new SfoGround(engine, layout);
@@ -430,7 +430,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
     /// <summary>Sends each command in turn, a second apart, each accepted; the last one's readback and spoken readback.</summary>
     private (string Readback, PilotSpeechText? Spoken)? SendInTurn(string gate, IReadOnlyList<string> commands)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

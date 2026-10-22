@@ -554,7 +554,7 @@ public sealed class Issue1285ShallowMergeHoldShortTests
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = true,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.All,
             },
         };
         GroundNode merge = FindShallowMerge(layout);

@@ -50,7 +50,7 @@ public class PushTargetLiveCheckHoldTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
         AircraftState subject = Issue222PushbackParkedNeighborTests.SpawnParked(engine, layout, Subject, Narrowbody, "26");
         _ = Issue222PushbackParkedNeighborTests.SpawnParked(engine, layout, Gate25Neighbour, Narrowbody, "25");

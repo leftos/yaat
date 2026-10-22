@@ -28,7 +28,7 @@ The Keys rows come from the view model's keybind list, so a new key is searchabl
 
 ## Scenario defaults and the session flyout
 
-Two surfaces stay, reconciled rather than merged. Settings › Scenario defaults holds the user's defaults, applied when a scenario loads; the gear flyout on the command input (the session flyout) holds the room's live values for every RPO in it. Both show a shared setting in the same form, with the same control and range: auto-accept is a checkbox plus 0–60 s on both, and the parking call-up rate is the flyout's interval slider (Paused, or once per 10–120 s) on both, stored as a rate percent.
+Two surfaces stay, reconciled rather than merged. Settings › Scenario defaults holds the user's defaults, applied when a scenario loads; the gear flyout on the command input (the session flyout) holds the room's live values for every RPO in it. Both show a shared setting in the same form, with the same control and range: auto-accept is a checkbox plus 0–60 s on both, and the parking call-up rate is the flyout's interval slider (Paused, or once per 10–120 s) on both, stored as a rate percent, and auto-cross is a three-way combo (Off, All runways, Inactive runways only) on both, stored as the enum name so an old saved on/off preference loads as All runways or Off.
 
 **Settings defaults for the solo pacing.** The solo parking call-up rate and the solo arrival generator rate have defaults under Scenario defaults › Solo training. The scenario setup dialog seeds its pacing sliders from those defaults and never writes back to them.
 

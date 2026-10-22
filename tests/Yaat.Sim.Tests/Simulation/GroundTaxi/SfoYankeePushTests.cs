@@ -47,7 +47,7 @@ public class SfoYankeePushTests
     [Fact]
     public void E75L_PushY_Plain_EndsOnY_NoseUnchanged()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return;
@@ -78,7 +78,7 @@ public class SfoYankeePushTests
     [Fact]
     public void B752_PushA_Control()
     {
-        SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
+        SfoGround? built = SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off);
         if (built is null)
         {
             return;

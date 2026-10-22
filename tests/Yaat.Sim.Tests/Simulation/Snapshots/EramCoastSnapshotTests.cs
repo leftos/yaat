@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -53,7 +54,7 @@ public class EramCoastSnapshotTests
                 RngSeed = 0,
                 ElapsedSeconds = 30,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,

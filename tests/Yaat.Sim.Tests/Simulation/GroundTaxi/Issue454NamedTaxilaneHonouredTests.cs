@@ -57,7 +57,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
         bool directCut
     )
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -192,7 +192,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
     [Fact]
     public void DirectStandCut_RollsInOnStandHeading()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -246,7 +246,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
     [Fact]
     public void PilotTaxiReadback_OmitsAddedLanesAndConnectors()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

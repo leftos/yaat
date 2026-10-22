@@ -123,7 +123,7 @@ public class GroundViewModelApproachLegOverlayTests
             FindAircraft = null,
             ListAircraft = () => [aircraft],
             ValidateDctFixes = false,
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             SoloTrainingMode = false,
             SoloRpoCommandsAllowed = false,
             RpoShowPilotSpeech = false,

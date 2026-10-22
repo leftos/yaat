@@ -380,7 +380,7 @@ public class AirportE2ETests
 
         // Taxi with auto-cross-runway flag
         var taxi = new TaxiCommand(["D", "K", "F"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout, autoCrossRunway: true);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout, autoCrossRunwayMode: AutoCrossRunwayMode.All);
 
         Assert.True(result.Success, $"Taxi D K F (auto-cross) should succeed: {result.Message}");
 

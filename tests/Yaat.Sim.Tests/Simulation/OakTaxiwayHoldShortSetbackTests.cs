@@ -230,7 +230,7 @@ public sealed class OakTaxiwayHoldShortSetbackTests
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "SFO",
-                AutoCrossRunway = true,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.All,
             },
         };
         AircraftState ac = SfoGroundHarness.SpawnAt(
@@ -376,7 +376,7 @@ public sealed class OakTaxiwayHoldShortSetbackTests
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = "OAK",
-                AutoCrossRunway = true,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.All,
             },
         };
 

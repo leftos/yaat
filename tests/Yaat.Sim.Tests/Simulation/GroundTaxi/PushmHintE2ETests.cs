@@ -48,7 +48,7 @@ public class PushmHintE2ETests(ITestOutputHelper output)
     [Fact]
     public void Pushm_HintNoCandidatePasses_FallsBackToPassThroughTow()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -88,7 +88,7 @@ public class PushmHintE2ETests(ITestOutputHelper output)
     [Fact]
     public void Pushm_NodeHintOnTheWay_PassedWithoutAStop()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -219,7 +220,7 @@ public class DynamicMetarReissuanceTests
                 RngSeed = 42,
                 ElapsedSeconds = 0,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = false,
                 IsPaused = false,
                 SimRate = 1.0,

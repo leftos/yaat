@@ -177,7 +177,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
     [Fact]
     public void PhaseRestore_ThenASecondHoldShort_LeavesTheMovedStopWhereItWas()
     {
-        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
         {
             return;

@@ -2773,7 +2773,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void Lead_TurnedAboutMidEdgeFromFarEnd_IsLimited()
     {
-        if (FollowCornerGeometry.NewEngine(_output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(_output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
         {
             return;
         }
@@ -3323,7 +3323,7 @@ public class GroundConflictDetectorTests
     [InlineData(true, 12.0)]
     public void Engine_LeadThroughASharpTurn_NeverClosesOnItsFollowerBehind(bool filleted, double startFt)
     {
-        if (FollowCornerGeometry.NewEngine(_output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(_output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
         {
             return;
         }

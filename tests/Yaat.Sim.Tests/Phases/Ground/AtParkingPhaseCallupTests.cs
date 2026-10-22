@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Brains;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -359,7 +360,7 @@ public class AtParkingPhaseCallupTests
     [Fact]
     public void StandCallTowedByTheControllerWithPushmBeforeItsCall_CallsAfterThePushInstead()
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

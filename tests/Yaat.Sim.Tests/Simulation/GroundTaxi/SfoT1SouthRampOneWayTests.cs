@@ -391,7 +391,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
     [Fact]
     public void FromStandB2_TaxiA_A388_LeavesOnM1()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -437,7 +437,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
     [Fact]
     public void MidPushOntoM5_TaxiA_A388_TurnsAboutOnM5()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -575,7 +575,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
 
     private (SfoGround Ground, AircraftState Aircraft, AirportGroundLayout Layout)? PushOffB2(string type)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

@@ -4,6 +4,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -135,7 +136,7 @@ public class MainViewModelRecordingBootstrapParityTests
             DepartureAutoDeleteDistanceNm: null,
             AutoAcceptDelaySeconds: 5,
             AutoClearedToLand: autoClearedToLand,
-            AutoCrossRunway: false,
+            AutoCrossRunwayMode: AutoCrossRunwayMode.Off,
             AutoPullUpToParallel: false,
             AutoGoAroundOnOccupiedRunway: false,
             AutoRejectTakeoffOnOccupiedRunway: false,
@@ -174,7 +175,7 @@ public class MainViewModelRecordingBootstrapParityTests
             autoClearedToLandTwr: true,
             autoClearedToLandApp: true,
             autoClearedToLandCtr: true,
-            autoCrossRunway: prefs.AutoCrossRunway,
+            autoCrossRunwayMode: prefs.AutoCrossRunwayMode,
             autoPullUpToParallel: prefs.AutoPullUpToParallel,
             autoGoAroundOnOccupiedRunway: prefs.AutoGoAroundOnOccupiedRunway,
             autoRejectTakeoffOnOccupiedRunway: prefs.AutoRejectTakeoffOnOccupiedRunway,

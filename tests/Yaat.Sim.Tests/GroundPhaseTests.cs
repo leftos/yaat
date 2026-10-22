@@ -601,7 +601,7 @@ public class GroundPhaseTests
     [Fact]
     public void FollowingPhase_ApproachingHoldShort_AutoHolds()
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             _output.WriteLine("SKIP: SFO layout or navdata unavailable");
             return;
@@ -702,7 +702,7 @@ public class GroundPhaseTests
     [Fact]
     public void FollowingPhase_BehindStoppedLead_ClosesUpToStopDistance()
     {
-        if (FollowCornerGeometry.NewEngine(_output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }

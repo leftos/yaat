@@ -194,13 +194,19 @@
             </StackPanel>
           </StackPanel>
           <StackPanel Spacing="4">
-            <CheckBox Content="Aircraft cross runways automatically" IsChecked="{Binding AutoCrossRunway}" />
+            <TextBlock Text="Aircraft cross runways automatically" />
+            <ComboBox
+              ItemsSource="{Binding AutoCrossRunwayModeOptions}"
+              SelectedIndex="{Binding SelectedAutoCrossRunwayModeIndex}"
+              Width="240"
+              HorizontalAlignment="Left"
+            />
             <TextBlock
-              Text="Taxiing aircraft cross runways without stopping. No CROSS command needed. Hold-short commands and destination runway hold-shorts still apply."
+              Text="Off: every runway crossing needs a CROSS. All runways: taxiing aircraft cross every runway without stopping. Inactive runways only: crossings of runways in the active-runway list still need a CROSS; with none set, every runway counts as inactive. Hold-short commands and destination-runway hold-shorts still apply."
               TextWrapping="Wrap"
               Foreground="{DynamicResource SubtleTextBrush}"
               FontSize="11"
-              Margin="28,0,0,0"
+              Margin="0"
             />
           </StackPanel>
           <StackPanel Spacing="4">

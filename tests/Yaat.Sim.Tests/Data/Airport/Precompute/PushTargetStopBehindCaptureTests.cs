@@ -53,7 +53,7 @@ public class PushTargetStopBehindCaptureTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
         AircraftState aircraft = Issue222PushbackParkedNeighborTests.SpawnParked(engine, layout, subject.Callsign, subject.Type, stand);
         foreach ((string callsign, string type, string neighbourStand) in parked)

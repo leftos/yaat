@@ -57,7 +57,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_ReissuedAF28L_OnB_CrossesRunway01L19ROnce()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -89,7 +89,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_A_AfterHoldingShortOfK_JoinsAViaK()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -119,7 +119,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_BareA_AfterHoldingShortOfK_EndsAtTheKAJunction()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -146,7 +146,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_BT_AfterHoldingShortOfK_TurbopropTurnsAboutOnB()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -171,7 +171,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_BT_AfterHoldingShortOfK_JetRefusesToTurnAboutOnB()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -192,7 +192,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_ReissuedAF28L_AtTheBundleHeading_JetHeldAfterPushTurnsAboutOnB()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -219,7 +219,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_Q_AfterHoldingShortOfK_DoesNotCrossTheRunwayOnK()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -244,7 +244,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_B_FromE_HasNoNotInRouteIssuedNote()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -262,7 +262,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_B_FromE_CrossesNoRunway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -277,7 +277,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_ReissuedAF28L_OnB_HasNoNoteForB()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -314,7 +314,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [InlineData("K", HoldShortReason.DestinationRunway, null)]
     public void HeldShortTaxiway_CountsOnlyAnExplicitTaxiwayTarget(string target, HoldShortReason reason, string? expected)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -338,7 +338,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_K_WhileTaxiingOnB_StillPrependsB()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -395,7 +395,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
     [Fact]
     public void Taxi_T6B_AfterHoldingShortOfAOnF_TurnsOntoT6BAtTheFirstJunction()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

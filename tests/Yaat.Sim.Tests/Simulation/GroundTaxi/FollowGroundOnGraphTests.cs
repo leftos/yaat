@@ -400,7 +400,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_SnapshotAfterAFailedClearing_KeepsItsAttemptAndStaysHeld()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }
@@ -426,7 +426,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.Equal(json, JsonSerializer.Serialize<PhaseDto>(restoredPhase.ToSnapshot(), RecordingJsonOptions.Default));
 
         string engineJson = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(engineJson, RecordingJsonOptions.Default))
         );
@@ -520,7 +520,9 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         );
 
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = Assert.IsType<SimulationEngine>(FollowCornerGeometry.NewEngine(output, autoCross: true)?.Engine);
+        SimulationEngine restored = Assert.IsType<SimulationEngine>(
+            FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All)?.Engine
+        );
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -764,7 +766,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private FollowCornerGeometry.LeadRun? StartTaxiingLeadAlongC()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return null;
         }
@@ -1425,7 +1427,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_WaitingWithNoFollowRoute_IsNotDrivingItsOldAssignedRoute()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
         {
             return;
         }
@@ -1497,7 +1499,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_InsideTheHoldLineWithNoBarAhead_WarnsAndHolds()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }
@@ -1553,7 +1555,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         FollowingPhase follow = Assert.IsType<FollowingPhase>(original.Follower.Phases?.CurrentPhase);
         Assert.NotNull(follow.ClearingRoute);
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -1605,7 +1607,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(snapshotAt, deleteLead: false, leadAheadAfter: null));
         Assert.NotNull(Assert.IsType<FollowingPhase>(original.Follower.Phases?.CurrentPhase).ClearingRoute);
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -1703,7 +1705,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         ClearingRun original = Assert.IsType<ClearingRun>(RunRouteOutInsideHoldLine(rollingAt, deleteLead: false, leadAheadAfter: rollingAt));
         string json = JsonSerializer.Serialize(original.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -1754,7 +1756,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void IsPastClearingBar_BarTheLayoutCannotResolve_IsNotPast()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }
@@ -2020,7 +2022,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = airportId,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return (engine, layout);
@@ -2270,7 +2272,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.Single(live);
         Assert.IsType<FollowingPhase>(run.Follower.Phases?.CurrentPhase);
         string json = JsonSerializer.Serialize(run.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -2304,7 +2306,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         Assert.IsType<TaxiingPhase>(run.Follower.Phases?.CurrentPhase);
         string json = JsonSerializer.Serialize(run.Engine.CaptureSnapshot(), RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: false)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -2620,7 +2622,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private LeadIn? LeadInAcross28R()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return null;
         }
@@ -2718,7 +2720,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private LeadLostRun? RunLeadLostPast28R()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return null;
         }
@@ -2780,7 +2782,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private LeadLostRun? RunLeadLostOnB(bool withRoute, bool leadAirborne, bool soloTraining, string? studentPosition)
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return null;
         }
@@ -2885,7 +2887,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_LeadDeletedClearingOntoABendingTaxiway_StopsOnTheClearingRouteCentreline()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }
@@ -3065,7 +3067,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     [Fact]
     public void Following_InsideTheHoldLineFacingTheRunway_WarnsAndHolds()
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }
@@ -3268,7 +3270,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private ClearingRun? RunRouteOutInsideHoldLine(int seconds, bool deleteLead, int? leadAheadAfter)
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return null;
         }
@@ -3590,7 +3592,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private ChainRun? RunRouteEnd(int seconds, double startFraction)
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
         {
             return null;
         }
@@ -3708,7 +3710,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         ChainRun original = Assert.IsType<ChainRun>(RunRouteEnd(snapshotAt, startFraction));
         StateSnapshotDto snapshot = original.Engine.CaptureSnapshot();
         string json = JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default);
-        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCross: true)!.Value.Engine;
+        SimulationEngine restored = FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All)!.Value.Engine;
         restored.RestoreFromSnapshot(
             Assert.IsType<StateSnapshotDto>(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default))
         );
@@ -3968,7 +3970,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// </summary>
     private void FollowBehindOnLeadsEdge(bool followerFacesLead)
     {
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }

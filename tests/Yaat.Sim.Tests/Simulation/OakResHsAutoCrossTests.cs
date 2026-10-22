@@ -13,7 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// A hold-short the controller issues after the route was resolved must stop the aircraft, even when
-/// the AutoCrossRunway toggle already pre-cleared the crossing.
+/// the auto-cross (AutoCrossRunwayMode) already pre-cleared the crossing.
 ///
 /// Reported at OAK: a C700 at JSX1 cleared <c>RWY 30 TAXI C B W HS C</c> holds short of taxiway C.
 /// The controller then issues <c>RES HS 28R</c> — and the aircraft taxis straight across 28R *and*
@@ -113,7 +113,7 @@ public class OakResHsAutoCrossTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = true,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.All,
         };
 
         CommandResult taxiResult = engine.SendCommand("JSX28R", "RWY 30 TAXI C B W HS C");

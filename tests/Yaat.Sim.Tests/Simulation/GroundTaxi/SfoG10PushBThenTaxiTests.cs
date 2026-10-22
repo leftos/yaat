@@ -206,7 +206,7 @@ public sealed partial class SfoG10PushBThenTaxiTests(ITestOutputHelper output)
 
     private (SfoGround Ground, AircraftState Aircraft)? Setup()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

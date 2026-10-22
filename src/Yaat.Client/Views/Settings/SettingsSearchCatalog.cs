@@ -128,7 +128,7 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "AutoClearedToLandTwr", "TWR", AutoClearToLand, None),
             SettingWithin(s, "AutoClearedToLandApp", "APP", AutoClearToLand, None),
             SettingWithin(s, "AutoClearedToLandCtr", "CTR", AutoClearToLand, None),
-            Setting(s, "AutoCrossRunway", "Aircraft cross runways automatically", None),
+            Setting(s, "SelectedAutoCrossRunwayModeIndex", "Aircraft cross runways automatically", None),
             Setting(s, "AutoPullUpToParallel", "Auto pull-up to hold short of parallel runway after landing", None),
             Setting(s, "AutoGoAroundOnOccupiedRunway", "Auto go-around when the runway is occupied on short final", None),
             Setting(s, "AutoRejectTakeoffOnOccupiedRunway", "Auto rejected takeoff when the runway is blocked ahead", None),

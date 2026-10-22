@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// the far (exit) side instead of holding short on the entry side.
 ///
 /// Recording: S2-OAK-4 | VFR Transitions/Radar Concepts. N7LJ (LJ45) at parking SIG6 has
-/// preset <c>TAXI D C B W W1 30 HS 28R</c> with spawn delay 1060s. AutoCrossRunway is
+/// preset <c>TAXI D C B W W1 30 HS 28R</c> with spawn delay 1060s. AutoCrossRunwayMode is
 /// recorded ON at t=0. After the preset fires the route should contain exactly one 28R
 /// hold-short, on the entry side, with reason ExplicitHoldShort and IsCleared=false.
 ///
@@ -58,7 +58,7 @@ public class OakExplicitHsAutoCrossTests(ITestOutputHelper output)
         }
 
         engine.Replay(recording, SpawnDelaySeconds + 2);
-        Assert.True(engine.Scenario!.AutoCrossRunway, "AutoCrossRunway must be ON for this scenario");
+        Assert.Equal(AutoCrossRunwayMode.All, engine.Scenario!.AutoCrossRunwayMode);
 
         AircraftState? ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);

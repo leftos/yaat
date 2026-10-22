@@ -942,7 +942,7 @@ This resolves the direction even when the taxiway crosses more than one runway �
 
 `CROSS` inside a `TAXI` accepts more than one runway — it keeps consuming runway tokens until `HS` or `RWY` ends the list. `TAXI T6A A F CROSS 1L 1R RWY 28L` therefore taxis the whole route to 28L without stopping at either crossing.
 
-This is how a scenario preset clears crossings the file expects every aircraft to make — for instance a parallel pair that is closed for the current configuration — instead of leaving each departure holding short for a manual `CROSS`. Crossings cleared this way are owned by the clearance, not by the AutoCrossRunway session toggle, so turning that toggle off later does not revoke them.
+This is how a scenario preset clears crossings the file expects every aircraft to make — for instance a parallel pair that is closed for the current configuration — instead of leaving each departure holding short for a manual `CROSS`. Crossings cleared this way are owned by the clearance, not by the auto-cross mode (the session setting), so changing that mode later does not revoke them.
 
 A runway may be named as a segment of the taxi path, not just as the destination — `TAXI 28R G D` taxis the aircraft **along** runway 28R's centerline, then turns off onto G and D (e.g. a back-taxi). The runway can appear first or mid-path. Because the clearance authorizes that runway, the route flows straight onto and along it with no hold-short at its entry; any *different* runway the route crosses still holds short as usual.
 
@@ -1079,7 +1079,7 @@ The turn onto the exit keeps the braking the rollout chose it with, and the airc
 - A bare `EL`/`ER` on the side of the exit the `TAXI` implied, given while the route still waits, confirms that exit and keeps the route. Any other exit instruction is its own: one naming another taxiway drops the stored route.
 - `GIVEWAY` is accepted once the `TAXI` stored a route. It waits: it never slows or stops the aircraft on its landing runway, and takes effect once the aircraft is taxiing.
 - An exit too close to make gets *"unable {twy}."*, one already passed *"Unable, no {twy} ahead"*, and a route that stays on the landing runway is refused. A `TAXI` no exit joins gets *"unable {twy}."*. An exit whose taxiway crosses another runway's hold-short bar before reaching the route does not join it: `TAXIAUTO` tries the next exit, and a route still unreached when the exit completes is dropped with *"unable {twy}."*.
-- With scenario auto-cross on, the other runway crossings of the stored route are cleared, but the landing runway's own re-crossing waits for an explicit `CROSS`, also when auto-cross is switched on mid-session.
+- With scenario auto-cross on (All runways, or Inactive runways only for the runways outside the active list), the other runway crossings of the stored route are cleared, but the landing runway's own re-crossing waits for an explicit `CROSS`, also when the mode is changed mid-session.
 - The stored route is dropped by a go-around (a `CROSS` is then refused), by an exit that is given up or replaced by an `EXIT` naming another taxiway, and when the aircraft stops with no exit ahead.
 
 **Occupied-runway advisories (7110.65 3-9-4).**
@@ -2082,6 +2082,10 @@ Sets the room's active runways at an airport: the runway ends in use, each for d
 | `ARWY <runway>…` | The same for the scenario's primary airport (`ARWY 28L 28R`). |
 | `ARWY <airport>` | Show the airport's active runways without changing them. |
 | `ARWY <airport> NONE` | Clear the airport's list; the room has no active runways there until set again. `ARWY NONE` clears the primary airport's. |
+
+Under the session's auto-cross mode **Inactive runways only**, the list also decides which crossings are pre-cleared: a crossing of a runway outside it needs no `CROSS`, and an `ARWY` re-checks the routes already assigned (with no list set, every runway counts as inactive). That mode is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c).
+
+Under the session's auto-cross mode **Inactive runways only**, the list also decides which crossings are pre-cleared: a crossing of a runway outside it needs no `CROSS`, and an `ARWY` re-checks the routes already assigned (with no list set, every runway counts as inactive). That mode is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c).
 
 A runway token is a bare end (`30`, used for both departures and arrivals), or one prefixed `D` for departures only (`D28L`) or `A` for arrivals only (`A28R`). The airport is its FAA id; the ICAO form (`KOAK`) is accepted too. Tokens are case-insensitive.
 

@@ -156,7 +156,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "OAK",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult taxi = engine.SendCommand(Callsign, "TAXI C D F @OLD1 HS 33");

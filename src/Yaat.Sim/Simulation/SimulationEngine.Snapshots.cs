@@ -120,7 +120,7 @@ public sealed partial class SimulationEngine
             }
 
             Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;
-            Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
+            Scenario.AutoCrossRunwayMode = scenarioDto.AutoCrossRunwayMode;
             Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
             Scenario.AutoGoAroundOnOccupiedRunway = scenarioDto.AutoGoAroundOnOccupiedRunway;
             Scenario.AutoRejectTakeoffOnOccupiedRunway = scenarioDto.AutoRejectTakeoffOnOccupiedRunway;

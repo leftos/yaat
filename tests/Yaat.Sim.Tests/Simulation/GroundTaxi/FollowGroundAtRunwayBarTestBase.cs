@@ -39,7 +39,7 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
     private protected void AssertRestoredGoesOnAsTheOriginal(SfoGround ground, AircraftState follower)
     {
         StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
-        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCross: false));
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off));
         restoredGround.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restored = Assert.IsType<AircraftState>(restoredGround.Engine.World.GetSnapshot().FirstOrDefault(a => a.Callsign == Follower));
 
@@ -822,7 +822,7 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
         string leaderType
     )
     {
-        if (SfoGroundHarness.Build(Output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             Output.WriteLine("SKIP: SFO layout or navdata unavailable");
             return null;

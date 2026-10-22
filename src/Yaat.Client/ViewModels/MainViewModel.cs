@@ -277,7 +277,21 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionAutoClearedToLand;
 
     [ObservableProperty]
-    private bool _sessionAutoCrossRunway;
+    [NotifyPropertyChangedFor(nameof(SessionAutoCrossRunwayModeIndex))]
+    private AutoCrossRunwayMode _sessionAutoCrossRunwayMode;
+
+    /// <summary>The session flyout combo's index into <see cref="SettingsViewModel.AutoCrossRunwayModeOptions"/>.</summary>
+    public int SessionAutoCrossRunwayModeIndex
+    {
+        get => (int)SessionAutoCrossRunwayMode;
+        set
+        {
+            if (Enum.IsDefined((AutoCrossRunwayMode)value))
+            {
+                SessionAutoCrossRunwayMode = (AutoCrossRunwayMode)value;
+            }
+        }
+    }
 
     [ObservableProperty]
     private bool _sessionAutoPullUpToParallel;
@@ -3667,7 +3681,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         SessionAutoClearedToLand = dto.AutoClearedToLand;
-        SessionAutoCrossRunway = dto.AutoCrossRunway;
+        SessionAutoCrossRunwayMode = dto.AutoCrossRunwayMode;
         SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
         SessionAutoGoAroundOnOccupiedRunway = dto.AutoGoAroundOnOccupiedRunway;
         SessionAutoRejectTakeoffOnOccupiedRunway = dto.AutoRejectTakeoffOnOccupiedRunway;
@@ -3715,7 +3729,7 @@ public partial class MainViewModel : ObservableObject
                 state.DepartureAutoDeleteDistanceNm,
                 state.AutoAcceptDelaySeconds,
                 state.AutoClearedToLand,
-                state.AutoCrossRunway,
+                state.AutoCrossRunwayMode,
                 state.AutoPullUpToParallel,
                 state.AutoGoAroundOnOccupiedRunway,
                 state.AutoRejectTakeoffOnOccupiedRunway,
@@ -3748,7 +3762,7 @@ public partial class MainViewModel : ObservableObject
                 dto.DepartureAutoDeleteDistanceNm,
                 dto.AutoAcceptDelaySeconds,
                 dto.AutoClearedToLand,
-                dto.AutoCrossRunway,
+                dto.AutoCrossRunwayMode,
                 dto.AutoPullUpToParallel,
                 dto.AutoGoAroundOnOccupiedRunway,
                 dto.AutoRejectTakeoffOnOccupiedRunway,
@@ -3781,7 +3795,7 @@ public partial class MainViewModel : ObservableObject
                 result.DepartureAutoDeleteDistanceNm,
                 result.AutoAcceptDelaySeconds,
                 result.AutoClearedToLand,
-                result.AutoCrossRunway,
+                result.AutoCrossRunwayMode,
                 result.AutoPullUpToParallel,
                 result.AutoGoAroundOnOccupiedRunway,
                 result.AutoRejectTakeoffOnOccupiedRunway,
@@ -3872,11 +3886,11 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    partial void OnSessionAutoCrossRunwayChanged(bool value)
+    partial void OnSessionAutoCrossRunwayModeChanged(AutoCrossRunwayMode value)
     {
         if (!_isApplyingSessionSettings)
         {
-            _ = _connection.SetAutoCrossRunwayAsync(value);
+            _ = _connection.SetAutoCrossRunwayModeAsync(value);
         }
     }
 
@@ -4207,11 +4221,11 @@ public partial class MainViewModel : ObservableObject
         AutoClearedToLandSync.ApplyToAircraft(Aircraft, value);
     }
 
-    private async Task SendAutoCrossRunway()
+    private async Task SendAutoCrossRunwayMode()
     {
         try
         {
-            await _connection.SetAutoCrossRunwayAsync(_preferences.AutoCrossRunway);
+            await _connection.SetAutoCrossRunwayModeAsync(_preferences.AutoCrossRunwayMode);
         }
         catch (Exception ex)
         {

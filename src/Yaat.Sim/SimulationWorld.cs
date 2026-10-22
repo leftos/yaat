@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim;
@@ -190,26 +191,36 @@ public sealed class SimulationWorld
     /// <summary>
     /// Re-evaluates implicit RunwayCrossing hold-shorts on every aircraft's active
     /// taxi route, and on a route a TAXI on the landing rollout stored behind the exit
-    /// (<see cref="PhaseList.TaxiRoute"/>), against the supplied AutoCross setting. Called by the server when
-    /// the controller toggles AutoCrossRunway mid-session, and by the engine's replay
-    /// applier when a recorded toggle is replayed. Aircraft currently sitting in
+    /// (<see cref="PhaseList.TaxiRoute"/>), against the supplied auto-cross mode and the active runways of the airport
+    /// whose layout each aircraft is on. Called by the server when the controller changes the mode mid-session, by the
+    /// engine's replay applier when a recorded change is replayed, and by <c>ARWY</c> under
+    /// <see cref="AutoCrossRunwayMode.InactiveOnly"/>. Under that mode an aircraft whose airport is unknown (no layout and no
+    /// stored <see cref="AircraftGroundOps.LayoutAirportId"/>) keeps its routes as they are. Aircraft currently sitting in
     /// <see cref="Yaat.Sim.Phases.Ground.HoldingShortPhase"/> are intentionally left
     /// alone — only future crossings on each route are updated.
     /// </summary>
-    public void ApplyAutoCrossToActiveTaxiRoutes(bool autoCross)
+    public void ApplyAutoCrossToActiveTaxiRoutes(AutoCrossRunwayMode mode, ActiveRunways activeRunways)
     {
         lock (_lock)
         {
             foreach (AircraftState ac in _aircraft)
             {
+                string? airportId = ac.Ground.LayoutAirportId;
+                if ((airportId is null) && (mode == AutoCrossRunwayMode.InactiveOnly))
+                {
+                    // Which runways are active here is unknown, so no crossing on this aircraft's routes can be told inactive.
+                    continue;
+                }
+
+                IReadOnlyList<ActiveRunway> activeAtAirport = (airportId is null) ? [] : activeRunways.For(airportId);
                 if (ac.Ground.AssignedTaxiRoute is { } route)
                 {
-                    TaxiRouteAutoCross.Apply(route, autoCross);
+                    TaxiRouteAutoCross.Apply(route, mode, activeAtAirport);
                 }
 
                 if (ac.Phases?.TaxiRoute is { } stored)
                 {
-                    TaxiRouteAutoCross.Apply(stored, autoCross);
+                    TaxiRouteAutoCross.Apply(stored, mode, activeAtAirport);
                 }
             }
         }

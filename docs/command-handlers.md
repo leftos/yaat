@@ -285,7 +285,7 @@ speed assignment issued on the way to the fix must not. Everything else falls th
 
 `DryRunValidate` (`CommandDispatcher.cs:1451`) clones the aircraft (`AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout)`) and runs
 **only the first block** on the clone via `DryRunApplyCommand` (`:1534`), which tries `TryApplyTowerCommand` first (if phases are active) then
-`ApplyCommand`. The dry-run context (`:1483`) overrides `Rng = new Random(0)`, `ValidateDctFixes = false`, `AutoCrossRunway = false`, and crucially
+`ApplyCommand`. The dry-run context (`:1483`) overrides `Rng = new Random(0)`, `ValidateDctFixes = false`, `AutoCrossRunwayMode = AutoCrossRunwayMode.Off`, and crucially
 `TerminalEmitter = null`.
 
 > Handlers must be **clone-safe**: any write to a singleton, a sibling aircraft, or anything not on the cloned `AircraftState` leaks out of the
@@ -346,7 +346,7 @@ and which domains read them:
 | `Weather` | RFIS/RTIS visual acquisition (nullable; commands fail gracefully when absent). |
 | `FindAircraft` / `ListAircraft` | RTIS/FOLLOW relative-traffic lookups; GiveWay target validation; `RunwaySafetyAdvisor` occupied-runway scans (nullable). |
 | `ValidateDctFixes` | `ApplyDirectTo` strict off-route fix check; forced off in transparent + dry-run paths. |
-| `AutoCrossRunway` | `TryTaxi` / `TryTaxiAuto` auto-crossing-clearance behavior; forced off in dry-run. |
+| `AutoCrossRunwayMode` | `TryTaxi` / `TryTaxiAuto` auto-crossing-clearance behavior (with `ActiveRunways` for `InactiveOnly`); forced `Off` in dry-run. |
 | `SoloTrainingMode` / `RpoShowPilotSpeech` | CT/FCA pilot-speech routing. |
 | `TerminalEmitter` | SAY-class verbs broadcast through it; **nulled in dry-run / parser tests** so SAYs don't fire twice. |
 | `ArtccConfig` | `ContactCommandHandler` target → frequency resolution; `RunwaySafetyAdvisor` safety-logic gate (nullable). |

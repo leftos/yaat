@@ -718,7 +718,7 @@ public sealed class QuickCommandSimAcceptanceTests
     /// <summary>An SFO B738 pushed off F8 toward spot 7A, the tug moving; null when the SFO data is missing.</summary>
     private SfoGround? StartPush()
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }
@@ -763,7 +763,7 @@ public sealed class QuickCommandSimAcceptanceTests
     /// <summary>An SFO B738 taxied from spot 1 to the 28L departure bar; null when the SFO data is missing.</summary>
     private (SfoGround Ground, AircraftState Aircraft)? HoldShortOf28L()
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }
@@ -787,7 +787,7 @@ public sealed class QuickCommandSimAcceptanceTests
     /// </summary>
     private (SfoGround Ground, AircraftState Aircraft)? FollowingAtSfo()
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

@@ -445,7 +445,7 @@ public class FollowGroundRunwayOfItsOwnTests(ITestOutputHelper output)
     /// </summary>
     private (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageBehindLeader(string spot, string leaderTaxi)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             output.WriteLine("SKIP: SFO layout or navdata unavailable");
             return null;

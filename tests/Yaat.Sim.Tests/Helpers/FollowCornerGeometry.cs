@@ -38,7 +38,7 @@ internal static class FollowCornerGeometry
     /// </summary>
     internal static LeadRun? StartTaxiingLead(ITestOutputHelper output)
     {
-        if (NewEngine(output, autoCross: true) is not { } setup)
+        if (NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
         {
             return null;
         }
@@ -57,7 +57,7 @@ internal static class FollowCornerGeometry
     }
 
     /// <summary>An engine over the committed KOAK layout, or null when the layout is unavailable.</summary>
-    internal static (SimulationEngine Engine, AirportGroundLayout Layout)? NewEngine(ITestOutputHelper output, bool autoCross)
+    internal static (SimulationEngine Engine, AirportGroundLayout Layout)? NewEngine(ITestOutputHelper output, AutoCrossRunwayMode autoCrossMode)
     {
         TestVnasData.EnsureInitialized();
         var groundData = new TestAirportGroundData();
@@ -77,7 +77,7 @@ internal static class FollowCornerGeometry
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = AirportId,
-                AutoCrossRunway = autoCross,
+                AutoCrossRunwayMode = autoCrossMode,
             },
         };
         return (engine, layout);

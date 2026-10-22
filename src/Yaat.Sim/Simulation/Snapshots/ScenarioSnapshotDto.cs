@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Coast;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -25,7 +26,18 @@ public sealed class ScenarioSnapshotDto
 
     // Settings
     public required bool AutoClearedToLand { get; init; }
-    public required bool AutoCrossRunway { get; init; }
+
+    // Optional — a snapshot written before V35 carries the bool LegacyAutoCrossRunway instead, which
+    // SnapshotSchemaMigrator maps here (true → All, false or absent → Off). Settable for that migration.
+    public AutoCrossRunwayMode AutoCrossRunwayMode { get; set; }
+
+    /// <summary>
+    /// The pre-V35 on/off auto-cross switch, read only so <see cref="SnapshotSchemaMigrator"/> can map it to
+    /// <see cref="AutoCrossRunwayMode"/>; nulled there, so a rewritten snapshot drops it.
+    /// </summary>
+    [JsonPropertyName("AutoCrossRunway")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyAutoCrossRunway { get; set; }
 
     // Optional — defaults to false so older snapshots and bundles (which predate issue #175)
     // replay faithfully without the parallel-runway auto-pull-up. New snapshots carry the actual

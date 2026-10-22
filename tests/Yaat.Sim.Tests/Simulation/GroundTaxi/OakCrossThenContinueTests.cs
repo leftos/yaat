@@ -73,7 +73,7 @@ public class OakCrossThenContinueTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = AirportId,
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult taxi = engine.SendCommand(Callsign, "TAXI B W 30");

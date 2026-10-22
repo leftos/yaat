@@ -66,7 +66,7 @@ public sealed class GroundExpediteTaxiTests
     [Fact]
     public void TaxiExpToTheStandItIsOn_EchoesWithoutDelay()
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -455,7 +455,7 @@ public sealed class GroundExpediteTaxiTests
         CrossingRunwayPhaseDto dto = Assert.IsType<CrossingRunwayPhaseDto>(crossing.ToSnapshot());
         Assert.True(dto.IsExpedited);
 
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } restoredGround)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } restoredGround)
         {
             return;
         }
@@ -498,7 +498,7 @@ public sealed class GroundExpediteTaxiTests
     /// </summary>
     private (SfoGround Ground, AircraftState Aircraft, CommandResult Result)? Taxiing(string type, string command)
     {
-        if (SfoGroundHarness.Build(_output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(_output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return null;
         }

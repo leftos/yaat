@@ -125,7 +125,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `SetSoloTrainingModeAsync(enabled)` | `SetSoloTrainingMode` | `SetSoloTrainingMode(...)` `:1858` |
 | `SetSoloPacingRatesAsync(…)` | `SetSoloPacingRates` | `SetSoloPacingRates(...)` `:1880` |
 | `SetAutoClearedToLandAsync(enabled)` | `SetAutoClearedToLand` | `SetAutoClearedToLand(...)` `:1319` |
-| `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:1341` |
+| `SetAutoCrossRunwayModeAsync(mode)` | `SetAutoCrossRunwayMode` | `SetAutoCrossRunwayMode(...)` `:1345` (an undefined `AutoCrossRunwayMode` is a `HubException`) |
 | `SetAutoPullUpToParallelAsync(enabled)` | `SetAutoPullUpToParallel` | `SetAutoPullUpToParallel(...)` |
 | `SetAutoGoAroundOnOccupiedRunwayAsync(enabled)` | `SetAutoGoAroundOnOccupiedRunway` | `SetAutoGoAroundOnOccupiedRunway(...)` |
 | `SetAutoArrivalSpacingOnOccupiedRunwayAsync(enabled)` | `SetAutoArrivalSpacingOnOccupiedRunway` | `SetAutoArrivalSpacingOnOccupiedRunway(...)` |
@@ -462,7 +462,7 @@ This split is the source of the most common wire bug — see the checklist below
 
 The 23 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `SessionSettingsDto` (all in yaat-server `Dtos/TrainingDtos.cs`) — with the same set on the client side.
 
-The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`.
+The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunwayMode` (the `Yaat.Sim.Data.Airport.AutoCrossRunwayMode` enum: Off / All / InactiveOnly), `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`.
 
 The rest are `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`.
 

@@ -1040,7 +1040,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     {
         if (airport == "SFO")
         {
-            return SfoGroundHarness.Build(output, autoCross: false);
+            return SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off);
         }
 
         TestVnasData.EnsureInitialized();
@@ -1060,7 +1060,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
                 RngSeed = 42,
                 OriginalScenarioJson = "{}",
                 PrimaryAirportId = airport,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
         return new SfoGround(engine, layout);

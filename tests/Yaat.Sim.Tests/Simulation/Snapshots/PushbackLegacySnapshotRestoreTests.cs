@@ -61,7 +61,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     [Fact]
     public void TargetedWithHeading_RestoresAsALineCaptureOntoTheTarget()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -87,7 +87,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     [Fact]
     public void PendingPullForward_DroppedWithAWarning_StopsAtTheStagingPoint()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -117,7 +117,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     [Fact]
     public void HeadingOnly_RestoresAsATurnOntoTheHeading()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -146,7 +146,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     [Fact]
     public void PendingRestoredMove_ReSnapshottedBeforeItsFirstTick_RestoresIdentically()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -169,7 +169,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
         Assert.Equal(firstJson, secondJson);
 
         AircraftState original = Fly(ground, "LEG4", stand, pushed, pushing: true, first);
-        SfoGround twinGround = SfoGroundHarness.Build(output, autoCross: false)!.Value;
+        SfoGround twinGround = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off)!.Value;
         AircraftState twin = Fly(twinGround, "LEG4", stand, pushed, pushing: true, second);
 
         Assert.Equal(original.Position, twin.Position);
@@ -187,7 +187,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     [Fact]
     public void LegacySpotPushback_RestoresAsOneMoveOntoTheSpot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -212,7 +212,7 @@ public class PushbackLegacySnapshotRestoreTests(ITestOutputHelper output)
     [Fact]
     public void LegacySpotPushback_ThatHadArrived_RestoresCompletedOnTheSpot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

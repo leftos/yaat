@@ -39,7 +39,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void PushOntoTaxiway_Completed_SetsCurrentTaxiway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -53,7 +53,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void PushToSpot_Completed_ClearsCurrentTaxiway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -73,7 +73,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void PushOntoTaxiway_LastMove_RoundTripsThroughSnapshot()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -101,7 +101,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void PushOntoTaxiway_ThenTaxi_StartsFromThatTaxiway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -132,7 +132,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void TaxiMidPush_DoesNotTouchCurrentTaxiwayFromTheTow()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -170,7 +170,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
     [Fact]
     public void PushOntoTaxiway_AmendedMidPush_Completed_SetsCurrentTaxiway()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

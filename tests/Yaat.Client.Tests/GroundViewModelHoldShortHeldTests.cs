@@ -281,7 +281,7 @@ public class GroundViewModelHoldShortHeldTests
         string scenario = ParkedAtOakSig1.Replace("\"C172\"", $"\"{aircraftType}\"", StringComparison.Ordinal);
         List<string> warnings = engine.LoadScenario(scenario, 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
-        engine.Scenario!.AutoCrossRunway = false;
+        engine.Scenario!.AutoCrossRunwayMode = AutoCrossRunwayMode.Off;
         AircraftState aircraft = engine.FindAircraft(Callsign) ?? throw new InvalidOperationException($"{Callsign} did not spawn at SIG1");
         CommandResult taxi = engine.SendCommand(Callsign, "TAXIAUTO 28L");
         Assert.True(taxi.Success, taxi.Message);

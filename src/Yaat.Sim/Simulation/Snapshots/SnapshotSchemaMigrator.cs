@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
@@ -22,7 +24,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 34;
+    public const int CurrentSchemaVersion = 35;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -251,6 +253,16 @@ public static class SnapshotSchemaMigrator
             {
                 MigrateLegacyRadials(ac.Queue);
             }
+        }
+
+        // V34→V35: ScenarioSnapshotDto.AutoCrossRunway (bool) replaced by AutoCrossRunwayMode (Off / All / InactiveOnly). The
+        //   old switch pre-cleared every crossing when on, so true maps to All and false (or a snapshot without it) to Off,
+        //   and those replays clear exactly the crossings they did. The legacy field is nulled so a rewritten snapshot drops it.
+        if (snapshot.SchemaVersion < 35)
+        {
+            snapshot.Scenario.AutoCrossRunwayMode =
+                (snapshot.Scenario.LegacyAutoCrossRunway == true) ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off;
+            snapshot.Scenario.LegacyAutoCrossRunway = null;
         }
 
         snapshot.SchemaVersion = CurrentSchemaVersion;

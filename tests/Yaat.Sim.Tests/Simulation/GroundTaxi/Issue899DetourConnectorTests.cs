@@ -192,7 +192,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             taxi,
             start.Layout,
             new GroundCommandHandler.TaxiDispatch(
-                AutoCrossRunway: false,
+                AutoCrossRunwayMode.Off,
+                ActiveRunways.Empty,
                 IsScenarioScripted: true,
                 ResultReachesController: false,
                 ListAircraft: null
@@ -1139,7 +1140,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = "COS",
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
         };
 
         CommandResult taxi = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, $"TAXI {fromTaxiway} {toTaxiway} {onward}");

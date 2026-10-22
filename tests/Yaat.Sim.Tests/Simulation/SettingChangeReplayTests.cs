@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -7,7 +8,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Replay parity for <see cref="RecordedSettingChange"/> actions. The yaat-server
-/// records four setting changes (AutoClearedToLand, AutoCrossRunway, AutoAcceptDelay,
+/// records four setting changes (AutoClearedToLand, AutoCrossRunwayMode (the older AutoCrossRunway on/off too), AutoAcceptDelay,
 /// AutoDeleteMode); <see cref="SimulationEngine.ApplySettingChange"/> must replay all
 /// four so a bundle's playback matches what the user saw live. Bundle export
 /// regenerates snapshots via replay, so any setting that doesn't round-trip silently
@@ -45,17 +46,17 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
 
         // Before t=0 — neither setting applied yet
         engine.Replay(recording, 0);
-        Assert.True(engine.Scenario!.AutoCrossRunway, "AutoCrossRunway should be true after t=0 SettingChange");
+        Assert.Equal(AutoCrossRunwayMode.All, engine.Scenario!.AutoCrossRunwayMode);
         Assert.False(engine.Scenario.AutoClearedToLand, "AutoClearedToLand should still be false at t=0");
 
         // After t=939 — AutoClearedToLand kicks in
         engine.Replay(recording, 950);
-        Assert.True(engine.Scenario!.AutoCrossRunway, "AutoCrossRunway should still be true after t=939");
+        Assert.Equal(AutoCrossRunwayMode.All, engine.Scenario!.AutoCrossRunwayMode);
         Assert.True(engine.Scenario.AutoClearedToLand, "AutoClearedToLand should be true after t=939 SettingChange");
     }
 
     /// <summary>
-    /// All four recorded setting types (AutoClearedToLand, AutoCrossRunway,
+    /// All four recorded setting types (AutoClearedToLand, AutoCrossRunway in its older on/off form,
     /// AutoAcceptDelay, AutoDeleteMode) replay onto the scenario state. Synthetic
     /// recording — uses the existing bundle's scenarioJson so ScenarioLoader has
     /// something valid to chew on, then injects custom SettingChange actions.
@@ -359,6 +360,46 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
         Assert.Equal(65, engine.Scenario.SoloArrivalGeneratorRatePercent);
     }
 
+    /// <summary>
+    /// A recording made with the three-state auto-cross records <c>AutoCrossRunwayMode</c> by name; Inactive runways only
+    /// replays onto the scenario state as recorded.
+    /// </summary>
+    [Fact]
+    public void AutoCrossRunwayMode_InactiveOnly_RoundTripsThroughReplay()
+    {
+        const string bundlePath = "TestData/66fd6538542e.zip";
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
+        if (baseline is null)
+        {
+            output.WriteLine($"Skipped: {bundlePath} not present");
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var recording = new SessionRecording
+        {
+            Version = baseline.Version,
+            ScenarioJson = baseline.ScenarioJson,
+            RngSeed = baseline.RngSeed,
+            WeatherJson = baseline.WeatherJson,
+            Actions = [new RecordedSettingChange(0, "AutoCrossRunwayMode", "InactiveOnly")],
+            TotalElapsedSeconds = 1,
+            ScenarioName = baseline.ScenarioName,
+            ScenarioId = baseline.ScenarioId,
+            ArtccId = baseline.ArtccId,
+        };
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.Replay(recording, 1);
+
+        Assert.Equal(AutoCrossRunwayMode.InactiveOnly, engine.Scenario!.AutoCrossRunwayMode);
+    }
+
     [Fact]
     public void AllFourSettingTypes_RoundTripThroughReplay()
     {
@@ -403,7 +444,7 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
         engine.Replay(recording, 1);
 
         Assert.True(engine.Scenario!.AutoClearedToLand, "AutoClearedToLand should round-trip");
-        Assert.True(engine.Scenario.AutoCrossRunway, "AutoCrossRunway should round-trip");
+        Assert.Equal(AutoCrossRunwayMode.All, engine.Scenario!.AutoCrossRunwayMode);
         Assert.Equal(TimeSpan.FromSeconds(12), engine.Scenario.AutoAcceptDelay);
         Assert.Equal("AfterRollout", engine.Scenario.ClientAutoDeleteOverride);
     }

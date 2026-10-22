@@ -191,7 +191,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     [Fact]
     public void Destination_ViaRampLanesOnly_ResolvesWithoutNote()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -228,7 +228,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     [Fact]
     public void Issue454Cut_StillTakenAhead_OfFallback()
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
@@ -270,7 +270,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     [Fact]
     public void NullCurrentTaxiway_OnTEdge_CountsAsOccupyingT()
     {
-        if (SfoGroundHarness.Build(output, autoCross: true) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
         {
             return;
         }

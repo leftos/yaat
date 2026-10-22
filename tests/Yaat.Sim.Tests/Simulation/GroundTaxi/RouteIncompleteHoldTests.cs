@@ -165,7 +165,7 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
 
     private void AssertHoldsAtNearSideRunwayBar((string Along, string Onto) junction, string command, string runwayTaxiway, string note)
     {
-        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }

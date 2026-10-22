@@ -386,7 +386,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output) : FollowGrou
     [Fact]
     public void HoldingShortForFollowTraffic_SaysWaitingForTheTrafficToPass()
     {
-        if (SfoGroundHarness.Build(Output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             Output.WriteLine("SKIP: SFO layout or navdata unavailable");
             return;

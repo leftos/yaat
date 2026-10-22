@@ -157,7 +157,7 @@ public class GroundCommandHandlerTests
     /// A KOAK-shaped taxi route out of a ramp: hold short of taxiway C at node 1, then taxiway B
     /// across runway 28R — entry bar node 2, runway centerline node 3, exit bar node 4 — and on to
     /// node 5. <paramref name="autoCleared"/> reproduces what <c>TaxiRouteAutoCross.Apply</c> leaves
-    /// behind when the AutoCrossRunway toggle is on: the crossing is pre-cleared before the
+    /// behind when the auto-cross (AutoCrossRunwayMode) is on: the crossing is pre-cleared before the
     /// controller ever gets to issue <c>HS 28R</c>.
     /// </summary>
     private static (AirportGroundLayout Layout, TaxiRoute Route) MakeCrossingRoute(bool autoCleared)
@@ -313,7 +313,7 @@ public class GroundCommandHandlerTests
         AirportGroundLayout layout = MakeSimpleLayout();
         var cmd = new TaxiCommand(["A"], [], Expedite: false, DestinationRunway: "28R");
 
-        CommandResult result = GroundCommandHandler.TryTaxi(ac, cmd, layout, autoCrossRunway: true);
+        CommandResult result = GroundCommandHandler.TryTaxi(ac, cmd, layout, autoCrossRunwayMode: AutoCrossRunwayMode.All);
 
         Assert.True(result.Success);
         // All RunwayCrossing hold-shorts should be pre-cleared
@@ -1303,7 +1303,7 @@ public class GroundCommandHandlerTests
     public void FollowG_ArmedAtBar_FollowerAhead_IsUnable()
     {
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
-        if (FollowCornerGeometry.NewEngine(output, autoCross: false) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } setup)
         {
             return;
         }
@@ -1336,7 +1336,7 @@ public class GroundCommandHandlerTests
     public void FollowG_LeadOnStand_IsAccepted()
     {
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
-        if (FollowCornerGeometry.NewEngine(output, autoCross: true) is not { } setup)
+        if (FollowCornerGeometry.NewEngine(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } setup)
         {
             return;
         }

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels;
 
@@ -251,7 +252,11 @@ public partial class SettingsViewModel
             Field("autoClearedToLandTwr", vm => vm.AutoClearedToLandTwr, (vm, v) => vm.AutoClearedToLandTwr = v),
             Field("autoClearedToLandApp", vm => vm.AutoClearedToLandApp, (vm, v) => vm.AutoClearedToLandApp = v),
             Field("autoClearedToLandCtr", vm => vm.AutoClearedToLandCtr, (vm, v) => vm.AutoClearedToLandCtr = v),
-            Field("autoCrossRunway", vm => vm.AutoCrossRunway, (vm, v) => vm.AutoCrossRunway = v),
+            Field(
+                "autoCrossRunwayMode",
+                vm => ((AutoCrossRunwayMode)vm.SelectedAutoCrossRunwayModeIndex).ToString(),
+                (vm, v) => vm.SelectedAutoCrossRunwayModeIndex = (int)Enum.Parse<AutoCrossRunwayMode>(v)
+            ),
             Field("autoPullUpToParallel", vm => vm.AutoPullUpToParallel, (vm, v) => vm.AutoPullUpToParallel = v),
             Field("autoGoAroundOnOccupiedRunway", vm => vm.AutoGoAroundOnOccupiedRunway, (vm, v) => vm.AutoGoAroundOnOccupiedRunway = v),
             Field(

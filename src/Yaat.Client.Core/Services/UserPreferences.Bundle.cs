@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using static Yaat.Client.Services.BundledPreferenceRule;
 
 namespace Yaat.Client.Services;
@@ -49,7 +50,7 @@ public sealed partial class UserPreferences
         ("autoClearedToLandTwr", Flag),
         ("autoClearedToLandApp", Flag),
         ("autoClearedToLandCtr", Flag),
-        ("autoCrossRunway", Flag),
+        ("autoCrossRunwayMode", EnumName<AutoCrossRunwayMode>()),
         ("autoPullUpToParallel", Flag),
         ("autoGoAroundOnOccupiedRunway", Flag),
         ("autoRejectTakeoffOnOccupiedRunway", Flag),
@@ -334,9 +335,15 @@ public sealed partial class UserPreferences
     {
         var accepted = new Dictionary<string, object?>(StringComparer.Ordinal);
         var ignored = new List<string>();
+        bool legacyAutoCrossApplied = false;
         foreach ((string key, JsonNode? value) in incoming)
         {
-            if (TryReadBundledPreference(key, value, out object? parsed))
+            if (TryReadLegacyAutoCrossRunway(incoming, key, value, out string? mode))
+            {
+                accepted[AutoCrossRunwayModeKey] = mode;
+                legacyAutoCrossApplied = true;
+            }
+            else if (TryReadBundledPreference(key, value, out object? parsed))
             {
                 accepted[key] = parsed;
             }
@@ -347,7 +354,36 @@ public sealed partial class UserPreferences
         }
 
         RejectInvertedRunDelay(accepted, ignored, currentRunDelayMinSeconds, currentRunDelayMaxSeconds);
-        return (accepted, new PreferencesImportResult([.. incoming.Select(p => p.Key).Where(accepted.ContainsKey)], ignored));
+        List<string> applied =
+        [
+            .. incoming.Select(p => p.Key).Where(key => accepted.ContainsKey(key) || (legacyAutoCrossApplied && (key == LegacyAutoCrossRunwayKey))),
+        ];
+        return (accepted, new PreferencesImportResult(applied, ignored));
+    }
+
+    private const string AutoCrossRunwayModeKey = "autoCrossRunwayMode";
+
+    private const string LegacyAutoCrossRunwayKey = "autoCrossRunway";
+
+    /// <summary>
+    /// The on/off <c>autoCrossRunway</c> a bundle exported before the three-state auto-cross carries, read as the mode it stood
+    /// for (on pre-cleared every crossing: All; off: Off), when the bundle has no <c>autoCrossRunwayMode</c> of its own.
+    /// </summary>
+    private static bool TryReadLegacyAutoCrossRunway(JsonObject incoming, string key, JsonNode? value, out string? mode)
+    {
+        mode = null;
+        if ((key != LegacyAutoCrossRunwayKey) || incoming.ContainsKey(AutoCrossRunwayModeKey))
+        {
+            return false;
+        }
+
+        if (value?.GetValueKind() is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            return false;
+        }
+
+        mode = value.GetValue<bool>() ? nameof(AutoCrossRunwayMode.All) : nameof(AutoCrossRunwayMode.Off);
+        return true;
     }
 
     /// <summary>

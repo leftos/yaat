@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -164,7 +165,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
                 RngSeed = 0,
                 ElapsedSeconds = 0,
                 AutoClearedToLand = false,
-                AutoCrossRunway = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
                 ValidateDctFixes = true,
                 IsPaused = false,
                 SimRate = 1,

@@ -186,7 +186,7 @@ public sealed partial class SimulationEngine
                     FindAircraft = FindAircraft,
                     ListAircraft = () => World.GetSnapshot(),
                     ValidateDctFixes = Scenario?.ValidateDctFixes ?? true,
-                    AutoCrossRunway = Scenario?.AutoCrossRunway ?? false,
+                    AutoCrossRunwayMode = Scenario?.AutoCrossRunwayMode ?? AutoCrossRunwayMode.Off,
                     SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
                     SoloRpoCommandsAllowed = Scenario?.SoloRpoCommandsAllowed ?? false,
                     RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,

@@ -1623,7 +1623,7 @@ public static class CommandDispatcher
         DispatchContext dryCtx = ctx with
         {
             Rng = new Random(0),
-            AutoCrossRunway = false,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             TerminalEmitter = null,
         };
 
@@ -2452,7 +2452,6 @@ public static class CommandDispatcher
     )
     {
         AirportGroundLayout? groundLayout = ctx.GroundLayout;
-        bool autoCrossRunway = ctx.AutoCrossRunway;
 
         // Hold-for-release runway-entry gate: a held departure may not enter the runway (LUAW) or
         // take off (CTO/CTOPP) until released. It stays holding short. Cleared by REL/CTOA.
@@ -2473,7 +2472,8 @@ public static class CommandDispatcher
         }
 
         var taxiDispatch = new GroundCommandHandler.TaxiDispatch(
-            autoCrossRunway,
+            ctx.AutoCrossRunwayMode,
+            ctx.ActiveRunways,
             ctx.IsScenarioScripted,
             ResultReachesController(ctx, firedFromQueue),
             ctx.ListAircraft

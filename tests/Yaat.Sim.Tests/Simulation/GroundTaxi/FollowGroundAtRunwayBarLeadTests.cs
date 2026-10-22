@@ -26,7 +26,7 @@ public class FollowGroundAtRunwayBarLeadTests(ITestOutputHelper output) : Follow
     [Fact]
     public void FollowGAtDepartureBarOfCompletedRoute_ArmsTheFollow()
     {
-        if (SfoGroundHarness.Build(Output, autoCross: false) is not { } ground)
+        if (SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
             Output.WriteLine("SKIP: SFO layout or navdata unavailable");
             return;
@@ -79,7 +79,7 @@ public class FollowGroundAtRunwayBarLeadTests(ITestOutputHelper output) : Follow
         int holdNode = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase).HoldShort.NodeId;
 
         StateSnapshotDto snapshot = ground.Engine.CaptureSnapshot();
-        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCross: false));
+        SfoGround restoredGround = Assert.IsType<SfoGround>(SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off));
         restoredGround.Engine.RestoreFromSnapshot(snapshot);
         AircraftState restored = Assert.IsType<AircraftState>(restoredGround.Engine.World.GetSnapshot().FirstOrDefault(a => a.Callsign == Follower));
 

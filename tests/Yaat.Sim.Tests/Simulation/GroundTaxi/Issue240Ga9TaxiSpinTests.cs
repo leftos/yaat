@@ -85,7 +85,7 @@ public class Issue240Ga9TaxiSpinTests(ITestOutputHelper output)
             RngSeed = 42,
             OriginalScenarioJson = "{}",
             PrimaryAirportId = AirportId,
-            AutoCrossRunway = true,
+            AutoCrossRunwayMode = AutoCrossRunwayMode.All,
         };
 
         LatLon spawnPos = aircraft.Position;
