@@ -57,6 +57,7 @@
 
 ### Fixed
 
+- Clicking the highlighted first entry of a pick list, such as Cleared visual or Join STAR, sends it instead of doing nothing.
 - vTDLS in light mode shows its editor's dropdowns and buttons, which vanished on the white panel in the browser; both modes now look the same on desktop and browser.
 - A bare `CVIA` clears the assigned altitude and climbs to the SID's top altitude from the ARTCC's TDLS settings, never to filed cruise or the takeoff altitude.
 - `DVIA` clears the assigned altitude and replaces an earlier `CFIX` restriction with the STAR's, so nothing reverts to the old altitude; same-transmission crossings stay.
