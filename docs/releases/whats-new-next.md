@@ -78,6 +78,14 @@ Load Live Weather downloads a NOAA GFS wind grid for your ARTCC, so winds aloft 
 
 Everyone in the room sees the same line, including a client that joins later and a replay of a recording ("· recorded"). When the grid cannot be had, the line says the weather flies the FAA FD forecast (or METAR surface winds only, when it has no FD winds aloft) and, on the screen that loaded it, why. Weather saved with Save Weather As carries its grid, so loading the file brings the same winds back ("· saved file"). The status bar's load message names the source too.
 
+## Report field in sight
+
+Report field in sight…, in the quick-command strip and under All Commands › Approach, now opens a flyout in RPO and in solo training instead of sending a bare `RFIS`. The Field advisory box takes the clock and miles (`12 5`) with the destination named under it, and Enter sends `RFIS {clock} {miles}`; a clock dial and a Miles stepper set the same two numbers, and a grey hint, the line the pilot will hear and the field's row (name, live clock, miles and the room's arrival runways) fill the rest.
+
+![The Report field in sight flyout for a jet on the ILS 28R final into KOAK, with the true clock and miles filled in, the dial, the Miles stepper and the field's row](img/whats-new-field-advisory-flyout.png)
+
+The box starts with the true values, which follow the aircraft until you edit them; in solo with "Pre-fill traffic advisories" set to "Left for the student" it starts empty and the row says to find the field on the scope. The sim records any clock and miles as the advisory, so the flyout never grades it. An aircraft with no destination field has the entry disabled.
+
 ## Report traffic in sight in solo training
 
 In a solo session, Report traffic in sight… opens a flyout where you say the advisory instead of picking a callsign: type `2 4 w sr22 35`, `base l 2 28l c152` or `over vpcol sr22` in the Advisory box, and Enter sends the structured `RTIS`. A grey hint under the box names the next part, Tab takes it from the aircraft you point at on the list, and a complete call shows the line the pilot will hear. A refusal keeps the flyout open with the sim's reply and your values.

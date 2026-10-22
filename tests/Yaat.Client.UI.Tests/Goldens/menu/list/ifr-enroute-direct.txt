@@ -59,7 +59,8 @@ All Commands
       approach flyout, built when it opens
     Cleared visual approach… picker:list [6L, 6R, 7L, 7R, 24L, 24R, 25L, 25R]
     ---
-    Report field in sight
+    Report field in sight…
+      report field in sight flyout
     Report traffic in sight… · no other aircraft airborne [disabled]
     ---
     Report when…

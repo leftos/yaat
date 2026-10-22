@@ -155,7 +155,16 @@ public static class AirborneTrafficFlyout
 
         if ((verb == AirborneTrafficVerb.ReportInSight) && context.SoloTrainingMode)
         {
-            SoloAdvisoryContent.Attach(entry, aircraft, context, host);
+            AdvisoryFlyoutContent.Attach(
+                entry,
+                context,
+                host,
+                content =>
+                {
+                    var panel = new SoloAdvisoryPanel(aircraft, context, host, content.SendAsync, content.Close);
+                    return (new SoloAdvisoryFlyoutHost(panel), panel);
+                }
+            );
         }
         else
         {

@@ -245,12 +245,19 @@ public sealed class AdvisoryStepper : Border
         button.Click += (_, e) =>
         {
             e.Handled = true;
-            int next = (Value is { } v) ? Math.Clamp(v + by, Minimum, Maximum) : Minimum;
+            int next = (Value is { } v) ? Stepped(v, by) : Minimum;
             Show(next);
             Changed?.Invoke(next);
         };
         return button;
     }
+
+    /// <summary>
+    /// The value one step of <paramref name="by"/> from <paramref name="value"/> reaches, held at the range's ends; a value already
+    /// outside the range (a pre-filled distance past the top) moves only in the step's own direction, never jumping to the end.
+    /// </summary>
+    private int Stepped(int value, int by) =>
+        (by > 0) ? Math.Max(value, Math.Min(value + by, Maximum)) : Math.Min(value, Math.Max(value + by, Minimum));
 }
 
 /// <summary>

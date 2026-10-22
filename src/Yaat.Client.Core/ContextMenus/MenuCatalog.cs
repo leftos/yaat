@@ -167,7 +167,7 @@ public static class MenuCatalog
         HoldTurnsEntry(MenuIds.HoldFixRight, "Right 360s at fix…", HoldTurns.Right),
         .. ApproachPickerIds.Select(ApproachPicker),
         Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
-        Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
+        FlyoutEntry(MenuIds.ApproachReportFieldInSight, "Report field in sight…", Always, FieldAdvisoryFlyout.Build),
         Picker(
             MenuIds.ApproachReportTrafficInSight,
             "Report traffic in sight…",
@@ -1308,9 +1308,9 @@ public static class MenuCatalog
 
     /// <summary>
     /// A flyout entry offered where <paramref name="isApplicable"/> holds: the Cross fix or Depart fix flyout
-    /// (<see cref="FixValueFlyout"/>), the PTAC flyout, the Join airway flyout (<see cref="JoinAirwayFlyout"/>) or a coordination
-    /// flyout (<see cref="CoordinationFlyout"/>) that <paramref name="build"/> makes, its menu row reading <paramref name="label"/>,
-    /// ellipsis included.
+    /// (<see cref="FixValueFlyout"/>), the PTAC flyout, the Join airway flyout (<see cref="JoinAirwayFlyout"/>), a coordination
+    /// flyout (<see cref="CoordinationFlyout"/>) or the field advisory flyout (<see cref="FieldAdvisoryFlyout"/>) that
+    /// <paramref name="build"/> makes, its menu row reading <paramref name="label"/>, ellipsis included.
     /// </summary>
     private static MenuCatalogEntry FlyoutEntry(
         string id,

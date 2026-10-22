@@ -85,7 +85,6 @@ public class MenuCatalogCommandTests
         (MenuIds.HoldPresentLeft, "", "HPPL"),
         (MenuIds.HoldPresentRight, "", "HPPR"),
         (MenuIds.ApproachClearedVisual, "28R", "CVA 28R"),
-        (MenuIds.ApproachReportFieldInSight, "", "RFIS"),
         (MenuIds.ApproachReportBase, "", "REPORT BASE"),
         (MenuIds.ApproachReportFinal, "", "REPORT FINAL"),
         (MenuIds.ApproachReportCrosswind, "", "REPORT CROSSWIND"),
@@ -216,6 +215,8 @@ public class MenuCatalogCommandTests
         // sight… opens the solo advisory flyout in solo, below); AirborneTrafficFlyoutTests and SoloAdvisoryFlyoutTests click them.
         MenuIds.ApproachReportTrafficInSight,
         MenuIds.PatternFollow,
+        // Report field in sight… opens the field advisory flyout over the destination field; FieldAdvisoryFlyoutTests clicks it.
+        MenuIds.ApproachReportFieldInSight,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;

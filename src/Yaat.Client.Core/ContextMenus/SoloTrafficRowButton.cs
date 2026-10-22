@@ -21,7 +21,7 @@ public sealed class SoloTrafficRowButton : Button
         Foreground = FlyoutPanelParts.NowEdge,
         VerticalAlignment = VerticalAlignment.Center,
     };
-    private static readonly IImmutableSolidColorBrush PointedFill = new ImmutableSolidColorBrush(Color.FromArgb(0x21, 0x8F, 0xC1, 0xFF));
+    internal static readonly IImmutableSolidColorBrush PointedFill = new ImmutableSolidColorBrush(Color.FromArgb(0x21, 0x8F, 0xC1, 0xFF));
     private static readonly IImmutableSolidColorBrush TypeBrush = new ImmutableSolidColorBrush(Color.Parse("#9AA3AD"));
     private static readonly IImmutableSolidColorBrush LegBrush = new ImmutableSolidColorBrush(Color.Parse("#E4E7EB"));
     private static readonly IImmutableSolidColorBrush YourCallBrush = new ImmutableSolidColorBrush(Color.Parse("#7FD1B9"));

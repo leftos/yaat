@@ -24,7 +24,7 @@ namespace Yaat.Client.ContextMenus;
 /// The list of other airborne aircraft points the advisory at a row; no row sends anything. Enter sends <c>RTIS</c> with the
 /// call; a refusal, or a send that never reached the sim, keeps the flyout open with the reply and the call as sent.
 /// </summary>
-public sealed class SoloAdvisoryPanel : StackPanel
+public sealed class SoloAdvisoryPanel : StackPanel, IAdvisoryFlyoutPanel
 {
     /// <summary>The mark beside the title naming the session solo.</summary>
     public const string SoloBadge = "solo";
@@ -60,7 +60,7 @@ public sealed class SoloAdvisoryPanel : StackPanel
     public const string BuilderHint = "Point at an aircraft below to seed the builder; a click pins it.";
 
     /// <summary>The note under the advisory when the send never reached the sim; the call is kept.</summary>
-    public const string NotSentNote = "Not sent: connection error (see status line)";
+    public const string NotSentNote = AdvisorySend.NotSentNote;
 
     /// <summary>How long after the last keystroke the live check runs.</summary>
     public static readonly TimeSpan CheckDelay = TimeSpan.FromMilliseconds(300);
@@ -82,10 +82,10 @@ public sealed class SoloAdvisoryPanel : StackPanel
 
     private static readonly IBrush FlashBrush = new SolidColorBrush(Color.FromArgb(70, 0x5B, 0x8D, 0xEF));
     private static readonly IBrush GoodBrush = new SolidColorBrush(Color.Parse("#7fd1b9"));
-    private static readonly IBrush StrongBrush = new SolidColorBrush(Color.Parse("#E4E7EB"));
+    internal static readonly IBrush StrongBrush = new SolidColorBrush(Color.Parse("#E4E7EB"));
     private static readonly IBrush BadgeLine = new SolidColorBrush(Color.Parse("#3F6F62"));
-    private static readonly IBrush KeyCapLine = new SolidColorBrush(Color.Parse("#4A4F57"));
-    private static readonly IBrush KeyCapText = new SolidColorBrush(Color.Parse("#CFD5DC"));
+    internal static readonly IBrush KeyCapLine = new SolidColorBrush(Color.Parse("#4A4F57"));
+    internal static readonly IBrush KeyCapText = new SolidColorBrush(Color.Parse("#CFD5DC"));
     private static readonly IBrush OffBrush = new SolidColorBrush(Color.Parse("#FFC062"));
     private static readonly IBrush BadBrush = new SolidColorBrush(Color.Parse("#ff8a80"));
 
@@ -100,7 +100,7 @@ public sealed class SoloAdvisoryPanel : StackPanel
     private readonly IMenuAircraft? _aircraft;
     private readonly MenuContext _context;
     private readonly IMenuHost _host;
-    private readonly Func<string, Task<CommandResultDto?>> _send;
+    private readonly AdvisorySend _sender;
     private readonly Action _close;
     private readonly TextBlock _titleNow = new();
     private readonly TextBlock _ghostView = new()
@@ -134,8 +134,6 @@ public sealed class SoloAdvisoryPanel : StackPanel
     private long _litAt;
     private IDisposable? _updates;
     private bool _composing;
-    private bool _sending;
-    private int _opening;
     private AdvisoryForm _builderForm = AdvisoryForm.Radar;
     private Dictionary<AdvisoryPart, string> _built = [];
     private (AdvisoryForm Form, string? Pointed)? _builderShape;
@@ -146,10 +144,10 @@ public sealed class SoloAdvisoryPanel : StackPanel
         _aircraft = aircraft;
         _context = context;
         _host = host;
-        _send = send;
+        _sender = new AdvisorySend(send);
         _close = close;
         Width = PanelWidth;
-        Children.Add(TitleLine());
+        Children.Add(AdvisoryTitleLine(AirborneTrafficFlyout.ReportTitle, _titleNow, true));
         Box = new TextBox
         {
             Name = BoxName,
@@ -318,8 +316,7 @@ public sealed class SoloAdvisoryPanel : StackPanel
     /// </summary>
     internal void Reset()
     {
-        _opening++;
-        _sending = false;
+        _sender.Forget();
         _updates?.Dispose();
         _updates = null;
         _held = null;
@@ -343,35 +340,48 @@ public sealed class SoloAdvisoryPanel : StackPanel
     /// <summary>Focuses the box once laid out and while <paramref name="isOpen"/> still holds.</summary>
     internal void FocusBoxLater(Func<bool> isOpen) => FlyoutPanelParts.FocusLater(Box, isOpen, () => { });
 
-    private static TextBlock MutedLine() =>
-        new()
-        {
-            FontSize = 11,
-            Foreground = FlyoutPanelParts.TitleBrush,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(11, 4, 11, 2),
-            IsVisible = false,
-        };
+    void IAdvisoryFlyoutPanel.Refill() => Update(_host.GetAirborneTraffic(_context.Callsign));
 
-    private Grid TitleLine()
+    void IAdvisoryFlyoutPanel.Hold(bool inside) => Hold(inside);
+
+    void IAdvisoryFlyoutPanel.Opened() => Opened();
+
+    void IAdvisoryFlyoutPanel.Reset() => Reset();
+
+    void IAdvisoryFlyoutPanel.FocusBoxLater(Func<bool> isOpen) => FocusBoxLater(isOpen);
+
+    /// <summary>The brush a refusal or a send that never reached the sim is noted in.</summary>
+    internal static IBrush RefusalNoteBrush => BadBrush;
+
+    /// <summary>
+    /// An advisory flyout's title line: <paramref name="title"/> in the strong face, then <paramref name="now"/> (the aircraft,
+    /// its altitude and heading, <see cref="AirborneTrafficFlyout.TitleNow"/>) in the monospace font, then, when
+    /// <paramref name="soloBadge"/>, the <see cref="SoloBadge"/> mark.
+    /// </summary>
+    internal static Grid AdvisoryTitleLine(string title, TextBlock now, bool soloBadge)
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(11, 6, 11, 2) };
         grid.Children.Add(
             new TextBlock
             {
-                Text = AirborneTrafficFlyout.ReportTitle,
+                Text = title,
                 FontSize = 12.5,
                 FontWeight = FontWeight.SemiBold,
                 Foreground = StrongBrush,
                 VerticalAlignment = VerticalAlignment.Center,
             }
         );
-        _titleNow.FontSize = 11;
-        _titleNow.Margin = new Thickness(12, 0, 0, 0);
-        _titleNow.VerticalAlignment = VerticalAlignment.Center;
-        FlyoutPanelParts.Mono(_titleNow);
-        Grid.SetColumn(_titleNow, 1);
-        grid.Children.Add(_titleNow);
+        now.FontSize = 11;
+        now.Margin = new Thickness(12, 0, 0, 0);
+        now.VerticalAlignment = VerticalAlignment.Center;
+        FlyoutPanelParts.Mono(now);
+        Grid.SetColumn(now, 1);
+        grid.Children.Add(now);
+        if (!soloBadge)
+        {
+            return grid;
+        }
+
         var badge = new Border
         {
             Margin = new Thickness(6, 0, 0, 0),
@@ -393,6 +403,16 @@ public sealed class SoloAdvisoryPanel : StackPanel
         grid.Children.Add(badge);
         return grid;
     }
+
+    private static TextBlock MutedLine() =>
+        new()
+        {
+            FontSize = 11,
+            Foreground = FlyoutPanelParts.TitleBrush,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(11, 4, 11, 2),
+            IsVisible = false,
+        };
 
     private Grid GroupLineView()
     {
@@ -644,8 +664,14 @@ public sealed class SoloAdvisoryPanel : StackPanel
     private void ShowGhost(string text)
     {
         GhostText.Text = text;
-        _ghostView.Inlines ??= [];
-        _ghostView.Inlines.Clear();
+        ShowKeyed(_ghostView, text);
+    }
+
+    /// <summary>Draws <paramref name="text"/> into <paramref name="view"/> with its keys (<c>Tab</c>, <c>Enter</c>) as key caps.</summary>
+    internal static void ShowKeyed(TextBlock view, string text)
+    {
+        view.Inlines ??= [];
+        view.Inlines.Clear();
         string[] words = text.Split(' ');
         for (int i = 0; i < words.Length; i++)
         {
@@ -653,16 +679,16 @@ public sealed class SoloAdvisoryPanel : StackPanel
             string space = (i < words.Length - 1) ? " " : "";
             if (KeyWords.Contains(word))
             {
-                _ghostView.Inlines.Add(new InlineUIContainer(KeyCap(word)) { BaselineAlignment = BaselineAlignment.Center });
-                _ghostView.Inlines.Add(new Run(space));
+                view.Inlines.Add(new InlineUIContainer(KeyCap(word)) { BaselineAlignment = BaselineAlignment.Center });
+                view.Inlines.Add(new Run(space));
             }
             else
             {
-                _ghostView.Inlines.Add(new Run(word + space));
+                view.Inlines.Add(new Run(word + space));
             }
         }
 
-        AutomationProperties.SetName(_ghostView, text);
+        AutomationProperties.SetName(view, text);
     }
 
     private static Border KeyCap(string key) =>
@@ -903,14 +929,14 @@ public sealed class SoloAdvisoryPanel : StackPanel
             return;
         }
 
-        if (reading.IsEmpty || _sending)
+        if (reading.IsEmpty || _sender.IsSending)
         {
             return;
         }
 
         if (!reading.IsComplete)
         {
-            ShowNote($"Set the {string.Join(", ", reading.Missing.Select(SoloAdvisoryText.KindWord))} first; Enter sends nothing.", null);
+            ShowNote(AdvisorySend.MissingNote(reading.Missing), null);
             return;
         }
 
@@ -923,37 +949,19 @@ public sealed class SoloAdvisoryPanel : StackPanel
     /// </summary>
     private async Task SendAsync(AdvisoryReading reading)
     {
-        int opening = _opening;
-        _sending = true;
-        CommandResultDto? result;
-        try
-        {
-            result = await _send(SoloAdvisoryText.Command(reading));
-        }
-        finally
-        {
-            if (opening == _opening)
-            {
-                _sending = false;
-            }
-        }
-
-        if (opening != _opening)
+        (bool answered, CommandResultDto? result) = await _sender.SendAsync(SoloAdvisoryText.Command(reading));
+        if (!answered)
         {
             return;
         }
 
-        switch (result)
+        if (AdvisorySend.IsTaken(result))
         {
-            case null:
-                ShowNote(NotSentNote, BadBrush);
-                break;
-            case { Success: false } refused:
-                ShowNote($"Refused: “{refused.Message}”. The values are kept; fix a part and press Enter again.", BadBrush);
-                break;
-            default:
-                _close();
-                break;
+            _close();
+        }
+        else
+        {
+            ShowNote(AdvisorySend.NoteFor(result), BadBrush);
         }
     }
 

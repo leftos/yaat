@@ -683,6 +683,9 @@ A Tower Cab 3D connection listed in Room Members (`ClientKind.TowerCab`, keyed b
 
 ## Client settings
 
+**Field advisory flyout**:
+Report field in sight… in RPO and in solo training: the user types the clock and miles of the destination field (or sets them on the clock dial and Miles stepper) and Enter sends `RFIS {clock} {miles}`; the true values are pre-filled and followed unless the solo pre-fill setting leaves them for the student, and the sim records any value, so the flyout never grades it (docs/client-context-menus.md).
+
 **Import clash**:
 An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
 
