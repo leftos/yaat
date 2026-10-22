@@ -5,10 +5,9 @@ collections first, so the parallel run's slow tail shrinks. Its weight table is 
 collection: a `[Collection("X")]` class keys on `X`, every other class is its own collection and
 keys on its namespace-qualified name - exactly what `CollectionWeightOrderer` derives at run time.
 
-Refresh it from a full Sim run, started from the repo root. The gate routes this command to the
-builder, which brings no test outputs back yet (gate inbox request 20261019-233835), so either add
-`-Local -Reason "<why>"` to the gate call below or copy the TRX back from the builder. It lands at
-`tests/Yaat.Sim.Tests/bin/Release/net10.0/TestResults/<name>.trx` either way:
+Refresh it from a full Sim run, started from the repo root. The gate may route this command to the
+Windows or the Mac builder; either brings the TRX back to this PC, at
+`tests/Yaat.Sim.Tests/bin/Release/net10.0/TestResults/<name>.trx`:
 
     pwsh tools/gate.ps1 -Log .tmp/sim.trx.log -TimeoutSeconds 1500 -Slot heavy -- \\
         dotnet run --project tests/Yaat.Sim.Tests -c Release -- \\
