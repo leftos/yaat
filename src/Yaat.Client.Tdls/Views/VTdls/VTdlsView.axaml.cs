@@ -5,6 +5,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Find;
@@ -50,6 +51,8 @@ public partial class VTdlsView : UserControl
     public VTdlsView()
     {
         InitializeComponent();
+        // Light until a view-model says otherwise.
+        ApplyTheme(dark: false);
 
         _findController = new FindController(BuildFindSnapshot, ScrollFindMatchIntoView);
         FindBar.DataContext = _findController;
@@ -170,14 +173,20 @@ public partial class VTdlsView : UserControl
 
     /// <summary>
     /// Swaps the runtime brush values backing the view's <c>UserControl.Resources</c>
-    /// dictionary. Avalonia <see cref="StaticResource"/> bindings re-evaluate when
+    /// dictionary. Avalonia <c>DynamicResource</c> bindings re-evaluate when
     /// the dictionary entry is replaced, so every panel/border/label that pulls a
     /// VTdls* brush updates automatically. Light = the realistic upstream palette
     /// (white panels, green list headers); Dark = darker variant for use alongside
     /// YAAT's other dark views. The controller toggles via the Facility Menu.
+    /// The view also pins its own theme variant to the mode, so the Fluent parts it
+    /// does not repaint (focus states, scroll bars, the Ops Config flyout) follow the
+    /// view rather than the host: the desktop app runs Fluent Dark, the web app Light.
     /// </summary>
     private void ApplyTheme(bool dark)
     {
+        // Avalonia shares one RequestedThemeVariant property across every styled element and exposes it
+        // publicly only through ThemeVariantScope's owner field.
+        SetValue(ThemeVariantScope.RequestedThemeVariantProperty, dark ? ThemeVariant.Dark : ThemeVariant.Light);
         if (dark)
         {
             Resources["VTdlsChromeBg"] = new SolidColorBrush(Color.Parse("#0a0a0a"));
@@ -195,6 +204,15 @@ public partial class VTdlsView : UserControl
             // keep the same blue foreground so text stays legible against it.
             Resources["VTdlsHoverBg"] = new SolidColorBrush(Color.Parse("#2a2a2a"));
             Resources["VTdlsHoverFg"] = new SolidColorBrush(Color.Parse("#8ec5ff"));
+            // Editor dropdowns and buttons: one step lighter than the dark panel.
+            Resources["VTdlsControlBg"] = new SolidColorBrush(Color.Parse("#2a2a2a"));
+            Resources["VTdlsControlFg"] = new SolidColorBrush(Color.Parse("#d8d8d8"));
+            Resources["VTdlsControlBorder"] = new SolidColorBrush(Color.Parse("#6a6a6a"));
+            Resources["VTdlsControlHoverBg"] = new SolidColorBrush(Color.Parse("#3a3a3a"));
+            Resources["VTdlsControlPressedBg"] = new SolidColorBrush(Color.Parse("#4a4a4a"));
+            Resources["VTdlsControlDisabledBg"] = new SolidColorBrush(Color.Parse("#202020"));
+            Resources["VTdlsControlDisabledBorder"] = new SolidColorBrush(Color.Parse("#3a3a3a"));
+            Resources["VTdlsControlDisabledFg"] = new SolidColorBrush(Color.Parse("#909090"));
         }
         else
         {
@@ -213,6 +231,16 @@ public partial class VTdlsView : UserControl
             // as a highlight against the white surface.
             Resources["VTdlsHoverBg"] = new SolidColorBrush(Color.Parse("#e0e0e8"));
             Resources["VTdlsHoverFg"] = new SolidColorBrush(Color.Parse("#0000bb"));
+            // Editor dropdowns and buttons: grey on the white panel. The disabled text
+            // keeps at least 4.5:1 against both the disabled fill and the white panel.
+            Resources["VTdlsControlBg"] = new SolidColorBrush(Color.Parse("#e8e8e8"));
+            Resources["VTdlsControlFg"] = new SolidColorBrush(Color.Parse("#000000"));
+            Resources["VTdlsControlBorder"] = new SolidColorBrush(Color.Parse("#7a7a7a"));
+            Resources["VTdlsControlHoverBg"] = new SolidColorBrush(Color.Parse("#d6d6d6"));
+            Resources["VTdlsControlPressedBg"] = new SolidColorBrush(Color.Parse("#c4c4c4"));
+            Resources["VTdlsControlDisabledBg"] = new SolidColorBrush(Color.Parse("#f0f0f0"));
+            Resources["VTdlsControlDisabledBorder"] = new SolidColorBrush(Color.Parse("#b0b0b0"));
+            Resources["VTdlsControlDisabledFg"] = new SolidColorBrush(Color.Parse("#666666"));
         }
     }
 

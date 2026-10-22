@@ -1,7 +1,11 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -533,6 +537,229 @@ public class VTdlsViewInteractionTests
         Assert.True(await vm.SaveOpConfigAsync("cfg-east"));
         // NCT owns no TDLS configuration at all — naming the page would be rejected.
         Assert.Equal([("", "TDLSOPS OAK cfg-east")], SentCommands);
+    }
+
+    // ── Theme: the view renders the same on every host ──
+
+    /// <summary>
+    /// The view carries its own light and dark palettes, so the Fluent controls inside it have to follow the view's
+    /// mode rather than the host's: the desktop app runs Fluent Dark, the web app Fluent Light, and either one left in
+    /// charge paints the editor's buttons and dropdowns in the other palette's colours. The pin has to follow a
+    /// runtime toggle both ways, not just the mode the view opened in.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Theme_ViewPinsItsThemeVariantToItsOwnMode(bool dark)
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport _) = MakeVm();
+        vm.IsDarkMode = dark;
+        VTdlsView view = BootView(vm);
+        AssertThemeVariantFollowsMode(view, vm);
+
+        ToggleDarkMode(view, vm);
+        AssertThemeVariantFollowsMode(view, vm);
+
+        ToggleDarkMode(view, vm);
+        AssertThemeVariantFollowsMode(view, vm);
+    }
+
+    /// <summary>
+    /// The reported shape (GitHub #1340): on the web host in light mode the editor's buttons and dropdowns were stock
+    /// Fluent Light, near-white and, when disabled, pale grey on the white editor panel, so they could not be seen.
+    /// Each control has to stand out from the panel and carry text that reads on it, enabled and disabled alike, in
+    /// the mode the view opened in and after the controller toggles dark mode either way.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Theme_EditorButtonsAndDropdowns_StandOutFromThePanel_WithReadableText(bool dark)
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        vm.IsDarkMode = dark;
+        SeedFacility(vm, ConfigWithClimbVias());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+
+        // The editor opens one mandatory field short, so Send starts disabled; picking a climb-via disables Maintain.
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        vm.Editor!.SelectedClimbvia = vm.Editor.Climbvias.Single(v => v.Value == "CLIMB VIA SID");
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Color opened = AssertEditorPalette(view, vm);
+
+        ToggleDarkMode(view, vm);
+        Color toggled = AssertEditorPalette(view, vm);
+        Assert.NotEqual(opened, toggled);
+
+        ToggleDarkMode(view, vm);
+        Assert.Equal(opened, AssertEditorPalette(view, vm));
+
+        vm.Editor.SelectedDepFreq = vm.Editor.DepFreqs[0];
+        Dispatcher.UIThread.RunJobs();
+        Button send = EditorButton(view, "Send");
+        Assert.True(send.IsEffectivelyEnabled);
+        AssertStandsOutAndReads("Send", ButtonColours(send), opened, enabled: true);
+    }
+
+    private static void ToggleDarkMode(VTdlsView view, VTdlsViewModel vm)
+    {
+        vm.IsDarkMode = !vm.IsDarkMode;
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void AssertThemeVariantFollowsMode(VTdlsView view, VTdlsViewModel vm) =>
+        Assert.Equal(vm.IsDarkMode ? ThemeVariant.Dark : ThemeVariant.Light, view.ActualThemeVariant);
+
+    /// <summary>
+    /// Checks the editor against the palette of the view's current mode: the theme variant, an enabled and a disabled
+    /// button, an enabled and a disabled dropdown, and the items of an open drop-down list. Returns the panel colour.
+    /// </summary>
+    private static Color AssertEditorPalette(VTdlsView view, VTdlsViewModel vm)
+    {
+        AssertThemeVariantFollowsMode(view, vm);
+        Color panel = SolidColour(view.Resources["VTdlsListBg"] as IBrush, "the editor panel");
+
+        Button dump = EditorButton(view, "Dump");
+        Assert.True(dump.IsEffectivelyEnabled);
+        AssertStandsOutAndReads("Dump", ButtonColours(dump), panel, enabled: true);
+
+        Button send = EditorButton(view, "Send");
+        Assert.False(send.IsEffectivelyEnabled);
+        AssertStandsOutAndReads("Send (disabled)", ButtonColours(send), panel, enabled: false);
+
+        Dictionary<string, ComboBox> row = DropdownRowCombos(view);
+        Assert.True(row["SID"].IsEffectivelyEnabled);
+        AssertStandsOutAndReads("SID", ComboBoxColours(row["SID"]), panel, enabled: true);
+        Assert.False(row["Maintain"].IsEffectivelyEnabled);
+        AssertStandsOutAndReads("Maintain (disabled)", ComboBoxColours(row["Maintain"]), panel, enabled: false);
+
+        AssertOpenListReads(row["Climb via"]);
+        return panel;
+    }
+
+    /// <summary>Opens the dropdown and checks the selected item and an unselected one read on the list behind them.</summary>
+    private static void AssertOpenListReads(ComboBox box)
+    {
+        string field = ToolTip.GetTip(box) as string ?? "dropdown";
+        box.IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            Popup popup = box.GetVisualDescendants().OfType<Popup>().First(p => p.Name == "PART_Popup");
+            Border list = Assert.IsType<Border>(popup.Child);
+            Color listBackground = Over(SolidColour(list.Background, $"{field} list"), 1.0, Colors.Black);
+            var items = box.GetRealizedContainers().OfType<ComboBoxItem>().ToList();
+            Assert.Equal(box.ItemCount, items.Count);
+            AssertItemReads($"{field} selected item", items.Single(i => i.IsSelected), listBackground);
+            AssertItemReads($"{field} unselected item", items.First(i => !i.IsSelected), listBackground);
+        }
+        finally
+        {
+            box.IsDropDownOpen = false;
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static void AssertItemReads(string item, ComboBoxItem container, Color listBackground)
+    {
+        ContentPresenter presenter = container.GetVisualDescendants().OfType<ContentPresenter>().First(p => p.Name == "PART_ContentPresenter");
+        Color background = Over(SolidColour(presenter.Background, $"{item} background"), 1.0, listBackground);
+        Color text = Over(SolidColour(presenter.Foreground, $"{item} text"), 1.0, background);
+        double contrast = ContrastRatio(text, background);
+        Assert.True(contrast >= 4.5, $"{item} text {text} on {background} has a contrast of {contrast:F2}:1, under 4.5:1");
+    }
+
+    private static Button EditorButton(VTdlsView view, string label) =>
+        view.GetVisualDescendants().OfType<Button>().Single(b => (b.Content as string) == label);
+
+    /// <summary>A control's painted background, its border, and the brush and opacity of the text it shows.</summary>
+    private readonly record struct ControlColours(IBrush? Background, IBrush? Border, IBrush? Foreground, double ForegroundOpacity);
+
+    private static ControlColours ButtonColours(Button button)
+    {
+        ContentPresenter presenter = button.GetVisualDescendants().OfType<ContentPresenter>().First(p => p.Name == "PART_ContentPresenter");
+        return new ControlColours(presenter.Background, presenter.BorderBrush, presenter.Foreground, 1.0);
+    }
+
+    /// <summary>The dropdown's box, and whichever text it shows: the selected value, or the placeholder when nothing is chosen.</summary>
+    private static ControlColours ComboBoxColours(ComboBox box)
+    {
+        var parts = box.GetVisualDescendants().ToList();
+        Border background = parts.OfType<Border>().First(b => b.Name == "Background");
+        if (box.SelectionBoxItem is null)
+        {
+            TextBlock placeholder = parts.OfType<TextBlock>().First(t => t.Name == "PlaceholderTextBlock");
+            return new ControlColours(background.Background, background.BorderBrush, placeholder.Foreground, placeholder.Opacity);
+        }
+        ContentControl selected = parts.OfType<ContentControl>().First(c => c.Name == "ContentPresenter");
+        return new ControlColours(background.Background, background.BorderBrush, selected.Foreground, 1.0);
+    }
+
+    /// <summary>
+    /// A control stands out when its fill is not the panel's colour and its text reads on the fill (4.5:1). An enabled
+    /// control must also be outlined against the panel at the WCAG non-text minimum of 3:1, since a light fill on a
+    /// white panel is too faint to mark the control alone.
+    /// </summary>
+    private static void AssertStandsOutAndReads(string control, ControlColours colours, Color panel, bool enabled)
+    {
+        Color background = Over(SolidColour(colours.Background, $"{control} background"), 1.0, panel);
+        Assert.True(background != panel, $"{control} paints {background}, the editor panel's own colour, so it vanishes into the panel");
+
+        Color text = Over(SolidColour(colours.Foreground, $"{control} text"), colours.ForegroundOpacity, background);
+        double contrast = ContrastRatio(text, background);
+        Assert.True(contrast >= 4.5, $"{control} text {text} on {background} has a contrast of {contrast:F2}:1, under 4.5:1");
+
+        if (enabled)
+        {
+            Color border = Over(SolidColour(colours.Border, $"{control} border"), 1.0, panel);
+            double outline = ContrastRatio(border, panel);
+            Assert.True(outline >= 3.0, $"{control} border {border} on the panel's {panel} has a contrast of {outline:F2}:1, under 3:1");
+        }
+    }
+
+    /// <summary>The colour of a solid brush with the brush's own opacity folded into its alpha.</summary>
+    private static Color SolidColour(IBrush? brush, string what)
+    {
+        if (brush is not ISolidColorBrush solid)
+        {
+            Assert.Fail($"{what} is painted by {brush?.GetType().Name ?? "no brush"}, not a solid colour");
+            return default;
+        }
+        return Color.FromArgb((byte)Math.Round(solid.Color.A * solid.Opacity), solid.Color.R, solid.Color.G, solid.Color.B);
+    }
+
+    /// <summary>Composites <paramref name="top"/>, further faded by <paramref name="opacity"/>, over an opaque <paramref name="under"/>.</summary>
+    private static Color Over(Color top, double opacity, Color under)
+    {
+        double alpha = (top.A / 255.0) * opacity;
+        byte Mix(byte t, byte u) => (byte)Math.Round((t * alpha) + (u * (1 - alpha)));
+        return Color.FromRgb(Mix(top.R, under.R), Mix(top.G, under.G), Mix(top.B, under.B));
+    }
+
+    /// <summary>WCAG 2 contrast ratio between two opaque colours.</summary>
+    private static double ContrastRatio(Color a, Color b)
+    {
+        double la = RelativeLuminance(a);
+        double lb = RelativeLuminance(b);
+        return (Math.Max(la, lb) + 0.05) / (Math.Min(la, lb) + 0.05);
+    }
+
+    private static double RelativeLuminance(Color c)
+    {
+        static double Channel(byte value)
+        {
+            double s = value / 255.0;
+            return s <= 0.04045 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+
+        return (0.2126 * Channel(c.R)) + (0.7152 * Channel(c.G)) + (0.0722 * Channel(c.B));
     }
 
     // ── Helpers ──────────────────────────────────────────────────

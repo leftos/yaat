@@ -35,9 +35,10 @@ public partial class MainView : UserControl
 
         _queryParams = ParseQuery(App.LocationSearch);
 
-        // Restore the dark-mode preference before the VTdlsView's AttachedToVisualTree
-        // fires its ApplyTheme(), so the editor opens in the right palette on the very
-        // first render rather than flashing light-then-dark.
+        // Restore the dark-mode preference before the view-model reaches the VTdlsView:
+        // the view applies its palette from IsDarkMode when its DataContext is set (its
+        // constructor starts it light), so the editor opens in the right palette on the
+        // very first render rather than flashing light-then-dark.
         bool savedDarkMode = LoadSavedDarkMode();
 
         var vm = new VTdlsViewModel(_connection, sendCommand: SendCommandAsync, getUserInitials: () => _queryParams.GetValueOrDefault("initials", ""))
@@ -45,11 +46,10 @@ public partial class MainView : UserControl
             IsDarkMode = savedDarkMode,
         };
 
-        // Flip the Application-wide theme variant so the Avalonia FluentTheme
-        // brushes (ComboBox / Button / Border defaults) match the controller's
-        // dark-mode preference. Without this the outer chrome stays the
-        // Light-default light-grey while only the inner VTdls* themed brushes
-        // flip to dark — visible as light dropdowns + invisible buttons.
+        // Flip the Application-wide theme variant with the controller's dark-mode
+        // preference so the page chrome outside the VTdlsView (the status bar's
+        // themed brushes in App.axaml) matches it. The VTdlsView pins its own
+        // theme variant and colours its controls itself.
         ApplyApplicationTheme(savedDarkMode);
 
         // Persist + propagate any subsequent toggle from the Facility Menu.

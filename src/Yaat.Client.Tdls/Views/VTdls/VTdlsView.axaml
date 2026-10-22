@@ -31,6 +31,8 @@
     <!-- Editor label / heading text. Swaps to a light shade in dark mode
              via ApplyTheme so the form stays legible on dark backgrounds. -->
     <SolidColorBrush x:Key="VTdlsEditorTextFg" Color="#000000" />
+    <!-- The editor's dropdown and button brushes (VTdlsControl*) are set only by
+             ApplyTheme, which the constructor runs before the first render. -->
   </UserControl.Resources>
 
   <UserControl.Styles>
@@ -72,6 +74,94 @@
     </Style>
     <Style Selector=":is(TextBlock).footer-status.warning">
       <Setter Property="Foreground" Value="OrangeRed" />
+    </Style>
+
+    <!-- Editor dropdowns: the normal, pointer-over, pressed and disabled states and
+             the open list are repainted from the VTdlsControl* brushes; keyboard focus
+             keeps Fluent's highlight, which follows the view's pinned theme variant. -->
+    <Style Selector="Border.tdls-editor ComboBox">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlBg}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="PlaceholderForeground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox /template/ PathIcon#DropDownGlyph">
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <!-- Fluent fades the placeholder to half opacity; upstream's "- - - -" is
+             ordinary field text, and faded it drops under 4.5:1 when disabled. -->
+    <Style Selector="Border.tdls-editor ComboBox /template/ TextBlock#PlaceholderTextBlock">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox:pointerover /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlHoverBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox:pressed /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlPressedBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox:disabled /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlDisabledBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlDisabledBorder}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox:disabled /template/ ContentControl#ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlDisabledFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox:disabled /template/ TextBlock#PlaceholderTextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlDisabledFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBox:disabled /template/ PathIcon#DropDownGlyph">
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlDisabledFg}" />
+    </Style>
+    <!-- The open drop-down list and its items. -->
+    <Style Selector="Border.tdls-editor ComboBox /template/ Border#PopupBorder">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlHoverBg}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBoxItem:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlPressedBg}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsSelectedFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor ComboBoxItem:selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsSelectedFg}" />
+    </Style>
+
+    <!-- Editor buttons (Dump / Edit / Cancel / Send), same palette. -->
+    <Style Selector="Border.tdls-editor Button">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlBg}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.tdls-editor Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlHoverBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlPressedBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlFg}" />
+    </Style>
+    <Style Selector="Border.tdls-editor Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsControlDisabledBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource VTdlsControlDisabledBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsControlDisabledFg}" />
     </Style>
   </UserControl.Styles>
 
@@ -283,6 +373,7 @@
              on the same row as H (cruise FL), indented to align with B/E. -->
       <Border
         Grid.Row="3"
+        Classes="tdls-editor"
         IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}"
         Background="{DynamicResource VTdlsListBg}"
         BorderBrush="{DynamicResource VTdlsListBorder}"

@@ -320,6 +320,14 @@ default browser with `{server}/vtdls/?cid=…&initials=…&artcc=…&room=…`
 prefilled from the live connection — the vTDLS analog of **Open Strips
 in Browser**.
 
+## Light and dark mode
+
+The Facility Menu's dark-mode toggle sets `VTdlsViewModel.IsDarkMode`; `VTdlsView.ApplyTheme` swaps the `VTdls*` brushes and pins the view's own `RequestedThemeVariant` to the same mode, so the Fluent parts it does not repaint (scroll bars, focus rings, the Ops Config flyout) follow the vTDLS mode rather than the host app. The view starts light.
+
+The mode is chosen per host. The desktop tab seeds it from `UserPreferences.IsVTdlsDarkMode` and writes every change back (`MainViewModel.Tdls.cs`, `OnTdlsDarkModeChanged`, which also syncs the other open vTDLS tabs). The browser app defaults to light (`App.axaml`) and keeps its toggle in `localStorage` under `yaat-vtdls-dark-mode` (`MainView.axaml.cs`), which also flips the Application variant for the page chrome outside the view.
+
+The editor's dropdowns and its Dump / Edit / Cancel / Send buttons are styled by the view from the `VTdlsControl*` brushes, set for both modes in `ApplyTheme`: grey with a mid-grey border and black text in light mode, a step lighter than the panel with pale text in dark mode, a paler fill and dimmer text when disabled, darker on hover and press. The `- - - -` placeholder is drawn at full strength. `VTdlsViewInteractionTests` (`Theme_*`) checks the pinned variant and the control contrast in both modes.
+
 ## Phraseology compliance notes
 
 PDC content phraseology follows AIM 5-2-2 (Pre-Departure Clearance
