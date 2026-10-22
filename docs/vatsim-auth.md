@@ -243,7 +243,13 @@ The room session's rules (`TowerCabRooms`, `CrcClientState.TowerCab.cs`):
   A CRC session start offers the CID's waiting Tower Cab its session before `StartSession` answers, so a bind that follows can never be overtaken by a late offer of the lobby session.
 - **Leaving.** `LeaveSession` on the room session is a quiet detach: the viewer is unlisted without `HandleSessionEnded`, forgets the offer, and records the room as declined, so the room is not offered again until its CID next joins a room.
 - **No position.** With no CRC session joined it holds no position, so it may call only `GetServerConfiguration`, `Subscribe`, `Unsubscribe`, `GetSessions`, `JoinSession` and `LeaveSession`; any other method gets `RefuseDirectInvocation`'s error completion.
-- **Acks.** A repeat `JoinSession` to the session it is already in is a plain acknowledgement; for Tower Cab 3D that ack, like an accepted join's answer, is queued behind its earlier session pushes rather than written directly.
+- **Closing.** However the connection ends (a close frame, a JSON close record, a receive error or any exception), the viewer leaves its room session and its member entry (`CrcWebSocketHandler.ReleaseClient` → `TowerCabRooms.OnClosed`). A socket that drops silently is noticed only when TCP gives up; a keep-alive is booked as YAAT-1016.
+- **Acks.** A repeat `JoinSession` to the session it is already in is a plain acknowledgement. For Tower Cab 3D the `GetSessions` answer, an accepted join's answer and that ack are queued behind its earlier session pushes and ahead of its later ones, rather than written directly, so a push received before the `GetSessions` answer is already reflected in it.
+
+  A repeat join is decided under the same lock as the pushes: if the cab left the session meanwhile, it is handled as a first join, which can be refused.
+- **Direct answers.** Refusals, the `LeaveSession` acknowledgement and error answers are still written directly, unordered. CRC, vEDST and a Tower Cab that skipped negotiate get every answer directly.
+- **Room offer.** A `GetSessions` that lists no room session clears the remembered offer, but only while the cab is not attached to a room.
+- **CRC session ends.** When a CRC session the cab joined ends or leaves its room, the cab's link is cleared, it is taken off the session's joined list and `HandleSessionEnded` is queued in one locked step, so the cab is never told "ended" while the server still holds it joined.
 
 The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. A VATSIM outage during that lookup answers 503, not 500 (see "VATSIM outage").
 

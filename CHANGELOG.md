@@ -57,6 +57,7 @@
 
 ### Fixed
 
+- Tower Cab 3D always joins the room it is currently offered, even when its user switches rooms while it connects.
 - Clicking the highlighted first entry of a pick list, such as Cleared visual or Join STAR, sends it instead of doing nothing.
 - vTDLS in light mode shows its editor's dropdowns and buttons, which vanished on the white panel in the browser; both modes now look the same on desktop and browser.
 - A bare `CVIA` clears the assigned altitude and climbs to the SID's top altitude from the ARTCC's TDLS settings, never to filed cruise or the takeoff altitude.
