@@ -47,10 +47,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
         CifpAltitudeRestriction published = Assert.IsType<CifpAltitudeRestriction>(fix.AltitudeRestriction);
         _output.WriteLine($"{fix.Name} publishes {published.Type} {published.Altitude1Ft}");
 
-        SendOk(harness, "DM 120");
-        SendOk(harness, $"CFIX {fix.Name} 110");
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000), fix.AltitudeRestriction);
-        Assert.Equal(12000, fix.RevertAssignedAltitude);
+        SendOk(harness, "DM 080");
+        SendOk(harness, $"CFIX {fix.Name} A110");
+        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 11000), fix.AltitudeRestriction);
+        Assert.Equal(8000, fix.RevertAssignedAltitude);
 
         SendOk(harness, "DVIA");
 
@@ -60,7 +60,76 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.Null(aircraft.Targets.AssignedAltitude);
 
         TickUntilPassed(harness, fix.Name, t => Assert.True(aircraft.Targets.AssignedAltitude is null, $"At {t} s AssignedAltitude came back"));
-        Assert.NotEqual(12000, aircraft.Targets.TargetAltitude);
+        Assert.NotEqual(8000, aircraft.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// "DM 150; CFIX X 110" from above 15,000: going back up to 15,000 past X would reverse the descent, which needs a new
+    /// clearance (7110.65 4-5-7.h.8 NOTE 2; 14 CFR 91.123), and the crossing overrides the earlier 15,000 (AIM 4-4-10.g).
+    /// The CFIX captures no altitude revert, and the aircraft stays at 11,000 past X.
+    /// </summary>
+    [Fact]
+    public void CrossFixBelowEarlierDescent_NoRevert_StaysAtTheCrossingAltitude()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string fixName = aircraft.Targets.NavigationRoute[3].Name;
+        SendOk(harness, "DM 150");
+        SendOk(harness, $"CFIX {fixName} 110");
+        NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
+        Assert.Null(fix.RevertAltitude);
+        Assert.Null(fix.RevertAssignedAltitude);
+
+        TickUntilPassed(harness, fixName, _ => { });
+        double lowest = aircraft.Altitude;
+        for (int t = 1; t <= 300; t++)
+        {
+            harness.Engine.TickOneSecond();
+            lowest = Math.Min(lowest, aircraft.Altitude);
+            Assert.True(
+                aircraft.Altitude <= lowest + FlightPhysics.AltitudeSnapFt,
+                $"{t} s past {fixName} the aircraft climbed back to {aircraft.Altitude:F0} ft from {lowest:F0}"
+            );
+        }
+
+        Assert.Equal(11000, aircraft.Targets.AssignedAltitude);
+        Assert.InRange(aircraft.Altitude, 11000 - FlightPhysics.AltitudeSnapFt, 11000 + FlightPhysics.AltitudeSnapFt);
+    }
+
+    /// <summary>
+    /// "DM 080; CFIX X at or above 110" from above 11,000: the revert to 8,000 continues the descent (AIM 4-4-10.e), so the
+    /// CFIX captures it and the aircraft carries on down to 8,000 past X.
+    /// </summary>
+    [Fact]
+    public void CrossFixAboveLaterDescent_KeepsTheRevert_ContinuesDown()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string fixName = aircraft.Targets.NavigationRoute[3].Name;
+        SendOk(harness, "DM 080");
+        SendOk(harness, $"CFIX {fixName} A110");
+        NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
+        Assert.Equal(8000, fix.RevertAltitude);
+        Assert.Equal(8000, fix.RevertAssignedAltitude);
+
+        TickUntilPassed(harness, fixName, _ => { });
+        for (int t = 0; (t < 600) && (aircraft.Altitude > 8000 + FlightPhysics.AltitudeSnapFt); t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        Assert.Equal(8000, aircraft.Targets.AssignedAltitude);
+        Assert.InRange(aircraft.Altitude, 8000 - FlightPhysics.AltitudeSnapFt, 8000 + FlightPhysics.AltitudeSnapFt);
     }
 
     /// <summary>
@@ -242,8 +311,9 @@ public class DescendViaSupersedesEarlierAltitudeTests
     }
 
     /// <summary>
-    /// A lateral command that drops the queued DVIA out of "AT A CFIX X 110, DVIA" leaves a lone CFIX behind: it no
-    /// longer restates the crossing with a via clearance, so it fires with its reverts, as "AT A CFIX X 110" would.
+    /// A lateral command that drops the queued DVIA out of "AT A DM 080, CFIX X 110, DVIA" leaves a lone CFIX behind: it
+    /// no longer restates the crossing with a via clearance, so it fires with its reverts, as "AT A DM 080, CFIX X 110"
+    /// would. The DM rides in the queued block, so the aircraft is still level above the crossing when A fires.
     /// </summary>
     [Fact]
     public void QueuedSameTransmissionCrossFix_DescendViaSplitOut_KeepsTheReverts()
@@ -257,18 +327,17 @@ public class DescendViaSupersedesEarlierAltitudeTests
         AircraftState aircraft = harness.Aircraft;
         string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
         string fixName = aircraft.Targets.NavigationRoute[3].Name;
-        SendOk(harness, "DM 150");
-        SendOk(harness, $"AT {triggerFix} CFIX {fixName} 110, DVIA");
+        SendOk(harness, $"AT {triggerFix} DM 080, CFIX {fixName} 110, DVIA");
         SendOk(harness, $"DCTF {triggerFix}");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
 
-        NavigationTarget fix = TickUntilCrossingSet(harness.Engine, aircraft, fixName);
+        NavigationTarget fix = TickUntilCrossingSet(harness.Engine, aircraft, fixName, 11000);
         Assert.False(aircraft.Procedure.StarViaMode);
-        Assert.Equal(15000, fix.RevertAssignedAltitude);
+        Assert.Equal(8000, fix.RevertAssignedAltitude);
     }
 
     /// <summary>
-    /// "AT A CFIX X 110; DVIA" queues the CFIX and the DVIA as two blocks of one transmission. A later command that
+    /// "AT A DM 080, CFIX X 110; DVIA" queues the CFIX and the DVIA as two blocks of one transmission. A later command that
     /// drops the DVIA block (a lateral DCTF, or DELAT) leaves the CFIX block a lone CFIX: it fires with its reverts.
     /// </summary>
     [Theory]
@@ -285,19 +354,18 @@ public class DescendViaSupersedesEarlierAltitudeTests
         AircraftState aircraft = harness.Aircraft;
         string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
         string fixName = aircraft.Targets.NavigationRoute[3].Name;
-        SendOk(harness, "DM 150");
-        SendOk(harness, $"AT {triggerFix} CFIX {fixName} 110; DVIA");
+        SendOk(harness, $"AT {triggerFix} DM 080, CFIX {fixName} 110; DVIA");
         Assert.Contains(aircraft.Queue.Blocks, CarriesDescendVia);
         SendOk(harness, deleteConditional ? "DELAT 2" : $"DCTF {triggerFix}");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
 
-        NavigationTarget fix = TickUntilCrossingSet(harness.Engine, aircraft, fixName);
+        NavigationTarget fix = TickUntilCrossingSet(harness.Engine, aircraft, fixName, 11000);
         Assert.False(aircraft.Procedure.StarViaMode);
-        Assert.Equal(15000, fix.RevertAssignedAltitude);
+        Assert.Equal(8000, fix.RevertAssignedAltitude);
     }
 
     /// <summary>
-    /// "CFIX X 110; AT A DVIA" applies the CFIX at once and queues the DVIA. Until that DVIA fires the crossing is a lone
+    /// "CFIX X A110; AT A DVIA" applies the CFIX at once and queues the DVIA. Until that DVIA fires the crossing is a lone
     /// CFIX with its reverts, so dropping the DVIA (DELAT) leaves the reverts the CFIX captured in place (YAAT-984).
     /// </summary>
     [Fact]
@@ -312,19 +380,19 @@ public class DescendViaSupersedesEarlierAltitudeTests
         AircraftState aircraft = harness.Aircraft;
         string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
         string fixName = aircraft.Targets.NavigationRoute[3].Name;
-        SendOk(harness, "DM 150");
-        SendOk(harness, $"CFIX {fixName} 110; AT {triggerFix} DVIA");
+        SendOk(harness, "DM 080");
+        SendOk(harness, $"CFIX {fixName} A110; AT {triggerFix} DVIA");
         Assert.Contains(aircraft.Queue.Blocks, CarriesDescendVia);
         SendOk(harness, "DELAT 2");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
 
         NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
         Assert.False(aircraft.Procedure.StarViaMode);
-        Assert.Equal(15000, fix.RevertAssignedAltitude);
+        Assert.Equal(8000, fix.RevertAssignedAltitude);
     }
 
     /// <summary>
-    /// "CFIX X 110; AT A DVIA" on an aircraft with no active or filed STAR: the DVIA is refused when it fires at A, before
+    /// "CFIX X A110; AT A DVIA" on an aircraft with no active or filed STAR: the DVIA is refused when it fires at A, before
     /// X, so the CFIX was never restated with a via clearance and keeps its reverts.
     /// </summary>
     [Fact]
@@ -348,8 +416,8 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
         string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
         string fixName = aircraft.Targets.NavigationRoute[3].Name;
-        SendOk(harness, "DM 150");
-        SendOk(harness, $"CFIX {fixName} 110; AT {triggerFix} DVIA");
+        SendOk(harness, "DM 080");
+        SendOk(harness, $"CFIX {fixName} A110; AT {triggerFix} DVIA");
         CommandBlock descendVia = Assert.Single(aircraft.Queue.Blocks, CarriesDescendVia);
         for (int t = 0; (t < 1800) && !descendVia.Commands.TrueForAll(c => c.IsComplete); t++)
         {
@@ -359,7 +427,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.True(descendVia.Commands.TrueForAll(c => c.IsComplete), $"The DVIA at {triggerFix} never fired");
         Assert.False(aircraft.Procedure.StarViaMode);
         NavigationTarget fix = Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == fixName);
-        Assert.Equal(15000, fix.RevertAssignedAltitude);
+        Assert.Equal(8000, fix.RevertAssignedAltitude);
     }
 
     /// <summary>
@@ -423,7 +491,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
         restored.RestoreFromSnapshot(snapshot);
         AircraftState aircraft = Assert.IsType<AircraftState>(restored.FindAircraft(harness.Aircraft.Callsign));
 
-        NavigationTarget fix = TickUntilCrossingSet(restored, aircraft, fixName);
+        NavigationTarget fix = TickUntilCrossingSet(restored, aircraft, fixName, 11000);
         Assert.Null(fix.CrossingTransmissionId);
     }
 
@@ -557,10 +625,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
     private static bool CarriesDescendVia(CommandBlock block) => block.ParsedCommands?.Exists(c => c is DescendViaCommand) is true;
 
-    /// <summary>Ticks until a queued CFIX stamps At 11,000 on <paramref name="fixName"/> and returns that fix.</summary>
-    private static NavigationTarget TickUntilCrossingSet(SimulationEngine engine, AircraftState aircraft, string fixName)
+    /// <summary>Ticks until a queued CFIX stamps At <paramref name="altitudeFt"/> on <paramref name="fixName"/> and returns that fix.</summary>
+    private static NavigationTarget TickUntilCrossingSet(SimulationEngine engine, AircraftState aircraft, string fixName, int altitudeFt)
     {
-        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000);
+        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt);
         for (int t = 0; t < 1800; t++)
         {
             if (aircraft.Targets.NavigationRoute.Find(f => f.Name == fixName) is { } fix && (fix.AltitudeRestriction == crossing))
@@ -571,7 +639,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
             engine.TickOneSecond();
         }
 
-        throw new InvalidOperationException($"The queued CFIX never set At 11,000 on {fixName} within 1800 s");
+        throw new InvalidOperationException($"The queued CFIX never set At {altitudeFt:N0} on {fixName} within 1800 s");
     }
 
     private static void AssertNoReverts(NavigationTarget fix)

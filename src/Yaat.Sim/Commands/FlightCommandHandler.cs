@@ -822,10 +822,6 @@ internal static class FlightCommandHandler
         // plain direct-to turns the shortest way to the fix (see ApplyDirectTo).
         aircraft.Targets.PreferredTurnDirection = null;
 
-        // Capture current altitude/speed for revert on the last constrained fix
-        double? previousAlt = aircraft.Targets.TargetAltitude;
-        double? previousAssignedAlt = aircraft.Targets.AssignedAltitude;
-
         // Find the last index that has an altitude constraint (for revert)
         int lastConstrainedIdx = -1;
         foreach ((int idx, ConstrainedFixAltitude _) in cmd.AltitudeConstraints)
@@ -834,6 +830,24 @@ internal static class FlightCommandHandler
             {
                 lastConstrainedIdx = idx;
             }
+        }
+
+        // Capture current altitude/speed for revert on the last constrained fix, unless reverting would reverse the
+        // direction flown into it (NavigationCommandHandler.AltitudeRevertReversesTravel)
+        bool revertsAltitude =
+            (lastConstrainedIdx >= 0)
+            && !NavigationCommandHandler.AltitudeRevertReversesTravel(
+                aircraft.Altitude,
+                cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt,
+                aircraft.Targets.TargetAltitude
+            );
+        double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
+        double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
+
+        // Without a revert the last crossing altitude stays assigned past its fix (AIM 4-4-10.g), as with CFIX
+        if ((lastConstrainedIdx >= 0) && !revertsAltitude)
+        {
+            aircraft.Targets.AssignedAltitude = cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt;
         }
 
         for (int i = 0; i < cmd.Fixes.Count; i++)

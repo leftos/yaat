@@ -216,13 +216,16 @@ internal static class NavigationCommandHandler
     /// clearance: it takes no reverts and leaves alone the assigned altitude that clearance cleared. Before the via
     /// clearance applies the CFIX takes its reverts like any other, and the via clearance drops them if and when it applies
     /// (<see cref="SupersedeEarlierCrossingRestrictions"/>), so a via clearance dropped or refused first leaves them.
+    /// An altitude revert that would reverse the direction of flight is not captured either: the aircraft keeps the crossing
+    /// altitude past the fix (<see cref="AltitudeRevertReversesTravel"/>).
     /// </summary>
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, int transmissionId)
     {
         // Capture current altitude/speed for revert after fix passage
         bool restatedWithVia = ViaAppliedInTransmission(aircraft, transmissionId);
-        double? previousAlt = restatedWithVia ? null : aircraft.Targets.TargetAltitude;
-        double? previousAssignedAlt = restatedWithVia ? null : aircraft.Targets.AssignedAltitude;
+        bool revertsAltitude = !restatedWithVia && !AltitudeRevertReversesTravel(aircraft.Altitude, cmd.Altitude, aircraft.Targets.TargetAltitude);
+        double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
+        double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
         double? previousSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.TargetSpeed : null;
         double? previousAssignedSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.AssignedSpeed : null;
 
@@ -312,6 +315,31 @@ internal static class NavigationCommandHandler
             cfixMsg += $", speed {cmd.Speed}";
         }
         return CommandDispatcher.Ok(cfixMsg);
+    }
+
+    /// <summary>
+    /// Whether reverting to <paramref name="previousTarget"/> once past a fix crossed at <paramref name="crossAltitude"/>
+    /// would reverse the direction the aircraft flies to make the crossing. Going back to an altitude already left needs
+    /// a new clearance (7110.65 4-5-7.h.8 NOTE 2; 14 CFR 91.123), and the crossing overrides the earlier altitude
+    /// (AIM 4-4-10.g); a revert that continues the same way stands (AIM 4-4-10.e). The direction of travel is from
+    /// <paramref name="currentAltitude"/> toward the crossing altitude; an aircraft already at the crossing altitude (within
+    /// the altitude snap) has no direction of travel and keeps its revert.
+    /// </summary>
+    internal static bool AltitudeRevertReversesTravel(double currentAltitude, double crossAltitude, double? previousTarget)
+    {
+        if (previousTarget is not { } revert)
+        {
+            return false;
+        }
+
+        if (Math.Abs(crossAltitude - currentAltitude) <= FlightPhysics.AltitudeSnapFt)
+        {
+            return false;
+        }
+
+        int travel = Math.Sign(crossAltitude - currentAltitude);
+        int revertDirection = Math.Sign(revert - crossAltitude);
+        return (travel != 0) && (revertDirection != 0) && (travel != revertDirection);
     }
 
     internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)

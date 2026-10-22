@@ -1652,7 +1652,9 @@ CFIX takes a fix and an altitude, as in ATCTrainer, plus an optional speed in kn
 
 CFIX is additive and applies in place: it stamps the restriction on the named fix without rerouting (the fixes ahead of it are kept), so multiple CFIX commands stack — each fix on the route retains its own restriction. If the named fix is not yet on the route (for example an aircraft being vectored with no STAR loaded), it is appended to the route, so a chain of CFIX builds a crossing profile in the order issued.
 
-**Constrained DCTF** — `DCTF FIX1/A080 FIX2/050 FIX3` attaches altitude constraints inline. The `/` suffix uses the same CFIX altitude format. All constraints are visible to the planner simultaneously, so the aircraft plans descent across multiple waypoints at once.
+Past the fix, the aircraft goes back to the altitude it had before the CFIX only when that continues its direction of flight (a climb that was heading higher still, a descent that was heading lower still). When going back would reverse the climb or descent (a descent to cross low, previously cleared to a higher altitude), it keeps the crossing altitude: that altitude becomes the assigned altitude the datablock shows, so a later approach clearance with no altitude does not climb it back (7110.65 §4-5-7.h.8 NOTE 2; 14 CFR 91.123; AIM 4-4-10.e and .g). An aircraft already at the crossing altitude keeps its revert. The speed given with a CFIX always reverts after the fix.
+
+**Constrained DCTF** — `DCTF FIX1/A080 FIX2/050 FIX3` attaches altitude constraints inline. The `/` suffix uses the same CFIX altitude format. All constraints are visible to the planner simultaneously, so the aircraft plans descent across multiple waypoints at once. Past the last constrained fix the altitude revert follows the same rule as CFIX: it applies only when it continues the aircraft's direction of flight, otherwise the last crossing altitude stays assigned.
 
 A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` and earlier crossing restrictions** below), unless the crossing is given in the same transmission as the `DVIA`.
 

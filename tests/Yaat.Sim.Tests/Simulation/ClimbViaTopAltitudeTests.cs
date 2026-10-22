@@ -404,10 +404,10 @@ public class ClimbViaTopAltitudeTests
         AircraftState ac = Cndel5Departure(sidAlreadyActive, out CifpAltitudeRestriction published);
         DispatchContext ctx = TestDispatch.Context(Random.Shared);
 
-        DispatchLine(ac, "CM 080", ctx);
+        DispatchLine(ac, "CM 140", ctx);
         DispatchLine(ac, "CFIX PORTE A120", ctx);
         NavigationTarget porte = RouteFix(ac, "PORTE");
-        Assert.Equal(8000, porte.RevertAssignedAltitude);
+        Assert.Equal(14000, porte.RevertAssignedAltitude);
 
         DispatchLine(ac, "CVIA", ctx);
 
@@ -465,26 +465,27 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
-    /// A lateral command that drops the queued CVIA out of "AT REBAS CFIX TIPRE 110, CVIA" leaves a lone CFIX behind: it
-    /// no longer restates the crossing with a via clearance, so it fires with its reverts, as "AT REBAS CFIX TIPRE 110" would.
+    /// A lateral command that drops the queued CVIA out of "AT REBAS CFIX TIPRE 220, CVIA" leaves a lone CFIX behind: it
+    /// no longer restates the crossing with a via clearance, so it fires with its reverts, as "AT REBAS CFIX TIPRE 220" would.
+    /// The crossing sits high enough that the aircraft, climbing to FL230, is still below it at REBAS.
     /// </summary>
     [Fact]
     public void QueuedSameTransmissionCrossFix_ClimbViaSplitOut_KeepsTheReverts()
     {
         Harness harness = BuildHussh2Harness();
         AircraftState aircraft = harness.Aircraft;
-        SendOk(harness, "CM 080");
-        SendOk(harness, "AT REBAS CFIX TIPRE 110, CVIA");
+        SendOk(harness, "CM 230");
+        SendOk(harness, "AT REBAS CFIX TIPRE 220, CVIA");
         SendOk(harness, "DCTF REBAS");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesClimbVia);
 
-        NavigationTarget tipre = TickUntilCrossingSet(harness.Engine, aircraft, "TIPRE");
+        NavigationTarget tipre = TickUntilCrossingSet(harness.Engine, aircraft, "TIPRE", 22000);
         Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
-        Assert.Equal(8000, tipre.RevertAssignedAltitude);
+        Assert.Equal(23000, tipre.RevertAssignedAltitude);
     }
 
     /// <summary>
-    /// "AT REBAS CFIX TIPRE 110; CVIA" queues the CFIX and the CVIA as two blocks of one transmission. A later command that
+    /// "AT REBAS CFIX TIPRE 220; CVIA" queues the CFIX and the CVIA as two blocks of one transmission. A later command that
     /// drops the CVIA block (a lateral DCTF, or DELAT) leaves the CFIX block a lone CFIX: it fires with its reverts.
     /// </summary>
     [Theory]
@@ -494,15 +495,15 @@ public class ClimbViaTopAltitudeTests
     {
         Harness harness = BuildHussh2Harness();
         AircraftState aircraft = harness.Aircraft;
-        SendOk(harness, "CM 080");
-        SendOk(harness, "AT REBAS CFIX TIPRE 110; CVIA");
+        SendOk(harness, "CM 230");
+        SendOk(harness, "AT REBAS CFIX TIPRE 220; CVIA");
         Assert.Contains(aircraft.Queue.Blocks, CarriesClimbVia);
         SendOk(harness, deleteConditional ? "DELAT 2" : "DCTF REBAS");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesClimbVia);
 
-        NavigationTarget tipre = TickUntilCrossingSet(harness.Engine, aircraft, "TIPRE");
+        NavigationTarget tipre = TickUntilCrossingSet(harness.Engine, aircraft, "TIPRE", 22000);
         Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
-        Assert.Equal(8000, tipre.RevertAssignedAltitude);
+        Assert.Equal(23000, tipre.RevertAssignedAltitude);
     }
 
     /// <summary>
@@ -514,7 +515,7 @@ public class ClimbViaTopAltitudeTests
     {
         Harness harness = BuildHussh2Harness();
         AircraftState aircraft = harness.Aircraft;
-        SendOk(harness, "CM 080");
+        SendOk(harness, "CM 140");
         SendOk(harness, "CFIX TIPRE 110; AT REBAS CVIA");
         Assert.Contains(aircraft.Queue.Blocks, CarriesClimbVia);
         SendOk(harness, "DELAT 2");
@@ -522,7 +523,45 @@ public class ClimbViaTopAltitudeTests
 
         NavigationTarget tipre = RouteFix(aircraft, "TIPRE");
         Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
-        Assert.Equal(8000, tipre.RevertAssignedAltitude);
+        Assert.Equal(14000, tipre.RevertAssignedAltitude);
+    }
+
+    /// <summary>
+    /// "CM 100; CFIX PORTE at or above 050" from 3,000: the revert to 10,000 continues the climb (AIM 4-4-10.e), so the
+    /// CFIX captures it.
+    /// </summary>
+    [Fact]
+    public void CrossFixBelowLaterClimb_KeepsTheRevert()
+    {
+        AircraftState ac = Cndel5Departure(sidAlreadyActive: false, out _);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+
+        DispatchLine(ac, "CM 100", ctx);
+        DispatchLine(ac, "CFIX PORTE A050", ctx);
+
+        NavigationTarget porte = RouteFix(ac, "PORTE");
+        Assert.Equal(10000, porte.RevertAltitude);
+        Assert.Equal(10000, porte.RevertAssignedAltitude);
+    }
+
+    /// <summary>
+    /// "CM 080; CFIX PORTE 110" from 3,000: descending back to 8,000 past PORTE would reverse the climb, which needs a new
+    /// clearance (7110.65 4-5-7.h.8 NOTE 2; 14 CFR 91.123), so the CFIX captures no altitude revert and 11,000 stays
+    /// assigned (AIM 4-4-10.g).
+    /// </summary>
+    [Fact]
+    public void CrossFixAboveEarlierClimb_NoAltitudeRevert()
+    {
+        AircraftState ac = Cndel5Departure(sidAlreadyActive: false, out _);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+
+        DispatchLine(ac, "CM 080", ctx);
+        DispatchLine(ac, "CFIX PORTE 110", ctx);
+
+        NavigationTarget porte = RouteFix(ac, "PORTE");
+        Assert.Null(porte.RevertAltitude);
+        Assert.Null(porte.RevertAssignedAltitude);
+        Assert.Equal(11000, ac.Targets.AssignedAltitude);
     }
 
     [Fact]
@@ -715,10 +754,10 @@ public class ClimbViaTopAltitudeTests
         return new Harness(engine, aircraft);
     }
 
-    /// <summary>Ticks until a queued CFIX stamps At 11,000 on <paramref name="fixName"/> and returns that fix.</summary>
-    private static NavigationTarget TickUntilCrossingSet(SimulationEngine engine, AircraftState aircraft, string fixName)
+    /// <summary>Ticks until a queued CFIX stamps At <paramref name="altitudeFt"/> on <paramref name="fixName"/> and returns that fix.</summary>
+    private static NavigationTarget TickUntilCrossingSet(SimulationEngine engine, AircraftState aircraft, string fixName, int altitudeFt)
     {
-        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000);
+        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt);
         for (int t = 0; t < 1800; t++)
         {
             if ((aircraft.Targets.NavigationRoute.Find(f => f.Name == fixName) is { } fix) && (fix.AltitudeRestriction == crossing))
@@ -729,7 +768,7 @@ public class ClimbViaTopAltitudeTests
             engine.TickOneSecond();
         }
 
-        Assert.Fail($"The queued CFIX never set At 11,000 on {fixName} within 1800 s");
+        Assert.Fail($"The queued CFIX never set At {altitudeFt:N0} on {fixName} within 1800 s");
         return RouteFix(aircraft, fixName);
     }
 

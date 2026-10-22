@@ -165,7 +165,7 @@ The ground samples stay on the layers (no position). See [weather-and-wind.md](w
   ground path, not a downwind pursuit curve.
 - **Fix-constraint apply/revert.** On sequencing, `ApplyFixConstraints` applies the next fix's altitude/speed restriction (gated by
   SID-via / STAR-via mode), and `NavigationTarget.Revert*` fields restore the prior target/assigned alt+speed when sequencing past a constrained
-  fix. `FrdArrivalNm` (1.5 nm) and `GroundArrivalNm` (0.05 nm) are the FRD-point and ground-entity arrival thresholds used by the
+  fix. The altitude reverts are captured only when going back continues the aircraft's direction of flight (`NavigationCommandHandler.AltitudeRevertReversesTravel`); otherwise none is stored and the crossing altitude stays past the fix. `FrdArrivalNm` (1.5 nm) and `GroundArrivalNm` (0.05 nm) are the FRD-point and ground-entity arrival thresholds used by the
   queue triggers, not by route sequencing.
 
 `PreferredTurnDirection` is **not** cleared in `UpdateNavigation` — only on heading snap or route exhaustion — so departure

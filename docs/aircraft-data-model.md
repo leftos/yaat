@@ -82,7 +82,7 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
 
 `NavigationRoute` is a **get-only** `List<NavigationTarget>` — the DCT waypoint queue. Each `NavigationTarget` (`ControlTargets.cs:156`) carries the
 fix name, position, CIFP altitude/speed restrictions, fly-over flag, and four `Revert*` fields used to restore target/assigned values after sequencing
-past a CFIX or drawn-route fix. `CrossingTransmissionId` (int?) names the transmission whose CFIX or constrained DCTF stamped the fix's crossing restriction: a DVIA in the same transmission keeps it, a later DVIA drops the reverts and restores the STAR's published restriction there.
+past a CFIX or drawn-route fix; the altitude pair is left null when going back would reverse the aircraft's climb or descent, and the crossing altitude then stays as `AssignedAltitude`. `CrossingTransmissionId` (int?) names the transmission whose CFIX or constrained DCTF stamped the fix's crossing restriction: a DVIA in the same transmission keeps it, a later DVIA drops the reverts and restores the STAR's published restriction there.
 
 ## Three field categories
 

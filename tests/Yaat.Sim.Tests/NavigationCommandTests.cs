@@ -216,16 +216,16 @@ public class NavigationCommandTests : IDisposable
     public void Cfix_RevertFieldsCapturedOnTarget()
     {
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
-        aircraft.Targets.TargetAltitude = 10000;
-        aircraft.Targets.AssignedAltitude = 10000;
+        aircraft.Targets.TargetAltitude = 3000;
+        aircraft.Targets.AssignedAltitude = 3000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
 
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
-        Assert.Equal(10000, sunol.RevertAltitude);
-        Assert.Equal(10000, sunol.RevertAssignedAltitude);
+        Assert.Equal(3000, sunol.RevertAltitude);
+        Assert.Equal(3000, sunol.RevertAssignedAltitude);
     }
 
     [Fact]
@@ -1170,8 +1170,8 @@ public class NavigationCommandTests : IDisposable
     public void Cfix_RevertFieldsOnTarget_CaptureAssigned()
     {
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
-        aircraft.Targets.TargetAltitude = 10000;
-        aircraft.Targets.AssignedAltitude = 10000;
+        aircraft.Targets.TargetAltitude = 3000;
+        aircraft.Targets.AssignedAltitude = 3000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
 
@@ -1181,8 +1181,8 @@ public class NavigationCommandTests : IDisposable
 
         // Revert is captured on the NavigationTarget, not in a CommandQueue block
         NavigationTarget sunol = aircraft.Targets.NavigationRoute[0];
-        Assert.Equal(10000, sunol.RevertAltitude);
-        Assert.Equal(10000, sunol.RevertAssignedAltitude);
+        Assert.Equal(3000, sunol.RevertAltitude);
+        Assert.Equal(3000, sunol.RevertAssignedAltitude);
     }
 
     [Fact]
@@ -1287,15 +1287,15 @@ public class NavigationCommandTests : IDisposable
     {
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.IndicatedAirspeed = 250;
-        aircraft.Targets.TargetAltitude = 10000;
-        aircraft.Targets.AssignedAltitude = 10000;
+        aircraft.Targets.TargetAltitude = 3000;
+        aircraft.Targets.AssignedAltitude = 3000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         NavigationTarget sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
-        Assert.Equal(10000, sunolTarget.RevertAltitude);
-        Assert.Equal(10000, sunolTarget.RevertAssignedAltitude);
+        Assert.Equal(3000, sunolTarget.RevertAltitude);
+        Assert.Equal(3000, sunolTarget.RevertAssignedAltitude);
     }
 
     [Fact]
@@ -1518,8 +1518,8 @@ public class NavigationCommandTests : IDisposable
     {
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 300;
-        aircraft.Targets.TargetAltitude = 20000;
-        aircraft.Targets.AssignedAltitude = 20000;
+        aircraft.Targets.TargetAltitude = 3000;
+        aircraft.Targets.AssignedAltitude = 3000;
 
         var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
         var constraints = new Dictionary<int, ConstrainedFixAltitude>
@@ -1534,9 +1534,95 @@ public class NavigationCommandTests : IDisposable
         // FIX1 should NOT have revert (intermediate constrained fix)
         Assert.Null(aircraft.Targets.NavigationRoute[0].RevertAltitude);
 
-        // FIX2 should have revert (last constrained fix)
-        Assert.Equal(20000, aircraft.Targets.NavigationRoute[1].RevertAltitude);
-        Assert.Equal(20000, aircraft.Targets.NavigationRoute[1].RevertAssignedAltitude);
+        // FIX2 should have revert (last constrained fix; 3,000 continues the descent past 5,000)
+        Assert.Equal(3000, aircraft.Targets.NavigationRoute[1].RevertAltitude);
+        Assert.Equal(3000, aircraft.Targets.NavigationRoute[1].RevertAssignedAltitude);
+    }
+
+    [Fact]
+    public void ConstrainedDctf_LastFixRevertThatClimbsBack_IsNotCaptured()
+    {
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 300;
+        aircraft.Targets.TargetAltitude = 20000;
+        aircraft.Targets.AssignedAltitude = 20000;
+
+        var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
+        var constraints = new Dictionary<int, ConstrainedFixAltitude>
+        {
+            [0] = new(10000, CrossFixAltitudeType.At),
+            [1] = new(5000, CrossFixAltitudeType.At),
+        };
+
+        var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        // Reverting to 20,000 after descending to 5,000 would climb back to an altitude already left
+        Assert.Null(aircraft.Targets.NavigationRoute[1].RevertAltitude);
+        Assert.Null(aircraft.Targets.NavigationRoute[1].RevertAssignedAltitude);
+        Assert.Equal(5000, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void ConstrainedDctf_EqualConsecutiveCrossingsBelow_DoNotCaptureAClimbBack()
+    {
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 12000);
+        aircraft.IndicatedAirspeed = 300;
+        aircraft.Targets.TargetAltitude = 12000;
+        aircraft.Targets.AssignedAltitude = 12000;
+
+        var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
+        var constraints = new Dictionary<int, ConstrainedFixAltitude>
+        {
+            [0] = new(10000, CrossFixAltitudeType.At),
+            [1] = new(10000, CrossFixAltitudeType.At),
+        };
+
+        var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.Null(aircraft.Targets.NavigationRoute[1].RevertAltitude);
+        Assert.Null(aircraft.Targets.NavigationRoute[1].RevertAssignedAltitude);
+        Assert.Equal(10000, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Theory]
+    [InlineData(10000d, 5000d, null, false)] // no previous target
+    [InlineData(5005d, 5000d, 20000d, false)] // already at the crossing, just above it
+    [InlineData(4995d, 5000d, 1000d, false)] // already at the crossing, just below it
+    [InlineData(10000d, 5000d, 5000d, false)] // revert equals the crossing
+    [InlineData(10000d, 5000d, 3000d, false)] // descent continues past the crossing
+    [InlineData(5000d, 12000d, 17000d, false)] // climb continues past the crossing
+    [InlineData(15000d, 5000d, 20000d, true)] // descends to the crossing, then would climb back
+    [InlineData(5000d, 12000d, 8000d, true)] // climbs to the crossing, then would descend back
+    public void AltitudeRevertReversesTravel_ComparesRevertWithDirectionIntoTheCrossing(
+        double currentAltitude,
+        double crossAltitude,
+        double? previousTarget,
+        bool expected
+    ) => Assert.Equal(expected, NavigationCommandHandler.AltitudeRevertReversesTravel(currentAltitude, crossAltitude, previousTarget));
+
+    [Fact]
+    public void ConstrainedDctf_LastFixRevertThatContinuesTheClimb_IsCaptured()
+    {
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.Targets.TargetAltitude = 17000;
+        aircraft.Targets.AssignedAltitude = 17000;
+
+        var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
+        var constraints = new Dictionary<int, ConstrainedFixAltitude>
+        {
+            [0] = new(8000, CrossFixAltitudeType.AtOrAbove),
+            [1] = new(12000, CrossFixAltitudeType.At),
+        };
+
+        var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.Null(aircraft.Targets.NavigationRoute[0].RevertAltitude);
+        Assert.Equal(17000, aircraft.Targets.NavigationRoute[1].RevertAltitude);
+        Assert.Equal(17000, aircraft.Targets.NavigationRoute[1].RevertAssignedAltitude);
     }
 
     [Fact]
