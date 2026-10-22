@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text Box Flyouts</title>
+<style>
+  /* Layout: carried rulings and found notes, today's surfaces, then one artboard per decision whose lanes sit side by side as columns. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .switches code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 0 0 24px; font-size: 13px; color: var(--muted); }
+  .switches label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; }
+  .switches b { color: var(--ink); font-weight: 600; }
+  .switches select { font: 12px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 124ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 8px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts > span { display: block; padding-left: 14px; }
+  .note-box code { white-space: normal; overflow-wrap: anywhere; }
+  .note-box .opts i { font-style: normal; font: 600 11px var(--f-mono); color: var(--tag-b); }
+  .note-box .opts .w { color: var(--warn); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 110ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.one { grid-template-columns: minmax(0, 1fr); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 110ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-direction: column; gap: 14px; }
+  .stage.row { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .flabel code { color: #8fc1ff; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 440px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send], .mi[data-open] { cursor: pointer; }
+  .mi[data-send]:hover, .mi[data-open]:hover { background: rgba(255, 255, 255, .085); }
+  .mi:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 0 auto; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .cmd.bad { color: #ff8f8f; opacity: 1; }
+  .bdg { flex: 0 0 auto; border: 1px solid #e0a84a; color: #e0a84a; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .mono { font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .muted-line { font: 12.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 6px 11px 6px; }
+
+  /* Boxes: the fixed verb is drawn inside the box's own border (family F decision 4). */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .pbox { display: inline-flex; align-items: stretch; height: 28px; border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+  .pbox.focus, .pbox:focus-within { border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .pbox.badb { border-bottom: 2px solid #ff8f8f; }
+  .pbox .pre { font: 13px "JetBrains Mono", Consolas, monospace; color: #a4adb8; background: rgba(255, 255, 255, .07); border-right: 1px solid #4a4a4a; padding: 0 7px; display: flex; align-items: center; user-select: none; }
+  .pbox input { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: transparent; border: 0; outline: none; padding: 0 8px; width: 200px; }
+  .pbox input.sm { width: 90px; }
+  .pbox input::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .chip { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+  .chip:hover { background: #2e343b; }
+  .err { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ff8f8f; padding: 2px 0 0; white-space: normal; max-width: 300px; }
+  .ok { font: 11.5px Inter, "Segoe UI", sans-serif; color: #9fe0c0; padding: 2px 0 0; white-space: normal; max-width: 300px; }
+  .amb { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ffc062; padding: 2px 0 0; white-space: normal; max-width: 300px; }
+  .hist .n { font: 13px "JetBrains Mono", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+  .hist .nm.col { overflow: hidden; max-width: 100%; }
+
+  /* Today's popups. */
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; flex-direction: column; gap: 4px; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .inpop .rowp { display: flex; gap: 4px; align-items: center; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 160px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox.mono { font-family: "JetBrains Mono", Consolas, monospace; }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+  .refl { font: 11px Inter, "Segoe UI", sans-serif; color: #e08a8a; max-width: 240px; }
+  .callout { max-width: 360px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  /* A code card: what the host interface keeps, for decision 5. */
+  .codecard { font: 12px/1.55 "JetBrains Mono", Consolas, monospace; color: #d8dde3; background: #14171b; border: 1px solid #2e333a; border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; max-width: 560px; }
+  .codecard .k { color: #8fc1ff; } .codecard .del { color: #ff8f8f; text-decoration: line-through; } .codecard .c { color: #8f969e; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+    .pbox input { width: 150px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-1018 · family T · text boxes · mock for the owner's decisions</div>
+  <h1>Squawk, Say and Scratchpad flyouts</h1>
+  <p class="lede">Family T is the three free-text input popups left on the aircraft menu once families F and E are converted: <b>Squawk…</b> (<code>SQ {code}</code>, the only one checked today), <b>Ask pilot to say › Custom…</b> (<code>SAY {text}</code>) and <b>Data Block › Scratchpad…</b> (<code>SP {text}</code>). Converting them leaves <b>Custom taxi…</b> as the one caller of <code>IMenuHost.ShowInputPopup</code>.</p>
+  <p class="lede">The page draws one artboard per decision, each option a lane: the box form on the Squawk flyout, the squawk code check, Say › Custom, the Scratchpad seed and what <code>ShowInputPopup</code> keeps. Rows, chips and boxes are live; the line under each lane says what a click or Enter sends. Three page switches answer the smaller decisions the code forces (6, 7 and 9).</p>
+  <p class="lede">Commands, refusals and the parser's rules are read from the source. The aircraft, their codes, scratchpads and the recent Say texts are illustrative.</p>
+
+  <section class="note-box" aria-labelledby="carried-h">
+    <h2 id="carried-h">Carried from rulings and earlier parts (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Siblings are absorbed</b> (owner ruling, YAAT-1018). The Squawk flyout carries the whole Squawk group (Squawk assigned code, random, VFR, normal, standby, Ident) beside the code box; the Say flyout carries the six Say queries beside Custom. No Squawk or Ask pilot submenu is left.</li>
+      <li><b>CTO Custom is an inline box row</b> (family F, decision 4): always open, its fixed <code>CTO</code> prefix drawn as part of the box. A blank CTO box sends <code>CTO</code> (decision 5). Decision 1 here asks whether family T follows it.</li>
+      <li><b>Boxes are checked before sending; rows the sim would refuse are hidden, not greyed</b> (family E). Here that hides <b>Squawk assigned code</b> when no code is assigned, as it already is (<code>AircraftCommandApplicability.HasAssignedBeaconCode</code>).</li>
+      <li><b>A one-box flyout is already built</b>: Data Block's Temporary altitude… and Cruise… (<code>AltitudeBoxPanel</code>, <code>AltitudeFlyout.cs:826-904</code>): a title line naming the present value, one box row whose command column shows what Enter sends, or the refusal in red; Enter in the empty box closes, sending nothing. The Scratchpad flyout is drawn as its sibling.</li>
+      <li><b>Custom taxi… keeps its input popup</b> (owner ruling), so <code>ShowInputPopup</code> survives with that one caller (<code>MenuCatalog.cs:1192-1210</code>).</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found while drawing (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>The Squawk box is stricter than the sim.</b> <code>FormatSquawkCode</code> takes exactly four digits 0-7 (<code>MenuCatalog.cs:1059-1060</code>); the sim takes one to four octal digits up to 7777 (<code>CommandParser.cs:4038-4067</code>), so <code>SQ 123</code> typed in the command bar sets 0123 but <code>123</code> in the box is refused. The box sends <code>SQ {int.Parse}</code>: <code>0347</code> goes out as <code>SQ 347</code>, which the sim reads as the same code.</li>
+      <li><b>A bare SQ is Squawk assigned code.</b> <code>SQ</code> with no code is <code>SquawkResetCommand</code> (<code>CommandParser.cs:4040-4043</code>), the row the flyout already carries when a code is assigned (decision 9).</li>
+      <li><b>A bare SAY is not a SAY.</b> The parser's only SAY arm takes an argument (<code>CommandParser.cs:1078</code>); a bare <code>SAY</code> falls to <code>UnsupportedCommand</code> (<code>:1138</code>) and the sim answers “Command not yet supported: SAY” (<code>CommandDispatcher.cs:1509-1510</code>). A blank Custom box can only send nothing (decision 8). The text goes out as typed, case kept; <code>SP</code> upper-cases (<code>CommandParser.cs:1054</code>).</li>
+      <li><b>SP is a toggle.</b> Entering the scratchpad's present value again restores the previous one (<code>TrackEngine.cs:415-421</code>); a blank <code>SP</code> clears it, and clearing a cleared scratchpad restores the previous one (<code>:405-413</code>). A box seeded with the present value sends exactly that toggle on an unchanged Enter (decision 3).</li>
+      <li><b>The scratchpad limit lives on the server.</b> Three characters, four where the facility allows it (<code>ScratchpadRuleEngine.cs:16</code>); a longer entry is refused “FORMAT”, the value unchanged (<code>TrackEngine.cs:423-427</code>). The room's limit reaches the client nowhere (yaat-server <code>RoomEngine.cs:2341</code> reads it; no DTO carries it), and <code>IMenuAircraft</code> has no scratchpad member though <code>AircraftModel</code> holds <code>Scratchpad1</code> (<code>AircraftModel.cs:1513</code>), so seeding or checking it needs a menu-side field (decisions 3 and 6).</li>
+      <li><b>The input popup's Clear button closes it.</b> Clear and Escape both close without sending (<code>MenuPopups.cs:122-125</code>); nothing clears the text. The popup Custom taxi… keeps has the same button.</li>
+    </ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="switches" role="group" aria-label="Page switches">
+    <label>Scratchpad length check <select id="sw-len" aria-label="Scratchpad length check"><option value="4">at 4 characters (6a)</option><option value="room">at the room's limit, 3 here (6b)</option><option value="none">none: the sim answers FORMAT (6c)</option></select></label>
+    <label><input type="checkbox" id="sw-blank-sp"> <b>Blank Scratchpad sends <code>SP</code></b></label><span>decision 7b; off: Enter in the empty box sends nothing.</span>
+    <label><input type="checkbox" id="sw-blank-sq"> <b>Blank Squawk sends <code>SQ</code></b></label><span>decision 9b; off: sends nothing.</span>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <ol class="nl" id="decisions"></ol>
+  </section>
+
+  <footer class="foot">Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px, stroke 1.9, in the scope-and-sim grey <code>#DCE2E8</code>: Squawk code, Squawk normal and Squawk assigned code have one; the other rows show an empty dashed slot. The mock's “Pilot …” lines stand for the sim's own replies, which this page does not run. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const SCOPE = "#DCE2E8";
+  const P = {
+    SQ: "M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2",
+    SQNORM: "M3 7h18v10H3z M8 12l3 3 5-6",
+    SQASG: "M3 7h18v10H3z M16 9.5V13H8 M10.5 10.5L8 13l2.5 2.5",
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = path => `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${SCOPE}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+  const blankG = `<span class="gly blank" aria-hidden="true"></span>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const grp = (l, r = "") => `<div class="grp"><span>${l}</span><code>${r}</code></div>`;
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+  const titleLine = (title, right) => `<div class="mi title"><span class="et"><b>${esc(title)}</b></span><span class="r">${right}</span></div>`;
+  const fly = (key, inner, label) => `<div class="menu m w fly" role="menu" aria-label="${esc(label)}" data-key="${key}">${inner}</div>`;
+
+  /* ---------- State ---------- */
+  let LEN = "4", BLANK_SP = false, BLANK_SQ = false;
+  const BOXV = {}, OPEN = new Set(), BUILD = {}, KIND = {};
+  const reg = (key, fn) => { BUILD[key] = fn; return fn(); };
+  const redraw = key => { const el = document.querySelector(`[data-key="${key}"]`); if (el) el.outerHTML = BUILD[key](); };
+  const val = key => BOXV[key] ?? "";
+
+  /* ---------- Data ---------- */
+  const SQAC = { cs: "N123AB", type: "C172", code: "1200", assigned: "4613" };
+  const SAYAC = { cs: "UAL123", type: "B738" };
+  const SPAC = { cs: "SWA2471", type: "B737", sp: "I30", prev: "" };
+  const SQ_PRESETS = [
+    { id: "asg", g: P.SQASG, n: "Squawk assigned code", note: SQAC.assigned, cmd: "SQ" },
+    { id: "rand", n: "Squawk random", cmd: "RANDSQ" },
+    { id: "vfr", n: "Squawk VFR", cmd: "SQVFR" },
+    { id: "norm", g: P.SQNORM, n: "Squawk normal", cmd: "SQNORM" },
+    { id: "sby", n: "Squawk standby", cmd: "SQSBY" },
+  ];
+  const SAY_QUERIES = [["Altitude", "SALT"], ["Heading", "SHDG"], ["Speed", "SSPD"], ["Mach", "SMACH"], ["Position", "SPOS"], ["Expected approach", "SEAPP"]];
+  const HISTORY = [
+    { t: "looking for higher", to: "UAL123", ago: "1 min" },
+    { t: "request direct SUNOL", to: "UAL123", ago: "4 min" },
+    { t: "request runway 28L", to: "N738SP", ago: "6 min" },
+    { t: "unable, weather ahead, request 20 left", to: "SWA2471", ago: "11 min" },
+  ];
+  const PRESETS = ["say again", "request higher", "request lower", "unable", "request deviation for weather"];
+
+  /* ---------- Box readers: what Enter sends, refuses or does nothing on ---------- */
+  /** The squawk box: four digits 0-7, as FormatSquawkCode reads it. */
+  function sqRead(raw) {
+    const v = raw.trim();
+    if (!v) return BLANK_SQ ? { cmd: "SQ", ok: `Bare SQ: squawk assigned code ${SQAC.assigned}` } : {};
+    if (!/^\d+$/.test(v)) return { err: "A code is four digits 0-7" };
+    if (/[89]/.test(v)) return { err: "Digits 0-7 only: 8 and 9 are not in a code" };
+    if (v.length !== 4) return { err: "Four digits, 0000-7777" };
+    return { cmd: `SQ ${parseInt(v, 10)}`, ok: `Pilot squawks ${v}` };
+  }
+  /** The Say Custom box: any text; blank sends nothing (a bare SAY does not parse as a SAY). */
+  function sayRead(raw) {
+    const v = raw.trim();
+    if (!v) return {};
+    return { cmd: `SAY ${v}`, ok: `${SAYAC.cs} says “${v}”` };
+  }
+  /** The Scratchpad box: upper-cased, length per decision 6, the toggle noted. */
+  function spRead(raw) {
+    const v = raw.trim().toUpperCase();
+    if (!v) return BLANK_SP ? { cmd: "SP", ok: SPAC.sp ? `Clears ${SPAC.sp}` : "Already clear: restores the previous scratchpad" } : {};
+    const max = LEN === "4" ? 4 : LEN === "room" ? 3 : null;
+    if (max !== null && v.length > max) return { err: LEN === "room" ? `3 characters at most in this room (FORMAT)` : `4 characters at most (FORMAT)` };
+    if (v === SPAC.sp) return { cmd: `SP ${v}`, amb: `Same as now: the sim reads it as the toggle and restores the previous scratchpad${SPAC.prev ? ` (${SPAC.prev})` : ", which is blank"}` };
+    if (max === null && v.length > 3) return { cmd: `SP ${v}`, amb: "Unchecked: a 3-character room answers FORMAT after the flyout closes" };
+    return { cmd: `SP ${v}`, ok: `Scratchpad ${SPAC.sp || "blank"} → ${v}` };
+  }
+  const READ = { sq: sqRead, say: sayRead, sp: spRead };
+  const VERB = { sq: "SQ", say: "SAY", sp: "SP" };
+
+  /** A box row: o.key, o.kind, o.g, o.label, o.ph, o.focus, o.mode ("refuse" | "disable"), o.sm. */
+  function boxRow(o) {
+    const r = READ[o.kind](val(o.key));
+    const disable = o.mode === "disable";
+    const blank = !val(o.key).trim();
+    let line = "";
+    if (r.err && !disable) line = `<div class="err">${esc(r.err)} — Enter sends nothing.</div>`;
+    else if (r.amb) line = `<div class="amb">${esc(r.amb)}</div>`;
+    else if (r.ok) line = `<div class="ok">${esc(r.ok)}</div>`;
+    const cmdText = r.cmd || (r.err && !disable ? "can't send" : `${VERB[o.kind]} ···`);
+    const cmdCls = r.cmd ? "cmd" : (r.err && !disable ? "cmd bad" : "cmd wait");
+    const boxCls = `pbox${o.focus ? " focus" : ""}${r.err && !disable ? " badb" : ""}`;
+    return `<div class="mi" role="menuitem">${o.g || blankG}<span class="nm col"><span class="n">${esc(o.label)}</span><span class="under"><span class="${boxCls}"><span class="pre">${VERB[o.kind]}</span><input class="${o.sm ? "sm" : ""}" type="text" data-box="${o.key}" value="${esc(val(o.key))}" placeholder="${esc(o.ph)}" aria-label="${esc(o.label)}" autocomplete="off" spellcheck="false"></span></span>${line}</span><span></span><span class="${cmdCls}">${esc(cmdText)}</span></div>`;
+  }
+  /** A plain send row. */
+  function row(o) {
+    const notes = (o.notes || []).filter(Boolean).map(t => `<span class="note">· ${esc(t)}</span>`).join("");
+    const badge = o.badge ? `<span class="bdg">${esc(o.badge)}</span>` : "";
+    const sub = o.sub ? `<span class="note">${esc(o.sub)}</span>` : "";
+    const name = `<span class="n${o.mono ? " mono" : ""}">${esc(o.n)}</span>${badge}${notes}`;
+    const nm = sub ? `<span class="nm col"><span class="nm">${name}</span>${sub}</span>` : `<span class="nm">${name}</span>`;
+    return `<div class="mi${o.cls ? ` ${o.cls}` : ""}" role="menuitem" tabindex="0" data-send="${esc(o.cmd)}">${o.g ? gl(o.g) : blankG}${nm}<span></span><span class="cmd">${esc(o.cmdShow || o.cmd)}</span></div>`;
+  }
+
+  /* ---------- The Squawk flyout ---------- */
+  function squawkFly(key, form, mode) {
+    KIND[key] = "sq";
+    let h = titleLine("Squawk", `${SQAC.cs} · now ${SQAC.code} · assigned ${SQAC.assigned}`);
+    const box = { key, kind: "sq", g: gl(P.SQ), label: "Code", ph: "0000-7777", focus: true, mode, sm: true };
+    if (form === "inline" || OPEN.has(key)) h += boxRow(box);
+    else h += `<div class="mi" role="menuitem" tabindex="0" data-open="${key}">${gl(P.SQ)}<span class="nm"><span class="n">Squawk code…</span><span class="note">· opens a box here</span></span><span></span><span class="cmd wait">SQ ···</span></div>`;
+    h += sep();
+    h += SQ_PRESETS.map(p => row({ g: p.g, n: p.n, notes: p.note ? [p.note] : [], cmd: p.cmd })).join("");
+    h += sep() + row({ n: "Ident", cmd: "IDENT" });
+    return fly(key, h, "Squawk");
+  }
+
+  /* ---------- The Say flyout ---------- */
+  function sayFly(key, extra) {
+    KIND[key] = "say";
+    let h = titleLine("Ask pilot to say", `${SAYAC.cs} · ${SAYAC.type}`);
+    h += SAY_QUERIES.map(([n, c]) => row({ n, cmd: c })).join("");
+    h += sep();
+    h += boxRow({ key, kind: "say", label: "Custom", ph: "words the pilot says", focus: true });
+    if (extra === "history") {
+      h += grp("Recent customs · this client, any aircraft", `${HISTORY.length}`);
+      h += HISTORY.map(x => row({ n: x.t, mono: true, cls: "hist", sub: `${x.to === SAYAC.cs ? "to UAL123" : `sent to ${x.to}`} · ${x.ago} ago`, cmd: `SAY ${x.t}`, cmdShow: "SAY" })).join("");
+    } else if (extra === "presets") {
+      h += grp("Presets · a fixed list");
+      h += `<div class="mi" role="menuitem">${blankG}<span class="under" style="margin:0">${PRESETS.map(p => `<span class="chip" data-send="SAY ${esc(p)}">${esc(p)}</span>`).join("")}</span><span></span><span></span></div>`;
+    }
+    return fly(key, h, "Ask pilot to say");
+  }
+
+  /* ---------- The Scratchpad flyout ---------- */
+  function spFly(key) {
+    KIND[key] = "sp";
+    let h = titleLine("Scratchpad", `${SPAC.cs} · now ${SPAC.sp || "blank"}`);
+    h += boxRow({ key, kind: "sp", label: "Scratchpad 1", ph: LEN === "room" ? "up to 3 characters" : "e.g. I30, V28", focus: true, sm: true });
+    return fly(key, h, "Scratchpad");
+  }
+
+  /* ---------- Today ---------- */
+  const excerpt = (rows, width = 300) => `<div class="menu m" role="menu" style="width:${width}px">${rows.map(([l, c, f]) => l === "-" ? sep() : `<div class="mi plain${f === "faint" ? " faint" : ""}"><span>${l}</span><span class="cmd">${esc(c || "")}</span><span class="chev">${f === "sub" ? "›" : ""}</span></div>`).join("")}</div>`;
+  const inpop = (ph, text, refusal) => `<div class="inpop m"><div class="rowp"><input class="tbox" type="text" value="${esc(text || "")}" placeholder="${esc(ph)}" aria-label="${esc(ph)}" autocomplete="off" spellcheck="false"><span class="btn">OK</span><span class="btn">Clear</span></div>${refusal ? `<div class="refl">${esc(refusal)}</div>` : ""}</div>`;
+  const today = {
+    id: "t0-today", title: "Today · three submenus, three input popups", sends: "SQ <code> · SAY <text> · SP <text>",
+    intro: [
+      "Squawk is a root submenu; its first item, <b>Squawk…</b>, opens the one checked input popup (four digits 0-7, else “Not a valid squawk code (0000-7777)” under the box). <b>Ask pilot to say…</b> sits in All Commands and ends in <b>Custom…</b>; <b>Scratchpad…</b> opens Data Block. Both send what is typed, unchecked; blank closes.",
+    ],
+    lanes: [{ kind: "a", name: "As built",
+      body: () => `<div class="stage row">
+        ${frame("Root (excerpt)", excerpt([["All Commands", "", "sub"], ["Favorites", "", "sub"], ["-"], ["Track", "", "sub"], ["Data Block", "", "sub"], ["Squawk", "", "sub"]], 220))}
+        ${frame("› <b>Squawk</b>", excerpt([["Squawk…", ""], ["Squawk assigned code", "SQ"], ["Squawk random", "RANDSQ"], ["Squawk VFR", "SQVFR"], ["Squawk normal", "SQNORM"], ["Squawk standby", "SQSBY"], ["-"], ["Ident", "IDENT"]], 280))}
+        ${frame("Squawk… › <b>input popup</b> after <code>1289</code> + Enter", inpop("Code (0000-7777)", "1289", "Not a valid squawk code (0000-7777)"))}
+        ${frame("All Commands › <b>Ask pilot to say…</b>", excerpt([["Altitude", "SALT"], ["Heading", "SHDG"], ["Speed", "SSPD"], ["Mach", "SMACH"], ["Position", "SPOS"], ["Expected approach", "SEAPP"], ["-"], ["Custom…", ""]], 260))}
+        ${frame("Custom… › <b>input popup</b> · <code>SAY {text}</code>", inpop("Text"))}
+        ${frame("› <b>Data Block</b>", excerpt([["Scratchpad…", ""], ["Temporary altitude…", "", "sub"], ["Cruise…", "", "sub"], ["Annotate", "ANNOTATE"]], 250))}
+        ${frame("Scratchpad… › <b>input popup</b> · <code>SP {text}</code>", `<div class="pair">${inpop("Text", "I300")}<div class="callout"><b>“I300” sends</b> <code>SP I300</code>; the sim answers <code>FORMAT</code> after the popup has closed.</div></div>`)}
+      </div>`,
+      how: "Rows send at once and close. The three popups open at the pointer with an OK and a Clear button (Clear closes); Enter sends and closes; blank closes, sending nothing. Only Squawk… refuses text in place.",
+      worst: "Scratchpad… shows nothing of the present scratchpad, and typing it again to check it sends the toggle: SP I30 on a scratchpad of I30 puts back the previous one." }],
+  };
+
+  /* ---------- 1 · Box form ---------- */
+  const t1 = {
+    id: "t1-form", title: "1 · Box form, on the Squawk flyout", sends: "SQ <code> · SQ · RANDSQ · SQVFR · SQNORM · SQSBY · IDENT",
+    intro: [
+      `<b>${SQAC.cs}</b>, a ${SQAC.type} on VFR flight following out of KPAO, still squawking ${SQAC.code}; code ${SQAC.assigned} assigned. Opened from the root <b>Squawk</b> entry. The same form applies to Say › Custom and Scratchpad.`,
+    ],
+    lanes: [
+      { kind: "a", name: "Inline box row, always open",
+        body: () => frame("Root › <b>Squawk</b> › flyout, focus in the box", reg("q1a", () => squawkFly("q1a", "inline", "refuse"))),
+        how: "The code box is the first row, open and focused when the flyout opens, <code>SQ</code> drawn inside its border; the command column previews <code>SQ 4613</code>; Enter sends and closes. The presets and Ident follow as rows. Matches CTO Custom.",
+        worst: "The flyout opens with the caret in the box, so the arrow keys move in the text: reaching Squawk VFR from the keyboard takes Tab first, where every other flyout row is one Down away." },
+      { kind: "b", name: "A row that opens its box in place",
+        body: () => `${frame("as it opens: Squawk code… a row", reg("q1b", () => squawkFly("q1b", "row", "refuse")))}${frame("after a click on Squawk code…: the box in place, focused", (() => { OPEN.add("q1b2"); return reg("q1b2", () => squawkFly("q1b2", "row", "refuse")); })())}`,
+        how: "Squawk code… stays a row; a click or Enter swaps it for the box in place, focused; Escape folds it back. The flyout opens on rows, as the submenu does today.",
+        worst: "Two clicks where A needs one for the most common use of the flyout, and the family differs from CTO Custom, which the owner settled as an always-open box." },
+    ],
+  };
+
+  /* ---------- 4 · Squawk code check ---------- */
+  BOXV.q4a = "1289"; BOXV.q4b = "1289";
+  const t4 = {
+    id: "t4-check", title: "4 · Squawk code check, with 1289 typed", sends: "SQ <code> (four digits 0-7) · nothing for anything else",
+    intro: [
+      "The same Squawk flyout, inline form, with <code>1289</code> typed (an 8 and a 9 are not octal). Type <code>4613</code>, <code>777</code> or <code>12a4</code> to see each lane answer.",
+    ],
+    lanes: [
+      { kind: "a", name: "Refuse inline with a reason line",
+        body: () => frame("Root › <b>Squawk</b> › flyout", reg("q4a", () => squawkFly("q4a", "inline", "refuse"))),
+        how: "The box's underline turns red, a reason line names what is wrong (“Digits 0-7 only”, “Four digits, 0000-7777”), the command column reads <i>can't send</i>; Enter sends nothing and the flyout stays open. As Temporary altitude… refuses, with the reason given a line of its own.",
+        worst: "Each keystroke on the way to a valid code shows red: “4” alone reads “Four digits, 0000-7777” until the fourth digit." },
+      { kind: "b", name: "Disable the send until valid",
+        body: () => frame("Root › <b>Squawk</b> › flyout", reg("q4b", () => squawkFly("q4b", "inline", "disable"))),
+        how: "No reason line: the command column stays dimmed <code>SQ ···</code> until the box holds four digits 0-7, then shows <code>SQ 1234</code>; Enter on an invalid box does nothing and the flyout stays open.",
+        worst: "1289 and Enter does nothing and says nothing: the instructor cannot tell a mistyped 8 from a flyout that did not take the key, the silence today's Warp popup has." },
+    ],
+  };
+
+  /* ---------- 2 · Say › Custom ---------- */
+  const t2 = {
+    id: "t2-say", title: "2 · Say › Custom", sends: "SALT · SHDG · SSPD · SMACH · SPOS · SEAPP · SAY <text>",
+    intro: [
+      `<b>${SAYAC.cs}</b>, a ${SAYAC.type} out of KSFO climbing through 8,600 for 11,000. Opened from All Commands › <b>Ask pilot to say…</b>. The six queries are rows as built; Custom is an inline box (decision 1a), focused. A blank Custom sends nothing in every lane (decision 8).`,
+    ],
+    lanes: [
+      { kind: "a", name: "Recent customs",
+        body: () => frame("All Commands › <b>Ask pilot to say…</b> › flyout", reg("s2a", () => sayFly("s2a", "history"))),
+        how: "Under the box, the last four Say texts this client sent, newest first, each naming the aircraft it went to; a click sends that text to this aircraft. Typing narrows nothing: the list is a shortcut, not a search.",
+        worst: "“request runway 28L” was N738SP's words; one click puts them in UAL123's mouth, an airline jet climbing out of SFO asking for a runway." },
+      { kind: "b", name: "A few presets",
+        body: () => frame("All Commands › <b>Ask pilot to say…</b> › flyout", reg("s2b", () => sayFly("s2b", "presets"))),
+        how: "Five fixed chips under the box (<code>say again</code>, <code>request higher</code>, <code>request lower</code>, <code>unable</code>, <code>request deviation for weather</code>); a click sends <code>SAY {chip}</code>.",
+        worst: "A fixed list guesses what instructors say: “request higher” at FL410 is nonsense, and making it editable is a Settings page of its own." },
+      { kind: "c", name: "Nothing: the box alone",
+        body: () => frame("All Commands › <b>Ask pilot to say…</b> › flyout", reg("s2c", () => sayFly("s2c", "none"))),
+        how: "The box and nothing under it; Enter sends <code>SAY {text}</code>. The shortest flyout, the same as typing <code>SAY …</code> in the command bar.",
+        worst: "A Say an instructor repeats for every arrival is retyped every time, as it is today." },
+    ],
+  };
+
+  /* ---------- 3 · Scratchpad ---------- */
+  const t3 = {
+    id: "t3-sp", title: "3 · Scratchpad, seeded or empty", sends: "SP <text> · SP (blank, decision 7b)",
+    intro: [
+      `<b>${SPAC.cs}</b>, a ${SPAC.type} inbound to KOAK, scratchpad <code>${SPAC.sp}</code> (ILS 30), no previous value. Opened from Data Block › <b>Scratchpad…</b>. The page switches change the length check (decision 6) and what a blank sends (decision 7).`,
+    ],
+    lanes: [
+      { kind: "a", name: "Seed the box with the present value",
+        body: () => frame("Data Block › <b>Scratchpad…</b> › flyout, I30 selected", (() => { BOXV.p3a = SPAC.sp; return reg("p3a", () => spFly("p3a")); })()),
+        how: "The box opens holding <code>I30</code>, all selected, so typing replaces it and End edits it. Needs a scratchpad member on <code>IMenuAircraft</code> (the client already holds it).",
+        worst: "Enter on the unchanged box sends <code>SP I30</code>, which the sim reads as the toggle: the scratchpad goes back to its previous value, blank here, and the amber line is the only warning." },
+      { kind: "b", name: "Empty box, present value in the title",
+        body: () => frame("Data Block › <b>Scratchpad…</b> › flyout", reg("p3b", () => spFly("p3b"))),
+        how: "The box opens empty; the title line names the present value (<code>now I30</code>), as Temporary altitude… names the present altitude. Enter in the empty box sends nothing, or <code>SP</code> under 7b.",
+        worst: "Changing I30 to I28 means typing all three characters again; typing I30 to confirm it sends the same toggle as lane A." },
+    ],
+  };
+
+  /* ---------- 5 · ShowInputPopup ---------- */
+  const taxiPop = `<div class="inpop m"><div class="rowp"><input class="tbox mono" type="text" value="TAXI  A" aria-label="Taxi command" autocomplete="off" spellcheck="false" style="width:200px"><span class="btn">OK</span><span class="btn">Clear</span></div></div>`;
+  const t5 = {
+    id: "t5-popup", title: "5 · What ShowInputPopup keeps once only Custom taxi… calls it", sends: "the text as typed (TAXI …)",
+    intro: [
+      "Ground view, <b>SKW5402</b> (CRJ7) on the KSFO ramp, a right-click on a node of taxiway A: the point menu's Custom taxi… opens the popup seeded <code>TAXI  A</code>, the caret after <code>TAXI </code> (<code>ClientMenuHost.cs:287-303</code>). Both lanes draw the same popup: the difference is the host interface and the dead paths in it.",
+      "Today <code>ShowInput</code> (<code>MenuPopups.cs:48-159</code>) has a refusal line (a callback's non-null return shows under the box and keeps the popup open, <code>:93-98</code>) and two blank modes (<code>BlankInput.Closes</code> closes, <code>Submits</code> hands <code>\"\"</code> to the callback, <code>:83-88</code>). Custom taxi… passes <code>Closes</code> and a callback that always returns null (<code>MenuCatalog.cs:1202-1208</code>), so once families F, E and T are converted neither path has a caller.",
+    ],
+    lanes: [
+      { kind: "a", name: "Keep the refusal line and the blank modes",
+        body: () => `${frame("Point menu › <b>Custom taxi…</b> · popup", taxiPop)}${frame("<b>IMenuHost</b> as now", `<div class="codecard"><span class="k">void</span> ShowInputPopup(
+    string placeholder,
+    BlankInput blank,              <span class="c">// Closes · Submits</span>
+    string initialText,
+    int caretIndex,
+    Func&lt;string, Task&lt;string?&gt;&gt; onSubmit);  <span class="c">// null = took it</span>
+
+<span class="c">kept: BlankInput.cs, the refusal TextBlock,
+MenuPopupsTests' Submits and refusal cases</span></div>`)}`,
+        how: "Nothing changes in <code>IMenuHost</code>, <code>ClientMenuHost</code>, <code>PointMenuHostCache</code>, <code>MenuPopups.ShowInput</code> or the two test hosts; Custom taxi… goes on passing <code>Closes</code> and null.",
+        worst: "BlankInput.Submits and the refusal line stay with no caller, kept alive only by MenuPopupsTests; the repo's rule is to delete what nothing uses." },
+      { kind: "b", name: "Shrink to seeded text and close",
+        body: () => `${frame("Point menu › <b>Custom taxi…</b> · popup", taxiPop)}${frame("<b>IMenuHost</b> shrunk", `<div class="codecard"><span class="k">void</span> ShowInputPopup(
+    string placeholder,
+    <span class="del">BlankInput blank,</span>
+    string initialText,
+    int caretIndex,
+    Func&lt;string, Task&gt; onSubmit);  <span class="c">// blank closes</span>
+
+<span class="c">deleted: BlankInput.cs, the refusal TextBlock,
+the Submits path; kept: the in-flight guard</span></div>`)}`,
+        how: "<code>ShowInput</code> keeps the seeded text, the caret, Enter/OK sending the trimmed text, blank and Clear and Escape closing, and the guard that stops a second Enter while a send is in flight; the callback returns no reason, so the popup always closes after a send.",
+        worst: "Custom taxi… cannot refuse in place: TAXI A Z9 closes the popup and the sim's refusal lands in the terminal, and a future caller that needs a check rebuilds the refusal line." },
+    ],
+  };
+
+  const ARTS = [today, t1, t2, t3, t4, t5];
+  const NAV = ["Today", "1 Box form", "2 Say › Custom", "3 Scratchpad", "4 Code check", "5 ShowInputPopup"];
+
+  /* ---------- Decisions ---------- */
+  const DEC = [
+    ["Box form", [
+      ["a", "an inline box row, always open, the verb drawn in the box, as CTO Custom (lane 1A)", "The flyout opens with the caret in the box, so reaching a preset row from the keyboard takes Tab first."],
+      ["b", "a row that opens its box in place, focused; Escape folds it back (lane 1B)", "Two clicks for the flyout's most common use, and the family differs from the settled CTO Custom."],
+    ]],
+    ["Say › Custom", [
+      ["a", "a list of the last four Say texts this client sent, any aircraft, each naming who it went to", "One click puts another aircraft's words (“request runway 28L”, N738SP's) in this one's mouth."],
+      ["b", "a few fixed preset chips", "A fixed list guesses what instructors say, and an editable one is a Settings page."],
+      ["c", "nothing: the box alone", "A Say repeated for every arrival is retyped every time, as today."],
+    ]],
+    ["Scratchpad seed", [
+      ["a", "the box opens holding the present value, selected (needs a scratchpad member on IMenuAircraft)", "Enter on the unchanged box sends the same value, which the sim reads as the toggle and puts back the previous scratchpad."],
+      ["b", "the box opens empty; the title line names the present value", "Editing one character means retyping the whole value."],
+    ]],
+    ["Squawk code check", [
+      ["a", "refuse inline: red underline, a reason line, “can't send” in the command column; Enter sends nothing", "Every keystroke short of four digits shows red until the code is complete."],
+      ["b", "disable the send until valid: the command column stays dimmed, Enter does nothing, no reason", "1289 and Enter does nothing and says nothing; a typo looks like a dead flyout."],
+    ]],
+    ["What ShowInputPopup keeps (Custom taxi… its one caller)", [
+      ["a", "keep the refusal line and both BlankInput modes, unused", "BlankInput.Submits and the refusal line stay with no caller, held up only by tests."],
+      ["b", "shrink to placeholder, seeded text, caret and a Task callback; blank closes; delete BlankInput and the refusal line", "Custom taxi… cannot refuse in place, and a future checked caller rebuilds the refusal."],
+    ]],
+    ["Scratchpad length check (forced: the limit is 3, or 4 where the facility allows, ScratchpadRuleEngine.cs:16; the client never receives it)", [
+      ["a", "check at 4 characters, the most any room takes", "In a 3-character room, I30L passes the flyout and the sim answers FORMAT after it has closed."],
+      ["b", "carry the room's limit to the client (a field on the room or session data, both repos) and check at it", "A new field from the server for one box's length."],
+      ["c", "no check; the sim answers FORMAT", "Every over-long entry closes the flyout and fails in the terminal, as today."],
+    ]],
+    ["Blank Scratchpad (forced: a bare SP clears, and clearing a cleared scratchpad restores the previous one, CommandParser.cs:1053, TrackEngine.cs:405-413)", [
+      ["a", "Enter in the empty box sends nothing and closes, as today and as Temporary altitude…", "Clearing a scratchpad from the menu has no path; the command bar's SP does it."],
+      ["b", "Enter in the empty box sends SP and clears it", "An Enter on an empty box by mistake clears the scratchpad, and a second one brings it back."],
+    ]],
+    ["Blank Say › Custom (forced: a bare SAY parses as an unsupported command, CommandParser.cs:1078 and :1138)", [
+      ["a", "Enter in the empty box sends nothing; the only answer the parser leaves", "None beyond a key that does nothing on an empty box."],
+    ]],
+    ["Blank Squawk code (a bare SQ is Squawk assigned code, CommandParser.cs:4040-4043)", [
+      ["a", "Enter in the empty box sends nothing, as today", "None: Squawk assigned code is its own row when a code is assigned."],
+      ["b", "Enter in the empty box sends SQ", "With no code assigned the row is hidden but the blank box still sends SQ, and the sim sets the transponder to the assigned code, 0000 (FlightCommandHandler.cs:600-606)."],
+    ]],
+  ];
+  document.getElementById("decisions").innerHTML = DEC.map(([t, opts], i) => `<li><b>${i + 1}. ${esc(t)}.</b><span class="opts">${opts.map(([k, d, w]) => `<span><i>${k}</i> ${esc(d)} <span class="w">· worst: ${esc(w)}</span></span>`).join("")}</span></li>`).join("");
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const stageOf = html => html.trimStart().startsWith('<div class="stage') ? html : `<div class="stage">${html}</div>`;
+  const lane = l => `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      ${stageOf(l.body())}
+      <div class="sent" data-sent>Click a row or a chip, or type in a box and press Enter, to see what it sends.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="lanes${a.lanes.length === 1 ? " one" : ""}">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map((a, i) => `<a href="#${a.id}">${esc(NAV[i])}</a>`).join("") + `<a href="#questions">Open decisions</a>`;
+  const redrawAll = () => Object.keys(BUILD).forEach(redraw);
+
+  /* ---------- Interaction ---------- */
+  document.addEventListener("input", e => {
+    const b = e.target.closest("[data-box]");
+    if (!b) return;
+    const key = b.dataset.box;
+    BOXV[key] = b.value;
+    const pos = b.selectionStart;
+    redraw(key);
+    const nb = document.querySelector(`[data-box="${key}"]`);
+    if (nb) { nb.focus(); nb.setSelectionRange(pos, pos); }
+  });
+  document.addEventListener("keydown", e => {
+    const b = e.target.closest("[data-box]");
+    if (b && e.key === "Escape" && OPEN.has(b.dataset.box)) {
+      const k = b.dataset.box;
+      OPEN.delete(k); redraw(k);
+      const n = document.querySelector(`[data-key="${k}"]`);
+      if (n) say(n, "Escape folded the box back into its Squawk code… row.");
+      return;
+    }
+    if (!b || e.key !== "Enter") return;
+    e.preventDefault();
+    const key = b.dataset.box, kind = KIND[key];
+    const r = READ[kind](b.value);
+    const disable = key === "q4b";
+    if (r.cmd) say(b, `Sends <code>${esc(r.cmd)}</code> and closes the flyout and the menu.`);
+    else if (r.err) say(b, disable ? "Enter does nothing: the send is disabled until the code reads. The flyout stays open." : `Sends nothing: ${esc(r.err)}. The flyout stays open.`);
+    else say(b, "Blank: Enter sends nothing and closes the flyout and the menu.");
+  });
+  document.addEventListener("click", e => {
+    const o = e.target.closest("[data-open]");
+    if (o) { const k = o.dataset.open; OPEN.add(k); redraw(k); const nb = document.querySelector(`[data-box="${k}"]`); if (nb) nb.focus(); say(nb || o, "Squawk code… opened its box in place, focused; Escape folds it back."); return; }
+    const r = e.target.closest("[data-send]");
+    if (r && r.dataset.send) say(r, `Sends <code>${esc(r.dataset.send)}</code> and closes the flyout and the menu.`);
+  });
+  document.getElementById("sw-len").addEventListener("change", e => { LEN = e.target.value; redrawAll(); });
+  document.getElementById("sw-blank-sp").addEventListener("change", e => { BLANK_SP = e.target.checked; redrawAll(); });
+  document.getElementById("sw-blank-sq").addEventListener("change", e => { BLANK_SQ = e.target.checked; redrawAll(); });
+})();
+</script>
+</body>
+</html>

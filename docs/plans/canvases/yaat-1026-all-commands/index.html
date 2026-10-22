@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All Commands Reorganized</title>
+<style>
+  /* Layout: what is settled and what was found, then one artboard per numbered decision with its lanes side by side,
+     then the decisions as a list to answer. House style of quick-command-strip-categories and yaat-569-f-pickers. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1800px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 96ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 18px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 140ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 8px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 4px; padding-left: 14px; color: var(--ink); }
+  .note-box .opts i { font-style: normal; font: 600 13px var(--f-mono); color: var(--tag-b); display: inline-block; min-width: 30px; }
+  .note-box .wl { display: block; color: var(--warn); padding-left: 30px; }
+  .note-box .rec { font: 600 10px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tag-a); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; margin-left: 6px; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 16px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta p { margin: 0 0 6px; max-width: 130ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .art h3.subq { font: 600 17px/1.25 var(--f-display); margin: 22px 0 10px; }
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--lw, 540px)), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .lane-h .rec { font: 500 11px var(--f-mono); color: var(--tag-a); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 130ch; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 12.5px; color: var(--muted); margin: 0 0 22px; }
+  .legend span b { color: var(--ink); font-weight: 600; }
+  .lg-bar { display: inline-block; width: 3px; height: 13px; background: #ffb259; vertical-align: -2px; margin-right: 5px; }
+  .lg-al { font: 11px Consolas, monospace; background: #2b2b2b; color: #a9b0b8; padding: 1px 5px; border-radius: 3px; margin-right: 4px; }
+
+  /* The app's surfaces: YAAT runs Avalonia Fluent dark, so these stay dark in either page theme. Menu sizes are those the
+     quick-command-label mock measured (290 px wide, 25 px rows, 23 px state line, 42 px strip cells 6 px apart). */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 16px 14px 14px 16px; overflow-x: auto; color-scheme: dark; }
+  .row2 { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .casc { display: flex; align-items: flex-start; gap: 2px; }
+  .mcap { font: 11px Consolas, "IBM Plex Mono", monospace; color: #8a939e; margin: 0 0 6px; }
+  .menu { position: relative; min-width: var(--mw, 220px); width: max-content; background: #2b2b2b; border-radius: 8px; padding: 4px 0; font: 14px "Segoe UI", Inter, system-ui, sans-serif; color: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 10px 28px rgba(0,0,0,.55); user-select: none; flex: none; }
+  .menu.root { --mw: 290px; }
+  .ptr { position: absolute; left: -1px; top: -1px; z-index: 5; pointer-events: none; }
+  .mrow { height: 25px; display: flex; align-items: center; padding: 0 10px 0 10px; white-space: nowrap; position: relative; }
+  .mrow .lb { flex: 1 1 auto; }
+  .mrow .al { font: 11px Consolas, monospace; color: #a9b0b8; margin-left: 26px; letter-spacing: .02em; }
+  .mrow .al.in { margin-left: 9px; }
+  .mrow .al.par { font: 13px "Segoe UI", Inter, system-ui, sans-serif; color: #a9a9a9; margin-left: 5px; letter-spacing: 0; }
+  .mrow .chev { width: 16px; text-align: right; flex: none; font-size: 13px; color: #fff; }
+  .mrow.open { background: #404040; }
+  .mrow.dim { color: #8d8d8d; }
+  .mrow.title { height: 26px; font-weight: 700; color: #7a7a7a; }
+  .mrow.detail { height: 21px; font-size: 11.5px; color: #9a9a9a; }
+  .mrow.stub { height: 22px; font: italic 12px "Segoe UI", sans-serif; color: #7d858f; }
+  .mrow.chg::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; border-radius: 0 2px 2px 0; background: #ffb259; }
+  .msep { height: 1px; background: #7f7f7f; margin: 4px 12px 5px 4px; }
+  .slab { display: flex; align-items: center; gap: 6px; height: 19px; padding: 0 10px 0 8px; margin-top: 2px; }
+  .slab span { font: 600 9.5px/1 "Segoe UI", Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #aeb6bf; white-space: nowrap; }
+  .slab::before { content: ""; width: 3px; height: 10px; border-radius: 1px; background: #aeb6bf; flex: none; }
+  .slab::after { content: ""; flex: 1; height: 1px; background: #4c5158; }
+  .hline { height: 23px; display: flex; align-items: center; padding: 0 12px 0 10px; font-size: 11px; color: #9a9a9a; white-space: nowrap; overflow: hidden; }
+  .hline .cm { font: 11px Consolas, monospace; color: #b8b8b8; }
+  .strip { padding: 3px 4px 3px 4px; }
+  .srow { display: flex; gap: 6px; align-items: flex-start; }
+  .srow + .srow { margin-top: 4px; }
+  .seg { display: flex; flex-direction: column; min-width: 0; }
+  .glab { width: 0; min-width: 100%; display: flex; align-items: center; gap: 5px; height: 12px; margin: 3px 0 4px; }
+  .glab span { font: 600 9.5px/1 "Segoe UI", Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #aeb6bf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .glab::before { content: ""; width: 3px; height: 10px; border-radius: 1px; background: #aeb6bf; flex: none; }
+  .glab::after { content: ""; flex: 1 0 4px; height: 1px; background: #4c5158; }
+  .qrow { display: flex; gap: 6px; align-items: center; }
+  .vsep { width: 1px; align-self: stretch; margin: 2px 0; background: #6a7078; flex: none; }
+  .qbtn { width: 42px; height: 42px; flex: none; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; background: #1f2226; padding: 0; display: grid; place-items: center; position: relative; cursor: pointer; }
+  .qbtn:hover { background: #2c3036; }
+  .qbtn:focus-visible { outline: 2px solid #fff; outline-offset: -1px; }
+  .qbtn .notch { position: absolute; right: 4px; bottom: 4px; }
+  .readout { font: 11.5px/1.45 Consolas, "IBM Plex Mono", monospace; color: #a4adb8; margin-top: 8px; max-width: 520px; }
+  .readout b { color: #e4e7eb; font-weight: 400; }
+
+  /* Settings window, as docs/user-guide/img/settings-quick-commands.png draws it. */
+  .swin { width: 600px; max-width: 100%; display: grid; grid-template-columns: 150px minmax(0, 1fr); background: #000; font: 13px "Segoe UI", Inter, system-ui, sans-serif; color: #fff; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+  .sside { background: #111; padding: 8px 0; border-right: 1px solid #2a2a2a; }
+  .sside .g { font: 600 10.5px "Segoe UI", sans-serif; color: #8a8a8a; text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px 2px; }
+  .sside .s { padding: 3px 12px 3px 18px; color: #d8d8d8; font-size: 12.5px; }
+  .sside .s.on { background: #2b3a52; color: #fff; }
+  .sbody { padding: 10px 14px 14px; min-width: 0; }
+  .sbody .sh { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .sbody .sb { font-weight: 600; font-size: 13px; margin: 10px 0 4px; }
+  .sbody .ssub { font-size: 11.5px; color: #b0b0b0; margin: 2px 0 8px; }
+  .sbody .stub { font-size: 11.5px; color: #6d6d6d; font-style: italic; margin: 2px 0; }
+  .chk { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid #3a4a62; border-radius: 4px; background: #0c1420; }
+  .chk .box { width: 16px; height: 16px; border-radius: 3px; background: #4a8fe0; display: grid; place-items: center; flex: none; margin-top: 1px; font-size: 11px; color: #fff; }
+  .chk .t { font-size: 13px; }
+  .chk .h { font-size: 11px; color: #a8a8a8; }
+  .pbox { display: inline-block; background: #2b2b2b; border-radius: 4px; padding: 2px; margin: 4px 0 4px; }
+  .frow { display: grid; grid-template-columns: 1fr 70px; gap: 6px; font-size: 12px; color: #b8b8b8; padding: 2px 0; }
+  .frow span:last-child { border: 1px solid #444; border-radius: 3px; text-align: center; color: #ddd; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 12px 8px 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-1026 · context-menu quick commands · mock for the owner's decisions</div>
+  <h1>All Commands reorganized, quick commands as text, a verb on every row</h1>
+  <p class="lede">Owner goal (YAAT-1026, verbatim): <b>“Also the goal is for the context menu to still offer All Commands and have all the commands under it, just better organized than before, and with the contextually appropriate ones surfaces (same as the icons, but with text, for those that prefer it). Each command should also list the command alias (so like "Taxi to... `TAXI`) so that it educates mouse users to the actual commands”</b></p>
+  <p class="lede">Owner ruling (verbatim): <b>“Oh and add a setting that defaults to "show quick command icons", that when turned off, removes all the quick command icons, and instead the all commands menu subitems are added to the root of the context menu, for those that just hate the icons”</b></p>
+  <p class="lede">Each artboard below is one numbered decision, its lanes side by side, the recommended lane first. Two aircraft throughout: <b>N123AB</b>, a C172 VFR arrival on left downwind for 28L at KOAK, and <b>UAL123</b>, a B738 IFR departure taxiing at KSFO. Every lane draws the other decisions at their recommended answer, so a lane shows only the one thing it asks. The pointer arrow marks where the right-click landed; a submenu opens beside the highlighted row.</p>
+
+  <section class="note-box" aria-labelledby="settled-h">
+    <h2 id="settled-h">Settled elsewhere, drawn as given</h2>
+    <ul class="nl">
+      <li><b>YAAT-1018 lands first on <code>feat/context-menu-flyouts</code></b>, so this menu is drawn after it: Report when…, Squawk and Ask pilot to say… are flyouts carrying their whole group; every “(other)…” companion is gone; Cleared visual is a row inside the Cleared approach flyout, not an entry of its own; Join STAR is a tabbed STAR flyout.</li>
+      <li><b>YAAT-1028's strip</b> (its own mock, <code>docs/plans/canvases/quick-command-strip-categories/</code>): no cap, icons grouped by task (Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination), each group under a small label, six per row, release icons in their category, and categories whose icons add up to six or fewer share one row with a vertical separator. Its packing and category order are still being mocked there; this page packs adjacent categories greedily in the order the situation's list first names them. The text rows here use the same categories and labels.</li>
+      <li><b>The setting</b> is named “Show quick command icons” and is on by default. Off: no icon strip, and All Commands' submenus sit at the menu root.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found in the code while drawing (static reads, main at 03138ce7c)</h2>
+    <ul class="nl">
+      <li><b>Two catalog entries are in no All Commands group.</b> Make left / right closed traffic and Proceed on course are referenced only by their catalog entries (<code>MenuCatalog.cs:400-427</code>), the VFR-departing default list (<code>QuickCommandDefaults.cs:223-227</code>) and their glyphs (<code>QuickCommandGlyphs.cs:165-173</code>): today they are reachable only from that one situation's quick commands, or by typing. Decision 1 gives them a home.</li>
+      <li><b>Warp… has a verb.</b> It sends <code>WARP {frd} {h} {a} {s}</code> (<code>MenuCatalog.cs:1111</code>) and Delete sends <code>DEL</code> (<code>:142</code>), so the rows with no command of their own are Command…, Note…, Edit flight plan, Favorites and the submenu headers (decision 4.2).</li>
+      <li><b>Some icons have no text twin.</b> On a radar point with an airborne aircraft, Direct to, Hold (left), Hold (right) and Warp here are strip icons only; the text rows are Fly heading and Append direct to (<code>AircraftMenuBuilder.cs:199-211</code>, <code>:237-244</code>). A delayed spawn's Release (HFR) and Check release window are icons only too (<code>:337-350</code>). Hiding those strips (decision 6.2a) needs text rows for them.</li>
+      <li><b>A new preference key has to choose a bundle side.</b> <code>SettingsBundlePreferencesTests</code> fails until a key is in <code>BundledRules</code> or in <code>UnbundledKeys</code> with a reason (<code>UserPreferences.Bundle.cs:160-161</code>), and the quick-command lists themselves travel as their own file, <code>*.yaat-quickcommands.json</code>, not in the settings bundle (<code>:168</code>). Decision 6.1.</li>
+      <li><b>The menu sends canonical verbs, the command bar completes the user's.</b> <code>CommandScheme.PrimaryVerb</code> is a scheme's first alias (<code>CommandScheme.cs:7</code>) and completion inserts it (<code>CommandInputController.cs:1193</code>); Fly heading's aliases are FH, H (<code>CommandRegistry.cs:172</code>), Cleared to land's CLAND, CL, FS (<code>:484</code>). Decision 4.3.</li>
+      <li><b>No catalog entry carries its verb.</b> <code>MenuCatalogEntry</code> is (Id, Label, DefaultFlightRules, IsApplicable, Build); a verb is readable only from a built leaf's <code>MenuCommandText</code>, which flyouts, input leaves and host leaves do not set. Every alias drawn here is a new per-entry datum. A runway leaf's label carries the runway (“Cleared to land 28L”) while it sends the bare verb (<code>CLAND</code>, <code>MenuCatalog.cs:596-597</code>), so the alias column shows the verb, not the label's runway.</li>
+      <li><b>A one-icon category cannot carry its label in a shared row.</b> Under 1028's packing, N123AB's lone Squawk assigned code icon shares a row with Runway, and “Track and coordination” over one 42 px cell ellipsizes to “TR…” (drawn so). A question for the 1028 packing mock, not this one.</li>
+      <li><b>YAAT-762 has landed</b>: <code>StripCapacity</code> is 15, three rows of five (<code>QuickCommandGlyphs.cs:57</code>), and Squawk normal / Squawk assigned code lead most lists. 1028 removes the cap; the Quick commands section's intro still says “The first fifteen commands with an icon form the icon strip” (<code>QuickCommandsSection.axaml:22</code>).</li>
+    </ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="legend">
+    <span><span class="lg-al">CLAND</span><b>alias</b>: the verb the row sends, in decision 4's recommended form</span>
+    <span><span class="lg-bar"></span><b>moved or new</b>: a row this change places somewhere it is not today</span>
+    <span><b>‹rest of the menu›</b> rows stand in for parts another decision draws</span>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <p style="margin:0 0 8px;color:var(--muted)">Answer as “1A, 2A, 3A, 4A, 4.1a, 4.2a, 4.3a, 5A, 6A, 6.1a, 6.2a”. The first option of each is the recommendation. Numbers in the worst cases are measured from this page's drawings.</p>
+    <ol class="nl" id="decisions"></ol>
+  </section>
+
+  <footer class="foot">Labels, verbs, group contents and orders are read from <code>MenuCatalog.cs</code>, <code>SharedMenuGroups.cs</code>, <code>AircraftMenuBuilder.cs</code>, <code>QuickCommandDefaults.cs</code>, <code>HeadingFlyout.cs</code>, <code>AltitudeFlyout.cs</code>, <code>SpeedFlyout.cs</code> and <code>CommandRegistry.cs</code> at 03138ce7c; glyphs are <code>QuickCommandGlyphs.ById</code> drawn as <code>QuickCommandStrip.GlyphCell</code> draws them. Callsigns, positions, the runways, the custom “Say altitude” entry, the user's verb scheme in 4.3 and the point FRD are illustrative. The category labels in text rows, the block labels inside submenus, the alias column and the Settings checkbox are drawings of options, not built UI. Each aircraft is drawn with only the entries its predicates would allow as far as a static read tells; nothing here was run in the client. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  /* ---------- Glyphs (QuickCommandGlyphs.ById), labels and verbs (MenuCatalog), task per the 1028 mock ---------- */
+  const FAM = { T: "#FFC062", G: "#6EE0CE", F: "#A8CAFF", P: "#DDBDFF", S: "#DCE2E8" };
+  const TASK = { RWY: "Runway", TAXI: "Taxi", VEC: "Vectors", APP: "Approach", PAT: "Pattern", REP: "Pilot reports", TRK: "Track and coordination" };
+  const T360 = "M20 12a8 8 0 1 1-3-6.2 M20 4v5h-5";
+  const RACE = "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z";
+  const G = {
+    SQNORM: ["Squawk normal", "S", "TRK", "M3 7h18v10H3z M8 12l3 3 5-6", false, "SQNORM"],
+    SQ: ["Squawk assigned code", "S", "TRK", "M3 7h18v10H3z M16 9.5V13H8 M10.5 10.5L8 13l2.5 2.5", false, "SQ"],
+    CTL: ["Cleared to land 28L", "T", "RWY", "M2 20h20 M5 6l11 9 M10 15h6v-6", false, "CLAND"],
+    COPT: ["Cleared for the option 28L", "P", "RWY", "M2 20h20 M6 16c2-6 4-9 6-9 M12 7c2 0 4 3 6 9 M12 7V3", false, "COPT"],
+    TG: ["Touch and go 28L", "T", "RWY", "M2 20h20 M3 7c4 0 6 10 9 10s5-10 9-10", false, "TG"],
+    GA: ["Go around 28L", "T", "RWY", "M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4", false, "GA"],
+    CTO: ["Cleared for takeoff", "T", "RWY", "M2 20h20 M5 16L19 6 M13 6h6v6", true, "CTO"],
+    PFOLLOW: ["Follow traffic…", "P", "PAT", "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6", true, "FOLLOW"],
+    EXT: ["Extend pattern leg", "P", "PAT", "M3 8v8 M3 12h16 M15 8l4 4-4 4", false, "EXT"],
+    MSA: ["Make short approach", "P", "PAT", "M4 6h8v12 M4 18h16 M9 13l3 5 3-5", false, "MSA"],
+    L360: ["Make left 360", "P", "PAT", T360, false, "L360"],
+    R360: ["Make right 360", "P", "PAT", T360, false, "R360"],
+    TB: ["Turn base", "P", "PAT", "M4 4h10a6 6 0 0 1 6 6v10 M16 16l4 4 4-4", false, "TB"],
+    HOLDPOS: ["Hold position", "G", "TAXI", "M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6", false, "HOLD"],
+    HS: ["Hold short of…", "G", "TAXI", "M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3", true, "HS"],
+    CROSS: ["Cross 28L", "G", "TAXI", "M3 8h18 M3 16h18 M12 3v18 M9 18l3 3 3-3", false, "CROSS"],
+    FOLLOWG: ["Follow…", "G", "TAXI", "M4 17l5-5-5-5 M13 17l5-5-5-5", true, "FOLLOWG"],
+    GW: ["Give way to…", "G", "TAXI", "M3 5h18L12 20z", true, "GW"],
+    PFH: ["Fly heading 300", "F", "", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z", false, "FH"],
+    PDCT: ["Direct to OAK285006", "F", "", "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4", false, "DCT"],
+    PHL: ["Hold at OAK285006 (left)", "F", "", RACE + " M14 3l-3 3 3 3", false, "HFIXL"],
+    PHR: ["Hold at OAK285006 (right)", "F", "", RACE + " M10 3l3 3-3 3", false, "HFIXR"],
+    PWARP: ["Warp here (OAK285006)", "S", "", "M13 2L4 14h7l-1 8 9-12h-7z", false, "WARP"],
+    REL: ["Release (HFR)", "S", "TRK", "M5 11h14v10H5z M8 11V7a4 4 0 0 1 7.6-1.8 M12 15v2", false, "REL"],
+    CRW: ["Check release window", "S", "TRK", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3", false, "CFR CHECK"],
+  };
+
+  const SITS = {
+    N123AB: { title: "N123AB · C172", state: "Downwind · 1,000 ft · 90 kt · KOAK rwy 28L",
+      list: ["SQ", "CTL", "COPT", "TG", "PFOLLOW", "EXT", "MSA", "L360", "R360", "TB", "GA"], custom: [["Say altitude", "SALT"]] },
+    UAL123: { title: "UAL123 · B738", state: "Taxiing · KSFO · to rwy 1L",
+      list: ["SQNORM", "SQ", "HOLDPOS", "HS", "CROSS", "FOLLOWG", "GW", "CTO"], custom: [] },
+  };
+
+  /* ---------- Rows ---------- */
+  const R = (label, alias = "", f = "") => ({ label, alias, f });
+  const SEP = { sep: true };
+  const LAB = t => ({ lab: t });
+  const STUB = t => ({ stub: t });
+  const TITLE = t => ({ title: t });
+  const STATE = t => ({ state: t });
+  const DETAIL = t => ({ detail: t });
+  const STRIP = (sit, ids) => ({ strip: true, sit, ids });
+
+  function aliasHtml(a, fmt) {
+    if (!a) return "";
+    if (fmt === "B") return `<span class="al in">${esc(a)}</span>`;
+    if (fmt === "C") return `<span class="al par">(${esc(a)})</span>`;
+    return `<span class="al">${esc(a)}</span>`;
+  }
+  function rowHtml(r, fmt) {
+    if (r.sep) return `<div class="msep" role="separator"></div>`;
+    if (r.lab) return `<div class="slab"><span>${esc(r.lab)}</span></div>`;
+    if (r.stub) return `<div class="mrow stub">‹${esc(r.stub)}›</div>`;
+    if (r.title) return `<div class="mrow title">${esc(r.title)}</div>`;
+    if (r.state) return `<div class="hline">${esc(r.state)}</div>`;
+    if (r.detail) return `<div class="mrow detail">${esc(r.detail)}</div>`;
+    if (r.strip && r.raw) return `<div class="strip"><div class="srow"><div class="qrow">${r.raw.map(btn).join("")}</div></div></div>`;
+    if (r.strip) return `<div class="strip">${stripHtml(r.ids)}</div>`;
+    const fl = r.f.split(" ");
+    const sub = fl.includes("sub");
+    const cls = ["mrow", fl.includes("open") ? "open" : "", fl.includes("chg") ? "chg" : "", fl.includes("dim") ? "dim" : "", fl.includes("first") ? "first" : ""].filter(Boolean).join(" ");
+    const al = aliasHtml(r.alias, fmt);
+    const lb = fmt === "A" ? `<span class="lb">${esc(r.label)}</span>${al}` : `<span class="lb">${esc(r.label)}${al}</span>`;
+    return `<div class="${cls}">${lb}<span class="chev">${sub ? "›" : ""}</span></div>`;
+  }
+  const ptr = `<svg class="ptr" width="12" height="16.5" viewBox="0 0 16 22" aria-hidden="true"><path d="M1 1v16l4.2-4 2.8 6.6 2.6-1.1-2.8-6.5H14z" fill="#FFFFFF" stroke="#000000" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+  function menuHtml(rows, o = {}) {
+    const fmt = o.fmt || "A";
+    return `<div class="menu${o.root ? " root" : ""}" ${o.id ? `data-mid="${o.id}"` : ""} role="menu">${o.root ? ptr : ""}${rows.map(r => rowHtml(r, fmt)).join("")}</div>`;
+  }
+  const casc = (menus, cap) => `<div>${cap ? `<div class="mcap">${esc(cap)}</div>` : ""}<div class="casc">${menus.join("")}</div></div>`;
+
+  /* ---------- The 1028 strip: task categories, six per row, small categories sharing a row ---------- */
+  const glyph = (g, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${FAM[g[1]]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${g[3]}"/></svg>`;
+  const notch = `<svg class="notch" width="6" height="6" viewBox="0 0 6 6" aria-hidden="true"><path d="M6 0V6H0z" fill="#9AA3AD"/></svg>`;
+  const btn = id => { const g = G[id]; const lab = g[4] ? `${g[0]} ›` : g[0];
+    return `<button type="button" class="qbtn" data-name="${esc(lab)}" data-cmd="${esc(g[4] ? "" : g[5])}" aria-label="${esc(lab)}" title="${esc(lab)}">${glyph(g, 32)}${g[4] ? notch : ""}</button>`; };
+  function groupsOf(ids) {
+    const by = new Map();
+    ids.forEach(id => { const k = G[id][2]; if (!by.has(k)) by.set(k, []); by.get(k).push(id); });
+    return [...by.entries()].map(([k, items]) => ({ k, items }));
+  }
+  function pack(ids) {
+    const rows = []; let cur = null, n = 0;
+    groupsOf(ids).forEach(g => {
+      if (g.items.length > 6) {
+        if (cur) rows.push(cur); cur = null; n = 0;
+        for (let i = 0; i < g.items.length; i += 6) rows.push([{ k: g.k, items: g.items.slice(i, i + 6), cont: i > 0 }]);
+        return;
+      }
+      if (cur && n + g.items.length <= 6) { cur.push(g); n += g.items.length; return; }
+      if (cur) rows.push(cur);
+      cur = [g]; n = g.items.length;
+    });
+    if (cur) rows.push(cur);
+    return rows;
+  }
+  const stripHtml = ids => pack(ids).map(row => `<div class="srow">${row.map(seg =>
+    `<div class="seg"><div class="glab" title="${esc(TASK[seg.k] || "")}"><span>${seg.cont ? "" : esc(TASK[seg.k] || "")}</span></div><div class="qrow">${seg.items.map(btn).join("")}</div></div>`).join(`<span class="vsep" aria-hidden="true"></span>`)}</div>`).join("");
+
+  /* ---------- Shared menu parts ---------- */
+  const qrow = id => R(G[id][0], G[id][5], G[id][4] ? "sub" : "");
+  function textRows(sit, labelled, order) {
+    const s = SITS[sit];
+    const out = [];
+    if (order === "list") { s.list.forEach(id => out.push(qrow(id))); s.custom.forEach(([l, a]) => out.push(R(l, a))); return out; }
+    else groupsOf(s.list).forEach(g => { if (labelled) out.push(LAB(TASK[g.k])); g.items.forEach(id => out.push(qrow(id))); });
+    if (s.custom.length) { if (labelled) out.push(SEP); s.custom.forEach(([l, a]) => out.push(R(l, a))); }
+    return out;
+  }
+  const head = sit => [TITLE(SITS[sit].title), STATE(SITS[sit].state), SEP];
+  const customRows = sit => SITS[sit].custom.map(([l, a]) => R(l, a));
+  const VIEW = [R("Display", "", "sub"), R("Draw route")];
+  const FOOT = [SEP, R("Delete", "DEL")];
+
+  /* All Commands under 1A (by task), for the airborne N123AB; Taxi is left out, nothing in it applies. */
+  const ALL_1A = (trkFlag = "", extra = []) => [
+    R("Runway", "", "sub"), R("Vectors", "", "sub"), R("Approach", "", "sub"), R("Pattern", "", "sub"),
+    R("Pilot reports", "", "sub"), R("Track and coordination", "", "sub " + trkFlag), ...extra, SEP, R("Warp…", "WARP"),
+  ];
+  const openRow = (rows, label) => rows.map(r => (r.label === label ? { ...r, f: (r.f + " open").trim() } : r));
+  const ROOT_GROUPS_1A = [R("Runway", "", "sub chg"), R("Vectors", "", "sub chg"), R("Approach", "", "sub chg"), R("Pattern", "", "sub chg"),
+    R("Pilot reports", "", "sub chg"), R("Track and coordination", "", "sub chg"), R("Warp…", "WARP", "chg")];
+  const ROOT_GROUPS_1A_UAL = [R("Runway", "", "sub chg"), R("Taxi", "", "sub chg"), R("Pilot reports", "", "sub chg"), R("Track and coordination", "", "sub chg"), R("Warp…", "WARP", "chg")];
+
+  const HEADING_ROWS = [R("Present heading", "FPH"), R("Fly heading", "FH", "sub"), R("Turn left", "TL", "sub"), R("Turn right", "TR", "sub"),
+    R("Turn left (degrees)", "LT", "sub"), R("Turn right (degrees)", "RT", "sub")];
+  const SPEED_ROWS = [R("Assign speed", "SPD", "sub"), R("Speed…", "SPD", "sub"), R("Resume normal speed", "RNS"), R("Reduce to final approach speed", "RFAS", "sub")];
+
+  /* ---------- Decision 1: All Commands grouping ---------- */
+  const D1 = {
+    A: () => {
+      const all = openRow(ALL_1A(), "Vectors");
+      const vec = [LAB("Heading"), ...HEADING_ROWS, LAB("Altitude"), R("Maintain altitude", "CM / DM", "sub"), LAB("Speed"), ...SPEED_ROWS,
+        LAB("Route"), R("Direct to…", "DCT", "sub"), R("Proceed on course", "OC", "chg"), R("Cross fix…", "CFIX", "sub"), R("Depart fix…", "DEPART", "sub"),
+        R("Join airway…", "JAWY", "sub"), R("Join radial outbound…", "JRADO", "sub"), R("Join radial inbound…", "JRADI", "sub"), R("Climb via SID", "CVIA")];
+      return casc([menuHtml(all, { id: "d1A.all" }), menuHtml(vec, { id: "d1A.open" })], "All Commands ›   Vectors open");
+    },
+    B: () => {
+      const all = openRow([R("Heading", "", "sub"), R("Altitude", "", "sub"), R("Speed", "", "sub"), R("Navigation", "", "sub"), R("Hold", "", "sub"),
+        R("Approach", "", "sub"), R("Procedures", "", "sub"), R("Tower", "", "sub"), R("Pattern", "", "sub"), SEP, R("Ask pilot to say…", "SAY", "sub"),
+        R("Coordination", "", "sub"), SEP, R("Track", "", "sub chg"), R("Data Block", "", "sub chg"), R("Squawk", "SQ …", "sub chg"), SEP,
+        R("Edit flight plan"), SEP, R("Warp…", "WARP")], "Pattern");
+      const pat = [R("Turn base", "TB"), SEP, R("Extend pattern leg", "EXT"), R("Make short approach", "MSA"), R("Make normal approach", "MNA"), SEP,
+        R("Make left 360", "L360"), R("Make right 360", "R360"), R("Make left 270", "L270"), R("Make right 270", "R270"), R("Plan 270 at next turn", "P270"),
+        R("Cancel 270", "NO270"), SEP, R("Circle airport", "CA"), SEP, R("Make left closed traffic", "MLT", "chg"), R("Make right closed traffic", "MRT", "chg")];
+      return casc([menuHtml(all, { id: "d1B.all" }), menuHtml(pat, { id: "d1B.open" })], "All Commands ›   Pattern open");
+    },
+    C: () => {
+      const all = openRow([R("Flight", "", "sub chg"), R("Hold", "", "sub"), R("Approach", "", "sub"), R("Procedures", "", "sub"), R("Tower", "", "sub"),
+        R("Pattern", "", "sub"), SEP, R("Ask pilot to say…", "SAY", "sub"), R("Coordination", "", "sub"), SEP, R("Track", "", "sub chg"),
+        R("Data Block", "", "sub chg"), R("Squawk", "SQ …", "sub chg"), SEP, R("Edit flight plan"), SEP, R("Warp…", "WARP")], "Flight");
+      const fl = [LAB("Heading"), ...HEADING_ROWS, LAB("Altitude"), R("Maintain altitude", "CM / DM", "sub"), LAB("Speed"), ...SPEED_ROWS,
+        LAB("Navigation"), R("Direct to…", "DCT", "sub"), R("Proceed on course", "OC", "chg")];
+      return casc([menuHtml(all, { id: "d1C.all" }), menuHtml(fl, { id: "d1C.open" })], "All Commands ›   Flight open");
+    },
+  };
+
+  /* ---------- Decision 2: Track, Data Block, Squawk, Favorites ---------- */
+  const rootIconsOn = (sit, mid, extra) => [...head(sit), STRIP(sit, SITS[sit].list), ...customRows(sit), SEP, R("Command…"), R("Note…"), ...extra];
+  const D2 = {
+    A: () => {
+      const root = [...rootIconsOn("N123AB", "", []), R("All Commands", "", "sub open"), R("Favorite Commands", "", "sub"), SEP, ...VIEW, ...FOOT];
+      const all = openRow(ALL_1A("chg"), "Track and coordination");
+      const trk = [LAB("Track"), R("Initiate handoff…", "HO", "sub chg"), R("Point out…", "PO", "sub chg"), R("Drop track", "DROP", "chg"), LAB("Data block"),
+        R("Scratchpad…", "SP", "chg"), R("Temporary altitude…", "TEMPALT", "sub chg"), R("Cruise…", "CRUISE", "sub chg"), R("Annotate", "ANNOTATE", "chg"),
+        LAB("Squawk"), R("Squawk", "SQ …", "sub chg"), LAB("Coordination"), R("Release", "RD"), R("Hold", "RDH"), R("Recall", "RDR"), R("Acknowledge release", "RDACK"),
+        SEP, R("Edit flight plan")];
+      return casc([menuHtml(root, { root: true, id: "d2A.root" }), menuHtml(all, { id: "d2A.all" }), menuHtml(trk, { id: "d2A.trk" })], "N123AB, icons on · All Commands › Track and coordination open");
+    },
+    B: () => {
+      const root = [...rootIconsOn("N123AB", "", []), R("All Commands", "", "sub open"), R("Favorite Commands", "", "sub"), SEP, R("Track", "", "sub"),
+        R("Data Block", "", "sub"), R("Squawk", "SQ …", "sub"), ...VIEW, ...FOOT];
+      return casc([menuHtml(root, { root: true, id: "d2B.root" }), menuHtml(ALL_1A(), { id: "d2B.all" })], "N123AB, icons on · All Commands open (Track and coordination holds Coordination and Edit flight plan only)");
+    },
+    C: () => {
+      const root = [...rootIconsOn("N123AB", "", []), R("All Commands", "", "sub open"), SEP, ...VIEW, ...FOOT];
+      const all = openRow(ALL_1A("chg", [R("Favorite Commands", "", "sub chg")]), "");
+      return casc([menuHtml(root, { root: true, id: "d2C.root" }), menuHtml(all, { id: "d2C.all" })], "N123AB, icons on · All Commands open");
+    },
+  };
+
+  /* ---------- Decision 3: text rows beside the strip ---------- */
+  const REST = STUB("rest of the menu: decision 5");
+  const D3 = {
+    A: () => `<div class="row2">${casc([menuHtml([...head("N123AB"), STRIP("N123AB", SITS.N123AB.list), ...customRows("N123AB"), SEP, REST], { root: true, id: "d3A.on" })], "icons on")}
+      ${casc([menuHtml([...head("N123AB"), ...textRows("N123AB", true, "cat"), SEP, REST], { root: true, id: "d3A.off" })], "icons off")}</div>`,
+    B: () => `<div class="row2">${casc([menuHtml([...head("N123AB"), STRIP("N123AB", SITS.N123AB.list), ...textRows("N123AB", true, "cat"), SEP, REST], { root: true, id: "d3B.on" })], "icons on")}
+      ${casc([menuHtml([...head("N123AB"), ...textRows("N123AB", true, "cat"), SEP, REST], { root: true, id: "d3B.off" })], "icons off")}</div>`,
+    C: () => `<div class="row2">${casc([menuHtml([...head("N123AB"), STRIP("N123AB", SITS.N123AB.list), ...customRows("N123AB"), SEP, REST], { root: true, id: "d3C.on" })], "icons on")}
+      ${casc([menuHtml([...head("N123AB"), ...textRows("N123AB", false, "list"), SEP, REST], { root: true, id: "d3C.off" })], "icons off")}</div>`,
+  };
+
+  /* ---------- Decision 4: alias format ---------- */
+  const D4ROWS_UAL = [...head("UAL123"), ...textRows("UAL123", true, "cat"), SEP, R("Command…"), R("Note…"), SEP, ...ROOT_GROUPS_1A_UAL.map(r => ({ ...r, f: r.f.replace("chg", "") })), R("Favorite Commands", "", "sub")];
+  const D4ROWS_VEC = [LAB("Heading"), R("Fly heading", "FH", "sub"), R("Turn left (degrees)", "LT", "sub"), LAB("Altitude"), R("Maintain altitude", "CM / DM", "sub"),
+    LAB("Speed"), R("Reduce to final approach speed", "RFAS", "sub"), LAB("Route"), R("Direct to…", "DCT", "sub"), R("Join radial outbound…", "JRADO", "sub"), R("Proceed on course", "OC")];
+  const D4 = k => `<div class="row2">${casc([menuHtml(D4ROWS_UAL, { root: true, fmt: k, id: `d4${k}.ual` })], "UAL123, icons off")}${casc([menuHtml(D4ROWS_VEC, { fmt: k, id: `d4${k}.vec` })], "N123AB · Vectors")}</div>`;
+  const D4NONE = () => casc([menuHtml(D4ROWS_VEC.map(r => (r.alias ? { ...r, alias: "" } : r)), { id: "d4none.vec" })], "");
+
+  const mini = (rows, id, cap) => casc([menuHtml(rows, { id })], cap);
+  const D41 = {
+    a: () => mini([R("Maintain altitude", "CM / DM", "sub"), R("Squawk", "SQ …", "sub"), R("Report when…", "REPORT", "sub"), R("Cleared for takeoff", "CTO", "sub")], "d41a", "rows whose flyout sends several verbs"),
+    b: () => mini([R("Maintain altitude", "CM", "sub"), R("Squawk", "SQ", "sub"), R("Report when…", "REPORT", "sub"), R("Cleared for takeoff", "CTO", "sub")], "d41b", "rows whose flyout sends several verbs"),
+    c: () => mini([R("Maintain altitude", "", "sub"), R("Squawk", "", "sub"), R("Report when…", "", "sub"), R("Cleared for takeoff", "", "sub")], "d41c", "rows whose flyout sends several verbs"),
+  };
+  const D42 = {
+    a: () => mini([R("Command…"), R("Note…"), R("Edit flight plan"), R("Favorite Commands", "", "sub"), R("Runway", "", "sub"), R("Warp…", "WARP"), R("Delete", "DEL")], "d42a", "rows that open a box, a window or a submenu"),
+    b: () => mini([R("Command…"), R("Note…"), R("Edit flight plan"), R("Favorite Commands", "", "sub"), R("Runway", "", "sub"), R("Warp…"), R("Delete", "DEL")], "d42b", "rows that open a box, a window or a submenu"),
+  };
+  const D43 = {
+    a: () => mini([R("Fly heading", "H", "sub"), R("Cleared to land 28L", "CL"), R("Cross fix…", "CF", "sub"), R("Hold position", "HOLD")], "d43a", "a user whose Command verbs list H, CL and CF first"),
+    b: () => mini([R("Fly heading", "FH", "sub"), R("Cleared to land 28L", "CLAND"), R("Cross fix…", "CFIX", "sub"), R("Hold position", "HOLD")], "d43b", "the same user"),
+  };
+
+  /* ---------- Decision 5: icons off, the root ---------- */
+  const D5 = {
+    A: () => `<div class="row2">${casc([menuHtml([...head("N123AB"), ...textRows("N123AB", true, "cat"), SEP, R("Command…"), R("Note…"), SEP, ...ROOT_GROUPS_1A,
+      R("Favorite Commands", "", "sub"), SEP, ...VIEW, ...FOOT], { root: true, id: "d5A.n" })], "N123AB, icons off")}
+      ${casc([menuHtml([...head("UAL123"), ...textRows("UAL123", true, "cat"), SEP, R("Command…"), R("Note…"), SEP, ...ROOT_GROUPS_1A_UAL,
+      R("Favorite Commands", "", "sub"), SEP, R("Display", "", "sub"), R("Draw taxi route…"), ...FOOT], { root: true, id: "d5A.u" })], "UAL123, icons off (the flight groups stay hidden on the ground)")}</div>`,
+    B: () => casc([menuHtml([...head("N123AB"), R("Command…"), R("Note…"), SEP, ...ROOT_GROUPS_1A, R("Favorite Commands", "", "sub"), SEP,
+      ...textRows("N123AB", true, "cat"), SEP, ...VIEW, ...FOOT], { root: true, id: "d5B.n" })], "N123AB, icons off"),
+    C: () => casc([menuHtml([...head("N123AB"), ...textRows("N123AB", true, "cat"), SEP, R("Command…"), R("Note…"), R("All Commands", "", "sub"),
+      R("Favorite Commands", "", "sub"), SEP, ...VIEW, ...FOOT], { root: true, id: "d5C.n" })], "N123AB, icons off"),
+  };
+
+  /* ---------- Decision 6: the setting ---------- */
+  const SIDE = on => {
+    const s = [["General", ["General", "Appearance"]], ["Session", ["Scenario defaults"]], ["Views", ["Radar", "Ground", "Aircraft list", "Strips and vTDLS", "Terminal"]],
+      ["Input", ["Command input", "Command verbs", "Macros", "Quick commands", "Keys"]], ["Voice", ["Speech", "Audio devices"]], ["Advanced", ["Server admin"]]];
+    return `<div class="sside">${s.map(([g, items]) => `<div class="g">${g}</div>${items.map(i => `<div class="s${i === on ? " on" : ""}">${i}</div>`).join("")}`).join("")}</div>`;
+  };
+  const CHK = `<div class="chk"><span class="box">✓</span><div><div class="t">Show quick command icons</div><div class="h">Off: the menu lists its quick commands as text rows and puts All Commands' groups at its root.</div></div></div>`;
+  const D6 = {
+    A: () => `<div class="swin">${SIDE("Quick commands")}<div class="sbody"><div class="sh">Quick commands</div>${CHK}
+      <div class="ssub" style="margin-top:8px">The commands an aircraft's right-click menu offers first, situation by situation, as icons grouped by task (or as text rows with the icons off). Drag a row by its handle to reorder it.</div>
+      <div class="sb">Menu preview</div><div class="pbox"><div class="strip" style="padding:2px">${stripHtml(SITS.N123AB.list)}</div></div>
+      <div class="stub">situations list and the Pattern entries below, as today</div></div></div>`,
+    B: () => `<div class="swin">${SIDE("Appearance")}<div class="sbody"><div class="sh">Appearance</div><div class="sb">Font Sizes</div>
+      ${["Aircraft List", "Radar Datablock", "Radar Tag Flyouts", "Ground Datablock"].map(t => `<div class="frow"><span>${t}</span><span>12</span></div>`).join("")}
+      <div class="stub">four more font rows, Strips and vTDLS zoom</div><div class="sb">Context menus</div>${CHK}<div class="sb">Graphics</div><div class="stub">Renderer, as today</div></div></div>`,
+  };
+  const D62 = {
+    a: () => `<div class="row2">${casc([menuHtml([TITLE("N123AB · OAK285006"), SEP, R("Fly heading 300", "FH"), DETAIL("FH 300 · right turn, 20°"), R("Direct to OAK285006", "DCT", "chg"),
+      R("Hold at OAK285006 (left)", "HFIXL", "chg"), R("Hold at OAK285006 (right)", "HFIXR", "chg"), SEP, R("Warp here (OAK285006)", "WARP", "chg"), SEP, R("Display", "", "sub")], { root: true, id: "d62a.pt" })], "radar point, icons off")}
+      ${casc([menuHtml([TITLE("SKW5321 · CRJ7 · delayed 4:00"), SEP, R("Release (HFR)", "REL", "chg"), R("Check release window", "CFR CHECK", "chg"), SEP, R("Command…"), R("Note…"), R("Favorite Commands", "", "sub"),
+      SEP, R("Spawn now", "SPAWN"), R("Change spawn delay", "", "sub"), ...FOOT], { root: true, id: "d62a.ds" })], "delayed spawn, icons off")}</div>`,
+    b: () => `<div class="row2">${casc([menuHtml([TITLE("N123AB · OAK285006"), SEP, { strip: true, raw: ["PFH", "PDCT", "PHL", "PHR", "PWARP"] }, SEP, R("Fly heading 300", "FH"),
+      DETAIL("FH 300 · right turn, 20°"), SEP, R("Display", "", "sub")], { root: true, id: "d62b.pt" })], "radar point, icons off: unchanged")}
+      ${casc([menuHtml([TITLE("SKW5321 · CRJ7 · delayed 4:00"), SEP, { strip: true, raw: ["REL", "CRW"] }, SEP, R("Command…"), R("Note…"), R("Favorite Commands", "", "sub"),
+      SEP, R("Spawn now", "SPAWN"), R("Change spawn delay", "", "sub"), ...FOOT], { root: true, id: "d62b.ds" })], "delayed spawn, icons off: unchanged")}</div>`,
+  };
+
+  /* ---------- Lane texts ---------- */
+  const L = (k, name, how, worst, draw) => ({ k, name, how, worst, draw });
+  const ARTS = [
+    { id: "d1", nav: "1 · All Commands groups", title: "1 · How All Commands is grouped",
+      blurb: "N123AB's All Commands, with one group opened. Today it lists the ground block, then Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern, then Ask pilot, Coordination, Edit flight plan and Warp… (<code>AircraftMenuBuilder.AddAllCommands</code>). Every lane draws decision 2 at A (Track, Data Block and Squawk moved under All Commands) and the alias column of 4A. Each group keeps its own visibility rules: a group with nothing that applies is left out, and the flight groups stay hidden on the ground (<code>HidesFlightCommands</code>).",
+      lanes: [
+        L("A", "By task, in the strip's categories", "Fixed order Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination, then Warp… alone. Runway is today's Tower; Taxi the ground block and Draw taxi route…; Vectors merges Heading, Altitude, Speed and Navigation with Procedures' route rows (Cross fix, Depart fix, Join airway, the radials, Climb via SID) and Proceed on course, under small block labels; Approach holds the approach verbs, the STAR flyout, Descend via STAR, PTAC and the holds; Pattern gains Make closed traffic and Follow traffic…; Pilot reports holds the in-sight requests, Report when… and Ask pilot to say…; Track and coordination holds Coordination and Edit flight plan.",
+          "Every group moves for a user who knows today's menu: Report when… leaves Approach for Pilot reports, Hold present position leaves Hold for Approach, and Vectors opens <span data-m=\"d1A.open.rows\"></span> rows, <span data-m=\"d1A.open.h\"></span> px tall, the longest submenu on this page.", D1.A),
+        L("B", "By command family, as today", "Today's groups and order; the two ungrouped entries join their family (Make left / right closed traffic at the end of Pattern, Proceed on course in Navigation). Thin groups stay submenus.",
+          "Altitude holds one row, so the altitude flyout is three hops away (All Commands › Altitude › Maintain altitude ›); seven family submenus come before Tower and Pattern, and Pattern opens <span data-m=\"d1B.open.rows\"></span> rows.", D1.B),
+        L("C", "By family, the thin flight groups merged", "Heading, Altitude, Speed and Navigation become one Flight submenu under small block labels; Hold, Approach, Procedures, Tower and Pattern stay; the ungrouped entries go as in B, Proceed on course into Flight.",
+          "Route commands live in two places: Direct to… and Proceed on course are in Flight while Cross fix…, Join airway… and the radials stay in Procedures, and Flight still opens <span data-m=\"d1C.open.rows\"></span> rows.", D1.C),
+      ] },
+    { id: "d2", nav: "2 · Track, Data Block, Squawk", title: "2 · Track, Data Block, Squawk and Favorites: root or All Commands",
+      blurb: "Today these four sit at the root, outside All Commands (<code>AircraftMenuBuilder.AddTopLevelGroups</code>), so All Commands does not hold every command. Drawn under 1A: moved in, Track and Data Block flatten into Track and coordination under block labels and Squawk (a 1018 flyout) joins them; under 1B or 1C they would be their own entries at the end of All Commands, as decision 1's lanes B and C draw them. With icons off (decision 5A) whatever All Commands holds sits at the root anyway.",
+      lw: "760px",
+      lanes: [
+        L("A", "Track, Data Block, Squawk move in; Favorites stays", "The root keeps the quick commands, Command…, Note…, All Commands, Favorites, the view section and Delete. Favorites stays at the root because it is the user's own list, not a family of commands.",
+          "A track or data-block command missing from the situation's strip is one hop deeper: Initiate handoff… becomes All Commands › Track and coordination › Initiate handoff…. The root is <span data-m=\"d2A.root.h\"></span> px, <span data-m=\"d2.AB\"></span> px shorter than today's.", D2.A),
+        L("B", "All four stay at the root, as today", "No change: Track, Data Block and Squawk follow Favorites at the root, and All Commands' Track and coordination holds only Coordination and Edit flight plan.",
+          "All Commands does not hold every command, which the owner's goal asks it to: Ident, Annotate and Drop track are found only at the root, and the root is the tallest here at <span data-m=\"d2B.root.h\"></span> px.", D2.B),
+        L("C", "All four move under All Commands", "The root keeps only the quick commands, Command…, Note…, All Commands, the view section and Delete; Favorites becomes All Commands' last entry.",
+          "Favorites, which a user fills in order to be fast, is a hop deeper (All Commands › Favorite Commands ›) for <span data-m=\"d2.CA\"></span> px of root saved over A.", D2.C),
+      ] },
+    { id: "d3", nav: "3 · Text rows and the strip", title: "3 · Text rows beside the icon strip",
+      blurb: "N123AB's situation list (Pattern: Squawk assigned code, Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend, Make short approach, Make left / right 360, Turn base, Go around; Land drops out on a fixed-wing) plus one custom entry the user added, “Say altitude” (<code>SALT</code>). Today, after 762, the strip holds the first fifteen icons and the text rows only what is past them or has no glyph (<code>AircraftMenuBuilder.AddQuickCommands</code>); with 1028's uncapped strip the text rows with icons on are only custom and glyph-less entries. The strip is drawn as 1028 settled it: task labels, Track and coordination and Runway sharing a row.",
+      lw: "620px",
+      lanes: [
+        L("A", "Icons on: only what has no icon; off: all, under the strip's labels", "With icons on, text rows list only entries the strip cannot show (custom and glyph-less ones); each icon's verb is on its hover line. With icons off, every quick command is a text row, grouped and labelled as the strip groups them, custom entries last after a separator.",
+          "With icons on the text rows teach no verb for an iconed command, only the hover line does (Name — CMD); with icons off the three labels and the custom entries' separator cost height: the top block is <span data-m=\"d3A.off.h\"></span> px against <span data-m=\"d3C.off.h\"></span> px unlabelled.", D3.A),
+        L("B", "Icons on: the strip, then every entry again as text", "The strip, then every quick command as a labelled text row under it, so each command's verb is always on screen. Icons off as A.",
+          "Every contextual command is on screen twice: N123AB's top block with icons on is <span data-m=\"d3B.on.h\"></span> px, <span data-m=\"d3.BA\"></span> px taller than A's.", D3.B),
+        L("C", "Icons off: list order, no labels", "Icons on as A. With icons off the text rows follow the situation's list order, ungrouped, with no labels.",
+          "Go around, the list's last entry, lands after Turn base, away from the other runway clearances, and the text order no longer matches the strip the same user sees with icons on.", D3.C),
+      ] },
+    { id: "d4", nav: "4 · Alias format", title: "4 · The command alias on every row",
+      blurb: "The same two excerpts in each lane: UAL123's root with icons off (5A) and N123AB's Vectors submenu (1A). The verb is the one the row sends or, for a row that opens a flyout, the verb its flyout sends (4.1). The strip's own hover line already prints “Name — CMD” for an icon with one fixed command (<code>QuickCommandStrip.LabelText</code>). Today's rows set no alias at all; without one the Vectors excerpt is <span data-m=\"d4none.vec.w\"></span> px wide.",
+      lanes: [
+        L("A", "Right-aligned, dimmed, monospace", "A column of verbs at the right edge, ahead of the submenu arrow, in the menu's small monospace grey: the label reads first, the verb lines up for scanning.",
+          "The widest of the three: the menu takes the widest label plus the widest verb, so the Vectors excerpt is <span data-m=\"d4A.vec.w\"></span> px against <span data-m=\"d4none.vec.w\"></span> px with no alias (B <span data-m=\"d4B.vec.w\"></span>, C <span data-m=\"d4C.vec.w\"></span>), and on a short label the eye crosses a wide gap to pair it with its verb (Fly heading … FH).", () => D4("A")),
+        L("B", "Monospace right after the label", "The verb follows the label after a small gap, in the same dimmed monospace.",
+          "Verbs do not line up, so they cannot be scanned as a column, and a label ending in a runway runs into its verb (Cross 28L CROSS).", () => D4("B")),
+        L("C", "In parentheses after the label", "The verb follows the label in parentheses, in the label's font, dimmed.",
+          "The verb reads as part of the label (Hold position (HOLD), Cleared for takeoff (CTO)), and set in the label's font it is wider than B: the Vectors excerpt is <span data-m=\"d4C.vec.w\"></span> px against <span data-m=\"d4B.vec.w\"></span> px.", () => D4("C")),
+      ],
+      subs: [
+        { n: "4.1", title: "4.1 · A row whose flyout sends more than one verb", lw: "300px", lanes: [
+          L("a", "Every verb, up to two, else the first and an ellipsis", "Maintain altitude shows CM / DM; the Squawk flyout (1018 gives it SQ, SQVFR, SQNORM, SQSBY, RANDSQ, IDENT) shows SQ ….", "The Squawk row hides five of its six verbs behind the ellipsis.", D41.a),
+          L("b", "The first verb only", "Each flyout row shows the verb of its first choice.", "Maintain altitude shows CM on an aircraft the flyout will descend with DM.", D41.b),
+          L("c", "Nothing: the flyout prints its own command", "A row that opens a flyout shows no alias; the flyout's rows and command box already print the exact command.", "The rows that most need teaching show nothing until opened.", D41.c),
+        ] },
+        { n: "4.2", title: "4.2 · Rows that send no command of their own", lw: "300px", lanes: [
+          L("a", "Blank, except a row that sends a verb", "Command…, Note…, Edit flight plan, Favorites and submenu headers show nothing; Warp… shows WARP and Delete DEL, the verbs they send.", "Warp…'s alias reads as a bare verb, but the row sends WARP {frd} {h} {a} {s}: four arguments a typist must supply too.", D42.a),
+          L("b", "Blank on any row that opens a box or window", "Warp… shows nothing either, since its box fills the arguments.", "Warp…, a command the command bar accepts, is the one command row with no alias.", D42.b),
+        ] },
+        { n: "4.3", title: "4.3 · Which spelling of the verb", lw: "300px", lanes: [
+          L("a", "The user's primary verb", "The first alias of the user's own scheme (Settings › Input › Command verbs; CommandScheme.PrimaryVerb), the verb command-bar completion inserts. Most users never change the scheme and see the canonical verb.", "Two instructors' menus show different verbs for the same row, and USER_GUIDE.md screenshots (canonical) can differ from a customised menu.", D43.a),
+          L("b", "The canonical verb", "The registry's first alias, the one the menu sends and COMMANDS.md lists, the same for everyone.", "A user whose scheme lists H first for Fly heading sees FH beside the row, a verb their own completion never offers (whether a scheme can drop FH was not checked).", D43.b),
+        ] },
+      ] },
+    { id: "d5", nav: "5 · Icons off: the root", title: "5 · Icons off: the root menu",
+      blurb: "The owner's ruling puts All Commands' submenus at the root with icons off. Drawn with 1A's groups, 2A and 3A. The surface-shadow menu (All Commands holding Coordination only) and the delayed-spawn menu have no quick commands; the release strip is decision 6.2.",
+      lanes: [
+        L("A", "Quick commands first, then the groups", "The text quick commands under their labels, a separator, Command… and Note…, a separator, every former All Commands child (the task groups and Warp…), Favorites, then the view section and Delete. The phase rules still apply at the root: taxiing UAL123 gets Runway, Taxi, Pilot reports and Track and coordination.",
+          "A long root: <span data-m=\"d5A.n.h\"></span> px for N123AB, against <span data-m=\"d2A.root.h\"></span> px with icons on, and Delete sits at its far end.", D5.A),
+        L("B", "The groups first, then the quick commands", "Command…, Note… and the groups lead, so they keep one place on every aircraft; the situation's commands follow.",
+          "The situation's commands, the reason the menu opened, start <span data-m=\"d5B.n.first\"></span> px below the pointer instead of <span data-m=\"d5A.n.first\"></span> px, and the menu is just as long.", D5.B),
+        L("C", "Keep an All Commands submenu", "As icons on, minus the strip: the text quick commands, then Command…, Note…, All Commands and Favorites. This departs from the owner's ruling.",
+          "Departs from the ruling, and a user who turned icons off still opens All Commands for every command outside the situation's list.", D5.C),
+      ] },
+    { id: "d6", nav: "6 · The setting", title: "6 · Where the setting lives and what it hides",
+      blurb: "A per-user preference (<code>UserPreferences</code>), read by the menu through <code>MenuSession</code> (a positional record, so every constructor call in the tests changes). Settings search finds it either way through a new <code>SettingsSearchCatalog</code> entry.",
+      lw: "620px",
+      lanes: [
+        L("A", "Settings › Input › Quick commands", "A checkbox at the top of the section that configures the strip; its preview follows it (strip with icons on, text rows with them off), and the intro text names both forms.",
+          "A user who hates the icons may look under General › Appearance first; search finds it.", D6.A),
+        L("B", "Settings › General › Appearance", "A Context menus block in Appearance, between the font sizes and Graphics.",
+          "The setting sits away from the strip it removes and from the Quick commands preview, whose intro keeps describing an icon strip the user turned off.", D6.B),
+      ],
+      subs: [
+        { n: "6.1", title: "6.1 · Import / Export", text: true, lanes: [
+          L("a", "In the settings bundle", "A flag in BundledRules (preferences.json in *.yaat-settings.zip), beside vfrCommandsForIfr, another menu preference.", "Importing another instructor's bundle can turn this user's icons off."),
+          L("b", "With the quick-command lists", "Written into *.yaat-quickcommands.json, the file the lists already travel in, and listed in UnbundledKeys with that reason.", "A user who shares the settings bundle does not carry it, and one who imports a colleague's lists takes their icon choice too."),
+          L("c", "Stays on this machine", "Listed in UnbundledKeys with its reason; SettingsBundlePreferencesTests requires one of the two (UserPreferences.Bundle.cs:160-161).", "A second PC set up from a bundle comes up with icons on and is set again by hand."),
+        ] },
+        { n: "6.2", title: "6.2 · Which icons it hides", lw: "620px", lanes: [
+          L("a", "Every strip", "The aircraft menu's strip, the point menu's strip, the delayed-spawn release strip and the For section's icons; each icon-only item gains a text row.", "Six items need text rows built for them: the radar point menu's Direct to, Hold left, Hold right and Warp here, and a delayed spawn's Release (HFR) and Check release window have none today (AircraftMenuBuilder.cs:199-244, :337-350).", D62.a),
+          L("b", "The aircraft menu's strip only", "The point menu and the delayed-spawn menu keep their icons.", "Right-clicking the radar still opens an icon strip for a user who asked to be rid of icons.", D62.b),
+        ] },
+      ] },
+  ];
+
+  /* ---------- Render ---------- */
+  const TAGS = { A: "a", B: "b", C: "c", a: "a", b: "b", c: "c" };
+  function laneHtml(l, recommended, text) {
+    return `<section class="lane"><div class="lane-h"><span class="tag ${TAGS[l.k]}">${l.k}</span><h3>${esc(l.name)}</h3>${recommended ? `<span class="rec">recommended</span>` : ""}</div>
+      ${text ? "" : `<div class="stage">${l.draw()}</div>`}
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl></section>`;
+  }
+  const arts = document.getElementById("arts");
+  arts.innerHTML = ARTS.map(a => `<section class="art" id="${a.id}"><div class="art-meta"><h2>${esc(a.title)}</h2><p>${a.blurb}</p></div>
+    <div class="lanes" style="--lw:${a.lw || "540px"}">${a.lanes.map((l, i) => laneHtml(l, i === 0, false)).join("")}</div>
+    ${(a.subs || []).map(s => `<h3 class="subq">${esc(s.title)}</h3><div class="lanes" style="--lw:${s.lw || "300px"}">${s.lanes.map((l, i) => laneHtml(l, i === 0, !!s.text)).join("")}</div>`).join("")}
+    </section>`).join("");
+  /* The no-alias Vectors excerpt, drawn off screen only to measure decision 4's baseline width. */
+  arts.insertAdjacentHTML("beforeend", `<div aria-hidden="true" style="position:absolute;left:-9999px;top:0">${D4NONE()}</div>`);
+
+  /* ---------- Cascade alignment and measuring ---------- */
+  document.querySelectorAll(".casc").forEach(c => {
+    const menus = [...c.querySelectorAll(":scope > .menu")];
+    for (let i = 1; i < menus.length; i++) {
+      const open = menus[i - 1].querySelector(".mrow.open");
+      const base = parseFloat(menus[i - 1].style.marginTop || "0");
+      menus[i].style.marginTop = `${Math.max(0, base + (open ? open.offsetTop - 4 : 0))}px`;
+    }
+  });
+  const M = {};
+  document.querySelectorAll("[data-mid]").forEach(m => {
+    const id = m.dataset.mid, r = m.getBoundingClientRect();
+    M[`${id}.h`] = Math.round(r.height);
+    M[`${id}.w`] = Math.round(r.width);
+    M[`${id}.rows`] = m.querySelectorAll(".mrow:not(.title):not(.stub):not(.detail)").length;
+    const q = [...m.querySelectorAll(".slab")][0];
+    if (q) M[`${id}.first`] = Math.round(q.getBoundingClientRect().top - r.top);
+    const rd = document.createElement("div");
+    rd.className = "readout";
+    const nth = [...m.parentElement.children].indexOf(m);
+    rd.innerHTML = `${["menu", "submenu", "its submenu"][nth] || "menu"}: <b>${M[`${id}.h`]}</b> px tall, <b>${M[`${id}.w`]}</b> px wide · ${M[`${id}.rows`]} ${M[`${id}.rows`] === 1 ? "row" : "rows"}`;
+    m.parentElement.parentElement.appendChild(rd);
+  });
+  M["d2.AB"] = M["d2B.root.h"] - M["d2A.root.h"];
+  M["d2.CA"] = M["d2A.root.h"] - M["d2C.root.h"];
+  M["d3.BA"] = M["d3B.on.h"] - M["d3A.on.h"];
+  document.querySelectorAll("[data-m]").forEach(s => { s.textContent = M[s.dataset.m] ?? "?"; });
+
+  /* ---------- Decisions list ---------- */
+  const dec = [];
+  ARTS.forEach((a, ai) => {
+    const n = ai + 1;
+    const t = a.title.replace(/^\d+ · /, "");
+    dec.push(`<li><b>${n}. ${esc(t)}.</b>${a.lanes.map((l, i) => `<span class="opts"><i>${n}${l.k}</i> ${esc(l.name)}${i === 0 ? `<span class="rec">rec</span>` : ""}<span class="wl">worst: ${l.worst}</span></span>`).join("")}</li>`);
+    (a.subs || []).forEach(s => {
+      const st = s.title.replace(/^[\d.]+ · /, "");
+      dec.push(`<li><b>${s.n}. ${esc(st)}.</b>${s.lanes.map((l, i) => `<span class="opts"><i>${s.n}${l.k}</i> ${esc(l.name)}${i === 0 ? `<span class="rec">rec</span>` : ""}<span class="wl">worst: ${l.worst}</span></span>`).join("")}</li>`);
+    });
+  });
+  const decEl = document.getElementById("decisions");
+  decEl.innerHTML = dec.join("");
+  decEl.querySelectorAll("[data-m]").forEach(s => { s.textContent = M[s.dataset.m] ?? "?"; });
+
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.nav)}</a>`).join("") + `<a href="#questions">Open decisions</a>`;
+
+  /* ---------- Hover line: point at an icon and the state line names it, as the built strip does ---------- */
+  document.addEventListener("mouseover", e => {
+    const b = e.target.closest && e.target.closest(".menu .qbtn");
+    if (!b) return;
+    const hl = b.closest(".menu").querySelector(".hline");
+    if (!hl) return;
+    if (!hl.dataset.orig) hl.dataset.orig = hl.innerHTML;
+    hl.innerHTML = `<span style="color:#ededed;font-size:12px">${esc(b.dataset.name)}</span>${b.dataset.cmd ? `&nbsp;—&nbsp;<span class="cm">${esc(b.dataset.cmd)}</span>` : ""}`;
+  });
+  document.addEventListener("mouseout", e => {
+    const s = e.target.closest && e.target.closest(".menu .strip");
+    if (!s || (e.relatedTarget && s.contains(e.relatedTarget))) return;
+    const hl = s.closest(".menu").querySelector(".hline");
+    if (hl && hl.dataset.orig) hl.innerHTML = hl.dataset.orig;
+  });
+})();
+</script>
+</body>
+</html>

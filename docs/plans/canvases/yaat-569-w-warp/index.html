@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warp Flyout</title>
+<style>
+  /* Layout: measured facts and found notes, today's surfaces, then one artboard per decision whose lanes sit side by side as columns. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .switches code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 124ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box.measured { border-left-color: var(--accent); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 8px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts > span { display: block; padding-left: 14px; }
+  .note-box code { white-space: normal; overflow-wrap: anywhere; }
+  .note-box .opts i { font-style: normal; font: 600 11px var(--f-mono); color: var(--tag-b); }
+  .note-box .opts .w { color: var(--warn); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 110ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.one { grid-template-columns: minmax(0, 1fr); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 110ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-direction: column; gap: 14px; }
+  .stage.row { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .flabel code { color: #8fc1ff; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 440px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover { background: rgba(255, 255, 255, .085); }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .mi.field { min-height: 30px; padding-top: 3px; padding-bottom: 3px; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .gly.none { width: 22px; height: 22px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 0 auto; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .flab { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .cmd.bad { color: #ff8f8f; opacity: 1; }
+  .cmd.kept { color: #ffc062; opacity: .9; }
+  .cmd.full { opacity: 1; color: #e4e7eb; }
+  .mono { font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .muted-line { font: 12.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 6px 11px 6px; }
+  .sugg { display: flex; flex-direction: column; margin: 2px 0 0; border-left: 2px solid #3a414b; padding-left: 6px; }
+  .sugg span { font: 12px "JetBrains Mono", Consolas, monospace; color: #cfd5dc; padding: 1px 4px; cursor: pointer; border-radius: 3px; }
+  .sugg span:hover { background: rgba(255, 255, 255, .085); }
+  .sugg span i { font: 11px Inter, "Segoe UI", sans-serif; font-style: normal; color: #8f969e; margin-left: 6px; }
+
+  /* Boxes and chips. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 200px; }
+  .tbox.sm { width: 104px; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .tbox.badb { border-bottom: 2px solid #ff8f8f; }
+  .chip { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 2px 7px; cursor: pointer; }
+  .chip:hover { background: #2e343b; }
+  .chip small { font: 10.5px Inter, "Segoe UI", sans-serif; color: #9aa3ad; margin-left: 3px; }
+  .err { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ff8f8f; padding: 1px 0 0; white-space: normal; max-width: 290px; }
+  .ok { font: 11.5px Inter, "Segoe UI", sans-serif; color: #9fe0c0; padding: 1px 0 0; white-space: normal; max-width: 290px; }
+  .amb { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ffc062; padding: 1px 0 0; white-space: normal; max-width: 290px; }
+  .sendline { font: 11.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; }
+
+  /* Today's warp popup, as MenuPopups.ShowWarp builds it. */
+  .wpop { background: #222; border: 1px solid #555; border-radius: 2px; padding: 8px; width: 298px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .wpop .wt { font: 700 13px Inter, "Segoe UI", sans-serif; color: #ddd; }
+  .wpop .wl { font: 11px Inter, "Segoe UI", sans-serif; color: #999; margin-bottom: -4px; }
+  .wpop .tbox { width: 100%; font-size: 12px; height: 26px; }
+  .wpop .btns { display: flex; justify-content: flex-end; gap: 4px; margin-top: 4px; }
+  .btn { font: 11px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 2px 8px; }
+  .callout { max-width: 330px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+    .tbox { width: 150px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-1018 · family W · Warp · mock for the owner's decisions</div>
+  <h1>Warp flyout</h1>
+  <p class="lede">Family W is the last popup with its own form: <b>Warp…</b> (the end of All Commands, for any controllable aircraft) and <b>Warp here</b> on the point menu at a map point, which opens the same form seeded with the point's fix-radial-distance. Both send <code>WARP {frd} {heading} {altitude} {speed}</code>. At a taxi node Warp here is already a one-click row sending <code>WARPG #id</code> and stays one.</p>
+  <p class="lede">The page draws the form as a flyout of four box rows under a title line, the command column showing what each field puts in the command and, on the last row, the whole command Enter sends. One artboard per decision, each option a lane; boxes and chips are live.</p>
+  <p class="lede">Commands, the parser's slot rules and the handler's behaviour are read from the source. The aircraft, positions and FRDs are illustrative; the mock knows a handful of Bay Area fixes, and its “Not a known fix” stands for the nav-data check.</p>
+
+  <section class="note-box measured" aria-labelledby="measured-h">
+    <h2 id="measured-h">Measured from the code (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>WARP's heading is magnetic.</b> The parser wraps it as a <code>MagneticHeading</code> (<code>src/Yaat.Sim/Commands/CommandParser.cs:2610</code>); the handler turns it true with <code>heading.ToTrue(aircraft.Declination)</code> for the aircraft's heading, track and target (<code>src/Yaat.Sim/Commands/FlightCommandHandler.cs:1018-1019</code>, <code>:1023</code>) and keeps it as the assigned magnetic heading (<code>:1024</code>). The menu seeds the box with the aircraft's magnetic heading (<code>MenuCatalog.cs:1091-1097</code>), and the FRD's radial is magnetic too (<code>FrdResolver.cs:29</code>, <code>:172-176</code>).</li>
+      <li><b>The declination it uses is the one cached for where the aircraft was.</b> The handler moves the aircraft (<code>FlightCommandHandler.cs:1017</code>) and converts with <code>aircraft.Declination</code> on the next line; that cache is refreshed only by <code>FlightPhysics.RefreshDeclinationCache</code> once the aircraft has moved more than 0.02° (<code>FlightPhysics.cs:107-138</code>). Within the Bay Area the difference is a fraction of a degree; for a cross-country warp the first tick's true heading is off by the difference between the two declinations. What the heading hold does on the next tick is unmeasured.</li>
+      <li><b>Heading, altitude and speed are optional in the sim.</b> <code>WARP &lt;fix|FRD&gt; [heading] [altitude] [speed]</code>, one to four words (<code>CommandParser.cs:2521-2539</code>); an omitted value is null and the handler keeps the aircraft's present magnetic heading, altitude and indicated airspeed (<code>FlightCommandHandler.cs:1001-1003</code>). <code>COMMANDS.md</code> documents it (<code>:722</code>, <code>:2347-2360</code>). Only the fix is required (“WARP requires a fix”, <code>CommandParser.cs:2528-2531</code>).</li>
+      <li><b>The trailing values are slot-filled, left to right.</b> A word is a heading only if it is a whole number 1-360 (<code>CommandParser.cs:2574-2583</code>); otherwise it is tried as an altitude through <code>AltitudeResolver</code> (<code>:2585-2595</code>), then as a speed, any positive whole number (<code>:2597-2605</code>); a word no slot takes fails (<code>:2607</code>). So a middle value cannot be left out: <code>WARP SUNOL 250</code> reads 250 as a heading.</li>
+      <li><b>An altitude under 1,000 is hundreds.</b> <code>AltitudeResolver.Resolve</code> multiplies any number under 1000 by 100 (<code>AltitudeResolver.cs:19-27</code>). Altitudes from 1 to 999 ft go into a WARP only as whole hundreds, <code>001</code> to <code>009</code>.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found while drawing</h2>
+    <ul class="nl">
+      <li><b>Today's popup sends feet the sim reads as hundreds.</b> Its box is labelled “Altitude (feet)” and seeded with the altitude in feet (<code>MenuPopups.cs:262</code>, <code>:327</code>; <code>MenuCatalog.cs:1103</code>). N123AB at 800 ft in the KPAO pattern opens with <code>800</code>, and OK sends <code>WARP … 800 …</code>: 80,000 ft.</li>
+      <li><b>Today's popup closes before it checks, then says nothing.</b> <code>Submit</code> closes the popup and returns if the FRD is blank or any number fails <code>int.TryParse</code> (<code>MenuPopups.cs:265-277</code>). A parked aircraft's speed seeds blank (indicated airspeed 0, <code>PositiveOrBlank</code>, <code>:427</code>), so Warp… on SWA2471 at the gate does nothing on OK until a speed is typed. A heading of <code>0</code> parses, goes out, and the sim refuses it after the popup has gone (“invalid warp argument '0'”, <code>CommandParser.cs:2607</code>).</li>
+      <li><b>WARP always leaves the aircraft airborne</b> with its phases, route and procedure cleared (<code>FlightCommandHandler.cs:1005-1016</code>, <code>:1035-1036</code>), and Warp… is offered for any controllable aircraft, on the ground too (<code>MenuCatalog.cs:1070</code>, <code>AircraftCommandApplicability.cs:131</code>). A parked aircraft seeds its field elevation as altitude: KOAK's 9 ft reads as 900 ft.</li>
+      <li><b>The sim takes any positive speed</b> (<code>CommandParser.cs:2599</code>): <code>2500</code> warps a C172 at 2,500 kt.</li>
+      <li><b>A seeded FRD is rounded.</b> <code>FrdResolver.ToFrd</code> rounds the radial to a degree and the distance to a whole mile (<code>FrdResolver.cs:176</code>, <code>:182</code>), so a point warp lands up to about half a mile from the click.</li>
+    </ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <ol class="nl" id="decisions"></ol>
+  </section>
+
+  <footer class="foot">The glyph is the built Warp glyph (<code>QuickCommandGlyphs</code>, <code>SimControlWarp</code>, the one Warp here shares) at 22 px, stroke 1.9, in the scope-and-sim grey <code>#DCE2E8</code>. FRDs read <code>{fix}{radial}{distance}</code>, radial magnetic and three digits, distance three digits in NM. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const SCOPE = "#DCE2E8";
+  const WARP_G = "M13 2L4 14h7l-1 8 9-12h-7z";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = path => `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${SCOPE}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+  const noG = `<span class="gly none" aria-hidden="true"></span>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+  const titleLine = (title, right) => `<div class="mi title"><span class="et"><b>${esc(title)}</b></span><span class="r">${right}</span></div>`;
+  const pad3 = n => String(n).padStart(3, "0");
+  const fmt = n => Number(n).toLocaleString("en-US");
+
+  /* ---------- Data ---------- */
+  const FIXES = { SFO: "San Francisco VOR", OAK: "Oakland VOR", SJC: "San Jose VOR", OSI: "Woodside VOR", PYE: "Point Reyes VOR", SUNOL: "", MENLO: "", ARCHI: "", DUMBA: "", CEDES: "", BRIXX: "", PORTE: "", EDDYY: "", SERFR: "", BDEGA: "", WESLA: "" };
+  const AC = {
+    ual: { cs: "UAL123", type: "B738", hdg: 58, alt: 11000, spd: 280, cat: "jet", own: "SFO068021", ground: false },
+    pat: { cs: "N123AB", type: "C172", hdg: 130, alt: 800, spd: 85, cat: "piston", own: "OSI050009", ground: false },
+    gate: { cs: "SWA2471", type: "B737", hdg: 280, alt: 9, spd: 0, cat: "jet", own: "OAK", ground: true },
+  };
+  const DEFAULT_SPD = { jet: 250, piston: 110 };
+
+  /* ---------- State ---------- */
+  const V = {}, CFG = {}, BUILD = {};
+  const reg = (key, cfg) => { CFG[key] = cfg; BUILD[key] = () => warpFly(key); seed(key); return BUILD[key](); };
+  const redraw = key => { const el = document.querySelector(`[data-key="${key}"]`); if (el) el.outerHTML = BUILD[key](); };
+  const v = (key, f) => V[`${key}|${f}`] ?? "";
+  function seed(key) {
+    const c = CFG[key], ac = c.ac;
+    if (V[`${key}|seeded`]) return;
+    V[`${key}|seeded`] = "1";
+    const s = c.seed || {};
+    V[`${key}|frd`] = s.frd ?? (c.frdMode === "own" ? ac.own : "");
+    if (c.form === "mandatory") {
+      V[`${key}|hdg`] = s.hdg ?? pad3(ac.hdg);
+      V[`${key}|alt`] = s.alt ?? (c.unit === "hundreds" ? altToken(ac.alt) : String(ac.alt));
+      V[`${key}|spd`] = s.spd ?? (ac.spd > 0 ? String(ac.spd) : "");
+    } else {
+      V[`${key}|hdg`] = s.hdg ?? ""; V[`${key}|alt`] = s.alt ?? ""; V[`${key}|spd`] = s.spd ?? "";
+    }
+  }
+
+  /* ---------- Field readers ---------- */
+  /** The word the sim's AltitudeResolver reads back as these feet: full feet from 1,000, whole hundreds below. */
+  function altToken(ft) { return ft >= 1000 ? String(ft) : pad3(Math.round(ft / 100)); }
+  function frdRead(raw) {
+    const t = raw.trim().toUpperCase();
+    if (!t) return { err: "A fix or FRD is needed: WARP requires a fix" };
+    if (t in FIXES) return { tok: t, ok: FIXES[t] ? `${t} · ${FIXES[t]}` : `${t} · fix` };
+    const m = /^([A-Z]{2,5})(\d{3})(\d{3})$/.exec(t);
+    if (m && m[1] in FIXES && +m[2] >= 1 && +m[2] <= 360 && +m[3] >= 1) return { tok: t, ok: `${+m[3]} NM on the ${m[2]}° radial of ${m[1]} (magnetic)`, inbound: (+m[2] + 180) % 360 || 360 };
+    if (m) return { err: `${m[1]} is not a known fix` };
+    return { err: "Not a known fix or FRD (fix, 3-digit radial, 3-digit NM)" };
+  }
+  function hdgRead(raw) {
+    const t = raw.trim();
+    if (!/^\d+$/.test(t)) return { err: "A heading 1-360, magnetic" };
+    const h = +t;
+    if (h === 0) return { err: "1-360: north is 360" };
+    if (h > 360) return { err: "1-360: the sim would read it as an altitude" };
+    return { tok: pad3(h), ok: `heading ${pad3(h)} magnetic` };
+  }
+  /** unit "feet": the number is feet. unit "hundreds": as the menu's altitude boxes read it (230, 23000, FL230). */
+  function altRead(raw, unit) {
+    const t = raw.trim().toUpperCase().replace(/,/g, "");
+    let ft;
+    if (unit === "hundreds") {
+      const fl = /^FL(\d{1,3})$/.exec(t);
+      if (fl) ft = +fl[1] * 100;
+      else if (/^\d+$/.test(t)) ft = +t < 1000 ? +t * 100 : +t;
+      else return { err: "An altitude: 110, 11000 or FL110" };
+      if (ft <= 0) return { err: "Above zero" };
+      if (ft > 99900) return { err: "99,900 ft at most" };
+      return { tok: altToken(ft), ft, ok: `→ ${fmt(ft)} ft` };
+    }
+    if (!/^\d+$/.test(t)) return { err: "Feet, a whole number: 800, 11000" };
+    ft = +t;
+    if (ft <= 0) return { err: "Above zero" };
+    if (ft < 1000 && ft % 100 !== 0) return { err: `Under 1,000 ft the sim takes whole hundreds only: ${ft} is not one` };
+    return { tok: altToken(ft), ft, ok: ft < 1000 ? `${fmt(ft)} ft · sent as ${altToken(ft)}, the sim's hundreds` : `${fmt(ft)} ft` };
+  }
+  function spdRead(raw) {
+    const t = raw.trim();
+    if (!/^\d+$/.test(t) || +t <= 0) return { err: "A positive whole number of knots" };
+    return { tok: String(+t), ok: `${+t} kt indicated` };
+  }
+
+  /** The command the flyout sends now: { cmd } or { err }, plus per-field results. */
+  function compose(key) {
+    const c = CFG[key], ac = c.ac;
+    const f = frdRead(v(key, "frd"));
+    const raws = { hdg: v(key, "hdg"), alt: v(key, "alt"), spd: v(key, "spd") };
+    const present = { hdg: pad3(ac.hdg), alt: Math.round(ac.alt / 100) >= 1 ? altToken(ac.alt) : null, spd: ac.spd > 0 ? String(ac.spd) : null };
+    const res = {};
+    const order = ["hdg", "alt", "spd"];
+    const reader = { hdg: hdgRead, alt: r => altRead(r, c.unit), spd: spdRead };
+    order.forEach(k => { res[k] = raws[k].trim() ? reader[k](raws[k]) : { blank: true }; });
+    if (c.form === "mandatory") order.forEach(k => { if (res[k].blank) res[k] = { err: k === "spd" ? "Speed needed: a positive whole number of knots" : k === "hdg" ? "Heading needed, 1-360" : "Altitude needed" }; });
+    else {
+      const last = Math.max(...order.map((k, i) => res[k].blank ? -1 : i));
+      order.forEach((k, i) => {
+        if (!res[k].blank) return;
+        if (i < last) res[k] = present[k] === null ? { err: `Blank before a filled field, and the present ${fmt(ac.alt)} ft has no word the sim reads as it: type an altitude` } : { tok: present[k], kept: true, amb: `kept: ${present[k]} sent in its place, since a gap would shift the slots` };
+        else res[k] = { omit: true, amb: k === "spd" && ac.spd === 0 ? "left out: the sim keeps 0 kt" : `left out: the sim keeps ${k === "hdg" ? pad3(ac.hdg) : k === "alt" ? fmt(ac.alt) + " ft" : ac.spd + " kt"}` };
+      });
+    }
+    const bad = [f, res.hdg, res.alt, res.spd].some(r => r.err);
+    const toks = [f.tok, ...order.filter(k => !res[k].omit).map(k => res[k].tok)];
+    return { f, res, cmd: bad ? null : `WARP ${toks.join(" ")}` };
+  }
+
+  /* ---------- The flyout ---------- */
+  const LABEL = { hdg: "Heading (magnetic)", alt: "Altitude", spd: "Speed (knots IAS)" };
+  function fieldRow(key, k, r, c) {
+    const ac = c.ac, refuse = c.check !== "disable";
+    const ph = c.form === "optional" ? (k === "hdg" ? `keep ${pad3(ac.hdg)}` : k === "alt" ? `keep ${fmt(ac.alt)}` : `keep ${ac.spd}`) : (k === "hdg" ? "1-360" : k === "alt" ? (c.unit === "hundreds" ? "e.g. 110, FL230" : "feet, e.g. 5000") : "e.g. 250");
+    const label = k === "alt" ? (c.unit === "hundreds" ? "Altitude (hundreds, feet or FL)" : "Altitude (feet)") : LABEL[k];
+    let chips = "";
+    if (c.chips && k === "hdg") {
+      const fr = frdRead(v(key, "frd"));
+      const hs = [[pad3(ac.hdg), "now"], ...(fr.inbound ? [[pad3(fr.inbound), "to fix"]] : []), ["090"], ["180"], ["270"], ["360"]];
+      chips = hs.map(([h, s]) => `<span class="chip" data-fill="${key}|hdg|${h}">${h}${s ? `<small>${s}</small>` : ""}</span>`).join("");
+    }
+    if (c.chips && k === "spd") {
+      const ss = [...(ac.spd > 0 ? [[ac.spd, "now"]] : []), [DEFAULT_SPD[ac.cat], "default"]];
+      chips = ss.map(([s, l]) => `<span class="chip" data-fill="${key}|spd|${s}">${s}<small>${l}</small></span>`).join("");
+    }
+    const line = r.err && refuse ? `<div class="err">${esc(r.err)}</div>` : r.amb ? `<div class="amb">${esc(r.amb)}</div>` : (r.ok && c.showOk) ? `<div class="ok">${esc(r.ok)}</div>` : "";
+    const cmdT = r.err ? (refuse ? "✕" : "···") : r.omit ? "—" : r.tok;
+    const cmdC = r.err ? (refuse ? "cmd bad" : "cmd wait") : r.kept ? "cmd kept" : r.omit ? "cmd wait" : "cmd";
+    return `<div class="mi field" role="menuitem">${noG}<span class="nm col"><span class="flab">${esc(label)}</span><span class="under"><input class="tbox sm${r.err && refuse ? " badb" : ""}" type="text" data-f="${key}|${k}" value="${esc(v(key, k))}" placeholder="${esc(ph)}" aria-label="${esc(label)}" autocomplete="off" spellcheck="false">${chips}</span>${line}</span><span></span><span class="${cmdC}">${esc(cmdT)}</span></div>`;
+  }
+  function warpFly(key) {
+    const c = CFG[key], ac = c.ac, refuse = c.check !== "disable";
+    const k = compose(key);
+    let h = titleLine(c.title || "Warp", `${ac.cs} · now ${pad3(ac.hdg)}° · ${fmt(ac.alt)} ft · ${ac.spd} kt`);
+    if (ac.ground && c.groundNote) h += `<div class="muted-line" style="color:#ffc062">On the ground at KOAK: a warp leaves it airborne.</div>`;
+    const f = k.f;
+    let sugg = "";
+    if (c.suggest) {
+      const t = v(key, "frd").trim().toUpperCase();
+      const hits = t && !(t in FIXES) && !/\d/.test(t) ? Object.keys(FIXES).filter(n => n.startsWith(t)).slice(0, 5) : [];
+      if (hits.length) sugg = `<div class="sugg">${hits.map(n => `<span data-fill="${key}|frd|${n}">${n}${FIXES[n] ? `<i>${esc(FIXES[n])}</i>` : ""}</span>`).join("")}</div>`;
+    }
+    const showErr = f.err && refuse && v(key, "frd").trim() && !sugg;
+    const fline = showErr ? `<div class="err">${esc(f.err)}</div>` : (f.ok ? `<div class="ok">${esc(f.ok)}</div>` : "");
+    h += `<div class="mi field" role="menuitem">${gl(WARP_G)}<span class="nm col"><span class="flab">Fix or FRD${c.frdMode === "own" ? " · seeded with where it is" : c.frdMode === "point" ? " · the clicked point" : ""}</span><span class="under"><input class="tbox${c.focus === "frd" ? " focus" : ""}${showErr ? " badb" : ""}" type="text" data-f="${key}|frd" value="${esc(v(key, "frd"))}" placeholder="e.g. SUNOL or SFO090015" aria-label="Fix or FRD" autocomplete="off" spellcheck="false"></span>${sugg}${fline}</span><span></span><span class="${f.err ? (showErr ? "cmd bad" : "cmd wait") : "cmd"}">${esc(f.err ? (showErr ? "✕" : "···") : f.tok)}</span></div>`;
+    ["hdg", "alt", "spd"].forEach(x => { h += fieldRow(key, x, k.res[x], c); });
+    h += sep();
+    const sendCls = k.cmd ? "cmd full" : (refuse ? "cmd bad" : "cmd wait");
+    const sendTxt = k.cmd || (refuse ? "can't send" : "WARP ···");
+    h += `<div class="mi" role="menuitem">${noG}<span class="nm"><span class="sendline">Enter in any box sends</span></span><span></span><span class="${sendCls}">${esc(sendTxt)}</span></div>`;
+    return `<div class="menu m w fly" role="menu" aria-label="Warp" data-key="${key}">${h}</div>`;
+  }
+
+  /* ---------- Today ---------- */
+  const excerpt = (rows, width = 300) => `<div class="menu m" role="menu" style="width:${width}px">${rows.map(([l, c, f]) => l === "-" ? sep() : `<div class="mi plain${f === "faint" ? " faint" : ""}"><span>${l}</span><span class="cmd">${esc(c || "")}</span><span class="chev">${f === "sub" ? "›" : ""}</span></div>`).join("")}</div>`;
+  const wpop = (cs, frd, h, a, s) => `<div class="wpop m"><div class="wt">Warp ${esc(cs)}</div>
+      <div class="wl">Fix or FRD</div><input class="tbox" type="text" value="${esc(frd)}" placeholder="e.g. SFO or SFO180010" aria-label="Fix or FRD">
+      <div class="wl">Heading</div><input class="tbox" type="text" value="${esc(h)}" placeholder="0-360" aria-label="Heading">
+      <div class="wl">Altitude (feet)</div><input class="tbox" type="text" value="${esc(a)}" placeholder="e.g. 5000" aria-label="Altitude">
+      <div class="wl">Speed (knots IAS)</div><input class="tbox" type="text" value="${esc(s)}" placeholder="e.g. 250" aria-label="Speed">
+      <div class="btns"><span class="btn">OK</span><span class="btn">Cancel</span></div></div>`;
+  const today = {
+    id: "w0-today", title: "Today · the warp popup, from two places", sends: "WARP <frd> <hdg> <alt> <spd> · WARPG #<node> (Warp here at a taxi node)",
+    intro: [
+      "Warp… closes All Commands; Warp here sits on the point menu. Both open <code>MenuPopups.ShowWarp</code>: four boxes, seeded with the aircraft's magnetic heading, altitude in feet and indicated airspeed (a zero or negative one blank), the FRD blank for Warp… and the point's FRD for Warp here. OK or Enter closes it and sends only if all four read as numbers; Cancel and Escape close.",
+    ],
+    lanes: [{ kind: "a", name: "As built",
+      body: () => `<div class="stage row">
+        ${frame("All Commands (end)", excerpt([["Ask pilot to say…", "", "sub"], ["Coordination", "", "sub"], ["-"], ["Edit flight plan", ""], ["-"], ["Warp…", ""]], 230))}
+        ${frame("Warp… › <b>popup</b> (UAL123, airborne)", wpop("UAL123", "", "58", "11000", "280"))}
+        ${frame("Warp… (N123AB, KPAO pattern)", `<div class="pair">${wpop("N123AB", "", "130", "800", "85")}<div class="callout"><b>OK sends</b> <code>WARP … 130 800 85</code>: the sim reads 800 as hundreds, <b>80,000 ft</b>.</div></div>`)}
+        ${frame("Warp… (SWA2471, parked at KOAK)", `<div class="pair">${wpop("SWA2471", "SUNOL", "280", "9", "")}<div class="callout"><b>OK closes and sends nothing</b>: the speed is blank. With a speed typed, <code>9</code> is read as 900 ft and the aircraft leaves the ground.</div></div>`)}
+        ${frame("Point menu at a map point (excerpt)", excerpt([["Fly heading 270", "FH 270"], ["Direct to OAK270012", "DCT OAK270012"], ["Warp here (OAK270012)", ""]], 300))}
+        ${frame("Point menu at a taxi node (ground view)", excerpt([["Taxi here", "", "sub"], ["Custom taxi…", ""], ["Warp here", "WARPG #1432"]], 260))}
+      </div>`,
+      how: "The popup opens at the pointer; the FRD box is focused. Enter in any box or OK closes it first, then sends <code>WARP {frd} {h} {a} {s}</code> if the FRD is not blank and the three numbers parse; anything else is dropped without a word.",
+      worst: "N123AB warped to reset a pattern circuit with its seeded values untouched goes to 80,000 ft, and the only sign is the aircraft on the scope." }],
+  };
+
+  /* ---------- 1 · Mandatory or optional ---------- */
+  const w1 = {
+    id: "w1-fields", title: "1 · Four fields mandatory, or the trailing three optional", sends: "WARP <frd> <hdg> <alt> <spd> · WARP <frd> [hdg] [alt] [spd]",
+    intro: [
+      "<b>UAL123</b>, a B738 out of KSFO, 11,000 ft, heading 058, 280 kt. Opened from All Commands › <b>Warp…</b>, <code>SUNOL</code> typed. Altitude in feet (decision 2a), refusals inline (decision 4a). Clear a box or type in one to see the command change.",
+    ],
+    lanes: [
+      { kind: "a", name: "All four mandatory, seeded",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("m1", { ac: AC.ual, form: "mandatory", unit: "feet", check: "refuse", seed: { frd: "SUNOL" }, focus: "frd" })),
+        how: "The three numbers open holding the present heading, altitude and speed, as today's popup does; each must read, and the command always carries all four.",
+        worst: "Moving an aircraft unchanged means confirming three seeded numbers, and a parked one opens with its speed blank, so it cannot be sent until a speed is typed." },
+      { kind: "b", name: "Trailing three optional, blank keeps",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("o1", { ac: AC.ual, form: "optional", unit: "feet", check: "refuse", seed: { frd: "SUNOL", spd: "250" }, focus: "frd" })),
+        how: "The boxes open empty, their placeholders naming what a blank keeps. Trailing blanks are left out and the sim keeps the present value; a blank before a filled field goes out as the present value (amber), since the sim fills slots left to right (decision 5).",
+        worst: "Blank reads as “nothing” but means “keep”: SWA2471 warped from its gate with the speed left blank keeps 0 kt, airborne (FlightCommandHandler.cs:1003, :1035)." },
+    ],
+  };
+
+  /* ---------- 2 · Units and presets ---------- */
+  const w2 = {
+    id: "w2-units", title: "2 · Units and presets, on a pattern aircraft at 800 ft", sends: "WARP <frd> <hdg> <alt> <spd>",
+    intro: [
+      "<b>N123AB</b>, a C172 on the downwind for runway 31 at KPAO, 800 ft, heading 130, 85 kt; Warp… with <code>OSI050009</code> typed. The fields are seeded (decision 1a). Try <code>800</code>, <code>850</code>, <code>200</code> and <code>FL200</code> in each altitude box.",
+    ],
+    lanes: [
+      { kind: "a", name: "Altitude in feet",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("u2a", { ac: AC.pat, form: "mandatory", unit: "feet", check: "refuse", seed: { frd: "OSI050009" }, showOk: true })),
+        how: "The box takes feet, as its label says and as today's popup is labelled. The flyout writes the word the sim reads back as those feet: <code>800</code> goes out as <code>008</code>; 850 is refused, since the sim takes whole hundreds below 1,000 ft.",
+        worst: "Every other altitude box in the menu reads hundreds: 200 typed from habit for FL200 warps the aircraft to 200 ft." },
+      { kind: "b", name: "Altitude as the altitude boxes read it",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("u2b", { ac: AC.pat, form: "mandatory", unit: "hundreds", check: "refuse", seed: { frd: "OSI050009" }, showOk: true })),
+        how: "The box reads altitudes as Maintain altitude and Temporary altitude… do (<code>MenuCatalog.ParseAltitudeFeet</code>): <code>110</code> and <code>11000</code> are 11,000 ft, <code>FL230</code> 23,000; the line under it says what it read. The seed is the present altitude in that form, <code>008</code>.",
+        worst: "800 typed for the 800-ft pattern reads as 80,000 ft; only the “→ 80,000 ft” line under the box says so." },
+      { kind: "c", name: "Heading and speed presets",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("u2c", { ac: AC.pat, form: "mandatory", unit: "feet", check: "refuse", seed: { frd: "OSI050009" }, chips: true })),
+        how: "Chips fill a box: heading <i>now</i>, <i>to fix</i> (the reciprocal of the FRD's radial, toward its fix) and the four cardinals; speed <i>now</i> and the category's default speed below 10,000 ft (110 kt for a piston, 250 for a jet). Altitude in feet.",
+        worst: "“To fix” points at the fix, not down a final: from an FRD off OSI the aircraft flies at Woodside, and the default-speed chip gives a C172 110 kt where its pattern speed is 85." },
+    ],
+  };
+
+  /* ---------- 3 · The FRD field ---------- */
+  const w3 = {
+    id: "w3-frd", title: "3 · The FRD field: typed with suggestions, or seeded with where it is", sends: "WARP <frd> …",
+    intro: [
+      "<b>UAL123</b> again, opened from All Commands › <b>Warp…</b>. Warp here is drawn below each lane: it opens the same flyout seeded with the clicked point's FRD in either lane. Type <code>SU</code> or <code>SFO2</code> in lane A's box.",
+    ],
+    lanes: [
+      { kind: "a", name: "Free text with fix suggestions",
+        body: () => `${frame("All Commands › <b>Warp…</b> › flyout, “SU” typed", reg("f3a", { ac: AC.ual, form: "mandatory", unit: "feet", check: "refuse", seed: { frd: "SU" }, suggest: true, focus: "frd" }))}${frame("Point menu › <b>Warp here (OAK270012)</b> › flyout", reg("f3a2", { ac: AC.ual, form: "mandatory", unit: "feet", check: "refuse", frdMode: "point", seed: { frd: "OAK270012" } }))}`,
+        how: "The box opens empty and focused; typing lists fixes as the command bar does after <code>DCT</code> (<code>IMenuHost.SuggestFixes</code>: the aircraft's route fixes first, then the nav data); a click fills the box. The line under it says how the text reads.",
+        worst: "Warping in place to change only an altitude means typing an FRD for where the aircraft already is, which nothing on the scope shows." },
+      { kind: "b", name: "Seeded with the aircraft's own FRD",
+        body: () => `${frame("All Commands › <b>Warp…</b> › flyout", reg("f3b", { ac: AC.ual, form: "mandatory", unit: "feet", check: "refuse", frdMode: "own", focus: "frd" }))}${frame("Point menu › <b>Warp here (OAK270012)</b> › flyout", reg("f3b2", { ac: AC.ual, form: "mandatory", unit: "feet", check: "refuse", frdMode: "point", seed: { frd: "OAK270012" } }))}`,
+        how: "The box opens holding the aircraft's present position as an FRD (<code>FrdResolver.ToFrd</code>, as the point menu names a point), all selected; typing replaces it, and Enter alone re-warps the aircraft where it is with the numbers below.",
+        worst: "Enter on the seeded FRD moves the aircraft up to about half a mile (the FRD is rounded to a whole mile) and clears its route, phases and approach clearance, as every warp does." },
+    ],
+  };
+
+  /* ---------- 4 · A field that does not read ---------- */
+  const w4 = {
+    id: "w4-refuse", title: "4 · A field that does not read, on a parked aircraft", sends: "nothing until every field reads",
+    intro: [
+      "<b>SWA2471</b>, a B737 parked at KOAK (field elevation 9 ft), opened from Warp… with <code>SUNOL</code> and heading <code>400</code> typed; its speed seeds blank and its altitude seeds 9. Altitude in feet (decision 2a). Today this popup closes on OK and sends nothing.",
+    ],
+    lanes: [
+      { kind: "a", name: "Inline per-field refusal",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("r4a", { ac: AC.gate, form: "mandatory", unit: "feet", check: "refuse", seed: { frd: "SUNOL", hdg: "400" }, groundNote: true })),
+        how: "Each field that does not read gets a red underline and a reason line; its token in the command column is ✕ and the last row reads <i>can't send</i>. Enter sends nothing and the flyout stays open with the text as typed.",
+        worst: "Three red lines at once on a parked aircraft (heading, altitude, speed) before anything can be sent, two of them from the seed, not from the instructor." },
+      { kind: "b", name: "Disabled send",
+        body: () => frame("All Commands › <b>Warp…</b> › flyout", reg("r4b", { ac: AC.gate, form: "mandatory", unit: "feet", check: "disable", seed: { frd: "SUNOL", hdg: "400" }, groundNote: true })),
+        how: "No reason lines: a field that does not read shows <code>···</code> in its token slot, the last row stays dimmed <code>WARP ···</code>, and Enter does nothing until every field reads.",
+        worst: "The instructor sees a dimmed command and no reason: 400 and a blank speed look alike, and 9 ft looks like a value the flyout should take." },
+    ],
+  };
+
+  const ARTS = [today, w1, w2, w3, w4];
+  const NAV = ["Today", "1 Mandatory or optional", "2 Units and presets", "3 FRD field", "4 A field that does not read"];
+
+  /* ---------- Decisions ---------- */
+  const DEC = [
+    ["Fields", [
+      ["a", "all four mandatory, the numbers seeded with the present heading, altitude and speed, as today", "Moving an aircraft unchanged means confirming three seeded numbers, and a parked one cannot be sent until a speed is typed."],
+      ["b", "the trailing three optional: a blank keeps the present value, as COMMANDS.md documents and the sim does (FlightCommandHandler.cs:1001-1003)", "Blank means “keep”: a parked aircraft warped with the speed left blank keeps 0 kt, airborne."],
+    ]],
+    ["Units and presets per field", [
+      ["a", "altitude in feet, as labelled today; the flyout writes the sim's word (800 ft goes out as 008; 850 refused)", "200 typed from habit for FL200, as every other altitude box reads it, warps the aircraft to 200 ft."],
+      ["b", "altitude as the menu's altitude boxes read it (110, 11000, FL110), the reading shown under the box", "800 typed for an 800-ft pattern reads as 80,000 ft, shown only by the line under the box."],
+      ["c", "heading chips (now, to the FRD's fix, the cardinals) and speed chips (now, the category default), on top of a or b", "“To fix” points at the fix, not down a final, and the default-speed chip gives a C172 110 kt."],
+    ]],
+    ["The FRD field", [
+      ["a", "free text, empty, with fix suggestions as the command bar gives after DCT", "Warping in place to change an altitude means typing the aircraft's own FRD."],
+      ["b", "seeded with the aircraft's own FRD, selected (Warp here seeds the clicked point in either answer)", "Enter on the seed moves the aircraft up to half a mile and clears its route, phases and clearance."],
+    ]],
+    ["A field that does not read (today: the popup closes and sends nothing, MenuPopups.cs:265-277)", [
+      ["a", "inline per-field refusal: red underline, a reason line, ✕ in its slot, “can't send”; Enter sends nothing, the flyout stays open", "A parked aircraft opens with up to three red lines, two of them from its own seed."],
+      ["b", "disabled send: no reasons, the command dimmed until every field reads", "A typo and a seeded value that does not read look the same: a dimmed command and no reason."],
+    ]],
+    ["A blank before a filled field (forced under 1b: the sim fills heading, altitude, speed left to right, CommandParser.cs:2570-2607)", [
+      ["a", "the flyout sends the present value in the blank's place and marks it amber; the only form the parser reads as meant", "Under 1,000 ft the present altitude goes out rounded to a whole hundred (850 ft as 009, 900 ft), and a parked aircraft's 9 ft has no word at all, so its blank altitude must be typed."],
+    ]],
+    ["Warp… on an aircraft on the ground (WARP always leaves it airborne, FlightCommandHandler.cs:1035)", [
+      ["a", "offered as today, the title line saying it leaves the ground", "SWA2471 at its gate seeds 9 ft and no speed: the instructor must replace both before it can go anywhere."],
+      ["b", "hidden on the ground; Warp here at a taxi node (WARPG) is the menu's ground warp", "A parked aircraft cannot be put on a final from the menu; only the command bar's WARP does it."],
+    ]],
+  ];
+  document.getElementById("decisions").innerHTML = DEC.map(([t, opts], i) => `<li><b>${i + 1}. ${esc(t)}.</b><span class="opts">${opts.map(([k, d, w]) => `<span><i>${k}</i> ${esc(d)} <span class="w">· worst: ${esc(w)}</span></span>`).join("")}</span></li>`).join("");
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const stageOf = html => html.trimStart().startsWith('<div class="stage') ? html : `<div class="stage">${html}</div>`;
+  const lane = l => `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      ${stageOf(l.body())}
+      <div class="sent" data-sent>Type in a box, click a chip or a suggestion, and press Enter to see what it sends.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="lanes${a.lanes.length === 1 ? " one" : ""}">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map((a, i) => `<a href="#${a.id}">${esc(NAV[i])}</a>`).join("") + `<a href="#questions">Open decisions</a>`;
+
+  /* ---------- Interaction ---------- */
+  const refocus = (key, f, pos) => { const nb = document.querySelector(`[data-f="${key}|${f}"]`); if (nb) { nb.focus(); if (pos !== null) nb.setSelectionRange(pos, pos); } };
+  document.addEventListener("input", e => {
+    const b = e.target.closest("[data-f]");
+    if (!b) return;
+    const [key, f] = b.dataset.f.split("|");
+    V[`${key}|${f}`] = b.value;
+    const pos = b.selectionStart;
+    redraw(key);
+    refocus(key, f, pos);
+  });
+  document.addEventListener("keydown", e => {
+    const b = e.target.closest("[data-f]");
+    if (!b || e.key !== "Enter") return;
+    e.preventDefault();
+    const [key] = b.dataset.f.split("|");
+    const k = compose(key);
+    if (k.cmd) say(b, `Sends <code>${esc(k.cmd)}</code> and closes the flyout and the menu.`);
+    else say(b, CFG[key].check === "disable" ? "Enter does nothing: the send stays disabled until every field reads. The flyout stays open." : "Sends nothing: a field does not read (its reason is under it). The flyout stays open.");
+  });
+  document.addEventListener("click", e => {
+    const c = e.target.closest("[data-fill]");
+    if (!c) return;
+    const [key, f, val] = c.dataset.fill.split("|");
+    V[`${key}|${f}`] = val;
+    redraw(key);
+    refocus(key, f, null);
+    const n = document.querySelector(`[data-key="${key}"]`);
+    if (n) say(n, `Filled ${f === "frd" ? "the FRD box" : f === "hdg" ? "the heading" : "the speed"} with <code>${esc(val)}</code>; Enter sends the command on the last row.`);
+  });
+})();
+</script>
+</body>
+</html>

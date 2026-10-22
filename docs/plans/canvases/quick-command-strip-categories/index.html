@@ -108,6 +108,24 @@
   .glab span { font: 600 9.5px/1 "Segoe UI", Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--c); opacity: .9; white-space: nowrap; }
   .glab::before { content: ""; width: 3px; height: 10px; border-radius: 1px; background: var(--c); flex: none; }
   .glab::after { content: ""; flex: 1; height: 1px; background: #4c5158; }
+  /* Shared rows: a strip row holding one or more category segments, a 1 px rule in the 6 px gap between segments. */
+  .prow { display: flex; margin-top: 7px; }
+  .prow:first-child { margin-top: 0; }
+  .prow.cont { margin-top: 6px; }
+  .prow.col { flex-direction: column; }
+  .prow.bare { margin-top: 0; }
+  .pseg { display: flex; flex-direction: column; min-width: 0; }
+  .pseg.fill { flex: 1 1 auto; }
+  .prow .glab { margin: 0 2px 4px; contain: inline-size; overflow: hidden; }
+  .prow .glab span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .glab.cont::before, .glab.cont span { display: none; }
+  .qseg, .picons { display: flex; }
+  .qseg { gap: 6px; }
+  .pdiv { width: 6px; flex: none; position: relative; }
+  .pdiv::before { content: ""; position: absolute; left: 2px; top: 1px; bottom: 1px; width: 1px; background: #4c5158; }
+  .subart { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 18px; }
+  .subart h3.sit { font: 600 17px/1.25 var(--f-display); margin: 0 0 4px; }
+  .subart p.same { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
   .qbtn { width: 42px; height: 42px; flex: none; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; background: #1f2226; padding: 0; display: grid; place-items: center; position: relative; cursor: pointer; }
   .qbtn:hover { background: #2c3036; }
   .qbtn:focus-visible { outline: 2px solid #fff; outline-offset: -1px; }
@@ -144,7 +162,7 @@
   <div class="eyebrow">YAAT-1028 · context-menu quick commands · mock for the owner's decisions</div>
   <h1>Every quick-command icon, grouped by category</h1>
   <p class="lede">Owner request: <b>“No limit on the amount of quick command icons that are shown in a context menu, but maybe they should be organized into categories with small separators?”</b> Today the strip holds the first ten glyph-bearing entries of the situation's list, two rows of five, and every glyph entry past the tenth drops to a text row. This page draws the strip with no cap, its icons grouped by category, four ways, against today's menu.</p>
-  <p class="lede">Each artboard is one aircraft situation, its lanes side by side at the menu's real width: the title, the state line (point at an icon and it names the command there, as the built strip does), the strip, and the rows below it. The pointer arrow marks where the right-click landed: the menu opens with its top-left corner there. Under each menu a measured line gives the menu's height, the icon farthest from the pointer (dashed blue ring) and every one-icon group (amber underline). The switches above the artboards re-draw every lane for decisions 2 to 5 and 7.</p>
+  <p class="lede">Each artboard is one aircraft situation, its lanes side by side at the menu's real width: the title, the state line (point at an icon and it names the command there, as the built strip does), the strip, and the rows below it. The pointer arrow marks where the right-click landed: the menu opens with its top-left corner there. Under each menu a measured line gives the menu's height, the icon farthest from the pointer (dashed blue ring) and every one-icon group (amber underline). The switches above the artboards re-draw every lane for decisions 2 to 5 and 7; the Shared rows artboard draws the settled choices and follows only switches 3, 4 and 8 to 11.</p>
   <p class="lede">Glyphs, families, colours, sizes and the situations' lists are the built ones. <b>Every entry of a list is drawn, as Settings' preview draws it</b>: on a real aircraft the visibility rules hide some (Land on a fixed-wing, Cancel takeoff clearance with no clearance), so real menus are often shorter. Callsigns and state lines are illustrative.</p>
 
   <section class="note-box" aria-labelledby="today-h">
@@ -193,14 +211,29 @@
     <fieldset><legend>7 · Release icons</legend>
       <label><input type="radio" name="rel" value="lead" checked> lead</label>
       <label><input type="radio" name="rel" value="join"> join their category</label></fieldset>
+    <fieldset><legend>8 · Who shares</legend>
+      <label><input type="radio" name="sh_fit" value="next" checked> neighbours</label>
+      <label><input type="radio" name="sh_fit" value="best"> best fit</label></fieldset>
+    <fieldset><legend>9 · Per shared row</legend>
+      <label><input type="radio" name="sh_max" value="any" checked> any that fit</label>
+      <label><input type="radio" name="sh_max" value="two"> at most two</label></fieldset>
+    <fieldset><legend>10 · Shared labels</legend>
+      <label><input type="radio" name="sh_lab" value="own" checked> each its own</label>
+      <label><input type="radio" name="sh_lab" value="row"> one row label</label>
+      <label><input type="radio" name="sh_lab" value="none"> none</label></fieldset>
+    <fieldset><legend>11 · Wrapped tail</legend>
+      <label><input type="radio" name="sh_tail" value="share" checked> shares</label>
+      <label><input type="radio" name="sh_tail" value="alone"> alone</label></fieldset>
     <fieldset><legend>Marks</legend>
       <label><input type="checkbox" id="sw-marks" checked> farthest icon, one-icon groups</label></fieldset>
   </div>
   <div id="arts"></div>
+  <div id="measurer" aria-hidden="true" style="position:absolute;left:-10000px;top:0;visibility:hidden"></div>
 
   <section class="note-box ask" aria-labelledby="ask-h" id="questions">
     <h2 id="ask-h">Open decisions for the owner</h2>
-    <p style="margin:0 0 8px;color:var(--muted)">Answer as “1A, 2a, 3a, 4a, 5a, 6a, 7a”. Every worst case is for the page's default switches unless it names another; numbers are measured from this page.</p>
+    <p style="margin:0 0 8px;color:var(--muted)"><b style="color:var(--ink)">Settled by the owner:</b> 1C, 2b, 5b (six per row), 7b, and categories that fit in one row share it with a vertical rule between them (drawn in the Shared rows artboard). <b style="color:var(--ink)">Still open:</b> 3, 4, 6, and 8 to 11, which the shared-row ruling leaves open.</p>
+    <p style="margin:0 0 8px;color:var(--muted)">Answer as “3a, 4a, 6a, 8a, 9a, 10a, 11a”. Every worst case is for the page's default switches unless it names another (8 to 11: the settled choices plus the other three open ones at their first option); numbers are measured from this page.</p>
     <ol class="nl" id="decisions"></ol>
   </section>
 
@@ -479,6 +512,156 @@
     },
   };
 
+  /* ---------- Shared rows: the owner's ruling on top of the settled 1C, 2b, 5b and 7b ---------- */
+  const SETTLED = { cat: "task", rel: "join", per: 6 };
+  const SH_ROW = 6;
+  const sh = { fit: "next", max: "any", lab: "own", tail: "share" };
+  const SH_KEYS = { fit: 8, max: 9, lab: 10, tail: 11 };
+  const SH_LET = { fit: { next: "a", best: "b" }, max: { any: "a", two: "b" }, lab: { own: "a", row: "b", none: "c" }, tail: { share: "a", alone: "b" } };
+  const SH_NAME = {
+    fit: { next: "only neighbours share", best: "best fit: any category takes the first row it fits" },
+    max: { any: "as many categories as fit", two: "at most two categories a row" },
+    lab: { own: "each segment keeps its own label", row: "one row label names them all", none: "no labels on a shared row" },
+    tail: { share: "a wrapped category's last row can share", alone: "a wrapped category's last row stands alone" },
+  };
+  const REC = { fit: "next", max: "any", lab: "own", tail: "share" };
+  const withOpt = (over, fn) => { const save = { ...opt }; Object.assign(opt, over); try { return fn(); } finally { Object.assign(opt, save); } };
+  const codes = cfg => Object.keys(SH_KEYS).map(k => `${SH_KEYS[k]}${SH_LET[k][cfg[k]]}`).join(" · ");
+
+  function pack(groups, cfg) {
+    const segs = groups.flatMap(g => chunk(g.list, SH_ROW).map((items, i, all) =>
+      ({ k: g.k, items, cont: i > 0, tail: i === all.length - 1, wrapped: all.length > 1 })));
+    const canShare = s => cfg.share && s.tail && s.items.length < SH_ROW && (!s.wrapped || cfg.tail === "share");
+    const cap = cfg.max === "two" ? 2 : Infinity;
+    const rows = [];
+    segs.forEach(s => {
+      const fits = r => r.open && (r.n + s.items.length <= SH_ROW) && (r.segs.length < cap);
+      const pool = (!canShare(s) || s.cont) ? [] : cfg.fit === "best" ? rows : rows.slice(-1);
+      const r = pool.find(fits);
+      if (r) { r.segs.push(s); r.n += s.items.length; } else rows.push({ segs: [s], n: s.items.length, open: canShare(s) });
+    });
+    return rows;
+  }
+  const pdiv = `<span class="pdiv" role="separator" aria-orientation="vertical"></span>`;
+  function sharedRowHtml(r, lab, idx) {
+    const shared = r.segs.length > 1;
+    const btns = s => `<div class="qseg">${s.items.map(it => btn(it, r.n === 1)).join("")}</div>`;
+    if (!shared && r.segs[0].cont) return `<div class="prow cont">${btns(r.segs[0])}</div>`;
+    if (lab === "own" || !shared) {
+      const segLab = s => s.cont ? `<div class="glab cont" style="--c:${TASK_COLOR}"><span></span></div>` : labH(s.k);
+      return `<div class="prow">${r.segs.map((s, i) => `<div class="pseg${i === r.segs.length - 1 ? " fill" : ""}">${segLab(s)}${btns(s)}</div>`).join(pdiv)}</div>`;
+    }
+    const icons = `<div class="picons">${r.segs.map(btns).join(pdiv)}</div>`;
+    if (lab === "row") {
+      const head = r.segs[0].cont ? r.segs[0] : null;
+      const rest = head ? r.segs.slice(1) : r.segs;
+      const named = `<div class="glab" style="--c:${TASK_COLOR}"><span>${esc(rest.map(s => catName(s.k)).join(" · "))}</span></div>`;
+      if (!head) return `<div class="prow col">${named}${icons}</div>`;
+      return `<div class="prow"><div class="pseg"><div class="glab cont" style="--c:${TASK_COLOR}"><span></span></div>${btns(head)}</div>${pdiv}`
+        + `<div class="pseg fill">${named}<div class="picons">${rest.map(btns).join(pdiv)}</div></div></div>`;
+    }
+    return `<div class="prow col bare">${idx > 0 ? sepH : ""}${icons}</div>`;
+  }
+  function sharedMenu(sit, cfg) {
+    return withOpt(SETTLED, () => {
+      const groups = groupsOf(entriesOf(sit, "join"));
+      const rows = pack(groups, cfg);
+      const below = ROWS_BELOW.map(r => r ? `<div class="mrow${r[0] === "Delete" ? " del" : ""}"><span>${esc(r[0])}</span><span class="chev">${r[1]}</span></div>` : msep).join("");
+      const html = `<div class="menu" data-sit="${sit.id}">${ptr}
+        <div class="mrow title">${esc(sit.callsign)} · ${esc(sit.type)}</div>
+        <div class="hline"><div class="st">${esc(sit.state)}</div><div class="ql"></div></div>
+        ${msep}<div class="strip">${rows.map((r, i) => sharedRowHtml(r, cfg.lab, i)).join("")}</div>${msep}${below}</div>`;
+      const desc = rows.map(r => r.segs.map(s => `${catName(s.k)}${s.cont ? " (cont.)" : ""} ${s.items.length}`).join(" | ")).join(" / ");
+      const sig = rows.map(r => r.segs.map(s => `${s.k}${s.cont ? "+" : ""}${s.items.length}`).join("|")).join("/") + (rows.some(r => r.segs.length > 1) ? `#${cfg.lab}` : "");
+      return { html, rows, desc, sig };
+    });
+  }
+  function sharedFacts(menu) {
+    const mr = menu.getBoundingClientRect();
+    let far = null, farD = -1;
+    menu.querySelectorAll(".qbtn").forEach(b => {
+      const r = b.getBoundingClientRect();
+      const d = Math.hypot(r.left + r.width / 2 - mr.left, r.top + r.height / 2 - mr.top);
+      if (d > farD) { farD = d; far = b; }
+    });
+    const cut = [...menu.querySelectorAll(".prow .glab span")].filter(s => s.textContent && s.scrollWidth > s.clientWidth + 0.5).map(s => s.textContent);
+    return { h: Math.round(mr.height), w: Math.round(mr.width), strip: Math.round(menu.querySelector(".strip").getBoundingClientRect().height), far, farD: Math.round(farD), cut };
+  }
+  function measureCfg(sit, cfg) {
+    const box = document.getElementById("measurer");
+    const m = sharedMenu(sit, cfg);
+    box.innerHTML = m.html;
+    const f = sharedFacts(box.querySelector(".menu"));
+    box.innerHTML = "";
+    return { ...f, rows: m.rows.length };
+  }
+  function sharedVariants() {
+    const base = { ...sh, share: true };
+    const out = [
+      { id: "settled", tag: "c", letter: "C", name: "As settled: a row per category, no sharing", cfg: { ...base, share: false } },
+      { id: "shared", tag: "a", letter: "Shared", name: `As switched: ${codes(sh)}`, cfg: base },
+    ];
+    Object.keys(SH_KEYS).forEach(k => Object.keys(SH_LET[k]).forEach(v => {
+      if (v === sh[k]) return;
+      out.push({ id: `${SH_KEYS[k]}${SH_LET[k][v]}`, tag: "b", letter: `${SH_KEYS[k]}${SH_LET[k][v]}`, name: `As switched, but ${SH_NAME[k][v]}`, cfg: { ...base, [k]: v } });
+    }));
+    return out;
+  }
+  function sharedArtHtml() {
+    const sits = SITS.map(sit => {
+      const vs = sharedVariants().map(v => ({ ...v, m: sharedMenu(sit, v.cfg) }));
+      const mainSig = vs[1].m.sig;
+      const same = vs.slice(2).filter(v => v.m.sig === mainSig).map(v => v.letter);
+      const shown = vs.filter((v, i) => i < 2 || v.m.sig !== mainSig);
+      const lanes = shown.map(v => `<section class="lane" data-sh="${sit.id}.${v.id}">
+        <div class="lane-h"><span class="tag ${v.tag}">${esc(v.letter)}</span><h3>${esc(v.name)}</h3></div>
+        <div class="stage">${v.m.html}<div class="readout" data-desc="${esc(v.m.desc)}" data-rows="${v.m.rows.length}"></div></div></section>`).join("");
+      return `<div class="subart"><h3 class="sit">${esc(sit.title)}</h3>
+        <p class="same">${same.length ? `Draws the same menu as the switched lane here, so not repeated: ${esc(same.join(", "))}.` : "Every option of 8 to 11 draws a different menu here."}</p>
+        <div class="lanes">${lanes}</div></div>`;
+    }).join("");
+    return `<section class="art" id="shared"><div class="art-meta"><h2>4 · Shared rows</h2>
+      <p>Owner ruling: <b>“if two categories have icons that add up to 6 (max per row), then they should share that row, with a vertical separator between them as well.”</b> Every menu here is drawn as settled: lane C, categories by task, six icons a row, the release icons in their category (Check release window joins Track and coordination); switches 3 and 4 still apply, 2, 5 and 7 do not.</p>
+      <p>A shared row holds its categories left to right in category order, a 1 px rule in the 6 px gap between them, the same rule and colour as the strip's horizontal ones, so a full shared row is 282 px and the menu stays 290 px wide. Each situation shows lane C unshared, the menu under switches 8 to 11, and every other option of 8 to 11 that draws a different menu. An amber underline marks an icon alone on its row. <b>Packing happens</b> in the taxiing menu (Runway 2 and Track and coordination 1, and Taxi's wrapped last two) and the approach menu (Pilot reports 2, Runway 1, Taxi 1); <b>it cannot</b> where Vectors' five meet Pilot reports' two (5 + 2), nor anywhere in the pattern menu under neighbours-only, where the six Pattern icons fill a row between Runway's four and Land.</p></div>
+      ${sits}</section>`;
+  }
+  function measureShared(arts) {
+    arts.querySelectorAll("[data-sh]").forEach(el => {
+      const menu = el.querySelector(".menu");
+      const f = sharedFacts(menu);
+      if (opt.marks && f.far) f.far.classList.add("far");
+      if (!opt.marks) menu.querySelectorAll(".qbtn.lone").forEach(b => b.classList.remove("lone"));
+      const out = el.querySelector(".readout");
+      const lones = [...menu.querySelectorAll(".qbtn.lone")].map(b => b.dataset.name.replace(/ ›$/, ""));
+      out.innerHTML = [
+        `<b>${f.h}</b> px tall, <b>${f.w}</b> px wide · strip ${f.strip} px · <b>${out.dataset.rows}</b> strip rows`,
+        f.far ? `<span class="f">farthest icon:</span> <b>${esc(f.far.dataset.name.replace(/ ›$/, ""))}</b>, ${f.farD} px from the pointer` : "",
+        `rows: ${esc(out.dataset.desc)}`,
+        f.cut.length ? `<span class="w">labels cut:</span> ${esc(f.cut.join(", "))}` : "no label cut",
+        lones.length ? `<span class="w">alone on a row:</span> ${esc(lones.join(", "))}` : "",
+      ].filter(Boolean).join("<br>");
+    });
+  }
+  /* Worst-case numbers: fixed configurations, so they hold whatever the switches show. */
+  function measureWorst() {
+    const S = Object.fromEntries(SITS.map(s => [s.id, s]));
+    const at = (sid, over) => measureCfg(S[sid], { ...REC, share: true, ...over });
+    const put = (key, f) => { M[`${key}.h`] = f.h; M[`${key}.r`] = f.rows; M[`${key}.cut`] = f.cut.join(", ") || "none"; M[`${key}.d`] = f.farD; M[`${key}.far`] = f.far ? f.far.dataset.name.replace(/ ›$/, "") : ""; };
+    put("sh.pattern.next", at("pattern", { fit: "next" }));
+    put("sh.pattern.best", at("pattern", { fit: "best" }));
+    put("sh.approach.next", at("approach", {}));
+    put("sh.approach.best", at("approach", { fit: "best" }));
+    put("sh.taxi.any", at("taxi", { max: "any" }));
+    put("sh.taxi.two", at("taxi", { max: "two" }));
+    put("sh.approach.own", at("approach", { lab: "own" }));
+    put("sh.taxi.own", at("taxi", { lab: "own" }));
+    put("sh.approach.row", at("approach", { lab: "row" }));
+    put("sh.taxi.row", at("taxi", { lab: "row" }));
+    put("sh.taxi.alone", at("taxi", { tail: "alone" }));
+    put("sh.taxi.settled", at("taxi", { share: false }));
+    put("sh.approach.settled", at("approach", { share: false }));
+  }
+
   /* ---------- Page ---------- */
   function laneHtml(sit, lane) {
     const L = LANES.find(l => l.key === lane);
@@ -496,13 +679,15 @@
     arts.innerHTML = SITS.map(sit => {
       const lanes = LANES.map(l => { const r = laneHtml(sit, l.key); infos.push([sit.id, l.key, r.info]); return r.html; }).join("");
       return `<section class="art" id="${sit.id}"><div class="art-meta"><h2>${esc(sit.title)}</h2><p>${sit.blurb}</p></div><div class="lanes">${lanes}</div></section>`;
-    }).join("") + `<section class="art" id="settings"><div class="art-meta"><h2>4 · Settings › Quick commands, the Pattern list</h2>
+    }).join("") + sharedArtHtml() + `<section class="art" id="settings"><div class="art-meta"><h2>5 · Settings › Quick commands, the Pattern list</h2>
       <p>The editor's preview today draws the first ten glyph rows through <code>QuickCommandStrip.Rows</code> and <code>GlyphCell</code>, and the entry list marks a divider after the tenth. Both options below drop the divider and draw the preview in lane A's layout (it follows whichever lane decision 1 picks); they differ in the entry list. Decision 6.</p></div>
       <div class="lanes wide">${["a", "b"].map(k => `<section class="lane"><div class="lane-h"><span class="tag ${k === "a" ? "a" : "b"}">6${k}</span><h3>${esc(SET_TEXT[k].name)}</h3></div>
         <div class="stage">${settingsHtml(k)}</div>
         <dl class="cap"><dt>How it works</dt><dd>${SET_TEXT[k].how}</dd><dt>Worst case</dt><dd class="worst">${SET_TEXT[k].worst}</dd></dl></section>`).join("")}</div></section>`;
     infos.forEach(([sid, lane, info]) => measure(arts.querySelector(`[data-lane-box="${sid}.${lane}"]`), sid, lane, info));
     M["approach.CA"] = M["approach.C.h"] - M["approach.A.h"];
+    measureShared(arts);
+    measureWorst();
     fillNumbers();
   }
 
@@ -556,12 +741,38 @@
       ["b", "join their category (Scope and sim, or Track and coordination) in the list's place",
         "The taxiing list does not name the clock, so it lands in the last group: in lanes A, C and D the release check a departure waits on becomes the icon farthest from the pointer."],
     ] },
+    { t: "8. Which categories may share a row (Shared rows artboard)", o: [
+      ["a", "only neighbours: the next category in category order joins the current row if it fits, else starts a row",
+        "A row stays short when a later category would fill it: in the pattern menu Runway's four and Land could share, but the six Pattern icons come between them, so Land takes a row of its own: <span data-m=\"sh.pattern.next.r\"></span> strip rows, <span data-m=\"sh.pattern.next.h\"></span> px, where best fit draws <span data-m=\"sh.pattern.best.r\"></span> rows, <span data-m=\"sh.pattern.best.h\"></span> px."],
+      ["b", "best fit: each category takes the first earlier row it fits, so categories move out of order to fill rows",
+        "The order moves between situations: in the pattern menu Land jumps ahead of the six Pattern icons onto the Runway row, and in the approach menu Cleared to land joins the Vectors row, above Pilot reports, which the list names first."],
+    ] },
+    { t: "9. How many categories one row may hold", o: [
+      ["a", "as many as fit in six icons (2 + 2 + 1, 2 + 1 + 1 …)",
+        "Three labels on one row: the approach menu's Pilot reports 2 | Runway 1 | Taxi 1 row cuts its names to fit their icons (cut: <span data-m=\"sh.approach.own.cut\"></span>)."],
+      ["b", "at most two, as the ruling's words have it",
+        "A third small category starts a row of its own: on the taxiing menu Check release window sits alone on a third strip row under Taxi 2 | Runway 2 (<span data-m=\"sh.taxi.two.r\"></span> rows, <span data-m=\"sh.taxi.two.h\"></span> px against <span data-m=\"sh.taxi.any.h\"></span> px)."],
+    ] },
+    { t: "10. Labels on a shared row", o: [
+      ["a", "each segment keeps its own small label over its icons, as lane C draws a row of its own",
+        "A label is only as wide as its icons, up to the next rule (the row's last label runs to the menu's edge): one- and two-icon segments cut their names, and so can a long last name (taxiing menu: <span data-m=\"sh.taxi.own.cut\"></span>; approach menu: <span data-m=\"sh.approach.own.cut\"></span>)."],
+      ["b", "one label over the row naming every category on it (“Pilot reports · Runway · Taxi”), the rules only between the icons; a wrapped category's tail keeps its own unlabelled rule",
+        "No name sits over its icons: on the approach menu “Pilot reports · Runway · Taxi” runs across four icons, so which one is Land is told by counting segments; and a row of long names still cuts (labels cut, approach menu: <span data-m=\"sh.approach.row.cut\"></span>; taxiing menu: <span data-m=\"sh.taxi.row.cut\"></span>)."],
+      ["c", "no labels on a shared row; a horizontal rule above it, as lane A",
+        "The smallest groups lose their names: on the approach menu Report field in sight, Report traffic in sight, Cleared to land and Land sit unlabelled on one row, the four icons a label helps most."],
+    ] },
+    { t: "11. A category over six icons that wraps", o: [
+      ["a", "its last, partial row may share with the next categories, its own part first and unlabelled",
+        "The wrapped icons have no name on their row: on the taxiing menu Ignore ground conflicts and Land open a row whose first label, Runway, sits over the third icon, so they can read as part of the row's other groups."],
+      ["b", "its last row stands alone; sharing starts after it",
+        "One more row: the taxiing menu is <span data-m=\"sh.taxi.alone.r\"></span> strip rows and <span data-m=\"sh.taxi.alone.h\"></span> px against <span data-m=\"sh.taxi.any.r\"></span> rows and <span data-m=\"sh.taxi.any.h\"></span> px, with Ignore ground conflicts and Land alone on the second."],
+    ] },
   ];
   document.getElementById("decisions").innerHTML = DEC.map(d =>
     `<li><b>${esc(d.t)}.</b>${d.o.map(([k, what, worst]) => `<span class="opts"><i>${k}</i> ${esc(what)}<span class="wl">worst: ${worst}</span></span>`).join("")}</li>`).join("");
 
   document.getElementById("index").innerHTML = SITS.map(s => `<a href="#${s.id}">${esc(s.nav)}</a>`).join("") +
-    `<a href="#settings">4 · Settings</a><a href="#questions">Open decisions</a>`;
+    `<a href="#shared">4 · Shared rows</a><a href="#settings">5 · Settings</a><a href="#questions">Open decisions</a>`;
 
   /* ---------- Live label line ---------- */
   document.addEventListener("mouseover", e => {
@@ -579,19 +790,23 @@
   });
 
   /* ---------- Switches ---------- */
+  const setSwitch = (name, value) => {
+    if (name.startsWith("sh_")) sh[name.slice(3)] = value;
+    else opt[name] = name === "per" ? Number(value) : value;
+  };
   document.querySelectorAll(".switches input[type=radio]").forEach(r => r.addEventListener("change", () => {
     if (!r.checked) return;
-    opt[r.name] = r.name === "per" ? Number(r.value) : r.value;
+    setSwitch(r.name, r.value);
     render();
   }));
   document.getElementById("sw-marks").addEventListener("change", e => { opt.marks = e.target.checked; render(); });
 
-  /* A review link can preset the switches: ?cat=task&corder=fixed&inner=set&per=6&rel=join */
+  /* A review link can preset the switches: ?cat=task&corder=fixed&inner=set&per=6&rel=join&sh_fit=best&sh_lab=row */
   new URLSearchParams(location.search).forEach((v, k) => {
     const r = document.querySelector(`.switches input[name="${k}"][value="${v}"]`);
     if (!r) return;
     r.checked = true;
-    opt[k] = k === "per" ? Number(v) : v;
+    setSwitch(k, v);
   });
 
   render();
