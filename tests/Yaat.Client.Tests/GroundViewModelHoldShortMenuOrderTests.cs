@@ -36,7 +36,7 @@ public class GroundViewModelHoldShortMenuOrderTests
 
         string dump = Dump(rows);
         // B and W are each met on two route taxiways, on their own edges and on the junction fillets the route rounds.
-        Assert.Equal("HS S1@S, HS S1@T, HS B@T, HS B@V, HS W@V, HS W@W4", string.Join(", ", rows.Select(r => r.Command)));
+        Assert.Equal("HS S1@S, HS T, HS S1@T, HS B@T, HS B@V, HS V, HS W@V, HS W@W4, HS W4", string.Join(", ", rows.Select(r => r.Command)));
         Assert.All(rows, r => Assert.True(r.Label.DistanceFt > 0, dump));
         Assert.All(rows, r => Assert.Equal(0, r.Label.DistanceFt % TugMovePlanner.NoteRoundingFt));
         Assert.Equal(rows.Select(r => r.Label.DistanceFt).Order(), rows.Select(r => r.Label.DistanceFt));
@@ -45,7 +45,7 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.Equal((HoldShortChoice.TaxiwayBadge, "S1", "crossing on S"), (first.Label.Badge, first.Label.Name, first.Label.Where));
 
         HoldShortChoice last = rows[^1];
-        Assert.Equal((HoldShortChoice.TaxiwayBadge, "W", "before turning onto W4"), (last.Label.Badge, last.Label.Name, last.Label.Where));
+        Assert.Equal((HoldShortChoice.TaxiwayBadge, "W4", "before turning onto W4"), (last.Label.Badge, last.Label.Name, last.Label.Where));
     }
 
     /// <summary>
@@ -416,6 +416,87 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.Equal(("12/30", "HS 12"), (runway.Label.Name, runway.Command));
     }
 
+    /// <summary>
+    /// YAAT-760: SCX8607 on S where the bundle has it 18 s after <c>TAXI S T U W W1 30</c>. The route turns from S onto
+    /// T, and the instructor had to type <c>HS T</c>, which the sim armed at the first route node meeting T ("holding short
+    /// of T at S"). The ladder offers that stop, bound where the server binds it, before the turn.
+    /// </summary>
+    [Fact]
+    public void RouteTurningOntoATaxiway_OffersHoldShortOfIt_BeforeTheTurn()
+    {
+        AirportGroundLayout layout = LoadOak();
+        var ac = new AircraftModel
+        {
+            Callsign = "SCX8607",
+            AircraftType = "B738",
+            Position = new LatLon(37.712205, -122.216953),
+            Heading = new TrueHeading(199.6),
+            CurrentPhase = "Taxiing",
+            CurrentTaxiway = "S",
+            TaxiRoute = "S T U W W1",
+            AssignedRunway = "30",
+            HasActiveTaxiRoute = true,
+            IsOnGround = true,
+        };
+        GroundViewModel vm = ViewModel(layout, NoActiveRunways);
+        TaxiRoute route = vm.ResolveRemainingRoute(ac)!;
+        int firstMeetingT = route.Segments.FindIndex(s => layout.Nodes[s.ToNodeId].Edges.Any(e => e.MatchesTaxiway("T")));
+        Assert.True(firstMeetingT >= 0, "the route never meets T");
+
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
+
+        string dump = Dump(rows);
+        HoldShortChoice t = Assert.Single(rows, r => r.Command == "HS T");
+        Assert.Equal((HoldShortChoice.TaxiwayBadge, "T", "before turning onto T"), (t.Label.Badge, t.Label.Name, t.Label.Where));
+        Assert.Equal(route.Segments[firstMeetingT].ToNodeId, t.Preview.Segments[^1].ToNodeId);
+        Assert.DoesNotContain(rows, r => r.Command == "HS S");
+        Assert.True(rows.Any(r => r.Command == "HS U"), dump);
+    }
+
+    /// <summary>
+    /// UAL194 on T9 at SFO two nodes short of A, cleared <c>TAXI A B1 B K A F</c> to 28L (the clearance of bundle S1-SFO-2):
+    /// the route turns onto A from T9 and again from K. <c>HS A</c> binds the first route node meeting A, so A is one stop, there,
+    /// never a pair of located <c>HS A@…</c> stops.
+    /// </summary>
+    [Fact]
+    public void RouteUsingATaxiwayTwice_OffersOneStop_AtTheFirstTurn()
+    {
+        AirportGroundLayout layout = LoadSfo();
+        GroundNode? junction = layout.FindIntersectionNode("T9", "A");
+        Assert.NotNull(junction);
+        GroundNode start = WalkBack(junction, "T9", 2, n => n.Edges.Any(e => e.MatchesTaxiway("A")));
+        var ac = new AircraftModel
+        {
+            Callsign = "UAL194",
+            AircraftType = "B738",
+            Position = start.Position,
+            Heading = new TrueHeading(GeoMath.BearingTo(start.Position, junction.Position)),
+            CurrentPhase = "Taxiing",
+            CurrentTaxiway = "T9",
+            TaxiRoute = "A B1 B K A F",
+            AssignedRunway = "28L",
+            HasActiveTaxiRoute = true,
+            IsOnGround = true,
+        };
+        GroundViewModel vm = ViewModel(layout, NoActiveRunways);
+        TaxiRoute? route = vm.ResolveRemainingRoute(ac);
+        Assert.NotNull(route);
+        string routeLine = string.Join(" ", route.Segments.Select(s => s.TaxiwayName));
+        int firstOnA = route.Segments.FindIndex(s => s.TaxiwayName == "A");
+        Assert.True(firstOnA > 0, $"the route does not turn onto A: {routeLine}");
+        int offA = route.Segments.FindIndex(firstOnA, s => s.TaxiwayName != "A");
+        Assert.True((offA > 0) && (route.Segments.FindIndex(offA, s => s.TaxiwayName == "A") > 0), $"the route uses A once: {routeLine}");
+        int firstMeetingA = route.Segments.FindIndex(s => layout.Nodes[s.ToNodeId].Edges.Any(e => e.MatchesTaxiway("A")));
+
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
+
+        string dump = Dump(rows);
+        List<HoldShortChoice> a = [.. rows.Where(r => (r.Command == "HS A") || r.Command.StartsWith("HS A@", StringComparison.Ordinal))];
+        Assert.True(a.Count == 1, $"{routeLine} → {dump}");
+        Assert.Equal("HS A", a[0].Command);
+        Assert.Equal(route.Segments[firstMeetingA].ToNodeId, a[0].Preview.Segments[^1].ToNodeId);
+    }
+
     // --- Fixtures ---------------------------------------------------------------------------
 
     /// <summary>KOAK parsed under the lower-case id the server gives a layout (<c>AirportGroundDataService</c>).</summary>
@@ -424,6 +505,13 @@ public class GroundViewModelHoldShortMenuOrderTests
         string path = Path.Combine("TestData", "oak.geojson");
         Assert.True(File.Exists(path), $"{path} is missing from the test output");
         return GeoJsonParser.Parse("oak", File.ReadAllText(path), null, [], FilletMode.Standard);
+    }
+
+    private static AirportGroundLayout LoadSfo()
+    {
+        string path = Path.Combine("TestData", "sfo.geojson");
+        Assert.True(File.Exists(path), $"{path} is missing from the test output");
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", [], FilletMode.Standard);
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<string>> Active(string ends) =>

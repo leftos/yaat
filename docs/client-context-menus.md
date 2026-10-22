@@ -329,6 +329,8 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   Hold short of… is `IMenuHost.GetHoldShortChoices` → `HoldShortMenu`: the route line (`route S T V W4 · RWY 30`, `route B W · spot 5`), the `MeLine` (`now, taxiing on D`, `now, holding short of 28R on B`; the ` on {taxiway}` tail drops without `CurrentTaxiway`; null in any other phase), one `HoldShortChoice` per bar along the route, nearest first (badge `TW`/`RW`, name, where, distance rounded to 50 ft, `HS` command, preview route, `BarPoint`), and a `HoldShortDestination` (`Runway 30`, `Spot 5`, `Gate B22`, `Helipad H1`, with `route ends here`).
 
+  A bar is a runway bar, a taxiway off the route crossed at a route node, or a route taxiway the route turns onto (the first turn onto each, bare `HS {twy}`, worded "before turning onto {twy}" or "crossing on {X}" when the route meets it earlier; none for the taxiway the aircraft starts on). At one node an off-route crossing sorts before a turn.
+
   The destination runway whose bar ends the route is that last row, not a stop, and the destination shows only with at least one stop before it. The bar the route starts at is a stop while the aircraft is short of it (no preview route, the box alone); a bar it stands on or has passed is none.
 
   While the aircraft holds short, the walk starts after the held target's node and never offers the bar it is held at. With no stop the entry is not built (hidden, strip and All Commands).

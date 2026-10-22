@@ -595,6 +595,8 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     Then one stop per hold-short along the rest of the route, nearest first: a bar mark (two amber lines for a runway, teal solid-over-dashed lines for a taxiway), a TW or RW badge, the name, where it is ("crossing on S", "before turning onto T", "at W4, end of route" for a taxiway stop), the distance along the route to the nearest 50 ft ("~1,500 ft") and the command the stop sends.
 
+    A taxiway the route turns onto is a stop too, once, at the first turn onto it ("before turning onto T", or "crossing on S" when the route meets it earlier); the taxiway the aircraft is on gives none. On `S T U W W1 30` the ladder offers Hold short of T and U.
+
     The last row is dimmed and cannot be chosen: where the route ends ("Runway 30 · route ends here", "Spot 5 · route ends here", "Gate B22 · route ends here", "Helipad H1 · route ends here"). A taxi to a runway already ends holding short of it, so that runway is the last row and not a stop; runways crossed earlier keep their stops. A bar the aircraft stands on is not a stop. The command is hidden when the route has no stop (no taxi route, no bar before where it ends).
 
     A taxiway the route crosses on more than one taxiway gets one stop per crossing, sending the located `HS X@A` form. A runway gets one stop: named by the room's active end of it; with neither or both ends active, by the end on that side for a crossing at a runway end ("30"), else by both ends ("12/30", sending the lower-numbered end). While the aircraft is holding short, the ladder starts after the bar it is held at and never offers that bar.

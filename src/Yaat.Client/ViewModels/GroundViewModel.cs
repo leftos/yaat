@@ -2450,6 +2450,7 @@ public partial class GroundViewModel : ObservableObject
         [
             .. rows.OrderBy(r => r.Position)
                 .ThenBy(r => (r.Row.Label.Badge == HoldShortChoice.RunwayBadge) ? 0 : 1)
+                .ThenBy(r => routeTaxiways.Contains(r.Row.Label.Name) ? 1 : 0)
                 .ThenBy(r => r.Row.Label.Name, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(r => r.Row.Command, StringComparer.OrdinalIgnoreCase)
                 .Select(r => r.Row),
@@ -2683,7 +2684,8 @@ public partial class GroundViewModel : ObservableObject
     /// The <c>HS</c> target of every row <paramref name="route"/> offers, with its badge and name: one per runway whose
     /// bar it passes but the runway whose bar it ends at (its destination), then the taxiways it meets off its own
     /// (<paramref name="routeTaxiways"/>), bare when met on one route taxiway and located once per route taxiway
-    /// otherwise. The walk starts at <paramref name="firstPosition"/> (<see cref="RouteStart"/>, moved past the held bar
+    /// otherwise, and each route taxiway it turns onto but the one the aircraft is on, bare, once
+    /// (<see cref="RouteTaxiwayTurnedOnto"/>). The walk starts at <paramref name="firstPosition"/> (<see cref="RouteStart"/>, moved past the held bar
     /// while the aircraft is holding short — <see cref="PastHeldBar"/>); runway rows are named from
     /// <paramref name="activeEnds"/>.
     /// </summary>
@@ -2698,6 +2700,8 @@ public partial class GroundViewModel : ObservableObject
         List<(string Target, string Badge, string Name)> targets = [];
         var runways = new HashSet<RunwayIdentifier>();
         var crossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
+        // Past the held bar the walk may start beyond the route's last node, where it meets nothing.
+        string? taxiwayOn = (firstPosition <= route.Segments.Count) ? RouteTaxiwayAt(route, firstPosition) : null;
         for (int position = firstPosition; position <= route.Segments.Count; position++)
         {
             if (!layout.Nodes.TryGetValue(RouteNodeId(route, position), out GroundNode? node))
@@ -2724,6 +2728,12 @@ public partial class GroundViewModel : ObservableObject
                 // A location equal to the target names no crossing: record it as unlocated.
                 RecordCrossing(crossings, name, string.Equals(location, name, StringComparison.OrdinalIgnoreCase) ? null : location);
             }
+
+            // HS of a route taxiway binds the first route node meeting it, so only its first turn is a stop.
+            if ((RouteTaxiwayTurnedOnto(route, position, routeTaxiways, taxiwayOn) is { } turn) && !crossings.ContainsKey(turn))
+            {
+                RecordCrossing(crossings, turn, location);
+            }
         }
 
         targets.AddRange(crossings.SelectMany(crossing => TaxiwayRowTargets(crossing.Key, crossing.Value)));
@@ -2740,6 +2750,28 @@ public partial class GroundViewModel : ObservableObject
         return (located.Count > 1)
             ? located.Select(location => ($"{name}@{location}", HoldShortChoice.TaxiwayBadge, name))
             : [(name, HoldShortChoice.TaxiwayBadge, name)];
+    }
+
+    /// <summary>
+    /// The route taxiway (<paramref name="routeTaxiways"/>) <paramref name="route"/> turns onto at its node
+    /// <paramref name="position"/>: the one the next segment travels when it differs from the one the node lies on. Null
+    /// at the route's last node, where it turns onto none, and for <paramref name="taxiwayOn"/>, the taxiway the aircraft
+    /// is on.
+    /// </summary>
+    private static string? RouteTaxiwayTurnedOnto(TaxiRoute route, int position, HashSet<string> routeTaxiways, string? taxiwayOn)
+    {
+        if (position >= route.Segments.Count)
+        {
+            return null;
+        }
+
+        string? next = ArrivingTaxiway(route.Segments[position]);
+        bool isTurn =
+            (next is not null)
+            && routeTaxiways.Contains(next)
+            && !string.Equals(next, RouteTaxiwayAt(route, position), StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(next, taxiwayOn, StringComparison.OrdinalIgnoreCase);
+        return isTurn ? next : null;
     }
 
     private static void RecordCrossing(Dictionary<string, List<string?>> crossings, string target, string? location)
