@@ -62,6 +62,29 @@ public static class ImpliedActiveRunways
     }
 
     /// <summary>
+    /// What the mentor's load prompt offers out of <paramref name="implied"/>: per airport, a list whose ends are all
+    /// arrivals is offered for both departures and arrivals; any other list is kept as given. Only the prompt takes this;
+    /// a room's starting state (<see cref="RoomDefault"/>) reads the unpromoted <see cref="For"/> result.
+    /// </summary>
+    public static ActiveRunways OfferedToMentor(ActiveRunways implied)
+    {
+        ActiveRunways offered = ActiveRunways.Empty;
+        foreach (string airport in implied.Airports)
+        {
+            offered = offered.With(airport, OfferedBothWaysWhenArrivalOnly(implied.For(airport)));
+        }
+
+        return offered;
+    }
+
+    /// <summary>
+    /// An airport whose deduced ends are all arrivals has nothing that says where it departs, so every end is offered for
+    /// both; a list with any departure or both-ways end is kept as deduced.
+    /// </summary>
+    private static IReadOnlyList<ActiveRunway> OfferedBothWaysWhenArrivalOnly(IReadOnlyList<ActiveRunway> ends) =>
+        ends.All(end => end.Use == ActiveRunwayUse.Arrival) ? [.. ends.Select(end => new ActiveRunway(end.Designator, ActiveRunwayUse.Both))] : ends;
+
+    /// <summary>
     /// What a room actually starts on, out of <paramref name="implied"/>: the airports whose implied ends cover every
     /// physical runway there — a runway counts as covered when either of its two ends is named, whatever the use —
     /// kept verbatim, and nothing else. An airport with no runway data is dropped. With no scenario sidecar the

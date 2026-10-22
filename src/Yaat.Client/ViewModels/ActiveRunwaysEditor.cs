@@ -18,7 +18,9 @@ public static class ActiveRunwaysEditor
     /// <summary>
     /// The notes under the rows: for each of <paramref name="airports"/>, whether <paramref name="prefill"/> implies no
     /// departure end there (only <c>A</c> ends, or none) and whether it implies no arrival end (only <c>D</c> ends, or none).
-    /// A bare end counts as both.
+    /// A bare end counts as both. The server offers an airport whose deduced ends are all arrivals both ways, so a real
+    /// load's "No departure end" note fires only for an airport with no prefilled ends at all; its "No arrival end" note
+    /// also fires for an airport offered only <c>D</c> ends.
     /// </summary>
     public static List<string> Notes(IEnumerable<string> airports, IReadOnlyDictionary<string, List<string>> prefill)
     {

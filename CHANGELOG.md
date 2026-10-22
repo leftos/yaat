@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- The active-runways prompt offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
+
 ### Fixed
 
 - Popping out a second vStrips tab while the vTDLS tab is selected no longer leaves the main window showing a blank tab.

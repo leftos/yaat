@@ -124,14 +124,12 @@ public class MainViewModelActiveRunwaysPromptTests
     [Fact]
     public void Notes_NameTheAirportsWhoseGuessLacksADepartureOrAnArrivalEnd()
     {
-        Dictionary<string, List<string>> prefill = Runways(("OAK", ["A28R"]), ("SFO", ["30"]), ("SQL", ["D30"]));
+        // The server offers an arrival-only deduction (OAK's A28R) both ways, so OAK arrives as a bare 28R and gets no note.
+        Dictionary<string, List<string>> prefill = Runways(("OAK", ["28R"]), ("SFO", ["30"]), ("SQL", ["D30"]));
 
         List<string> notes = ActiveRunwaysEditor.Notes(["OAK", "SFO", "SQL", "HWD"], prefill);
 
-        Assert.Equal(
-            ["No departure end implied at OAK", "No arrival end implied at SQL", "No departure end implied at HWD", "No arrival end implied at HWD"],
-            notes
-        );
+        Assert.Equal(["No arrival end implied at SQL", "No departure end implied at HWD", "No arrival end implied at HWD"], notes);
     }
 
     [AvaloniaFact]
@@ -139,18 +137,17 @@ public class MainViewModelActiveRunwaysPromptTests
     {
         MainViewModel vm = NewVm();
         vm.ApplyLoadResultActiveRunways(
-            MainViewModelActiveRunwaysTests.LoadResult([], Runways(("SFO", ["28R"]), ("SQL", ["D30"])), promptNeeded: true) with
+            MainViewModelActiveRunwaysTests.LoadResult([], Runways(("OAK", ["30"]), ("SFO", ["28R"]), ("SQL", ["D30"])), promptNeeded: true) with
             {
                 ActiveRunwaysAssigned = new Dictionary<string, RunwayUseCountsDto> { ["SQL"] = new(1, 0, []), ["OAK"] = new(0, 2, ["30"]) },
             }
         );
 
+        // OAK's generator deduces only its arrival end 30, which the server offers both ways: no guess note for OAK.
         Assert.Equal(
             [
                 "OAK: 2 arrivals in this scenario already have a runway and keep it; the rest are offered these. "
                     + "Arrivals from the scenario's generators land on 30.",
-                "No departure end implied at OAK",
-                "No arrival end implied at OAK",
                 "SFO: no aircraft placed by this scenario has a runway yet; all of them are offered these.",
                 "SQL: 1 departure in this scenario already has a runway and keeps it; the rest are offered these.",
                 "No arrival end implied at SQL",

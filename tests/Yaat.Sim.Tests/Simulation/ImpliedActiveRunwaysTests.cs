@@ -43,6 +43,43 @@ public class ImpliedActiveRunwaysTests
     }
 
     [Fact]
+    public void OfferedToMentor_OffersAnArrivalOnlyAirportBothWays()
+    {
+        // S1-OAK-2/3/4's two generators deduce only arrival ends at OAK (28R and 30): no end is deduced as a departure
+        // runway, so the prompt offers both for departures and arrivals. For itself keeps the deduction as it is.
+        ActiveRunways implied = ImpliedActiveRunways.For(Load(S1Oak234), weather: null, ModelDate);
+        Assert.Equal(["A28R", "A30"], Tokens(implied, "OAK"));
+
+        ActiveRunways offered = ImpliedActiveRunways.OfferedToMentor(implied);
+
+        Assert.Equal(["28R", "30"], Tokens(offered, "OAK"));
+        Assert.All(offered.For("OAK"), runway => Assert.Equal(ActiveRunwayUse.Both, runway.Use));
+        Assert.Equal(["OAK"], offered.Airports);
+    }
+
+    [Fact]
+    public void OfferedToMentor_KeepsAMixedListAsDeduced()
+    {
+        // S2-OAK-4 deduces 28R as a departure end too, so its arrival ends stay arrival-only.
+        ActiveRunways implied = ImpliedActiveRunways.For(Load(S2Oak4), weather: null, ModelDate);
+
+        ActiveRunways offered = ImpliedActiveRunways.OfferedToMentor(implied);
+
+        Assert.Equal(["A28L", "28R", "A30"], Tokens(offered, "OAK"));
+    }
+
+    [Fact]
+    public void RoomDefault_KeepsAnArrivalOnlyListAsGiven_WhileThePromptOffersItBothWays()
+    {
+        // VIS has one runway (12/30), so naming 30 covers it and RoomDefault keeps the list: the room starts on the
+        // unpromoted deduction, and only the prompt offers it both ways.
+        ActiveRunways implied = ActiveRunways.Empty.With("VIS", [new ActiveRunway("30", ActiveRunwayUse.Arrival)]);
+
+        Assert.Equal(["A30"], Tokens(ImpliedActiveRunways.RoomDefault(implied), "VIS"));
+        Assert.Equal(["30"], Tokens(ImpliedActiveRunways.OfferedToMentor(implied), "VIS"));
+    }
+
+    [Fact]
     public void ArrivalGenerators_ImplyTheirRunwayForArrivals_AndAnUnknownRunwayImpliesNothing()
     {
         // Two generators (30 and 28R) over a field of parking departures: the generator runways are all that implies.

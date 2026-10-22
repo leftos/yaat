@@ -172,6 +172,8 @@ A departure use is a taxi to a runway (`TAXI`, `RWY x TAXI`, `TAXIAUTO`, `TAXIAL
 
 Only the primary airport, and only when nothing implies an end there, falls back to facility knowledge (`FacilityRunwayKnowledge.Select`, pruned by `RunwayUsabilityGate`) and then to the generic runway-in-use rule for the weather in force; a load has no session configuration or partner decision to consult. `ImpliedActiveRunways.RoomDefault(implied)` keeps only the airports whose implied ends name every runway there (either end counts): with no scenario sidecar, the guess otherwise only pre-fills the mentor's prompt.
 
+The prompt's pre-fill is `ImpliedActiveRunways.OfferedToMentor(implied)` (called by yaat-server `ScenarioLifecycleService`): an airport whose deduced ends are all arrivals has nothing saying where it departs, so each end is offered both ways (`A28R A30` becomes `28R 30`), while a mixed list is offered as given (a scenario with a sidecar shows no prompt). `RoomDefault` reads the unpromoted `For` result, so the room's starting runways are unchanged.
+
 What a room starts on is decided at `PopulateRoom`, before the aircraft are placed (their preset commands may read it): the room's carried answer for the scenario (a load), else the sidecar, else `RoomDefault`; a restart starts on the list in use at that moment; a rewind, recording load or checkpoint restore starts on the value the session started on instead (`SimScenarioState.InitialActiveRunways`). The load result's `ActiveRunwaysPromptNeeded` is true only when the scenario is not solo, has no sidecar and the room has no carried answer for it. See [server-rooms-and-hub.md](server-rooms-and-hub.md#scenario-load-prepare-commit-and-the-load-flag) (Active runways).
 
 ### The resource manifest
