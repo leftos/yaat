@@ -4,7 +4,6 @@
 
 ## Do first
 
-- [ ] YAAT-1012 Make LaunchYaat_PipeClosesMidLaunch_ReportsTheExitCode load-proof — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Context-menu quick commands (#471)
