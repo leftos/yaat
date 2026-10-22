@@ -229,15 +229,7 @@ internal static class NavigationCommandHandler
         double? previousSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.TargetSpeed : null;
         double? previousAssignedSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.AssignedSpeed : null;
 
-        // Map CrossFixAltitudeType to CifpAltitudeRestrictionType
-        CifpAltitudeRestrictionType restrictionType = cmd.AltType switch
-        {
-            CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
-            CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
-            _ => CifpAltitudeRestrictionType.At,
-        };
-
-        var altRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude);
+        CifpAltitudeRestriction altRestriction = FlightCommandHandler.ToAltitudeRestriction(cmd.Altitude, cmd.AltType);
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
 
         // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
@@ -284,8 +276,9 @@ internal static class NavigationCommandHandler
 
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
         // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA or CVIA already applied
-        // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude.
-        if (!restatedWithVia)
+        // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude. A cleared
+        // altitude that already meets the crossing's bound stays assigned (CrossingBoundMetByClearance).
+        if (!restatedWithVia && !CrossingBoundMetByClearance(aircraft, altRestriction))
         {
             aircraft.Targets.AssignedAltitude = cmd.Altitude;
         }
@@ -340,6 +333,31 @@ internal static class NavigationCommandHandler
         int travel = Math.Sign(crossAltitude - currentAltitude);
         int revertDirection = Math.Sign(revert - crossAltitude);
         return (travel != 0) && (revertDirection != 0) && (travel != revertDirection);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/>'s cleared altitude (<see cref="ControlTargets.AssignedAltitude"/>) already lies
+    /// beyond <paramref name="restriction"/>'s bound: an at-or-above bound below it, an at-or-below bound above it, or a
+    /// window it lies strictly inside. Such a bound does not move the aircraft: it keeps flying to the cleared altitude,
+    /// which stays assigned (AIM 4-4-10.a; 7110.65 4-5-7). A cleared altitude equal to the bound (as a CFIX that assigned
+    /// its own bound leaves it) is not met, and the planner plans the crossing itself. A plain "at" crossing is never met
+    /// this way, nor is any bound with no cleared altitude, or under a descend or climb via, which flies to the depicted
+    /// altitudes.
+    /// </summary>
+    internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction)
+    {
+        if (aircraft.Procedure.StarViaMode || aircraft.Procedure.SidViaMode || (aircraft.Targets.AssignedAltitude is not { } cleared))
+        {
+            return false;
+        }
+
+        return restriction.Type switch
+        {
+            CifpAltitudeRestrictionType.AtOrAbove => cleared > restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.AtOrBelow => cleared < restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.Between => (restriction.Altitude2Ft is { } lower) && (cleared > lower) && (cleared < restriction.Altitude1Ft),
+            _ => false,
+        };
     }
 
     internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)

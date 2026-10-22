@@ -337,17 +337,7 @@ public static class FlightPhysics
         }
 
         // Activate when via mode is on OR when the route has any altitude constraint
-        bool hasRouteConstraints = false;
-        for (int j = 0; j < route.Count; j++)
-        {
-            if (route[j].AltitudeRestriction is not null)
-            {
-                hasRouteConstraints = true;
-                break;
-            }
-        }
-
-        if (!aircraft.Procedure.StarViaMode && !hasRouteConstraints)
+        if (!aircraft.Procedure.StarViaMode && !route.Exists(t => t.AltitudeRestriction is not null))
         {
             return;
         }
@@ -363,6 +353,17 @@ public static class FlightPhysics
             }
 
             if (route[i].AltitudeRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, cumulativeDistNm, descending: true);
+            if (clearedPlan == ClearedAltitudePlan.Targeted)
+            {
+                break;
+            }
+
+            if (clearedPlan == ClearedAltitudePlan.AlreadyThere)
             {
                 continue;
             }
@@ -393,7 +394,6 @@ public static class FlightPhysics
                 continue;
             }
 
-            // Set target altitude for this step
             aircraft.Targets.TargetAltitude = targetAlt;
 
             // Compute the descent rate required to reach targetAlt at the fix
@@ -452,17 +452,7 @@ public static class FlightPhysics
         }
 
         // Activate when via mode is on OR when the route has any altitude constraint
-        bool hasRouteConstraints = false;
-        for (int j = 0; j < route.Count; j++)
-        {
-            if (route[j].AltitudeRestriction is not null)
-            {
-                hasRouteConstraints = true;
-                break;
-            }
-        }
-
-        if (!aircraft.Procedure.SidViaMode && !hasRouteConstraints)
+        if (!aircraft.Procedure.SidViaMode && !route.Exists(t => t.AltitudeRestriction is not null))
         {
             return;
         }
@@ -477,6 +467,17 @@ public static class FlightPhysics
             }
 
             if (route[i].AltitudeRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, cumulativeDistNm, descending: false);
+            if (clearedPlan == ClearedAltitudePlan.Targeted)
+            {
+                break;
+            }
+
+            if (clearedPlan == ClearedAltitudePlan.AlreadyThere)
             {
                 continue;
             }
@@ -501,7 +502,6 @@ public static class FlightPhysics
                 continue;
             }
 
-            // Set target altitude for this step
             aircraft.Targets.TargetAltitude = targetAlt;
 
             // Compute the climb rate required to reach targetAlt at the fix
@@ -751,19 +751,7 @@ public static class FlightPhysics
         bool climbVia = ApplyClimbViaAltitude(aircraft);
         if ((!climbVia) && (target.AltitudeRestriction is { } alt))
         {
-            // When not in via mode, infer direction from current altitude vs constraint
-            bool isDescending = starVia || (!sidVia && aircraft.Altitude > alt.Altitude1Ft);
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending);
-            if (resolvedAlt is { } targetAlt)
-            {
-                // Apply the STAR floor limit (only in via mode)
-                if (starVia && aircraft.Procedure.StarViaFloor is { } floor)
-                {
-                    targetAlt = Math.Max(targetAlt, floor);
-                }
-
-                aircraft.Targets.TargetAltitude = targetAlt;
-            }
+            ApplyFixAltitudeConstraint(aircraft, alt);
         }
 
         if (target.SpeedRestriction is { } spd && !aircraft.Procedure.SpeedRestrictionsDeleted)
@@ -805,6 +793,137 @@ public static class FlightPhysics
                 aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
             }
         }
+    }
+
+    private static void ApplyFixAltitudeConstraint(AircraftState aircraft, CifpAltitudeRestriction alt)
+    {
+        if (ClearedAltitudeMeetingBound(aircraft, alt) is { } cleared)
+        {
+            // The bound does not move the aircraft: it keeps flying to its cleared altitude
+            if (Math.Abs(cleared - aircraft.Altitude) > AltitudeSnapFt)
+            {
+                aircraft.Targets.TargetAltitude = cleared;
+            }
+
+            return;
+        }
+
+        bool sidVia = aircraft.Procedure.SidViaMode;
+        bool starVia = aircraft.Procedure.StarViaMode;
+
+        // When not in via mode, infer direction from current altitude vs constraint
+        bool isDescending = starVia || (!sidVia && aircraft.Altitude > alt.Altitude1Ft);
+        double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending);
+        if (resolvedAlt is { } targetAlt)
+        {
+            // Apply the STAR floor limit (only in via mode)
+            if (starVia && aircraft.Procedure.StarViaFloor is { } floor)
+            {
+                targetAlt = Math.Max(targetAlt, floor);
+            }
+
+            aircraft.Targets.TargetAltitude = targetAlt;
+        }
+    }
+
+    /// <summary>
+    /// The cleared altitude (<see cref="ControlTargets.AssignedAltitude"/>) when it already meets
+    /// <paramref name="restriction"/>'s bound outside a descend or climb via
+    /// (<see cref="NavigationCommandHandler.CrossingBoundMetByClearance"/>); otherwise null, and the restriction resolves as
+    /// <see cref="ResolveAltitudeRestriction"/> says. A via clearance flies to the depicted altitudes and clears the
+    /// assigned altitude, so it never meets a bound this way.
+    /// </summary>
+    private static double? ClearedAltitudeMeetingBound(AircraftState aircraft, CifpAltitudeRestriction restriction) =>
+        NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, restriction) ? aircraft.Targets.AssignedAltitude : null;
+
+    /// <summary>What a planner does with a restriction whose bound the cleared altitude may already meet.</summary>
+    private enum ClearedAltitudePlan
+    {
+        /// <summary>The bound is not met: the planner resolves the restriction itself.</summary>
+        NotMet,
+
+        /// <summary>The bound is met and the aircraft is at its cleared altitude, or it lies the planner's other way.</summary>
+        AlreadyThere,
+
+        /// <summary>The bound is met and the aircraft now flies to its cleared altitude; planning stops here.</summary>
+        Targeted,
+    }
+
+    /// <summary>
+    /// Flies to the cleared altitude when it already meets <paramref name="restriction"/>'s bound
+    /// (<see cref="ClearedAltitudeMeetingBound"/>). While the aircraft is still on the wrong side of the bound (climbing
+    /// below an at-or-above, descending above an at-or-below, outside a window) it must still be past the bound by the fix
+    /// (AIM 4-4-10.e), so the rate is the one that reaches the bound in <paramref name="distanceToFixNm"/>, never slower
+    /// than the standard rate (<see cref="BoundCrossingRate"/>). Once past the bound it flies at the profile rate.
+    /// </summary>
+    private static ClearedAltitudePlan PlanToClearedAltitude(
+        AircraftState aircraft,
+        AircraftCategory cat,
+        CifpAltitudeRestriction restriction,
+        double distanceToFixNm,
+        bool descending
+    )
+    {
+        if (ClearedAltitudeMeetingBound(aircraft, restriction) is not { } cleared)
+        {
+            return ClearedAltitudePlan.NotMet;
+        }
+
+        double feetToCleared = descending ? aircraft.Altitude - cleared : cleared - aircraft.Altitude;
+        if (feetToCleared <= AltitudeSnapFt)
+        {
+            return ClearedAltitudePlan.AlreadyThere;
+        }
+
+        aircraft.Targets.TargetAltitude = cleared;
+        double feetToBound = FeetShortOfBound(aircraft.Altitude, restriction, descending);
+        if (feetToBound > 0)
+        {
+            double standardRate = descending
+                ? AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude)
+                : AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
+            double rate = BoundCrossingRate(feetToBound, distanceToFixNm, aircraft.GroundSpeed, standardRate);
+            aircraft.Targets.PlannedVerticalRate = descending ? -rate : rate;
+        }
+        else
+        {
+            aircraft.Targets.PlannedVerticalRate = null;
+        }
+
+        return ClearedAltitudePlan.Targeted;
+    }
+
+    /// <summary>
+    /// How far <paramref name="altitude"/> still is from the side of <paramref name="restriction"/>'s bound it is flying to:
+    /// a descent's ceiling (at-or-below, a window's top), a climb's floor (at-or-above, a window's bottom). Zero or less once
+    /// on the right side, or when the restriction has no bound that way.
+    /// </summary>
+    private static double FeetShortOfBound(double altitude, CifpAltitudeRestriction restriction, bool descending)
+    {
+        double? bound = (descending, restriction.Type) switch
+        {
+            (true, CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between) => restriction.Altitude1Ft,
+            (false, CifpAltitudeRestrictionType.AtOrAbove) => restriction.Altitude1Ft,
+            (false, CifpAltitudeRestrictionType.Between) => restriction.Altitude2Ft,
+            _ => null,
+        };
+        if (bound is not { } b)
+        {
+            return 0;
+        }
+
+        return descending ? altitude - b : b - altitude;
+    }
+
+    /// <summary>
+    /// The vertical rate that covers <paramref name="feetToBound"/> in <paramref name="distanceNm"/>, between the standard
+    /// rate and twice it; twice it when the fix is less than six seconds away.
+    /// </summary>
+    private static double BoundCrossingRate(double feetToBound, double distanceNm, double groundSpeedKts, double standardRate)
+    {
+        double timeMinutes = distanceNm / (groundSpeedKts / 60.0);
+        double maxRate = standardRate * 2.0;
+        return timeMinutes > 0.1 ? Math.Clamp(feetToBound / timeMinutes, standardRate, maxRate) : maxRate;
     }
 
     /// <summary>

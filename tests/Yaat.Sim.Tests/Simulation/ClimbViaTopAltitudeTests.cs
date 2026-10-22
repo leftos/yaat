@@ -686,7 +686,7 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>A CNDEL5 SUSEY departure past LEJAY at 3,000. <paramref name="published"/> is PORTE's published restriction.</summary>
-    private static AircraftState Cndel5Departure(bool sidAlreadyActive, out CifpAltitudeRestriction published)
+    internal static AircraftState Cndel5Departure(bool sidAlreadyActive, out CifpAltitudeRestriction published)
     {
         List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(FlownLegs("CNDEL5", "RW30", "SUSEY"));
         published = Assert.IsType<CifpAltitudeRestriction>(resolved.First(t => t.Name == "PORTE").AltitudeRestriction);

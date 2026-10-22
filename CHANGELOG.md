@@ -22,6 +22,7 @@
 - Speech recognizes a GA callsign said last whose final letter was misheard ("…, november 9225 lien" for N9225L), as it already did when said first.
 - A crossing restriction given with `DVIA` or `CVIA` keeps the altitude to resume after the fix when that via clearance is deleted or refused before it starts.
 - A crossing restriction no longer climbs or descends an aircraft back to an altitude it already left once it is past the fix.
+- An at-or-above or at-or-below crossing the assigned altitude already satisfies keeps that altitude: `DM 120; CFIX X A110` stays at 12,000.
 - Admin views no longer show stray delayed spawns while a room rewinds or loads a recording.
 - Changing a pilot's voice type updates CRC's ASDE-X, SAID, ground and parked STARS displays at once, even for an aircraft standing still.
 

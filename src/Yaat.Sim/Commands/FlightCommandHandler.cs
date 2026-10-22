@@ -844,8 +844,16 @@ internal static class FlightCommandHandler
         double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
         double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
 
-        // Without a revert the last crossing altitude stays assigned past its fix (AIM 4-4-10.g), as with CFIX
-        if ((lastConstrainedIdx >= 0) && !revertsAltitude)
+        // Without a revert the last crossing altitude stays assigned past its fix (AIM 4-4-10.g), as with CFIX, unless the
+        // cleared altitude already meets its bound (NavigationCommandHandler.CrossingBoundMetByClearance)
+        if (
+            (lastConstrainedIdx >= 0)
+            && !revertsAltitude
+            && !NavigationCommandHandler.CrossingBoundMetByClearance(
+                aircraft,
+                ToAltitudeRestriction(cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt, cmd.AltitudeConstraints[lastConstrainedIdx].AltType)
+            )
+        )
         {
             aircraft.Targets.AssignedAltitude = cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt;
         }
@@ -862,13 +870,7 @@ internal static class FlightCommandHandler
 
             if (cmd.AltitudeConstraints.TryGetValue(i, out ConstrainedFixAltitude? alt))
             {
-                CifpAltitudeRestrictionType restrictionType = alt.AltType switch
-                {
-                    CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
-                    CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
-                    _ => CifpAltitudeRestrictionType.At,
-                };
-                altRestriction = new CifpAltitudeRestriction(restrictionType, alt.AltitudeFt);
+                altRestriction = ToAltitudeRestriction(alt.AltitudeFt, alt.AltType);
 
                 // Only the last constrained fix gets revert
                 if (i == lastConstrainedIdx)
@@ -908,6 +910,18 @@ internal static class FlightCommandHandler
 
         string fixNames = FixListSpaced(cmd.Fixes);
         return CommandDispatcher.Ok($"Proceed direct {fixNames}");
+    }
+
+    /// <summary>The crossing restriction a CFIX or a constrained DCTF fix stamps for <paramref name="altType"/>.</summary>
+    internal static CifpAltitudeRestriction ToAltitudeRestriction(int altitudeFt, CrossFixAltitudeType altType)
+    {
+        CifpAltitudeRestrictionType restrictionType = altType switch
+        {
+            CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
+            CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
+            _ => CifpAltitudeRestrictionType.At,
+        };
+        return new CifpAltitudeRestriction(restrictionType, altitudeFt);
     }
 
     internal static CommandResult ApplyAppendDirectTo(AppendDirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)

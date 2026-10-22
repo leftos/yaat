@@ -719,8 +719,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.True(result.Success, $"{command}: {result.Message}");
     }
 
+    private Harness? BuildOakesHarness() => BuildOakesHarness(_output);
+
     /// <summary>A generated jet established on Oakland's OAKES3 STAR, level at 16,000 with the STAR in its filed route.</summary>
-    private Harness? BuildOakesHarness()
+    internal static Harness? BuildOakesHarness(ITestOutputHelper output)
     {
         var groundData = new TestAirportGroundData();
         AirportGroundLayout? layout = groundData.GetLayout(Airport);
@@ -729,7 +731,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
             return null;
         }
 
-        SimLogBuilder.CreateForTest(_output).InitializeSimLog();
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         CifpStarProcedure star = Assert.IsType<CifpStarProcedure>(NavigationDatabase.Instance.GetStar("KOAK", "OAKES3"));
         string entryFix = DepartureClearanceHandler.ResolveLegsToTargets([.. star.CommonLegs])[0].Name;
@@ -766,9 +768,9 @@ public class DescendViaSupersedesEarlierAltitudeTests
             " ",
             aircraft.Targets.NavigationRoute.Select(t => $"{t.Name}{(t.AltitudeRestriction is { } r ? $"({r.Type} {r.Altitude1Ft})" : "")}")
         );
-        _output.WriteLine($"Spawned {aircraft.Callsign} {aircraft.AircraftType} at {aircraft.Altitude:F0}, route {route}");
+        output.WriteLine($"Spawned {aircraft.Callsign} {aircraft.AircraftType} at {aircraft.Altitude:F0}, route {route}");
         return new Harness(engine, aircraft);
     }
 
-    private sealed record Harness(SimulationEngine Engine, AircraftState Aircraft);
+    internal sealed record Harness(SimulationEngine Engine, AircraftState Aircraft);
 }
