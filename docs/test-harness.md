@@ -129,8 +129,7 @@ right one for a new test project.
 - Creates a unique temp dir `%TEMP%/yaat-ui-tests/<guid>`, writes a `.yaat-pid` marker, and sets `YAAT_APPDATA_DIR` to it. Every YAAT
   path that derives from `%LOCALAPPDATA%/yaat` routes through `YaatPaths` and so lands in this temp dir — **tests never touch the
   developer's real `preferences.json`, logs, or vNAS cache.**
-- Cleanup is PID-aware: a startup sweep deletes sibling dirs whose owning process has exited; concurrent runs are safe because their PIDs
-  are still live. The logger holds files open at exit, so in-process delete often leaves the dir behind for the next run's sweep to reap.
+- Cleanup is PID-aware: a startup sweep deletes sibling dirs whose owning process has exited, and dirs with no readable marker only once nothing has written them for an hour (`MarkerlessGraceAge`). The file is linked into four test assemblies that `dotnet test` starts concurrently, and each creates its dir a moment before writing the marker, so a younger markerless dir may belong to a live sibling. The logger holds files open at exit, so in-process delete often leaves the dir behind for the next run's sweep to reap.
 
 **Any test project that touches `UserPreferences`, `AppLog`, `MainViewModel`, or a per-user cache MUST install the `YAAT_APPDATA_DIR`
 ModuleInitializer** (copy the Client.UI pattern) or it corrupts the developer's real app state. See [logging.md](logging.md) for the

@@ -13,20 +13,25 @@ namespace Yaat.Client.UI.Tests;
 // never touch the developer's real prefs, logs, or vNAS cache.
 //
 // Cleanup: a .yaat-pid file inside each dir records the owning process. The
-// sweep at startup deletes any sibling dir whose owning process has exited;
-// concurrent test runs are safe because their PIDs are still live. ProcessExit
-// also makes a best-effort cleanup pass — but YAAT's logger holds files open
-// at exit so the in-process recursive delete sometimes leaves the dir behind;
-// the next run's PID-aware sweep then reaps it.
+// sweep at startup deletes any sibling dir whose owning process has exited, and
+// any dir that has sat without a usable marker for MarkerlessGraceAge: a run
+// creates its dir a moment before the marker, so concurrent test runs are safe.
+// ProcessExit also makes a best-effort cleanup pass — but YAAT's logger holds
+// files open at exit so the in-process recursive delete sometimes leaves the
+// dir behind; the next run's PID-aware sweep then reaps it.
 internal static class ModuleInit
 {
     private const string RootName = "yaat-ui-tests";
     private const string PidMarker = ".yaat-pid";
 
+    // A run creates its dir before it writes the marker, and the other test assemblies sweep concurrently, so a dir
+    // with no usable marker is reaped only once nothing has written it for this long.
+    private static readonly TimeSpan MarkerlessGraceAge = TimeSpan.FromHours(1);
+
     [ModuleInitializer]
     public static void Initialize()
     {
-        SweepStaleDirs();
+        SweepStaleDirs(Path.Combine(Path.GetTempPath(), RootName));
 
         string testDir = Path.Combine(Path.GetTempPath(), RootName, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(testDir);
@@ -98,9 +103,8 @@ internal static class ModuleInit
         );
     }
 
-    private static void SweepStaleDirs()
+    internal static void SweepStaleDirs(string rootDir)
     {
-        string rootDir = Path.Combine(Path.GetTempPath(), RootName);
         if (!Directory.Exists(rootDir))
         {
             return;
@@ -110,7 +114,7 @@ internal static class ModuleInit
         {
             foreach (string subdir in Directory.EnumerateDirectories(rootDir))
             {
-                if (IsOwnedByLiveProcess(subdir))
+                if (!IsProvablyStale(subdir))
                 {
                     continue;
                 }
@@ -121,41 +125,39 @@ internal static class ModuleInit
         catch (UnauthorizedAccessException) { }
     }
 
-    private static bool IsOwnedByLiveProcess(string dir)
+    /// <summary>
+    /// True when nothing can still be using <paramref name="dir"/>: its marker names a process that has exited, or it has
+    /// no usable marker and nothing has written the folder for <see cref="MarkerlessGraceAge"/>.
+    /// </summary>
+    private static bool IsProvablyStale(string dir)
     {
         string pidFile = Path.Combine(dir, PidMarker);
-        if (!File.Exists(pidFile))
-        {
-            return false;
-        }
-
         try
         {
             string pidText = File.ReadAllText(pidFile).Trim();
-            if (!int.TryParse(pidText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pid))
+            if (int.TryParse(pidText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pid))
             {
-                return false;
-            }
-
-            try
-            {
-                using var process = Process.GetProcessById(pid);
-                return !process.HasExited;
-            }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-            catch (InvalidOperationException)
-            {
-                return false;
+                return !IsProcessAlive(pid);
             }
         }
-        catch (IOException)
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
+        return (DateTime.UtcNow - Directory.GetLastWriteTimeUtc(dir)) > MarkerlessGraceAge;
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
         {
             return false;
         }
-        catch (UnauthorizedAccessException)
+        catch (InvalidOperationException)
         {
             return false;
         }
