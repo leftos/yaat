@@ -21,4 +21,12 @@ public sealed class AircraftProcedureDto
     // byte-identical, and absent in older snapshots restores no climb via target.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ClimbViaTargetFt { get; init; }
+
+    // The transmissions whose DVIA and CVIA applied the via clearances in force. Additive, no schema bump: omitted while
+    // null, and absent in older snapshots restores no transmission, so a later CFIX captures its reverts.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? StarViaTransmissionId { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ClimbViaTransmissionId { get; init; }
 }

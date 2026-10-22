@@ -2418,6 +2418,7 @@ public static class ApproachCommandHandler
         // Clear STAR state so stale descent logic doesn't conflict with approach phases
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
 
         aircraft.Phases = new PhaseList { AssignedRunway = pending.AssignedRunway, ActiveApproach = pending.Clearance };
@@ -2534,6 +2535,7 @@ public static class ApproachCommandHandler
         aircraft.Targets.AssignedMagneticHeading = null;
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Approach.HasReportedFieldInSight = false;
         aircraft.Approach.HasReportedTrafficInSight = false;
@@ -2656,6 +2658,7 @@ public static class ApproachCommandHandler
         // Clear STAR state so stale descent logic doesn't conflict with approach phases
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
 
         ClearPendingApproach(aircraft);

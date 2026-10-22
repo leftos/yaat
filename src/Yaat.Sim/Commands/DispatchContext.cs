@@ -122,19 +122,6 @@ public sealed record DispatchContext
     public int TransmissionId { get; internal init; }
 
     /// <summary>
-    /// True when the transmission that holds <see cref="TransmissionId"/> also carries a DVIA, anywhere in it: a CFIX
-    /// in it is restated with the via clearance and takes no reverts, whichever order the two were given in. Always
-    /// false when <see cref="TransmissionId"/> is 0.
-    /// </summary>
-    public bool TransmissionDescendsVia { get; internal init; }
-
-    /// <summary>
-    /// True when the transmission that holds <see cref="TransmissionId"/> also carries a CVIA, anywhere in it: the climb
-    /// via counterpart of <see cref="TransmissionDescendsVia"/>. Always false when <see cref="TransmissionId"/> is 0.
-    /// </summary>
-    public bool TransmissionClimbsVia { get; internal init; }
-
-    /// <summary>
     /// True once a speed assignment (SPD, SPEEDN) earlier in the block being applied has applied: a DVIA after it in
     /// the block leaves that speed assigned, since a speed still required is restated with the descend via
     /// (7110.65 5-7-1.c). Set by the block's apply action only.

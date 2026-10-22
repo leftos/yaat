@@ -142,13 +142,10 @@ public static class ConditionalList
                 .Select(e => e.QueueBlockIndex!.Value)
                 .OrderByDescending(x => x)
                 .ToList();
-            List<CommandBlock> removedBlocks = [.. queueIndices.Select(qi => aircraft.Queue.Blocks[qi])];
             foreach (int qi in queueIndices)
             {
                 aircraft.Queue.Blocks.RemoveAt(qi);
             }
-
-            CommandQueue.ForgetDroppedViaClearances(removedBlocks, aircraft.Queue.Blocks);
 
             int beforeDeferred = aircraft.DeferredDispatches.Count;
             aircraft.DeferredDispatches.RemoveAll(d => !d.IsReactionDelay);
@@ -178,9 +175,7 @@ public static class ConditionalList
         }
         else if (entry.QueueBlockIndex is int qi)
         {
-            CommandBlock removedBlock = aircraft.Queue.Blocks[qi];
             aircraft.Queue.Blocks.RemoveAt(qi);
-            CommandQueue.ForgetDroppedViaClearances([removedBlock], aircraft.Queue.Blocks);
         }
         else
         {

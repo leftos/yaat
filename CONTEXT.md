@@ -172,7 +172,7 @@ The altitude a bare `CVIA` climbs to, held in `AircraftProcedure.ClimbViaTargetF
 _Avoid_: ceiling (`SidViaCeiling` is only the assigned "except maintain" altitude, and a restriction ahead can lower the target below the top)
 
 **Transmission id**:
-The per-aircraft number (`CommandQueue.LastTransmissionId`) one transmission takes when it carries a CFIX or a constrained DCTF, shared by every block that transmission queues and stamped on the fixes it constrains. A descend via compares it to tell a crossing restated in its own transmission, which it keeps, from an earlier one, which it supersedes. Other transmissions take none.
+The per-aircraft number (`CommandQueue.LastTransmissionId`) one transmission takes when it carries a CFIX or a constrained DCTF, shared by every block that transmission queues and stamped on the fixes it constrains. A descend via compares it to tell a crossing restated in its own transmission, which it keeps, from an earlier one, which it supersedes. A DVIA or CVIA stamps it on the aircraft (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`) so a CFIX of the same transmission knows the via clearance has applied. Other transmissions take none.
 _Avoid_: command id, sequence number (a transmission is the whole `;`/`,` text sent to one aircraft at once)
 
 **Baked draw**:

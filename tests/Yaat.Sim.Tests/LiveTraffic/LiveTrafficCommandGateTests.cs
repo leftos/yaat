@@ -154,6 +154,40 @@ public class LiveTrafficCommandGateTests
     }
 
     /// <summary>
+    /// A refused CFIX transmission hands its id back, and with it any via clearance stamped with that id: the next
+    /// transmission takes the same id, and its CFIX must not read the stale stamp as its own DVIA and drop its reverts
+    /// (YAAT-984).
+    /// </summary>
+    [Fact]
+    public void ARefusedCrossFix_ForgetsAViaClearanceStampedWithItsId()
+    {
+        AircraftState ac = Shadow("UAL123");
+        DispatchContext scripted = TestDispatch.Context(
+            new Random(1),
+            findAircraft: cs => cs == ac.Callsign ? ac : null,
+            listAircraft: () => [ac],
+            isScenarioScripted: true
+        );
+        int lastTransmissionId = ac.Queue.LastTransmissionId;
+        ac.Procedure.StarViaTransmissionId = lastTransmissionId + 1;
+
+        CommandResult refused = Send(ac, "CFIX SUNOL 110", scripted);
+
+        Assert.False(refused.Success);
+        Assert.Equal(lastTransmissionId, ac.Queue.LastTransmissionId);
+        Assert.Null(ac.Procedure.StarViaTransmissionId);
+
+        Assert.True(CommandDispatcher.Dispatch(new AssumeCommand(), ac, Ctx(ac)).Success);
+        ac.Targets.AssignedAltitude = 10_000;
+        CommandResult crossing = Send(ac, "CFIX SUNOL 080");
+
+        Assert.True(crossing.Success, crossing.Message);
+        NavigationTarget sunol = Assert.Single(ac.Targets.NavigationRoute, t => t.Name == "SUNOL");
+        Assert.Equal(lastTransmissionId + 1, sunol.CrossingTransmissionId);
+        Assert.Equal(10_000, sunol.RevertAssignedAltitude);
+    }
+
+    /// <summary>
     /// A surface shadow is not auto-assumed — the client offers no assume for one either
     /// (<c>AircraftCommandApplicability.CanAssume</c> is airborne-only). A typed <c>ASSUME</c> still works: it is
     /// answered before the gate.

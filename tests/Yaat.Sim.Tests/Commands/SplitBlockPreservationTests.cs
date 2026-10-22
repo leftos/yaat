@@ -53,8 +53,6 @@ public class SplitBlockPreservationTests : IDisposable
         ["IsScenarioScripted"] = "CreateBlock",
         // CreateBlock re-derives it from a ctx carrying the split block's own id (YAAT-956)
         ["TransmissionId"] = "CreateBlock",
-        ["TransmissionDescendsVia"] = "CreateBlock",
-        ["TransmissionClimbsVia"] = "CreateBlock",
         // Runtime state explicitly copied by SplitBlockNonConflicting:
         ["WaitRemainingSeconds"] = "copied",
         ["WaitRemainingDistanceNm"] = "copied",

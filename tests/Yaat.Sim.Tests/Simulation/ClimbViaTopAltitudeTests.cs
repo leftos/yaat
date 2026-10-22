@@ -505,6 +505,26 @@ public class ClimbViaTopAltitudeTests
         Assert.Equal(8000, tipre.RevertAssignedAltitude);
     }
 
+    /// <summary>
+    /// "CFIX TIPRE 110; AT REBAS CVIA" applies the CFIX at once and queues the CVIA. Until that CVIA fires the crossing is
+    /// a lone CFIX with its reverts, so dropping the CVIA (DELAT) leaves the reverts the CFIX captured in place (YAAT-984).
+    /// </summary>
+    [Fact]
+    public void AppliedCrossFix_ThenQueuedClimbViaDropped_KeepsTheReverts()
+    {
+        Harness harness = BuildHussh2Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CM 080");
+        SendOk(harness, "CFIX TIPRE 110; AT REBAS CVIA");
+        Assert.Contains(aircraft.Queue.Blocks, CarriesClimbVia);
+        SendOk(harness, "DELAT 2");
+        Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesClimbVia);
+
+        NavigationTarget tipre = RouteFix(aircraft, "TIPRE");
+        Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
+        Assert.Equal(8000, tipre.RevertAssignedAltitude);
+    }
+
     [Fact]
     public void ClimbViaTarget_RoundTripsThroughSnapshot_RestoredAircraftLevelsTheSame()
     {

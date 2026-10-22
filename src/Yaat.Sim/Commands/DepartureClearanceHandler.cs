@@ -36,6 +36,7 @@ internal static class DepartureClearanceHandler
             aircraft.Targets.AssignedAltitude = v;
             aircraft.Procedure.SidViaCeiling = null;
             aircraft.Procedure.ClimbViaTargetFt = null;
+            aircraft.Procedure.ClimbViaTransmissionId = null;
         }
     }
 

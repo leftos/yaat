@@ -104,24 +104,19 @@ public static class CommandDispatcher
         }
 
         // One id per transmission that carries a crossing restriction (CFIX or constrained DCTF), shared by every block
-        // it queues, so a DVIA can tell a crossing restated on its own line from an earlier one. Every other
-        // transmission keeps id 0 and leaves the counter alone, and a refused one hands its id back, so neither
-        // changes a snapshot.
+        // it queues, so a DVIA can tell a crossing restated on its own line from an earlier one, and a CFIX can tell a
+        // DVIA or CVIA of its own transmission that has applied. Every other transmission keeps id 0 and leaves the
+        // counter alone, and a refused one hands its id back, so neither changes a snapshot.
         int lastTransmissionId = aircraft.Queue.LastTransmissionId;
         if (compound.Blocks.Exists(b => b.Commands.Exists(c => c is CrossFixCommand or ConstrainedForceDirectToCommand)))
         {
-            ctx = ctx with
-            {
-                TransmissionId = aircraft.Queue.NextTransmissionId(),
-                TransmissionDescendsVia = compound.Blocks.Exists(b => b.Commands.Exists(c => c is DescendViaCommand)),
-                TransmissionClimbsVia = compound.Blocks.Exists(b => b.Commands.Exists(c => c is ClimbViaCommand)),
-            };
+            ctx = ctx with { TransmissionId = aircraft.Queue.NextTransmissionId() };
         }
 
         CommandResult? refusal = TryAssumeShadow(aircraft, compound, ctx, out AssumeUndo? autoAssumed);
         if (refusal is not null)
         {
-            aircraft.Queue.RewindTransmissionId(lastTransmissionId);
+            RewindTransmission(aircraft, lastTransmissionId);
             return refusal;
         }
 
@@ -140,7 +135,7 @@ public static class CommandDispatcher
         CommandResult result = DispatchCompoundCore(compound, aircraft, ctx);
         if (!result.Success)
         {
-            aircraft.Queue.RewindTransmissionId(lastTransmissionId);
+            RewindTransmission(aircraft, lastTransmissionId);
         }
 
         // The gate took a real aircraft only so this command could apply to it. It did not, so hand it back: the
@@ -1218,13 +1213,7 @@ public static class CommandDispatcher
             case DepartFixCommand cmd:
                 return NavigationCommandHandler.DispatchDepartFix(cmd, aircraft);
             case CrossFixCommand cmd:
-                return NavigationCommandHandler.DispatchCrossFix(
-                    cmd,
-                    aircraft,
-                    ctx.TransmissionId,
-                    ctx.TransmissionDescendsVia,
-                    ctx.TransmissionClimbsVia
-                );
+                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft, ctx.TransmissionId);
             case ClimbViaCommand cmd:
                 return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft, ctx);
             case DescendViaCommand cmd:
@@ -1576,7 +1565,6 @@ public static class CommandDispatcher
         }
 
         queue.CurrentBlockIndex = Math.Max(0, queue.CurrentBlockIndex - removedBeforeCursor);
-        CommandQueue.ForgetDroppedViaClearances(removed, queue.Blocks);
         return removed.Count;
     }
 
@@ -3307,16 +3295,32 @@ public static class CommandDispatcher
             }
         }
 
-        // Remove all pending blocks from the queue. A survivor whose transmission's DVIA was just dropped no longer
-        // restates anything with a via clearance.
+        // Remove all pending blocks from the queue.
         if (pendingStart < queue.Blocks.Count)
         {
-            List<CommandBlock> pending = queue.Blocks.GetRange(pendingStart, queue.Blocks.Count - pendingStart);
-            queue.Blocks.RemoveRange(pendingStart, pending.Count);
-            CommandQueue.ForgetDroppedViaClearances(pending, [.. queue.Blocks, .. preserved]);
+            queue.Blocks.RemoveRange(pendingStart, queue.Blocks.Count - pendingStart);
         }
 
         return preserved;
+    }
+
+    /// <summary>
+    /// Hands back the id a refused transmission took, and forgets that transmission as the source of a DVIA or CVIA it
+    /// applied before the refusal: the next transmission takes the same id, and a CFIX in it must not read the earlier
+    /// via clearance as its own.
+    /// </summary>
+    private static void RewindTransmission(AircraftState aircraft, int lastTransmissionId)
+    {
+        aircraft.Queue.RewindTransmissionId(lastTransmissionId);
+        if (aircraft.Procedure.StarViaTransmissionId > lastTransmissionId)
+        {
+            aircraft.Procedure.StarViaTransmissionId = null;
+        }
+
+        if (aircraft.Procedure.ClimbViaTransmissionId > lastTransmissionId)
+        {
+            aircraft.Procedure.ClimbViaTransmissionId = null;
+        }
     }
 
     private static string DescribeQueueBlock(CommandBlock block) =>
@@ -3518,8 +3522,6 @@ public static class CommandDispatcher
             HasDeleteCommand = parsedCommands.Exists(c => c is DeleteCommand),
             IsScenarioScripted = ctx.IsScenarioScripted,
             TransmissionId = ctx.TransmissionId,
-            TransmissionDescendsVia = ctx.TransmissionDescendsVia,
-            TransmissionClimbsVia = ctx.TransmissionClimbsVia,
         };
         block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
         return block;
@@ -3747,8 +3749,6 @@ public static class CommandDispatcher
             ctx with
             {
                 TransmissionId = block.TransmissionId,
-                TransmissionDescendsVia = block.TransmissionDescendsVia,
-                TransmissionClimbsVia = block.TransmissionClimbsVia,
             }
         );
 
@@ -3814,9 +3814,7 @@ public static class CommandDispatcher
     /// <see cref="CommandResult.NoDispatcherArm"/> result.
     ///
     /// The commands run as part of the transmission that queued <paramref name="block"/>: its
-    /// <see cref="CommandBlock.TransmissionId"/>, <see cref="CommandBlock.TransmissionDescendsVia"/> and
-    /// <see cref="CommandBlock.TransmissionClimbsVia"/> are read when it fires, not captured here, so a site that drops the
-    /// transmission's DVIA or CVIA and clears its flag reaches this action.
+    /// <see cref="CommandBlock.TransmissionId"/> is read when it fires, not captured here.
     /// </summary>
     internal static Func<AircraftState, bool, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx, CommandBlock block)
     {
@@ -3827,12 +3825,7 @@ public static class CommandDispatcher
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
             bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
             var messages = new List<string>();
-            DispatchContext current = ctx with
-            {
-                TransmissionId = block.TransmissionId,
-                TransmissionDescendsVia = block.TransmissionDescendsVia,
-                TransmissionClimbsVia = block.TransmissionClimbsVia,
-            };
+            DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
             HandlerReadback? readback = null;
 
             foreach (ParsedCommand? cmd in captured)

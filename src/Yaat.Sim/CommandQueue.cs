@@ -340,27 +340,6 @@ public class CommandBlock
     public int TransmissionId { get; init; }
 
     /// <summary>
-    /// Whether the transmission that queued this block still carries a DVIA
-    /// (<see cref="Commands.DispatchContext.TransmissionDescendsVia"/>). Serialized beside <see cref="TransmissionId"/>
-    /// for the same reason. Read when the block fires, and cleared by <see cref="CommandQueue.ForgetDroppedViaClearances"/>
-    /// when the transmission's queued DVIA is dropped before it applied.
-    /// </summary>
-    public bool TransmissionDescendsVia { get; internal set; }
-
-    /// <summary>
-    /// Whether the transmission that queued this block still carries a CVIA
-    /// (<see cref="Commands.DispatchContext.TransmissionClimbsVia"/>): the climb via counterpart of
-    /// <see cref="TransmissionDescendsVia"/>, serialized, read and cleared the same way.
-    /// </summary>
-    public bool TransmissionClimbsVia { get; internal set; }
-
-    /// <summary>Whether this block's parsed commands hold a DVIA; false for a restored block not yet rehydrated.</summary>
-    internal bool CarriesDescendVia => ParsedCommands?.Exists(c => c is Commands.DescendViaCommand) is true;
-
-    /// <summary>Whether this block's parsed commands hold a CVIA; false for a restored block not yet rehydrated.</summary>
-    internal bool CarriesClimbVia => ParsedCommands?.Exists(c => c is Commands.ClimbViaCommand) is true;
-
-    /// <summary>
     /// Set while this runway-entry block waits in the queue for its departure's release (<c>FlightPhysics.WaitsForRelease</c>),
     /// so the RPO's "waits for the release" notice and the wait/resume log lines each come once per block. Not serialized:
     /// it drives notices and logging only, and a restored block that is still held recomputes the wait from
@@ -391,8 +370,6 @@ public class CommandBlock
             HasDeleteCommand = HasDeleteCommand,
             IsScenarioScripted = IsScenarioScripted,
             TransmissionId = TransmissionId,
-            TransmissionDescendsVia = TransmissionDescendsVia,
-            TransmissionClimbsVia = TransmissionClimbsVia,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -418,8 +395,6 @@ public class CommandBlock
             HasDeleteCommand = dto.HasDeleteCommand,
             IsScenarioScripted = dto.IsScenarioScripted,
             TransmissionId = dto.TransmissionId,
-            TransmissionDescendsVia = dto.TransmissionDescendsVia,
-            TransmissionClimbsVia = dto.TransmissionClimbsVia,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
             // SimulationEngine.RehydrateRestoredQueueBlocks rebuilds it (and ParsedCommands) from
             // SourceCommandText on the next physics tick, before the queue can fire; track commands are
@@ -450,42 +425,6 @@ public class CommandQueue
     internal void RewindTransmissionId(int lastTransmissionId) => LastTransmissionId = lastTransmissionId;
 
     /// <summary>
-    /// Keeps <see cref="CommandBlock.TransmissionDescendsVia"/> and <see cref="CommandBlock.TransmissionClimbsVia"/> true
-    /// to the DVIAs and CVIAs a transmission still has once <paramref name="removed"/> left the queue: for each
-    /// transmission whose via clearance was in a removed block that had not applied, every block of
-    /// <paramref name="remaining"/> from that transmission loses that flag, unless one of them still carries such a via
-    /// clearance. A CFIX queued beside the dropped via clearance then fires as a lone CFIX would, with its reverts.
-    /// </summary>
-    internal static void ForgetDroppedViaClearances(IEnumerable<CommandBlock> removed, IReadOnlyCollection<CommandBlock> remaining)
-    {
-        List<CommandBlock> dropped = [.. removed.Where(b => (b.TransmissionId != 0) && !b.IsApplied)];
-        ForgetDroppedVia(dropped, remaining, b => b.CarriesDescendVia, b => b.TransmissionDescendsVia = false);
-        ForgetDroppedVia(dropped, remaining, b => b.CarriesClimbVia, b => b.TransmissionClimbsVia = false);
-    }
-
-    private static void ForgetDroppedVia(
-        List<CommandBlock> dropped,
-        IReadOnlyCollection<CommandBlock> remaining,
-        Func<CommandBlock, bool> carriesVia,
-        Action<CommandBlock> clearFlag
-    )
-    {
-        IEnumerable<int> droppedVias = dropped.Where(carriesVia).Select(b => b.TransmissionId).Distinct();
-        foreach (int transmissionId in droppedVias)
-        {
-            if (remaining.Any(b => (b.TransmissionId == transmissionId) && carriesVia(b)))
-            {
-                continue;
-            }
-
-            foreach (CommandBlock block in remaining.Where(b => b.TransmissionId == transmissionId))
-            {
-                clearFlag(block);
-            }
-        }
-    }
-
-    /// <summary>
     /// Aborts the remainder of a chained compound after <paramref name="failedBlock"/> failed at fire
     /// time: every later, not-yet-applied block from the same dispatch (equal
     /// <see cref="CommandBlock.SourceCommandText"/> — stamped identically on all blocks of one compound
@@ -504,7 +443,6 @@ public class CommandQueue
             return discarded;
         }
 
-        var removed = new List<CommandBlock>();
         for (int i = Blocks.Count - 1; i > failedIndex; i--)
         {
             CommandBlock block = Blocks[i];
@@ -514,12 +452,10 @@ public class CommandQueue
             }
 
             discarded.Add(!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
-            removed.Add(block);
             Blocks.RemoveAt(i);
         }
 
         discarded.Reverse();
-        ForgetDroppedViaClearances(removed, Blocks);
 
         foreach (TrackedCommand cmd in failedBlock.Commands)
         {

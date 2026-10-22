@@ -902,8 +902,10 @@ public static class FlightPhysics
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.ClimbViaTargetFt = null;
+        aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
         // Keep the destination-runway datablock when the aircraft is still committed to a runway

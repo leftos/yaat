@@ -65,6 +65,20 @@ public class AircraftProcedure
     /// </summary>
     public int? ClimbViaTargetFt { get; set; }
 
+    /// <summary>
+    /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose DVIA applied the descend via in
+    /// force, so a CFIX later in that same transmission knows the crossing is restated with the via clearance and takes
+    /// no reverts. Null when no descend via is in force or the one in force came from a transmission without a crossing
+    /// restriction (id 0); cleared with <see cref="StarViaMode"/>.
+    /// </summary>
+    public int? StarViaTransmissionId { get; set; }
+
+    /// <summary>
+    /// The climb via counterpart of <see cref="StarViaTransmissionId"/>: the transmission whose CVIA applied the climb via
+    /// in force. Cleared with <see cref="ClimbViaTargetFt"/>.
+    /// </summary>
+    public int? ClimbViaTransmissionId { get; set; }
+
     public AircraftProcedureDto ToSnapshot() =>
         new()
         {
@@ -81,6 +95,8 @@ public class AircraftProcedure
             LastProcedureSpeedKts = LastProcedureSpeedKts,
             SidInitialAltitudeFt = SidInitialAltitudeFt,
             ClimbViaTargetFt = ClimbViaTargetFt,
+            StarViaTransmissionId = StarViaTransmissionId,
+            ClimbViaTransmissionId = ClimbViaTransmissionId,
         };
 
     public static AircraftProcedure FromSnapshot(AircraftProcedureDto dto) =>
@@ -99,5 +115,7 @@ public class AircraftProcedure
             LastProcedureSpeedKts = dto.LastProcedureSpeedKts,
             SidInitialAltitudeFt = dto.SidInitialAltitudeFt,
             ClimbViaTargetFt = dto.ClimbViaTargetFt,
+            StarViaTransmissionId = dto.StarViaTransmissionId,
+            ClimbViaTransmissionId = dto.ClimbViaTransmissionId,
         };
 }

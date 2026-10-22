@@ -58,14 +58,6 @@ public sealed class CommandBlockDto
     // Additive, no schema bump: 0 (omitted) in older snapshots.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int TransmissionId { get; init; }
-
-    // Whether that transmission also carried a DVIA. Additive, no schema bump: false (omitted) in older snapshots.
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool TransmissionDescendsVia { get; init; }
-
-    // Whether that transmission also carried a CVIA. Additive, no schema bump: false (omitted) in older snapshots.
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool TransmissionClimbsVia { get; init; }
 }
 
 public sealed class TrackedCommandDto

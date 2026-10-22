@@ -141,7 +141,9 @@ internal static class FlightCommandHandler
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.ClimbViaTargetFt = null;
+        aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
     }
 
@@ -1145,8 +1147,10 @@ internal static class FlightCommandHandler
         // Disable via-mode but keep procedure ID
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.ClimbViaTargetFt = null;
+        aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
 
         if (
@@ -1172,8 +1176,10 @@ internal static class FlightCommandHandler
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.ClimbViaTargetFt = null;
+        aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
         aircraft.Procedure.DestinationRunway = null;

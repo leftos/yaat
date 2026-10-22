@@ -297,6 +297,102 @@ public class DescendViaSupersedesEarlierAltitudeTests
     }
 
     /// <summary>
+    /// "CFIX X 110; AT A DVIA" applies the CFIX at once and queues the DVIA. Until that DVIA fires the crossing is a lone
+    /// CFIX with its reverts, so dropping the DVIA (DELAT) leaves the reverts the CFIX captured in place (YAAT-984).
+    /// </summary>
+    [Fact]
+    public void AppliedCrossFix_ThenQueuedDescendViaDropped_KeepsTheReverts()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
+        string fixName = aircraft.Targets.NavigationRoute[3].Name;
+        SendOk(harness, "DM 150");
+        SendOk(harness, $"CFIX {fixName} 110; AT {triggerFix} DVIA");
+        Assert.Contains(aircraft.Queue.Blocks, CarriesDescendVia);
+        SendOk(harness, "DELAT 2");
+        Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
+
+        NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
+        Assert.False(aircraft.Procedure.StarViaMode);
+        Assert.Equal(15000, fix.RevertAssignedAltitude);
+    }
+
+    /// <summary>
+    /// "CFIX X 110; AT A DVIA" on an aircraft with no active or filed STAR: the DVIA is refused when it fires at A, before
+    /// X, so the CFIX was never restated with a via clearance and keeps its reverts.
+    /// </summary>
+    [Fact]
+    public void AppliedCrossFix_ThenDescendViaRefusedAtFireTime_KeepsTheReverts()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.FlightPlan.Route = string.Join(
+            ' ',
+            aircraft
+                .FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(t => !t.Contains("OAKES", StringComparison.OrdinalIgnoreCase))
+        );
+        Assert.Null(FiledProcedureLookup.FindStar(NavigationDatabase.Instance, aircraft.FlightPlan.Destination, aircraft.FlightPlan.Route));
+
+        string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
+        string fixName = aircraft.Targets.NavigationRoute[3].Name;
+        SendOk(harness, "DM 150");
+        SendOk(harness, $"CFIX {fixName} 110; AT {triggerFix} DVIA");
+        CommandBlock descendVia = Assert.Single(aircraft.Queue.Blocks, CarriesDescendVia);
+        for (int t = 0; (t < 1800) && !descendVia.Commands.TrueForAll(c => c.IsComplete); t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        Assert.True(descendVia.Commands.TrueForAll(c => c.IsComplete), $"The DVIA at {triggerFix} never fired");
+        Assert.False(aircraft.Procedure.StarViaMode);
+        NavigationTarget fix = Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == fixName);
+        Assert.Equal(15000, fix.RevertAssignedAltitude);
+    }
+
+    /// <summary>
+    /// A DVIA from an earlier transmission is in force when "CFIX X 110; AT A DVIA" is issued: this transmission's DVIA
+    /// has not fired, so the CFIX assigns 11,000 and keeps the reverts (here the speed assigned before it), and they
+    /// survive that DVIA being dropped.
+    /// </summary>
+    [Fact]
+    public void AppliedCrossFix_UnderEarlierDescendVia_ThenQueuedDescendViaDropped_KeepsTheReverts()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "DVIA");
+        SendOk(harness, "SPD 250");
+        Assert.True(aircraft.Procedure.StarViaMode);
+
+        string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
+        string fixName = aircraft.Targets.NavigationRoute[3].Name;
+        SendOk(harness, $"CFIX {fixName} 110 230; AT {triggerFix} DVIA");
+        Assert.Equal(11000, aircraft.Targets.AssignedAltitude);
+        SendOk(harness, "DELAT 1");
+        Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
+
+        NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
+        Assert.Equal(250, fix.RevertAssignedSpeed);
+    }
+
+    /// <summary>
     /// A queued CFIX restored from a snapshot written before blocks carried a transmission id fires with none, so the
     /// fix it stamps carries no crossing transmission id rather than id 0.
     /// </summary>
@@ -446,6 +542,15 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
         Assert.Equal(stamped, NavigationTarget.FromSnapshot(targetDto).CrossingTransmissionId);
         Assert.Equal(counter, CommandQueue.FromSnapshot(queueDto).LastTransmissionId);
+
+        Assert.DoesNotContain(nameof(AircraftProcedureDto.StarViaTransmissionId), JsonSerializer.Serialize(aircraft.Procedure.ToSnapshot()));
+        SendOk(harness, $"CFIX {fix.Name} 110, DVIA");
+        Assert.Equal(2, aircraft.Procedure.StarViaTransmissionId);
+        aircraft.Procedure.ClimbViaTransmissionId = 1;
+
+        var procedure = AircraftProcedure.FromSnapshot(RoundTrip(aircraft.Procedure.ToSnapshot()));
+        Assert.Equal(2, procedure.StarViaTransmissionId);
+        Assert.Equal(1, procedure.ClimbViaTransmissionId);
     }
 
     private static T RoundTrip<T>(T dto) => Assert.IsType<T>(JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(dto)));

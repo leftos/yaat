@@ -212,21 +212,15 @@ internal static class NavigationCommandHandler
 
     /// <summary>
     /// Stamps a crossing restriction on <paramref name="cmd"/>'s fix, with the altitude and speed to revert to once the
-    /// fix is passed. In a transmission that also carries a DVIA (<paramref name="transmissionDescendsVia"/>) or a CVIA
-    /// (<paramref name="transmissionClimbsVia"/>), before or after the CFIX, the crossing is restated with the via
-    /// clearance: it takes no reverts, and after the via clearance it leaves the assigned altitude that clearance cleared
-    /// alone.
+    /// fix is passed. After a DVIA or CVIA of this same transmission has applied, the crossing is restated with the via
+    /// clearance: it takes no reverts and leaves alone the assigned altitude that clearance cleared. Before the via
+    /// clearance applies the CFIX takes its reverts like any other, and the via clearance drops them if and when it applies
+    /// (<see cref="SupersedeEarlierCrossingRestrictions"/>), so a via clearance dropped or refused first leaves them.
     /// </summary>
-    internal static CommandResult DispatchCrossFix(
-        CrossFixCommand cmd,
-        AircraftState aircraft,
-        int transmissionId,
-        bool transmissionDescendsVia,
-        bool transmissionClimbsVia
-    )
+    internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, int transmissionId)
     {
         // Capture current altitude/speed for revert after fix passage
-        bool restatedWithVia = transmissionDescendsVia || transmissionClimbsVia;
+        bool restatedWithVia = ViaAppliedInTransmission(aircraft, transmissionId);
         double? previousAlt = restatedWithVia ? null : aircraft.Targets.TargetAltitude;
         double? previousAssignedAlt = restatedWithVia ? null : aircraft.Targets.AssignedAltitude;
         double? previousSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.TargetSpeed : null;
@@ -244,7 +238,7 @@ internal static class NavigationCommandHandler
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
 
         // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
-        int? crossingTransmissionId = (transmissionId == 0) ? null : transmissionId;
+        int? crossingTransmissionId = StampedTransmission(transmissionId);
 
         // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
         // place, preserving the rest of the route (fixes before and after) and any restriction
@@ -288,10 +282,7 @@ internal static class NavigationCommandHandler
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
         // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA or CVIA already applied
         // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude.
-        bool viaAlreadyApplied =
-            (transmissionDescendsVia && aircraft.Procedure.StarViaMode)
-            || (transmissionClimbsVia && (aircraft.Procedure.ClimbViaTargetFt is not null));
-        if (!viaAlreadyApplied)
+        if (!restatedWithVia)
         {
             aircraft.Targets.AssignedAltitude = cmd.Altitude;
         }
@@ -415,6 +406,7 @@ internal static class NavigationCommandHandler
 
             aircraft.Procedure.ActiveStarId = cmd.StarId;
             aircraft.Procedure.StarViaMode = false; // STAR via mode OFF by default
+            aircraft.Procedure.StarViaTransmissionId = null;
 
             string cifpFixList = string.Join(" ", cifpResult.Select(t => FixDisplay(t.Name)));
             return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {cifpFixList}") with
@@ -495,6 +487,7 @@ internal static class NavigationCommandHandler
         // Set STAR state even for NavData fallback (allows DVIA later)
         aircraft.Procedure.ActiveStarId = cmd.StarId;
         aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
 
         string fixListStr = string.Join(" ", deduped.Select(FixDisplay));
         return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {fixListStr}");
@@ -1223,6 +1216,17 @@ internal static class NavigationCommandHandler
         );
     }
 
+    /// <summary>
+    /// Whether a DVIA or CVIA of <paramref name="transmissionId"/> has applied and is still in force. Never true for id
+    /// 0, which is no transmission.
+    /// </summary>
+    private static bool ViaAppliedInTransmission(AircraftState aircraft, int transmissionId) =>
+        (transmissionId != 0)
+        && ((aircraft.Procedure.StarViaTransmissionId == transmissionId) || (aircraft.Procedure.ClimbViaTransmissionId == transmissionId));
+
+    /// <summary>The id to stamp for <paramref name="transmissionId"/>: none for id 0, which is no transmission.</summary>
+    private static int? StampedTransmission(int transmissionId) => (transmissionId == 0) ? null : transmissionId;
+
     internal static CommandResult DispatchClimbVia(ClimbViaCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         // "Climb via the [SID]" only requires the SID to be in the cleared route (AIM 5-2-9). If no SID
@@ -1239,6 +1243,7 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.SidViaCeiling = exceptMaintain;
         aircraft.Procedure.ClimbViaTargetFt = target;
+        aircraft.Procedure.ClimbViaTransmissionId = StampedTransmission(ctx.TransmissionId);
         // A bare climb via cancels an interim altitude assigned before it and climbs to the SID's top altitude
         // (7110.65 4-5-7.h.10 Example 1, h.11 NOTE 1; AIM 5-2-9.h.8).
         aircraft.Targets.AssignedAltitude = null;
@@ -1361,9 +1366,11 @@ internal static class NavigationCommandHandler
 
         SupersedeEarlierCrossingRestrictions(aircraft, transmissionId, speedAssignedInBlock, ActiveStarRestrictions);
         aircraft.Procedure.StarViaMode = true;
+        aircraft.Procedure.StarViaTransmissionId = StampedTransmission(transmissionId);
         aircraft.Procedure.StarViaFloor = cmd.Altitude;
         // A descend via ends any climb via still in force, so the STAR's restrictions drive the altitude.
         aircraft.Procedure.ClimbViaTargetFt = null;
+        aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
         // The via clearance supersedes any altitude assigned before it (converse of 7110.65 4-5-7.h.11 NOTE 1).
         aircraft.Targets.AssignedAltitude = null;
