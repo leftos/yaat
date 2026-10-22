@@ -332,10 +332,7 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). `Broadcast
   out to the room group must also reach admins** or admin displays desync; deletes additionally hit CRC (see the
   three-layer delete rule in the yaat-server CLAUDE.md). The event-driven broadcast methods (`BroadcastAircraftSpawned`,
   `BroadcastAircraftDeleted`, `BroadcastSimState`, `BroadcastWeatherChanged`, the terminal/pilot-transmission broadcasts)
-  early-return on `room.IsBroadcastSuppressed`; the per-tick `BroadcastTrainingUpdates` guards each room the same way, but
-  the admin path (`BroadcastAdminUpdates` / `BroadcastRoomToAdmin`) only guards on `scenario is null` — suppressed rooms
-  reach it carrying an empty `TickChanges` because `RoomTickLoopService.DetectChangesAsync` (`:207`) skips them when
-  populating per-tick flags, so nothing aircraft-shaped is sent for them.
+  early-return on `room.IsBroadcastSuppressed`; the per-tick `BroadcastTrainingUpdates` guards each room the same way, and so does the admin path (`BroadcastRoomToAdmin`): its per-aircraft loop would already send nothing for a suppressed room (`RoomTickLoopService.DetectChangesAsync` leaves its `TickChanges` empty), but its delayed-spawn loop reads `scenario.DelayedQueue` directly, which a rewind or recording load repopulates from the full initial scenario mid-rebuild.
 - **CRC connections** — `CrcBroadcastService.BroadcastUpdatesAsync` runs in the same after-the-loop, *un-gated* phase as
   `BroadcastUpdates` (only the detection pass before it is gated), but it snapshots `room.World` itself rather than reading `TickChanges`. It must
   therefore skip `room.IsBroadcastSuppressed` rooms explicitly (alongside `scenario is null`) — otherwise a rewind /
