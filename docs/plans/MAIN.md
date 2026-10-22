@@ -8,7 +8,6 @@
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
 - [ ] YAAT-659 Accept HS in Following, Holding In Position and Holding After Exit so Hold short of reaches every routed aircraft
 - [ ] YAAT-728 Size the ground scope-preview ring to a helicopter's rotor disc
@@ -36,6 +35,8 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
+- [ ] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext+1
+- [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only
 
 ## Bug reports and feature requests
 
@@ -672,3 +673,6 @@
 - [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
 - [ ] YAAT-1007 Check two UI tests that set the navdata singleton outside a scope
 - [ ] YAAT-1011 Pin and document the Tower Cab room-attach contract: kick-then-offer, kick-only isForcible, position fallbacks
+- [ ] YAAT-1016 Set a WebSocket keep-alive timeout so a silently dropped client is detached
+- [ ] YAAT-1017 Queue SetSessionActive on a Tower Cab's push chain
+- [ ] YAAT-1021 Take an unlinked CRC or vEDST joiner off the session's joined list when the session ends
