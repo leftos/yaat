@@ -83,6 +83,10 @@ internal static class SceneCatalog
         new WhatsNewWindsAloftSourceScene(),
         new WhatsNewSoloAdvisoryFlyoutScene(),
         new WhatsNewFieldAdvisoryFlyoutScene(),
+        new WhatsNewApproachFlyoutScene(),
+        new WhatsNewHoldFlyoutScene(),
+        new WhatsNewJoinAirwayFlyoutScene(),
+        new WhatsNewTrafficFlyoutScene(),
     ];
 
     // The scenes a run captures: the one named by --scene (case-insensitive),

@@ -34,6 +34,31 @@ Put exactly the aircraft the shot needs where it needs them with `ADD` through `
 
 `ADD` needs an active scenario. Loading a full example scenario and advancing hundreds of seconds until traffic happens to be in the picture is slow and fragile: the radar example's picture after 480 s holds only two drawn aircraft. No empty-scenario fixture or base class is committed yet (YAAT-541 adds one); until then, spawn into the default scenario and choose a part of the airport its traffic does not crowd.
 
+## Staging an aircraft for a menu entry
+
+A menu entry appears only in the state that offers it, so a scene's staging is decided from the code before any capture runs, never found by running captures. Work it out in this order, and put the result in the scene (and in any brief) as exact commands with the check that proves each state:
+
+1. **Where the entry lives.** The quick-command strip is the situation's list in `src/Yaat.Client.Core/ContextMenus/QuickCommandDefaults.cs`, filtered by `QuickCommandResolver.Visibility` (`QuickCommandResolver.cs`, rules in `AircraftCommandApplicability.cs`). All Commands (`MenuCatalog.cs`) ignores visibility. An entry in no situation's list (Join airway, `MenuCatalog.cs:193`) opens only through `OpenAllCommandsEntryAsync`.
+2. **Which situation the aircraft must be in.** `SituationClassifier.cs` decides it from the aircraft's phase, rules and flight plan. Print `aircraft.Situation` before opening the menu and throw unless it is the one the entry needs: a wrong state then fails in seconds with the reason, not after a capture.
+3. **What the spawn files.** The airborne, fix and parking `ADD` forms file no departure, destination or route (`AircraftGenerator.cs:137-142,400,454`); only the lined-up, departure, on-final and STAR forms do. A command that needs a destination (`JFAC`, `CAPP`) needs an `FP` first: `FP <type> <alt> <dep> <route…> <dest>`, as `FP B739 040 KSJC DCT KOAK`.
+4. **What must not be sent.** A command that changes the state the entry depends on hides it: an approach or descent clearance hides Cleared approach (`QuickCommandResolver.cs:45-47`), so never send `CAPP` to stage that shot.
+5. **Where it sits on the scope.** At the radar's default range 40 the scope spans about ±20 NM across and only about ±7 NM up and down, about 40 px per NM, with OAK near the centre. An aircraft outside that box is off screen and its menu clamps into a corner. The menu opens to the right of and below the target, so a target left of centre keeps its symbol and data block clear of it. An `@fix` or bearing spawn heads straight at the airport.
+
+Run captures one at a time (two GuideCapture builds collide on file locks), each once: a failed check or a wrong picture means the staging is wrong, which is fixed at step 1–5, not by trying placements.
+
+### Recipes
+
+Each was run and its PNG checked. Use them as written; a new state gets its recipe here once proven.
+
+| Shot | Commands | State to assert |
+|---|---|---|
+| IFR arrival offered Cleared approach (approach flyout, runway 30 default) | `ADD IFR L J -090 15 4000`, `FP B739 040 KSJC DCT KOAK`, `JFAC ILS30` | `Approach` (intercept-course phase, `SituationClassifier.cs:206`; `JFAC` is lateral-only, so Cleared approach stays) |
+| Enroute IFR jet with a route ahead (Hold at fix on the later fix) | `ADD IFR H J @OAK270012 350`, `DCT SUNOL ALTAM`, wait until navigating to SUNOL; type ALTAM | `IfrEnroute`; the Inbound course box defaults to the SUNOL→ALTAM leg only for a fix past the next one (`HoldFlyout.cs:199-206`); above 14,000 ft legs open on 1½ min |
+| IFR aircraft with a filed airway, joining others at different fixes (Join airway, through All Commands) | `ADD IFR S+ T @OAK270010 080`, `FP DH8C 080 KOAK OAK V6 SAC KSMF`, `FH 360`, wait until the heading is within 5° of 360 | `IfrEnroute`; the filed route gives the ◆ row (`MenuCatalog.cs:1759`). Pointed straight at OAK, every airway through OAK is joined at OAK, hence the turn |
+| VFR aircraft with nearby airborne traffic (Report traffic in sight) | `ADD VFR S P @OAK270010 045 P28A`, then traffic: `ADD VFR S P @OAK286011 055 SR22`, `ADD VFR S P @OAK265016 035 C172`, `ADD VFR S T @OAK250012 065 C208`, `ADD IFR L J @OAK300005 080 B738`, `ADD VFR S P @OAK240008 025 C152` | `VfrFlightFollowing` (a VFR `ADD` files no plan, `SituationClassifier.cs:287-301`) |
+
+Approach rows read "short" when the runway is under 1.15 × the type's landing distance (`RunwayLandability.cs:17,33-47`): OAK 28L/28R are short for a B739, runway 30 is not, so a jet's approach shot uses 30.
+
 ## Opening menus and popups
 
 - **Do not simulate a pointer right-click on `MainWindow`.** Avalonia's `LightDismissOverlayLayer` takes every press even with no popup open, and the class is internal, so a scene cannot move it aside.
