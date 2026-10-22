@@ -97,6 +97,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "FollowCommand",
         "FollowGroundCommand",
         "ForceAltitudeCommand",
+        "ForceFinalApproachSpeedCommand",
         "ForceHandoffCommand",
         "ForceHeadingCommand",
         "ForceLandingCommand",

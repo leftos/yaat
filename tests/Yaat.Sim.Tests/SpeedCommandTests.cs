@@ -326,6 +326,55 @@ public class SpeedCommandTests
         Assert.Equal(210, ac.IndicatedAirspeed);
     }
 
+    /// <summary>SPDN RFAS sets the speed RFAS targets for the type, instantly, as SPDN does for a number.</summary>
+    [Fact]
+    public void ForceFinalApproachSpeed_SetsTheRfasTargetInstantly()
+    {
+        TestVnasData.EnsureInitialized();
+        AircraftState reduced = CreateAircraft(ias: 250);
+        Assert.True(CommandDispatcher.Dispatch(new ReduceToFinalApproachSpeedCommand(), reduced, TestDispatch.Context(Random.Shared)).Success);
+        Assert.NotNull(reduced.Targets.TargetSpeed);
+        double finalApproachSpeed = reduced.Targets.TargetSpeed.Value;
+
+        AircraftState forced = CreateAircraft(ias: 250);
+        CommandResult result = CommandDispatcher.Dispatch(new ForceFinalApproachSpeedCommand(), forced, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, result.Message);
+        Assert.NotEqual(250, finalApproachSpeed);
+        Assert.Equal(finalApproachSpeed, forced.IndicatedAirspeed);
+        Assert.Equal(finalApproachSpeed, forced.Targets.TargetSpeed);
+        Assert.Equal(finalApproachSpeed, forced.Targets.AssignedSpeed);
+        Assert.True(forced.Targets.SpeedOverridesFinalGate);
+    }
+
+    /// <summary>
+    /// SPDN (a number or RFAS) replaces a Mach assignment, as SPD and RFAS do: an aircraft holding Mach at FL350 keeps the
+    /// forced IAS instead of accelerating back to the Mach's IAS.
+    /// </summary>
+    [Fact]
+    public void ForceSpeed_UnderAMachTarget_HoldsTheForcedSpeed()
+    {
+        TestVnasData.EnsureInitialized();
+        AircraftState byNumber = CreateAircraft(altitude: 35000, ias: 270);
+        AircraftState byRfas = CreateAircraft(altitude: 35000, ias: 270);
+        byNumber.Targets.TargetMach = 0.78;
+        byRfas.Targets.TargetMach = 0.78;
+
+        Assert.True(CommandDispatcher.Dispatch(new ForceSpeedCommand(250), byNumber, TestDispatch.Context(Random.Shared)).Success);
+        Assert.True(CommandDispatcher.Dispatch(new ForceFinalApproachSpeedCommand(), byRfas, TestDispatch.Context(Random.Shared)).Success);
+        double approachSpeed = byRfas.IndicatedAirspeed;
+        for (int second = 0; second < 5; second++)
+        {
+            FlightPhysics.Update(byNumber, 1.0);
+            FlightPhysics.Update(byRfas, 1.0);
+        }
+
+        Assert.Null(byNumber.Targets.TargetMach);
+        Assert.Null(byRfas.Targets.TargetMach);
+        Assert.Equal(250, byNumber.IndicatedAirspeed, 1);
+        Assert.Equal(approachSpeed, byRfas.IndicatedAirspeed, 1);
+    }
+
     /// <summary>SPEEDF supports +/- floor/ceiling modifiers like SPD.</summary>
     [Fact]
     public void ForceSpeed_WithFloorModifier_OverridesInside5nmFinal()

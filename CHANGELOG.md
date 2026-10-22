@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `SPD RFAS` reduces to final approach speed as `RFAS` does, and `SPDN RFAS` sets that speed at once.
+
 ### Changed
 
 - The active-runways prompt offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
@@ -9,6 +13,7 @@
 ### Fixed
 
 - Popping out a second vStrips tab while the vTDLS tab is selected no longer leaves the main window showing a blank tab.
+- `SPDN` cancels an assigned Mach, so the aircraft keeps the forced speed instead of returning to the Mach.
 - A spoken "disregard" no longer drops the instruction after it when the retracted part had a misheard runway.
 - Speech recognizes a GA callsign said last whose final letter was misheard ("…, november 9225 lien" for N9225L), as it already did when said first.
 - A crossing restriction given with `DVIA` or `CVIA` keeps the altitude to resume after the fix when that via clearance is deleted or refused before it starts.

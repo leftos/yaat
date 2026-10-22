@@ -44,7 +44,7 @@
         { "verb": "SPD", "aliases": ["s", "sl", "slow", "speed", "ds", "is"], "description": "Speed (knots IAS); 210+ / 210- floor/ceil; while taxiing sets taxi speed" },
         { "verb": "SPEEDF", "aliases": ["spdf", "slf"], "description": "Force speed, overriding 5nm-final restriction (210+/210- ok)" },
         { "verb": "RNS", "aliases": ["ns"], "description": "Resume normal speed" },
-        { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed" },
+        { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed (also SPD RFAS)" },
         { "verb": "DSR", "aliases": [], "description": "Delete speed restrictions" },
         { "verb": "EXP", "aliases": [], "description": "Expedite to [alt] (or taxi/runway exit if on ground)" },
         { "verb": "NORM", "aliases": [], "description": "Normal rate" },
@@ -390,7 +390,7 @@
       "rows": [
         { "verb": "FHN", "aliases": [], "description": "Instantly set heading" },
         { "verb": "CMN", "aliases": ["DMN"], "description": "Instantly set altitude" },
-        { "verb": "SPDN", "aliases": ["sln", "speedn"], "description": "Instantly set speed" },
+        { "verb": "SPDN", "aliases": ["sln", "speedn"], "description": "Instantly set speed (SPDN RFAS: final approach speed)" },
         { "verb": "WARP", "aliases": [], "description": "Teleport to FRD; optional hdg/alt/spd keep current" },
         { "verb": "WARPG", "aliases": [], "description": "Teleport on ground: tw tw / #node / @parking / $spot" }
       ],

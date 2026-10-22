@@ -327,7 +327,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Resume normal speed | `RNS` | `NS` | — |
 | Expedite climb/descent to altitude (or taxi/runway exit) | `EXP [alt]` | — | — |
 | Resume normal rate | `NORM` | — | — |
-| Reduce to final approach speed | `RFAS` | `FAS` | — |
+| Reduce to final approach speed | `RFAS` or `SPD RFAS` | `FAS`, `SPD FAS` | — |
 | Mach number | `MACH .82` | `M` | — |
 | Delete speed restrictions | `DSR` | — | — |
 
@@ -717,7 +717,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Add aircraft | `ADD IFR H J ...` | — | — |
 | Force heading | `FHN 270` | — | — |
 | Force altitude | `CMN 240` / `DMN 240` | — | — |
-| Force speed | `SPDN 250` | `SLN`, `SPEEDN` | — |
+| Force speed | `SPDN 250` or `SPDN RFAS` | `SLN`, `SPEEDN` | — |
 | Set turn rate | `TRATE 3` | — | — |
 | Warp | `WARP FRD [hdg] [alt] [spd]` | — | — |
 | Warp ground | `WARPG location` | — | — |
@@ -1726,7 +1726,7 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `EXP` | Expedite the climb/descent already in progress. Climbs gain ~15% (thrust-limited) up to a per-category cap; descents roughly double (drag-limited) within a per-category band — e.g. a jet descent tops out at 4,000 fpm, a piston at 1,500. Requires an active climb or descent — rejected when the aircraft is level at its assigned altitude. On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts) and the acceleration to 1.5 kt/s (no increase for a Super or Heavy; mutually exclusive with a numeric `SPD` taxi speed); cleared by `NORM`, `SPD`, `RNS`, `HOLD`, `HS`, `GIVEWAY`, a `TAXI`/`TAXIAUTO` without `EXP`, or a `RES`/`CROSS` that releases the aircraft from a stop (see `TAXI … EXP` and `CROSS … EXP`). On a just-landed aircraft (rolling out or exiting), expedites the runway exit instead — earliest reachable exit + max-effort braking (see the exit commands above) |
 | `EXP 50` | Assign 5,000 ft and expedite the climb/descent to it — one command, equivalent to `CM 50` (or `DM 50`) plus `EXP`. Rejected if the aircraft is already at that altitude. To expedite *through* an intermediate altitude and resume the normal rate there, chain a level condition: `EXP; LV 50 NORM` |
 | `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
-| `RFAS` / `FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |
+| `RFAS` / `FAS` / `SPD RFAS` / `SPD FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts). `SPD RFAS` is the same command as bare `RFAS` (normal deceleration, "unable" inside 5nm final); a trailing token (`SPD RFAS SUNOL`) is a parse error. `SPEEDF RFAS` is rejected: use `SPD RFAS`, or `SPDN RFAS` to set it instantly |
 | `MACH .82` / `M .82` | Maintain Mach number (also accepts `0.82` or `82`); IAS adjusts with altitude |
 | `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
 | `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
@@ -2327,6 +2327,7 @@ When you need to immediately correct an aircraft's state (rather than waiting fo
 | `FHN 270` | Force heading: immediately set heading to 270° |
 | `CMN 50` / `DMN 50` | Force altitude: immediately set altitude to 5,000 ft |
 | `SPDN 250` | Force speed: immediately set IAS to 250 knots (aliases: `SLN`, `SPEEDN`) |
+| `SPDN RFAS` / `SPDN FAS` | Force final approach speed: immediately set IAS to the type's final approach speed (also via `SLN` and `SPEEDN`); the reply is `Force final approach speed (NNN kts)` |
 | `TRATE 3` | Set turn rate: override default turn rate to 3°/sec (range 0.5–45; omit argument to clear) |
 
 These commands set the aircraft's state immediately — no gradual transition. Useful for RPO corrections when an aircraft is in the wrong state. `TRATE` overrides the category-based turn rate for fine control over vectoring behavior.

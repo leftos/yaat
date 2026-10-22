@@ -240,7 +240,7 @@ public static class CommandRegistry
                 CommandDimension.Speed,
                 false,
                 ["SPD", "SPEED", "DS", "IS", "SLOW", "SL"],
-                [O(null, [R("speed", "knots IAS")], "Maintain speed")]
+                [O(null, [R("speed", "knots IAS, or RFAS for final approach speed")], "Maintain speed")]
             ),
             Cmd(
                 ForceSpeedFinal,
@@ -305,7 +305,7 @@ public static class CommandRegistry
                 CommandDimension.None,
                 false,
                 ["SPDN", "SLN", "SPEEDN"],
-                [O(null, [R("speed", "knots IAS")], "Instantly set speed")]
+                [O(null, [R("speed", "knots IAS, or RFAS for final approach speed")], "Instantly set speed")]
             ),
             Cmd(
                 Warp,

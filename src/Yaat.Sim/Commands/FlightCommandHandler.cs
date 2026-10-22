@@ -411,8 +411,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft, DispatchContext ctx)
     {
-        AircraftCategory rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        double approachSpeed = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, rfasCat);
+        double approachSpeed = FinalApproachSpeed(aircraft);
         aircraft.Targets.TargetSpeed = approachSpeed;
         aircraft.Targets.AssignedSpeed = approachSpeed;
         aircraft.Targets.SpeedFloor = null;
@@ -424,6 +423,10 @@ internal static class FlightCommandHandler
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
     }
+
+    /// <summary>The type's final approach speed, the speed RFAS reduces to and SPDN RFAS sets.</summary>
+    private static double FinalApproachSpeed(AircraftState aircraft) =>
+        AircraftPerformance.ApproachSpeed(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
 
     internal static CommandResult ApplyDeleteSpeedRestrictions(AircraftState aircraft)
     {
@@ -556,20 +559,33 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyForceSpeed(ForceSpeedCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        ForceSpeed(aircraft, cmd.Speed, ctx);
+        return CommandDispatcher.Ok($"Force speed {cmd.Speed}");
+    }
+
+    internal static CommandResult ApplyForceFinalApproachSpeed(AircraftState aircraft, DispatchContext ctx)
+    {
+        double approachSpeed = FinalApproachSpeed(aircraft);
+        ForceSpeed(aircraft, approachSpeed, ctx);
+        return CommandDispatcher.Ok($"Force final approach speed ({approachSpeed:F0} kts)");
+    }
+
+    private static void ForceSpeed(AircraftState aircraft, double speed, DispatchContext ctx)
+    {
         // Force-speed is an immediate override and intentionally exempt from the helicopter
         // radar-speed floor in ApplySpeed — it may command any speed.
-        aircraft.IndicatedAirspeed = cmd.Speed;
-        aircraft.Targets.TargetSpeed = cmd.Speed;
-        aircraft.Targets.AssignedSpeed = cmd.Speed;
+        aircraft.IndicatedAirspeed = speed;
+        aircraft.Targets.TargetSpeed = speed;
+        aircraft.Targets.AssignedSpeed = speed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
+        aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         // A forced speed survives the §5-7-1.b.4 auto-cancel gate, same as SPEEDF.
         aircraft.Targets.SpeedOverridesFinalGate = true;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
-        return CommandDispatcher.Ok($"Force speed {cmd.Speed}");
     }
 
     internal static CommandResult ApplySquawk(SquawkCommand cmd, AircraftState aircraft)

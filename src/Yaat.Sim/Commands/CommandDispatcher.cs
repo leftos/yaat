@@ -1089,6 +1089,8 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyMach(cmd, aircraft, ctx);
             case ForceSpeedCommand cmd:
                 return FlightCommandHandler.ApplyForceSpeed(cmd, aircraft, ctx);
+            case ForceFinalApproachSpeedCommand:
+                return FlightCommandHandler.ApplyForceFinalApproachSpeed(aircraft, ctx);
 
             // --- Squawk ---
             case SquawkCommand cmd:
@@ -3881,7 +3883,7 @@ public static class CommandDispatcher
                     current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
                 }
 
-                if (cmd is SpeedCommand or ForceSpeedCommand)
+                if (cmd is SpeedCommand or ForceSpeedCommand or ForceFinalApproachSpeedCommand)
                 {
                     current = current with { SpeedAssignedInBlock = true };
                 }

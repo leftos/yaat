@@ -89,6 +89,9 @@ public record ForceAltitudeCommand(int Altitude) : ParsedCommand;
 
 public record ForceSpeedCommand(int Speed) : ParsedCommand;
 
+/// <summary><c>SPDN RFAS</c>: sets the type's final approach speed instantly, as <see cref="ForceSpeedCommand"/> does a number.</summary>
+public record ForceFinalApproachSpeedCommand : ParsedCommand;
+
 public record WarpCommand(string PositionLabel, double Latitude, double Longitude, MagneticHeading? MagneticHeading, int? Altitude, int? Speed)
     : ParsedCommand;
 

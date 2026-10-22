@@ -351,6 +351,7 @@ public static class RecordedCommandClassifier
                 or FollowGroundCommand
                 or ForceAltitudeCommand
                 or ForceDirectToCommand
+                or ForceFinalApproachSpeedCommand
                 or ForceHeadingCommand
                 or ForceLandingCommand
                 or ForceSpeedCommand

@@ -2640,8 +2640,15 @@ public static class CommandParser
         return PR.Ok(new WarpGroundCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant()));
     }
 
+    private static bool IsFinalApproachSpeedKeyword(string arg) => arg.Trim().ToUpperInvariant() is "RFAS" or "FAS";
+
     private static PR ParseForceSpeed(string? arg)
     {
+        if ((arg is not null) && IsFinalApproachSpeedKeyword(arg))
+        {
+            return PR.Ok(new ForceFinalApproachSpeedCommand());
+        }
+
         if (arg is null || !int.TryParse(arg, out int speed))
         {
             return PR.Fail($"invalid force speed '{arg}'");
@@ -2672,6 +2679,14 @@ public static class CommandParser
         if (arg.StartsWith('M') || arg.StartsWith('m'))
         {
             return ParseMach(arg[1..]);
+        }
+
+        // SPD RFAS / SPD FAS — the same command as bare RFAS
+        if (IsFinalApproachSpeedKeyword(arg))
+        {
+            return force
+                ? PR.Fail("SPEEDF does not take RFAS; use SPD RFAS, or SPDN RFAS to set it instantly")
+                : PR.Ok(new ReduceToFinalApproachSpeedCommand());
         }
 
         // SPD {speed} {termination_fix} — speed until waypoint, then resume normal

@@ -42,6 +42,37 @@ public class SpeedParserTests
         Assert.IsType<ResumeNormalSpeedCommand>(cmd.Value);
     }
 
+    // --- SPD RFAS / SPDN RFAS ---
+
+    [Theory]
+    [InlineData("SPD RFAS")]
+    [InlineData("SPD FAS")]
+    [InlineData("spd rfas")]
+    public void SpeedFinalApproach_ReducesToFinalApproachSpeed(string input)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        Assert.IsType<ReduceToFinalApproachSpeedCommand>(cmd.Value);
+    }
+
+    [Theory]
+    [InlineData("SPDN RFAS")]
+    [InlineData("SPDN FAS")]
+    [InlineData("spdn fas")]
+    public void ForceSpeedFinalApproach_ForcesFinalApproachSpeed(string input)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        Assert.IsType<ForceFinalApproachSpeedCommand>(cmd.Value);
+    }
+
+    [Theory]
+    [InlineData("SPD RFAS SUNOL")]
+    [InlineData("SPDN RFAS SUNOL")]
+    public void FinalApproachSpeed_WithATrailingToken_IsAParseError(string input)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        Assert.False(cmd.IsSuccess);
+    }
+
     // --- RNS ---
 
     [Fact]
