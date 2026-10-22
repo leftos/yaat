@@ -39,7 +39,8 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
 
     /// <summary>
     /// Starts listening on a background task and returns at once. <paramref name="connectionHandler"/> serves one client.
-    /// A transport starts once; a second call throws <see cref="InvalidOperationException"/>.
+    /// A transport starts once; a second call throws <see cref="InvalidOperationException"/>. The transport owns the stream
+    /// it hands the handler and disposes it when the handler ends; the handler must not dispose it.
     /// </summary>
     public void Start(Func<Stream, CancellationToken, Task> connectionHandler)
     {
@@ -96,7 +97,7 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         {
             if (!handedOff)
             {
-                await ReleaseAsync(pipe).ConfigureAwait(false);
+                Release(pipe);
             }
         }
     }
@@ -123,12 +124,16 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
         }
     }
 
-    /// <summary>Disposes <paramref name="pipe"/>, then stops tracking it, so a tracked instance is always one still open or being closed.</summary>
-    private async ValueTask ReleaseAsync(NamedPipeServerStream pipe)
+    /// <summary>
+    /// Disposes <paramref name="pipe"/> and stops tracking it, both under the instances lock. On Unix a second concurrent
+    /// dispose of a server stream returns before the first has closed the shared listening socket, so every disposal of a
+    /// tracked instance holds the lock, and <see cref="Dispose"/> cannot return while one is still closing.
+    /// </summary>
+    private void Release(NamedPipeServerStream pipe)
     {
-        await pipe.DisposeAsync().ConfigureAwait(false);
         lock (_instancesLock)
         {
+            pipe.Dispose();
             _instances.Remove(pipe);
         }
     }
@@ -143,7 +148,7 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
             }
             finally
             {
-                await ReleaseAsync(pipe).ConfigureAwait(false);
+                Release(pipe);
             }
         }
         catch (OperationCanceledException)
@@ -196,21 +201,22 @@ public sealed class NamedPipeTransport(string pipeName) : IDisposable
             );
         }
 
+        // Disposed under the lock, so a connection task's release still closing an instance finishes before this returns.
+        // Iterated over a copy: the lock is reentrant, and a continuation run inline by a dispose could release into the set.
         List<NamedPipeServerStream> open;
         lock (_instancesLock)
         {
             open = [.. _instances];
-        }
-
-        foreach (NamedPipeServerStream pipe in open)
-        {
-            try
+            foreach (NamedPipeServerStream pipe in open)
             {
-                pipe.Dispose();
-            }
-            catch (Exception ex)
-            {
-                Log.LogError(ex, "Automation pipe {PipeName}: closing a server instance on dispose failed", pipeName);
+                try
+                {
+                    pipe.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Log.LogError(ex, "Automation pipe {PipeName}: closing a server instance on dispose failed", pipeName);
+                }
             }
         }
 

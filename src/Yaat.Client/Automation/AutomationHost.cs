@@ -49,8 +49,8 @@ public sealed class AutomationHost(
 
     private async Task HandleConnection(Stream stream, CancellationToken ct)
     {
-        using var reader = new StreamReader(stream, Utf8NoBom);
-        var writer = new StreamWriter(stream, Utf8NoBom) { AutoFlush = true };
+        using var reader = new StreamReader(stream, Utf8NoBom, detectEncodingFromByteOrderMarks: true, bufferSize: -1, leaveOpen: true);
+        var writer = new StreamWriter(stream, Utf8NoBom, bufferSize: -1, leaveOpen: true) { AutoFlush = true };
         await using ConfiguredAsyncDisposable writerScope = writer.ConfigureAwait(false);
 
         Task<string?> nextLine = reader.ReadLineAsync(ct).AsTask();

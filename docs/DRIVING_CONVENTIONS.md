@@ -38,6 +38,11 @@ Source: godot-mcp's architecture doc and changelog; Windows docs for GetSystemTi
 The pipe client keeps one request in flight per connection and matches each answer by its id. A request that does not complete cleanly (a broken pipe, the client's own timeout, the caller's cancel, an unparsable or `null` line, or an answer carrying another request's id) leaves the framing unknown, so the connection is disposed and the next request opens a fresh one. A cancel in particular can land after the request is on the wire; the host still answers it, and that late line would be read as the next request's answer. Dropping the connection is also the cancel: the client's dispatcher cancels the request running for a connection that goes, so a timed-out wait stops in the client and the next call finds it free. Timeouts: 5 s to connect, 30 s per request.
 Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Pipe\PipeClient.cs:11-28, 60-72, 151-156, 174-196; tests PipeClientTests.cs:71-136; D:\yaat\src\Yaat.Client\Automation\AutomationDispatcher.cs:57-101. Seen: documented.
 
+### The host's pipe transport is the only disposer of its server streams
+
+On Unix, .NET's `NamedPipeServerStream` instances of one name share a listening socket, and two concurrent disposals of one instance do not both wait: the first unlinks the path and closes the socket, the second returns at once. A host whose shutdown disposes instances while a connection task or the request handler disposes the same one can return from shutdown with the socket still bound, and a client connecting in that gap counts as connected. So the transport tracks every instance, every disposal (the connection task's release when its handler ends, and shutdown's) happens under the transport's one lock, shutdown never waits on connection tasks (a request may call it), and the handler opens its reader and writer with `leaveOpen: true`.
+Source: D:\yaat\src\Yaat.Client\Automation\Transport\NamedPipeTransport.cs (Release, Dispose); D:\yaat\src\Yaat.Client\Automation\AutomationHost.cs (HandleConnection); tests AutomationHostTests.cs (`Dispose_NoClientCanConnectAfterwards_Repeated`, red only on the gate's macOS builder). Seen: 1 (YAAT-1039).
+
 ### Bound every wait on both sides, and return its outcome as data with the last values seen
 <!-- rule: waits-bounded-outcome-as-data -->
 

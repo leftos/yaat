@@ -115,6 +115,8 @@ Driving YAAT never steals focus or jumps to the foreground while the user works:
 
   On Unix every `NamedPipeServerStream` instance of one pipe name shares a single listening socket, which stays connectable until the last instance (pending or connected) is disposed. So `NamedPipeTransport.Dispose` (`src/Yaat.Client/Automation/Transport/NamedPipeTransport.cs`) tracks every instance and disposes them all before it returns; cancelling the accept loop alone leaves the socket open, and a client can still connect after the host is gone.
 
+  On Unix two concurrent disposals of one server instance do not both wait: the first unlinks the path and closes the shared socket, and the second returns at once. So every disposal of a tracked instance, the connection task's release when its handler ends included, happens under the transport's one lock, and the handler never disposes the stream it is given (`AutomationHost` opens its reader and writer with `leaveOpen: true`); otherwise `Dispose` can return before the socket is closed.
+
   On every platform `Dispose` first waits for the pending accept to end (a 30 s `ListenStopGuard`, logging an error if it expires) and only then disposes the instances: an instance disposed while its async accept is still in flight can take one more client after `Dispose` returns.
 
   Its methods: `ping`, `list_windows`, `get_tree`, `click`, `click_point`, `hover`, `drag`, `send_keys`, `set_text`, `focus`, `screenshot` (`RenderTargetBitmap`), `wait_for`, `wait_until`, `queue_file_pick`, `list_app_tools`, `call_app_tool` and `get_sim_time` (`{simSeconds, isPaused, simRate}` from `IAutomationState`; `UNSUPPORTED_OPERATION` until the main window is up), all raised on the UI thread.

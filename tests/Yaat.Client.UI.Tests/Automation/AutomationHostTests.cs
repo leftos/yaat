@@ -328,9 +328,11 @@ public sealed class AutomationHostTests : AutomationHostFixture
     private static readonly TimeSpan TransportConnectHangGuard = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// A transport disposed straight after serving a client leaves no server instance that accepts: a pending accept torn
-    /// down under <see cref="NamedPipeTransport.Dispose"/> can still take the next client, about once in five thousand
-    /// cycles, so the test runs enough cycles to catch it in nearly every run.
+    /// A transport disposed straight after serving a client leaves no server instance that accepts. On Unix a connection
+    /// task's release of the connected instance can finish after <see cref="NamedPipeTransport.Dispose"/> returns, because a
+    /// concurrent dispose of one server stream returns before the other caller has closed the shared listening socket; a
+    /// client connecting in that gap is taken. It happens a few times in a hundred thousand cycles, so the test runs enough
+    /// cycles to catch it in nearly every run.
     /// </summary>
     [Fact]
     [Trait("Category", "Nightly")]
