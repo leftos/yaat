@@ -13,8 +13,6 @@
 - [ ] YAAT-728 Size the ground scope-preview ring to a helicopter's rotor disc
 - [ ] YAAT-729 Decide the Give way flyout's no-conflict note from the server's taxi route state
 - [ ] YAAT-758 Build the route ladder's bar-mark backing and connector, and test its Helipad end row
-- [ ] YAAT-762 Parked aircraft squawking standby should offer SQNORM in quick commands · release vNext
-- [/] YAAT-760 SCX8607 didn't offer Hold Short of T on Quick Commands · release vNext
 - [ ] YAAT-773 Extract one live-list helper for the quick-command flyouts that refill while open
 - [ ] YAAT-807 Show the empty-entries line when the Taxi to runway panel fails to render a landed search
 - [ ] YAAT-823 Leave the turn-off angle out of an exit row when the layout could not measure it
@@ -37,18 +35,19 @@
 - [ ] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
 - [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only
 - [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
+- [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
 
 ## Bug reports and feature requests
 
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
-- [ ] YAAT-1023 Apply a crossing restriction's revert only when it continues the direction of flight · release vNext
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext
+- [ ] YAAT-1029 Keep the cleared altitude when it already meets a crossing's at-or-above or at-or-below bound · release vNext
 
 ## Say again
 
@@ -213,7 +212,7 @@
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
-- [ ] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross · release vNext
+- [/] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross · release vNext
 - [ ] YAAT-751 Name the intersection in the ready call at an intersection departure bar
 - [ ] YAAT-752 Name W1, not T - RAMP, in a follower's hold warning at the OAK runway 30 bar
 - [ ] YAAT-753 Line up on the end the aircraft holds at when CTO names a combined runway id
@@ -673,3 +672,5 @@
 - [ ] YAAT-1016 Set a WebSocket keep-alive timeout so a silently dropped client is detached
 - [ ] YAAT-1017 Queue SetSessionActive on a Tower Cab's push chain
 - [ ] YAAT-1021 Take an unlinked CRC or vEDST joiner off the session's joined list when the session ends
+- [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
+- [ ] YAAT-1031 Keep an auto-cleared crossing the aircraft can no longer stop short of when the active runways change
