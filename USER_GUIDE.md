@@ -1165,7 +1165,7 @@ A **note** is a freetext reminder you can pin to a specific aircraft — "watch 
 Set or edit a note any of these ways:
 
 - **Command bar**: type `NOTE Watch wake` to set, or a bare `NOTE` to clear.
-- **Right-click** the aircraft on the radar, the ground view or the Aircraft List → **Note…**, just under **Command…** in the menu's header (opens a text-entry popup).
+- **Right-click** the aircraft on the radar, the ground view or the Aircraft List → **Note…**, next to **Command…** below the quick-command icons (opens a text-entry popup).
 - **EuroScope tag**: click the amber note line (when one is already set).
 
 ##### ATPA cones and in-trail distance
@@ -2175,7 +2175,7 @@ A loaded solo recording comes up in solo mode, so its replay speaks every pilot 
 
 ![The empty File Bug Report form with Title, What happened, What did you expect and Callsigns fields](docs/user-guide/img/file-bug-report-dialog.png)
 
-1. saves a bug report bundle to `%LOCALAPPDATA%\yaat\bug-reports\`. In a room the bundle holds the session recording, your bookmarks, the client log and the server log; outside a room it holds the client log only;
+1. saves a bug report bundle to `%LOCALAPPDATA%\yaat\bug-reports\`. In a room the bundle holds the session recording, your bookmarks, the client logs of this and the previous three sessions, and the server log; outside a room it holds the client logs only. Names, VATSIM IDs, initials, your Windows user folder and server addresses are hidden in the recording and logs;
 2. opens a new GitHub issue in your browser with your answers and your YAAT version, OS and scenario already filled in;
 3. opens the folder with the bundle selected. Drag the bundle into the issue before you submit it, since GitHub can't attach it for you.
 
@@ -2848,7 +2848,7 @@ The **CRC Aliases** folder above the grid (with **Browse…**) says where YAAT r
 
 #### Quick commands
 
-![Settings on its Quick commands section, with the situation list, the At parking menu preview and that situation's five commands](docs/user-guide/img/settings-quick-commands.png)
+![Settings on its Quick commands section, with the situation list, the At parking menu preview and that situation's six commands](docs/user-guide/img/settings-quick-commands.png)
 
 Each situation's quick commands on the aircraft right-click menu: the situation list, a menu preview, the selected situation's commands (drag to reorder, flight rules per command, custom commands with their own label), **Add command…**, **Add custom**, **Reset this situation** and **Reset all**. **Reset section** does the same as Reset all. See [Changing the quick commands](#aircraft-right-click-menu) under the right-click menu for the details.
 

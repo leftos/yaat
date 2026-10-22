@@ -217,7 +217,7 @@ YAAT tries normal command parsing first. If that fails in Solo Training, the nat
 
 A simple IFR departure session usually looks like this:
 
-1. A parked aircraft calls ready to taxi (with a clearance-delivery student, it calls for its clearance first).
+1. A parked aircraft calls ready to taxi, or requests pushback from a push-back stand (with a clearance-delivery student, it calls for its clearance first).
 2. Issue pushback or taxi instructions.
 3. Clear the aircraft to cross or hold short as needed.
 4. Clear the aircraft for takeoff.
@@ -233,6 +233,7 @@ Do not wait for the sim to solve the next control action. Solo pilots can call, 
 Solo pilots make calls when the scenario and phase call for them. Common examples:
 
 - Parked departures call ready to taxi after the initial delay.
+- A jet or turboprop parked at a push-back stand says "request pushback" instead of calling ready to taxi; `PUSH` or `TAXI` answers it.
 - With a clearance-delivery student, departures call for their IFR clearance, or a VFR departure naming a direction and altitude, instead of "ready to taxi". A beacon code (`SQ`, `RANDSQ`, `SQVFR`) or a PDC sent with `TDLSS` answers it, and the pilot stops repeating it.
 - An aircraft scripted to push back calls ready to taxi once pushed back, naming the gate it left or the spot it reached. One scripted to taxi to a spot or taxiway hold short calls from there 10-20 seconds after stopping.
 - An aircraft already taxiing, at its stand after arriving, or scripted to taxi to the runway or to parking never calls ready to taxi.
@@ -263,9 +264,9 @@ The full syntax and behavior details live in [Command Reference: Solo Training C
 
 Structured `RTIS` accepts the radar clock form or any of the three VFR descriptive forms (relative position, pattern leg, landmark); the altitude is optional and matching is tolerant, so a within-tolerance-but-imprecise call still counts with a low-severity coaching note.
 
-In the client, Report traffic in sight… opens a flyout where you type the advisory as you would say it (`2 4 w sr22 35`) and Enter sends the structured `RTIS`; it has no bare-`RTIS` or callsign entry. The session settings **Pre-fill traffic advisories** (leave the clock, miles and direction for you to work out) and **Live advisory check** (grade the call as you type it) change what it shows; see the [User Guide](USER_GUIDE.md).
+In the client, Report traffic in sight… opens a flyout where you type the advisory as you would say it (`2 4 w sr22 35`) and Enter sends the structured `RTIS`; it has no bare-`RTIS` or callsign entry. The session settings **Pre-fill traffic advisories** (set to **Left for the student**, it leaves the clock, miles and direction for you to work out) and **Live advisory check** (grade the call as you type it) change what it shows; see the [User Guide](USER_GUIDE.md).
 
-Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
+Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. In the client, Report field in sight… opens a flyout of the field's clock and miles, and Enter sends `RFIS {clock} {miles}`; with **Pre-fill traffic advisories** set to **Left for the student** it starts empty. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
 
 ## Built-In Safeguards
 

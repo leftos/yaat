@@ -1660,8 +1660,8 @@ A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` 
 
 | Procedure | Default | Enable via mode | Disable via mode |
 |-----------|---------|-----------------|------------------|
-| SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after `CM`, `CTO RH`, or vectors) | `CM` (any altitude command) |
-| STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` (any altitude command) |
+| SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after `CM`, `CTO RH`, or vectors) | `CM` or `DM` (any altitude command) |
+| STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` or `CM` (any altitude command) |
 
 `DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending.
 

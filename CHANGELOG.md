@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.17.0-beta [2026/10/22]
+
+### Highlights
+
+- Most right-click commands open live flyouts instead of lists or popups: headings, altitudes, speeds, fixes, approaches, holds, airways and traffic.
+- Ground flyouts preview the route as you point: Taxi to runway, Hold short of, Give way, Follow, exits and preset taxi routes.
+- Load Live Weather fetches NOAA GFS winds aloft that vary across the airspace.
+- Bug report bundles hide names, VATSIM IDs and server addresses, and keep the last three sessions' client logs.
 
 ### Added
 
@@ -23,7 +30,7 @@
 ### Changed
 
 - Report field in sight is a quick command for IFR aircraft holding or going around too, and gives way to Cleared visual once the pilot reports the field.
-- A jet or turboprop parked at a push-back stand asks "request pushback" instead of calling ready to taxi; `PUSH` or `TAXI` answers it.
+- In solo training, a jet or turboprop parked at a push-back stand asks "request pushback" instead of calling ready to taxi; `PUSH` or `TAXI` answers it.
 - A `PUSH` whose path passes too close to a parked aircraft is still accepted, and its readback warns "(holds short of {callsign})".
 - The right-click menu names the pointed quick-command icon in the line under its title, with no gap above the icons, and Command… and Note… follow the icons.
 - Release (HFR) and Check release window are the first icons in the menu's quick-command strip, also on a delayed spawn's menu.
@@ -75,8 +82,7 @@
 - A taxi to SFO gate D12 off taxiway A comes straight in from A instead of through the spot 6B alley.
 - `TAXI C D F` at Oakland goes up D, holds short of 15/33 there, then crosses onto F, instead of detouring along C.
 - Taxiing traffic gives way to an aircraft still leaving a runway, unless it stands in that aircraft's way out; a held one blocks only head-on traffic.
-- A runway crossing keeps to an assigned `SPD` and speeds up under `EXP`, instead of always crossing at the normal taxi speed.
-- A new `TAXI` without `EXP`, or `NORM`, ends a ground expedite instead of leaving the aircraft taxiing fast.
+- A runway crossing keeps to an assigned `SPD` instead of always crossing at the normal taxi speed.
 - An aircraft counts as clear of a runway only once every part of it, not just its main gear, is past the edge or hold line.
 - `CVA 28R OAK` keeps its airport, `CVA FOLLOW` no longer reads as a runway, and a visual approach clearance reads back its runway.
 - The web vStrips and vTDLS no longer fail when a timer is set or a conflict alert opens or clears in their room.
