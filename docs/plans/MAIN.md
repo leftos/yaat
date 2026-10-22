@@ -13,8 +13,8 @@
 - [ ] YAAT-728 Size the ground scope-preview ring to a helicopter's rotor disc
 - [ ] YAAT-729 Decide the Give way flyout's no-conflict note from the server's taxi route state
 - [ ] YAAT-758 Build the route ladder's bar-mark backing and connector, and test its Helipad end row
-- [ ] YAAT-762 Parked aircraft squawking standby should offer SQNORM in quick commands
-- [ ] YAAT-760 SCX8607 didn't offer Hold Short of T on Quick Commands
+- [ ] YAAT-762 Parked aircraft squawking standby should offer SQNORM in quick commands · release vNext
+- [/] YAAT-760 SCX8607 didn't offer Hold Short of T on Quick Commands · release vNext
 - [ ] YAAT-773 Extract one live-list helper for the quick-command flyouts that refill while open
 - [ ] YAAT-807 Show the empty-entries line when the Taxi to runway panel fails to render a landed search
 - [ ] YAAT-823 Leave the turn-off angle out of an exit row when the layout could not measure it
@@ -36,6 +36,7 @@
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
 - [ ] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
 - [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only
+- [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
 
 ## Bug reports and feature requests
 
@@ -78,9 +79,8 @@
 - [ ] YAAT-226 RTIS type slot takes a stray word; LLM prompt renders optional rule words
 - [ ] YAAT-345 STT: "climb via … except maintain 220 knots" maps the speed as a CVIA top altitude
 - [ ] YAAT-377 AtcOuroborosTests fail in some full-suite orders (canonical mismatch on 'proceed direct altam')
-- [ ] YAAT-679 Speech: `disregard` leaves the runwayInvalid veto latched, nulling a valid post-disregard clause (PhraseologyMapper)
-- [ ] YAAT-680 Speech: trailing GA callsign with a Whisper-mangled NATO suffix is dropped — unique-extension snap works leading but not trailing (CallsignParser)
 - [ ] YAAT-859 Map spoken taxi and cross 'without delay' to the ground EXP modifier
+- [ ] YAAT-1025 Strip a mangled GA suffix token on the leading callsign path too
 
 ## Wave 1 — Ground realism and braking
 
@@ -212,7 +212,7 @@
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
-- [ ] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross
+- [ ] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross · release vNext
 - [ ] YAAT-751 Name the intersection in the ready call at an intersection departure bar
 - [ ] YAAT-752 Name W1, not T - RAMP, in a follower's hold warning at the OAK runway 30 bar
 - [ ] YAAT-753 Line up on the end the aircraft holds at when CTO names a combined runway id
@@ -262,7 +262,6 @@
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
-- [ ] YAAT-829 Server rooms/hub: BroadcastRoomToAdmin leaks a suppressed room's delayed-spawn entries to admins during rewind/recording-load (missing IsBroadcastSuppressed guard)
 - [ ] YAAT-76 Find the second stuck-exit cause in the #429 FAT replay with a layout
 - [ ] YAAT-77 Repro or retire the stuck-in-LineUpPhase smell (N784ME)
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -291,7 +290,6 @@
 - [ ] YAAT-94 Make IdlePhaseAcceptsBlock follow the dispatcher's phase gate
 - [ ] YAAT-676 Make a JAWY intercept planned with no airway fix behind the aircraft fire
 - [ ] YAAT-677 Give a WAIT payload's conditional block its source text so a restore can rebuild it
-- [ ] YAAT-984 Command handlers: an applied CFIX issued with a DVIA loses its altitude reverts when the paired DVIA is dropped — aircraft never climbs back (NavigationCommandHandler, YAAT-956)
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -398,7 +396,6 @@
 
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
-- [ ] YAAT-776 CRC display state: a voice-type toggle never re-broadcasts the STARS/ASDE-X/SAID/ground track on a stationary aircraft (VoiceType omitted from four fingerprints)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-135 Record in-facility cab positions with SelectionCodeFor when ambiguous
@@ -472,7 +469,6 @@
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
 - [ ] YAAT-637 UNV ground map types a stand as patking; name the airport in the unknown-feature warning
 - [ ] YAAT-727 Refuse weather JSON whose root is not an object instead of throwing in a tick
-- [ ] YAAT-759 When auto-determining active runways, if all are deduced arrival-only, assume D&A
 - [ ] YAAT-947 Refuse JAWY on a military training route; point to CMTR
 - [ ] YAAT-1000 Give test-all an idle watchdog that names a stalled test host
 
@@ -559,7 +555,6 @@
 - [ ] YAAT-565 Send the full ICAO aircraft string in the room datafeed's flight_plan.aircraft
 - [ ] YAAT-566 Register the app's fonts in the headless UI test app so menu geometry matches the client
 - [ ] YAAT-568 Client driver: find_elements fails on a deep open flyout (object cycle / depth over 64)
-- [ ] YAAT-597 Add SPD FAS and SPN FAS as additions to RFAS
 - [ ] YAAT-602 Refuse an expired YAAT token at /vnas/auth/refresh instead of forwarding it to VATSIM
 - [ ] YAAT-607 Isolate the wake-table installers in yaat-server tests and document leftover-state leaks
 - [ ] YAAT-614 Turn a shots-folder write failure into a step or tool error in the client driver
@@ -620,7 +615,6 @@
 - [ ] YAAT-889 Use the harness's navdata resolver in DtoConverterAdwMarkTests
 - [ ] YAAT-890 Guard TestVnasData.SetTestDataDir against parallel writers
 - [ ] YAAT-891 Make RoomEngineTestHarness.CreateWithOakData's parameters required
-- [ ] YAAT-874 Client MainViewModel: a 2nd Strips tab opened after the vTDLS tab breaks tab-index arithmetic — pop-out leaves selection on a hidden tab
 - [ ] YAAT-876 docs: Task Index row for adding a modifier to a ground command (TAXI EXP)
 - [ ] YAAT-878 Gate the prepare-release and land-bot-pr pushes through the provenance check
 - [ ] YAAT-880 docs: Task Index rows for training-hub calls and the recording lifecycle
@@ -679,3 +673,5 @@
 ## No project
 
 - [ ] YAAT-1022 Make tools/test-all.ps1 routable to the Mac mini builder
+- [ ] YAAT-1023 Apply a crossing restriction's revert only when it continues the direction of flight · release vNext
+- [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
