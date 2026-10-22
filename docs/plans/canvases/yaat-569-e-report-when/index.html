@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report When Flyout</title>
+<style>
+  /* Layout: carried rulings and found notes, today's surfaces, then one artboard per state whose lanes sit side by side as columns. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 84ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .art-meta code, footer code, .note-box code, .switches code { font: 12px var(--f-mono); color: var(--accent); white-space: nowrap; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 0 0 24px; font-size: 13px; color: var(--muted); }
+  .switches label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; }
+  .switches b { color: var(--ink); font-weight: 600; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 124ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 8px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; }
+  .note-box .opts > span { display: block; padding-left: 14px; }
+  .note-box .opts i { font-style: normal; font: 600 11px var(--f-mono); color: var(--tag-b); }
+  .note-box .opts .w { color: var(--warn); }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 110ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap: 16px; align-items: start; }
+  .lanes.one { grid-template-columns: minmax(0, 1fr); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 110ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-direction: column; gap: 14px; }
+  .stage.row { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .flabel { font: 500 11px "JetBrains Mono", Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .pair { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 440px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; position: relative; }
+  .mi[data-send] { cursor: pointer; }
+  .mi[data-send]:hover { background: rgba(255, 255, 255, .085); }
+  .mi:focus-visible, .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mi.faint { opacity: .55; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title .r { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; flex: 0 0 auto; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .cmd { padding-left: 14px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .mi.dim > :not(.nm), .mi.dim .nm > .n { opacity: .5; }
+  .mi.dim .cmd { opacity: .35; }
+  .mi.dim .note { color: #ffc062; opacity: .9; }
+  .bdg { flex: 0 0 auto; border: 1px solid #e0a84a; color: #e0a84a; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .bdg.armed { border-color: #6ee0ce; color: #6ee0ce; }
+  .mono { font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
+  .panel { max-height: 300px; overflow-y: auto; scrollbar-color: #555 transparent; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+  .grp code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8f969e; }
+  .muted-line { font: 12.5px Inter, "Segoe UI", sans-serif; color: #a4adb8; padding: 6px 11px 6px; }
+
+  /* Tabs and the verb toggle, as FlyoutTabStrip and the heading flyout's toggle draw them. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 2px; align-items: center; }
+  .tab { font: 12px Inter, "Segoe UI", sans-serif; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px; padding: 3px 10px; cursor: pointer; white-space: nowrap; }
+  .tab small { font-size: 10.5px; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .seg { display: inline-flex; margin: 4px 11px 6px; border: 1px solid #3a414b; border-radius: 4px; overflow: hidden; }
+  .seg span { font: 12px Inter, "Segoe UI", sans-serif; color: #cfd5dc; background: #23272c; padding: 3px 12px; cursor: pointer; }
+  .seg span + span { border-left: 1px solid #3a414b; }
+  .seg span[aria-pressed="true"] { background: #24406a; color: #fff; }
+  .seg span.stop[aria-pressed="true"] { background: #5a2626; }
+
+  /* Boxes and chips. */
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px "JetBrains Mono", Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 4px 8px; height: 28px; width: 200px; }
+  .tbox.sm { width: 74px; }
+  .tbox::placeholder { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; }
+  .tbox:focus, .tbox.focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .tbox:disabled { opacity: .45; }
+  .chip { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 3px 8px; cursor: pointer; }
+  .chip:hover { background: #2e343b; }
+  .chip.inside { border-style: dashed; border-color: #ffc062; color: #ffd8a6; }
+  .chip.off { opacity: .4; cursor: default; }
+  .err { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ff8f8f; padding: 2px 0 0; }
+  .ok { font: 11.5px Inter, "Segoe UI", sans-serif; color: #9fe0c0; padding: 2px 0 0; }
+  .boxline { padding: 2px 11px 6px 41px; }
+
+  /* Lane B's pattern sketch and final ladder. */
+  .sketch { display: block; margin: 4px 11px 2px; }
+  .sketch .leg { cursor: pointer; }
+  .sketch .leg:hover path:first-child { stroke-opacity: .25; }
+  .sketch .leg.dim { cursor: default; opacity: .4; }
+  .lad { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; min-height: 26px; padding: 0 11px 0 6px; border-radius: 4px; cursor: pointer; }
+  .lad:hover { background: rgba(255, 255, 255, .085); }
+  .lad .rail { align-self: stretch; position: relative; }
+  .lad .rail::before { content: ""; position: absolute; left: 12px; top: 0; bottom: 0; border-left: 2px solid #4a515b; }
+  .lad .rail::after { content: ""; position: absolute; left: 8px; top: 50%; width: 10px; border-top: 2px solid #8f969e; }
+  .lad .nm .n { font: 13px "JetBrains Mono", Consolas, monospace; }
+  .lad.inside .nm .n, .lad.inside .cmd { opacity: .55; }
+  .lad.inside .note { color: #ffc062; }
+  .lad.dim { cursor: default; opacity: .45; }
+  .lad.here { cursor: default; min-height: 20px; }
+  .lad.here:hover { background: none; }
+  .lad.here .rail::after { left: 6px; width: 14px; height: 14px; top: 3px; border: 0; border-radius: 50%; background: #8fc1ff; }
+  .lad.here .nm { font: 11.5px Inter, "Segoe UI", sans-serif; color: #8fc1ff; }
+  .lad.rwy .rail::after { left: 3px; width: 20px; border-top: 4px solid #e4e7eb; }
+  .lad.rwy { cursor: default; }
+  .lad.rwy:hover { background: none; }
+
+  /* Today's popups. */
+  .inpop { background: rgba(24, 24, 24, .94); border: 1px solid #505050; padding: 8px; display: flex; gap: 4px; align-items: center; width: max-content; box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
+  .inpop .tbox { width: 160px; font-family: Inter, "Segoe UI", sans-serif; }
+  .btn { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: #3a3a3a; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 11px; }
+
+  /* The aircraft menu stub with its quick-command strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; white-space: nowrap; }
+  .strip { display: grid; grid-template-columns: repeat(5, 34px); gap: 4px; padding: 2px 11px 2px; }
+  .well { width: 34px; height: 34px; border-radius: 5px; background: #1f2226; display: grid; place-items: center; }
+  .well .gly { margin: 0; }
+  .well.open { background: #24406a; }
+  .slabel { font: 11.5px Inter, "Segoe UI", sans-serif; color: #ededed; padding: 4px 11px 6px; }
+  .slabel code { font: 11px "JetBrains Mono", Consolas, monospace; color: #b8b8b8; }
+
+  .callout { max-width: 360px; font: 11.5px/1.4 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #ffc062; font-weight: 600; }
+  .callout code { font: 11px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-1018 · family E · Report when… · mock for the owner's decisions</div>
+  <h1>Report when… flyout</h1>
+  <p class="lede">Family E is the <b>Report when…</b> group of All Commands › Approach: the four turn reports (<code>REPORT CROSSWIND</code>, <code>DOWNWIND</code>, <code>BASE</code>, <code>FINAL</code>), <b>At N-mile final…</b> (<code>REPORT {n} FINAL</code>), <b>At fix…</b> (<code>REPORT {fix}</code>) and the <b>Stop reporting</b> submenu (<code>REPORT OFF {leg}</code>, <code>REPORT OFF</code>). The two boxes are input popups today and strip defaults for VFR arrivals and departures; they send what is typed, unchecked.</p>
+  <p class="lede">The page draws three lanes for two aircraft: <b>A</b> rows with preset chips and checked boxes, Stop reporting as a section at the bottom; <b>B</b> a pattern sketch and a final ladder, Stop reporting on a tab; <b>C</b> one box shaped like the parser, its rows as suggestions, Stop reporting as a verb toggle. Rows, chips, tabs, toggles and boxes are live; the line under each lane says what a click or Enter sends.</p>
+  <p class="lede">Commands, refusals and the parser's rules are read from the source. The aircraft, their positions and the reporting-point distances and bearings are illustrative (approximate coordinates, 13° east declination); the reporting points and their names are the bundled ZOA visual points.</p>
+
+  <section class="note-box" aria-labelledby="carried-h">
+    <h2 id="carried-h">Carried from rulings and earlier parts (drawn as given, not as lanes)</h2>
+    <ul class="nl">
+      <li><b>Siblings are absorbed</b> (owner ruling, YAAT-1018). The Report when… flyout carries the whole group, the turn reports and Stop reporting included, so no Report when… or Stop reporting submenu is left in All Commands › Approach.</li>
+      <li><b>Flyout language</b> (parts B, C, D, F). A title line with the aircraft on the right; rows whose command column shows what a click or Enter sends; the outlined row or box is what Enter sends; a box shows its whole command beside it and a red line under it when it can send nothing.</li>
+      <li><b>A strip button opens on its own place</b> (the heading flyout's presets): Turn left opens the shared heading flyout on its box. Here the strip's At N-mile final… and At fix… open the one Report when… flyout, focused on their own row (decision 8).</li>
+      <li><b>Nothing to pick</b> (family F, decision 3). Where the sim has nothing to offer, the entry is disabled with the reason; the command bar covers the rest.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found while drawing (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>The At fix box sends any REPORT form.</b> It formats <code>REPORT {input}</code> (<code>MenuCatalog.cs:181</code>), so <code>OFF</code> typed as a fix name sends <code>REPORT OFF</code> and cancels every armed report, <code>BASE</code> arms the base report, and <code>5 FINAL</code> arms a mile-final report (<code>CommandParser.cs:2407-2453</code>).</li>
+      <li><b>The N-mile box does the same.</b> <code>REPORT {input} FINAL</code> (<code>MenuCatalog.cs:180</code>): <code>OFF</code> sends <code>REPORT OFF FINAL</code>, which cancels the turning-final report, not a mile-final one; <code>5.5</code> is refused (“unrecognized REPORT form”) after the popup has closed.</li>
+      <li><b>No single cancel for a mile-final or fix report.</b> <code>REPORT OFF FINAL</code> clears only the turning-final flag (<code>NavigationCommandHandler.cs:2290-2308</code>); a pending <code>REPORT 5 FINAL</code> or <code>REPORT VPCOL</code> goes only with bare <code>REPORT OFF</code>, which also clears every turn report (<code>AircraftApproachState.cs:142-152</code>).</li>
+      <li><b>A cancel always answers that it cancelled.</b> <code>REPORT OFF BASE</code> replies “Cancelled base report” whether or not one was armed (<code>NavigationCommandHandler.cs:2257-2260</code>), and no armed report reaches the client (<code>IMenuAircraft</code> has no such member), so the menu cannot show what is pending.</li>
+      <li><b>The parser takes report fixes of 2-5 characters only.</b> <code>LooksLikeFixToken</code> (<code>CommandParser.cs:2471-2472</code>) refuses <code>OAK30NUM</code> (“Oakland Runway 30 Numbers”, <code>ZOA/CustomFixes/oak-landmarks.json</code>), a landmark <code>DCT</code> flies to.</li>
+      <li><b>The menu offers what the sim refuses.</b> The turn reports are <code>Always</code> (<code>MenuCatalog.cs:176-179</code>) but refused outside a pattern circuit (“Unable, … is not in the pattern”, <code>NavigationCommandHandler.cs:2228-2231</code>); At N-mile final… is a VFR-inbound strip default (<code>QuickCommandDefaults.cs:183</code>) but refused with no runway assigned (“Unable, no runway assigned for final reporting”, <code>:2236-2239</code>), which an inbound VFR aircraft has until its pattern entry.</li>
+      <li><b>A mile-final report measures a straight line.</b> It fires when the distance to the assigned threshold is at most N, checked only once the aircraft is inbound to land (a landing clearance, an approach, or a final-approach phase; <code>PilotProactive.cs:198-206</code>, <code>ApproachCommandHandler.cs:2605-2614</code>). One armed on a downwind 1.4 NM from the threshold fires the moment that holds.</li>
+      <li><b>A fix report never fires off the path.</b> It fires within 0.5 NM of the fix (<code>PilotProactive.cs:178</code>, <code>:220-223</code>); a fix behind the aircraft stays armed until <code>REPORT OFF</code> or a full-stop landing, and a second <code>REPORT {fix}</code> silently replaces the first.</li>
+    </ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="switches" role="group" aria-label="Page switches">
+    <label><input type="checkbox" id="sw-check" checked> <b>Check the boxes</b></label><span>decision 3a; off: a box sends what is typed, as today.</span>
+    <label><input type="checkbox" id="sw-grey" checked> <b>Grey what the sim refuses</b></label><span>decision 5a; off: every row live.</span>
+    <label><input type="checkbox" id="sw-armed"> <b>Armed reports reach the client</b></label><span>decision 7b; on: armed rows marked, Stop lists only what is armed.</span>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <ol class="nl" id="decisions"></ol>
+  </section>
+
+  <footer class="foot">Glyphs are the built <code>QuickCommandGlyphs</code> paths at 22 px, stroke 1.9: At N-mile final… and At fix… in the tower amber <code>#FFC062</code>, the pattern entries in violet <code>#DDBDFF</code>. The turn reports and Stop reporting have no glyph, so their rows show an empty dashed slot. The sketch in lane B is drawn for right traffic on 28R, north up, landing west. The mock knows a handful of fixes (the five visual points, <code>OAK30NUM</code>, <code>OAK</code>, <code>SFO</code>, <code>SUNOL</code>, <code>MENLO</code>, <code>BRIXX</code>); “Not a known fix” for anything else stands for the nav-data check. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const TOWER = "#FFC062", PATTERN = "#DDBDFF";
+  const RECT = "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z";
+  const LT = `${RECT} M11 7.4 L9.4 9 L11 10.6`, RT = `${RECT} M11 13.4 L9.4 15 L11 16.6`;
+  const P = {
+    NMI: "M7 21l3-10h4l3 10 M12 14v1.5 M12 18v1.5 M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0",
+    FIX: "M12 10l6 11H6z M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0",
+    ELD: `${LT} M6.35 20.65 L10.15 16.85 M10.15 16.85 h-3 M10.15 16.85 v3`,
+    ERD: `${RT} M6.35 3.35 L10.15 7.15 M10.15 7.15 h-3 M10.15 7.15 v-3`,
+    ELB: `${LT} M17.5 23 V16.6 M17.5 16.6 l-2.2 2.2 M17.5 16.6 l2.2 2.2`,
+    ERB: `${RT} M17.5 1 V7.4 M17.5 7.4 l-2.2 -2.2 M17.5 7.4 l2.2 -2.2`,
+    EF: `${LT} M23.5 9 H19.1 M19.1 9 l2.2 -2.2 M19.1 9 l2.2 2.2`,
+    CTL: "M2 20h20 M5 6l11 9 M10 15h6v-6",
+    FOL: "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (path, color) => `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+  const blankG = `<span class="gly blank" aria-hidden="true"></span>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const grp = (l, r = "") => `<div class="grp"><span>${l}</span><code>${r}</code></div>`;
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+  const titleLine = (title, right) => `<div class="mi title"><span class="et"><b>${esc(title)}</b></span><span class="r">${right}</span></div>`;
+
+  /* ---------- State ---------- */
+  let CHECK = true, GREY = true, ARMED = false;
+  const TABS = {}, TOG = {}, BOXV = {};
+  const BUILD = {};
+  const reg = (key, fn) => { BUILD[key] = fn; return fn(); };
+  const redraw = key => { const el = document.querySelector(`[data-key="${key}"]`); if (el) el.outerHTML = BUILD[key](); };
+
+  /* ---------- Data ---------- */
+  const LEGS = [["CROSSWIND", "crosswind"], ["DOWNWIND", "downwind"], ["BASE", "base"], ["FINAL", "final"]];
+  const LEG_ALIAS = { CROSSWIND: "CROSSWIND", XW: "CROSSWIND", DOWNWIND: "DOWNWIND", DW: "DOWNWIND", BASE: "BASE", FINAL: "FINAL" };
+  const CANCEL = new Set(["OFF", "CANCEL", "NONE", "STOP"]);
+  const FIXNAME = { VPCOL: "Oakland Coliseum", VPMOR: "Mormon Temple", VPCBT: "Lake Chabot", VPMID: "Midspan San Mateo Bridge", VPSMB: "San Mateo Bridge Toll Plaza", OAK30NUM: "Oakland Runway 30 Numbers" };
+  const KNOWN = new Set([...Object.keys(FIXNAME), "OAK", "SFO", "SUNOL", "MENLO", "BRIXX"]);
+  const MILES = [2, 3, 5, 10];
+  const LADDER = [10, 8, 6, 5, 4, 3, 2, 1];
+  const AC = {
+    inb: { cs: "N52TW", type: "PA28", rwy: null, pattern: false, dist: null, armed: { legs: [], mile: null, fix: "VPCOL" },
+      fixes: [["VPSMB", 2.2, 212, "behind"], ["VPCBT", 4.8, 346], ["VPMID", 7.9, 232, "off the left wing"], ["VPCOL", 8.1, 313, "ahead"], ["VPMOR", 10.9, 323]] },
+    pat: { cs: "N738SP", type: "C172", rwy: "28R", pattern: true, dist: 1.4, armed: { legs: ["BASE"], mile: null, fix: null },
+      fixes: [["VPCOL", 0.8, 1], ["VPMOR", 4.1, 351], ["VPCBT", 4.8, 90], ["VPSMB", 8.1, 144], ["VPMID", 9.5, 181]] },
+  };
+  const NOT_PATTERN = ac => `${ac.cs} is not in the pattern — the sim answers “Unable, ${ac.cs} is not in the pattern”`;
+  const NO_RWY = "No runway assigned — the sim answers “Unable, no runway assigned for final reporting”";
+  const legDim = ac => GREY && !ac.pattern;
+  const mileDim = ac => GREY && !ac.rwy;
+  const brg = b => String(Math.round(b) || 360).padStart(3, "0");
+  const fixSub = f => [`${f[1].toFixed(1)} NM · ${brg(f[2])}°`, f[3]].filter(Boolean).join(" · ");
+
+  /* ---------- Box readers ---------- */
+  /** The mile box: whole miles, 1 or more, as the parser takes them. */
+  function mileCheck(raw) {
+    const v = raw.trim().toUpperCase();
+    if (!v) return {};
+    if (!CHECK) return { cmd: `REPORT ${v} FINAL` };
+    if (/^\d+$/.test(v)) return Number(v) >= 1 ? { cmd: `REPORT ${Number(v)} FINAL`, ok: `Pilot: “will report ${Number(v)}-mile final”` } : { err: "1 mile or more" };
+    if (/^\d*\.\d+$/.test(v)) return { err: "Whole miles only: the sim refuses 5.5" };
+    return { err: "Not a distance in miles" };
+  }
+  /** The fix box: a known fix of 2-5 characters, as the parser and the nav data take it. */
+  function fixCheck(raw) {
+    const v = raw.trim().toUpperCase();
+    if (!v) return {};
+    if (!CHECK) return { cmd: `REPORT ${v}` };
+    const toks = v.split(/\s+/);
+    if (toks.some(t => CANCEL.has(t))) return { err: `Not a fix: REPORT ${v} would cancel reports` };
+    if (toks.length === 1 && LEG_ALIAS[v]) return { err: `Not a fix: REPORT ${v} arms the turning-${LEG_ALIAS[v].toLowerCase()} report` };
+    if (toks.length > 1) return { err: "One fix name" };
+    if (KNOWN.has(v) && v.length > 5) return { err: `${v} is a known fix, but the sim takes report fixes of 2-5 characters` };
+    if (KNOWN.has(v)) return { cmd: `REPORT ${v}`, ok: `Pilot: “will report passing ${FIXNAME[v] || v}”` };
+    return { err: "Not a known fix" };
+  }
+  /** Lane C's one box: every REPORT target the parser reads, a bare number read as miles; cancels only under Stop. */
+  function anyCheck(raw, stop) {
+    const v = raw.trim().toUpperCase();
+    if (!v) return {};
+    const toks = v.split(/\s+/);
+    if (!CHECK) return { cmd: stop ? `REPORT OFF ${v}` : `REPORT ${v}` };
+    const leg = toks.map(t => LEG_ALIAS[t]).find(Boolean);
+    if (stop) {
+      if (toks.every(t => CANCEL.has(t) || t === "ALL")) return { cmd: "REPORT OFF", ok: "Cancels every armed report" };
+      if (toks.length === 1 && leg) return { cmd: `REPORT OFF ${leg}`, ok: `Cancels the turning-${leg.toLowerCase()} report` };
+      if (/\d/.test(v) || KNOWN.has(v)) return { err: "A mile-final or fix report is cancelled only by All reports" };
+      return { err: "A leg (base, final, crosswind, downwind) or blank for all" };
+    }
+    if (toks.some(t => CANCEL.has(t))) return { err: "Cancels go under Stop" };
+    const num = toks.find(t => /^\d*\.?\d+$/.test(t));
+    if (num !== undefined && (toks.length === 1 || (toks.length === 2 && toks.includes("FINAL")))) {
+      const m = mileCheck(num);
+      return m;
+    }
+    if (toks.length === 1 && leg) return { cmd: `REPORT ${leg}`, ok: `Pilot: “will report turning ${leg.toLowerCase()}”` };
+    if (toks.length === 1) return fixCheck(v);
+    return { err: "Not a leg, a mile final or a fix" };
+  }
+
+  /* ---------- Rows ---------- */
+  /** One row: o.g glyph, o.n name, o.notes, o.badge, o.badgeCls, o.cmd, o.dim (+ o.why), o.focus, o.mono, o.hide. */
+  function row(o) {
+    const cls = ["mi"];
+    if (o.dim) cls.push("dim");
+    if (o.focus && !o.dim) cls.push("kfocus");
+    const notes = (o.notes || []).filter(Boolean).map(t => `<span class="note">· ${esc(t)}</span>`).join("");
+    const badge = o.badge ? `<span class="bdg${o.badgeCls ? ` ${o.badgeCls}` : ""}">${esc(o.badge)}</span>` : "";
+    const attrs = o.dim ? ` data-dim="${esc(o.why)}" aria-disabled="true" tabindex="-1"` : ` data-send="${esc(o.cmd)}" tabindex="0"`;
+    const g = o.g === null ? "" : (o.g || blankG);
+    const grid = o.g === null ? ` style="grid-template-columns:minmax(0,1fr) auto auto"` : "";
+    const line1 = `<span class="n${o.mono ? " mono" : ""}">${esc(o.n)}</span>${badge}${notes}`;
+    const nm = o.sub ? `<span class="nm col"><span class="nm">${line1}</span><span class="note">${esc(o.sub)}</span></span>` : `<span class="nm">${line1}</span>`;
+    return `<div class="${cls.join(" ")}" role="menuitem"${attrs}${grid}>${g}${nm}<span></span><span class="cmd">${esc(o.cmd)}</span></div>`;
+  }
+  const armedLeg = (ac, L) => ARMED && ac.armed.legs.includes(L);
+  const legRow = (ac, L, w, o = {}) => row({ n: `Turning ${w}`, cmd: `REPORT ${L}`, dim: legDim(ac), why: NOT_PATTERN(ac), notes: legDim(ac) ? ["not in the pattern"] : (o.notes || []), badge: armedLeg(ac, L) ? "armed" : null, badgeCls: "armed", focus: o.focus });
+  const fixRow = (ac, f, o = {}) => row({ g: o.g, n: f[0], mono: true, notes: [FIXNAME[f[0]]], sub: fixSub(f), cmd: `REPORT ${f[0]}`, badge: ARMED && ac.armed.fix === f[0] ? "armed" : null, badgeCls: "armed", focus: o.focus });
+  /** A box: key, kind (mile, fix, any), placeholder, width class, focus. */
+  const box = (key, kind, ph, o = {}) => `<input class="tbox${o.sm ? " sm" : ""}${o.focus ? " focus" : ""}" type="text" data-box="${kind}" data-k="${key}" value="${esc(BOXV[`${key}|${kind}`] || "")}" placeholder="${esc(ph)}" aria-label="${esc(ph)}" autocomplete="off" spellcheck="false"${o.disabled ? " disabled" : ""}>`;
+  const KEYAC = {};
+  const readOf = (key, kind) => {
+    const raw = BOXV[`${key}|${kind}`] || "";
+    if (kind === "mile") return mileCheck(raw);
+    if (kind === "fix") return fixCheck(raw);
+    const r = anyCheck(raw, TOG[key] === "stop");
+    const ac = KEYAC[key];
+    if (CHECK && ac && r.cmd && TOG[key] !== "stop") {
+      if (/ FINAL$/.test(r.cmd) && /\d/.test(r.cmd) && mileDim(ac)) return { err: "No runway assigned: the sim refuses a mile-final report" };
+      if (/^REPORT (CROSSWIND|DOWNWIND|BASE|FINAL)$/.test(r.cmd) && legDim(ac)) return { err: `${ac.cs} is not in the pattern: the sim refuses a turn report` };
+    }
+    return r;
+  };
+  const msg = r => r.err ? `<div class="err">${esc(r.err)} — Enter sends nothing.</div>` : r.ok ? `<div class="ok">${esc(r.ok)}</div>` : "";
+  const typed = (key, kind) => (BOXV[`${key}|${kind}`] || "").trim().toUpperCase();
+  const fixMatches = (ac, t) => ac.fixes.filter(f => !t || f[0].startsWith(t) || (FIXNAME[f[0]] || "").toUpperCase().split(/\s+/).some(w => w.startsWith(t)));
+  /** The Stop reporting rows: the four legs (or the armed ones), the armed mile and fix reports greyed, then All reports. */
+  function stopRows(ac) {
+    const legs = ARMED ? LEGS.filter(([L]) => ac.armed.legs.includes(L)) : LEGS;
+    let h = legs.map(([L, w]) => row({ n: w[0].toUpperCase() + w.slice(1), cmd: `REPORT OFF ${L}`, badge: ARMED ? "armed" : null, badgeCls: "armed" })).join("");
+    if (ARMED && ac.armed.fix) h += row({ n: `Passing ${ac.armed.fix}`, mono: false, notes: ["cancelled only with All reports"], badge: "armed", badgeCls: "armed", cmd: "", dim: true, why: "The sim has no single cancel for a fix report: REPORT OFF clears it with every other report" });
+    if (ARMED && ac.armed.mile) h += row({ n: `${ac.armed.mile}-mile final`, notes: ["cancelled only with All reports"], badge: "armed", badgeCls: "armed", cmd: "", dim: true, why: "The sim has no single cancel for a mile-final report" });
+    if (ARMED && !legs.length && !ac.armed.fix && !ac.armed.mile) h += `<div class="muted-line">Nothing armed.</div>`;
+    if (legs.length) h += sep();
+    h += row({ n: "All reports", cmd: "REPORT OFF", notes: ["every leg, mile-final and fix report"] });
+    return h;
+  }
+  const fly = (key, inner, label) => `<div class="menu m w fly" role="menu" aria-label="${esc(label)}" data-key="${key}">${inner}</div>`;
+  const right = ac => `${ac.cs} · ${ac.rwy ? `RWY ${ac.rwy}` : "no runway"}`;
+
+  /* ---------- Lane A: rows, preset chips and checked boxes; Stop reporting at the bottom ---------- */
+  function laneA(ac, key, focus) {
+    let h = titleLine("Report when…", right(ac));
+    h += grp("Turning · repeats each circuit until stopped");
+    h += LEGS.map(([L, w]) => legRow(ac, L, w)).join("");
+    h += sep();
+    const md = mileDim(ac);
+    const mr = readOf(key, "mile");
+    const chips = MILES.map(n => {
+      const inside = ac.dist !== null && n >= ac.dist;
+      return md ? `<span class="chip off">${n}</span>` : `<span class="chip${inside ? " inside" : ""}" data-send="REPORT ${n} FINAL" title="${inside ? "inside already: fires as soon as the aircraft is inbound to land" : `REPORT ${n} FINAL`}">${n}</span>`;
+    }).join("");
+    const mcmd = md ? "REPORT ··· FINAL" : (mr.cmd || "REPORT ··· FINAL");
+    h += `<div class="mi${md ? " dim" : ""}${focus === "mile" && md ? " kfocus" : ""}" role="menuitem"${md ? ` data-dim="${esc(NO_RWY)}"` : ""}>${gl(P.NMI, TOWER)}<span class="nm col"><span class="n">Mile final${md ? ` <span class="note">· no runway assigned</span>` : ac.dist !== null ? ` <span class="note">· now ${ac.dist} NM from ${ac.rwy}, straight line</span>` : ""}</span><span class="under">${chips}${box(key, "mile", "miles", { sm: true, focus: focus === "mile" && !md, disabled: md })}</span>${md ? "" : msg(mr)}</span><span></span><span class="cmd${mr.cmd && !md ? "" : " wait"}">${esc(mcmd)}</span></div>`;
+    const fr = readOf(key, "fix");
+    const t = typed(key, "fix");
+    h += `<div class="mi" role="menuitem">${gl(P.FIX, TOWER)}<span class="nm col"><span class="n">Passing a fix</span><span class="under">${box(key, "fix", "fix name, e.g. VPCOL", { focus: focus === "fix" })}</span>${msg(fr)}</span><span></span><span class="cmd${fr.cmd ? "" : " wait"}">${esc(fr.cmd || "REPORT ···")}</span></div>`;
+    const list = fixMatches(ac, t);
+    h += grp(`Reporting points · nearest first`, `${list.length}`) + `<div class="panel">${list.map(f => fixRow(ac, f)).join("") || `<div class="muted-line">No reporting point near starts with ${esc(t)}.</div>`}</div>`;
+    h += sep() + grp("Stop reporting") + stopRows(ac);
+    return fly(key, h, "Report when…");
+  }
+
+  /* ---------- Lane B: a pattern sketch and a final ladder; Stop reporting on a tab ---------- */
+  function sketch(ac, stop) {
+    const dim = legDim(ac);
+    const leg = (L, d, lx, ly, anchor) => {
+      const cmd = stop ? `REPORT OFF ${L}` : `REPORT ${L}`;
+      const armed = armedLeg(ac, L);
+      const col = armed ? "#6ee0ce" : stop ? "#ff9f9f" : "#DDBDFF";
+      const attrs = dim && !stop ? ` class="leg dim" data-dim="${esc(NOT_PATTERN(ac))}"` : ` class="leg" data-send="${cmd}"`;
+      return `<g${attrs}><path d="${d}" stroke="${col}" stroke-width="14" stroke-opacity="0" fill="none"/><path d="${d}" stroke="${col}" stroke-width="2.4" fill="none" stroke-linecap="round"/><text x="${lx}" y="${ly}" fill="${col}" font-size="11" font-family="Inter, Segoe UI, sans-serif" text-anchor="${anchor}">${L.toLowerCase()}${armed ? " · armed" : ""}</text></g>`;
+    };
+    return `<svg class="sketch" width="320" height="120" viewBox="0 0 320 120" role="img" aria-label="Right traffic for runway 28R">
+      <rect x="112" y="83" width="104" height="11" rx="1" fill="#3a3f46" stroke="#8f969e"/>
+      <text x="164" y="92" fill="#e4e7eb" font-size="9.5" font-family="JetBrains Mono, Consolas, monospace" text-anchor="middle">28R ←</text>
+      <path d="M112 88 H76" stroke="#5a6068" stroke-width="1.6" stroke-dasharray="3 3"/>
+      <text x="94" y="106" fill="#8f969e" font-size="10" font-family="Inter, Segoe UI, sans-serif" text-anchor="middle">upwind</text>
+      ${leg("CROSSWIND", "M72 84 V30", 78, 60, "start")}
+      ${leg("DOWNWIND", "M76 26 H264", 170, 16, "middle")}
+      ${leg("BASE", "M268 30 V84", 262, 60, "end")}
+      ${leg("FINAL", "M264 88 H220", 242, 108, "middle")}
+      ${ac.pattern ? `<circle cx="200" cy="26" r="5" fill="#8fc1ff"/><text x="200" y="44" fill="#8fc1ff" font-size="10" font-family="Inter, Segoe UI, sans-serif" text-anchor="middle">${ac.cs}</text>` : ""}
+    </svg>`;
+  }
+  function ladder(ac, focus) {
+    const dim = mileDim(ac);
+    const rows = [];
+    let placed = ac.dist === null;
+    LADDER.forEach((n, i) => {
+      if (!placed && n < ac.dist) { rows.push(`<div class="lad here"><span class="rail"></span><span class="nm">${ac.cs} · now ${ac.dist} NM · rows above fire once inbound to land</span><span></span></div>`); placed = true; }
+      const inside = ac.dist !== null && n >= ac.dist;
+      const cmd = `REPORT ${n} FINAL`;
+      const attrs = dim ? ` data-dim="${esc(NO_RWY)}"` : ` data-send="${cmd}" tabindex="0"`;
+      const f = focus === "mile" && i === 3 && !dim ? " kfocus" : "";
+      rows.push(`<div class="lad mi${dim ? " dim" : ""}${inside ? " inside" : ""}${f}"${attrs}><span class="rail"></span><span class="nm"><span class="n">${n} NM</span>${inside ? `<span class="note">· inside now</span>` : ""}</span><span class="cmd">${cmd}</span></div>`);
+    });
+    if (!placed) rows.push(`<div class="lad here"><span class="rail"></span><span class="nm">${ac.cs} · now ${ac.dist} NM</span><span></span></div>`);
+    rows.push(`<div class="lad rwy"><span class="rail"></span><span class="nm" style="font-size:11.5px;color:#a4adb8">${ac.rwy ? `threshold ${ac.rwy}` : "threshold · no runway assigned"}</span><span></span></div>`);
+    return rows.join("");
+  }
+  function laneB(ac, key, focus) {
+    const stop = TABS[key] === 1;
+    let h = titleLine("Report when…", right(ac));
+    h += `<div class="tabs" role="tablist"><span class="tab" role="tab" tabindex="0" aria-selected="${!stop}" data-tab="${key}|0">Report</span><span class="tab" role="tab" tabindex="0" aria-selected="${stop}" data-tab="${key}|1">Stop reporting${ARMED ? `<small>${ac.armed.legs.length + (ac.armed.fix ? 1 : 0) + (ac.armed.mile ? 1 : 0)} armed</small>` : ""}</span></div>`;
+    if (stop) {
+      h += grp("Click a leg to stop its report");
+      h += ac.rwy ? sketch(ac, true) : "";
+      h += stopRows(ac);
+      return fly(key, h, "Report when…");
+    }
+    if (ac.rwy) {
+      h += grp("Turning · click a leg · repeats each circuit") + sketch(ac, false);
+    } else {
+      h += `<div class="muted-line">No runway assigned: the pattern sketch waits for a pattern entry.</div>`;
+      h += LEGS.map(([L, w]) => legRow(ac, L, w)).join("");
+    }
+    h += sep() + grp(`Mile final${ac.rwy ? ` · RWY ${ac.rwy}` : ""}`, "straight line");
+    h += `<div class="panel" style="max-height:236px">${ladder(ac, focus)}</div>`;
+    h += sep() + grp("Passing a fix · nearest first", `${ac.fixes.length}`);
+    h += `<div class="panel">${ac.fixes.map((f, i) => fixRow(ac, f, { g: gl(P.FIX, TOWER), focus: focus === "fix" && i === 0 })).join("")}</div>`;
+    const fr = readOf(key, "fix");
+    h += `<div class="mi" role="menuitem">${blankG}<span class="nm col"><span class="n">Another fix</span><span class="under">${box(key, "fix", "fix name")}</span>${msg(fr)}</span><span></span><span class="cmd${fr.cmd ? "" : " wait"}">${esc(fr.cmd || "REPORT ···")}</span></div>`;
+    return fly(key, h, "Report when…");
+  }
+
+  /* ---------- Lane C: one parser-shaped box with suggestion rows; Stop reporting as a verb toggle ---------- */
+  function laneC(ac, key) {
+    KEYAC[key] = ac;
+    const stop = TOG[key] === "stop";
+    let h = titleLine("Report when…", right(ac));
+    h += `<div class="seg" role="group" aria-label="Verb"><span data-tog="${key}|report" aria-pressed="${!stop}">Report</span><span class="stop" data-tog="${key}|stop" aria-pressed="${stop}">Stop reporting</span></div>`;
+    const r = readOf(key, "any");
+    const ph = stop ? "base, downwind… or blank for all" : "base · 5 final · VPCOL";
+    const blankCmd = stop ? "REPORT OFF" : "REPORT ···";
+    h += `<div class="mi" role="menuitem">${blankG}<span class="nm col"><span class="n">${stop ? "Stop reporting" : "Report when"}</span><span class="under">${box(key, "any", ph, { focus: true })}</span>${msg(r)}</span><span></span><span class="cmd${r.cmd || stop ? "" : " wait"}">${esc(r.cmd || blankCmd)}</span></div>`;
+    const t = typed(key, "any");
+    const toks = t.split(/\s+/).filter(Boolean);
+    const hit = s => !toks.length || toks.some(k => s.toUpperCase().split(/\s+/).some(w => w.startsWith(k)));
+    h += sep();
+    if (stop) {
+      h += grp("Armed reports to stop") + stopRows(ac);
+      h += `<div class="muted-line">A mile-final or fix report has no single cancel; All reports clears it.</div>`;
+      return fly(key, h, "Report when…");
+    }
+    const legs = LEGS.filter(([L, w]) => hit(`${L} ${w} turning ${L === "CROSSWIND" ? "XW" : L === "DOWNWIND" ? "DW" : ""}`));
+    const miles = ac.rwy || !GREY ? [3, 5, 10].filter(n => !toks.length || toks.some(k => String(n).startsWith(k) || "FINAL".startsWith(k) || "MILE".startsWith(k))) : [];
+    const fixes = fixMatches(ac, toks.length === 1 ? toks[0] : "").slice(0, 4).filter(f => toks.length <= 1);
+    let rows = "";
+    if (legs.length) rows += grp("Turning") + legs.map(([L, w]) => legRow(ac, L, w)).join("");
+    if (miles.length) rows += grp(`Mile final · RWY ${ac.rwy || "?"}`, ac.dist !== null ? `now ${ac.dist} NM` : "") + miles.map(n => row({ g: gl(P.NMI, TOWER), n: `${n}-mile final`, notes: ac.dist !== null && n >= ac.dist ? ["inside now"] : [], cmd: `REPORT ${n} FINAL` })).join("");
+    else if (!ac.rwy && GREY && (!toks.length || /\d/.test(t))) rows += grp("Mile final") + `<div class="muted-line">No runway assigned: no mile-final rows.</div>`;
+    if (fixes.length) rows += grp("Passing a fix · nearest first") + fixes.map(f => fixRow(ac, f, { g: gl(P.FIX, TOWER) })).join("");
+    h += `<div class="panel">${rows || `<div class="muted-line">No suggestion matches ${esc(t)}; Enter sends the box if it reads.</div>`}</div>`;
+    return fly(key, h, "Report when…");
+  }
+
+  /* ---------- The aircraft menu stub ---------- */
+  function acMenu(o) {
+    const cells = o.cells.map(c => `<span class="well${c.open ? " open" : ""}" title="${esc(c.l)}">${gl(c.p, c.c)}</span>`).join("");
+    const rows = (o.rows || ["Command…", "All Commands"]).map(l => `<div class="mi plain faint"><span>${esc(l)}</span><span></span><span class="chev">${l === "All Commands" ? "›" : ""}</span></div>`).join("");
+    return `<div class="menu m" role="menu" aria-label="Aircraft menu" style="width:290px"><div class="mtitle">${esc(o.title)}</div><div class="mstate">${esc(o.state)}</div><div class="strip">${cells}</div><div class="slabel">${o.label}</div>${sep()}${rows}</div>`;
+  }
+  const CELLS_INB = [
+    { p: P.ELD, c: PATTERN, l: "Enter left downwind" }, { p: P.ERD, c: PATTERN, l: "Enter right downwind" }, { p: P.ELB, c: PATTERN, l: "Enter left base" },
+    { p: P.ERB, c: PATTERN, l: "Enter right base" }, { p: P.EF, c: PATTERN, l: "Make straight-in" }, { p: P.NMI, c: TOWER, l: "At N-mile final…", open: true },
+    { p: P.FIX, c: TOWER, l: "At fix…" }, { p: P.CTL, c: TOWER, l: "Cleared to land" }, { p: P.FOL, c: PATTERN, l: "Follow traffic…" },
+  ];
+  const excerpt = (rows, width = 300) => `<div class="menu m" role="menu" style="width:${width}px">${rows.map(([l, c, f]) => l === "-" ? sep() : `<div class="mi plain${f === "faint" ? " faint" : ""}"><span>${l}</span><span class="cmd">${esc(c || "")}</span><span class="chev">${f === "sub" ? "›" : ""}</span></div>`).join("")}</div>`;
+  const inpop = ph => `<div class="inpop m"><input class="tbox" type="text" placeholder="${esc(ph)}" aria-label="${esc(ph)}" autocomplete="off" spellcheck="false"><span class="btn">OK</span><span class="btn">Clear</span></div>`;
+
+  /* ---------- Artboards ---------- */
+  const today = {
+    id: "e0-today", title: "Today · a submenu, a nested submenu and two input popups", sends: "REPORT <leg> · REPORT <n> FINAL · REPORT <fix> · REPORT OFF [leg]",
+    intro: [
+      "All Commands › Approach ends in <b>Report when…</b>, a submenu of the four turn reports (base and final first), the two boxes and a nested <b>Stop reporting</b> submenu. At N-mile final… and At fix… are also strip buttons for a VFR arrival inbound (and At fix… for a VFR departure); each opens a bare input popup.",
+    ],
+    lanes: [{ kind: "a", name: "As built",
+      body: () => `<div class="stage row">
+        ${frame("Strip › <b>At N-mile final…</b> (N52TW, VFR inbound)", acMenu({ title: "N52TW · PA28", state: "VFR arrival · KOAK · 2,000 · 105 kt", cells: CELLS_INB, label: "At N-mile final… ›" }))}
+        ${frame("All Commands › Approach (excerpt)", excerpt([["Cleared approach", "", "sub"], ["Cleared visual approach", "", "faint"], ["-"], ["Report field in sight…", "", "faint"], ["Report traffic in sight…", "", "faint"], ["Follow traffic…", "", "faint"], ["-"], ["Report when…", "", "sub"]], 260))}
+        ${frame("› <b>Report when…</b>", excerpt([["Turning base", "REPORT BASE"], ["Turning final", "REPORT FINAL"], ["Turning crosswind", "REPORT CROSSWIND"], ["Turning downwind", "REPORT DOWNWIND"], ["At N-mile final…", ""], ["At fix…", ""], ["-"], ["Stop reporting", "", "sub"]], 290))}
+        ${frame("› Report when… › <b>Stop reporting</b>", excerpt([["Base", "REPORT OFF BASE"], ["Final", "REPORT OFF FINAL"], ["Crosswind", "REPORT OFF CROSSWIND"], ["Downwind", "REPORT OFF DOWNWIND"], ["-"], ["All reports", "REPORT OFF"]], 270))}
+        ${frame("At N-mile final… › <b>input popup</b> · <code>REPORT {text} FINAL</code>", `<div class="pair">${inpop("Distance (NM)")}<div class="callout"><b>“OFF” sends</b> <code>REPORT OFF FINAL</code>: it cancels the turning-final report. <b>“5.5”</b> is refused after the popup closes.</div></div>`)}
+        ${frame("At fix… › <b>input popup</b> · <code>REPORT {text}</code>", `<div class="pair">${inpop("Fix name")}<div class="callout"><b>“OFF” sends</b> <code>REPORT OFF</code> and cancels every report; <b>“BASE”</b> arms the base report; <b>“OAK30NUM”</b> is refused by the parser.</div></div>`)}
+      </div>`,
+      how: "Rows send at once and close; the two popups send what is typed, unchecked, and close; blank closes. Nothing says which reports are armed, and nothing greys what the sim will refuse.",
+      worst: "An instructor who types OFF in At fix… to drop a fix report sends REPORT OFF: every turn report armed for the circuit goes with it, and the sim answers “Reports cancelled”." }],
+  };
+
+  const lanesFor = (ac, sfx, t) => [
+    { kind: "a", name: "Rows, preset chips and checked boxes", body: () => frame(t.a, reg(`a${sfx}`, () => laneA(ac, `a${sfx}`, t.focus))), how: t.howA, worst: t.worstA },
+    { kind: "b", name: "Pattern sketch and final ladder", body: () => frame(t.b, reg(`b${sfx}`, () => laneB(ac, `b${sfx}`, t.focus))), how: t.howB, worst: t.worstB },
+    { kind: "c", name: "One box shaped like the parser", body: () => frame(t.c, reg(`c${sfx}`, () => laneC(ac, `c${sfx}`, t.focus))), how: t.howC, worst: t.worstC },
+  ];
+  const e1 = {
+    id: "e1-inbound", title: "1 · VFR arrival inbound, no runway yet", sends: "REPORT <fix> · REPORT <n> FINAL (refused: no runway) · REPORT <leg> (refused: not in the pattern)",
+    intro: [
+      "<b>N52TW</b>, a PA28, VFR inbound to KOAK from the south-east at 2,000 ft, heading 310, 9 NM out; no runway assigned and no pattern entry yet. Its strip offers At N-mile final… and At fix…; the frames show the flyout as the <b>At N-mile final…</b> button opens it. Turn <b>Armed reports reach the client</b> on to see it with <code>REPORT VPCOL</code> already armed.",
+    ],
+    lanes: lanesFor(AC.inb, "1", {
+      focus: "mile",
+      a: "Strip › <b>At N-mile final…</b> › flyout on Mile final", b: "Strip › <b>At N-mile final…</b> › flyout on the ladder", c: "Strip › <b>At N-mile final…</b> › flyout, focus in the box",
+      howA: "Four turn rows, a <b>Mile final</b> row with chips 2 3 5 10 and a miles box, a <b>Passing a fix</b> box over the reporting points nearest first, then Stop reporting. The boxes read their text as the sim will and refuse in red; Enter sends only a command that reads.",
+      worstA: "Opened from At N-mile final…, the flyout lands on a greyed row: N52TW has no runway until its pattern entry, so its own strip default is dead and the live part, the fix list, sits below it.",
+      howB: "With no runway the sketch is replaced by a line and four greyed turn rows; the ladder of 10 to 1 NM is greyed to its threshold; the reporting points follow with distance and bearing, then an Another fix box.",
+      worstB: "Half the flyout is a greyed ladder with nothing to measure from; the fix list, the only live part, starts below the fold of a 300 px panel.",
+      howC: "One box takes what the instructor would type after REPORT (<code>base</code>, <code>5 final</code>, a bare <code>5</code>, <code>VPCOL</code>) and previews the command; the rows below are suggestions filtered by the text. Cancels go under the toggle's Stop side.",
+      worstC: "The instructor must know what the box takes: “coliseum” lists VPCOL below but the box itself refuses it, and “three mile final” reads as nothing.",
+    }),
+  };
+  const e2 = {
+    id: "e2-pattern", title: "2 · In the pattern, runway 28R", sends: "REPORT <leg> · REPORT <n> FINAL · REPORT <fix> · REPORT OFF [leg]",
+    intro: [
+      "<b>N738SP</b>, a C172 in closed traffic, right downwind 28R at 1,000 ft, 1.4 NM from the 28R threshold in a straight line; runway 28R assigned. Opened from All Commands › Approach › Report when…. Turn <b>Armed reports reach the client</b> on to see it with <code>REPORT BASE</code> armed for every circuit.",
+    ],
+    lanes: lanesFor(AC.pat, "2", {
+      focus: null,
+      a: "All Commands › Approach › <b>Report when…</b> › flyout", b: "All Commands › Approach › <b>Report when…</b> › flyout, Report tab", c: "All Commands › Approach › <b>Report when…</b> › flyout",
+      howA: "All four turn rows live. The 2, 3, 5 and 10 chips are dashed amber: each is at least the 1.4 NM the aircraft already is from the threshold. Stop reporting's five rows end the flyout.",
+      worstA: "A dashed chip still sends: REPORT 2 FINAL picked on the downwind fires the moment the aircraft turns final, and only a tooltip says why.",
+      howB: "The legs of the circuit are drawn and clicked (crosswind, downwind, base, final); the ladder marks where N738SP is, the rows above it noted “inside now”. The Stop reporting tab draws the same legs in red, sending <code>REPORT OFF {leg}</code>.",
+      worstB: "The ladder stops at 10 NM and the sketch draws one side of one runway: a 12-mile report means the command bar, and a click on the sketch's thin downwind line is a 2 px target with a 14 px halo.",
+      howC: "The same box; with an empty box the rows suggest the four legs, 3, 5 and 10-mile finals and the four nearest points. The toggle's Stop reporting side turns the box and the rows into cancels.",
+      worstC: "One click on the toggle turns every row into a cancel; Report and Stop rows differ only in their command column and the toggle's colour.",
+    }),
+  };
+  const ARTS = [today, e1, e2];
+  const NAV = ["Today", "1 Inbound, no runway", "2 In the pattern"];
+
+  /* ---------- Decisions ---------- */
+  const DEC = [
+    ["Lane", [
+      ["A", "rows, preset chips and checked boxes; Stop reporting as the bottom section", "Opened from At N-mile final…, the flyout lands on a greyed row: N52TW has no runway until its pattern entry, so its own strip default is dead and the live part, the fix list, sits below it."],
+      ["B", "a pattern sketch and a final ladder; Stop reporting on a tab", "The ladder stops at 10 NM and the sketch draws one side of one runway: a 12-mile report means the command bar, and a click on the sketch's thin downwind line is a 2 px target with a 14 px halo."],
+      ["C", "one parser-shaped box with suggestion rows; Stop reporting as a verb toggle", "The instructor must know what the box takes: “coliseum” lists VPCOL below but the box itself refuses it, and “three mile final” reads as nothing."],
+    ]],
+    ["Mile final input", [
+      ["a", "chips 2, 3, 5, 10 and a miles box (lane A)", "7 or 12 miles means typing, and a chip already inside the aircraft still sends."],
+      ["b", "a ladder of 10 to 1 NM with the aircraft's distance marked, no box (lane B)", "12 miles means the command bar, and the ladder is eight rows tall for one choice."],
+      ["c", "three suggestion rows (3, 5, 10) under the one box (lane C)", "Any distance but 3, 5 or 10 is typed, and with no runway the three rows are not shown at all."],
+    ]],
+    ["Checking the boxes", [
+      ["a", "the flyout reads a box as the sim will: whole miles, 1 or more; a known fix of 2-5 characters; no leg or cancel word in the fix box. A box that does not read shows why in red and Enter sends nothing", "OAK30NUM is a known fix (“Oakland Runway 30 Numbers”) the parser will not take: the box refuses it until LooksLikeFixToken is widened."],
+      ["b", "send as typed, as today; the sim refuses after the flyout closes", "OFF typed in the fix box sends REPORT OFF and cancels every armed report."],
+    ]],
+    ["Where the fixes come from", [
+      ["a", "reporting points near the aircraft, nearest first, then a typed search over every fix (as drawn)", "VPSMB is nearest but 2.2 NM behind N52TW: picked, it never fires and stays armed until REPORT OFF or the landing."],
+      ["b", "the route's fixes (Direct to's list), then a typed search", "A VFR arrival that files no route gets a list holding nothing but its destination."],
+      ["c", "a box only, checked against the nav data", "Typing “Coliseum” finds nothing: the instructor must know the identifier VPCOL."],
+    ]],
+    ["Greying what the sim refuses", [
+      ["a", "grey the turn rows unless the phase pipeline holds a pattern leg, and Mile final unless a runway is assigned, each with the sim's own reason (as drawn)", "The gate must read the phase pipeline (IMenuAircraft.PhaseSequence), not the pattern position: an aircraft told ELD 28R but still 6 NM out already has its downwind and base queued, and the sim takes REPORT BASE."],
+      ["b", "every row live; the sim refuses after the flyout closes", "Turning base for N52TW closes the menu and the sim answers “Unable, N52TW is not in the pattern”."],
+    ]],
+    ["Where Stop reporting sits", [
+      ["a", "a section at the bottom of the flyout (lane A)", "The longest flyout: five Stop rows sit under rows the aircraft cannot use yet."],
+      ["b", "a tab beside Report (lane B)", "Stop is a click away, and the tab shows nothing of what is armed unless 7b."],
+      ["c", "a Report / Stop toggle that turns each row's verb (lane C)", "One click on the toggle turns every row into a cancel; the rows differ only in their command column."],
+    ]],
+    ["Armed reports", [
+      ["a", "none, as today: Stop lists every leg and All reports", "Stop reporting › Base answers “Cancelled base report” whether or not one was armed, so the instructor cannot tell what is pending."],
+      ["b", "the aircraft update carries the armed reports (sim, server and client): armed rows are marked and Stop lists only what is armed, a mile-final or fix report greyed “cancelled only with All reports”", "A new field on AircraftUpdated in both repos for a menu mark, and a fix report still cannot be cancelled on its own without a sim change."],
+    ]],
+    ["The two strip buttons", [
+      ["a", "At N-mile final… and At fix… stay two strip buttons, each opening the Report when… flyout focused on its own row (as drawn)", "Two of the VFR inbound strip's nine slots open the same flyout."],
+      ["b", "one Report when… button replaces both in the default lists", "A saved custom quick list naming either id needs rewriting to the new one."],
+    ]],
+  ];
+  document.getElementById("decisions").innerHTML = DEC.map(([t, opts], i) => `<li><b>${i + 1}. ${esc(t)}.</b><span class="opts">${opts.map(([k, d, w]) => `<span><i>${k}</i> ${esc(d)} <span class="w">· worst: ${esc(w)}</span></span>`).join("")}</span></li>`).join("");
+
+  /* ---------- Lanes and artboards ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  const stageOf = html => html.trimStart().startsWith('<div class="stage') ? html : `<div class="stage">${html}</div>`;
+  const lane = l => `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${l.kind.toUpperCase()}</span><h3>${esc(l.name)}</h3></div>
+      ${stageOf(l.body())}
+      <div class="sent" data-sent>Click a row, a chip, a leg, a tab or the toggle, or type in a box and press Enter, to see what it sends.</div>
+      <dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  const art = a => `<section class="art" id="${a.id}">
+      <div class="art-meta"><h2>${esc(a.title)}</h2><div class="sends">${esc(a.sends)}</div>${a.intro.map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="lanes${a.lanes.length === 1 ? " one" : ""}">${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map((a, i) => `<a href="#${a.id}">${esc(NAV[i])}</a>`).join("") + `<a href="#questions">Open decisions</a>`;
+  const redrawAll = () => Object.keys(BUILD).forEach(redraw);
+
+  /* ---------- Interaction ---------- */
+  document.addEventListener("input", e => {
+    const b = e.target.closest("[data-box]");
+    if (!b) return;
+    const key = b.dataset.k, kind = b.dataset.box;
+    BOXV[`${key}|${kind}`] = b.value;
+    const pos = b.selectionStart;
+    redraw(key);
+    const nb = document.querySelector(`[data-key="${key}"] [data-box="${kind}"]`);
+    if (nb) { nb.focus(); nb.setSelectionRange(pos, pos); }
+  });
+  document.addEventListener("keydown", e => {
+    const b = e.target.closest("[data-box]");
+    if (!b || e.key !== "Enter") return;
+    e.preventDefault();
+    const key = b.dataset.k, kind = b.dataset.box;
+    const r = readOf(key, kind);
+    const stopBlank = kind === "any" && TOG[key] === "stop" && !b.value.trim();
+    if (stopBlank) { say(b, "Sends <code>REPORT OFF</code> (blank under Stop: every report) and closes the flyout and the menu."); return; }
+    say(b, r.cmd ? `Sends <code>${esc(r.cmd)}</code> and closes the flyout and the menu.` : r.err ? `Sends nothing: ${esc(r.err)}. The flyout stays open.` : "Blank: Enter sends nothing and the flyout stays open.");
+  });
+  document.addEventListener("click", e => {
+    const tg = e.target.closest("[data-tog]");
+    if (tg) { const [k, v] = tg.dataset.tog.split("|"); TOG[k] = v; redraw(k); const n = document.querySelector(`[data-key="${k}"]`); say(n, v === "stop" ? "Stop reporting: the box and every row now cancel (<code>REPORT OFF …</code>)." : "Report: the box and the rows arm reports again."); return; }
+    const t = e.target.closest("[data-tab]");
+    if (t) { const [k, i] = t.dataset.tab.split("|"); TABS[k] = Number(i); redraw(k); const n = document.querySelector(`[data-key="${k}"]`); say(n, Number(i) ? "Stop reporting tab: the legs in red send <code>REPORT OFF {leg}</code>; All reports sends <code>REPORT OFF</code>." : "Report tab."); return; }
+    const d = e.target.closest("[data-dim]");
+    if (d) { say(d, `Greyed, sends nothing: ${esc(d.dataset.dim)}.`); return; }
+    const r = e.target.closest("[data-send]");
+    if (r && r.dataset.send) say(r, `Sends <code>${esc(r.dataset.send)}</code> and closes the flyout and the menu.`);
+  });
+  document.getElementById("sw-check").addEventListener("change", e => { CHECK = e.target.checked; redrawAll(); });
+  document.getElementById("sw-grey").addEventListener("change", e => { GREY = e.target.checked; redrawAll(); });
+  document.getElementById("sw-armed").addEventListener("change", e => { ARMED = e.target.checked; redrawAll(); });
+})();
+</script>
+</body>
+</html>
