@@ -81,8 +81,8 @@
       "user": "3a775768199ca968"
     },
     "launch-isolated-lifecycle": {
-      "repo": "a94f39f5d9e84076",
-      "user": "28a150edc237b497"
+      "repo": "fb62aadce235b042",
+      "user": "62499bb81d1253b2"
     },
     "load-adjusted-timeouts": {
       "repo": "92b11e0f89a584bd",
@@ -145,8 +145,8 @@
       "user": "ebfaa4da3ea3e159"
     },
     "quiet-by-default": {
-      "repo": "ebcf8cb4c6506449",
-      "user": "6f85f9f72b58cf63"
+      "repo": "33fb000228da4b5a",
+      "user": "818b37ebe7468676"
     },
     "real-app-over-frontend-only": {
       "repo": "f403032e1736ece0",
@@ -161,8 +161,8 @@
       "user": "b9ad60542633fe76"
     },
     "record-steady-never-minimize": {
-      "repo": "7647968d4e7ac11e",
-      "user": "c7abbb984fdaa216"
+      "repo": "093c3fae7146f0cd",
+      "user": "cb214e1ee0ff9370"
     },
     "recording-shellout-hardening": {
       "repo": "4c9c2cb902850d57",
@@ -185,8 +185,8 @@
       "user": "e1357ad6c047e437"
     },
     "say-hands-off-first": {
-      "repo": "6ccd088469880ab5",
-      "user": "3876083c457cc8f6"
+      "repo": "c874c5aabbd3ac6d",
+      "user": "0a6f21fd5739c6de"
     },
     "semantic-click-first": {
       "repo": "81f2fa0b60e281fc",
@@ -237,5 +237,5 @@
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 10
+  "user_revision": 11
 }
