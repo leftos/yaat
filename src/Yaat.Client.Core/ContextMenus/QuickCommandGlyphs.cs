@@ -40,8 +40,8 @@ public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily 
 /// <summary>
 /// The icon each glyph-bearing catalog action shows in a quick-command menu's strip, from the approved icon set, and the
 /// rule that splits a resolved quick-command list into the strip and the text entries below it: the first
-/// <see cref="StripCapacity"/> glyph-bearing entries in list order form the strip (two rows of five), and every other
-/// entry, a glyph-bearing one past the tenth included, is a text entry. Every default quick command has a glyph. An action
+/// <see cref="StripCapacity"/> glyph-bearing entries in list order form the strip (three rows of five), and every other
+/// entry, a glyph-bearing one past the fifteenth included, is a text entry. Every default quick command has a glyph. An action
 /// pair the icon set draws as one glyph (left and right 360, left and right closed traffic, Cleared and Join straight-in)
 /// shares it, and so do Cancel landing clearance and Cancel takeoff, which no situation offers together; the forced approach
 /// verbs draw their base verb's glyph with the force mark (<see cref="QuickCommandGlyph.HasForceMark"/>). A pattern entry
@@ -53,8 +53,8 @@ public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily 
 /// </summary>
 public static class QuickCommandGlyphs
 {
-    /// <summary>The most entries the strip shows: two rows of five.</summary>
-    public const int StripCapacity = 10;
+    /// <summary>The most entries the strip shows: three rows of five.</summary>
+    public const int StripCapacity = 15;
 
     private const string CancelPath = "M2 20h20 M8 5l8 8 M16 5l-8 8";
 
@@ -183,6 +183,8 @@ public static class QuickCommandGlyphs
                 "M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10"
             ),
             [MenuIds.SquawkCode] = ScopeAndSim("M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2"),
+            [MenuIds.SquawkNormal] = ScopeAndSim("M3 7h18v10H3z M8 12l3 3 5-6"),
+            [MenuIds.SquawkAssigned] = ScopeAndSim("M3 7h18v10H3z M16 9.5V13H8 M10.5 10.5L8 13l2.5 2.5"),
             [MenuIds.LiveTrafficAssume] = ScopeAndSim("M12 3v10 M8 9l4 4 4-4 M4 17v4h16v-4"),
             [MenuIds.LiveTrafficAssumeAndTrack] = ScopeAndSim("M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 7v8 M9 12l3 3 3-3"),
             [MenuIds.CoordinationReleaseHeld] = ScopeAndSim("M5 11h14v10H5z M8 11V7a4 4 0 0 1 7.6-1.8 M12 15v2"),

@@ -578,7 +578,7 @@ _Avoid_: favorites (the Favorite Commands submenu is the user's own typed comman
 The aircraft menu's submenu holding every command for the aircraft in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
 
 **Icon strip**:
-The up to ten glyph buttons (two rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply.
+The up to fifteen glyph buttons (three rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply.
 
 **State line**:
 The dimmed, disabled row under an aircraft menu's title that says what the aircraft is doing now, as segments joined with ` · ` (`Approach · 3,000 ft · 180 kt · KOAK rwy 30`, `Taxiing · C · KOAK`, `Landing · runway 28R · 62 kt`); a segment with no value is left out, and with none left there is no row (`SharedMenuGroups.StateLineItem`, phase names from `PhaseDisplayNames`).

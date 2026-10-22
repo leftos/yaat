@@ -28,6 +28,13 @@ namespace Yaat.Client.ContextMenus;
 public static class AircraftCommandApplicability
 {
     /// <summary>
+    /// Special-purpose / emergency beacon codes (7500 hijack, 7600 radio failure, 7700 emergency, plus
+    /// 7400 lost-link and 7777 military interceptor). CRC STARS suppresses the code-mismatch indicator
+    /// while the reported code is one of these — the emergency condition takes visual priority.
+    /// </summary>
+    private static readonly HashSet<uint> SpecialPurposeCodes = [7400, 7500, 7600, 7700, 7777];
+
+    /// <summary>
     /// Airborne phases where the aircraft has a pending landing (instrument approach or
     /// VFR pattern circuit). Landing/option/go-around clearances are issued throughout
     /// this window, not just on final (7110.65 §3-10-5, AIM 4-3-23).
@@ -633,6 +640,65 @@ public static class AircraftCommandApplicability
     /// instead; a wheeled one a scenario parks at a gate still finds them under All Commands.
     /// </summary>
     public static bool ShowsPushback(IMenuAircraft? ac) => ac is not null && !IsHelicopter(ac);
+
+    /// <summary>Squawk normal shows for an aircraft on the ground whose transponder is in standby.</summary>
+    public static bool ShowsSquawkNormal(IMenuAircraft? ac) => ac is { IsOnGround: true, TransponderMode: "Standby" };
+
+    /// <summary>
+    /// Squawk assigned code (bare <c>SQ</c>) shows wherever the datablock flags the reported code as wrong
+    /// (<see cref="TryGetSquawkMismatch"/>), so an emergency code or a transponder in standby or off never offers it.
+    /// </summary>
+    public static bool ShowsSquawkAssigned(IMenuAircraft? ac) => ac is not null && TryGetSquawkMismatch(ac, out _, out _);
+
+    /// <summary>
+    /// Whether the aircraft has a beacon code assigned, so bare <c>SQ</c> has a code to reset to; without one it would
+    /// squawk 0000.
+    /// </summary>
+    public static bool HasAssignedBeaconCode(IMenuAircraft? ac) => ac is { AssignedBeaconCode: not 0 };
+
+    /// <summary>
+    /// Determines whether an aircraft's reported beacon code differs from its assigned code in a way the
+    /// datablock should surface, emulating CRC STARS (<c>DisplayElementTracks.BuildFdb</c>). Shows only
+    /// when a discrete code is assigned, the transponder is actively squawking (Mode C — not Standby/Off),
+    /// the codes differ, and the reported code is not a special-purpose/emergency code. VFR 1200 vs an
+    /// assigned discrete DOES surface — the common "pilot hasn't squawked the assigned code yet" case.
+    /// <paramref name="reportedCode"/> and <paramref name="assignedCode"/> are 4-digit strings on success.
+    /// </summary>
+    public static bool TryGetSquawkMismatch(IMenuAircraft ac, out string reportedCode, out string assignedCode)
+    {
+        reportedCode = "";
+        assignedCode = "";
+
+        // Once the pilot has been told to squawk VFR (SQVFR/SQV), the stale assigned discrete code is
+        // noise the RPO should ignore — suppress the flash until another beacon code is assigned (which
+        // releases the latch). Unlike CRC's FDB-only mismatch line, YAAT flashes at any datablock level
+        // as an RPO aid, so this latch — not track ownership — is what turns it off.
+        if (ac.CommandedSquawkVfr)
+        {
+            return false;
+        }
+
+        if ((ac.AssignedBeaconCode == 0) || (ac.BeaconCode == ac.AssignedBeaconCode))
+        {
+            return false;
+        }
+
+        // Suppress unless the transponder is actively transmitting a code. Standby/Off already show via the
+        // struck-through "ModeC" line, and there is no reported code to compare against.
+        if (ac.TransponderMode is "Standby" or "Off")
+        {
+            return false;
+        }
+
+        if (SpecialPurposeCodes.Contains(ac.BeaconCode))
+        {
+            return false;
+        }
+
+        reportedCode = ac.BeaconCode.ToString("0000");
+        assignedCode = ac.AssignedBeaconCode.ToString("0000");
+        return true;
+    }
 
     /// <summary>
     /// Cleared for takeoff and Line up and wait hide while a hold-for-release keeps the departure from departing: the sim

@@ -281,16 +281,7 @@ overlap from 6 nm apart, so the overlap is not the alert condition; the peer's *
 
 ### Beacon-code mismatch (squawk mismatch)
 
-`RadarDatablockLayout.TryGetSquawkMismatch(ac, out reported, out assigned)` is the **single shared gate** used by the
-STARS datablock (`Compute`), the EuroScope tag (`Layout`), **and the Ground View datablock**
-(`Ground/GroundRenderer.cs` `DataBlockLayout.SquawkLine`, drawn through the static
-`TargetRenderer.DrawSquawkMismatchLine` overload — see [ground-rendering.md](ground-rendering.md#datablock-composition)),
-so a change to the gate or the pulse treatment lands on all three surfaces at once. It emulates CRC STARS
-(`DisplayElementTracks.BuildFdb`): when an aircraft is squawking a code that differs from its ATC-assigned code, the
-block shows the **reported code solid** followed by the **assigned code**, and the renderer draws the assigned token
-**dim-pulsing** — dimmed to ~25% brightness on the 500 ms off-phase (`TargetRenderer.DimColor`, mirroring CRC's
-`ApplyColorBrightness(color, 25)`), *not* fully blanked like the handoff / `NoLndgClnc` flash. The reported code stays
-solid.
+`AircraftCommandApplicability.TryGetSquawkMismatch(ac, out reported, out assigned)` (`Yaat.Client.Core/ContextMenus`, over `IMenuAircraft`) is the **single shared gate** used by the STARS datablock (`Compute`), the EuroScope tag (`Layout`), **and the Ground View datablock** (`Ground/GroundRenderer.cs` `DataBlockLayout.SquawkLine`, drawn through the static `TargetRenderer.DrawSquawkMismatchLine` overload — see [ground-rendering.md](ground-rendering.md#datablock-composition)), so a change to the gate or the pulse treatment lands on all three surfaces at once. The same gate decides the quick-command strip's Squawk assigned code (`ShowsSquawkAssigned`, see [client-context-menus.md](client-context-menus.md#when-a-quick-command-shows)). It emulates CRC STARS (`DisplayElementTracks.BuildFdb`): when an aircraft is squawking a code that differs from its ATC-assigned code, the block shows the **reported code solid** followed by the **assigned code**, and the renderer draws the assigned token **dim-pulsing** — dimmed to ~25% brightness on the 500 ms off-phase (`TargetRenderer.DimColor`, mirroring CRC's `ApplyColorBrightness(color, 25)`), *not* fully blanked like the handoff / `NoLndgClnc` flash. The reported code stays solid.
 
 The gate returns true only when **all** hold: an assigned code exists (`AssignedBeaconCode > 0`); reported ≠ assigned;
 the transponder is actively squawking (`TransponderMode` is not `Standby`/`Off`); and the reported code is not a
@@ -303,14 +294,8 @@ The assigned code reaches the client via `AircraftDto.AssignedBeaconCode` (see
 [training-hub-contract.md](training-hub-contract.md)); the STARS datablock previously carried no beacon code at all in the
 full block, so this line is purely additive — a normal (matching) aircraft shows nothing.
 
-**YAAT flashes at any datablock level; CRC only in an FDB.** The mismatch line is an RPO aid, so — unlike CRC, which
-builds it only inside a Full Data Block — YAAT surfaces it at FDB/PDB/LDB alike (an assigned-but-not-yet-squawked code is
-worth flagging to the RPO regardless of who tracks the aircraft). It is therefore **not** gated on track ownership. Instead
-a per-aircraft latch, `AircraftDto.CommandedSquawkVfr` (server `Transponder.CommandedSquawkVfr`), turns the flash off: it
-latches when the pilot is told to squawk VFR (`SQVFR`/`SQV`, or `SQ 1200`) — at which point the stale assigned discrete code is noise the
-RPO should ignore — and releases when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`,
-an FP amendment, or a CRC beacon assign) or the pilot is told `SQ` any other code or `SQ` alone (back to the assigned code). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`.
-`TryGetSquawkMismatch` returns false while the latch is set.
+**YAAT flashes at any datablock level; CRC only in an FDB.** The mismatch line is an RPO aid, so — unlike CRC, which builds it only inside a Full Data Block — YAAT surfaces it at FDB/PDB/LDB alike (an assigned-but-not-yet-squawked code is worth flagging to the RPO regardless of who tracks the aircraft). It is therefore **not** gated on track ownership. Instead a per-aircraft latch, `AircraftDto.CommandedSquawkVfr` (server `Transponder.CommandedSquawkVfr`), turns the flash off: it latches when the pilot is told to squawk VFR (`SQVFR`/`SQV`, or `SQ 1200`) — at which point the stale assigned discrete code is noise the
+RPO should ignore — and releases when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`, an FP amendment, or a CRC beacon assign) or the pilot is told `SQ` any other code or `SQ` alone (back to the assigned code). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`. `TryGetSquawkMismatch` returns false while the latch is set.
 
 ## Student-scope datablock view
 

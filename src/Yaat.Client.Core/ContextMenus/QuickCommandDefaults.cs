@@ -7,7 +7,9 @@ namespace Yaat.Client.ContextMenus;
 /// aviation-reviewed default situation table gives them. An instruction the table annotates "(IFR)" or "(VFR)" carries
 /// that flight-rules override; every other entry takes its catalog default. A list names catalog actions only, never a
 /// view's display item. <see cref="AircraftSituation.Unknown"/> has no list, so an unclassified aircraft shows no quick
-/// commands.
+/// commands. Every list but <see cref="AircraftSituation.LiveTraffic"/>'s (a shadow track takes no command) opens with
+/// Squawk assigned code, and every ground one with Squawk normal before it: each shows only while the transponder needs it,
+/// and is then the first call.
 /// </summary>
 public static class QuickCommandDefaults
 {
@@ -17,6 +19,8 @@ public static class QuickCommandDefaults
         {
             [AircraftSituation.AtParking] =
             [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.GroundAirTaxi),
                 Entry(MenuIds.GroundPushback),
                 Entry(MenuIds.GroundTaxiPreset),
@@ -24,9 +28,17 @@ public static class QuickCommandDefaults
                 Entry(MenuIds.GroundPushbackTo),
                 Entry(MenuIds.CoordinationCheckReleaseWindow),
             ],
-            [AircraftSituation.PushingBack] = [Entry(MenuIds.GroundHoldPosition), Entry(MenuIds.GroundPushRoute)],
+            [AircraftSituation.PushingBack] =
+            [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.GroundHoldPosition),
+                Entry(MenuIds.GroundPushRoute),
+            ],
             [AircraftSituation.HoldingOnGround] =
             [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.GroundAirTaxi),
                 Entry(MenuIds.GroundResumeTaxi),
                 Entry(MenuIds.GroundDrawTaxiRoute),
@@ -36,6 +48,8 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.Taxiing] =
             [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.GroundHoldPosition),
                 Entry(MenuIds.GroundResumeTaxi),
                 Entry(MenuIds.GroundHoldShort),
@@ -51,6 +65,8 @@ public static class QuickCommandDefaults
             // Cross and Resume taxi only at any other (the sim refuses RES at a departure-runway bar).
             [AircraftSituation.HoldingShort] =
             [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.TowerClearedForTakeoff),
                 Entry(MenuIds.TowerLineUpAndWait),
                 Entry(MenuIds.GroundCrossRunway),
@@ -60,12 +76,15 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.LinedUp] =
             [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.TowerClearedForTakeoff),
                 Entry(MenuIds.TowerCancelTakeoff),
                 Entry(MenuIds.GroundDrawTaxiRoute),
             ],
             [AircraftSituation.Departing] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.HeadingFly),
                 Entry(MenuIds.AltitudeMaintain),
                 Ifr(MenuIds.ProceduresClimbViaSid),
@@ -75,6 +94,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.IfrEnroute] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.HeadingFly),
                 Entry(MenuIds.AltitudeMaintain),
                 Entry(MenuIds.NavigationDirectTo),
@@ -85,6 +105,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.IfrArrival] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Ifr(MenuIds.ProceduresDescendViaStar),
                 Entry(MenuIds.AltitudeMaintain),
                 Entry(MenuIds.SpeedAssign),
@@ -96,6 +117,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.VfrFlightFollowing] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.ApproachReportTrafficInSight),
                 Entry(MenuIds.HeadingFly),
                 Entry(MenuIds.AltitudeMaintain),
@@ -105,6 +127,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.Approach] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.ApproachCleared),
                 Entry(MenuIds.AltitudeMaintain),
                 Entry(MenuIds.SpeedAssign),
@@ -117,6 +140,7 @@ public static class QuickCommandDefaults
             // followed by VFR-tagged pattern entries rather than a different mapping.
             [AircraftSituation.Holding] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Ifr(MenuIds.ApproachCleared),
                 Ifr(MenuIds.ApproachReportFieldInSight),
                 Ifr(MenuIds.ApproachClearedVisual),
@@ -131,6 +155,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.Pattern] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.TowerClearedToLand),
                 Entry(MenuIds.TowerClearedOption),
                 Entry(MenuIds.TowerTouchAndGo),
@@ -145,6 +170,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.Final] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.TowerClearedToLand),
                 Entry(MenuIds.TowerGoAround),
                 Entry(MenuIds.TowerCancelLanding),
@@ -155,6 +181,8 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.RolloutExit] =
             [
+                Entry(MenuIds.SquawkNormal),
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.TowerExitLeft),
                 Entry(MenuIds.TowerExitRight),
                 Entry(MenuIds.GroundAirTaxi),
@@ -163,6 +191,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.GoAround] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.HeadingFly),
                 Entry(MenuIds.AltitudeMaintain),
                 Ifr(MenuIds.ApproachCleared),
@@ -175,6 +204,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.LiveTraffic] = [Entry(MenuIds.LiveTrafficAssume), Entry(MenuIds.LiveTrafficAssumeAndTrack)],
             [AircraftSituation.VfrArrivalInbound] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.PatternEnterLeftDownwind),
                 Entry(MenuIds.PatternEnterRightDownwind),
                 Entry(MenuIds.PatternEnterLeftBase),
@@ -188,6 +218,7 @@ public static class QuickCommandDefaults
             ],
             [AircraftSituation.VfrDeparting] =
             [
+                Entry(MenuIds.SquawkAssigned),
                 Entry(MenuIds.HeadingFly),
                 Entry(MenuIds.NavigationOnCourse),
                 Entry(MenuIds.AltitudeMaintain),

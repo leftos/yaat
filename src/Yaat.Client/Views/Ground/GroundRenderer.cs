@@ -104,7 +104,7 @@ internal readonly struct DataBlockLayout
         // The renderer dim-pulses the assigned code; the condition itself does not flash, so the
         // reserved width/height stay stable while active. Mutually exclusive with SqStby by construction
         // (the gate returns false on Standby); it coexists with a hold/yield status on line4.
-        string squawkLine = RadarDatablockLayout.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode)
+        string squawkLine = AircraftCommandApplicability.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode)
             ? $"{reportedCode} {assignedCode}"
             : "";
         // Ground hold / auto-yield takes precedence on line4 over the SqStby transponder hint —

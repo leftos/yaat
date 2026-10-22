@@ -492,6 +492,52 @@ public class QuickCommandStripTests
         Assert.False(rows.Children[1].IsVisible);
     }
 
+    [AvaloniaFact]
+    public void Rows_FifteenCells_LayThreeRowsOfFive()
+    {
+        List<Control> cells = [.. Enumerable.Range(0, QuickCommandGlyphs.StripCapacity).Select(i => new Border { Tag = i })];
+
+        StackPanel rows = QuickCommandStrip.Rows(cells);
+
+        Assert.Equal(3, rows.Children.Count);
+        for (int r = 0; r < 3; r++)
+        {
+            StackPanel row = Assert.IsType<StackPanel>(rows.Children[r]);
+            Assert.True(row.IsVisible, $"row {r} is hidden");
+            Assert.Equal(Enumerable.Range(r * QuickCommandStrip.RowLength, QuickCommandStrip.RowLength), row.Children.Select(c => (int)c.Tag!));
+        }
+    }
+
+    [AvaloniaFact]
+    public void Rows_SixteenCells_OverflowIntoTheThirdRow()
+    {
+        List<Control> cells = [.. Enumerable.Range(0, QuickCommandGlyphs.StripCapacity + 1).Select(i => new Border { Tag = i })];
+
+        StackPanel rows = QuickCommandStrip.Rows(cells);
+
+        Assert.Equal(3, rows.Children.Count);
+        StackPanel third = Assert.IsType<StackPanel>(rows.Children[2]);
+        Assert.Equal([10, 11, 12, 13, 14, 15], third.Children.Select(c => (int)c.Tag!));
+    }
+
+    [AvaloniaFact]
+    public void Rows_SixCells_HideTheThirdRow()
+    {
+        List<Control> cells = [.. Enumerable.Range(0, 6).Select(i => new Border { Tag = i })];
+
+        StackPanel rows = QuickCommandStrip.Rows(cells);
+
+        Assert.Equal(3, rows.Children.Count);
+        StackPanel first = Assert.IsType<StackPanel>(rows.Children[0]);
+        StackPanel second = Assert.IsType<StackPanel>(rows.Children[1]);
+        StackPanel third = Assert.IsType<StackPanel>(rows.Children[2]);
+        Assert.Equal([0, 1, 2, 3, 4], first.Children.Select(c => (int)c.Tag!));
+        Assert.Equal([5], second.Children.Select(c => (int)c.Tag!));
+        Assert.True(second.IsVisible);
+        Assert.Empty(third.Children);
+        Assert.False(third.IsVisible);
+    }
+
     /// <summary>
     /// Pointing at an icon that sends a command puts its name and command in the header's state-line row, in place of the
     /// state line, and the state line comes back the moment the pointer leaves the strip.

@@ -40,8 +40,8 @@ public interface IStripFlyoutContent
 }
 
 /// <summary>
-/// The quick-command icon strip at the top of an aircraft menu: one menu item whose header holds up to two rows of five
-/// glyph buttons, the first row filled first and an empty second row hidden. Each button stands for its catalog entry's
+/// The quick-command icon strip at the top of an aircraft menu: one menu item whose header holds up to three rows of five
+/// glyph buttons, each row filled before the next and an empty row hidden. Each button stands for its catalog entry's
 /// own menu item, built through the entry's builder: a sending or prompting item is clicked through that item's own Click
 /// handler, and a submenu opens its items as a flyout beside the menu (the button shows a corner notch), which stays open,
 /// its button latched, until that button is clicked again, another icon's flyout replaces it, another row's submenu opens,
@@ -167,21 +167,31 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// Lays <paramref name="cells"/> out as the strip does, in order: up to two rows of <see cref="RowLength"/>, the first
-    /// row filled first and an empty second row hidden. The menu's strip and the Settings preview both lay out through it.
+    /// Lays <paramref name="cells"/> out as the strip does, in order: up to three rows of <see cref="RowLength"/>, each row
+    /// filled before the next and an empty row hidden; cells past the fifteenth join the last row. The menu's strip and
+    /// the Settings preview both lay out through it.
     /// </summary>
     public static StackPanel Rows(IReadOnlyList<Control> cells)
     {
-        var first = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
-        var second = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
-        foreach (Control cell in cells)
+        StackPanel[] rows =
+        [
+            .. Enumerable
+                .Range(0, QuickCommandGlyphs.StripCapacity / RowLength)
+                .Select(_ => new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap }),
+        ];
+        for (int i = 0; i < cells.Count; i++)
         {
-            StackPanel row = (first.Children.Count < RowLength) ? first : second;
-            row.Children.Add(cell);
+            rows[Math.Min(i / RowLength, rows.Length - 1)].Children.Add(cells[i]);
         }
 
-        second.IsVisible = second.Children.Count > 0;
-        return new StackPanel { Spacing = Gap, Children = { first, second } };
+        var strip = new StackPanel { Spacing = Gap };
+        foreach (StackPanel row in rows)
+        {
+            row.IsVisible = row.Children.Count > 0;
+            strip.Children.Add(row);
+        }
+
+        return strip;
     }
 
     /// <summary>

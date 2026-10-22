@@ -98,6 +98,7 @@ public static class MenuCatalog
             FormatSquawkCode,
             "Not a valid squawk code (0000-7777)"
         ),
+        Leaf(MenuIds.SquawkAssigned, "Squawk assigned code", "SQ", (ac, _) => AircraftCommandApplicability.HasAssignedBeaconCode(ac)),
         Leaf(MenuIds.SquawkRandom, "Squawk random", "RANDSQ", Always),
         Leaf(MenuIds.SquawkVfr, "Squawk VFR", "SQVFR", Always),
         Leaf(MenuIds.SquawkNormal, "Squawk normal", "SQNORM", Always),

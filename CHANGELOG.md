@@ -4,6 +4,8 @@
 
 ### Added
 
+- Quick commands offer Squawk normal to an aircraft on standby on the ground, and Squawk assigned code to one squawking the wrong code.
+- The quick-command strip holds up to fifteen icons, in three rows of five.
 - `SPD RFAS` reduces to final approach speed as `RFAS` does, and `SPDN RFAS` sets that speed at once.
 
 ### Changed

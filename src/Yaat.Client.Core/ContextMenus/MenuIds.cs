@@ -48,6 +48,9 @@ public static class MenuIds
     /// <summary>Squawk a given code (<c>SQ</c>).</summary>
     public const string SquawkCode = "squawk.code";
 
+    /// <summary>Squawk the assigned code (bare <c>SQ</c>).</summary>
+    public const string SquawkAssigned = "squawk.assigned";
+
     /// <summary>Squawk a random code (<c>RANDSQ</c>).</summary>
     public const string SquawkRandom = "squawk.random";
 

@@ -58,7 +58,7 @@ An **intersection departure** names its entry taxiway too (`28R@E #2`, from `Air
 
 All three are **server-computed** (`RunwayDepartureQueue` + `RunwayEntryPoint` in Yaat.Sim, wired through `AircraftStateDto.RunwayQueuePosition` / `RunwayQueueRunway` / `RunwayQueueIntersection`); the client only displays them — no client-side ranking or classification, mirroring the `SmartStatus` and taxi-route-reconstruction contracts.
 
-Line 2 is `cwt/type fix`; line 3 the altitude (airborne only); then the **beacon-code mismatch** slot (`DataBlockLayout.SquawkLine`, e.g. `1200 0301`). The slot is gated by the radar's `RadarDatablockLayout.TryGetSquawkMismatch` and drawn by the shared `TargetRenderer.DrawSquawkMismatchLine` (reported solid, assigned dim-pulsing on the 500 ms cycle, animated by `MapCanvasBase`'s 10 Hz repaint), so the two views can never disagree on when or how a mismatch shows.
+Line 2 is `cwt/type fix`; line 3 the altitude (airborne only); then the **beacon-code mismatch** slot (`DataBlockLayout.SquawkLine`, e.g. `1200 0301`). The slot is gated by the radar's `AircraftCommandApplicability.TryGetSquawkMismatch` and drawn by the shared `TargetRenderer.DrawSquawkMismatchLine` (reported solid, assigned dim-pulsing on the 500 ms cycle, animated by `MapCanvasBase`'s 10 Hz repaint), so the two views can never disagree on when or how a mismatch shows.
 
 After it come line 4 (hold / `→yield` / `SqStby` — mutually exclusive with the mismatch line because the gate returns false on Standby) and then the amber note line.
 

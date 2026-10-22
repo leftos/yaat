@@ -42,6 +42,11 @@ public class QuickCommandsSectionTests
         MenuIds.SpeedAssign,
         MenuIds.NavigationDirectTo,
         MenuIds.ApproachCleared,
+        MenuIds.SquawkNormal,
+        MenuIds.SquawkAssigned,
+        MenuIds.ProceduresCrossFix,
+        MenuIds.ProceduresDescendViaStar,
+        MenuIds.ApproachReportFieldInSight,
         MenuIds.HoldPattern,
     ];
 
@@ -191,9 +196,10 @@ public class QuickCommandsSectionTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_DividerFollowsTenthGlyphEntry()
+    public void QuickCommandsSection_DividerFollowsFifteenthGlyphEntry()
     {
-        // A text-only action third: the strip counts glyph entries, not positions, so the tenth glyph entry is at index 10.
+        // A text-only action third: the strip counts glyph entries, not positions, so the fifteenth glyph entry is at index 15.
+        const int capacity = QuickCommandGlyphs.StripCapacity;
         string[] ids = [.. GlyphIds.Take(2), TextOnlyId, .. GlyphIds.Skip(2)];
         Store(AircraftSituation.Taxiing, ids);
 
@@ -204,8 +210,8 @@ public class QuickCommandsSectionTests
                 List<object> items = [.. Entries(section).Items.OfType<object>()];
 
                 int divider = Assert.Single(Enumerable.Range(0, items.Count), i => items[i] is QuickCommandStripDivider);
-                Assert.Equal(GlyphIds[9], Assert.IsType<QuickCommandEntryRow>(items[divider - 1]).CatalogId);
-                Assert.Equal(GlyphIds[10], Assert.IsType<QuickCommandEntryRow>(items[divider + 1]).CatalogId);
+                Assert.Equal(GlyphIds[capacity - 1], Assert.IsType<QuickCommandEntryRow>(items[divider - 1]).CatalogId);
+                Assert.Equal(GlyphIds[capacity], Assert.IsType<QuickCommandEntryRow>(items[divider + 1]).CatalogId);
                 Control shown = Entries(section).ContainerFromIndex(divider)!;
                 Assert.True(shown.IsEffectivelyVisible);
                 Assert.True(shown.Bounds.Height > 0);
@@ -217,13 +223,13 @@ public class QuickCommandsSectionTests
                 Settle(window);
                 items = [.. Entries(section).Items.OfType<object>()];
                 divider = Assert.Single(Enumerable.Range(0, items.Count), i => items[i] is QuickCommandStripDivider);
-                Assert.Equal(GlyphIds[10], Assert.IsType<QuickCommandEntryRow>(items[divider - 1]).CatalogId);
+                Assert.Equal(GlyphIds[capacity], Assert.IsType<QuickCommandEntryRow>(items[divider - 1]).CatalogId);
             }
         );
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_TenGlyphRowsWithNothingAfter_ShowNoDivider()
+    public void QuickCommandsSection_FifteenGlyphRowsWithNothingAfter_ShowNoDivider()
     {
         Store(AircraftSituation.Taxiing, [.. GlyphIds.Take(QuickCommandGlyphs.StripCapacity)]);
 
@@ -316,7 +322,7 @@ public class QuickCommandsSectionTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_Preview_DrawsFirstTenGlyphEntriesInOrder()
+    public void QuickCommandsSection_Preview_DrawsFirstFifteenGlyphEntriesInOrder()
     {
         string[] ids = [.. GlyphIds.Take(2), TextOnlyId, .. GlyphIds.Skip(2)];
         Store(AircraftSituation.Taxiing, ids);

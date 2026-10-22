@@ -50,6 +50,7 @@ public static class SharedMenuGroups
     {
         var menu = new MenuItem { Header = "Squawk" };
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkCode, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkAssigned, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkRandom, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkVfr, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkNormal, aircraft, context, host));

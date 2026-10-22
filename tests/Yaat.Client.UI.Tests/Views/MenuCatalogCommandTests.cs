@@ -58,6 +58,7 @@ public class MenuCatalogCommandTests
         (MenuIds.TrackCancelHandoff, "", "CANCEL"),
         (MenuIds.TrackAcknowledgePointout, "", "OK"),
         (MenuIds.SquawkCode, PositionOrCode, "SQ 1234"),
+        (MenuIds.SquawkAssigned, "", "SQ"),
         (MenuIds.SquawkRandom, "", "RANDSQ"),
         (MenuIds.SquawkVfr, "", "SQVFR"),
         (MenuIds.SquawkNormal, "", "SQNORM"),
@@ -848,6 +849,22 @@ public class MenuCatalogCommandTests
         Assert.Empty(host.InputPlaceholders);
         (string _, string command, string _) = Assert.Single(host.Sent);
         return command;
+    }
+
+    /// <summary>Squawk assigned code (bare <c>SQ</c>) is offered only to an aircraft with an assigned code, else it would squawk 0000.</summary>
+    [AvaloniaFact]
+    public void SquawkAssigned_NotApplicableWithoutAnAssignedCode()
+    {
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.SquawkAssigned);
+        var vfr1200 = new FakeMenuAircraft
+        {
+            FlightRules = "VFR",
+            BeaconCode = 1200,
+            AssignedBeaconCode = 0,
+        };
+
+        Assert.False(entry.IsApplicable(vfr1200, Context()));
+        Assert.True(entry.IsApplicable(vfr1200 with { AssignedBeaconCode = 4521 }, Context()));
     }
 
     /// <summary>The left / right 360s at a fix are VFR entries: an IFR aircraft gets them only under the full VFR-for-IFR setting.</summary>

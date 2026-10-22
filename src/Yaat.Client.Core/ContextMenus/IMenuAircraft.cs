@@ -188,6 +188,21 @@ public interface IMenuAircraft
     /// </summary>
     int? FiledVfrCruiseFeet { get; }
 
+    /// <summary>The transponder mode the aircraft squawks in: <c>C</c>, <c>Standby</c> or <c>Off</c>.</summary>
+    string TransponderMode { get; }
+
+    /// <summary>The beacon code the transponder reports.</summary>
+    uint BeaconCode { get; }
+
+    /// <summary>The beacon code assigned to the aircraft, 0 when none is assigned.</summary>
+    uint AssignedBeaconCode { get; }
+
+    /// <summary>
+    /// True once the pilot has been told to squawk VFR (<c>SQVFR</c>), until another code is assigned: the stale assigned
+    /// code is then no mismatch.
+    /// </summary>
+    bool CommandedSquawkVfr { get; }
+
     /// <summary>The instructor note on the aircraft, empty when none; the note popup opens prefilled with it.</summary>
     string Note { get; }
 

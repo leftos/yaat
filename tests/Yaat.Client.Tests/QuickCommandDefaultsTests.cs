@@ -34,6 +34,62 @@ public class QuickCommandDefaultsTests
 
     private static readonly HashSet<string> CatalogIds = [.. MenuCatalog.All.Select(entry => entry.Id)];
 
+    /// <summary>The situations of an aircraft on the ground, whose lists open with Squawk normal.</summary>
+    private static readonly HashSet<AircraftSituation> GroundSituations =
+    [
+        AircraftSituation.AtParking,
+        AircraftSituation.PushingBack,
+        AircraftSituation.HoldingOnGround,
+        AircraftSituation.Taxiing,
+        AircraftSituation.HoldingShort,
+        AircraftSituation.LinedUp,
+        AircraftSituation.RolloutExit,
+    ];
+
+    public static TheoryData<AircraftSituation> CommandableSituations() =>
+        [.. Enum.GetValues<AircraftSituation>().Where(s => s is not AircraftSituation.Unknown and not AircraftSituation.LiveTraffic)];
+
+    /// <summary>
+    /// The two squawk icons lead every list that takes commands: Squawk normal then Squawk assigned code on the ground,
+    /// Squawk assigned code alone in the air.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CommandableSituations))]
+    public void DefaultList_OpensWithTheSquawkIcons(AircraftSituation situation)
+    {
+        List<string> ids = [.. QuickCommandDefaults.For(situation).Select(CatalogId)];
+
+        if (GroundSituations.Contains(situation))
+        {
+            Assert.Equal([MenuIds.SquawkNormal, MenuIds.SquawkAssigned], ids.Take(2));
+        }
+        else
+        {
+            Assert.Equal(MenuIds.SquawkAssigned, ids[0]);
+            Assert.DoesNotContain(MenuIds.SquawkNormal, ids);
+        }
+    }
+
+    [Fact]
+    public void LiveTrafficList_HasNoSquawkIcon()
+    {
+        List<string> ids = [.. QuickCommandDefaults.For(AircraftSituation.LiveTraffic).Select(CatalogId)];
+
+        Assert.DoesNotContain(MenuIds.SquawkNormal, ids);
+        Assert.DoesNotContain(MenuIds.SquawkAssigned, ids);
+    }
+
+    [Theory]
+    [MemberData(nameof(ClassifiedSituations))]
+    public void DefaultList_FitsItsIconsOnTheStrip(AircraftSituation situation) =>
+        Assert.InRange(
+            QuickCommandDefaults.For(situation).Count(entry => QuickCommandGlyphs.For(CatalogId(entry)) is not null),
+            0,
+            QuickCommandGlyphs.StripCapacity
+        );
+
+    private static string CatalogId(QuickCommandEntry entry) => Assert.IsType<CatalogQuickCommandEntry>(entry).CatalogId;
+
     [Theory]
     [MemberData(nameof(ClassifiedSituations))]
     public void EveryClassifiedSituation_HasANonEmptyList(AircraftSituation situation) => Assert.NotEmpty(QuickCommandDefaults.For(situation));
@@ -136,12 +192,15 @@ public class QuickCommandDefaultsTests
     [Fact]
     public void ForPoint_ANonPointId_Throws() => Assert.Throws<ArgumentException>(() => QuickCommandGlyphs.ForPoint(MenuIds.GroundHoldPosition));
 
-    /// <summary>Air taxi sits where the mock puts it: first where nothing outranks it, after the runway-bound entries where they do.</summary>
+    /// <summary>
+    /// Air taxi sits where the mock puts it, after the two transponder entries that open every ground list: first after them
+    /// where nothing outranks it, after the runway-bound entries where they do.
+    /// </summary>
     [Theory]
-    [InlineData(AircraftSituation.AtParking, 0)]
-    [InlineData(AircraftSituation.HoldingOnGround, 0)]
-    [InlineData(AircraftSituation.HoldingShort, 3)]
-    [InlineData(AircraftSituation.RolloutExit, 2)]
+    [InlineData(AircraftSituation.AtParking, 2)]
+    [InlineData(AircraftSituation.HoldingOnGround, 2)]
+    [InlineData(AircraftSituation.HoldingShort, 5)]
+    [InlineData(AircraftSituation.RolloutExit, 4)]
     public void AirTaxi_IsListedInTheFourGroundSituations(AircraftSituation situation, int index) =>
         Assert.Equal(index, Ids(situation).ToList().IndexOf(MenuIds.GroundAirTaxi));
 

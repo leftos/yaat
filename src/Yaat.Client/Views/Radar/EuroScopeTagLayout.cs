@@ -1,4 +1,5 @@
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
@@ -180,7 +181,7 @@ public static class EuroScopeTagLayout
         // Beacon-code mismatch line: reported code solid + assigned code dim-pulsing (the renderer
         // split-draws and dims the assigned token). Its own line, mirroring the STARS datablock. The
         // field rect spans the whole line so a click opens the SquawkFlyout as already dispatched.
-        if (RadarDatablockLayout.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode))
+        if (AircraftCommandApplicability.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode))
         {
             float yTop = lastLineYTop + lineH;
             float yBot = yTop + style.Size;

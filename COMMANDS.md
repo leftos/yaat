@@ -336,7 +336,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Squawk | `SQ 4521` | `SQUAWK` | `SQ4521` |
-| Squawk (reset) | `SQ` | — | — |
+| Squawk the assigned code | `SQ` | — | — |
 | Squawk VFR (same as `SQ 1200`; both silence the assigned-code mismatch flash) | `SQVFR` | `SQV` | — |
 | Squawk normal | `SQNORM` | `SN`, `SQA`, `SQON` | — |
 | Squawk standby | `SQSBY` | `SS`, `SQS` | — |

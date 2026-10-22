@@ -57,6 +57,8 @@ public static class QuickCommandResolver
         [MenuIds.TowerExitRight] = AircraftCommandApplicability.ShowsRunwayExit,
         [MenuIds.GroundPushback] = AircraftCommandApplicability.ShowsPushback,
         [MenuIds.GroundPushbackTo] = AircraftCommandApplicability.ShowsPushback,
+        [MenuIds.SquawkNormal] = AircraftCommandApplicability.ShowsSquawkNormal,
+        [MenuIds.SquawkAssigned] = AircraftCommandApplicability.ShowsSquawkAssigned,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>

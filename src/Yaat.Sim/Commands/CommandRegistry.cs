@@ -347,7 +347,7 @@ public static class CommandRegistry
                 CommandDimension.None,
                 false,
                 ["SQ", "SQUAWK"],
-                [O(null, [], "Assign random squawk code"), O("Code", [R("code", "0000-7777")], "Assign squawk code")]
+                [O(null, [], "Squawk the assigned code"), O("Code", [R("code", "0000-7777")], "Assign squawk code")]
             ),
             Bare(SquawkVfr, "Squawk VFR", "Transponder", CommandDimension.None, false, ["SQVFR", "SQV"]),
             Bare(SquawkNormal, "Squawk Normal", "Transponder", CommandDimension.None, false, ["SQNORM", "SN", "SQA", "SQON"]),

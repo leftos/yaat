@@ -108,6 +108,14 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public int? FiledVfrCruiseFeet => null;
 
+    public string TransponderMode { get; init; } = "C";
+
+    public uint BeaconCode { get; init; }
+
+    public uint AssignedBeaconCode { get; init; }
+
+    public bool CommandedSquawkVfr { get; init; }
+
     public string Note => "";
 
     public string Destination { get; init; } = "";

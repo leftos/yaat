@@ -64,6 +64,7 @@ public class AircraftCommandApplicabilityTests
         Assert.False(AircraftCommandApplicability.CanDrawTaxiRoute(null));
         Assert.False(AircraftCommandApplicability.CanAskPilot(null));
         Assert.False(AircraftCommandApplicability.CanEditFlightPlan(null));
+        Assert.False(AircraftCommandApplicability.HasAssignedBeaconCode(null));
     }
 
     // --- Departures: Line up and wait ---
@@ -702,6 +703,49 @@ public class AircraftCommandApplicabilityTests
     [InlineData(AircraftSituation.RolloutExit, SituationFlags.HoldShortIsDepartureRunway, true)]
     public void ShowsCrossAtHoldShort_NeverAtTheDepartureRunway(AircraftSituation situation, SituationFlags flags, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.ShowsCrossAtHoldShort(Situated(situation, flags, "IFR")));
+
+    [Theory]
+    [InlineData(true, "Standby", true)]
+    [InlineData(true, "C", false)]
+    [InlineData(true, "Off", false)]
+    [InlineData(false, "Standby", false)]
+    public void ShowsSquawkNormal_OnTheGroundInStandbyOnly(bool onGround, string mode, bool expected)
+    {
+        AircraftModel ac = Ac("", onGround);
+        ac.TransponderMode = mode;
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsSquawkNormal(ac));
+    }
+
+    [Theory]
+    [InlineData(0u, false)] // a VFR on 1200 with no code assigned: bare SQ would squawk 0000
+    [InlineData(4521u, true)]
+    public void HasAssignedBeaconCode_FalseWithoutAnAssignedCode(uint assigned, bool expected)
+    {
+        AircraftModel ac = Ac("", onGround: false, rules: "VFR");
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = assigned;
+        Assert.Equal(expected, AircraftCommandApplicability.HasAssignedBeaconCode(ac));
+    }
+
+    [Theory]
+    [InlineData("C", 1234u, 4521u, false, true)]
+    [InlineData("C", 1200u, 4521u, false, true)] // VFR 1200 against an assigned discrete code is a mismatch
+    [InlineData("C", 1200u, 4521u, true, false)] // ... unless the pilot was told to squawk VFR
+    [InlineData("C", 4521u, 4521u, false, false)]
+    [InlineData("C", 1234u, 0u, false, false)] // no code assigned
+    [InlineData("Standby", 1234u, 4521u, false, false)]
+    [InlineData("Off", 1234u, 4521u, false, false)]
+    [InlineData("C", 7700u, 4521u, false, false)]
+    [InlineData("C", 7500u, 4521u, false, false)]
+    public void ShowsSquawkAssigned_FollowsTheDatablockMismatchRule(string mode, uint code, uint assigned, bool commandedVfr, bool expected)
+    {
+        AircraftModel ac = Ac("", onGround: false);
+        ac.TransponderMode = mode;
+        ac.BeaconCode = code;
+        ac.AssignedBeaconCode = assigned;
+        ac.CommandedSquawkVfr = commandedVfr;
+        Assert.Equal(expected, AircraftCommandApplicability.ShowsSquawkAssigned(ac));
+    }
 
     [Theory]
     [InlineData(AircraftSituation.HoldingShort, SituationFlags.None, true)]

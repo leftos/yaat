@@ -374,6 +374,42 @@ public class QuickCommandVisibilityRulesTests
             Shows(Aircraft(AircraftSituation.Holding, "HoldingPattern", onGround: false, rules: "IFR"), MenuIds.PatternEnterFinal, mode)
         );
 
+    // --- Transponder: Squawk normal in standby, Squawk assigned code for a wrong code ---
+
+    /// <summary>Squawk normal shows in every ground situation while the transponder is in standby, and never airborne.</summary>
+    [Theory]
+    [InlineData(AircraftSituation.AtParking, "At Parking", true, "Standby", true)]
+    [InlineData(AircraftSituation.AtParking, "At Parking", true, "C", false)]
+    [InlineData(AircraftSituation.PushingBack, "Pushback", true, "Standby", true)]
+    [InlineData(AircraftSituation.Taxiing, "Taxiing", true, "Standby", true)]
+    [InlineData(AircraftSituation.HoldingShort, "Holding Short 28R", true, "Standby", true)]
+    [InlineData(AircraftSituation.Taxiing, "AirTaxi", false, "Standby", false)]
+    public void SquawkNormal_ShowsOnTheGroundOnlyInStandby(AircraftSituation situation, string phase, bool onGround, string mode, bool shown)
+    {
+        AircraftModel aircraft = Aircraft(situation, phase, onGround, "VFR");
+        aircraft.TransponderMode = mode;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.SquawkNormal, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>
+    /// Squawk assigned code shows wherever the datablock flags a code mismatch: a wrong code squawked in mode C, but not an
+    /// emergency code nor a transponder in standby.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftSituation.AtParking, "At Parking", true, "C", 1234u, true)]
+    [InlineData(AircraftSituation.AtParking, "At Parking", true, "C", 7700u, false)]
+    [InlineData(AircraftSituation.AtParking, "At Parking", true, "Standby", 1234u, false)]
+    [InlineData(AircraftSituation.AtParking, "At Parking", true, "C", 4521u, false)]
+    [InlineData(AircraftSituation.IfrEnroute, "", false, "C", 1234u, true)]
+    public void SquawkAssigned_ShowsOnlyForAWrongCode(AircraftSituation situation, string phase, bool onGround, string mode, uint code, bool shown)
+    {
+        AircraftModel aircraft = Aircraft(situation, phase, onGround, "IFR");
+        aircraft.TransponderMode = mode;
+        aircraft.BeaconCode = code;
+        aircraft.AssignedBeaconCode = 4521;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.SquawkAssigned, VfrCommandsForIfr.None));
+    }
+
     // --- Helicopters: Air taxi and Land, and no push rows ---
 
     private static AircraftModel Typed(string type, AircraftSituation situation, string phase, bool onGround)

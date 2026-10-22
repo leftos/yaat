@@ -54,6 +54,7 @@ Data Block
   Annotate
 Squawk
   Squawk… picker:input
+  Squawk assigned code
   Squawk random
   Squawk VFR
   Squawk normal
