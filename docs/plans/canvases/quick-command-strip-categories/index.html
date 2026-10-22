@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick-Command Strip Categories</title>
+<style>
+  /* Layout: what the code does today and what was found, the lanes in brief, page switches, then one artboard per aircraft
+     situation whose lanes sit side by side, a Settings artboard, and the numbered decisions. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-t: #a3520a; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --tag-d: #2c5fa6; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    --lane-w: 322px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-t: #ffc062; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --tag-d: #8fc1ff; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-t: #ffc062; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --tag-d: #8fc1ff; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1760px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 92ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 12px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+  .switches { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 0 0 24px; font-size: 13px; color: var(--muted); position: sticky; top: 0; z-index: 20; }
+  .switches fieldset { border: 0; margin: 0; padding: 0; display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .switches legend { float: left; font-weight: 600; color: var(--ink); margin-right: 4px; padding: 0; }
+  .switches label { display: inline-flex; gap: 4px; align-items: center; color: var(--ink); cursor: pointer; }
+
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 8px; max-width: 132ch; }
+  .note-box.found { border-left-color: var(--warn); }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box.lanesum { border-left-color: var(--accent); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 10px 0 6px; }
+  .note-box h2:first-child { margin-top: 0; }
+  .note-box ul.nl, .note-box ol.nl { margin: 0; padding-left: 0; list-style: none; }
+  .note-box li { margin: 0 0 8px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+  .note-box .opts { display: block; margin-top: 2px; padding-left: 14px; }
+  .note-box .opts i { font-style: normal; font: 600 13px var(--f-mono); color: var(--tag-b); display: inline-block; min-width: 18px; }
+  .note-box .w { color: var(--warn); }
+  .note-box ol .opts { color: var(--ink); margin-top: 4px; }
+  .note-box .wl { display: block; color: var(--warn); padding-left: 18px; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 64px; }
+  .art-meta { min-width: 0; margin-bottom: 16px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta p { margin: 0 0 6px; max-width: 120ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--lane-w)), 1fr)); gap: 16px; align-items: start; }
+  .lanes.wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr)); }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.t { color: var(--tag-t); } .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); } .tag.d { color: var(--tag-d); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  .cap dd b { font-weight: 600; }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 120ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent dark, so these stay dark in either page theme. Sizes are the
+     quick-command-label mock's, measured from docs/releases/img/whats-new-quick-commands.png and QuickCommandStrip.cs. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 16px 14px 14px 16px; overflow-x: auto; color-scheme: dark; }
+  .menu { position: relative; min-width: 290px; width: max-content; background: #2b2b2b; border-radius: 8px; padding: 4px 0; font: 14px "Segoe UI", Inter, system-ui, sans-serif; color: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 10px 28px rgba(0,0,0,.55); user-select: none; }
+  .ptr { position: absolute; left: -1px; top: -1px; z-index: 5; pointer-events: none; }
+  .mrow { height: 25px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 6px; white-space: nowrap; }
+  .mrow.title { height: 26px; font-weight: 700; color: #7a7a7a; }
+  .mrow.del { color: #fff; }
+  .mrow .chev { color: #fff; font-size: 13px; }
+  .mrow.text { color: #fff; }
+  .mrow.text .kind { font: 11px Consolas, monospace; color: #b8b8b8; }
+  .msep { height: 1px; background: #7f7f7f; margin: 4px 12px 5px 4px; }
+  .hline { position: relative; height: 23px; }
+  .hline .st, .hline .ql { position: absolute; inset: 0 12px 0 6px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; }
+  .hline .st { font-size: 11px; color: #9a9a9a; }
+  .hline .ql { opacity: 0; font-size: 12px; color: #ededed; }
+  .hline .ql .cm { font: 11px Consolas, monospace; color: #b8b8b8; }
+  .hline .ql .dash { color: #9a9a9a; }
+  .hline.lab .st { opacity: 0; } .hline.lab .ql { opacity: 1; }
+  .strip { padding: 5px 4px 3px 4px; }
+  .grp { display: flex; flex-direction: column; gap: 6px; }
+  .qrow { display: flex; gap: 6px; align-items: center; }
+  .gsep { height: 1px; background: #4c5158; margin: 5px 2px; }
+  .vsep { width: 1px; align-self: stretch; margin: 4px 0; background: #6a7078; flex: none; }
+  .glab { display: flex; align-items: center; gap: 6px; height: 12px; margin: 7px 2px 4px; }
+  .glab:first-child { margin-top: 0; }
+  .glab span { font: 600 9.5px/1 "Segoe UI", Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--c); opacity: .9; white-space: nowrap; }
+  .glab::before { content: ""; width: 3px; height: 10px; border-radius: 1px; background: var(--c); flex: none; }
+  .glab::after { content: ""; flex: 1; height: 1px; background: #4c5158; }
+  .qbtn { width: 42px; height: 42px; flex: none; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; background: #1f2226; padding: 0; display: grid; place-items: center; position: relative; cursor: pointer; }
+  .qbtn:hover { background: #2c3036; }
+  .qbtn:focus-visible { outline: 2px solid #fff; outline-offset: -1px; }
+  .qbtn .notch { position: absolute; right: 4px; bottom: 4px; }
+  .qbtn.far::after { content: ""; position: absolute; inset: -5px; border: 1.5px dashed #8fc1ff; border-radius: 7px; pointer-events: none; }
+  .qbtn.lone::before { content: ""; position: absolute; left: 50%; bottom: -5px; width: 22px; margin-left: -11px; height: 2px; border-radius: 1px; background: #ffb259; pointer-events: none; }
+  .readout { font: 11.5px/1.45 Consolas, "IBM Plex Mono", monospace; color: #a4adb8; margin-top: 10px; max-width: 360px; }
+  .readout b { color: #e4e7eb; font-weight: 400; }
+  .readout .w { color: #ffb259; }
+  .readout .f { color: #8fc1ff; }
+
+  /* Settings › Quick commands, as docs/user-guide/img/settings-quick-commands.png draws it. */
+  .spanel { width: 584px; max-width: 100%; background: #000; padding: 10px 12px 12px; font: 13px "Segoe UI", Inter, system-ui, sans-serif; color: #fff; }
+  .spanel .sh { font-weight: 700; font-size: 13px; }
+  .spanel .ssub { font-size: 11.5px; color: #b0b0b0; margin: 2px 0 6px; }
+  .pbox { display: inline-block; background: #2b2b2b; border-radius: 4px; padding: 4px 4px 2px; margin-bottom: 8px; }
+  .erow { display: grid; grid-template-columns: 22px 26px minmax(0, 1fr) 158px 22px; align-items: center; gap: 4px; height: 33px; border-bottom: 1px solid #2e2e2e; }
+  .erow .h { color: #9a9a9a; text-align: center; }
+  .erow .cb { border: 1px solid #5a5a5a; border-radius: 4px; height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; font-size: 12.5px; }
+  .erow .x { width: 18px; height: 18px; border-radius: 3px; background: #3a3a3a; display: grid; place-items: center; font-size: 11px; }
+  .ehead { display: flex; align-items: center; gap: 6px; font: 600 10.5px "Segoe UI", Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--c); padding: 10px 0 3px; border-bottom: 1px solid #3a3a3a; }
+  .ehead small { font: 10.5px "Segoe UI", sans-serif; letter-spacing: 0; text-transform: none; color: #8a8a8a; }
+  .divnote { font: 11px Consolas, monospace; color: #ffb259; padding: 4px 0; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 12px 8px 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-1028 · context-menu quick commands · mock for the owner's decisions</div>
+  <h1>Every quick-command icon, grouped by category</h1>
+  <p class="lede">Owner request: <b>“No limit on the amount of quick command icons that are shown in a context menu, but maybe they should be organized into categories with small separators?”</b> Today the strip holds the first ten glyph-bearing entries of the situation's list, two rows of five, and every glyph entry past the tenth drops to a text row. This page draws the strip with no cap, its icons grouped by category, four ways, against today's menu.</p>
+  <p class="lede">Each artboard is one aircraft situation, its lanes side by side at the menu's real width: the title, the state line (point at an icon and it names the command there, as the built strip does), the strip, and the rows below it. The pointer arrow marks where the right-click landed: the menu opens with its top-left corner there. Under each menu a measured line gives the menu's height, the icon farthest from the pointer (dashed blue ring) and every one-icon group (amber underline). The switches above the artboards re-draw every lane for decisions 2 to 5 and 7.</p>
+  <p class="lede">Glyphs, families, colours, sizes and the situations' lists are the built ones. <b>Every entry of a list is drawn, as Settings' preview draws it</b>: on a real aircraft the visibility rules hide some (Land on a fixed-wing, Cancel takeoff clearance with no clearance), so real menus are often shorter. Callsigns and state lines are illustrative.</p>
+
+  <section class="note-box" aria-labelledby="today-h">
+    <h2 id="today-h">The strip as built</h2>
+    <ul class="nl">
+      <li><b>Cap and split.</b> <code>QuickCommandGlyphs.StripCapacity</code> is 10; <code>Split</code> puts the first ten glyph-bearing entries in list order in the strip and every other entry, a glyph-bearing one past the tenth included, in the text rows below it. <code>QuickCommandStrip.Rows</code> lays the cells out in two rows of <code>RowLength</code> = 5, an empty second row hidden; Settings' preview lays out through the same <code>Rows</code> and <code>GlyphCell</code>.</li>
+      <li><b>Cells.</b> A 40 px cell (42 px with the button's border), a 32 px glyph drawn on a 24 px view box at stroke 1.9 in its family's colour, 6 px apart, on a <code>#1F2226</code> well; a corner notch (<code>M6 0V6H0z</code>, <code>#9AA3AD</code>) on a button that opens a flyout.</li>
+      <li><b>Families.</b> Five, in <code>QuickCommandGlyphFamily</code> order: Tower amber <code>#FFC062</code>, Ground teal <code>#6EE0CE</code>, Flight blue <code>#A8CAFF</code>, Pattern violet <code>#DDBDFF</code>, Scope and sim grey <code>#DCE2E8</code>.</li>
+      <li><b>Header line.</b> The state line under the title names the icon under the pointer or focus (<code>QuickCommandLabelLine</code>): its name, then <code>— COMMAND</code> for one fixed command or <code>›</code> for a flyout.</li>
+      <li><b>Release icons lead.</b> Release (HFR) and Check release window, when they apply, go first in the strip whatever the list (<code>AircraftMenuBuilder.LeadWithRelease</code>), and an icon they push past the tenth becomes the first text row.</li>
+    </ul>
+  </section>
+
+  <section class="note-box found" aria-labelledby="found-h">
+    <h2 id="found-h">Found while drawing (static reads, not run)</h2>
+    <ul class="nl">
+      <li><b>The cap is still ten.</b> YAAT-1028 says YAAT-762 raises it to 15; <code>QuickCommandGlyphs.cs:57</code> still reads <code>StripCapacity = 10</code> and <code>Rows</code> still builds two rows, so today's lanes are drawn at ten.</li>
+      <li><b>There is no coordination family.</b> The issue names six families (“… scope and sim, coordination”); the code has five, and Release (HFR) and Check release window are <code>ScopeAndSim</code> (<code>QuickCommandGlyphs.cs:188-189</code>).</li>
+      <li><b>Family is not the same as job.</b> Cleared for the option is drawn violet in the Pattern family (<code>:179</code>), not amber with the other tower clearances; Report traffic in sight, Report field in sight, At N-mile final and At fix are amber Tower glyphs (<code>:116-119</code>). Grouping by family moves them with their colour.</li>
+      <li><b>Two default lists already overflow.</b> Pattern (11) and Holding (11) hold more glyph entries than the strip shows, so a helicopter in the pattern gets Land as a text row today; a release-window aircraft in the Taxiing list (10) pushes Land out the same way.</li>
+      <li><b>Six fits the menu as it is.</b> Six 42 px buttons 6 px apart are 282 px, exactly the 290 px menu less its 4 px strip padding each side, so a six-wide row would not widen today's menu (decision 5).</li>
+      <li><b>Settings draws a divider after the tenth row</b> (<code>docs/client-context-menus.md</code>, “Strip mark and preview”); with no cap it has nothing to mark.</li>
+    </ul>
+  </section>
+
+  <section class="note-box lanesum" aria-labelledby="lanes-h">
+    <h2 id="lanes-h">The lanes</h2>
+    <ul class="nl" id="lanesum"></ul>
+  </section>
+
+  <nav class="index" id="index" aria-label="Sections"></nav>
+  <div class="switches" role="group" aria-label="Page switches">
+    <fieldset><legend>2 · Categories</legend>
+      <label><input type="radio" name="cat" value="fam" checked> glyph family</label>
+      <label><input type="radio" name="cat" value="task"> task</label></fieldset>
+    <fieldset><legend>3 · Category order</legend>
+      <label><input type="radio" name="corder" value="first" checked> as the list first names them</label>
+      <label><input type="radio" name="corder" value="fixed"> fixed</label></fieldset>
+    <fieldset><legend>4 · Within a category</legend>
+      <label><input type="radio" name="inner" value="list" checked> list order</label>
+      <label><input type="radio" name="inner" value="set"> icon-set order</label></fieldset>
+    <fieldset><legend>5 · Per row</legend>
+      <label><input type="radio" name="per" value="5" checked> 5</label>
+      <label><input type="radio" name="per" value="6"> 6</label>
+      <label><input type="radio" name="per" value="8"> 8</label></fieldset>
+    <fieldset><legend>7 · Release icons</legend>
+      <label><input type="radio" name="rel" value="lead" checked> lead</label>
+      <label><input type="radio" name="rel" value="join"> join their category</label></fieldset>
+    <fieldset><legend>Marks</legend>
+      <label><input type="checkbox" id="sw-marks" checked> farthest icon, one-icon groups</label></fieldset>
+  </div>
+  <div id="arts"></div>
+
+  <section class="note-box ask" aria-labelledby="ask-h" id="questions">
+    <h2 id="ask-h">Open decisions for the owner</h2>
+    <p style="margin:0 0 8px;color:var(--muted)">Answer as “1A, 2a, 3a, 4a, 5a, 6a, 7a”. Every worst case is for the page's default switches unless it names another; numbers are measured from this page.</p>
+    <ol class="nl" id="decisions"></ol>
+  </section>
+
+  <footer class="foot">Glyphs are the built <code>QuickCommandGlyphs.ById</code> paths drawn as <code>QuickCommandStrip.GlyphCell</code> draws them: 32 px on the 24 px view box, stroke 1.9, round caps and joins, in <code>FamilyColor</code>; notches by <code>QuickCommandStrip.Notch</code>. Lists are <code>QuickCommandDefaults.Lists</code> (Taxiing, Pattern, Approach), with Check release window leading the taxiing list as <code>LeadWithRelease</code> puts it for an aircraft with a call-for-release window; the approach list's last eleven entries are a user's additions, the uncapped case no default list reaches. Menu sizes (290 px, 25 px rows, 23 px state line, 4 px strip padding) are those the quick-command-label mock measured from <code>docs/releases/img/whats-new-quick-commands.png</code>; the separators, category labels and gaps between groups are drawings of options, not built UI. Commands in the hover labels are the catalog's (<code>MenuCatalog.cs</code>); Cleared to land's runway is left off. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  /* ---------- The built glyphs, in QuickCommandGlyphs.ById order (the "icon-set order" of decision 4) ---------- */
+  const FAM = {
+    T: { name: "Tower", color: "#FFC062" },
+    G: { name: "Ground", color: "#6EE0CE" },
+    F: { name: "Flight", color: "#A8CAFF" },
+    P: { name: "Pattern", color: "#DDBDFF" },
+    S: { name: "Scope and sim", color: "#DCE2E8" },
+  };
+  const FAM_ORDER = ["T", "G", "F", "P", "S"];
+  const TASK = {
+    RWY: "Runway", TAXI: "Taxi", VEC: "Vectors", APP: "Approach", PAT: "Pattern", REP: "Pilot reports", TRK: "Track and coordination",
+  };
+  const TASK_ORDER = ["RWY", "TAXI", "VEC", "APP", "PAT", "REP", "TRK"];
+  const TASK_COLOR = "#AEB6BF";
+  const CANCEL = "M2 20h20 M8 5l8 8 M16 5l-8 8";
+  const HELI = "M3 4.5h14 M10 4.5v3 M5.5 11.5a4.5 3.5 0 1 0 9 0a4.5 3.5 0 1 0-9 0 M8 15v3 M12 15v3 M5.5 18h9";
+  const SPEED = "M4 17a8 8 0 1 1 16 0 M12 17l4-5";
+  const T360 = "M20 12a8 8 0 1 1-3-6.2 M20 4v5h-5";
+  const RACE = "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z";
+  const CAPP = "M3 12L21 5 M3 12L21 19 M3 12h18";
+  const GL = [
+    ["CTO", "Cleared for takeoff", "T", "RWY", "M2 20h20 M5 16L19 6 M13 6h6v6", true, null],
+    ["CTOC", "Cancel takeoff clearance", "T", "RWY", CANCEL, false, "CTOC"],
+    ["CTL", "Cleared to land", "T", "RWY", "M2 20h20 M5 6l11 9 M10 15h6v-6", false, "CLAND"],
+    ["GA", "Go around", "T", "RWY", "M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4", false, "GA"],
+    ["TG", "Touch and go", "T", "RWY", "M2 20h20 M3 7c4 0 6 10 9 10s5-10 9-10", false, "TG"],
+    ["RTIS", "Report traffic in sight…", "T", "REP", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8", true, null],
+    ["RFIS", "Report field in sight…", "T", "REP", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2", true, null],
+    ["LAND", "Land", "G", "TAXI", HELI + " M19.5 8v10 M17 15.5l2.5 2.5 2.5-2.5", true, null],
+    ["HOLDPOS", "Hold position", "G", "TAXI", "M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6", false, "HOLD"],
+    ["RES", "Resume taxi", "G", "TAXI", "M7 4l13 8-13 8z", false, "RES"],
+    ["HS", "Hold short of…", "G", "TAXI", "M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3", true, null],
+    ["CROSS", "Cross 28L", "G", "TAXI", "M3 8h18 M3 16h18 M12 3v18 M9 18l3 3 3-3", false, "CROSS 28L"],
+    ["FOLLOWG", "Follow…", "G", "TAXI", "M4 17l5-5-5-5 M13 17l5-5-5-5", true, null],
+    ["GW", "Give way to…", "G", "TAXI", "M3 5h18L12 20z", true, null],
+    ["BREAK", "Ignore ground conflicts (15 s)", "G", "TAXI", "M3 12h6 M15 12h6 M10 6l4 12", false, "BREAK"],
+    ["FH", "Fly heading", "F", "VEC", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z", true, null],
+    ["CM", "Maintain altitude", "F", "VEC", "M3 18l7-7 4 4 7-7 M15 8h6v6", true, null],
+    ["SPD", "Assign speed", "F", "VEC", SPEED, true, null],
+    ["RFAS", "Reduce to final approach speed", "F", "VEC", SPEED, false, "RFAS"],
+    ["DCT", "Direct to…", "F", "VEC", "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4", true, null],
+    ["HOLDFIX", "Hold at fix…", "F", "APP", RACE + " M8 18l-2 3", true, null],
+    ["CAPP", "Cleared approach", "F", "APP", CAPP, true, null],
+    ["JAPP", "Join approach", "F", "APP", "M3 12h18 M20 20.5C18 15 15.5 12 11.5 12 M9.5 9l-3 3 3 3", true, null],
+    ["JFAC", "Join final approach course", "F", "APP", "M2 20h9 M21 10H5 M8 7l-3 3 3 3", true, null],
+    ["CVA", "Cleared visual", "F", "APP", "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6", true, null],
+    ["EAPP", "Expect approach", "F", "APP",
+      "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21", true, null],
+    ["PFOLLOW", "Follow traffic…", "P", "PAT", "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6", true, null],
+    ["EXT", "Extend pattern leg", "P", "PAT", "M3 8v8 M3 12h16 M15 8l4 4-4 4", false, "EXT"],
+    ["TB", "Turn base", "P", "PAT", "M4 4h10a6 6 0 0 1 6 6v10 M16 16l4 4 4-4", false, "TB"],
+    ["L360", "Make left 360", "P", "PAT", T360, false, "L360"],
+    ["R360", "Make right 360", "P", "PAT", T360, false, "R360"],
+    ["MSA", "Make short approach", "P", "PAT", "M4 6h8v12 M4 18h16 M9 13l3 5 3-5", false, "MSA"],
+    ["COPT", "Cleared for the option", "P", "RWY", "M2 20h20 M6 16c2-6 4-9 6-9 M12 7c2 0 4 3 6 9 M12 7V3", false, "COPT"],
+    ["HO", "Initiate handoff…", "S", "TRK", "M14 4h6v16h-6 M3 12h12 M11 8l4 4-4 4", true, null],
+    ["PO", "Point out…", "S", "TRK",
+      "M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10", true, null],
+    ["SQ", "Squawk…", "S", "TRK", "M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2", false, null],
+    ["CRW", "Check release window", "S", "TRK", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3", false, "CFR CHECK"],
+  ];
+  const G = {};
+  GL.forEach(([id, label, fam, task, d, sub, cmd], rank) => { G[id] = { id, label, fam, task, d, sub, cmd, rank }; });
+
+  /* ---------- Situations: QuickCommandDefaults.Lists, every entry drawn ---------- */
+  const SITS = [
+    {
+      id: "taxi", nav: "1 · Taxiing", title: "1 · Taxiing, with a call-for-release window",
+      callsign: "SWA1234", type: "B737", state: "Taxiing · B · KOAK",
+      release: ["CRW"],
+      list: ["HOLDPOS", "RES", "HS", "CROSS", "FOLLOWG", "GW", "BREAK", "CTO", "CTOC", "LAND"],
+      blurb: "The default <b>Taxiing</b> list (10 entries, eight Ground and two Tower) with Check release window leading it, as <code>LeadWithRelease</code> does for an aircraft with a call-for-release window: eleven icons, so today Land drops to a text row.",
+    },
+    {
+      id: "pattern", nav: "2 · VFR pattern", title: "2 · VFR pattern",
+      callsign: "N172SP", type: "C172", state: "Downwind · 1,000 ft · 90 kt · KOAK rwy 28L",
+      release: [],
+      list: ["CTL", "COPT", "TG", "PFOLLOW", "EXT", "MSA", "L360", "R360", "TB", "GA", "LAND"],
+      blurb: "The default <b>Pattern</b> list (11 entries): three Tower, seven Pattern (Cleared for the option among them) and Land, a lone Ground icon. Today Land, the eleventh, is a text row.",
+    },
+    {
+      id: "approach", nav: "3 · IFR approach, customised", title: "3 · IFR approach, a user's 18-entry list",
+      callsign: "UAL1734", type: "B738", state: "Approach · 3,000 ft · 180 kt · KOAK rwy 30",
+      release: [],
+      list: ["CAPP", "CM", "SPD", "RFIS", "CVA", "CTL", "LAND", "FH", "DCT", "JAPP", "EAPP", "HOLDFIX", "RFAS", "JFAC", "RTIS", "HO", "PO", "SQ"],
+      blurb: "The default <b>Approach</b> list (7 entries) with eleven more a user added in Settings › Quick commands: the uncapped case no default list reaches. Eleven Flight, three Tower, three Scope and sim and Land. Today eight of them are text rows.",
+    },
+  ];
+
+  /* ---------- Lanes ---------- */
+  const LANES = [
+    { key: "today", tag: "t", letter: "Today", name: "As built: ten icons, the rest as text" },
+    { key: "A", tag: "a", letter: "A", name: "A row per category, separators" },
+    { key: "B", tag: "b", letter: "B", name: "One flow, separators inside rows" },
+    { key: "C", tag: "c", letter: "C", name: "As A, each group labelled" },
+    { key: "D", tag: "d", letter: "D", name: "Top row as listed, the rest by category" },
+  ];
+  const LANE_TEXT = {
+    today: {
+      how: "The first ten glyph entries in list order, two rows of five; every glyph entry past the tenth is a text row under the strip.",
+      worst: "The 18-entry approach list keeps ten icons and drops eight to text rows: Expect approach, Hold at fix…, Reduce to final approach speed, Join final approach course, Report traffic in sight…, Initiate handoff…, Point out… and Squawk… read as text under icons, and which ten win depends only on list position.",
+    },
+    A: {
+      how: "Each category starts a row and wraps at the row length; a 1 px rule 5 px above and below parts one category from the next. No labels: colour (by family) or position tells the groups apart.",
+      worst: "Every short group costs a whole row: the 18-entry approach menu is <span data-m=\"approach.A.h\"></span> px tall with six strip rows, Flight's eleven icons take three of them (the last holds one), and Squawk… sits <span data-m=\"approach.A.d\"></span> px from the pointer.",
+    },
+    B: {
+      how: "One flow in rows of the row length, categories in order; a 1 px vertical rule takes the gap where one category gives way to the next inside a row.",
+      worst: "A boundary that falls at a row's end draws nothing: in the pattern menu the seven Pattern icons end row two, so Land opens row three as if it were one more Pattern icon, and in the taxiing menu Cleared for takeoff and Cancel takeoff clearance are split across rows two and three.",
+    },
+    C: {
+      how: "As A, with a tiny label at each group's start: a 3 px tick and the category's name in its colour (grey for task categories), then the rule.",
+      worst: "The labels add height to the tallest menu: the approach menu is <span data-m=\"approach.C.h\"></span> px, <span data-m=\"approach.CA\"></span> px taller than A, and a one-icon group (Land) carries a label as wide as the icon row.",
+    },
+    D: {
+      how: "The first row is the situation's first entries in list order, as today; a rule, then every other entry grouped by category as in A.",
+      worst: "A category is split between the top row and its group: in the pattern menu Go around leaves Cleared to land and Touch and go in the top row for a one-icon Tower group two rows down, beside a one-icon Ground group (Land).",
+    },
+  };
+
+  /* ---------- Options ---------- */
+  const opt = { cat: "fam", corder: "first", inner: "list", per: 5, rel: "lead", marks: true };
+
+  function entriesOf(sit, release) {
+    const items = sit.list.map((id, i) => ({ g: G[id], li: i + 1, rel: false }));
+    const rel = sit.release.map(id => ({ g: G[id], rel: true }));
+    if (release === "lead") {
+      rel.forEach((r, i) => { r.li = -rel.length + i; });
+      return [...rel, ...items];
+    }
+    rel.forEach((r, i) => { r.li = items.length + 1 + i; });
+    return [...items, ...rel];
+  }
+  const catKey = it => (it.rel && opt.rel === "lead") ? "REL" : (opt.cat === "fam" ? it.g.fam : it.g.task);
+  const catName = k => k === "REL" ? "Release" : (opt.cat === "fam" ? FAM[k].name : TASK[k]);
+  const catColor = k => k === "REL" ? FAM.S.color : (opt.cat === "fam" ? FAM[k].color : TASK_COLOR);
+  function groupsOf(items) {
+    const by = new Map();
+    items.forEach(it => { const k = catKey(it); if (!by.has(k)) by.set(k, []); by.get(k).push(it); });
+    const order = opt.cat === "fam" ? FAM_ORDER : TASK_ORDER;
+    const gs = [...by.entries()].map(([k, list]) => ({ k, list, first: Math.min(...list.map(x => x.li)) }));
+    gs.forEach(g => g.list.sort((a, b) => opt.inner === "list" ? a.li - b.li : (a.g.rank - b.g.rank) || (a.li - b.li)));
+    gs.sort((a, b) => {
+      if (a.k === "REL") return -1;
+      if (b.k === "REL") return 1;
+      return opt.corder === "first" ? a.first - b.first : order.indexOf(a.k) - order.indexOf(b.k);
+    });
+    return gs;
+  }
+  const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+
+  /* ---------- Drawing ---------- */
+  const glyph = (g, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${FAM[g.fam].color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${g.d}"/></svg>`;
+  const notch = `<svg class="notch" width="6" height="6" viewBox="0 0 6 6" aria-hidden="true"><path d="M6 0V6H0z" fill="#9AA3AD"/></svg>`;
+  const btn = (it, lone) => {
+    const g = it.g;
+    const lab = g.sub ? `${g.label} ›` : g.label;
+    return `<button type="button" class="qbtn${lone ? " lone" : ""}" data-name="${esc(lab)}" data-cmd="${esc(g.cmd || "")}" aria-label="${esc(lab)}">${glyph(g, 32)}${g.sub ? notch : ""}</button>`;
+  };
+  const rowsHtml = (list, n, lone) => chunk(list, n).map(r => `<div class="qrow">${r.map(it => btn(it, lone)).join("")}</div>`).join("");
+  const sepH = `<div class="gsep" role="separator"></div>`;
+  const labH = k => `<div class="glab" style="--c:${catColor(k)}"><span>${esc(catName(k))}</span></div>`;
+
+  function stripA(items, n, labelled) {
+    const gs = groupsOf(items);
+    const body = gs.map(g => (labelled ? labH(g.k) : "") + `<div class="grp">${rowsHtml(g.list, n, g.list.length === 1)}</div>`);
+    return { html: labelled ? body.join("") : body.join(sepH), groups: gs };
+  }
+  function stripB(items, n) {
+    const gs = groupsOf(items);
+    const flat = gs.flatMap(g => g.list.map(it => ({ it, k: g.k, lone: g.list.length === 1 })));
+    const html = chunk(flat, n).map(r => `<div class="qrow">${r.map((x, i) =>
+      ((i > 0 && r[i - 1].k !== x.k) ? `<span class="vsep" aria-hidden="true"></span>` : "") + btn(x.it, x.lone)).join("")}</div>`).join("");
+    return { html: `<div class="grp">${html}</div>`, groups: gs };
+  }
+  function stripD(items, n) {
+    const ordered = [...items].sort((a, b) => a.li - b.li);
+    if (ordered.length <= n) return { html: `<div class="grp">${rowsHtml(ordered, n, false)}</div>`, groups: [] };
+    const rest = stripA(ordered.slice(n), n, false);
+    return { html: `<div class="grp">${rowsHtml(ordered.slice(0, n), n, false)}</div>${sepH}${rest.html}`, groups: rest.groups };
+  }
+  function stripToday(items) {
+    const ordered = [...items].sort((a, b) => a.li - b.li);
+    return { html: `<div class="grp">${rowsHtml(ordered.slice(0, 10), 5, false)}</div>`, groups: [], text: ordered.slice(10) };
+  }
+
+  const ROWS_BELOW = [
+    ["Command…", ""], ["Note…", ""], ["All Commands", "›"], ["Favorite Commands", "›"], null,
+    ["Track", "›"], ["Data Block", "›"], ["Squawk", "›"], ["Display", "›"], ["Draw route", ""], null,
+    ["Delete", ""], null, ["Settings for this view…", ""],
+  ];
+  const ptr = `<svg class="ptr" width="12" height="16.5" viewBox="0 0 16 22" aria-hidden="true"><path d="M1 1v16l4.2-4 2.8 6.6 2.6-1.1-2.8-6.5H14z" fill="#FFFFFF" stroke="#000000" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+  const msep = `<div class="msep" role="separator"></div>`;
+
+  function menuHtml(sit, lane) {
+    const today = lane === "today";
+    const items = entriesOf(sit, today ? "lead" : opt.rel);
+    const n = opt.per;
+    const s = today ? stripToday(items) : lane === "A" ? stripA(items, n, false) : lane === "B" ? stripB(items, n)
+      : lane === "C" ? stripA(items, n, true) : stripD(items, n);
+    const text = (s.text || []).map(it => `<div class="mrow text"><span>${esc(it.g.label)}</span><span class="${it.g.sub ? "chev" : "kind"}">${it.g.sub ? "›" : esc(it.g.cmd || "")}</span></div>`).join("");
+    const below = ROWS_BELOW.map(r => r ? `<div class="mrow${r[0] === "Delete" ? " del" : ""}"><span>${esc(r[0])}</span><span class="chev">${r[1]}</span></div>` : msep).join("");
+    const html = `<div class="menu" data-sit="${sit.id}" data-lane="${lane}">${ptr}
+      <div class="mrow title">${esc(sit.callsign)} · ${esc(sit.type)}</div>
+      <div class="hline"><div class="st">${esc(sit.state)}</div><div class="ql"></div></div>
+      ${msep}<div class="strip">${s.html}</div>${text}${msep}${below}</div>`;
+    return { html, groups: s.groups, text: s.text || [] };
+  }
+
+  /* ---------- Measuring ---------- */
+  const M = {};
+  function measure(el, sitId, lane, info) {
+    const menu = el.querySelector(".menu");
+    const mr = menu.getBoundingClientRect();
+    let far = null, farD = -1;
+    menu.querySelectorAll(".qbtn").forEach(b => {
+      const r = b.getBoundingClientRect();
+      const d = Math.hypot(r.left + r.width / 2 - mr.left, r.top + r.height / 2 - mr.top);
+      if (d > farD) { farD = d; far = b; }
+    });
+    if (opt.marks && far) far.classList.add("far");
+    if (!opt.marks) menu.querySelectorAll(".qbtn.lone").forEach(b => b.classList.remove("lone"));
+    const h = Math.round(mr.height), w = Math.round(mr.width);
+    const strip = Math.round(menu.querySelector(".strip").getBoundingClientRect().height);
+    M[`${sitId}.${lane}.h`] = h;
+    M[`${sitId}.${lane}.d`] = Math.round(farD);
+    const lones = info.groups.filter(g => g.list.length === 1).map(g => `${catName(g.k)} (${g.list[0].g.label})`);
+    const groups = info.groups.map(g => `${catName(g.k)} ${g.list.length}`).join(" · ");
+    const out = el.querySelector(".readout");
+    out.innerHTML = [
+      `<b>${h}</b> px tall, <b>${w}</b> px wide · strip ${strip} px`,
+      far ? `<span class="f">farthest icon:</span> <b>${esc(far.dataset.name.replace(/ ›$/, ""))}</b>, ${Math.round(farD)} px from the pointer` : "",
+      groups ? `groups: ${esc(groups)}` : "",
+      lane === "today" ? (info.text.length ? `<span class="w">as text:</span> ${esc(info.text.map(t => t.g.label).join(", "))}` : "no text rows") :
+        (lones.length ? `<span class="w">one-icon groups:</span> ${esc(lones.join(", "))}` : "no one-icon group"),
+    ].filter(Boolean).join("<br>");
+  }
+
+  /* ---------- Settings artboard ---------- */
+  function settingsHtml(mode) {
+    const sit = SITS[1];
+    const items = entriesOf(sit, opt.rel);
+    const s = stripA(items, opt.per, false);
+    const erow = it => `<div class="erow"><span class="h">≡</span>${glyph(it.g, 20)}<span>${esc(it.g.label)}</span><span class="cb">Default (Both)<span>⌄</span></span><span class="x">✕</span></div>`;
+    let list;
+    if (mode === "a") {
+      list = [...items].sort((a, b) => a.li - b.li).map(erow).join("");
+    } else {
+      list = s.groups.map(g => `<div class="ehead" style="--c:${catColor(g.k)}">${esc(catName(g.k))} <small>· ${g.list.length}</small></div>${g.list.map(erow).join("")}`).join("");
+    }
+    return `<div class="spanel"><div class="sh">Menu preview</div><div class="ssub">Every command is shown, whether or not it applies to a given aircraft.</div>
+      <div class="pbox"><div class="strip" style="padding:2px 0">${s.html}</div></div>
+      <div class="sh" style="margin:2px 0 2px">Pattern</div>${list}</div>`;
+  }
+  const SET_TEXT = {
+    a: {
+      name: "Preview grouped, the list flat",
+      how: "The preview draws the strip exactly as the menu will, through the same factory; the entry list stays one list in the order the user dragged it, which decides the order within each group and, under decision 3a, the order of the groups. The divider after the tenth row goes.",
+      worst: "The list and the preview disagree on order: the list reads Cleared to land, Cleared for the option, Touch and go while the preview shows Cleared to land, Touch and go, Go around; and dragging Land to the top of the list moves the whole Ground group to the front of the strip.",
+    },
+    b: {
+      name: "Preview grouped, the list grouped too",
+      how: "The entry list sits under the same category headings as the strip; a row drags only within its heading, and the headings follow decision 3.",
+      worst: "A drag can no longer cross categories, and by family Cleared for the option sits under the Pattern heading, not under Tower with the other clearances, where an instructor would look for it.",
+    },
+  };
+
+  /* ---------- Page ---------- */
+  function laneHtml(sit, lane) {
+    const L = LANES.find(l => l.key === lane);
+    const m = menuHtml(sit, lane);
+    return { html: `<section class="lane" data-lane-box="${sit.id}.${lane}">
+      <div class="lane-h"><span class="tag ${L.tag}">${L.letter}</span><h3>${esc(L.name)}</h3></div>
+      <div class="stage">${m.html}<div class="readout"></div></div>
+    </section>`, info: m };
+  }
+
+  function render() {
+    document.documentElement.style.setProperty("--lane-w", opt.per === 8 ? "420px" : "322px");
+    const arts = document.getElementById("arts");
+    const infos = [];
+    arts.innerHTML = SITS.map(sit => {
+      const lanes = LANES.map(l => { const r = laneHtml(sit, l.key); infos.push([sit.id, l.key, r.info]); return r.html; }).join("");
+      return `<section class="art" id="${sit.id}"><div class="art-meta"><h2>${esc(sit.title)}</h2><p>${sit.blurb}</p></div><div class="lanes">${lanes}</div></section>`;
+    }).join("") + `<section class="art" id="settings"><div class="art-meta"><h2>4 · Settings › Quick commands, the Pattern list</h2>
+      <p>The editor's preview today draws the first ten glyph rows through <code>QuickCommandStrip.Rows</code> and <code>GlyphCell</code>, and the entry list marks a divider after the tenth. Both options below drop the divider and draw the preview in lane A's layout (it follows whichever lane decision 1 picks); they differ in the entry list. Decision 6.</p></div>
+      <div class="lanes wide">${["a", "b"].map(k => `<section class="lane"><div class="lane-h"><span class="tag ${k === "a" ? "a" : "b"}">6${k}</span><h3>${esc(SET_TEXT[k].name)}</h3></div>
+        <div class="stage">${settingsHtml(k)}</div>
+        <dl class="cap"><dt>How it works</dt><dd>${SET_TEXT[k].how}</dd><dt>Worst case</dt><dd class="worst">${SET_TEXT[k].worst}</dd></dl></section>`).join("")}</div></section>`;
+    infos.forEach(([sid, lane, info]) => measure(arts.querySelector(`[data-lane-box="${sid}.${lane}"]`), sid, lane, info));
+    M["approach.CA"] = M["approach.C.h"] - M["approach.A.h"];
+    fillNumbers();
+  }
+
+  function fillNumbers() {
+    document.querySelectorAll("[data-m]").forEach(s => { s.textContent = M[s.dataset.m] ?? "?"; });
+  }
+
+  document.getElementById("lanesum").innerHTML = LANES.map(l =>
+    `<li><b><span class="tag ${l.tag}">${l.letter}</span> ${esc(l.name)}.</b> ${LANE_TEXT[l.key].how}<span class="opts"><span class="w">Worst:</span> ${LANE_TEXT[l.key].worst}</span></li>`).join("");
+
+  const DEC = [
+    { t: "1. Lane", o: [
+      ["A", "a row per category, wrapping at the row length, a small rule between categories", LANE_TEXT.A.worst],
+      ["B", "one flow in rows, a thin vertical rule where categories meet inside a row", LANE_TEXT.B.worst],
+      ["C", "as A, each group opening with a tiny tick and label", LANE_TEXT.C.worst],
+      ["D", "the first row as the list orders it (today's top five), then the rest by category as A", LANE_TEXT.D.worst],
+    ] },
+    { t: "2. Category set", o: [
+      ["a", "the five glyph families (Tower, Ground, Flight, Pattern, Scope and sim): the colour is the group",
+        "Groups follow the drawing, not the job: Cleared for the option (violet) sits with the pattern legs, away from Cleared to land and Touch and go, and Report field in sight (amber) sits with Cleared to land in the approach menu."],
+      ["b", "by task: Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination",
+        "Colour no longer marks a group (the Runway group mixes amber and violet), and the approach menu breaks into six groups, two of them a single icon (Cleared to land, Land)."],
+    ] },
+    { t: "3. Category order", o: [
+      ["a", "as the situation's list first names them, so the list's first entry is still the strip's first icon",
+        "A category moves between situations: Tower opens the pattern menu but comes after Ground on the taxiing menu, so where an icon sits is learned per situation."],
+      ["b", "one fixed order everywhere (the family order Tower, Ground, Flight, Pattern, Scope and sim, or the task order)",
+        "The list's first entry can sink: in the approach menu Cleared approach, the list's first, comes after a Tower row and a lone Land, the fifth icon, on the third row."],
+    ] },
+    { t: "4. Order within a category", o: [
+      ["a", "the situation's list order, which Settings still edits",
+        "The same icon takes a different slot per situation: Cleared to land is first in the pattern menu's Tower group and second in the approach menu's, behind Report field in sight."],
+      ["b", "the icon set's own fixed order (QuickCommandGlyphs.ById), whatever the list says",
+        "The list's ranking is lost inside a group: on the taxiing menu Land, a helicopter-only entry the list puts last, becomes the Ground group's first icon, ahead of Hold position."],
+    ] },
+    { t: "5. Icons per row", o: [
+      ["a", "five, as today (the menu stays 290 px wide)",
+        "Tall menus: Flight's eleven icons in the approach menu take three rows in lane A, the last holding one, and the menu runs to <span data-m=\"approach.A.h\"></span> px."],
+      ["b", "six, which fills today's 290 px menu edge to edge",
+        "No room to spare: in lane B a six-wide row with one vertical rule is 289 px, so the menu widens to 297 px wherever two categories share a full row, and in A, C and D a full row touches the menu's edges with 4 px to spare."],
+      ["c", "eight (the menu widens to fit its longest row: up to 386 px, 407 px in lane B with its rules)",
+        "Width changes with the situation: the approach menu's Flight group fills an eight-wide row, so that menu is 386 px wide, a third wider than today's over the scope, while its one- and three-icon groups leave most of their rows empty."],
+    ] },
+    { t: "6. Settings › Quick commands", o: [
+      ["a", SET_TEXT.a.name.toLowerCase() + " (the divider after the tenth goes)", SET_TEXT.a.worst],
+      ["b", SET_TEXT.b.name.toLowerCase() + ", a row dragging only within its heading", SET_TEXT.b.worst],
+    ] },
+    { t: "7. Release icons (Release (HFR), Check release window)", o: [
+      ["a", "lead the strip as their own group, ahead of every category, as they lead it today",
+        "A one-icon Release group fills the top row: on the taxiing menu in lanes A and C, Hold position, the list's first, drops to the second row."],
+      ["b", "join their category (Scope and sim, or Track and coordination) in the list's place",
+        "The taxiing list does not name the clock, so it lands in the last group: in lanes A, C and D the release check a departure waits on becomes the icon farthest from the pointer."],
+    ] },
+  ];
+  document.getElementById("decisions").innerHTML = DEC.map(d =>
+    `<li><b>${esc(d.t)}.</b>${d.o.map(([k, what, worst]) => `<span class="opts"><i>${k}</i> ${esc(what)}<span class="wl">worst: ${worst}</span></span>`).join("")}</li>`).join("");
+
+  document.getElementById("index").innerHTML = SITS.map(s => `<a href="#${s.id}">${esc(s.nav)}</a>`).join("") +
+    `<a href="#settings">4 · Settings</a><a href="#questions">Open decisions</a>`;
+
+  /* ---------- Live label line ---------- */
+  document.addEventListener("mouseover", e => {
+    const b = e.target.closest && e.target.closest(".menu .qbtn");
+    if (!b) return;
+    const hl = b.closest(".menu").querySelector(".hline");
+    const cmd = b.dataset.cmd;
+    hl.querySelector(".ql").innerHTML = `<span>${esc(b.dataset.name)}</span>${cmd ? `<span class="dash">&nbsp;—&nbsp;</span><span class="cm">${esc(cmd)}</span>` : ""}`;
+    hl.classList.add("lab");
+  });
+  document.addEventListener("mouseout", e => {
+    const strip = e.target.closest && e.target.closest(".menu .strip");
+    if (!strip || (e.relatedTarget && strip.contains(e.relatedTarget))) return;
+    strip.closest(".menu").querySelector(".hline").classList.remove("lab");
+  });
+
+  /* ---------- Switches ---------- */
+  document.querySelectorAll(".switches input[type=radio]").forEach(r => r.addEventListener("change", () => {
+    if (!r.checked) return;
+    opt[r.name] = r.name === "per" ? Number(r.value) : r.value;
+    render();
+  }));
+  document.getElementById("sw-marks").addEventListener("change", e => { opt.marks = e.target.checked; render(); });
+
+  /* A review link can preset the switches: ?cat=task&corder=fixed&inner=set&per=6&rel=join */
+  new URLSearchParams(location.search).forEach((v, k) => {
+    const r = document.querySelector(`.switches input[name="${k}"][value="${v}"]`);
+    if (!r) return;
+    r.checked = true;
+    opt[k] = k === "per" ? Number(v) : v;
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
