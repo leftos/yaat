@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
+- [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — High · Singles
 
 ## Context-menu quick commands (#471)
 
@@ -14,7 +14,6 @@
 - [ ] YAAT-729 Decide the Give way flyout's no-conflict note from the server's taxi route state
 - [ ] YAAT-758 Build the route ladder's bar-mark backing and connector, and test its Helipad end row
 - [ ] YAAT-762 Parked aircraft squawking standby should offer SQNORM in quick commands
-- [ ] YAAT-761 Taxi quick command icon doesn't offer highlighted taxi path preview like the flyout does
 - [ ] YAAT-760 SCX8607 didn't offer Hold Short of T on Quick Commands
 - [ ] YAAT-773 Extract one live-list helper for the quick-command flyouts that refill while open
 - [ ] YAAT-807 Show the empty-entries line when the Taxi to runway panel fails to render a landed search
@@ -35,7 +34,7 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext+1
+- [ ] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
 - [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only
 
 ## Bug reports and feature requests
@@ -47,7 +46,7 @@
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
-- [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
+- [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext
 
 ## Say again
 
@@ -612,7 +611,7 @@
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
 - [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
-- [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext+1
+- [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext
 - [ ] YAAT-877 Remove the WingspanLateralCheck flags only a deleted capture test set
 - [ ] YAAT-883 Split GroundCommandHandler.TryTaxiCore under the function-length limit
 - [ ] YAAT-884 PUSH B FACE SW from SFO G10 holds 113 ft off taxiway B
@@ -676,3 +675,7 @@
 - [ ] YAAT-1016 Set a WebSocket keep-alive timeout so a silently dropped client is detached
 - [ ] YAAT-1017 Queue SetSessionActive on a Tower Cab's push chain
 - [ ] YAAT-1021 Take an unlinked CRC or vEDST joiner off the session's joined list when the session ends
+
+## No project
+
+- [ ] YAAT-1022 Make tools/test-all.ps1 routable to the Mac mini builder
