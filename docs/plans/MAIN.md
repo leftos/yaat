@@ -4,7 +4,8 @@
 
 ## Do first
 
-- [ ] YAAT-1039 Make AutomationHostTests.Dispose_NoClientCanConnectAfterwards_Repeated load-proof · release vNext — Urgent · No project
+- [ ] YAAT-1044 Make SpeedFlyoutTests.Reopen_ClearsTheBoxAndThePointedChip load-proof · release vNext — Urgent · Singles
+- [ ] YAAT-1045 Make WaitUntilToolTests.StopRecording_DiedAndRestartedIntoTheSameOut load-proof · release vNext — Urgent · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Context-menu flyouts (feat/context-menu-flyouts)
@@ -13,6 +14,9 @@
   - [/] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
   - [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
   - [ ] YAAT-1035 Warp… popup sends a sub-1000 ft altitude as hundreds (800 ft becomes 80,000 ft)
+  - [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
+  - [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only · release vNext
+  - [ ] YAAT-1048 Decide the focus when a runway tab is switched in a Cleared approach flyout opened on the visual
 
 ## Context-menu quick commands (#471)
 
@@ -40,8 +44,6 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only
-- [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
 - [ ] YAAT-1032 Add a midfield-downwind pattern report (REPORT MIDFIELD) · release vNext
 
 ## Bug reports and feature requests
@@ -53,7 +55,8 @@
 - [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
-- [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext
+- [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
+- [ ] YAAT-1050 Stop speed commands (SPDN) cancelling an approach; audit every command that cancels one · release vNext
 
 ## Say again
 
@@ -322,6 +325,7 @@
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close
 - [ ] YAAT-529 Remove the pass-through SettingsViewModel.ParseKeybind wrapper
 - [ ] YAAT-698 Offer RES on the rollout while a give-way is pending there
+- [ ] YAAT-1042 Fold the menu's disabled-and-inert row pair into one helper
 
 ## Wave 8 — Live traffic
 
@@ -396,6 +400,7 @@
 - [ ] YAAT-999 Commit the suspend rig under tools/ and point the load-proof docs at it
 - [ ] YAAT-1008 Stop the automation host accepting pipe clients after Dispose on Unix
 - [ ] YAAT-1013 Boil settled mocks down to a decision record and a rebuild recipe
+- [ ] YAAT-1038 Make the dotnet-format hook restore (or refuse) in a worktree with no local restore
 
 ## Singles
 
@@ -476,6 +481,12 @@
 - [ ] YAAT-727 Refuse weather JSON whose root is not an object instead of throwing in a tick
 - [ ] YAAT-947 Refuse JAWY on a military training route; point to CMTR
 - [ ] YAAT-1000 Give test-all an idle watchdog that names a stalled test host
+- [ ] YAAT-1033 Honour a CAPP crossing restriction's at-or-above / at-or-below prefix
+- [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position
+- [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude
+- [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
+- [ ] YAAT-1047 Check where a 45-degree downwind entry joins the downwind (abeam the midpoint per AIM 4-3-3)
+- [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
 
 ## Backlog
 
@@ -679,10 +690,4 @@
 - [ ] YAAT-1021 Take an unlinked CRC or vEDST joiner off the session's joined list when the session ends
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 - [ ] YAAT-1031 Keep an auto-cleared crossing the aircraft can no longer stop short of when the active runways change
-
-## No project
-
-- [ ] YAAT-1033 Honour a CAPP crossing restriction's at-or-above / at-or-below prefix
-- [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position
-- [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude
-- [ ] YAAT-1038 Make the dotnet-format hook restore (or refuse) in a worktree with no local restore
+- [ ] YAAT-1049 Make a concurrent second automation-pipe Dispose wait for the first; observe the read-ahead task
