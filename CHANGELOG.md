@@ -5,6 +5,7 @@
 ### Fixed
 
 - Popping out a second vStrips tab while the vTDLS tab is selected no longer leaves the main window showing a blank tab.
+- A spoken "disregard" no longer drops the instruction after it when the retracted part had a misheard runway.
 
 ## v0.17.0-beta [2026/10/22]
 

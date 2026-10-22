@@ -959,6 +959,19 @@ public class PhraseologyMapperTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public void Disregard_ClearsLatchedRunwayInvalidFlag()
+    {
+        // A garbled runway in a clause BEFORE "disregard" latches the runwayInvalid veto. "disregard"
+        // retracts that clause, so the valid clause after it must still map — the stale flag must
+        // not null the whole transmission. "285" has no phonetic snap (trailing 5) and bare "28"
+        // isn't a runway at KOAK, so the first clause sets runwayInvalid during pass 1.
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L");
+        MapResult? result = PhraseologyMapper.Map("cross runway 285 disregard cross runway two eight right", ctx);
+        Assert.NotNull(result);
+        Assert.Equal("CROSS 28R", result!.CanonicalCommand);
+    }
+
     // --- Edge cases ---
 
     [Fact]
