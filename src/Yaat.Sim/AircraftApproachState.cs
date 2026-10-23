@@ -119,6 +119,14 @@ public class AircraftApproachState
     public bool ReportArmedFinal { get; set; }
 
     /// <summary>
+    /// Deferred midfield-downwind report armed by <c>REPORT MIDFIELD</c>: <see cref="Phases.Pattern.DownwindPhase"/>
+    /// voices it at the leg's midfield point on each circuit, until <c>REPORT OFF MIDFIELD</c> or <c>REPORT OFF</c>. Worded
+    /// by position when it fires: "midfield {left|right} downwind" at midfield, "{left|right} downwind, past midfield"
+    /// short of abeam the threshold, "{left|right} downwind, abeam the numbers" from there on. Snapshot-serialized.
+    /// </summary>
+    public bool ReportArmedMidfield { get; set; }
+
+    /// <summary>
     /// Deferred N-mile-final report armed by <c>REPORT &lt;n&gt; FINAL</c>: the distance (NM) to the
     /// runway threshold at which the pilot voices an "n-mile final" report. One-shot — cleared
     /// when it fires. Null when unarmed. Snapshot-serialized.
@@ -145,6 +153,7 @@ public class AircraftApproachState
         ReportArmedDownwind = false;
         ReportArmedBase = false;
         ReportArmedFinal = false;
+        ReportArmedMidfield = false;
         ReportFinalMileTarget = null;
         ReportAtFixName = null;
         ReportAtFixLat = null;
@@ -170,6 +179,7 @@ public class AircraftApproachState
             ReportArmedDownwind = ReportArmedDownwind,
             ReportArmedBase = ReportArmedBase,
             ReportArmedFinal = ReportArmedFinal,
+            ReportArmedMidfield = ReportArmedMidfield,
             ReportFinalMileTarget = ReportFinalMileTarget,
             ReportAtFixName = ReportAtFixName,
             ReportAtFixLat = ReportAtFixLat,
@@ -195,6 +205,7 @@ public class AircraftApproachState
             ReportArmedDownwind = dto.ReportArmedDownwind,
             ReportArmedBase = dto.ReportArmedBase,
             ReportArmedFinal = dto.ReportArmedFinal,
+            ReportArmedMidfield = dto.ReportArmedMidfield,
             ReportFinalMileTarget = dto.ReportFinalMileTarget,
             ReportAtFixName = dto.ReportAtFixName,
             ReportAtFixLat = dto.ReportAtFixLat,

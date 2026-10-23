@@ -1968,9 +1968,10 @@ public static class CommandRegistry
                 ["REPORT"],
                 [
                     O("Pattern leg", [R("leg", "base/final/crosswind/downwind")], "Report turning the leg (each circuit)"),
+                    O("Midfield downwind", [L("MIDFIELD")], "Report midfield downwind (each circuit)"),
                     O("N-mile final", [R("miles", "distance NM"), L("FINAL")], "Report n-mile final"),
                     O("At fix", [R("fix", "fix name")], "Report passing the fix"),
-                    O("Cancel", [R("off", "OFF [leg]")], "Stop a standing report (OFF [leg]; bare OFF cancels all)"),
+                    O("Cancel", [R("off", "OFF [leg]")], "Stop a standing report (OFF [leg|MIDFIELD]; bare OFF cancels all)"),
                 ]
             ),
         ];

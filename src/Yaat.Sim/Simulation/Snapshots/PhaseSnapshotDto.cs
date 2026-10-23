@@ -1751,6 +1751,12 @@ public sealed class DownwindPhaseDto : PhaseDto
     public bool? AssignedAltitudeBaselineRecorded { get; init; }
 
     public required bool MidfieldBroadcastIssued { get; init; } = false;
+
+    /// <summary>One-shot per leg: the controller-armed midfield-downwind report (<c>REPORT MIDFIELD</c>) has been voiced
+    /// on this downwind. Written only when true; null (omitted) otherwise and in snapshots predating the field.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? MidfieldReportIssued { get; init; }
+
     public bool ShortApproachArmed { get; init; }
 
     /// <summary>Downwind re-intercepts its computed track (wrong-side / cross-runway join). Nullable

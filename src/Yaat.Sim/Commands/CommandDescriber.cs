@@ -2890,6 +2890,7 @@ public static class CommandDescriber
             ReportTrigger.Downwind => "REPORT DOWNWIND",
             ReportTrigger.Base => "REPORT BASE",
             ReportTrigger.Final => "REPORT FINAL",
+            ReportTrigger.Midfield => "REPORT MIDFIELD",
             ReportTrigger.MileFinal => $"REPORT {cmd.DistanceNm} FINAL",
             ReportTrigger.AtFix => $"REPORT {cmd.FixName}",
             ReportTrigger.Cancel => cmd.CancelTarget is { } leg ? $"REPORT OFF {ReportLegToken(leg)}" : "REPORT OFF",
@@ -2903,6 +2904,7 @@ public static class CommandDescriber
             ReportTrigger.Downwind => "Report turning downwind",
             ReportTrigger.Base => "Report turning base",
             ReportTrigger.Final => "Report turning final",
+            ReportTrigger.Midfield => "Report midfield downwind",
             ReportTrigger.MileFinal => $"Report {cmd.DistanceNm}-mile final",
             ReportTrigger.AtFix => $"Report at {cmd.FixName}",
             ReportTrigger.Cancel => cmd.CancelTarget is { } leg ? $"Cancel {ReportLegWord(leg)} report" : "Cancel all reports",
@@ -2916,6 +2918,7 @@ public static class CommandDescriber
             ReportTrigger.Downwind => "DOWNWIND",
             ReportTrigger.Base => "BASE",
             ReportTrigger.Final => "FINAL",
+            ReportTrigger.Midfield => "MIDFIELD",
             _ => leg.ToString().ToUpperInvariant(),
         };
 
@@ -2926,6 +2929,7 @@ public static class CommandDescriber
             ReportTrigger.Downwind => "downwind",
             ReportTrigger.Base => "base",
             ReportTrigger.Final => "final",
+            ReportTrigger.Midfield => "midfield downwind",
             _ => leg.ToString().ToLowerInvariant(),
         };
 

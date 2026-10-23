@@ -460,7 +460,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Report traffic (pattern) | `RTIS BASE R 2 28R M20P` | — | VFR form: `<leg> <L\|R> <miles> <rwy> <type>` (leg `UW`/`XW`/`DW`/`BASE`/`FINAL`; omit side for `FINAL`) |
 | Report traffic (landmark) | `RTIS OVER VPCOL C172` | — | VFR form: `OVER <fix/VFR point> <type>` |
 | Report traffic (forced) | `RTISF UAL456` / `RTISF` | — | RPO-only; bare form folds in a pending `RTIS` call |
-| Report position | `REPORT BASE` / `REPORT 5 FINAL` / `REPORT SUNOL` | — | Pilot reports the event when it happens; pattern-leg reports repeat each circuit. Cancel with `REPORT OFF [leg]` |
+| Report position | `REPORT BASE` / `REPORT MIDFIELD` / `REPORT 5 FINAL` / `REPORT SUNOL` | — | Pilot reports the event when it happens; pattern-leg and midfield reports repeat each circuit. Cancel with `REPORT OFF [leg\|MIDFIELD]` |
 | Safety alert | `SAFAL 12 1 L D` | — | Optional `L`/`R` and `C`/`D` action tokens |
 | Wake advisory | `CWT` | — | Caution wake turbulence; phase-transparent proof command |
 | List approaches | `APPS` | `APPS OAK` | — |
@@ -1568,13 +1568,18 @@ A second visual-acquisition command replaces the prior looking state; target lea
 **Position reports (`REPORT`):** `REPORT <what>` asks the pilot to report an event back when it happens, rather than now (unlike `RFIS`/`RTIS`, which the pilot answers immediately). The pilot acknowledges on receipt (*"will report turning base"*) and voices the actual report when the event occurs, as a normal pilot radio transmission (terminal SAY line plus TTS).
 
 - **Pattern leg** — `REPORT BASE`, `REPORT FINAL`, `REPORT CROSSWIND` (`XW`), `REPORT DOWNWIND` (`DW`). The pilot reports *"turning base runway 28R"* when the leg begins. **Repeats every circuit** — a closed-traffic aircraft reports the leg on each lap until cancelled or it lands full-stop (a touch-and-go keeps reporting). Rejected if the aircraft is not in the pattern.
+- **Midfield downwind** — `REPORT MIDFIELD` (no alias). The pilot reports *"midfield left downwind runway 28R"* (right for right traffic) each circuit when the aircraft reaches midfield on the downwind. Armed late or joined late, the wording follows the position: *"left downwind runway 28R, past midfield"*, or *"…, abeam the numbers"* from abeam the threshold on. The readback is *"will report midfield downwind"*. When armed it replaces the unarmed midfield-downwind reminder.
+
+  A join (midfield crossing, 45-degree entry, rebuilt leg) that hands over within 0.5 nm of midfield with `REPORT DOWNWIND` also armed gives this one call in place of *"turning downwind"*.
+
+  A 360 or same-runway rebuild does not repeat it; a switch to the parallel's downwind reports once more with the new runway, and a crossover reports on the landing downwind. Rejected if the aircraft is not in the pattern; accepted inbound with a pattern entry queued, or on base in closed traffic.
 - **N-mile final** — `REPORT 5 FINAL` (or `REPORT FINAL 5`). The pilot reports *"5-mile final runway 28R"* once, when the aircraft reaches that distance from the threshold. One-shot. Rejected if no runway is assigned; only fires for an aircraft inbound to land.
 - **At a fix** — `REPORT SUNOL`. The pilot reports *"passing SUNOL"* once, when the aircraft reaches the fix. One-shot. Rejected if the fix is not in the nav database.
-- **Cancel** — bare `REPORT OFF` cancels **all** standing reports for the aircraft (every armed pattern leg plus any pending n-mile-final or at-fix report). To cancel a **single** pattern leg, name it: `REPORT OFF BASE`, `REPORT OFF FINAL`, `REPORT OFF CROSSWIND` (`XW`), `REPORT OFF DOWNWIND` (`DW`). The leg may come before or after the keyword — `REPORT BASE OFF` is equivalent to `REPORT OFF BASE`.
+- **Cancel** — bare `REPORT OFF` cancels **all** standing reports for the aircraft (every armed pattern leg plus any pending n-mile-final or at-fix report). To cancel a **single** pattern leg, name it: `REPORT OFF BASE`, `REPORT OFF FINAL`, `REPORT OFF CROSSWIND` (`XW`), `REPORT OFF DOWNWIND` (`DW`), `REPORT OFF MIDFIELD`. The leg may come before or after the keyword — `REPORT BASE OFF` is equivalent to `REPORT OFF BASE`.
 
   The cancel keyword is interchangeable: `OFF`, `CANCEL`, `STOP`, and `NONE` all work (e.g. `REPORT CANCEL`, `REPORT STOP BASE`). A standing pattern-leg report keeps re-arming every circuit until you cancel it this way (or the aircraft lands full-stop), so cancel is the normal way to stop a lap-by-lap report you no longer need.
 
-The leg keywords are the same whether arming or cancelling — `BASE`, `FINAL`, `CROSSWIND` (short form `XW`), `DOWNWIND` (short form `DW`) — so `REPORT DW` arms and `REPORT OFF DW` cancels the downwind report.
+The leg keywords are the same whether arming or cancelling — `BASE`, `FINAL`, `CROSSWIND` (short form `XW`), `DOWNWIND` (short form `DW`), plus `MIDFIELD` — so `REPORT DW` arms and `REPORT OFF DW` cancels the downwind report.
 
 `REPORT` is phase-transparent: arming or cancelling a report never disturbs the aircraft's pattern or approach phase. The reports route through the same pilot-speech pipeline as the automatic midfield-downwind and short-final calls, so they are audible to tower and approach in solo training and shown to the RPO in instructor mode.
 

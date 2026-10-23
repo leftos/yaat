@@ -693,6 +693,7 @@ public static class PilotResponder
             ReportTrigger.Downwind => Dual("will report turning downwind", "will report turning downwind"),
             ReportTrigger.Base => Dual("will report turning base", "will report turning base"),
             ReportTrigger.Final => Dual("will report turning final", "will report turning final"),
+            ReportTrigger.Midfield => Dual("will report midfield downwind", "will report midfield downwind"),
             ReportTrigger.MileFinal => Dual(
                 $"will report {report.DistanceNm}-mile final",
                 $"will report {AtcNumberParser.CardinalWord(report.DistanceNm ?? 0)} mile final"
@@ -1587,12 +1588,48 @@ public static class PilotResponder
             ReportTrigger.Downwind => "downwind",
             ReportTrigger.Base => "base",
             ReportTrigger.Final => "final",
-            _ => "final",
+            _ => throw new ArgumentOutOfRangeException(nameof(leg), leg, $"{leg} is not a turning-leg report"),
         };
         return new PilotSpeechText(
             $"turning {legWord} runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
             $"{spoken}, turning {legWord} runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
         );
+    }
+
+    /// <summary>
+    /// Deferred midfield-downwind report armed by <c>REPORT MIDFIELD</c>, worded by where the aircraft is when it fires.
+    /// Output, left traffic:
+    /// <c>"[N123AB] november one two three alpha bravo, midfield left downwind runway two eight right."</c>,
+    /// <c>"…, left downwind runway two eight right, past midfield."</c> or
+    /// <c>"…, left downwind runway two eight right, abeam the numbers."</c>
+    /// </summary>
+    public static PilotSpeechText BuildMidfieldDownwindReport(
+        AircraftState aircraft,
+        PatternDirection side,
+        MidfieldReportPosition position,
+        string runwayId
+    )
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string sideWord = side == PatternDirection.Right ? "right" : "left";
+        string compact = PhraseologyVerbalizer.CompactRunway(runwayId);
+        string spelled = PhraseologyVerbalizer.SpellRunway(runwayId);
+        return position switch
+        {
+            MidfieldReportPosition.Midfield => new PilotSpeechText(
+                $"midfield {sideWord} downwind runway {compact}.",
+                $"{spoken}, midfield {sideWord} downwind runway {spelled}."
+            ),
+            MidfieldReportPosition.PastMidfield => new PilotSpeechText(
+                $"{sideWord} downwind runway {compact}, past midfield.",
+                $"{spoken}, {sideWord} downwind runway {spelled}, past midfield."
+            ),
+            MidfieldReportPosition.AbeamNumbers => new PilotSpeechText(
+                $"{sideWord} downwind runway {compact}, abeam the numbers.",
+                $"{spoken}, {sideWord} downwind runway {spelled}, abeam the numbers."
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(position), position, "unknown midfield report position"),
+        };
     }
 
     /// <summary>

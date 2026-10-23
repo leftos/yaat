@@ -2271,12 +2271,13 @@ internal static class NavigationCommandHandler
             case ReportTrigger.Downwind:
             case ReportTrigger.Base:
             case ReportTrigger.Final:
+            case ReportTrigger.Midfield:
                 if (!HasPatternCircuit(aircraft))
                 {
                     return new CommandResult(false, $"Unable, {aircraft.Callsign} is not in the pattern");
                 }
                 SetPatternLegReportArmed(approach, cmd.Trigger, true);
-                return CommandDispatcher.Ok($"Will report turning {ReportLegWord(cmd.Trigger)}");
+                return CommandDispatcher.Ok(PatternReportArmedEcho(cmd.Trigger));
 
             case ReportTrigger.MileFinal:
                 if (aircraft.Phases?.AssignedRunway is null)
@@ -2349,10 +2350,17 @@ internal static class NavigationCommandHandler
             case ReportTrigger.Final:
                 approach.ReportArmedFinal = armed;
                 break;
+            case ReportTrigger.Midfield:
+                approach.ReportArmedMidfield = armed;
+                break;
             default:
                 break;
         }
     }
+
+    /// <summary>The echo for an armed pattern-leg report: "Will report midfield downwind", else "Will report turning {leg}".</summary>
+    private static string PatternReportArmedEcho(ReportTrigger leg) =>
+        leg == ReportTrigger.Midfield ? $"Will report {ReportLegWord(leg)}" : $"Will report turning {ReportLegWord(leg)}";
 
     private static string ReportLegWord(ReportTrigger leg) =>
         leg switch
@@ -2361,6 +2369,7 @@ internal static class NavigationCommandHandler
             ReportTrigger.Downwind => "downwind",
             ReportTrigger.Base => "base",
             ReportTrigger.Final => "final",
+            ReportTrigger.Midfield => "midfield downwind",
             _ => "final",
         };
 }

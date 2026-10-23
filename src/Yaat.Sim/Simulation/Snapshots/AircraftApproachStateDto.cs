@@ -51,6 +51,7 @@ public sealed class AircraftApproachStateDto
     public bool ReportArmedDownwind { get; init; }
     public bool ReportArmedBase { get; init; }
     public bool ReportArmedFinal { get; init; }
+    public bool ReportArmedMidfield { get; init; }
     public int? ReportFinalMileTarget { get; init; }
     public string? ReportAtFixName { get; init; }
     public double? ReportAtFixLat { get; init; }

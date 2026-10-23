@@ -138,7 +138,8 @@ public record SayCommand(string Text) : ParsedCommand;
 
 /// <summary>
 /// What a <see cref="ReportCommand"/> arms (or, for <see cref="Cancel"/>, undoes). The four pattern
-/// legs re-arm every circuit; <see cref="MileFinal"/> and <see cref="AtFix"/> are one-shot.
+/// legs and <see cref="Midfield"/> (midfield downwind) re-arm every circuit; <see cref="MileFinal"/>
+/// and <see cref="AtFix"/> are one-shot.
 /// </summary>
 public enum ReportTrigger
 {
@@ -146,6 +147,7 @@ public enum ReportTrigger
     Downwind,
     Base,
     Final,
+    Midfield,
     MileFinal,
     AtFix,
     Cancel,

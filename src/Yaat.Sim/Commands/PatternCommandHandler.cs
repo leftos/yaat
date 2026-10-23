@@ -860,6 +860,7 @@ internal static class PatternCommandHandler
             }
         }
 
+        CarryMidfieldReportLatch(previousActivePhase as DownwindPhase, circuitPhases, runway);
         foreach (Phase phase in circuitPhases)
         {
             phases.Add(phase);
@@ -1077,6 +1078,7 @@ internal static class PatternCommandHandler
                 airportRunways
             );
 
+            CarryMidfieldReportLatch(aircraft.Phases.CurrentPhase as DownwindPhase, rebuiltChain, runway);
             ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
 
             Log.LogDebug(
@@ -1171,6 +1173,29 @@ internal static class PatternCommandHandler
     /// </summary>
     private static string MidfieldCrossingLabel(IEnumerable<Phase> chain) =>
         chain.Any(p => p is MidfieldCrossingPhase { Status: PhaseStatus.Pending or PhaseStatus.Active }) ? MidfieldCrossingSuffix : "";
+
+    /// <summary>
+    /// A chain that re-creates this lap's downwind keeps its <c>REPORT MIDFIELD</c> latch, so the lap is not reported twice:
+    /// the chain's first downwind takes the latch of <paramref name="replaced"/> when both are on
+    /// <paramref name="runway"/> and on the same side. Another runway, or the other side of the same runway, is a new
+    /// downwind: it starts clear and may report once with its own designator and side.
+    /// </summary>
+    private static void CarryMidfieldReportLatch(DownwindPhase? replaced, List<Phase> chain, RunwayInfo runway)
+    {
+        if (
+            (replaced is { MidfieldReportIssued: true, Waypoints: { } replacedWaypoints })
+            && (chain.OfType<DownwindPhase>().FirstOrDefault() is { Waypoints: { } newWaypoints } newDownwind)
+            && (replacedWaypoints.Direction == newWaypoints.Direction)
+            && string.Equals(
+                ResolveFlownRunway(replacedWaypoints, NavigationDatabase.Instance.GetRunways(runway.AirportId))?.Designator,
+                runway.Designator,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            newDownwind.MidfieldReportIssued = true;
+        }
+    }
 
     /// <summary>Result-text suffix for a chain that crosses the field, shared by every clearance that can build one.</summary>
     private const string MidfieldCrossingSuffix = " (crossing midfield)";
@@ -2047,6 +2072,13 @@ internal static class PatternCommandHandler
                     dw.IsExtended = true;
                     break;
             }
+        }
+
+        // Rolled back onto the downwind from base: the downwind this lap flew is the most recent one in the list.
+        if (leg == PatternEntryLeg.Downwind)
+        {
+            DownwindPhase? flownDownwind = aircraft.Phases.Phases.Take(aircraft.Phases.CurrentIndex).OfType<DownwindPhase>().LastOrDefault();
+            CarryMidfieldReportLatch(flownDownwind, circuitPhases, runway);
         }
 
         ApplyRebuiltPatternChain(aircraft, runway, direction, circuitPhases);
@@ -2957,7 +2989,12 @@ internal static class PatternCommandHandler
     {
         return phase switch
         {
-            DownwindPhase dw => new DownwindPhase { Waypoints = dw.Waypoints, IsExtended = dw.IsExtended },
+            DownwindPhase dw => new DownwindPhase
+            {
+                Waypoints = dw.Waypoints,
+                IsExtended = dw.IsExtended,
+                MidfieldReportIssued = dw.MidfieldReportIssued,
+            },
             BasePhase bp => new BasePhase { Waypoints = bp.Waypoints, FinalDistanceNm = bp.FinalDistanceNm },
             CrosswindPhase cw => new CrosswindPhase { Waypoints = cw.Waypoints },
             UpwindPhase up => new UpwindPhase { Waypoints = up.Waypoints },

@@ -86,6 +86,31 @@ public class ReportCommandParseTests
     }
 
     [Fact]
+    public void Parse_Midfield()
+    {
+        ReportCommand cmd = Parse("REPORT MIDFIELD");
+        Assert.Equal(ReportTrigger.Midfield, cmd.Trigger);
+        Assert.Null(cmd.DistanceNm);
+        Assert.Null(cmd.FixName);
+    }
+
+    [Theory]
+    [InlineData("REPORT OFF MIDFIELD")]
+    [InlineData("REPORT MIDFIELD OFF")]
+    public void Parse_CancelMidfield(string input)
+    {
+        ReportCommand cmd = Parse(input);
+        Assert.Equal(ReportTrigger.Cancel, cmd.Trigger);
+        Assert.Equal(ReportTrigger.Midfield, cmd.CancelTarget);
+    }
+
+    [Theory]
+    [InlineData("REPORT MIDFIELD", "REPORT MIDFIELD")]
+    [InlineData("REPORT MIDFIELD OFF", "REPORT OFF MIDFIELD")]
+    public void CanonicalRoundTrip_Midfield(string input, string canonical) =>
+        Assert.Equal(canonical, CommandDescriber.DescribeCommand(Parse(input)));
+
+    [Fact]
     public void Parse_BareReport_Fails()
     {
         ParseResult<CompoundCommand> result = CommandParser.ParseCompound("REPORT");

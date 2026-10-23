@@ -29,6 +29,12 @@ public sealed class DownwindPhase : Phase
     /// </summary>
     public const double MidfieldLeadNm = 0.05;
 
+    /// <summary>
+    /// How far past midfield (nm) the armed <c>REPORT MIDFIELD</c> report still says "midfield {side} downwind"; beyond
+    /// it the pilot reports "past midfield", and from abeam the threshold on "abeam the numbers".
+    /// </summary>
+    public const double MidfieldReportBandNm = 0.1;
+
     // Downwind-track re-intercept. After a wrong-side / cross-runway MidfieldCrossing join the aircraft
     // can be left off the computed downwind line (e.g. dropped inside its own pattern); steer back onto
     // it rather than holding the wrong offset — which would make the base/final geometry (built for the
@@ -69,6 +75,15 @@ public sealed class DownwindPhase : Phase
     private bool _followExtensionWarningIssued;
 
     public PatternWaypoints? Waypoints { get; set; }
+
+    /// <summary>
+    /// The controller-armed <c>REPORT MIDFIELD</c> report has been voiced on this lap's downwind (once per circuit). A
+    /// downwind that re-creates this lap's on the same runway and side is built with it copied, so the lap is not reported
+    /// twice: a 360's resumed copy, an <c>MLT</c>/<c>MRT</c> rebuild that keeps the runway and side, an <c>ELD</c>/<c>ERD</c>
+    /// re-entry of the downwind being flown, and an <c>EXT DOWNWIND</c> issued on base. A leg that starts with it set also
+    /// stands its midfield reminder down, which the report took the place of.
+    /// </summary>
+    public bool MidfieldReportIssued { get; set; }
 
     /// <summary>
     /// If true, the downwind leg is extended beyond the normal base turn point.
@@ -118,8 +133,6 @@ public sealed class DownwindPhase : Phase
             return;
         }
 
-        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Downwind);
-
         _thresholdLat = Waypoints.ThresholdLat;
         _thresholdLon = Waypoints.ThresholdLon;
         _downwindHeading = Waypoints.DownwindHeading;
@@ -150,6 +163,9 @@ public sealed class DownwindPhase : Phase
 
         _midfieldAlongTrack = PatternGeometry.MidfieldAlongTrackNm(Waypoints);
 
+        double startAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
+        ReportDownwindStart(ctx, Waypoints.Direction, startAlongTrack);
+
         // Short approach armed before activation — compress the past-abeam extension
         // so the base turn fires near abeam-the-threshold instead of after the normal
         // category extension. AIM 4-3-3 lets pilots vary pattern size; the shrunk
@@ -175,12 +191,7 @@ public sealed class DownwindPhase : Phase
             // altitude is reached by the (compressed) base-turn point. Mark _pastAbeam
             // so OnTick's normal abeam-trigger doesn't re-overwrite the targets.
             _pastAbeam = true;
-            double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
-                ctx.Aircraft.Position,
-                new LatLon(_thresholdLat, _thresholdLon),
-                _downwindHeading
-            );
-            ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
+            ApplyPastAbeamDescentTargets(ctx, startAlongTrack);
         }
         else
         {
@@ -268,12 +279,19 @@ public sealed class DownwindPhase : Phase
             return true;
         }
 
+        // The controller-armed midfield report fires whatever the landing clearance, and replaces this leg's reminder.
+        if ((Waypoints is { } waypoints) && IsMidfieldReportDue(ctx, aircraftAlongTrack))
+        {
+            ReportMidfield(ctx, waypoints.Direction, aircraftAlongTrack);
+        }
+
         // Midfield downwind broadcast: remind controller if no landing clearance.
         // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
         // RPO mode keeps the controller-facing warning (PendingWarnings).
         // An extended downwind (EXT) is itself a controller sequencing instruction —
         // the aircraft is being actively managed, so the "uncleared" nag is suppressed.
-        if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
+        // The armed report, voiced on this lap (here or on the leg this one re-creates), stands for the reminder.
+        if (!_midfieldBroadcastIssued && !MidfieldReportIssued && !ctx.AutoClearedToLand)
         {
             if (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm)
             {
@@ -393,6 +411,57 @@ public sealed class DownwindPhase : Phase
         }
 
         return baseTriggerReached;
+    }
+
+    /// <summary>
+    /// The call owed as the leg starts. With <c>REPORT MIDFIELD</c> owed, a downwind started at or past the midfield
+    /// trigger, or a join that hands over within <see cref="MidfieldCrossingPhase.ArrivalNm"/> short of it, voices the
+    /// midfield report now, worded by position, in place of the "turning downwind" call: one transmission answers both
+    /// armed reports for that lap. Otherwise the armed "turning downwind" report, if any.
+    /// </summary>
+    private void ReportDownwindStart(PhaseContext ctx, PatternDirection side, double startAlongTrack)
+    {
+        double joinReachNm = IsJoin(ctx) ? MidfieldCrossingPhase.ArrivalNm : 0.0;
+        if (IsMidfieldReportDue(ctx, startAlongTrack + joinReachNm))
+        {
+            ReportMidfield(ctx, side, startAlongTrack);
+            return;
+        }
+
+        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Downwind);
+    }
+
+    /// <summary>
+    /// A join: the phase before the current downwind is a pattern entry, a midfield crossing or a teardrop re-entry. A
+    /// downwind after a crosswind, a 360's resumed copy, an <c>MLT</c>/<c>MRT</c> rebuild and a downwind first in the list
+    /// are not joins.
+    /// </summary>
+    private static bool IsJoin(PhaseContext ctx) =>
+        (ctx.Aircraft.Phases is { } phases)
+        && (phases.Phases.ElementAtOrDefault(phases.CurrentIndex - 1) is PatternEntryPhase or MidfieldCrossingPhase or TeardropReentryPhase);
+
+    /// <summary>
+    /// True when the controller-armed <c>REPORT MIDFIELD</c> report is owed on this leg: armed, not yet voiced on it, the
+    /// aircraft at or past the midfield trigger, and this is the downwind that leads to the landing (a crossover's exit
+    /// leg leaves at midfield for the parallel, whose downwind voices it instead).
+    /// </summary>
+    private bool IsMidfieldReportDue(PhaseContext ctx, double aircraftAlongTrack) =>
+        !MidfieldReportIssued
+        && !ExitAtMidfield
+        && PatternReportHelper.IsLegArmed(ctx.Aircraft.Approach, ReportTrigger.Midfield)
+        && (aircraftAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm);
+
+    /// <summary>Voices the armed midfield report once for this leg; it also stands for the leg's midfield reminder.</summary>
+    private void ReportMidfield(PhaseContext ctx, PatternDirection side, double aircraftAlongTrack)
+    {
+        MidfieldReportIssued = true;
+        _midfieldBroadcastIssued = true;
+        MidfieldReportPosition position =
+            aircraftAlongTrack < _midfieldAlongTrack + MidfieldReportBandNm ? MidfieldReportPosition.Midfield
+            : aircraftAlongTrack < _abeamAlongTrack ? MidfieldReportPosition.PastMidfield
+            : MidfieldReportPosition.AbeamNumbers;
+        Log.LogDebug("[Downwind] {Callsign}: midfield report ({Position})", ctx.Aircraft.Callsign, position);
+        PatternReportHelper.EmitMidfieldDownwind(ctx, side, position);
     }
 
     private bool IsFollowHoldInForce(PhaseContext ctx)
@@ -747,6 +816,7 @@ public sealed class DownwindPhase : Phase
             SeenAssignedAltitudeFt = _seenAssignedAltitudeFt,
             AssignedAltitudeBaselineRecorded = !_assignedAltitudeBaselinePending,
             MidfieldBroadcastIssued = _midfieldBroadcastIssued,
+            MidfieldReportIssued = MidfieldReportIssued ? true : null,
             ShortApproachArmed = ShortApproachArmed,
             RejoinTrack = RejoinTrack,
             ExitAtMidfield = ExitAtMidfield,
@@ -792,6 +862,7 @@ public sealed class DownwindPhase : Phase
         phase._seenAssignedAltitudeFt = dto.SeenAssignedAltitudeFt;
         phase._assignedAltitudeBaselinePending = dto.AssignedAltitudeBaselineRecorded != true;
         phase._midfieldBroadcastIssued = dto.MidfieldBroadcastIssued;
+        phase.MidfieldReportIssued = dto.MidfieldReportIssued ?? false;
         phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
         return phase;
     }

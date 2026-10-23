@@ -2397,7 +2397,7 @@ public static class CommandParser
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Fail("REPORT requires a target (e.g. REPORT BASE, REPORT 5 FINAL, REPORT MENLO, REPORT OFF)");
+            return PR.Fail("REPORT requires a target (e.g. REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, REPORT OFF)");
         }
 
         string[] tokens = [.. SplitTokens(arg).Select(t => t.ToUpperInvariant())];
@@ -2453,7 +2453,7 @@ public static class CommandParser
             }
         }
 
-        return PR.Fail("unrecognized REPORT form; try REPORT BASE, REPORT 5 FINAL, REPORT MENLO, or REPORT OFF");
+        return PR.Fail("unrecognized REPORT form; try REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, or REPORT OFF");
     }
 
     private static bool IsReportCancelKeyword(string token) => token is "OFF" or "CANCEL" or "NONE" or "STOP";
@@ -2465,6 +2465,7 @@ public static class CommandParser
             "DOWNWIND" or "DW" => ReportTrigger.Downwind,
             "BASE" => ReportTrigger.Base,
             "FINAL" => ReportTrigger.Final,
+            "MIDFIELD" => ReportTrigger.Midfield,
             _ => null,
         };
 

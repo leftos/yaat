@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -201,6 +202,132 @@ public class ReportDispatchTests
         Assert.Null(approach.ReportAtFixName);
         Assert.Null(approach.ReportAtFixLat);
         Assert.Null(approach.ReportAtFixLon);
+    }
+
+    [Fact]
+    public void ArmMidfield_SetsFlag_KeepsPhase_AndEchoesMidfieldDownwind()
+    {
+        AircraftState ac = MakeAircraft();
+        var downwind = new DownwindPhase();
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(downwind);
+
+        CommandResult result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Midfield), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.True(ac.Approach.ReportArmedMidfield);
+        Assert.Equal("Will report midfield downwind", result.Message);
+        Assert.Same(downwind, ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void ArmMidfield_ReadbackIsWillReportMidfieldDownwind()
+    {
+        AircraftState ac = MakeAircraft();
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("REPORT MIDFIELD");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac);
+
+        Assert.NotNull(readback);
+        Assert.Contains("will report midfield downwind", readback.Terminal, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("turning", readback.Terminal, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ArmMidfield_Rejected_WhenNotInPattern()
+    {
+        AircraftState ac = MakeAircraft();
+
+        CommandResult result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Midfield), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Equal("Unable, N123AB is not in the pattern", result.Message);
+        Assert.False(ac.Approach.ReportArmedMidfield);
+    }
+
+    [Fact]
+    public void ArmMidfield_Accepted_ForInboundVfrAircraftWithDownwindEntryQueued()
+    {
+        RunwayInfo? rwy = NavigationDatabase.Instance.GetRunway("KOAK", "28R");
+        Assert.NotNull(rwy);
+
+        // VFR inbound 6 nm southeast of the field, no pattern phase yet.
+        (double lat, double lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(135), 6.0);
+        var ac = new AircraftState
+        {
+            Callsign = "N123AB",
+            AircraftType = "C172",
+            Position = new LatLon(lat, lon),
+            TrueHeading = new TrueHeading(315),
+            TrueTrack = new TrueHeading(315),
+            Altitude = 2500,
+            IndicatedAirspeed = 100,
+            FlightPlan = new AircraftFlightPlan
+            {
+                FlightRules = "VFR",
+                Destination = "KOAK",
+                HasFlightPlan = true,
+            },
+        };
+
+        CommandResult eld = CommandDispatcher.Dispatch(
+            new EnterLeftDownwindCommand("28R"),
+            ac,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
+        Assert.True(eld.Success, eld.Message);
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Midfield),
+            ac,
+            TestDispatch.Context(new Random(0), validateDctFixes: false)
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(ac.Approach.ReportArmedMidfield);
+    }
+
+    [Fact]
+    public void CancelMidfield_ClearsOnlyMidfield()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Approach.ReportArmedMidfield = true;
+        ac.Approach.ReportArmedDownwind = true;
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Cancel, CancelTarget: ReportTrigger.Midfield),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.True(result.Success);
+        Assert.Equal("Cancelled midfield downwind report", result.Message);
+        Assert.False(ac.Approach.ReportArmedMidfield);
+        Assert.True(ac.Approach.ReportArmedDownwind);
+    }
+
+    [Fact]
+    public void CancelAll_ClearsMidfield()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Approach.ReportArmedMidfield = true;
+
+        CommandResult result = CommandDispatcher.Dispatch(new ReportCommand(ReportTrigger.Cancel), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.False(ac.Approach.ReportArmedMidfield);
+    }
+
+    [Fact]
+    public void ArmedMidfield_SurvivesSnapshotRoundTrip()
+    {
+        var approach = new AircraftApproachState { ReportArmedMidfield = true };
+
+        var restored = AircraftApproachState.FromSnapshot(approach.ToSnapshot());
+
+        Assert.True(restored.ReportArmedMidfield);
+        Assert.False(AircraftApproachState.FromSnapshot(new AircraftApproachState().ToSnapshot()).ReportArmedMidfield);
     }
 
     private static AircraftState MakeAircraft() =>

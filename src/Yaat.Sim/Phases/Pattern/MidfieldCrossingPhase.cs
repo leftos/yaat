@@ -25,7 +25,12 @@ public sealed class MidfieldCrossingPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("MidfieldCrossingPhase");
 
-    private const double ArrivalNm = 0.5;
+    /// <summary>
+    /// Distance (nm) from the midfield target at which the crossing hands over to the downwind. A crossing flown in from
+    /// the departure-end side ends up to this far short of midfield, which <see cref="DownwindPhase"/> allows for when a
+    /// join answers both an armed <c>REPORT DOWNWIND</c> and <c>REPORT MIDFIELD</c> in one call.
+    /// </summary>
+    public const double ArrivalNm = 0.5;
 
     /// <summary>
     /// Minimum crossing height above the field (ft) for a jet/turboprop entering from outside the
