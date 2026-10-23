@@ -28,6 +28,7 @@
 - All Commands groups commands by task, such as Runway, Taxi and Vectors; Track, Data Block, Squawk, Display and Draw route move into it.
 - Every right-click menu command row shows the command you would type, in your command scheme's own alias.
 - In solo sessions, your own transmissions count toward how busy pilots judge the frequency, and a rewind keeps that judgement.
+- In solo sessions, pilots speak about 10% faster than your Speech Speed setting while the frequency is busy.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.

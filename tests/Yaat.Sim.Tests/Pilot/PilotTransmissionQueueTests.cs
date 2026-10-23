@@ -340,6 +340,50 @@ public sealed class PilotTransmissionQueueTests
     }
 
     [Fact]
+    public void TryDequeueReady_StampsTheLoadBandAtAirtime()
+    {
+        var busy = new FrequencyState();
+        for (int i = 0; i < 12; i++)
+        {
+            busy.ActivityMeter.Record(i);
+        }
+
+        busy.Enqueue(NewTransmission("AAL1"));
+        PilotTransmission? busyTransmission = busy.TryDequeueReady(30);
+
+        Assert.NotNull(busyTransmission);
+        Assert.Equal(FrequencyLoadBand.Busy, busyTransmission.LoadBand);
+
+        var quiet = new FrequencyState();
+        quiet.Enqueue(NewTransmission("AAL2"));
+        PilotTransmission? quietTransmission = quiet.TryDequeueReady(30);
+
+        Assert.NotNull(quietTransmission);
+        Assert.Equal(FrequencyLoadBand.Quiet, quietTransmission.LoadBand);
+    }
+
+    [Fact]
+    public void PeekLoadBand_ClassifiesWithoutTrimming()
+    {
+        var frequency = new FrequencyState();
+        for (int i = 0; i < 13; i++)
+        {
+            frequency.ActivityMeter.Record(i);
+        }
+
+        Assert.Equal(FrequencyLoadBand.Busy, frequency.PeekLoadBand(30));
+        Assert.Equal(13, frequency.ActivityMeter.Count);
+        Assert.Equal(FrequencyLoadBand.Quiet, frequency.PeekLoadBand(100));
+        Assert.Equal(13, frequency.ActivityMeter.Count);
+    }
+
+    [Fact]
+    public void QueuedTransmission_HasNoLoadBandUntilDequeued() => Assert.Null(NewTransmission("AAL1").LoadBand);
+
+    private static PilotTransmission NewTransmission(string callsign) =>
+        new(callsign, "with you", "with you", PilotResponder.SourceResponse, PilotTransmissionKind.Readback);
+
+    [Fact]
     public void FrequencyActivityMeter_Restore_ReplacesTimesAndLevel()
     {
         var meter = new FrequencyActivityMeter();

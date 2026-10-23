@@ -39,6 +39,9 @@ public sealed class FrequencyState
         return ActivityMeter.Level;
     }
 
+    /// <summary>The frequency's load band at <paramref name="elapsedSeconds"/>, read without trimming the meter.</summary>
+    public FrequencyLoadBand PeekLoadBand(double elapsedSeconds) => ActivityMeter.PeekLoadBand(elapsedSeconds);
+
     public void ExpectReadback(string callsign, double elapsedSeconds)
     {
         if (!string.IsNullOrWhiteSpace(callsign))
@@ -115,7 +118,7 @@ public sealed class FrequencyState
         }
 
         ActivityMeter.Record(elapsedSeconds);
-        return transmission;
+        return transmission with { LoadBand = ActivityMeter.Level.ToLoadBand() };
     }
 
     public void Clear()

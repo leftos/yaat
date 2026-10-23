@@ -14,7 +14,7 @@ Part of the machinery already exists:
 - `PhraseologyVerbalizer.ShouldUseShortcut` makes a `PilotPersonality.Varied` pilot use a rule's `PilotShortcuts` (the shortest) at Busy and Saturated.
 - `PilotResponder.ApplyQuietFlavor` adds an "alright, " prefix or a ", thanks" suffix to the spoken body, drawn from a hash of the callsign and body (deterministic, but not yet seeded per pilot).
 
-What is not built: a per-pilot terse-to-chatty trait, a per-transmission seeded pick among variants, variants beyond the busy shortcuts, the speech-rate nudge, the callsign abbreviation and the grouped frequency form. The decomposition below plans them.
+What is not built: a per-pilot terse-to-chatty trait, a per-transmission seeded pick among variants, variants beyond the busy shortcuts, the callsign abbreviation and the grouped frequency form. The decomposition below plans them.
 
 ## Settled answers
 
@@ -24,7 +24,7 @@ Owner rulings:
 - Variation is both per pilot and per transmission: each pilot has a seeded personality (terse to chatty) that shifts the band, and each readback picks a seeded variant within it, so replay stays deterministic.
 - Only the spoken form varies; the Terminal keeps the canonical readback text.
 - Every readback gets variants, each variant ruled by `aviation-sim-expert`.
-- The Settings › Speech Speed slider sets the base speech rate; frequency load nudges it by up to ±10% (faster when busy, slower when quiet).
+- The Settings › Speech Speed slider sets the base speech rate; pilots speak 1.1 times that rate when the frequency is busy and at that rate otherwise, never slower.
 - In scope: the FAA N-number shortening after initial contact and the grouped frequency form. The ICAO "first letter plus last two" shortening is dropped, since it conflicts with 7110.65 2-4-9.b.3 in US airspace. The 7110.65 2-4-20 rule that a pilot abbreviates only after the controller has is deliberately not modelled.
 - Grouped frequency without the leading 1 ("twenty-five thirty-five" for 125.35): mostly when busy, rarely when normal, never when quiet; one-decimal frequencies keep "point"; no grouping when the first decimal is 0.
 - "Climbing up to" / "descending down to" shortcuts apply to flight levels only; below FL180 the altitude form keeps no "to" before the number.
@@ -37,7 +37,7 @@ Orchestrator decisions (open to the owner):
 - Personality is derived, never stored: `Fnv1a(callsign) ^ RngSeed` gives each pilot a terse-to-chatty trait, and `PilotPersonality` stays as the variation on/off switch. The trait is terse (25%), normal (50%) or chatty (25%); terse speaks one load band busier, chatty one band quieter, clamped to quiet..busy (owner ruling).
 - The per-transmission pick hashes the callsign, the canonical body and the sim second, so replay is deterministic and two identical readbacks a minute apart can differ.
 - The Terminal never varies: busy shortcuts reach only the spoken form, and `VerbalizeTerminal` and the RPO terminal get the canonical values.
-- The load nudge is computed by the server and sent on the pilot-transmission broadcast; the client multiplies the Speech Speed slider value by it (0.9 to 1.1) and clamps the product to the engine's 0.75 to 1.5.
+- The load nudge is computed by the server and sent on the pilot-transmission broadcast; the client multiplies the Speech Speed slider value by it (1.1 when busy, 1.0 otherwise) and clamps the product to the engine's 0.75 to 1.5.
 - Variation covers every readback (rule-path readbacks, handler readbacks, direct-render clauses and the contact readback) and the calls the pilot starts itself (check-ins, position reports, ready-for-departure calls, requests). Unable replies keep their wording, so a refusal stays unmistakable (owner ruling).
 - Callsign abbreviation waits for `HasControllerAcknowledgedInitialContact`, per controller, and never applies to airline, military or MEDEVAC call signs or when a similar callsign (same last two characters) is on the frequency (AIM 4-2-4.a.1 to a.3, 7110.65 2-4-9).
 - The existing busy shortcuts the aviation consult rejects are fixed in the same programme: `"{deg} left"` keeps "degrees", and the route-less TAXI shortcut keeps "taxi".

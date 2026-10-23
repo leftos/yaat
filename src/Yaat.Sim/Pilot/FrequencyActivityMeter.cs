@@ -63,6 +63,16 @@ public sealed class FrequencyActivityMeter
         Level = Classify(_transmissionTimes.Count);
     }
 
+    /// <summary>
+    /// The load band of the transmissions inside the window ending at <paramref name="elapsedSeconds"/>, read without
+    /// trimming: the recorded times and <see cref="Level"/> are left as they are.
+    /// </summary>
+    public FrequencyLoadBand PeekLoadBand(double elapsedSeconds)
+    {
+        int count = _transmissionTimes.Count(time => (elapsedSeconds - time) < WindowSeconds);
+        return Classify(count).ToLoadBand();
+    }
+
     public void Trim(double elapsedSeconds)
     {
         while (_transmissionTimes.Count > 0 && (elapsedSeconds - _transmissionTimes.Peek()) >= WindowSeconds)

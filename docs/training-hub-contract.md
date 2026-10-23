@@ -239,7 +239,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `AircraftDeleted` | `string` callsign | `AircraftDeleted` |
 | `SimulationStateChanged` | `(bool, int, double, bool, double)` | `SimulationStateChanged` |
 | `TerminalBroadcast` | `TerminalBroadcastDto` | `TerminalEntryReceived` |
-| `PilotTransmissionBroadcast` | `PilotTransmissionBroadcastDto` | `PilotTransmissionReceived` |
+| `PilotTransmissionBroadcast` | `PilotTransmissionBroadcastDto` (its trailing `SpeechRateFactor` is the load factor from `PilotSpeechRate.LoadFactor`: 1.1 when the frequency is busy, else 1.0) | `PilotTransmissionReceived` — the client multiplies its Speech Speed setting by `SpeechRateFactor` (`PilotSpeechRateNudge.Apply`) |
 | `RoomMemberChanged` | `RoomMemberChangedDto` (carries `RoomMemberDto` — see **Room membership** below) | `RoomMemberChanged` — **not** the client's only source of members; `ApplyRoomState` seeds from `RoomStateDto.Members` because this push can beat the join response |
 | `CrcLobbyChanged` | `CrcLobbyChangedDto` | `CrcLobbyChanged` |
 | `RpoLobbyChanged` | `RpoLobbyChangedDto` | `RpoLobbyChanged` (waiting non-mentor RPOs + kicked users pending re-admit) |

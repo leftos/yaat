@@ -169,7 +169,10 @@ public partial class MainViewModel
         {
             return;
         }
-        var bubble = AircraftSpeechBubble.TryBuild(
+        // dotnet format style rewrites `var` here to the explicit type while the build's IDE0007 asks for `var`: the two
+        // disagree on whether a nullable static factory makes the type apparent.
+#pragma warning disable IDE0007
+        AircraftSpeechBubble? bubble = AircraftSpeechBubble.TryBuild(
             _preferences.ShowSpeechBubbles,
             _preferences.ShowWarningSpeechBubbles,
             SessionSoloTrainingMode && (Environment.GetEnvironmentVariable("YAAT_DEV_SOLO_SPEECH_BUBBLES") != "1"),
@@ -179,6 +182,7 @@ public partial class MainViewModel
             _preferences.SpeechBubblesStayUntilClicked,
             DateTime.UtcNow
         );
+#pragma warning restore IDE0007
         if (bubble is null)
         {
             return;
@@ -203,7 +207,12 @@ public partial class MainViewModel
             return;
         }
 
-        _pilotVoice.Enqueue(dto, _preferences.PilotVoiceVolume, _preferences.PilotVoiceRadioFxEnabled, _preferences.PilotVoiceSpeechRate);
+        _pilotVoice.Enqueue(
+            dto,
+            _preferences.PilotVoiceVolume,
+            _preferences.PilotVoiceRadioFxEnabled,
+            PilotSpeechRateNudge.Apply(_preferences.PilotVoiceSpeechRate, dto.SpeechRateFactor)
+        );
     }
 
     internal void OnAircraftUpdated(AircraftDto dto)

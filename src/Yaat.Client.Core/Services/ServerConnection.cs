@@ -1907,7 +1907,9 @@ public record PilotTransmissionBroadcastDto(
     string SourceKind,
     int SpeakerId,
     double ElapsedSeconds,
-    DateTime Timestamp
+    DateTime Timestamp,
+    // The load factor the server computes for the frequency's band; the client multiplies its speech speed by it.
+    double SpeechRateFactor
 );
 
 public record CrcLobbyClientDto(string ClientId, string? Cid, string? DisplayName, string? ArtccId, string? PositionId, bool IsActive);

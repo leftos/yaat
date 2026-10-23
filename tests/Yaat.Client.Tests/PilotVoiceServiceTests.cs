@@ -11,8 +11,8 @@ public sealed class PilotVoiceServiceTests
         var synth = new SpySynthesizer();
         await using var service = new PilotVoiceService(synth);
 
-        service.Enqueue(new PilotTransmissionBroadcastDto("s1", "AAL1", "first", "Response", 12, 1, DateTime.UtcNow), 70, true, 1.1);
-        service.Enqueue(new PilotTransmissionBroadcastDto("s1", "AAL2", "second", "SayReadback", 34, 2, DateTime.UtcNow), 80, false, 1.1);
+        service.Enqueue(new PilotTransmissionBroadcastDto("s1", "AAL1", "first", "Response", 12, 1, DateTime.UtcNow, 1.0), 70, true, 1.1);
+        service.Enqueue(new PilotTransmissionBroadcastDto("s1", "AAL2", "second", "SayReadback", 34, 2, DateTime.UtcNow, 1.0), 80, false, 1.1);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (synth.Requests.Count < 2)
@@ -29,7 +29,7 @@ public sealed class PilotVoiceServiceTests
         var synth = new SpySynthesizer();
         await using var service = new PilotVoiceService(synth);
 
-        service.Enqueue(new PilotTransmissionBroadcastDto("s1", "AAL1", "hello", "Response", 12, 1, DateTime.UtcNow), 70, true, 1.25);
+        service.Enqueue(new PilotTransmissionBroadcastDto("s1", "AAL1", "hello", "Response", 12, 1, DateTime.UtcNow, 1.0), 70, true, 1.25);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (synth.Requests.Count < 1)
