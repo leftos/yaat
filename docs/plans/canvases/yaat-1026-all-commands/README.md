@@ -16,6 +16,7 @@ Two aircraft: N123AB (C172, VFR, left downwind 28L at KOAK, the default Pattern 
 4. Alias format: A right-aligned dimmed monospace column; B monospace after the label; C in parentheses. 4.1 multi-verb rows (a up to two verbs, b first verb, c none); 4.2 rows with no command of their own (a blank except Warp… WARP and Delete DEL, b blank on every box/window row); 4.3 spelling (a the user's primary verb, b canonical).
 5. Icons off, the root: A quick commands first, then the former All Commands children; B the groups first; C keep an All Commands submenu (departs from the ruling).
 6. The setting: A Settings › Input › Quick commands; B Settings › General › Appearance. 6.1 Import/Export (a settings bundle, b with the quick-command lists file, c machine-local); 6.2 reach (a every strip including the point menu and the delayed-spawn release strip, b the aircraft menu only).
+7. Where Display and Draw route sit inside All Commands, after the owner moved Track, Data Block, Squawk, Display and Draw route under it (Favorites stays at the root): A a last block after a separator below Warp…; B right after Track and coordination, before the separator and Warp…; C first, above Runway, followed by a separator. On the ground view the section is Display alone; the list view has none.
 
 ## Not from real data, or not checked
 

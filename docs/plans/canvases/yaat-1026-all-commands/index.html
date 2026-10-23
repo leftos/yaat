@@ -188,7 +188,7 @@
 
   <section class="note-box ask" aria-labelledby="ask-h" id="questions">
     <h2 id="ask-h">Open decisions for the owner</h2>
-    <p style="margin:0 0 8px;color:var(--muted)">Answer as “1A, 2A, 3A, 4A, 4.1a, 4.2a, 4.3a, 5A, 6A, 6.1a, 6.2a”. The first option of each is the recommendation. Numbers in the worst cases are measured from this page's drawings.</p>
+    <p style="margin:0 0 8px;color:var(--muted)">Answer as “1A, 2A, 3A, 4A, 4.1a, 4.2a, 4.3a, 5A, 6A, 6.1a, 6.2a, 7A”. The first option of each is the recommendation. Numbers in the worst cases are measured from this page's drawings.</p>
     <ol class="nl" id="decisions"></ol>
   </section>
 
@@ -461,6 +461,16 @@
       SEP, R("Spawn now", "SPAWN"), R("Change spawn delay", "", "sub"), ...FOOT], { root: true, id: "d62b.ds" })], "delayed spawn, icons off: unchanged")}</div>`,
   };
 
+  /* ---------- Decision 7: where the view section sits inside All Commands ---------- */
+  const VIEW_MOVED = [R("Display", "", "sub chg"), R("Draw route", "", "chg")];
+  const ROOT_NO_VIEW = () => [...rootIconsOn("N123AB", "", []), R("All Commands", "", "sub open"), R("Favorite Commands", "", "sub"), ...FOOT];
+  const D7 = (k, all) => casc([menuHtml(ROOT_NO_VIEW(), { root: true, id: `d7${k}.root` }), menuHtml(all, { id: `d7${k}.all` })], "N123AB, icons on · All Commands open");
+  const D7L = {
+    A: () => D7("A", [...ALL_1A(), SEP, ...VIEW_MOVED]),
+    B: () => D7("B", ALL_1A("", VIEW_MOVED)),
+    C: () => D7("C", [...VIEW_MOVED, SEP, ...ALL_1A()]),
+  };
+
   /* ---------- Lane texts ---------- */
   const L = (k, name, how, worst, draw) => ({ k, name, how, worst, draw });
   const ARTS = [
@@ -551,6 +561,17 @@
           L("b", "The aircraft menu's strip only", "The point menu and the delayed-spawn menu keep their icons.", "Right-clicking the radar still opens an icon strip for a user who asked to be rid of icons.", D62.b),
         ] },
       ] },
+    { id: "d7", nav: "7 · Display and Draw route", title: "7 · Where Display and Draw route sit inside All Commands",
+      blurb: "Owner ruling (verbatim): <b>“Track, Data Block, Squawk, Display, and Draw Route, all get moved under All Commands”</b>; Favorites stays at the root. Track, Data Block and Squawk go into Track and coordination as decision 2A draws them; this asks where the view section goes. On the radar it is <code>Display ›</code> and <code>Draw route</code>; on the ground view it is <code>Display ›</code> alone, since Draw taxi route… already lives in Taxi; the list view has none. Every lane draws N123AB on the radar with icons on at 1A, 2A, 3A and 4A: the root without its view section is <span data-m=\"d7A.root.h\"></span> px, <span data-m=\"d7.saved\"></span> px shorter than 2A's. With icons off (5A) All Commands' children sit at the root, so the place picked here is also the view rows' place in that root.",
+      lw: "560px",
+      lanes: [
+        L("A", "A last block, after Warp…", "All Commands keeps the task groups and Warp… as they are; a separator, then <code>Display ›</code> and <code>Draw route</code> close the menu, about where they sat at the root's foot. On the ground view the block is <code>Display ›</code> alone.",
+          "Display › moves furthest from the pointer: row <span data-m=\"d7A.disp.n\"></span> of <span data-m=\"d7A.all.rows\"></span>, <span data-m=\"d7A.disp.y\"></span> px below All Commands' top (<span data-m=\"d7C.disp.y\"></span> px in C), one hop deeper than at the root, and All Commands grows from <span data-m=\"d2A.all.h\"></span> to <span data-m=\"d7A.all.h\"></span> px.", D7L.A),
+        L("B", "Right after Track and coordination", "<code>Display ›</code> and <code>Draw route</code> follow the last task group, with no separator, before the separator and Warp….",
+          "Display › reads as one more task group and Draw route as a command among them, though neither sends one; Warp… drops to <span data-m=\"d7B.warp.y\"></span> px below the top (<span data-m=\"d7A.warp.y\"></span> px in A).", D7L.B),
+        L("C", "First, above Runway", "<code>Display ›</code> and <code>Draw route</code> open All Commands, then a separator, then the task groups and Warp….",
+          "Every task group starts lower on every aircraft: Runway, the first command group, opens <span data-m=\"d7C.runway.y\"></span> px below All Commands' top instead of <span data-m=\"d7A.runway.y\"></span> px, and a submenu named All Commands opens on two rows that send no command.", D7L.C),
+      ] },
   ];
 
   /* ---------- Render ---------- */
@@ -594,6 +615,21 @@
   M["d2.AB"] = M["d2B.root.h"] - M["d2A.root.h"];
   M["d2.CA"] = M["d2A.root.h"] - M["d2C.root.h"];
   M["d3.BA"] = M["d3B.on.h"] - M["d3A.on.h"];
+  /* Decision 7: a row's top below its menu's top, and its 1-based place among the menu's rows. */
+  const rowAt = (mid, label) => {
+    const m = document.querySelector(`[data-mid="${mid}"]`);
+    const rows = [...m.querySelectorAll(".mrow:not(.title):not(.stub):not(.detail)")];
+    const i = rows.findIndex(r => r.querySelector(".lb").textContent === label);
+    return { y: Math.round(rows[i].getBoundingClientRect().top - m.getBoundingClientRect().top), n: i + 1 };
+  };
+  ["A", "B", "C"].forEach(k => {
+    [["disp", "Display"], ["warp", "Warp…"], ["runway", "Runway"]].forEach(([key, label]) => {
+      const p = rowAt(`d7${k}.all`, label);
+      M[`d7${k}.${key}.y`] = p.y;
+      M[`d7${k}.${key}.n`] = p.n;
+    });
+  });
+  M["d7.saved"] = M["d2A.root.h"] - M["d7A.root.h"];
   document.querySelectorAll("[data-m]").forEach(s => { s.textContent = M[s.dataset.m] ?? "?"; });
 
   /* ---------- Decisions list ---------- */
