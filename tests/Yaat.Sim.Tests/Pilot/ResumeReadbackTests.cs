@@ -74,13 +74,7 @@ public class ResumeReadbackTests
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
-        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(
-            compound,
-            result,
-            ac,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
-        );
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, ac, PilotSpeechContext.Canonical);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(readback);

@@ -17,6 +17,13 @@ public class DeterministicHashTests
     public void Salt_ChangesTheDraw() => Assert.NotEqual(DeterministicHash.Fnv1a("", "AAL123"), DeterministicHash.Fnv1a("salt:", "AAL123"));
 
     [Fact]
+    public void Mix_IsMurmur3Fmix32()
+    {
+        Assert.Equal(0u, DeterministicHash.Mix(0));
+        Assert.Equal(0x514E28B7u, DeterministicHash.Mix(1));
+    }
+
+    [Fact]
     public void ReleaseAutoCtoJitter_KeepsItsUnsaltedValue() => Assert.Equal(20.0, SimulationEngine.ReleaseAutoCtoJitterSeconds("AAL123"));
 
     [Fact]

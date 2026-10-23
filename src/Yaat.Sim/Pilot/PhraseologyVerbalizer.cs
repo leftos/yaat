@@ -107,10 +107,10 @@ public static class PhraseologyVerbalizer
     private static readonly CaptureFormatter Spoken = new SpokenCaptureFormatter();
     private static readonly CaptureFormatter Terminal = new TerminalCaptureFormatter();
 
-    public static string? Verbalize(ParsedCommand cmd) => Verbalize(cmd, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+    public static string? Verbalize(ParsedCommand cmd) => Verbalize(cmd, PilotPersonality.Verbatim, FrequencyLoadBand.Normal);
 
-    public static string? Verbalize(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
-        VerbalizeCore(cmd, personality, activityLevel, Spoken);
+    public static string? Verbalize(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band) =>
+        VerbalizeCore(cmd, personality, band, Spoken);
 
     /// <summary>
     /// Compact controller-readable form of the same readback — runway/taxiway identifiers
@@ -119,12 +119,12 @@ public static class PhraseologyVerbalizer
     /// the per-capture token formatting differs. Used for the terminal <c>SAY</c> echo, which is
     /// built independently from the canonical command — never by stripping the spoken string.
     /// </summary>
-    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeTerminal(cmd, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeTerminal(cmd, PilotPersonality.Verbatim, FrequencyLoadBand.Normal);
 
-    public static string? VerbalizeTerminal(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
-        VerbalizeCore(cmd, personality, activityLevel, Terminal);
+    public static string? VerbalizeTerminal(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band) =>
+        VerbalizeCore(cmd, personality, band, Terminal);
 
-    private static string? VerbalizeCore(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel, CaptureFormatter fmt)
+    private static string? VerbalizeCore(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band, CaptureFormatter fmt)
     {
         // UnsupportedCommand and similar non-canonical placeholders shouldn't crash the
         // verbalizer — they just have no pilot speech to render.
@@ -242,7 +242,7 @@ public static class PhraseologyVerbalizer
             return null;
         }
 
-        if (ShouldUseShortcut(personality, activityLevel) && TryRenderShortestShortcut(rule, args, out string? shortcut))
+        if (ShouldUseShortcut(personality, band) && TryRenderShortestShortcut(rule, args, out string? shortcut))
         {
             return shortcut;
         }
@@ -250,8 +250,8 @@ public static class PhraseologyVerbalizer
         return RenderPattern(rule.Pattern, args);
     }
 
-    private static bool ShouldUseShortcut(PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
-        personality == PilotPersonality.Varied && activityLevel is FrequencyActivityLevel.Busy or FrequencyActivityLevel.Saturated;
+    private static bool ShouldUseShortcut(PilotPersonality personality, FrequencyLoadBand band) =>
+        (personality == PilotPersonality.Varied) && (band == FrequencyLoadBand.Busy);
 
     private static bool TryRenderShortestShortcut(
         PhraseologyRule rule,

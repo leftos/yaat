@@ -107,8 +107,7 @@ public class CvaExpectedVisualTests
             compound,
             new CommandResult(true, "queued"),
             aircraft,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
 
         Assert.NotNull(readback);
@@ -136,8 +135,7 @@ public class CvaExpectedVisualTests
             new CompoundCommand([new ParsedBlock(null, [capp])]),
             result,
             aircraft,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
         Assert.NotNull(readback);
         Assert.StartsWith("cleared visual approach runway two eight right", readback.Tts);

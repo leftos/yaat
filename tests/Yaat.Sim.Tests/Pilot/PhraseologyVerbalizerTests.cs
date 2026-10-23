@@ -40,9 +40,9 @@ public class PhraseologyVerbalizerTests
     }
 
     [Fact]
-    public void Verbalize_VariedModerate_KeepsVerbatim()
+    public void Verbalize_VariedNormal_KeepsVerbatim()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, FrequencyActivityLevel.Moderate);
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, FrequencyLoadBand.Normal);
 
         Assert.Equal("climb and maintain five thousand", result);
     }
@@ -52,7 +52,7 @@ public class PhraseologyVerbalizerTests
     [InlineData(FrequencyActivityLevel.Saturated)]
     public void Verbalize_VariedBusy_UsesShortestAltitudeShortcut(FrequencyActivityLevel activityLevel)
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, activityLevel);
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, activityLevel.ToLoadBand());
 
         Assert.Equal("up to five thousand", result);
     }
@@ -86,7 +86,7 @@ public class PhraseologyVerbalizerTests
         string? result = PhraseologyVerbalizer.Verbalize(
             new TurnLeftCommand(new MagneticHeading(90)),
             PilotPersonality.Varied,
-            FrequencyActivityLevel.Busy
+            FrequencyLoadBand.Busy
         );
 
         Assert.Equal("left heading zero nine zero", result);
@@ -127,7 +127,7 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_VariedBusy_SpeedShortcutKeepsKnots()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyLoadBand.Busy);
 
         Assert.Equal("two fifty knots", result);
     }
@@ -159,7 +159,7 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_VariedBusy_NoShortcutFallsBackToVerbatim()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), PilotPersonality.Varied, FrequencyLoadBand.Busy);
 
         Assert.Equal("squawk ident", result);
     }

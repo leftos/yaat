@@ -96,7 +96,7 @@ public static class PilotResponder
     /// compound, not again when a queued block's trigger fires.
     /// </summary>
     public static PilotSpeechText? BuildReadback(CompoundCommand compound, AircraftState aircraft) =>
-        BuildReadback(compound, aircraft, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+        BuildReadback(compound, aircraft, PilotSpeechContext.Canonical);
 
     /// <summary>
     /// Readback of a clearance as the aircraft will actually fly it. When the dispatcher applied a rewritten
@@ -115,21 +115,19 @@ public static class PilotResponder
     /// <param name="compound">The compound the controller issued.</param>
     /// <param name="result">The dispatch's result: its effective command and its handler-built push readback.</param>
     /// <param name="aircraft">The aircraft reading back.</param>
-    /// <param name="personality">The pilot's personality.</param>
-    /// <param name="activityLevel">How busy the frequency is.</param>
+    /// <param name="speechContext">What the spoken wording depends on: personality, load band, scenario seed and whole second.</param>
     public static PilotSpeechText? BuildReadbackAsApplied(
         CompoundCommand compound,
         CommandResult result,
         AircraftState aircraft,
-        PilotPersonality personality,
-        FrequencyActivityLevel activityLevel
+        PilotSpeechContext speechContext
     )
     {
         HandlerReadback? pilotReadback = result.PilotReadback;
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
         if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
-            return BuildReadback(compound, aircraft, personality, activityLevel, pilotReadback);
+            return BuildReadback(compound, aircraft, speechContext, pilotReadback);
         }
 
         var asApplied = new CompoundCommand([
@@ -141,7 +139,7 @@ public static class PilotResponder
         {
             SourceText = compound.SourceText,
         };
-        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, personality, activityLevel, pilotReadback);
+        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, speechContext, pilotReadback);
         if (readback is null)
         {
             return null;
@@ -163,27 +161,22 @@ public static class PilotResponder
         };
     }
 
-    public static PilotSpeechText? BuildReadback(
-        CompoundCommand compound,
-        AircraftState aircraft,
-        PilotPersonality personality,
-        FrequencyActivityLevel activityLevel
-    ) => BuildReadback(compound, aircraft, personality, activityLevel, null);
+    public static PilotSpeechText? BuildReadback(CompoundCommand compound, AircraftState aircraft, PilotSpeechContext speechContext) =>
+        BuildReadback(compound, aircraft, speechContext, null);
 
     /// <summary>Whether <paramref name="cmd"/> is a command of canonical type <paramref name="type"/>; an unsupported command is none.</summary>
     private static bool IsCommandOfType(ParsedCommand cmd, CanonicalCommandType type) =>
         (cmd is not UnsupportedCommand) && (CommandDescriber.ToCanonicalType(cmd) == type);
 
     /// <summary>
-    /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotPersonality, FrequencyActivityLevel)"/>, with the
+    /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotSpeechContext)"/>, with the
     /// clause of the compound's first command of the type that produced <paramref name="handlerReadback"/> taken from it when
     /// the handler built one.
     /// </summary>
     private static PilotSpeechText? BuildReadback(
         CompoundCommand compound,
         AircraftState aircraft,
-        PilotPersonality personality,
-        FrequencyActivityLevel activityLevel,
+        PilotSpeechContext speechContext,
         HandlerReadback? handlerReadback
     )
     {
@@ -215,7 +208,7 @@ public static class PilotResponder
                 }
                 else
                 {
-                    clause = VerbalizeForReadback(cmd, aircraft, personality, activityLevel);
+                    clause = VerbalizeForReadback(cmd, aircraft, speechContext);
                 }
                 if (clause is null || string.IsNullOrEmpty(clause.Tts))
                 {
@@ -246,7 +239,7 @@ public static class PilotResponder
             return null;
         }
 
-        string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), personality, activityLevel);
+        string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), speechContext);
         string termBody = string.Join(", then ", blockTermTexts);
         string rpoBody = string.Join(", then ", blockRpoTexts);
         return FrameReadback(aircraft, termBody, ttsBody, rpoBody);
@@ -349,18 +342,13 @@ public static class PilotResponder
     private static PilotSpeechText? Dual(string? terminal, string? tts) =>
         string.IsNullOrEmpty(tts) ? null : new PilotSpeechText(string.IsNullOrEmpty(terminal) ? tts : terminal, tts);
 
-    private static PilotSpeechText? VerbalizeForReadback(
-        ParsedCommand cmd,
-        AircraftState aircraft,
-        PilotPersonality personality,
-        FrequencyActivityLevel activityLevel
-    ) =>
+    private static PilotSpeechText? VerbalizeForReadback(ParsedCommand cmd, AircraftState aircraft, PilotSpeechContext speechContext) =>
         cmd switch
         {
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
                 BuildAltitudeRestrictionClause(aircraft, cm),
             LineUpAndWaitCommand luaw => AppendWithoutDelayClause(BuildRunwayInstructionClause(aircraft, "line up and wait"), luaw.WithoutDelay)
-                ?? VerbalizeDual(luaw, personality, activityLevel),
+                ?? VerbalizeDual(luaw, speechContext),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
                 aircraft,
                 cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
@@ -393,26 +381,25 @@ public static class PilotResponder
                 PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: false),
                 PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: true)
             ),
-            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, personality, activityLevel),
+            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, speechContext),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
-                    ?? VerbalizeDual(tg, personality, activityLevel),
+                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId) ?? VerbalizeDual(tg, speechContext),
                 tg.TrafficPattern,
                 tg.PatternRunwayId
             ),
             StopAndGoCommand sg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, personality, activityLevel),
+                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, speechContext),
                 sg.TrafficPattern,
                 sg.PatternRunwayId
             ),
             LowApproachCommand la => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, personality, activityLevel),
+                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, speechContext),
                 la.TrafficPattern,
                 la.PatternRunwayId
             ),
             ClearedForOptionCommand option => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, personality, activityLevel),
+                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, speechContext),
                 option.TrafficPattern,
                 option.PatternRunwayId
             ),
@@ -434,7 +421,7 @@ public static class PilotResponder
             FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
-            _ => VerbalizeDual(cmd, personality, activityLevel),
+            _ => VerbalizeDual(cmd, speechContext),
         };
 
     /// <summary>
@@ -709,10 +696,10 @@ public static class PilotResponder
     /// Default rule-driven clause for commands without a dedicated readback builder: the compact
     /// terminal form and the spoken form, both produced from the canonical command by the verbalizer.
     /// </summary>
-    private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
+    private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, PilotSpeechContext speechContext) =>
         Dual(
-            PhraseologyVerbalizer.VerbalizeTerminal(cmd, personality, activityLevel),
-            PhraseologyVerbalizer.Verbalize(cmd, personality, activityLevel)
+            PhraseologyVerbalizer.VerbalizeTerminal(cmd, speechContext.Personality, speechContext.Band),
+            PhraseologyVerbalizer.Verbalize(cmd, speechContext.Personality, speechContext.Band)
         );
 
     /// <summary>
@@ -727,7 +714,7 @@ public static class PilotResponder
         PatternEntryLeg? leg = ext.Leg ?? CurrentPatternLeg(aircraft.Phases?.CurrentPhase);
         if (leg is not { } resolved)
         {
-            return VerbalizeDual(ext, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+            return VerbalizeDual(ext, PilotSpeechContext.Canonical);
         }
 
         string? legWord = resolved switch
@@ -739,7 +726,7 @@ public static class PilotResponder
         };
         if (legWord is null)
         {
-            return VerbalizeDual(ext, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+            return VerbalizeDual(ext, PilotSpeechContext.Canonical);
         }
 
         string? runway = aircraft.Procedure.DestinationRunway;
@@ -763,9 +750,9 @@ public static class PilotResponder
             _ => null,
         };
 
-    private static string ApplyQuietFlavor(string callsign, string body, PilotPersonality personality, FrequencyActivityLevel activityLevel)
+    private static string ApplyQuietFlavor(string callsign, string body, PilotSpeechContext speechContext)
     {
-        if (personality != PilotPersonality.Varied || activityLevel != FrequencyActivityLevel.Quiet)
+        if ((speechContext.Personality != PilotPersonality.Varied) || (speechContext.Band != FrequencyLoadBand.Quiet))
         {
             return body;
         }

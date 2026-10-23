@@ -285,8 +285,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             CommandParser.ParseCompound(command).Value!,
             result,
             aircraft,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
         output.WriteLine($"{command} off gate 25: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\"");
         return (readback, spoken);
@@ -350,8 +349,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             CommandParser.ParseCompound(sent).Value!,
             result,
             aircraft,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
         output.WriteLine($"{stand} {sent}: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\"");
         return (readback, spoken);
@@ -454,8 +452,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             CommandParser.ParseCompound(last).Value!,
             result!,
             aircraft,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
         output.WriteLine(
             $"{gate} {last}: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\" / rpo \"{spoken?.TerminalForRpo}\""

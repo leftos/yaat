@@ -505,6 +505,9 @@ Established on the final and no further out than a limit measured to the landing
 How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
 _Avoid_: activity level (the meter's four-step reading)
 
+**Pilot trait**:
+How much a pilot says on the frequency regardless of load: terse (25%), normal (50%) or chatty (25%), derived from the callsign and the scenario seed and never stored. Terse speaks at the next busier load band, chatty at the next quieter, clamped to quiet..busy (`PilotTrait`, `PilotTraits.EffectiveBand`, docs/solo-training-pilot-speech.md).
+
 ## Live traffic
 
 **Shadow**:

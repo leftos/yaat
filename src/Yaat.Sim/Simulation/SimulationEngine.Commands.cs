@@ -222,13 +222,15 @@ public sealed partial class SimulationEngine
         if (result.Success && answering)
         {
             FrequencyActivityLevel activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
-            PilotSpeechText? readback = Yaat.Sim.Pilot.PilotResponder.BuildReadbackAsApplied(
-                compound,
-                result,
-                aircraft,
+            SimScenarioState scenario =
+                Scenario ?? throw new InvalidOperationException($"{aircraft.Callsign}: a pilot answering a dispatch needs a loaded scenario.");
+            var speechContext = new PilotSpeechContext(
                 PilotPersonality.Varied,
-                activityLevel
+                activityLevel.ToLoadBand(),
+                scenario.RngSeed,
+                (int)Math.Floor(elapsedSeconds)
             );
+            PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext);
             if (readback is not null)
             {
                 if (bravoGrant is { } wording)

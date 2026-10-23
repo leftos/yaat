@@ -87,18 +87,22 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
-        string? result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy)?.Tts;
+        string? result = PilotResponder
+            .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0))
+            ?.Tts;
 
         Assert.Equal("down to five thousand, right heading two seven zero, american one twenty three.", result);
     }
 
     [Fact]
-    public void BuildReadback_VariedSaturated_DoesNotDropRunwayCriticalContent()
+    public void BuildReadback_VariedBusy_DoesNotDropRunwayCriticalContent()
     {
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         CompoundCommand compound = Compound(new LineUpAndWaitCommand());
 
-        string? result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Saturated)?.Tts;
+        string? result = PilotResponder
+            .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0))
+            ?.Tts;
 
         Assert.Equal("line up and wait runway two eight right, november four three six mike sierra.", result);
     }
@@ -165,8 +169,12 @@ public class PilotResponderTests
             AircraftState ac = MakeAircraft($"N{i:D3}AB");
             CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
 
-            string? first = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet)?.Tts;
-            string? second = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet)?.Tts;
+            string? first = PilotResponder
+                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, 0))
+                ?.Tts;
+            string? second = PilotResponder
+                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, 0))
+                ?.Tts;
 
             Assert.Equal(first, second);
             if (first!.Contains("alright", StringComparison.OrdinalIgnoreCase) || first.Contains("thanks", StringComparison.OrdinalIgnoreCase))
@@ -185,7 +193,9 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N004AB");
         CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
 
-        string? result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy)?.Tts;
+        string? result = PilotResponder
+            .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0))
+            ?.Tts;
 
         Assert.Equal("heading two seven zero, november zero zero four alpha bravo.", result);
         Assert.DoesNotContain("alright", result);
@@ -733,8 +743,7 @@ public class PilotResponderTests
             Compound(issued),
             new CommandResult(true, EffectiveCommand: effective),
             ac,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
 
         Assert.NotNull(result);
@@ -751,14 +760,8 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL436");
         CompoundCommand compound = Compound(new TaxiCommand(["M1", "A"], [], Expedite: false, DestinationRunway: "1R"));
 
-        PilotSpeechText? plain = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
-        PilotSpeechText? asApplied = PilotResponder.BuildReadbackAsApplied(
-            compound,
-            new CommandResult(true),
-            ac,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
-        );
+        PilotSpeechText? plain = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical);
+        PilotSpeechText? asApplied = PilotResponder.BuildReadbackAsApplied(compound, new CommandResult(true), ac, PilotSpeechContext.Canonical);
 
         Assert.Equal(plain, asApplied);
     }
@@ -779,8 +782,7 @@ public class PilotResponderTests
             parsed.Value!,
             new CommandResult(true) { PilotReadback = PushFaceEastReadback },
             ac,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
 
         Assert.NotNull(result);
@@ -802,8 +804,7 @@ public class PilotResponderTests
             parsed.Value!,
             new CommandResult(true) { PilotReadback = PushFaceEastReadback },
             ac,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
 
         Assert.NotNull(result);
@@ -831,8 +832,7 @@ public class PilotResponderTests
                 ),
             },
             ac,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
 
         Assert.NotNull(result);

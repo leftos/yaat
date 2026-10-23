@@ -45,7 +45,7 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 
    The meter counts the controller's own transmissions alongside the pilots': each pilot transmission dequeued records one time, and each successful command dispatch records one more through `SimulationWorld.RecordControllerTransmission`, however many commands the dispatch chained, at the command's sim time and before the read-back is built, so the read-back's level counts the controller's transmission. It counts transmissions, never airtime, so shorter busy read-backs cannot feed back into the count.
 
-   `FrequencyActivityLevel.ToLoadBand()` collapses the four levels to a three-way `FrequencyLoadBand`: Quiet is Quiet, Moderate is Normal, Busy and Saturated are Busy. No reader consumes the band.
+   `FrequencyActivityLevel.ToLoadBand()` collapses the four levels to a three-way `FrequencyLoadBand`: Quiet is Quiet, Moderate is Normal, Busy and Saturated are Busy. `SimulationEngine.ApplyPostDispatch` reads the band into the `PilotSpeechContext` the readback builders take (see Activity-aware readback shortening).
 
    The recorded times are snapshotted (`FrequencyActivityMeter.TransmissionTimes`, restored by `Restore`), so a rewind or restore resumes in the load band the run was in: see [snapshots-and-replay.md](snapshots-and-replay.md). `SimulationEngine.LoadScenario` empties the meter, so a reload replayed from zero never keeps times from later in the run.
 
@@ -86,9 +86,11 @@ For commands that *produce* a readback, both gates run sequentially: dispatch cl
 
 ## Activity-aware readback shortening
 
-`PilotPersonality.Varied` + Busy/Saturated activity unlocks `PhraseologyVerbalizer.PilotShortcuts` — the phraseology rule's secondary patterns produce shorter readbacks ("two eighty" instead of "fly heading two eight zero"), in the Terminal form and the spoken form alike. The base verbatim form fires at Quiet/Moderate.
+`PilotPersonality.Varied` at the Busy load band (Busy or Saturated activity) unlocks `PhraseologyVerbalizer.PilotShortcuts` — the phraseology rule's secondary patterns produce shorter readbacks ("two eighty" instead of "fly heading two eight zero"), in the Terminal form and the spoken form alike. The base verbatim form fires at Quiet and Normal, with the light quiet flavour at Quiet.
 
-`SimulationEngine.SendCommand` always passes `PilotPersonality.Varied` plus the live activity level into `PilotResponder.BuildReadback`, so shortening is automatic on the live path. Tests that need stable output use the parameterless `BuildReadback(compound, aircraft)` overload, which defaults to `Verbatim` + `Moderate`.
+`PilotResponder.BuildReadback*` take a `PilotSpeechContext(Personality, Band, RngSeed, ElapsedSecond)`, and `PhraseologyVerbalizer.Verbalize`/`VerbalizeTerminal`/`ShouldUseShortcut` take its `FrequencyLoadBand`. `SimulationEngine.ApplyPostDispatch` builds the context from `PilotPersonality.Varied`, the meter's load band, the scenario's `RngSeed` and the whole elapsed second, so shortening is automatic on the live path. Tests that need stable output use the parameterless `BuildReadback(compound, aircraft)` overload, which passes `PilotSpeechContext.Canonical`: Verbatim, Normal, seed 0, second 0.
+
+Two deterministic draws sit beside the band, derived on each call and never stored, so a replay or rewind reproduces them. `PilotTraits.For(callsign, rngSeed)` gives the pilot's `PilotTrait`: terse 25%, normal 50%, chatty 25%, from `DeterministicHash.Mix` over `Fnv1a("pilot-trait:{seed}:", callsign)`. `PilotTraits.EffectiveBand(band, trait)` is the band the pilot speaks at: terse one band busier, chatty one quieter, clamped to Quiet..Busy. `VariantPick.Index(callsign, canonicalBody, elapsedSecond, rngSeed, count)` picks among a phrase's variants for one pilot, one canonical body and one second. No spoken form reads the trait or the pick yet.
 
 ## Dual-output builders (terminal vs TTS)
 

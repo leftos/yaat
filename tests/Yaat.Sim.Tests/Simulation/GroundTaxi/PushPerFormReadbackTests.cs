@@ -589,13 +589,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
         string command = commands[^1];
 
         PilotSpeechText spoken = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadbackAsApplied(
-                CommandParser.ParseCompound(command).Value!,
-                result,
-                aircraft,
-                PilotPersonality.Verbatim,
-                FrequencyActivityLevel.Moderate
-            )
+            PilotResponder.BuildReadbackAsApplied(CommandParser.ParseCompound(command).Value!, result, aircraft, PilotSpeechContext.Canonical)
         );
         output.WriteLine($"  spoken \"{spoken.Terminal}\" / \"{spoken.Tts}\"");
         return (Assert.IsType<string>(result.Message), spoken);

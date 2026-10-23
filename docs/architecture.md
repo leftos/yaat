@@ -1265,7 +1265,7 @@ Logging/RecordingPseudonymizer.cs # Pure rewrite of a recording's action log, te
 Logging/CrcDisplayName.cs      # Builds a CRC client's display name "CALLSIGN (Real Name)" (yaat-server's CRC session), parses the real name back out (the client's bundle participant fallback) and tells a position callsign (IsPositionCallsign) from a person
 Diagnostics/ThreadCpuTime.cs   # Static: the calling thread's CPU time (GetThreadTimes / clock_gettime(CLOCK_THREAD_CPUTIME_ID)); timing-budget tests measure with it, not Stopwatch (docs/test-harness.md)
 SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
-DeterministicHash.cs           # Internal: Fnv1a(salt, callsign), the per-callsign draw behind fixed per-aircraft choices (release auto-CTO jitter with an empty salt, the after-taxi-arrival and release-request delays, the VFR departure direction); replay-safe, no RNG state
+DeterministicHash.cs           # Internal: Mix (murmur3 fmix32, spreads bits before a modulo), Fnv1a(salt, callsign), the per-callsign draw behind fixed per-aircraft choices (release auto-CTO jitter with an empty salt, the after-taxi-arrival and release-request delays, the VFR departure direction); replay-safe, no RNG state
 InitialCallupPlan.cs           # Enum: the solo initial call a spawn makes (None / StandCall / AfterPush / AfterTaxiArrival / RunwaySayOnly / RunwayNoPreset), set once at load by Scenarios/InitialCallupClassifier; AircraftGroundOps.InitialCallup
 PresetTaxiStop.cs              # Record: the stop a spawn's timed TAXI preset ends at (Spot / TaxiwayHoldShort / RouteEnd + name + held-on taxiway), recorded at load for an AfterTaxiArrival plan; AircraftGroundOps.PresetTaxiStop (+ PresetTaxiStopDto)
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings; PushPlans (the PushPlanStore its constructor takes: a room's own, shared by every engine the room builds)
@@ -1797,6 +1797,9 @@ Pilot/PushReadbackPhrases.cs   # Static: the one sentence builder for PUSH/PUSHM
 Pilot/PilotProactive.cs        # Static: TickAirborneCheckIn(AircraftState, SimScenarioState, airportLookup) — fires once-per-aircraft when first ticked airborne in solo mode; skipped inside the tower's arrival side (TowerCabPhases.IsArrivalSide).
                                # Idempotent via HasMadeInitialContact. Called from SimulationEngine.TickPostPhysics. Also inserts solo-training VFR Class B/C boundary holds from FAA AIS airspace data and ticks pending-request reminders.
 Pilot/PilotPersonality.cs      # Enum controlling readback variation. Verbatim emits textbook form; Varied enables activity-aware solo-training shortcuts.
+Pilot/PilotSpeechContext.cs    # Record struct (Personality, Band, RngSeed, ElapsedSecond) every PilotResponder.BuildReadback* takes; Canonical = Verbatim, Normal, seed 0, second 0. Built by SimulationEngine.ApplyPostDispatch.
+Pilot/PilotTrait.cs            # PilotTrait enum (Terse/Normal/Chatty) and PilotTraits: For(callsign, rngSeed) draws 25/50/25 per pilot, EffectiveBand(band, trait) shifts terse one band busier, chatty one quieter. Derived, never stored.
+Pilot/VariantPick.cs           # Static: Index(callsign, canonicalBody, elapsedSecond, rngSeed, count), the seeded replay-safe choice among a phrase's variants.
 Pilot/PilotSayBuilder.cs       # Static: pilot-style transmission text for SAY-class verbs (SALT/SHDG/SPOS/SSPD/SMACH/SEAPP).
                                # AIM-compliant spoken phraseology (digit-by-digit, "thousand"/"hundred"/"flight level", "Mach point X").
                                # Used by CommandDispatcher for triggered/sequenced SAY blocks AND by yaat-server's SayCommandHandler

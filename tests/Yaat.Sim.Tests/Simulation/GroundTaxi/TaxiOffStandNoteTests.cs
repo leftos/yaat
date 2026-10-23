@@ -171,8 +171,7 @@ public class TaxiOffStandNoteTests(ITestOutputHelper output)
             CommandParser.ParseCompound(command).Value!,
             result,
             aircraft,
-            PilotPersonality.Verbatim,
-            FrequencyActivityLevel.Moderate
+            PilotSpeechContext.Canonical
         );
         output.WriteLine($"{stand} {type} live \"{command}\": response \"{response}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\"");
         return (response, spoken, aircraft);
