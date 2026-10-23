@@ -487,6 +487,15 @@ A value or rule the aviation review set where 7110.65 and the AIM give no figure
 **Turn-out**:
 A follower level with or ahead of its lead turning to the downwind heading with one call, holding an offset band, and turning base behind the lead once it has passed (`VfrFollowPhase`, docs/approach-and-pattern-geometry.md).
 
+## Approach clearances
+
+**Held until established**:
+A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the published final approach fix to an aircraft cleared for an approach: the approach stays and the altitude is flown in place of the published altitudes until glideslope capture, until approach navigation sequences its next fix, or, when held above the glideslope, until the aircraft crosses the published FAF
+(`ApproachClearance.AltitudeHeldUntilEstablished`, docs/phases.md, *Commands on an aircraft cleared for an approach*).
+
+**Inside the FAF**:
+Established on the final and no further out than a limit measured to the landing threshold. For the speed gate and the FOLLOW refusal the limit is the published FAF capped at 5 NM (`FinalApproachFix.IsInside`); for the altitude hold and the bare-go-around refusal it is the published FAF uncapped (`FinalApproachFix.IsInsidePublishedFaf`, docs/approach-and-pattern-geometry.md).
+
 ## Live traffic
 
 **Shadow**:

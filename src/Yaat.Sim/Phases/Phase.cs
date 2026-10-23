@@ -56,11 +56,14 @@ public abstract class Phase
     /// Speed-axis commands: a pure speed instruction that adjusts the speed target
     /// without touching the lateral or vertical path. Single source of truth for
     /// phases whose <see cref="CanAcceptCommand"/> treats speed changes as additive.
+    /// The forced speeds (SPEEDF, and SPDN / SPDN RFAS) are members: a forced speed retargets
+    /// speed like any other, so it must not cancel a lateral maneuver or an approach.
     /// </summary>
     public static bool IsSpeedFamilyCommand(CanonicalCommandType cmd) =>
         cmd
             is CanonicalCommandType.Speed
                 or CanonicalCommandType.ForceSpeedFinal
+                or CanonicalCommandType.ForceSpeed
                 or CanonicalCommandType.Mach
                 or CanonicalCommandType.ReduceToFinalApproachSpeed
                 or CanonicalCommandType.ResumeNormalSpeed
@@ -79,6 +82,25 @@ public abstract class Phase
     /// they retarget speed/altitude without cancelling the maneuver.
     /// </summary>
     public static bool IsAdditiveAirborneAdjustment(CanonicalCommandType cmd) => IsSpeedFamilyCommand(cmd) || IsAltitudeFamilyCommand(cmd);
+
+    /// <summary>
+    /// Landing clearances (CLAND, CLANDF, LAHSO), option clearances (COPT, TG, SG, LA), their cancellation (CLC) and
+    /// the runway exits (EL, ER, EXIT). They set what the aircraft does at the runway, not the path flown to it, so
+    /// every leg of an instrument approach keeps the approach on them.
+    /// </summary>
+    public static bool IsLandingClearanceOrExitCommand(CanonicalCommandType cmd) =>
+        cmd
+            is CanonicalCommandType.ClearedToLand
+                or CanonicalCommandType.ForceLanding
+                or CanonicalCommandType.LandAndHoldShort
+                or CanonicalCommandType.ClearedForOption
+                or CanonicalCommandType.TouchAndGo
+                or CanonicalCommandType.StopAndGo
+                or CanonicalCommandType.LowApproach
+                or CanonicalCommandType.CancelLandingClearance
+                or CanonicalCommandType.ExitLeft
+                or CanonicalCommandType.ExitRight
+                or CanonicalCommandType.ExitTaxiway;
 
     /// <summary>
     /// Whether this phase accepts the given RPO command.

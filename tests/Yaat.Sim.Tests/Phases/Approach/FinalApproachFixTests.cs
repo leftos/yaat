@@ -85,6 +85,22 @@ public class FinalApproachFixTests
         Assert.False(FinalApproachFix.IsInside(AircraftAt(OffFinal(runway, beyondNm, 0), runway), runway, layout: null));
     }
 
+    /// <summary>
+    /// With the real CIFP scoped in, KSFO 28L's FAF (DUYET) is beyond five miles: half a mile inside it the published-FAF test
+    /// reads inside while the capped test reads outside.
+    /// </summary>
+    [Fact]
+    public void IsInsidePublishedFaf_BetweenFiveMilesAndThePublishedFaf_IsTrueWhereIsInsideIsFalse()
+    {
+        using IDisposable _ = ApproachGateDatabase.ScopedOverride(Simulation.ApproachPublishedFafTests.Cifp.Value);
+        RunwayInfo runway = Simulation.ApproachPublishedFafTests.Sfo28L();
+        double alongNm = Simulation.ApproachPublishedFafTests.PublishedFafNm() - 0.5;
+        AircraftState aircraft = AircraftAt(OffFinal(runway, alongNm, 0), runway);
+
+        Assert.True(FinalApproachFix.IsInsidePublishedFaf(aircraft, runway, layout: null));
+        Assert.False(FinalApproachFix.IsInside(aircraft, runway, layout: null));
+    }
+
     [Fact]
     public void IsInside_PastTheThreshold_IsFalse()
     {

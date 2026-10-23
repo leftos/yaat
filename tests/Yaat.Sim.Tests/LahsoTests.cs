@@ -308,7 +308,7 @@ public class LahsoTests
         AircraftState ac = MakeAircraft(runway);
         ClearLahsoOn(ac, layout);
 
-        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), ac, layout);
+        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null, RunwayHeading: false), ac, layout);
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Phases!.LahsoHoldShort);

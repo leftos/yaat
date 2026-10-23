@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -356,6 +357,12 @@ public sealed class FinalApproachPhase : Phase
     /// assigned altitude rather than commanding a climb up to GS.
     /// </summary>
     private const double GsCaptureWindowFt = 50.0;
+
+    /// <summary>
+    /// While a controller's altitude is held until established, the glideslope is captured only with the aircraft level at
+    /// that altitude: within this many feet of it.
+    /// </summary>
+    private const double HeldAltitudeLevelToleranceFt = 20.0;
 
     /// <summary>
     /// When true, skips the illegal intercept distance check.
@@ -932,20 +939,24 @@ public sealed class FinalApproachPhase : Phase
         }
 
         // Target: glideslope altitude at current distance (true 3°/6° path).
-        // Only follow GS once the aircraft is at/above it. Below GS and not yet captured,
-        // hold the assigned altitude (clamped by current altitude — never climb up to assigned
-        // either) and wait for the GS to descend to meet the aircraft from above. Aircraft must
-        // never fly UP to capture a glideslope.
+        // Only follow GS once the aircraft is at/above it. Below GS and not yet captured, hold the
+        // assigned altitude (clamped by current altitude, so no climb up to it) and wait for the GS
+        // to descend to meet the aircraft from above; an aircraft must never fly UP to capture a
+        // glideslope. A controller's altitude held until established is the exception: it is flown
+        // as given, a climb included, and kept until the GS meets it or the FAF releases it.
         double crossingHeightFt = CategoryPerformance.WheelCrossingHeightFt(ctx.Category);
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, crossingHeightFt, _gsAngleDeg);
-        if (!_gsCaptured && (ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt) && IsLaterallyEstablishedForGs(ctx, absXte))
-        {
-            _gsCaptured = true;
-        }
+        UpdateGlideslopeCapture(ctx, gsAltitude, absXte);
 
+        // A controller's altitude given outside the final approach fix is held until the glideslope is captured, climb included.
+        double? heldAltitude = ApproachAltitudeHold.IsHeld(ctx.Aircraft) ? ctx.Targets.AssignedAltitude : null;
         if (_gsCaptured)
         {
             ctx.Targets.TargetAltitude = gsAltitude;
+        }
+        else if (heldAltitude is { } held)
+        {
+            ctx.Targets.TargetAltitude = held;
         }
         else
         {
@@ -964,8 +975,8 @@ public sealed class FinalApproachPhase : Phase
             // Below GS waiting for capture: hold level. Without this branch the gentle-recovery
             // formula below would still command a 200 fpm minimum descent (per the Math.Clamp
             // floor) and slowly bleed altitude — opposite of AIM 5-4-14 ("maintain assigned
-            // altitude until intercepting the glideslope").
-            ctx.Targets.DesiredVerticalRate = 0;
+            // altitude until intercepting the glideslope"). A held controller's altitude is flown to at the normal rate.
+            ctx.Targets.DesiredVerticalRate = heldAltitude is null ? 0 : null;
             fpm = 0;
         }
         else if (deviation > 50)
@@ -1721,6 +1732,52 @@ public sealed class FinalApproachPhase : Phase
     }
 
     /// <summary>
+    /// Glideslope capture: at or above the glideslope less <see cref="GsCaptureWindowFt"/> and laterally established. A
+    /// controller's altitude held until established (<see cref="ApproachAltitudeHold"/>) is flown first: a hold set after
+    /// capture clears it, and while held the glideslope is captured only when it meets the aircraft level at the held altitude
+    /// (within <see cref="GsCaptureWindowFt"/> of it, above or below), so a climb through the glideslope does not capture it
+    /// mid-climb and an aircraft held above it keeps the held altitude. Capture releases the hold, and so does crossing the
+    /// published final approach fix (<see cref="FinalApproachFix.IsInsidePublishedFaf"/>) with the held altitude still in force;
+    /// the capture from above then follows as for any aircraft.
+    /// </summary>
+    private void UpdateGlideslopeCapture(PhaseContext ctx, double gsAltitude, double absXte)
+    {
+        bool held = ApproachAltitudeHold.IsHeld(ctx.Aircraft);
+        if (held && _gsCaptured)
+        {
+            _gsCaptured = false;
+            Log.LogDebug("[FinalApproach] {Callsign}: glideslope capture cleared to fly the held altitude", ctx.Aircraft.Callsign);
+        }
+
+        bool withinWindow = held
+            ? IsLevelAtHeldAltitude(ctx) && (Math.Abs(ctx.Aircraft.Altitude - gsAltitude) <= GsCaptureWindowFt)
+            : ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt;
+        if (!_gsCaptured && withinWindow && IsLaterallyEstablishedForGs(ctx, absXte))
+        {
+            _gsCaptured = true;
+            ApproachAltitudeHold.Release(ctx.Aircraft, "glideslope captured");
+        }
+
+        ReleaseHeldAltitudeInsideFaf(ctx);
+    }
+
+    private static bool IsLevelAtHeldAltitude(PhaseContext ctx) =>
+        (ctx.Targets.AssignedAltitude is not { } heldAltitude) || (Math.Abs(ctx.Aircraft.Altitude - heldAltitude) <= HeldAltitudeLevelToleranceFt);
+
+    /// <summary>A held altitude still in force when the aircraft crosses the published final approach fix is released there.</summary>
+    private static void ReleaseHeldAltitudeInsideFaf(PhaseContext ctx)
+    {
+        if (
+            ApproachAltitudeHold.IsHeld(ctx.Aircraft)
+            && (ctx.Runway is { } runway)
+            && FinalApproachFix.IsInsidePublishedFaf(ctx.Aircraft, runway, ctx.GroundLayout)
+        )
+        {
+            ApproachAltitudeHold.Release(ctx.Aircraft, "crossed the final approach fix");
+        }
+    }
+
+    /// <summary>
     /// CLANDF forced-landing vertical/speed guidance. Commits to the glideslope and flies the
     /// <see cref="ForcedLandingProfile"/>: a descent toward an aim point on the runway ahead of the
     /// aircraft (measured signed from the landing threshold, so an aircraft already past it aims
@@ -1739,24 +1796,18 @@ public sealed class FinalApproachPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // Clearance / GA / runway-exit commands always pass through.
+        // Landing / option clearances, CLC, runway exits and GA always pass through.
         bool alwaysAllowed = cmd switch
         {
-            CanonicalCommandType.ClearedToLand => true,
-            CanonicalCommandType.ForceLanding => true,
-            CanonicalCommandType.LandAndHoldShort => true,
-            CanonicalCommandType.ClearedForOption => true,
             CanonicalCommandType.GoAround => true,
-            // SPEEDF is the explicit override of the §5-7-1.b.4 final-gate restriction;
-            // honor it additively without clearing the stabilized approach.
+            // SPEEDF and SPDN (SPDN RFAS included) are the explicit overrides of the §5-7-1.b.4
+            // final-gate restriction; honor them additively without clearing the stabilized approach.
             CanonicalCommandType.ForceSpeedFinal => true,
+            CanonicalCommandType.ForceSpeed => true,
             CanonicalCommandType.Follow => true,
-            CanonicalCommandType.ExitLeft => true,
-            CanonicalCommandType.ExitRight => true,
-            CanonicalCommandType.ExitTaxiway => true,
             _ => false,
         };
-        if (alwaysAllowed)
+        if (alwaysAllowed || IsLandingClearanceOrExitCommand(cmd))
         {
             return CommandAcceptance.Allowed;
         }

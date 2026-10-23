@@ -664,10 +664,30 @@ gate (see scoring below). VFR, visual (`VIS…`), and pattern traffic skip the �
   `TargetAltitude` to the published 3°/6° glideslope altitude at the current distance from threshold, **bounded
   below** by the highest remaining `AtOrAbove`/`At`/`GlideSlopeIntercept` constraint (and the lower bound of a
   `Between`), and **bounded above** by the current altitude — the aircraft never climbs to capture the profile from
-  below. The controller's `AssignedAltitude` caps it.
+  below, except to climb back to the highest published floor (`HighestPublishedFloorFt`) once a held altitude is released. The controller's `AssignedAltitude` caps it, unless it is held until established (below), when it is flown as given.
 - Remaining fixes are appended to `NavigationRoute` with their speed restrictions so
   `FlightPhysics.UpdateSpeedPlanning` can look ahead; altitude is owned by the continuous-descent path, not the
   route.
+
+### A controller's altitude held until established — `ApproachAltitudeHold`
+
+`ApproachAltitudeHold` (`src/Yaat.Sim/Phases/Approach/ApproachAltitudeHold.cs`) is the altitude half of "maintain X until established" (AIM 5-4-7.f) for the five instrument-approach legs (`IsApproachPhase`).
+
+`CommandDispatcher.ApproachAltitudeVerdict` sends a CM, DM, forced altitude or `EXP <alt>` on such a leg to `HoldIfOutsideFaf` (outside the published final approach fix: the approach is kept) or cancels the approach (inside it). The hold is the `ApproachClearance.AltitudeHeldUntilEstablished` flag, so it survives phase advances.
+
+While it is set, `ApproachNavigationPhase.ApplyContinuousDescentTarget`, `ProcedureTurnPhase` (`EnsureMinimumAltitudeTarget` and the outbound altitude gate) and `FinalApproachPhase` fly `AssignedAltitude` instead of the published altitudes, even below a published floor or the procedure turn's minimum, and even as a climb.
+
+`Release` clears the flag and `AssignedAltitude` and the published altitudes resume. It runs when approach navigation sequences its next fix (before the fix's AT triggers fire), at glideslope capture, and when `FinalApproachPhase` finds the aircraft inside the published FAF.
+
+`FinalApproachPhase.UpdateGlideslopeCapture` captures the glideslope while held only when the aircraft is level at the held altitude (`HeldAltitudeLevelToleranceFt` = 20 ft) and the glideslope is within `GsCaptureWindowFt` = 50 ft of it, above or below: an aircraft held above the glideslope keeps the altitude until the published FAF, then descends to the glideslope from above. A hold set after capture clears `_gsCaptured`.
+
+### Inside the FAF: two tests — `FinalApproachFix`
+
+`FinalApproachFix` (`src/Yaat.Sim/Phases/Approach/FinalApproachFix.cs`) shares one established-on-the-final check (along-final at or beyond the threshold, within `OnFinalMaxCrossTrackNm` of the centerline, distance to the landing threshold) and differs in the distance limit.
+
+`IsInside` limits to `ApproachGateDatabase.InsideFafLimitNm`, the published FAF capped at 5 nm: the speed rule's test (7110.65 §5-7-1.b.4) and the cross-runway `FOLLOW` refusal's. `IsInsidePublishedFaf` limits to the published FAF distance uncapped (`ApproachGateDatabase.InsideFafCeilingNm` when the runway has none): the altitude hold's and the bare-go-around refusal's test, so an aircraft between 5 nm and a farther FAF is still outside.
+
+`ApproachGateDatabase.ScopedOverride` swaps in a per-async-context gate table for a test, leaving the process-wide one alone.
 
 ## Holding patterns — `HoldingPatternPhase` + `HoldingEntryCalculator`
 

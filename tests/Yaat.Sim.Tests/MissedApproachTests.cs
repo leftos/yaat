@@ -290,7 +290,7 @@ public class MissedApproachTests
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand(null, null, null);
+        var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
         CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
@@ -325,7 +325,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         // ATC override: explicit heading
-        var ga = new GoAroundCommand(new MagneticHeading(090), null, null);
+        var ga = new GoAroundCommand(new MagneticHeading(090), null, null, RunwayHeading: false);
         CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
@@ -358,7 +358,7 @@ public class MissedApproachTests
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand(null, 5000, null);
+        var ga = new GoAroundCommand(null, 5000, null, RunwayHeading: false);
         CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
@@ -390,7 +390,7 @@ public class MissedApproachTests
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand(null, null, null);
+        var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
         CommandResult result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
@@ -422,7 +422,7 @@ public class MissedApproachTests
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand(null, null, null);
+        var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
         PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         GoAroundPhase? goAroundPhase = aircraft.Phases.Phases.OfType<GoAroundPhase>().FirstOrDefault();
@@ -546,7 +546,7 @@ public class MissedApproachTests
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand(null, null, null);
+        var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
         PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         var phaseTypes = aircraft.Phases.Phases.Select(p => p.GetType()).ToList();

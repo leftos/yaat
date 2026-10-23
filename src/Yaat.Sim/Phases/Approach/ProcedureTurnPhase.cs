@@ -33,7 +33,7 @@ public sealed class ProcedureTurnPhase : Phase
 
     // Reserve nm to start the 180° turn before the published distance cap so the
     // turn radius itself stays inside protected airspace.
-    private const double TurnRadiusReserveNm = 2.0;
+    internal const double TurnRadiusReserveNm = 2.0;
 
     // Established inbound: within this angular deviation of the inbound course as seen from the fix,
     // or within this cross-track distance of it (the angular band collapses close to the fix).
@@ -201,7 +201,7 @@ public sealed class ProcedureTurnPhase : Phase
 
         _ptOutboundTimerSeconds -= ctx.DeltaSeconds;
         double distFromFix = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon));
-        bool altitudeMet = ctx.Aircraft.Altitude >= MinAltitudeFt - 100;
+        bool altitudeMet = ApproachAltitudeHold.IsHeld(ctx.Aircraft) || (ctx.Aircraft.Altitude >= MinAltitudeFt - 100);
         bool timerDone = _ptOutboundTimerSeconds <= 0;
 
         // Distance cap is the hard limit per AIM 5-4-9.a.3 — turn back early enough that
@@ -304,6 +304,12 @@ public sealed class ProcedureTurnPhase : Phase
 
     private void EnsureMinimumAltitudeTarget(PhaseContext ctx)
     {
+        // A controller's altitude held until established wins over the minimum, even below it (AIM 5-4-7.f).
+        if (ApproachAltitudeHold.IsHeld(ctx.Aircraft) && (ctx.Targets.AssignedAltitude is { }))
+        {
+            return;
+        }
+
         if (ctx.Targets.TargetAltitude is null || ctx.Targets.TargetAltitude < MinAltitudeFt)
         {
             ctx.Targets.TargetAltitude = MinAltitudeFt;
@@ -344,8 +350,9 @@ public sealed class ProcedureTurnPhase : Phase
         // The procedure turn manages only the lateral course reversal. Altitude and
         // speed adjustments are additive — they retarget without cancelling the turn.
         // FOLLOW is routed by the dispatcher, which keeps the approach (this turn included)
-        // and only records the lead.
-        if (IsAdditiveAirborneAdjustment(cmd) || (cmd == CanonicalCommandType.Follow))
+        // and only records the lead. Landing and option clearances and runway exits only set
+        // what happens at the runway, so the turn is kept.
+        if (IsAdditiveAirborneAdjustment(cmd) || IsLandingClearanceOrExitCommand(cmd) || (cmd == CanonicalCommandType.Follow))
         {
             return CommandAcceptance.Allowed;
         }

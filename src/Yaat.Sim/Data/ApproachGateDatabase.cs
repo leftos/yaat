@@ -33,6 +33,8 @@ public static class ApproachGateDatabase
 
     private static bool _initialized;
 
+    private static readonly AsyncLocal<Dictionary<(string Airport, string Runway), double>?> _scopedFafDistancesToPavementNm = new();
+
     /// <summary>
     /// Builds the gate table from the current FAA CIFP cycle plus any <paramref name="additional"/> parse
     /// results — ARTCC-supplied procedure fragments, whose approaches would otherwise fall back to the
@@ -40,6 +42,30 @@ public static class ApproachGateDatabase
     /// Reads <see cref="NavigationDatabase.Instance"/> internally, so initialize the nav DB first.
     /// </summary>
     public static void Initialize(CifpParseResult cifpData, IReadOnlyList<CifpParseResult> additional)
+    {
+        _fafDistancesToPavementNm = BuildTable(cifpData, additional);
+        _initialized = true;
+    }
+
+    /// <summary>
+    /// Sets an async-local gate table, built from <paramref name="cifpData"/> as <see cref="Initialize"/> builds the
+    /// process-wide one, visible only to the current async execution context and read in place of the process-wide table.
+    /// Other threads and tests are unaffected. Returns an <see cref="IDisposable"/> that restores the table it replaced on
+    /// dispose, so scopes nest. Reads <see cref="NavigationDatabase.Instance"/>, so initialize the nav DB first.
+    /// </summary>
+    public static IDisposable ScopedOverride(CifpParseResult cifpData)
+    {
+        var scope = new OverrideScope(_scopedFafDistancesToPavementNm.Value);
+        _scopedFafDistancesToPavementNm.Value = BuildTable(cifpData, []);
+        return scope;
+    }
+
+    private sealed class OverrideScope(Dictionary<(string Airport, string Runway), double>? previous) : IDisposable
+    {
+        public void Dispose() => _scopedFafDistancesToPavementNm.Value = previous;
+    }
+
+    private static Dictionary<(string Airport, string Runway), double> BuildTable(CifpParseResult cifpData, IReadOnlyList<CifpParseResult> additional)
     {
         NavigationDatabase navDb = NavigationDatabase.Instance;
         var result = new Dictionary<(string Airport, string Runway), double>();
@@ -103,10 +129,8 @@ public static class ApproachGateDatabase
             computed++;
         }
 
-        _fafDistancesToPavementNm = result;
-        _initialized = true;
-
         Log.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
+        return result;
     }
 
     /// <summary>
@@ -117,14 +141,16 @@ public static class ApproachGateDatabase
     /// </summary>
     public static double? GetFafDistanceNm(string airportId, string runwayId, double thresholdDisplacementNm)
     {
-        if (!_initialized)
+        Dictionary<(string Airport, string Runway), double>? table =
+            _scopedFafDistancesToPavementNm.Value ?? (_initialized ? _fafDistancesToPavementNm : null);
+        if (table is null)
         {
             return null;
         }
 
         string normalized = NormalizeAirport(airportId);
 
-        if (!_fafDistancesToPavementNm.TryGetValue((normalized, runwayId), out double fafDistToPavementNm))
+        if (!table.TryGetValue((normalized, runwayId), out double fafDistToPavementNm))
         {
             return null;
         }

@@ -247,7 +247,11 @@ public class GoAroundClimbOutTests
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
-        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), aircraft, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(
+            new GoAroundCommand(null, null, null, RunwayHeading: false),
+            aircraft,
+            groundLayout: null
+        );
 
         Assert.True(result.Success, result.Message);
         GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
@@ -273,7 +277,7 @@ public class GoAroundClimbOutTests
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
 
         CommandResult result = PatternCommandHandler.TryGoAround(
-            new GoAroundCommand(new MagneticHeading(270), null, null),
+            new GoAroundCommand(new MagneticHeading(270), null, null, RunwayHeading: false),
             aircraft,
             groundLayout: null
         );

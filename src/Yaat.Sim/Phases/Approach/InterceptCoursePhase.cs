@@ -523,23 +523,16 @@ public sealed class InterceptCoursePhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // Speed/altitude adjust targets without leaving the approach.
-        if (IsAdditiveAirborneAdjustment(cmd))
+        // Speed/altitude adjust targets without leaving the approach; landing and option
+        // clearances and runway exits only set what happens at the runway.
+        if (IsAdditiveAirborneAdjustment(cmd) || IsLandingClearanceOrExitCommand(cmd))
         {
             return CommandAcceptance.Allowed;
         }
 
         return cmd switch
         {
-            // Approach-related commands pass through
-            CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
-            CanonicalCommandType.ForceLanding => CommandAcceptance.Allowed,
-            CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
-            CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             // FOLLOW is routed by the dispatcher: it keeps the approach and only records the lead, or replaces
             // the phase list itself for a re-sequence; clearing the phase first would drop the approach.
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,

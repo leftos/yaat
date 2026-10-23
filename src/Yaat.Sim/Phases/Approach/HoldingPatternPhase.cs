@@ -404,9 +404,11 @@ public sealed class HoldingPatternPhase : Phase
     {
         // Holding manages only the lateral pattern. Altitude and speed adjustments
         // are additive — they retarget without breaking the hold. A hold-in-lieu of a
-        // procedure turn is part of the approach, which FOLLOW keeps (the dispatcher only
-        // records the lead); any other hold is cleared by it.
-        if (IsAdditiveAirborneAdjustment(cmd) || ((cmd == CanonicalCommandType.Follow) && IsHoldInLieu))
+        // procedure turn is part of the approach, which FOLLOW, a landing or option clearance
+        // and a runway exit keep (the dispatcher only records the lead; the others only set
+        // what happens at the runway); any other hold is cleared by them.
+        bool keptByApproachHold = (cmd == CanonicalCommandType.Follow) || IsLandingClearanceOrExitCommand(cmd);
+        if (IsAdditiveAirborneAdjustment(cmd) || (keptByApproachHold && IsHoldInLieu))
         {
             return CommandAcceptance.Allowed;
         }

@@ -961,20 +961,7 @@ public static class CommandDispatcher
         {
             foreach (ParsedCommand cmd in block.Commands)
             {
-                if (NeedsVerticalSupersede(cmd))
-                {
-                    List<CommandBlock> preserved = ClearConflictingBlocks(
-                        aircraft,
-                        CommandDimension.Vertical,
-                        ctx,
-                        preserveTriggeredBlocks: false,
-                        out List<CommandBlock>? dropped
-                    );
-                    EmitQueueClearWarning(aircraft, dropped, [], compound);
-                    aircraft.Queue.Blocks.AddRange(preserved);
-                }
-
-                CommandResult result = ApplyCommand(cmd, aircraft, transparentCtx);
+                CommandResult result = ApplyTransparentCommand(cmd, compound, aircraft, ctx, transparentCtx);
                 if (!result.Success)
                 {
                     return WithRejectedCommand(result, cmd);
@@ -988,6 +975,54 @@ public static class CommandDispatcher
         }
 
         return new CommandResult(true, string.Join(", ", messages));
+    }
+
+    /// <summary>
+    /// Applies one phase-transparent command. An expedite with an altitude is an altitude assignment: on an approach leg it
+    /// follows <see cref="ApproachAltitudeVerdict"/> here too, since this fast path never reaches the phase gate or
+    /// <see cref="BuildApplyAction"/>. A cancel happens only once the command is known to succeed: it is first validated on a
+    /// clone (<see cref="DryRunValidate"/>), and a refusal returns with the approach, its phases and the queue untouched.
+    /// </summary>
+    private static CommandResult ApplyTransparentCommand(
+        ParsedCommand cmd,
+        CompoundCommand compound,
+        AircraftState aircraft,
+        DispatchContext ctx,
+        DispatchContext transparentCtx
+    )
+    {
+        ApproachAltitudeOutcome? altitudeVerdict = aircraft.Phases?.CurrentPhase is { } phase
+            ? ApproachAltitudeVerdict(cmd, aircraft, phase, ctx)
+            : null;
+        if ((altitudeVerdict == ApproachAltitudeOutcome.CancelApproach) && (RefusedApproachCancel(cmd, aircraft, transparentCtx) is { } refused))
+        {
+            return refused;
+        }
+
+        if (NeedsVerticalSupersede(cmd))
+        {
+            List<CommandBlock> preserved = ClearConflictingBlocks(
+                aircraft,
+                CommandDimension.Vertical,
+                ctx,
+                preserveTriggeredBlocks: false,
+                out List<CommandBlock>? dropped
+            );
+            EmitQueueClearWarning(aircraft, dropped, [], compound);
+            aircraft.Queue.Blocks.AddRange(preserved);
+        }
+
+        if (altitudeVerdict == ApproachAltitudeOutcome.KeepAndHold)
+        {
+            return ApplyAndHoldApproachAltitude(cmd, aircraft, transparentCtx);
+        }
+
+        if (altitudeVerdict == ApproachAltitudeOutcome.CancelApproach)
+        {
+            ClearPhaseChain(aircraft, CommandDescriber.DescribeNatural(cmd));
+        }
+
+        return ApplyCommand(cmd, aircraft, transparentCtx);
     }
 
     /// <summary>
@@ -2151,14 +2186,10 @@ public static class CommandDispatcher
     /// </summary>
     private static CommandResult? DispatchWithPhase(CompoundCommand compound, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
-        // Conditional leading blocks (AT FIX, LV altitude, distance-final, on-handoff,
-        // ground-entity) defer to the queue's trigger machinery — the wrapped command
-        // hasn't actually fired yet, so the active phase must not be torn down based on
-        // what the deferred block would do. WAIT / GiveWay are short-circuited earlier
-        // via TryDeferLeadingWait / TryDeferGiveWay; this guard covers the other
-        // condition types that share the queue/trigger path. Returning null routes the
-        // compound through DispatchCompound's normal DryRunValidate + EnqueueBlocks
-        // path, where the block gets a BlockTrigger and waits for the trigger to fire.
+        // Conditional leading blocks (AT FIX, LV altitude, distance-final, on-handoff, ground-entity) defer to the queue's
+        // trigger machinery: the wrapped command hasn't fired yet, so the active phase must not be torn down for it (WAIT /
+        // GiveWay are short-circuited earlier). Returning null routes the compound through DryRunValidate + EnqueueBlocks,
+        // where the block gets a BlockTrigger and waits for it to fire.
         if (compound.Blocks[0].Condition is not null)
         {
             return null;
@@ -2201,55 +2232,34 @@ public static class CommandDispatcher
             return null;
         }
 
+        // A bare WAIT (nothing chained: a WAIT with a payload was deferred before this gate) only queues a pause, so on an
+        // approach leg it must not cancel the approach. Every other phase keeps its own acceptance (pushback refuses it).
+        if (
+            (aircraft.Phases?.ActiveApproach is not null)
+            && ApproachAltitudeHold.IsApproachPhase(currentPhase)
+            && (firstCmd is WaitCommand or WaitDistanceCommand)
+        )
+        {
+            return null;
+        }
+
+        // An altitude assignment on an approach leg with the approach clearance in force: outside the final approach fix the
+        // approach is kept (the altitude is held once it applies, in BuildApplyAction); inside it the approach is cancelled.
+        switch (ApproachAltitudeVerdict(firstCmd, aircraft, currentPhase, ctx))
+        {
+            case ApproachAltitudeOutcome.KeepAndHold:
+                return null;
+            case ApproachAltitudeOutcome.CancelApproach:
+                return PhaseShouldBeCleared;
+        }
+
         // Try tower/ground-specific handling first (phase-interactive commands)
         CommandResult? towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx, firedFromQueue: false);
         if (towerResult is not null)
         {
-            if (!towerResult.Success)
-            {
-                return WithRejectedCommand(towerResult, firstCmd);
-            }
-
-            // Dispatch the other parallel commands in the same block (e.g. CLAND after EF 28L,
-            // or CROSS after TAXI). Collect every per-command message so the RPO sees the full
-            // outcome — without this, CLAND's "Cleared to land 28L" would be silently dropped
-            // and the user would think only the EF took effect.
-            var messages = new List<string>();
-            if (!string.IsNullOrEmpty(towerResult.Message))
-            {
-                messages.Add(towerResult.Message);
-            }
-            for (int i = 0; i < gateBlock.Commands.Count; i++)
-            {
-                if (i == driverIdx)
-                {
-                    continue;
-                }
-
-                ParsedCommand sibling = gateBlock.Commands[i];
-                CommandResult? subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ctx);
-                if (subResult is null)
-                {
-                    continue;
-                }
-                if (!subResult.Success)
-                {
-                    // Subsequent failure on a partially-applied compound: surface it so the RPO
-                    // knows the second clause didn't take effect (e.g. EF succeeds but CLAND
-                    // fails because the new phase rejects it).
-                    string combinedFail =
-                        messages.Count > 0
-                            ? $"{string.Join(", ", messages)}; but {subResult.Message}"
-                            : subResult.Message ?? "Subsequent command failed";
-                    return WithRejectedCommand(new CommandResult(false, combinedFail), sibling);
-                }
-                if (!string.IsNullOrEmpty(subResult.Message))
-                {
-                    messages.Add(subResult.Message);
-                }
-            }
-
-            return messages.Count <= 1 ? towerResult : towerResult with { Message = string.Join(", ", messages) };
+            return towerResult.Success
+                ? ApplyTowerDriverSiblings(towerResult, gateBlock, driverIdx, aircraft, currentPhase, ctx)
+                : WithRejectedCommand(towerResult, firstCmd);
         }
 
         // Check standard command acceptance against the current phase
@@ -2272,6 +2282,142 @@ public static class CommandDispatcher
         // <see cref="BuildApplyAction"/> after a successful apply so a later
         // validation/apply failure does not release internal state (e.g. RV SID hold).
         return null;
+    }
+
+    /// <summary>
+    /// After the gate block's tower driver applied: dispatches the other parallel commands in the same block (e.g. CLAND after
+    /// EF 28L, or CROSS after TAXI), collecting every per-command message so the RPO sees the full outcome — without this,
+    /// CLAND's "Cleared to land 28L" would be silently dropped and the user would think only the EF took effect.
+    /// </summary>
+    private static CommandResult ApplyTowerDriverSiblings(
+        CommandResult towerResult,
+        ParsedBlock gateBlock,
+        int driverIdx,
+        AircraftState aircraft,
+        Phase currentPhase,
+        DispatchContext ctx
+    )
+    {
+        var messages = new List<string>();
+        if (!string.IsNullOrEmpty(towerResult.Message))
+        {
+            messages.Add(towerResult.Message);
+        }
+
+        for (int i = 0; i < gateBlock.Commands.Count; i++)
+        {
+            if (i == driverIdx)
+            {
+                continue;
+            }
+
+            ParsedCommand sibling = gateBlock.Commands[i];
+            CommandResult? subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ctx);
+            if (subResult is null)
+            {
+                continue;
+            }
+
+            if (!subResult.Success)
+            {
+                // Subsequent failure on a partially-applied compound: surface it so the RPO
+                // knows the second clause didn't take effect (e.g. EF succeeds but CLAND
+                // fails because the new phase rejects it).
+                string combinedFail =
+                    messages.Count > 0 ? $"{string.Join(", ", messages)}; but {subResult.Message}" : subResult.Message ?? "Subsequent command failed";
+                return WithRejectedCommand(new CommandResult(false, combinedFail), sibling);
+            }
+
+            if (!string.IsNullOrEmpty(subResult.Message))
+            {
+                messages.Add(subResult.Message);
+            }
+        }
+
+        return messages.Count <= 1 ? towerResult : towerResult with { Message = string.Join(", ", messages) };
+    }
+
+    /// <summary>What an altitude assignment does to the instrument approach it is given on (<see cref="ApproachAltitudeVerdict"/>).</summary>
+    private enum ApproachAltitudeOutcome
+    {
+        /// <summary>Outside the final approach fix: the approach is kept and the altitude held until established.</summary>
+        KeepAndHold,
+
+        /// <summary>Inside the final approach fix: the approach is cancelled.</summary>
+        CancelApproach,
+    }
+
+    /// <summary>
+    /// The one rule for an altitude assignment (CM, DM, a forced altitude, an expedite with an altitude) on an approach leg with
+    /// the approach clearance in force, whatever the phase's own table says: outside the published final approach fix it keeps
+    /// the approach and is held until established, inside it cancels the approach. Null when the rule does not apply (no
+    /// approach clearance, not an approach leg, not an altitude assignment, or a VFR at-or-above / at-or-below altitude): the
+    /// phase's own <see cref="Phase.CanAcceptCommand"/> decides. Read by the live gate, a fired queued block and the
+    /// phase-transparent fast path alike.
+    /// </summary>
+    private static ApproachAltitudeOutcome? ApproachAltitudeVerdict(
+        ParsedCommand cmd,
+        AircraftState aircraft,
+        Phase currentPhase,
+        DispatchContext ctx
+    )
+    {
+        if ((aircraft.Phases?.ActiveApproach is null) || !ApproachAltitudeHold.IsApproachPhase(currentPhase) || !IsApproachAltitudeAssignment(cmd))
+        {
+            return null;
+        }
+
+        return ApproachAltitudeHold.IsOutsideFaf(aircraft, ctx.GroundLayout)
+            ? ApproachAltitudeOutcome.KeepAndHold
+            : ApproachAltitudeOutcome.CancelApproach;
+    }
+
+    /// <summary>
+    /// CM (not the VFR at-or-above / at-or-below form <see cref="FlightCommandHandler"/> applies as a restriction), DM, a forced
+    /// altitude, and an expedite that carries its own altitude.
+    /// </summary>
+    private static bool IsApproachAltitudeAssignment(ParsedCommand cmd) =>
+        cmd switch
+        {
+            ClimbMaintainCommand climb => climb.Modifier == AltitudeAssignmentModifier.None,
+            DescendMaintainCommand or ForceAltitudeCommand => true,
+            ExpediteCommand { Altitude: not null } => true,
+            _ => false,
+        };
+
+    /// <summary>Applies an altitude assignment the approach keeps, then holds it until established.</summary>
+    private static CommandResult ApplyAndHoldApproachAltitude(ParsedCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        CommandResult result = ApplyCommand(cmd, aircraft, ctx);
+        if (result.Success)
+        {
+            ApproachAltitudeHold.HoldIfOutsideFaf(aircraft, ctx.GroundLayout);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// An altitude assignment that would cancel the approach is first validated alone on a clone (<see cref="DryRunValidate"/>):
+    /// its refusal, returned before anything is cleared, so an unable leaves the approach, its phases and the queue untouched;
+    /// null when it would succeed.
+    /// </summary>
+    private static CommandResult? RefusedApproachCancel(ParsedCommand cmd, AircraftState aircraft, DispatchContext ctx) =>
+        DryRunValidate(new CompoundCommand([new ParsedBlock(null, [cmd])]), aircraft, ctx);
+
+    /// <summary>
+    /// An altitude assignment inside the final approach fix applied after a dry run: refused with the approach in place
+    /// (<see cref="RefusedApproachCancel"/>), or the phase chain is cleared and the command applied.
+    /// </summary>
+    private static CommandResult CancelApproachAndApply(ParsedCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (RefusedApproachCancel(cmd, aircraft, ctx) is { } refused)
+        {
+            return refused;
+        }
+
+        ClearPhaseChain(aircraft, CommandDescriber.DescribeNatural(cmd));
+        return ApplyCommand(cmd, aircraft, ctx);
     }
 
     /// <summary>
@@ -2329,17 +2475,25 @@ public static class CommandDispatcher
     /// path. Transparent siblings never reach a tower handler, so route them through
     /// <see cref="ApplyCommand"/> — otherwise <c>PUSH, SQ 0233</c> silently drops the squawk. Returns
     /// null when the sibling has no handler in this context, preserving the skip-and-continue
-    /// behaviour for non-tower, non-transparent commands.
+    /// behaviour for non-tower, non-transparent commands. An altitude assignment on an approach leg follows
+    /// <see cref="ApproachAltitudeVerdict"/> as it would alone: held until established outside the final approach fix,
+    /// cancelling the approach inside it.
     /// </summary>
     private static CommandResult? ApplyParallelSibling(ParsedCommand sibling, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
-        if (IsTransparentCommand(sibling))
-        {
-            // Mirror ApplyTransparentCompound: transparent commands bypass DCT-fix validation.
-            return ApplyCommand(sibling, aircraft, ctx with { ValidateDctFixes = false });
-        }
+        Phase phase = aircraft.Phases?.CurrentPhase ?? currentPhase;
+        bool transparent = IsTransparentCommand(sibling);
 
-        return TryApplyTowerCommand(sibling, aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx, firedFromQueue: false);
+        // Mirror ApplyTransparentCompound: transparent commands bypass DCT-fix validation.
+        DispatchContext siblingCtx = transparent ? ctx with { ValidateDctFixes = false } : ctx;
+        return ApproachAltitudeVerdict(sibling, aircraft, phase, siblingCtx) switch
+        {
+            ApproachAltitudeOutcome.KeepAndHold => ApplyAndHoldApproachAltitude(sibling, aircraft, siblingCtx),
+            ApproachAltitudeOutcome.CancelApproach => CancelApproachAndApply(sibling, aircraft, siblingCtx),
+            _ => transparent
+                ? ApplyCommand(sibling, aircraft, siblingCtx)
+                : TryApplyTowerCommand(sibling, aircraft, phase, ctx, firedFromQueue: false),
+        };
     }
 
     /// <summary>
@@ -2387,6 +2541,54 @@ public static class CommandDispatcher
     /// </summary>
     private static CanonicalCommandType PhaseGateType(CanonicalCommandType cmd) =>
         cmd == CanonicalCommandType.FollowForce ? CanonicalCommandType.Follow : cmd;
+
+    /// <summary>
+    /// The pilot's refusal of a bare go-around (no heading, runway heading, altitude or traffic-pattern direction) on an
+    /// instrument approach leg outside the published final approach fix, where the published missed approach does not start
+    /// from here: "unable go-around, {where}, request vectors". Null when the go-around stands: no approach clearance, another
+    /// phase, an instruction given, a visual approach, inside the FAF, or no assigned runway to measure from.
+    /// </summary>
+    private static CommandResult? RefuseBareGoAroundOutsideFaf(GoAroundCommand ga, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    {
+        if ((aircraft.Phases?.ActiveApproach is null) || !ApproachAltitudeHold.IsApproachPhase(currentPhase) || GivesGoAroundInstruction(ga))
+        {
+            return null;
+        }
+
+        // A visual approach has no final approach fix and no published missed approach: a go-around ends it from anywhere.
+        if (VisualApproachHelper.IsOnVisualApproach(aircraft))
+        {
+            return null;
+        }
+
+        if (aircraft.Phases?.AssignedRunway is not { } runway)
+        {
+            Log.LogDebug(
+                "{Callsign}: bare go-around on {Phase} with no assigned runway; the outside-FAF refusal does not apply",
+                aircraft.Callsign,
+                currentPhase.Name
+            );
+            return null;
+        }
+
+        if (FinalApproachFix.IsInsidePublishedFaf(aircraft, runway, ctx.GroundLayout))
+        {
+            return null;
+        }
+
+        string where = currentPhase switch
+        {
+            ProcedureTurnPhase => "we're in the procedure turn",
+            HoldingPatternPhase => "we're in the hold",
+            _ => "we're outside the final approach fix",
+        };
+        PilotSpeechText unable = PilotResponder.BuildUnableGoAroundRequestVectors(aircraft, where);
+        return new CommandResult(false, unable.Terminal) { PilotUnable = unable };
+    }
+
+    /// <summary>A go-around that carries an instruction: a heading, runway heading, an altitude or a traffic-pattern direction.</summary>
+    private static bool GivesGoAroundInstruction(GoAroundCommand ga) =>
+        (ga.AssignedMagneticHeading is not null) || ga.RunwayHeading || (ga.TargetAltitude is not null) || (ga.TrafficPattern is not null);
 
     private static bool IsPhaseTransparentCommand(CanonicalCommandType cmd) =>
         cmd switch
@@ -2547,6 +2749,11 @@ public static class CommandDispatcher
                 if (currentPhase.CanAcceptCommand(CanonicalCommandType.GoAround) is { IsRejected: true } gaGate)
                 {
                     return new CommandResult(false, gaGate.Reason ?? "unable to go around from the current phase");
+                }
+
+                if (RefuseBareGoAroundOutsideFaf(ga, aircraft, currentPhase, ctx) is { } outsideFafRefusal)
+                {
+                    return outsideFafRefusal;
                 }
 
                 return PatternCommandHandler.TryGoAround(ga, aircraft, ctx.GroundLayout);
@@ -3802,6 +4009,45 @@ public static class CommandDispatcher
     }
 
     /// <summary>
+    /// Applies one command of a block as it fires, live or from the queue. With a phase active: an altitude assignment on an
+    /// approach leg follows <see cref="ApproachAltitudeVerdict"/> (cancel the approach once a dry run accepts the command, or
+    /// apply it and hold it until established);
+    /// a tower verb goes through <see cref="TryApplyTowerCommand"/>, clearing the phase chain first when it asks to. Anything
+    /// else, or with no phase, is <see cref="ApplyCommand"/>.
+    /// </summary>
+    private static CommandResult ApplyBlockCommand(ParsedCommand cmd, AircraftState ac, DispatchContext ctx, bool firedFromQueue)
+    {
+        if (ac.Phases?.CurrentPhase is not { } currentPhase)
+        {
+            return ApplyCommand(cmd, ac, ctx);
+        }
+
+        switch (ApproachAltitudeVerdict(cmd, ac, currentPhase, ctx))
+        {
+            case ApproachAltitudeOutcome.KeepAndHold:
+                return ApplyAndHoldApproachAltitude(cmd, ac, ctx);
+            case ApproachAltitudeOutcome.CancelApproach:
+                return CancelApproachAndApply(cmd, ac, ctx);
+        }
+
+        CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, ctx, firedFromQueue);
+        if (towerResult is null)
+        {
+            return ApplyCommand(cmd, ac, ctx);
+        }
+
+        if (!ReferenceEquals(towerResult, PhaseShouldBeCleared))
+        {
+            return towerResult;
+        }
+
+        // Mirror the phase-clear sequence DispatchCompoundCore performs once validation succeeds. We are already past
+        // validation here (the block was enqueued via the same dispatcher); the command then applies against the cleared state.
+        ClearPhaseChain(ac, CommandDescriber.DescribeNatural(cmd));
+        return ApplyCommand(cmd, ac, ctx);
+    }
+
+    /// <summary>
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// Captures the dispatch context by reference so triggered commands see the same
@@ -3832,31 +4078,7 @@ public static class CommandDispatcher
 
             foreach (ParsedCommand? cmd in captured)
             {
-                CommandResult? result = null;
-
-                if (ac.Phases?.CurrentPhase is { } currentPhase)
-                {
-                    CommandResult? towerResult = TryApplyTowerCommand(cmd, ac, currentPhase, current, firedFromQueue);
-                    if (towerResult is not null)
-                    {
-                        if (ReferenceEquals(towerResult, PhaseShouldBeCleared))
-                        {
-                            // Mirror the phase-clear sequence DispatchCompoundCore performs
-                            // once validation succeeds. We are already past validation here
-                            // (the block was enqueued via the same dispatcher).
-                            ClearPhaseChain(ac, CommandDescriber.DescribeNatural(cmd));
-
-                            // Now apply the tower command against the cleared phase state.
-                            result = ApplyCommand(cmd, ac, current);
-                        }
-                        else
-                        {
-                            result = towerResult;
-                        }
-                    }
-                }
-
-                result ??= ApplyCommand(cmd, ac, current);
+                CommandResult result = ApplyBlockCommand(cmd, ac, current, firedFromQueue);
 
                 if (!result.Success)
                 {

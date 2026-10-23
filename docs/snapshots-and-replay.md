@@ -210,6 +210,8 @@ More fields are the same kind (nullable, written only when set, null on older sn
 `HoldShortPointDto.IsExpedited` (bool?, written only when true, absent on older snapshots; no schema bump) is a `CROSS … EXP` crossing's expedite, kept on the bar; `CrossingRunwayPhaseDto.IsExpedited` (bool?, same rule) is the expedite a crossing phase flies under.
 `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
 
+`ApproachClearanceDto.AltitudeHeldUntilEstablished` (bool?, in `PhaseSnapshotDto.cs`) is `ApproachClearance.AltitudeHeldUntilEstablished`, a controller's altitude held outside the final approach fix ([approach-and-pattern-geometry.md](approach-and-pattern-geometry.md) § A controller's altitude held until established). It is written only when true and absent on older snapshots, which restore unheld; no schema bump.
+
 A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.
 
 `LineUpPhaseDto` carries the maneuver under way, all nullable and written only when non-null (additive, no schema bump): `ManeuverState`, the plan's start pose (`PlanStartLat`, `PlanStartLon`, `PlanStartHeadingDeg`), and the arc playback (`Arc`, `ArcTargetSpeedKts`) or the graph-taxi navigator with its `RouteSegmentIndex`. The restore plans again from the start pose and resumes the playback (`LineUpRestoreRoundTripTests`); `ClearRunwayPhaseDto.Navigator` does the same for the clearance segment (`ClearRunwayRestoreTests`). A snapshot without them rebuilds from the aircraft's pose.

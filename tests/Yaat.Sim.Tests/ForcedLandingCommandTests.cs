@@ -133,7 +133,7 @@ public sealed class ForcedLandingCommandTests
         ac.Phases!.ForceLanding = true;
         ac.Phases.LandingClearance = ClearanceType.ClearedToLand;
 
-        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null), ac, groundLayout: null);
+        CommandResult result = PatternCommandHandler.TryGoAround(new GoAroundCommand(null, null, null, RunwayHeading: false), ac, groundLayout: null);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.Phases.ForceLanding);

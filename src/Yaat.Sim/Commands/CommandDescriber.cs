@@ -1729,7 +1729,10 @@ public static class CommandDescriber
                 or CanonicalCommandType.Contact
                 or CanonicalCommandType.FrequencyChangeApproved
                 or CanonicalCommandType.ClearedBravoAirspace
-                or CanonicalCommandType.AcknowledgePilotContact;
+                or CanonicalCommandType.AcknowledgePilotContact
+                // CIFR only flips the flight rules; it does not change the path flown, so it may not cancel the phase
+                // it arrives in.
+                or CanonicalCommandType.CancelIfr;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)
@@ -2188,9 +2191,10 @@ public static class CommandDescriber
         {
             return "GA MRT";
         }
-        if (ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null)
+        if ((ga.AssignedMagneticHeading is not null) || ga.RunwayHeading || (ga.TargetAltitude is not null))
         {
-            return $"GA {(ga.AssignedMagneticHeading?.ToDisplayString() ?? "RH")} {ga.TargetAltitude}";
+            string heading = ga.AssignedMagneticHeading?.ToDisplayString() ?? "RH";
+            return ga.TargetAltitude is { } altitude ? $"GA {heading} {altitude}" : $"GA {heading}";
         }
         return "GA";
     }
@@ -2209,6 +2213,10 @@ public static class CommandDescriber
         if (ga.AssignedMagneticHeading is not null)
         {
             msg += $", fly heading {ga.AssignedMagneticHeading.Value.ToDisplayString()}";
+        }
+        else if (ga.RunwayHeading)
+        {
+            msg += ", fly runway heading";
         }
         if (ga.TargetAltitude is not null)
         {

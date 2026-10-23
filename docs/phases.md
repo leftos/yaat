@@ -40,7 +40,7 @@ A phase whose responsibility is **lateral** guidance (turns, S-turns, holds, pro
 
 Don't hand-roll the per-command list in each `CanAcceptCommand` (that drift is exactly how `RFAS`/`RNS`/`DSR` ended up cancelling turns while `SPD`/`Mach` didn't). Use the shared predicates on `Phase`:
 
-- `Phase.IsSpeedFamilyCommand(cmd)` — `Speed`, `Mach`, `ReduceToFinalApproachSpeed`, `ResumeNormalSpeed`, `DeleteSpeedRestrictions`.
+- `Phase.IsSpeedFamilyCommand(cmd)` — `Speed`, `Mach`, `ReduceToFinalApproachSpeed`, `ResumeNormalSpeed`, `DeleteSpeedRestrictions`, and the forced speeds `ForceSpeedFinal` (SPEEDF) and `ForceSpeed` (SPDN, `SPDN RFAS`): a forced speed retargets speed like any other and must not cancel a maneuver or an approach.
 - `Phase.IsAltitudeFamilyCommand(cmd)` — `ClimbMaintain`, `DescendMaintain`.
 - `Phase.IsAdditiveAirborneAdjustment(cmd)` — either of the above.
 
@@ -62,10 +62,39 @@ Phases that auto-resume a captured speed (e.g. `MakeTurnPhase`, `STurnPhase`, `V
 Two intentional exceptions accept the speed family but **not** the full additive family:
 - `FinalApproachPhase` **rejects** the speed family inside `SpeedCommandFinalGateNm` (pilot "unable", 7110.65 §5-7-1.b.4) — the aircraft is committed to its stabilized final approach speed, so a speed instruction is declined, not honored.
 
-  It must **reject**, never `ClearsPhase`: tearing the approach down for a speed command once wiped an established ILS final (SWA4587 on OAK ILS 30, killed by a stray `RFAS`). Outside the gate the speed family is additive. `SPEEDF` (the explicit override) is always allowed.
+  It must **reject**, never `ClearsPhase`: tearing the approach down for a speed command once wiped an established ILS final (SWA4587 on OAK ILS 30, killed by a stray `RFAS`). Outside the gate the speed family is additive. `SPEEDF` and `SPDN` (the explicit overrides) are always allowed, as is `FOLLOW`.
 - `PatternEntryPhase` guards on `IsSpeedFamilyCommand` only; a `CM`/`DM` during the entry **clears** the phase and warns the RPO, because a climb/descend mid-entry usually means the aircraft is no longer being sequenced into this pattern. The in-pattern legs (`DownwindPhase`, etc.) take `CM`/`DM` additively.
 
+An aircraft cleared for an instrument approach is the one place the altitude family is decided above the phase table: see the next section.
+
 `PhaseAcceptanceAuditTests` pins this contract across the whole phase set.
+
+### Commands on an aircraft cleared for an approach
+
+The five instrument-approach legs are `InterceptCoursePhase`, `ApproachNavigationPhase` (not the missed approach), `ProcedureTurnPhase`, a hold-in-lieu `HoldingPatternPhase` and `FinalApproachPhase` (`ApproachAltitudeHold.IsApproachPhase`).
+
+With `PhaseList.ActiveApproach` set, a command on one of them is kept, held, cancelling or refused as follows.
+
+- **Kept (approach in place):** the whole speed family including `SPDN` (plain `SPD` is still refused inside the 5 nm gate on final); `CLAND`, `CLANDF`, `LAHSO`, `COPT`, `TG`, `SG`, `LA`, `CLC` and `EL`/`ER`/`EXIT` (`Phase.IsLandingClearanceOrExitCommand`, accepted by every leg including the procedure turn and the hold-in-lieu); `FOLLOW`; a bare `WAIT`; and `CIFR`, which is phase-transparent (`CommandDescriber.IsPhaseTransparent`) and only flips the flight-plan flag.
+- **Cancelled:** a heading, direct-to or hold command, and a go-around with a heading, runway heading, altitude or traffic-pattern direction (`MLT`/`MRT`).
+- **Altitude assignment (`CM`, `DM`, `ForceAltitude`, `EXP <alt>`):** decided by `CommandDispatcher.ApproachAltitudeVerdict`, ahead of each phase's own `CanAcceptCommand`, on the live path, for a fired queued block and for a parallel sibling alike.
+
+  Outside the published final approach fix the approach is kept and the altitude is held "maintain until established" (AIM 5-4-7.f): `ApproachClearance.AltitudeHeldUntilEstablished` makes approach navigation, the procedure turn and the hold fly `AssignedAltitude` in place of the published altitudes, even below a published floor or the procedure turn's minimum. Inside the fix the command cancels the approach.
+
+  A command that fails its dry run (an unable) leaves the approach, its phases and the queue untouched.
+- **Release of the hold:** approach navigation releases it when it sequences its next fix, before any AT-fix trigger fires; `FinalApproachPhase` releases it at glideslope capture or on crossing the published final approach fix.
+
+  While held, the glideslope is captured only when the aircraft is level at the held altitude (within 20 ft) and the glideslope is within 50 ft of it, so a `CM` given on the glideslope a little above the aircraft is flown and held, not recaptured, and an aircraft held above the glideslope keeps the altitude until the published FAF and then descends to the glideslope from above, and one held below captures only when the glideslope descends to it. A hold set after capture clears the capture.
+- **Inside or outside the FAF** for the hold and the go-around refusal is `FinalApproachFix.IsInsidePublishedFaf`: established on the final and no further out than the runway's published FAF distance, uncapped (5 nm when the runway has none). `FinalApproachFix.IsInside` caps the distance at 5 nm and stays the speed gate's and the `FOLLOW` refusal's test.
+- **Bare go-around refused:** a `GA` with no heading, runway heading, altitude or traffic-pattern direction, outside the published FAF on an instrument approach, is refused by the pilot ("unable go-around, we're in the procedure turn / in the hold / outside the final approach fix, request vectors", `PilotResponder.BuildUnableGoAroundRequestVectors`) via `CommandDispatcher.RefuseBareGoAroundOutsideFaf`, since the published missed approach does not start from there.
+
+  A queued or conditional `GA` refuses the same way when it fires. A visual approach has no FAF and is never refused. Inside the FAF a bare `GA` flies the published missed approach.
+- **Go-around climb-out altitude:** `GA <heading>` / `GA RH` with no altitude on an instrument approach climbs to the highest of the aircraft's altitude, the published missed-approach altitude and field elevation plus 2000 ft (never a descent).
+
+  On a visual approach it climbs to the higher of its altitude and the base climb-out (`GoAroundHelper.ResolveClimbOutAltitude`, else field elevation plus 2000 ft; `PatternCommandHandler.VisualGoAroundFloorFt`), never descending, and the published missed-approach altitude does not apply.
+
+  A `GA` with a heading, runway heading, altitude or `MLT`/`MRT` ends the approach clearance; a bare one keeps it for the missed-approach phases.
+- **`CLAND, EXP 030`:** the expedite's altitude follows the altitude rule above, as `EXP 030` alone: inside the FAF it cancels the approach, outside it the altitude is held until established.
 
 ## Lifecycle — `Phases/PhaseRunner.cs`
 
@@ -317,7 +346,7 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 - **`InitialClimbPhase` must hold while `_rvSidActive`.** The phase must NOT complete and `ApplyDepartureTurn` must NOT load the nav route while `_rvSidActive` is true — only `UpdateRvSidHeadingHold` releases the phase after comms handoff. A bare `CTO` (no assigned altitude) reproduces the early-completion bug; tests asserting before the deferred-turn gate fires do not catch it.
 - **Physics never reads `AssignedAltitude` — a cleared climb phase must re-arm `TargetAltitude`.** `FlightPhysics.UpdateAltitude` moves only toward `ControlTargets.TargetAltitude`; `AssignedAltitude` is persistent clearance/UI state that physics ignores. So a phase-clearing lateral command (`FH` or any `ClearsPhase` verb) mid-departure can strand the aircraft at `TakeoffPhase`'s ~400 ft AGL handoff target while `AssignedAltitude` is ignored (bug N85439).
 
-  `CommandDispatcher.ResumeAssignedAltitudeAfterPhaseClear(aircraft, clearedGoAround)` — called from **both** phase-clear sites (immediate `~:211`, triggered `~:2487` — keep in sync) — re-arms `TargetAltitude = AssignedAltitude` only when the phase was actively climbing (`phaseTarget > current + PhaseClearClimbMarginFt`) **and** `phaseTarget <= assigned` (never lowers a climb target) **and** `assigned > current`.
+  `CommandDispatcher.ResumeAssignedAltitudeAfterPhaseClear(aircraft, clearedGoAround)` — called from `ReleaseChainControlState`, which every phase-chain teardown (`ClearPhaseChain`, `ReplacePhaseChain`) runs — re-arms `TargetAltitude = AssignedAltitude` only when the phase was actively climbing (`phaseTarget > current + PhaseClearClimbMarginFt`) **and** `phaseTarget <= assigned` (never lowers a climb target) **and** `assigned > current`.
 
   It skips on-ground aircraft, and skips a `clearedGoAround` clear outright (a go-around owns its published missed-approach target; `AssignedAltitude` is the stale approach clearance). A lateral vector is horizontal-only and never cancels an altitude clearance (7110.65 §4-5-7.h.1), but the climb-only guard is mandatory — an aircraft vectored off a *descent* below its last assigned altitude must hold, not climb back.
 

@@ -147,6 +147,10 @@ public sealed class ApproachNavigationPhase : Phase
 
             _currentFixIndex++;
 
+            // The next published segment: a held controller's altitude is released before any AT-fix trigger fires, so an
+            // altitude that trigger assigns is held anew rather than released.
+            ApproachAltitudeHold.Release(ctx.Aircraft, $"sequenced {fix.Name}");
+
             // Fire any AT fix triggers in the command queue for this fix
             FlightPhysics.NotifyFixSequenced(ctx.Aircraft, fix.Name);
 
@@ -236,6 +240,14 @@ public sealed class ApproachNavigationPhase : Phase
     /// </summary>
     private void ApplyContinuousDescentTarget(PhaseContext ctx)
     {
+        // A controller's altitude given outside the final approach fix is held until the next fix, climb or descent, even
+        // below a published floor (AIM 5-4-7.f).
+        if (ApproachAltitudeHold.IsHeld(ctx.Aircraft) && (ctx.Targets.AssignedAltitude is { } held))
+        {
+            ctx.Targets.TargetAltitude = held;
+            return;
+        }
+
         if (ctx.Runway is null)
         {
             return;
@@ -246,38 +258,18 @@ public sealed class ApproachNavigationPhase : Phase
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout));
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, ctx.Runway.ElevationFt, ctx.Category);
 
-        double floor = gsAltitude;
-        for (int i = _currentFixIndex; i < Fixes.Count; i++)
-        {
-            if (Fixes[i].Altitude is not { } alt)
-            {
-                continue;
-            }
+        double publishedFloor = HighestPublishedFloorFt();
+        double floor = Math.Max(gsAltitude, publishedFloor);
 
-            switch (alt.Type)
-            {
-                case CifpAltitudeRestrictionType.AtOrAbove:
-                case CifpAltitudeRestrictionType.At:
-                case CifpAltitudeRestrictionType.GlideSlopeIntercept:
-                    if (alt.Altitude1Ft > floor)
-                    {
-                        floor = alt.Altitude1Ft;
-                    }
-                    break;
-
-                case CifpAltitudeRestrictionType.Between:
-                    if (alt.Altitude2Ft is { } lower && lower > floor)
-                    {
-                        floor = lower;
-                    }
-                    break;
-            }
-        }
-
-        // Don't climb to capture the profile from below — hold current altitude
-        // (or assigned, whichever is lower) until the GS line descends to meet it.
+        // Below the published floor of the approach's remaining segment (after a held altitude is released), climb back to it
+        // (7110.65 4-8-1.b.2 NOTE 3: published altitudes apply once established). Otherwise don't climb to capture the
+        // glideslope line from below — hold current altitude (or assigned, whichever is lower) until it descends to meet it.
         double target = floor;
-        if (target > ctx.Aircraft.Altitude)
+        if (!IsMissedApproach && (ctx.Aircraft.Altitude < publishedFloor))
+        {
+            target = publishedFloor;
+        }
+        else if (target > ctx.Aircraft.Altitude)
         {
             double assigned = ctx.Targets.AssignedAltitude ?? ctx.Aircraft.Altitude;
             target = Math.Min(assigned, ctx.Aircraft.Altitude);
@@ -293,25 +285,41 @@ public sealed class ApproachNavigationPhase : Phase
         ctx.Targets.TargetAltitude = target;
     }
 
+    /// <summary>
+    /// The highest published floor on the remaining fixes: an at, at-or-above or glideslope-intercept altitude, or the lower
+    /// bound of a window. Zero when none publishes one.
+    /// </summary>
+    private double HighestPublishedFloorFt()
+    {
+        double floor = 0;
+        for (int i = _currentFixIndex; i < Fixes.Count; i++)
+        {
+            double fixFloor = Fixes[i].Altitude switch
+            {
+                {
+                    Type: CifpAltitudeRestrictionType.AtOrAbove or CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept,
+                } alt => alt.Altitude1Ft,
+                { Type: CifpAltitudeRestrictionType.Between, Altitude2Ft: { } lower } => lower,
+                _ => 0,
+            };
+            floor = Math.Max(floor, fixFloor);
+        }
+
+        return floor;
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // Speed/altitude adjust targets without leaving the approach.
-        if (IsAdditiveAirborneAdjustment(cmd))
+        // Speed/altitude adjust targets without leaving the approach; landing and option
+        // clearances and runway exits only set what happens at the runway.
+        if (IsAdditiveAirborneAdjustment(cmd) || IsLandingClearanceOrExitCommand(cmd))
         {
             return CommandAcceptance.Allowed;
         }
 
         return cmd switch
         {
-            // Approach-related commands pass through
-            CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
-            CanonicalCommandType.ForceLanding => CommandAcceptance.Allowed,
-            CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
-            CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
-            CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             // FOLLOW is routed by the dispatcher: it keeps the approach and only records the lead, or replaces
             // the phase list itself for a re-sequence; clearing the phase first would drop the approach.
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,

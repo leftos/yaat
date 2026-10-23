@@ -15,8 +15,16 @@
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The active-runways prompt offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
 
+- A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
+- A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.
+- `GA RH`, `GA MLT` and `GA MRT` end an approach clearance, as a go-around with a heading does.
+
 ### Fixed
 
+- `SPDN` and the other speed commands keep an aircraft's approach clearance on every leg, final and procedure turn included.
+- `TG`, `SG`, `LA`, `CLC`, runway exits, `FOLLOW`, a bare `WAIT` and `CIFR` keep an aircraft's approach clearance.
+- A go-around with a heading and no altitude climbs or keeps its altitude, never descending.
+- An `EXP` to an altitude the pilot is unable to fly leaves the approach in place.
 - Popping out a second vStrips tab while the vTDLS tab is selected no longer leaves the main window showing a blank tab.
 - `SPDN` cancels an assigned Mach, so the aircraft keeps the forced speed instead of returning to the Mach.
 - A spoken "disregard" no longer drops the instruction after it when the retracted part had a misheard runway.

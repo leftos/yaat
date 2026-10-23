@@ -573,7 +573,7 @@ public class CommandQueueTests
     {
         Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new EnterRightDownwindCommand(null)));
         Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new ClearedToLandCommand()));
-        Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new GoAroundCommand(null, null, null)));
+        Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new GoAroundCommand(null, null, null, RunwayHeading: false)));
     }
 
     [Fact]

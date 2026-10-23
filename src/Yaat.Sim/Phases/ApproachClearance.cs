@@ -97,6 +97,15 @@ public sealed class ApproachClearance
     /// </summary>
     public bool ForcedInterceptCapture { get; set; }
 
+    /// <summary>
+    /// True when the controller assigned an altitude (CM, DM or a forced altitude) outside the final approach fix while the
+    /// approach was being flown: the approach is kept and the assigned altitude is held — "maintain until established"
+    /// (AIM 5-4-7.f) — in place of the published altitudes, climb or descent included, even below a published floor or the
+    /// procedure turn's minimum. Released (with the assigned altitude) at glideslope capture on the final or when approach
+    /// navigation sequences its next fix, after which the published altitudes resume. Defaults false.
+    /// </summary>
+    public bool AltitudeHeldUntilEstablished { get; set; }
+
     public ApproachClearanceDto ToSnapshot() =>
         new()
         {
@@ -114,6 +123,7 @@ public sealed class ApproachClearance
             InterceptCaptureDistanceNm = InterceptCaptureDistanceNm,
             InterceptCaptureAngleDeg = InterceptCaptureAngleDeg,
             ForcedInterceptCapture = ForcedInterceptCapture,
+            AltitudeHeldUntilEstablished = AltitudeHeldUntilEstablished ? true : null,
             MapHold = MapHold?.ToSnapshot(),
             MissedApproachFixes = MissedApproachFixes.Count > 0 ? [.. MissedApproachFixes.Select(f => f.ToSnapshot())] : null,
         };
@@ -135,6 +145,7 @@ public sealed class ApproachClearance
             InterceptCaptureDistanceNm = dto.InterceptCaptureDistanceNm,
             InterceptCaptureAngleDeg = dto.InterceptCaptureAngleDeg,
             ForcedInterceptCapture = dto.ForcedInterceptCapture,
+            AltitudeHeldUntilEstablished = dto.AltitudeHeldUntilEstablished == true,
             MapHold = dto.MapHold is not null ? MissedApproachHold.FromSnapshot(dto.MapHold) : null,
             MissedApproachFixes = dto.MissedApproachFixes?.Select(ApproachFix.FromSnapshot).ToList() ?? [],
         };

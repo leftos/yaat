@@ -466,7 +466,7 @@ public static class CommandRegistry
                 false,
                 ["GA"],
                 [
-                    O(null, [], "Go around (fly runway heading)"),
+                    O(null, [], "Go around (published missed approach on an instrument approach, else runway heading)"),
                     O("Heading", [R("heading", "0-360")], "Go around and fly heading"),
                     O("Heading+Alt", [R("heading", "0-360"), R("altitude", "alt")], "Go around, fly heading, climb to altitude"),
                     O("MLT", [L("MLT")], "Go around, make left traffic"),

@@ -66,6 +66,36 @@ public class GoAroundParserTests
         Assert.Null(ga.TrafficPattern);
     }
 
+    /// <summary>Only an explicit RH records the runway-heading instruction; a bare GA and a numbered heading do not.</summary>
+    [Theory]
+    [InlineData("GA RH", true)]
+    [InlineData("GA RH 50", true)]
+    [InlineData("GA", false)]
+    [InlineData("GA 270", false)]
+    [InlineData("GA MLT", false)]
+    public void GA_RunwayHeading_IsRecordedOnlyForRh(string text, bool expected)
+    {
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
+        Assert.True(result.IsSuccess, result.Reason);
+        GoAroundCommand ga = Assert.IsType<GoAroundCommand>(result.Value);
+        Assert.Equal(expected, ga.RunwayHeading);
+    }
+
+    /// <summary>The canonical text names only what the go-around carries: no trailing space when there is no altitude.</summary>
+    [Theory]
+    [InlineData("GA", "GA")]
+    [InlineData("GA RH", "GA RH")]
+    [InlineData("GA 270", "GA 270")]
+    [InlineData("GA RH 50", "GA RH 5000")]
+    [InlineData("GA 270 30", "GA 270 3000")]
+    [InlineData("GA MLT", "GA MLT")]
+    public void GA_CanonicalText_HasNoTrailingSpace(string text, string expected)
+    {
+        ParseResult<ParsedCommand> result = CommandParser.Parse(text);
+        Assert.True(result.IsSuccess, result.Reason);
+        Assert.Equal(expected, CommandDescriber.DescribeCommand(result.Value!));
+    }
+
     [Fact]
     public void GA_HeadingAndAltitude_ParsesSuccessfully()
     {

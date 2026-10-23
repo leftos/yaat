@@ -336,7 +336,12 @@ public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? Assi
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;
 
-public record GoAroundCommand(MagneticHeading? AssignedMagneticHeading, int? TargetAltitude, PatternDirection? TrafficPattern) : ParsedCommand;
+/// <summary>
+/// A go-around. <paramref name="RunwayHeading"/> records an explicit "fly runway heading" (<c>GA RH</c>): a controller
+/// heading instruction even though no magnetic heading is carried, so the go-around is not a bare one.
+/// </summary>
+public record GoAroundCommand(MagneticHeading? AssignedMagneticHeading, int? TargetAltitude, PatternDirection? TrafficPattern, bool RunwayHeading)
+    : ParsedCommand;
 
 public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand
 {

@@ -200,6 +200,10 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable` — see the authoring rule below). `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3 makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold).
 
+  `BuildUnableGoAroundRequestVectors` (a bare `GA` outside the published final approach fix on an instrument approach: *unable go-around, we're in the procedure turn, request vectors.*, or *…we're in the hold…*, or *…we're outside the final approach fix…*).
+
+  The published missed approach does not start from where the aircraft is, so the pilot refuses and asks for a vector in the AIM §5-5-16.a.1 unable, reason, request structure. `CommandDispatcher.RefuseBareGoAroundOutsideFaf` sets it as `CommandResult.PilotUnable`.
+
   `BuildArmedFollowClause` (a `FOLLOWG` armed at a runway bar reads back `follow the traffic, hold short of runway 1R`: the follow form never names the leader, and the hold-short is read back per AIM 4-3-18a.9(c)).
 
   `FOLLOWG` reads back `follow the traffic` and `GIVEWAY` `behind the traffic` (7110.65 §3-7-2.a FOLLOW / BEHIND (traffic)), built directly in `VerbalizeForReadback` (`BuildFollowGroundClause`, `BuildGiveWayClause`); their `RpoTerminal` names the traffic (`follow N2468K`, `behind UAL456`), never by type and with no position.

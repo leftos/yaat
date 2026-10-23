@@ -752,9 +752,9 @@ public static class CommandParser
             case "CTORH" when arg is null:
                 return PR.Ok(new ClearedForTakeoffCommand(new RunwayHeadingDeparture()));
             case "GAMRT" when arg is null:
-                return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Right));
+                return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Right, RunwayHeading: false));
             case "GAMLT" when arg is null:
-                return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Left));
+                return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Left, RunwayHeading: false));
             case "T" when arg is not null:
                 return ParseTurnWithDirection(arg);
         }
@@ -1863,7 +1863,7 @@ public static class CommandParser
     {
         if (arg is null)
         {
-            return PR.Ok(new GoAroundCommand(null, null, null));
+            return PR.Ok(new GoAroundCommand(null, null, null, RunwayHeading: false));
         }
 
         string[] parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -1878,7 +1878,7 @@ public static class CommandParser
                 return PR.Fail($"invalid go-around altitude '{parts[1]}'");
             }
 
-            return PR.Ok(new GoAroundCommand(null, patternAlt, dir));
+            return PR.Ok(new GoAroundCommand(null, patternAlt, dir, RunwayHeading: false));
         }
 
         if (parts.Length < 1 || parts.Length > 2)
@@ -1907,7 +1907,9 @@ public static class CommandParser
             }
         }
 
-        return PR.Ok(new GoAroundCommand(heading is not null ? new MagneticHeading(heading.Value) : null, altitude, null));
+        return PR.Ok(
+            new GoAroundCommand(heading is not null ? new MagneticHeading(heading.Value) : null, altitude, null, RunwayHeading: heading is null)
+        );
     }
 
     private static PR ParseHoldAtFix(string? arg, TurnDirection direction)

@@ -41,6 +41,7 @@ public class PhaseAcceptanceAuditTests
             CanonicalCommandType.ReduceToFinalApproachSpeed,
             CanonicalCommandType.ResumeNormalSpeed,
             CanonicalCommandType.DeleteSpeedRestrictions,
+            CanonicalCommandType.ForceSpeed,
         ];
 
     [Theory]
@@ -298,6 +299,35 @@ public class PhaseAcceptanceAuditTests
         Assert.Equal(CommandAcceptance.Allowed, inside.CanAcceptCommand(CanonicalCommandType.GoAround));
     }
 
+    /// <summary>
+    /// SPDN (and SPDN RFAS) is the instructor's forced speed: like SPEEDF it overrides the 5 nm gate, so the final accepts it
+    /// at any distance instead of refusing it with the speed family.
+    /// </summary>
+    [Theory]
+    [InlineData(CanonicalCommandType.ForceSpeed)]
+    [InlineData(CanonicalCommandType.ForceSpeedFinal)]
+    public void FinalApproachPhase_ForcedSpeed_AlwaysAllowed(CanonicalCommandType cmd)
+    {
+        Assert.Equal(CommandAcceptance.Allowed, new FinalApproachPhase { DistanceToThresholdNm = 1.0 }.CanAcceptCommand(cmd));
+        Assert.Equal(CommandAcceptance.Allowed, new FinalApproachPhase { DistanceToThresholdNm = 10.0 }.CanAcceptCommand(cmd));
+    }
+
+    /// <summary>
+    /// Cancelling the landing clearance or turning it into a touch-and-go, stop-and-go or low approach changes what happens at
+    /// the runway, not the approach flown to it: the intercept, the approach's fixes and the final all keep it.
+    /// </summary>
+    [Theory]
+    [InlineData(CanonicalCommandType.CancelLandingClearance)]
+    [InlineData(CanonicalCommandType.TouchAndGo)]
+    [InlineData(CanonicalCommandType.StopAndGo)]
+    [InlineData(CanonicalCommandType.LowApproach)]
+    public void ApproachPhases_ClearanceChanges_Allowed(CanonicalCommandType cmd)
+    {
+        Assert.Equal(CommandAcceptance.Allowed, NewInterceptCourse().CanAcceptCommand(cmd));
+        Assert.Equal(CommandAcceptance.Allowed, NewApproachNav().CanAcceptCommand(cmd));
+        Assert.Equal(CommandAcceptance.Allowed, new FinalApproachPhase { DistanceToThresholdNm = 1.0 }.CanAcceptCommand(cmd));
+    }
+
     // -----------------------------------------------------------------------------
     // Lateral-maneuver / approach phases: speed and altitude families are additive
     // and must NOT cancel the lateral maneuver. The reported bug was RFAS clearing
@@ -319,6 +349,19 @@ public class PhaseAcceptanceAuditTests
             LegLength = 1,
             IsMinuteBased = true,
             Direction = TurnDirection.Right,
+        };
+
+    private static HoldingPatternPhase NewHoldInLieu() =>
+        new()
+        {
+            FixName = "FIXXX",
+            FixLat = 0,
+            FixLon = 0,
+            InboundCourse = 90,
+            LegLength = 1,
+            IsMinuteBased = true,
+            Direction = TurnDirection.Right,
+            IsHoldInLieu = true,
         };
 
     private static ProcedureTurnPhase NewProcedureTurn() =>
@@ -377,6 +420,38 @@ public class PhaseAcceptanceAuditTests
     [MemberData(nameof(AdditiveAirborneFamily))]
     public void ProcedureTurnPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
         Assert.Equal(CommandAcceptance.Allowed, NewProcedureTurn().CanAcceptCommand(cmd));
+
+    public static TheoryData<CanonicalCommandType> LandingClearancesAndExits =>
+        [
+            CanonicalCommandType.ClearedToLand,
+            CanonicalCommandType.ForceLanding,
+            CanonicalCommandType.LandAndHoldShort,
+            CanonicalCommandType.ClearedForOption,
+            CanonicalCommandType.TouchAndGo,
+            CanonicalCommandType.StopAndGo,
+            CanonicalCommandType.LowApproach,
+            CanonicalCommandType.CancelLandingClearance,
+            CanonicalCommandType.ExitLeft,
+            CanonicalCommandType.ExitRight,
+            CanonicalCommandType.ExitTaxiway,
+        ];
+
+    /// <summary>
+    /// A procedure turn and a hold-in-lieu of one are legs of the approach: a landing or option clearance, or a runway exit,
+    /// only sets what the landing will do, so it keeps the course reversal.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(LandingClearancesAndExits))]
+    public void CourseReversals_LandingClearancesAndExits_Allowed(CanonicalCommandType cmd)
+    {
+        Assert.Equal(CommandAcceptance.Allowed, NewProcedureTurn().CanAcceptCommand(cmd));
+        Assert.Equal(CommandAcceptance.Allowed, NewHoldInLieu().CanAcceptCommand(cmd));
+    }
+
+    /// <summary>A hold that is not part of an approach has no landing to clear: a landing clearance still clears it.</summary>
+    [Fact]
+    public void HoldingPatternPhase_NotInLieu_ClearedToLandClearsPhase() =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, NewHolding().CanAcceptCommand(CanonicalCommandType.ClearedToLand));
 
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]
@@ -452,6 +527,7 @@ public class PhaseAcceptanceAuditTests
                 CanonicalCommandType.ReduceToFinalApproachSpeed,
                 CanonicalCommandType.ResumeNormalSpeed,
                 CanonicalCommandType.DeleteSpeedRestrictions,
+                CanonicalCommandType.ForceSpeed,
             }
         )
         {
@@ -497,6 +573,7 @@ public class PhaseAcceptanceAuditTests
                 CanonicalCommandType.ReduceToFinalApproachSpeed,
                 CanonicalCommandType.ResumeNormalSpeed,
                 CanonicalCommandType.DeleteSpeedRestrictions,
+                CanonicalCommandType.ForceSpeed,
             }
         )
         {

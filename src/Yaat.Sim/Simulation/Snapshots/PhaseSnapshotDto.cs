@@ -131,6 +131,11 @@ public sealed class ApproachClearanceDto
     /// relaxed JFAC/JLOC joins round-trip to the gated behavior.</summary>
     public bool ForcedInterceptCapture { get; init; }
 
+    /// <summary>True while a controller's altitude given outside the final approach fix is held until established; written
+    /// only when true, so older snapshots omit it and restore unheld.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AltitudeHeldUntilEstablished { get; init; }
+
     public MissedApproachHoldDto? MapHold { get; init; }
     public List<ApproachFixDto>? MissedApproachFixes { get; init; }
 }

@@ -1788,6 +1788,19 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// A bare go-around issued outside the final approach fix: the published missed approach does not start from where the
+    /// aircraft is, so the pilot refuses and asks for a vector, following the AIM §5-5-16.a.1 unable → reason → request
+    /// structure. <paramref name="where"/> is the reason clause ("we're in the procedure turn", "we're in the hold",
+    /// "we're outside the final approach fix").
+    /// </summary>
+    public static PilotSpeechText BuildUnableGoAroundRequestVectors(AircraftState aircraft, string where)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string terminal = $"unable go-around, {where}, request vectors.";
+        return new PilotSpeechText(terminal, $"{spoken}, {terminal}");
+    }
+
+    /// <summary>
     /// Visual approach no longer legal on short final (committed): the pilot goes around and —
     /// unlike the sim-internal go-around reasons, which stay in the terminal parenthetical —
     /// SPEAKS the reason, per AIM §5-5-5.a.2 ("include the reason" when the pilot initiates

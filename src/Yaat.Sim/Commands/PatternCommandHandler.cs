@@ -4000,6 +4000,56 @@ internal static class PatternCommandHandler
     private static void EnsurePatternMode(AircraftState aircraft) =>
         aircraft.Phases!.TrafficDirection = GoAroundHelper.ResolvePatternIntent(aircraft) ?? PatternDirection.Left;
 
+    /// <summary>The least height above the field a go-around with an instruction and no altitude climbs to on an approach.</summary>
+    private const double InstructedGoAroundMinimumAglFt = 2000.0;
+
+    /// <summary>
+    /// The altitude a go-around with a heading or runway heading and no altitude climbs to on an approach (read while the
+    /// approach clearance is still in force): the highest of the aircraft's altitude, the published missed-approach altitude
+    /// and <see cref="InstructedGoAroundMinimumAglFt"/> above the field. A go-around never descends unless told to.
+    /// </summary>
+    private static int InstructedGoAroundFloorFt(AircraftState aircraft, ApproachClearance clearance, double fieldElevationFt)
+    {
+        double missedApproachFt = ApproachCommandHandler.GetMissedApproachAltitude(clearance.MissedApproachFixes) ?? 0;
+        double floorFt = Math.Max(Math.Max(aircraft.Altitude, missedApproachFt), fieldElevationFt + InstructedGoAroundMinimumAglFt);
+        return (int)Math.Ceiling(floorFt);
+    }
+
+    /// <summary>
+    /// The climb-out altitude of a go-around the controller gave no altitude for. With an instruction on an approach it never
+    /// descends: on an instrument approach <see cref="InstructedGoAroundFloorFt"/>, on a visual approach (no published missed
+    /// approach) <see cref="VisualGoAroundFloorFt"/>. Otherwise <see cref="GoAroundHelper.ResolveClimbOutAltitude"/>.
+    /// </summary>
+    private static int? ResolveGoAroundAltitude(
+        AircraftState aircraft,
+        PhaseContext gaCtx,
+        bool hasAtcOverride,
+        bool isGaPattern,
+        IReadOnlyList<Phase> missedApproachPhases
+    )
+    {
+        int? climbOut = GoAroundHelper.ResolveClimbOutAltitude(gaCtx, isGaPattern, missedApproachPhases);
+        if (!hasAtcOverride || (aircraft.Phases?.ActiveApproach is not { } clearance))
+        {
+            return climbOut;
+        }
+
+        return VisualApproachHelper.IsOnVisualApproach(aircraft)
+            ? VisualGoAroundFloorFt(aircraft, climbOut, gaCtx.FieldElevation)
+            : InstructedGoAroundFloorFt(aircraft, clearance, gaCtx.FieldElevation);
+    }
+
+    /// <summary>
+    /// The altitude a go-around with a heading or runway heading and no altitude climbs to on a visual approach: the higher of
+    /// the aircraft's altitude and the base climb-out (<paramref name="climbOut"/>, or
+    /// <see cref="InstructedGoAroundMinimumAglFt"/> above the field when there is none).
+    /// </summary>
+    private static int VisualGoAroundFloorFt(AircraftState aircraft, int? climbOut, double fieldElevationFt)
+    {
+        double baseFt = climbOut ?? (fieldElevationFt + InstructedGoAroundMinimumAglFt);
+        return (int)Math.Ceiling(Math.Max(aircraft.Altitude, baseFt));
+    }
+
     internal static CommandResult TryGoAround(GoAroundCommand ga, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
@@ -4033,7 +4083,7 @@ internal static class PatternCommandHandler
             }
         }
 
-        bool hasAtcOverride = ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null;
+        bool hasAtcOverride = (ga.AssignedMagneticHeading is not null) || ga.RunwayHeading || (ga.TargetAltitude is not null);
 
         // Apply the same pattern default the automatic go-around uses (GoAroundHelper.Trigger), so a
         // controller-issued GA behaves identically to one the simulation triggers itself. A VFR
@@ -4056,12 +4106,19 @@ internal static class PatternCommandHandler
         var goAround = new GoAroundPhase
         {
             AssignedMagneticHeading = ga.AssignedMagneticHeading,
-            TargetAltitude = ga.TargetAltitude ?? GoAroundHelper.ResolveClimbOutAltitude(gaCtx, isGaPattern, missedApproachPhases),
+            TargetAltitude = ga.TargetAltitude ?? ResolveGoAroundAltitude(aircraft, gaCtx, hasAtcOverride, isGaPattern, missedApproachPhases),
             ReenterPattern = isGaPattern,
             NextLandingFullStop = GoAroundHelper.CaptureLandingFullStopIntent(aircraft.Phases),
         };
 
         GoAroundHelper.InstallGoAroundPhases(gaCtx, goAround, missedApproachPhases);
+
+        // The controller's heading, altitude or traffic-pattern direction replaces the approach, so its clearance ends here; a
+        // bare go-around keeps it for the missed-approach phases that fly its published procedure.
+        if (hasAtcOverride || (ga.TrafficPattern is not null))
+        {
+            aircraft.Phases.ActiveApproach = null;
+        }
 
         string gaMsg = "Go around";
         if (ga.TrafficPattern is PatternDirection.Left)
@@ -4075,6 +4132,10 @@ internal static class PatternCommandHandler
         if (ga.AssignedMagneticHeading is not null)
         {
             gaMsg += $", fly heading {ga.AssignedMagneticHeading.Value.ToDisplayInt():000}";
+        }
+        else if (ga.RunwayHeading)
+        {
+            gaMsg += ", fly runway heading";
         }
         if (ga.TargetAltitude is not null)
         {
