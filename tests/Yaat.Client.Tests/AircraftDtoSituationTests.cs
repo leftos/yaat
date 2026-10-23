@@ -159,6 +159,51 @@ public class AircraftDtoSituationTests
         Assert.Null(model.MeetPoints);
     }
 
+    [Fact]
+    public void Json_ArmedReports_DeserializeFromTheServersShape()
+    {
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);
+        Assert.Contains("\"armedReports\":null", json, StringComparison.Ordinal);
+
+        // The server writes the legs as a number, as it does the situation flags: 9 is Crosswind (1) | Base (8).
+        string hubJson = json.Replace(
+            "\"armedReports\":null",
+            "\"armedReports\":{\"legs\":9,\"finalMiles\":5,\"fix\":\"SUNOL\"}",
+            StringComparison.Ordinal
+        );
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(hubJson, WireOptions)!;
+
+        Assert.Equal(new ArmedReportsDto(ArmedReportLegs.Crosswind | ArmedReportLegs.Base, 5, "SUNOL"), back.ArmedReports);
+    }
+
+    [Fact]
+    public void Json_NoArmedReports_DeserializesAsNull()
+    {
+        string json = JsonSerializer
+            .Serialize(Dto(AircraftSituation.Final), WireOptions)
+            .Replace(",\"armedReports\":null", "", StringComparison.Ordinal);
+        Assert.DoesNotContain("\"armedReports\"", json, StringComparison.Ordinal);
+
+        AircraftDto back = JsonSerializer.Deserialize<AircraftDto>(json, WireOptions)!;
+
+        Assert.Null(back.ArmedReports);
+    }
+
+    [Fact]
+    public void Model_CopiesArmedReports_OnCreateAndUpdate()
+    {
+        var baseArmed = new ArmedReportsDto(ArmedReportLegs.Base, null, null);
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.Final) with { ArmedReports = baseArmed });
+        Assert.Equal(baseArmed, model.ArmedReports);
+
+        var fixArmed = new ArmedReportsDto(ArmedReportLegs.None, 5, "SUNOL");
+        model.UpdateFromDto(Dto(AircraftSituation.Final) with { ArmedReports = fixArmed });
+        Assert.Equal(fixArmed, model.ArmedReports);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        Assert.Null(model.ArmedReports);
+    }
+
     private static AircraftDto Dto(AircraftSituation situation) =>
         new(
             Callsign: "UAL123",

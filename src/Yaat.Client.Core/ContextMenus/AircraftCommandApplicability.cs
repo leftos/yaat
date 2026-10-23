@@ -111,6 +111,29 @@ public static class AircraftCommandApplicability
             || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// True when the aircraft flies a pattern circuit: its phase sequence holds an Upwind, Crosswind, Downwind or Base phase, the
+    /// circuit phases the sim's <c>REPORT</c> leg forms need. Pattern Entry and MidfieldCrossing alone are no circuit, and a
+    /// straight-in final is none.
+    /// </summary>
+    public static bool IsInPatternCircuit(IMenuAircraft ac)
+    {
+        if (string.IsNullOrEmpty(ac.PhaseSequence))
+        {
+            return false;
+        }
+
+        foreach (string name in ac.PhaseSequence.Split(" > "))
+        {
+            if (name is "Upwind" or "Crosswind" or "Downwind" or "Base")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal static bool IsPatternPhase(string phase) =>
         phase is "Pattern Entry" or "Upwind" or "Crosswind" or "Downwind" or "Base" or "MidfieldCrossing";
 

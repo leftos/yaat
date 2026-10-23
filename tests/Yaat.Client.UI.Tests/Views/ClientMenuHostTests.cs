@@ -177,6 +177,36 @@ public class ClientMenuHostTests
         }
     }
 
+    /// <summary>
+    /// The Report when flyout's nearby points near KOAK: at most six, nearest first, every name one REPORT takes, and the
+    /// runway 30 numbers landmark among them.
+    /// </summary>
+    [AvaloniaFact]
+    public void GetReportingPointsNearby_NearOakland_ListsTheNearestReportablePoints()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), null, new Border());
+
+        IReadOnlyList<NearbyReportingPoint> points = host.GetReportingPointsNearby(new LatLon(37.7213, -122.2207));
+
+        Assert.InRange(points.Count, 1, NearbyReportingPoint.ReportWhenMaxNearbyPoints);
+        Assert.Equal([.. points.OrderBy(point => point.DistanceNm)], points);
+        Assert.All(points, point => Assert.True(CommandParser.IsReportFixName(point.Name), $"{point.Name} is no REPORT fix name"));
+        NearbyReportingPoint numbers = Assert.Single(points, point => point.Name == "OAK30NUM");
+        Assert.True(numbers.DistanceNm < NearbyReportingPoint.ReportWhenNearbyRadiusNm);
+        Assert.DoesNotContain(points, point => point.Name is "KOAK" or "OAK163001");
+    }
+
+    /// <summary>Fifty miles offshore no reporting point lies within the radius.</summary>
+    [AvaloniaFact]
+    public void GetReportingPointsNearby_Offshore_ListsNone()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), null, new Border());
+
+        Assert.Empty(host.GetReportingPointsNearby(new LatLon(37.0, -124.0)));
+    }
+
     [AvaloniaFact]
     public void EnterDrawRoute_ShowsTheGroundViewThenStartsTheDraw()
     {

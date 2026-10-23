@@ -277,6 +277,13 @@ public interface IMenuAircraft
     IReadOnlyList<ExitAheadDto>? ExitsAhead { get; }
 
     /// <summary>
+    /// The deferred reports armed by <c>REPORT</c>, as the sim projects its armed state (the armed pattern legs, the N-mile final
+    /// and the fix); null when nothing is armed. Changes with no command too: the mile-final and fix reports clear themselves when
+    /// they fire, and a full-stop landing clears them all.
+    /// </summary>
+    ArmedReportsDto? ArmedReports { get; }
+
+    /// <summary>
     /// Where the aircraft's taxi route meets other aircraft's, as the server's ground conflict detector predicts it: one row
     /// per other aircraft, at the junction both routes reach; null when it meets none.
     /// </summary>

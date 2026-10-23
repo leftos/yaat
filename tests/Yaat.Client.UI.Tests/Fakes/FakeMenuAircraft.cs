@@ -154,6 +154,8 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; init; }
 
+    public ArmedReportsDto? ArmedReports { get; set; }
+
     public IReadOnlyList<GroundMeetPointDto>? MeetPoints { get; init; }
 
     public StandDeparture? StandDeparture { get; init; }

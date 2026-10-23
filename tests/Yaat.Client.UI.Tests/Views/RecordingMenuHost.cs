@@ -188,6 +188,11 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public IReadOnlyList<string> GetReportingPointsNear(LatLon position) => [.. ReportingPoints];
 
+    /// <summary>The nearby reporting points every position is answered with; none by default.</summary>
+    public List<NearbyReportingPoint> NearbyReportingPoints { get; } = [];
+
+    public IReadOnlyList<NearbyReportingPoint> GetReportingPointsNearby(LatLon position) => [.. NearbyReportingPoints];
+
     private sealed class Unsubscriber(Action dispose) : IDisposable
     {
         public void Dispose() => dispose();

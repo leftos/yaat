@@ -1086,6 +1086,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private IReadOnlyList<ExitAheadDto>? _exitsAhead;
 
     /// <summary>
+    /// The deferred reports armed by <c>REPORT</c> (<see cref="AircraftDto.ArmedReports"/>, the sim's projection of its armed
+    /// state); null when nothing is armed.
+    /// </summary>
+    [ObservableProperty]
+    private ArmedReportsDto? _armedReports;
+
+    /// <summary>
     /// Where this aircraft's taxi route meets other aircraft's (<see cref="AircraftDto.MeetPoints"/>, predicted by the server's
     /// ground conflict detector): one row per other aircraft at the junction both routes reach; null when it meets none.
     /// </summary>
@@ -1414,6 +1421,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.SituationFlags = dto.SituationFlags;
         model.NextCrossingRunway = dto.NextCrossingRunway;
         model.ExitsAhead = dto.ExitsAhead;
+        model.ArmedReports = dto.ArmedReports;
         model.MeetPoints = dto.MeetPoints;
         model.TaxiTurnAboutShape = model.ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         model.StandDeparture = model.ParseStandDeparture(dto.StandDeparture, Log);
@@ -1552,6 +1560,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         SituationFlags = dto.SituationFlags;
         NextCrossingRunway = dto.NextCrossingRunway;
         ExitsAhead = dto.ExitsAhead;
+        ArmedReports = dto.ArmedReports;
         MeetPoints = dto.MeetPoints;
         StandDeparture = ParseStandDeparture(dto.StandDeparture, Log);
         TrueTrack = dto.TrueTrack;

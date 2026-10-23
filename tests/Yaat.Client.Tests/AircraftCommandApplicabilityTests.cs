@@ -1068,4 +1068,19 @@ public class AircraftCommandApplicabilityTests
         Assert.True(AircraftCommandApplicability.IsHelicopter(heli));
         Assert.False(AircraftCommandApplicability.IsHelicopter(jet));
     }
+
+    // --- IsInPatternCircuit ---
+
+    [Theory]
+    [InlineData("Pattern Entry > Downwind > Base > Final > Landing", true)]
+    [InlineData("Upwind > Crosswind", true)]
+    [InlineData("Final > Landing", false)]
+    [InlineData("MidfieldCrossing > Final", false)]
+    [InlineData("", false)]
+    public void IsInPatternCircuit_NeedsACircuitPhaseInTheSequence(string phaseSequence, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.IsInPatternCircuit(Ac("Downwind", false, "VFR", phaseSequence: phaseSequence)));
+
+    [Fact]
+    public void IsInPatternCircuit_NoSequence_IsFalse() =>
+        Assert.False(AircraftCommandApplicability.IsInPatternCircuit(Ac("Downwind", false, "VFR", phaseSequence: null!)));
 }

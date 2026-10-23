@@ -58,6 +58,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public IReadOnlyList<string> GetReportingPointsNear(LatLon position) => inner.GetReportingPointsNear(position);
 
+    public IReadOnlyList<NearbyReportingPoint> GetReportingPointsNearby(LatLon position) => inner.GetReportingPointsNearby(position);
+
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) => inner.GetMva(position);
 
     public IReadOnlyList<PatternRunwayChoice> GetPatternRunwayChoices(string airportId, string aircraftType) =>

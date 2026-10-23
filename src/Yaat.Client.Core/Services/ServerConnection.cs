@@ -1401,7 +1401,10 @@ public record AircraftDto(
     bool IsManeuvering = false,
     Yaat.Sim.Phases.PatternEntryLeg? PatternLeg = null,
     Yaat.Sim.Phases.PatternDirection? PatternSide = null,
-    double? PatternDistanceNm = null
+    double? PatternDistanceNm = null,
+    // The deferred reports armed by REPORT, as the sim projects them (the armed pattern legs, the N-mile final and the fix);
+    // null when nothing is armed. Kept name-for-name in sync with the server's AircraftStateDto.
+    ArmedReportsDto? ArmedReports = null
 );
 
 /// <summary>

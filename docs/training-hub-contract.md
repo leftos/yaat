@@ -576,6 +576,13 @@ extend the resolver to depend on a new input, fingerprint that input too.
   The taxi routes are not fingerprinted, so it is fingerprinted by value (`TrainingDtoFingerprint.MeetPoints`, a `MeetPointsFingerprint` over the rows; null equals null only), and the snapshot (`AircraftSituationStateDto.MeetPoints`) writes it only when it is not null, with no schema bump.
 
   The client carries it as `AircraftDto.MeetPoints` and `AircraftModel.MeetPoints` (observable); nothing draws it yet.
+- `ArmedReports` (an `ArmedReportsDto(Legs, FinalMiles, Fix)`, `null` by default, the last `AircraftStateDto` / `AircraftDto` field, after `PatternDistanceNm`; JSON `armedReports`: `{legs, finalMiles, fix}` or null) is the deferred pilot reports `REPORT` armed, built by `ArmedReportsDto.From(ac.Approach)` in `DtoConverter`; null when nothing is armed.
+
+  `legs` is the numeric `ArmedReportLegs` flags: Crosswind 1, Downwind 2, Midfield 4, Base 8, Final 16 (0 with none); `finalMiles` is the armed N-mile-final distance (an integer, null when none) and `fix` the armed at-fix report's fix name (null when none). `AircraftApproachState` stays the one home of the armed fields; the DTO is a read-only projection of them.
+
+  It has its own `TrainingDtoFingerprint` slot (`ArmedReports`, compared by value as a record), because the sim clears reports on the tick, not only on commands: the mile-final and fix reports clear themselves when they fire and a full-stop landing clears them all.
+
+  There is no snapshot field (the armed state already lives in the approach state's snapshot) and no `YaatHubJsonContext` registration (the record is nested in `AircraftDto`). The client carries it as `AircraftModel.ArmedReports` / `IMenuAircraft.ArmedReports`.
 - `TaxiTurnAboutShape` (a string, `null` by default) is `AircraftGroundOps.TaxiTurnAboutShape` by name: `"FromFarEnd"` or `"InPlace"` while the assigned taxi route starts with a turn about on the taxiway the aircraft stood on (`TaxiRoute.TurnAboutShape`) and the aircraft is still on that first segment, null when none is pending. A far-end route with no leg back stops sending it once the aircraft has turned about and reached the target, though it is still on segment 0.
 
   `TaxiTurnAboutTargetNodeId` (an int, `null` by default) is `AircraftGroundOps.TaxiTurnAboutTargetNodeId`: the occupied edge's far node the turn about turns the aircraft toward (`TaxiRoute.TurnAboutTargetNodeId`), null when none is pending.

@@ -343,6 +343,23 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             NavigationDatabase.Instance.FixesWithin(position, TrafficAdvisoryMatcher.LandmarkRadiusNm).Select(fix => (fix.Name, fix.DistanceNm))
         );
 
+    public IReadOnlyList<NearbyReportingPoint> GetReportingPointsNearby(LatLon position) =>
+        [
+            .. NavigationDatabase
+                .Instance.FixesWithin(position, NearbyReportingPoint.ReportWhenNearbyRadiusNm)
+                .Where(fix => IsVisualReportingPoint(fix.Name))
+                .Take(NearbyReportingPoint.ReportWhenMaxNearbyPoints)
+                .Select(fix => new NearbyReportingPoint(fix.Name, fix.DistanceNm, GeoMath.BearingTo(position, fix.Position))),
+        ];
+
+    /// <summary>
+    /// A name <c>REPORT</c> takes that is a visual reporting point: a bundled custom point (a landmark such as <c>OAK30NUM</c>) or a
+    /// VFR waypoint (<c>VP</c> prefix). Airports, terminal and lat/lon waypoints are not.
+    /// </summary>
+    private static bool IsVisualReportingPoint(string name) =>
+        CommandParser.IsReportFixName(name)
+        && ((NavigationDatabase.Instance.GetCustomFixName(name) is not null) || name.StartsWith("VP", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>The controlling sector of the MVA database (<see cref="MvaDatabase.FindSector"/>) at <paramref name="position"/>.</summary>
     public (string Sector, int FloorFtMsl)? GetMva(LatLon position) =>
         (MvaDatabase.Default.FindSector(position) is { } sector) ? (sector.Sector, sector.FloorFtMsl) : null;

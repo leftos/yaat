@@ -54,6 +54,15 @@ public interface IMenuHost
     IReadOnlyList<string> GetReportingPointsNear(LatLon position);
 
     /// <summary>
+    /// The reporting points the Report when flyout offers an aircraft at <paramref name="position"/>: the fixes within
+    /// <see cref="NearbyReportingPoint.ReportWhenNearbyRadiusNm"/> that are visual reporting points (a bundled custom point or a
+    /// <c>VP</c> VFR waypoint; never an airport, terminal or lat/lon waypoint) whose names <c>REPORT</c> takes, nearest first, at most
+    /// <see cref="NearbyReportingPoint.ReportWhenMaxNearbyPoints"/>, each with its distance and true bearing from
+    /// <paramref name="position"/>.
+    /// </summary>
+    IReadOnlyList<NearbyReportingPoint> GetReportingPointsNearby(LatLon position);
+
+    /// <summary>
     /// Opens the surface's free-text input showing <paramref name="placeholder"/>, holding <paramref name="initialText"/>
     /// with the caret at <paramref name="caretIndex"/>, and hands the submitted text, trimmed, to <paramref name="onSubmit"/>,
     /// closing once it has run. A blank submit closes the popup without calling it.
