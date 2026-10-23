@@ -52,8 +52,8 @@ public class MenuGoldenTests
         // A departure runway, so the first tab is searched as the flyout opens and the golden holds its rows.
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
         ContextMenu menu = MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected);
-        MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
-        MenuItem taxiToRunway = allCommands.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Taxi to runway");
+        MenuItem taxi = AllCommandsPath.Group(menu, MenuCategory.Taxi);
+        MenuItem taxiToRunway = taxi.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Taxi to runway");
 
         taxiToRunway.IsSubMenuOpen = true;
 

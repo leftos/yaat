@@ -277,7 +277,7 @@ public class HoldShortLadderFlyoutTests
 
     /// <summary>The All Commands submenu's Hold short of… entry.</summary>
     private static MenuItem AllCommandsHoldShort(ContextMenu menu) =>
-        Item(Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items, MenuCatalog.Get(MenuIds.GroundHoldShort).Label);
+        Item(AllCommandsPath.Group(menu, MenuCategory.Taxi).Items, MenuCatalog.Get(MenuIds.GroundHoldShort).Label);
 
     private static MenuItem Item(ItemCollection items, string header) =>
         Assert.Single(items.OfType<MenuItem>(), item => (item.Header as string) == header);

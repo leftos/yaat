@@ -430,12 +430,12 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void RadarDataBlockSubmenu_HasNoNote()
+    public void RadarTrackAndCoordinationGroup_HasNoNote()
     {
         TopLevel(MenuView.Radar, "ifr-enroute", out ContextMenu menu);
 
-        MenuItem dataBlock = menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Data Block");
-        List<string> children = [.. dataBlock.Items.Select(Describe)];
+        MenuItem trackAndCoordination = AllCommandsPath.Group(menu, MenuCategory.TrackAndCoordination);
+        List<string> children = [.. trackAndCoordination.Items.Select(Describe)];
         Assert.Contains("Scratchpad…", children);
         Assert.DoesNotContain(children, c => c.StartsWith("Note", StringComparison.Ordinal));
     }

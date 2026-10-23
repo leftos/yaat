@@ -13,8 +13,8 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The groups more than one surface builds — the menu header (title, Command…, Note…), live traffic, track, squawk, ask
-/// pilot, coordination, data block, favorites, the menu foot (warp, release to live feed, delete), and the flight groups
-/// heading, altitude, speed, navigation, hold, approach, procedures, tower and pattern — assembled from
+/// pilot, coordination, data block, favorites, the menu foot (warp, release to live feed, delete), and All Commands' task
+/// groups (<see cref="MenuCategory"/>) runway, vectors, approach, pattern, pilot reports and track and coordination — assembled from
 /// <see cref="MenuCatalog"/> entries. Every surface offers the input pickers — handoff, point out, squawk code, custom
 /// say. The For section (<see cref="AddForSection"/>) is a group of its own. Whether a group is offered at all stays with the
 /// caller. A canvas-only group such as the Display submenu is not built here: its surface builds it with
@@ -53,7 +53,7 @@ public static class SharedMenuGroups
     public static MenuItem Squawk(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) => SquawkFlyout("Squawk", aircraft, context, host);
 
     /// <summary>
-    /// The Squawk flyout headed <paramref name="header"/>, the root's Squawk group and the Squawk… entry alike: the code box
+    /// The Squawk flyout headed <paramref name="header"/>, Track and coordination's Squawk block and the Squawk… entry alike: the code box
     /// row first, always open and holding the focus as the flyout opens (<see cref="MenuCatalog.SquawkCodeRow"/>), then
     /// after a separator Squawk assigned code and the presets, then after another separator Ident.
     /// </summary>
@@ -140,7 +140,7 @@ public static class SharedMenuGroups
         AskPilotFlyout("Ask pilot to say…", aircraft, context, host);
 
     /// <summary>
-    /// The Say flyout headed <paramref name="header"/>, All Commands' Ask pilot to say… group and the Custom… entry alike: the six
+    /// The Say flyout headed <paramref name="header"/>, Pilot reports' Ask pilot to say… row and the Custom… entry alike: the six
     /// say queries, then after a separator the Custom box row, always open and holding the focus as the flyout opens
     /// (<see cref="MenuCatalog.SayCustomRow"/>).
     /// </summary>
@@ -605,8 +605,122 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Heading submenu: present heading and the heading flyout's entries (Fly heading, Turn left, Turn right and the two
-    /// degree turns). The header names the fix the aircraft is navigating to, else its assigned magnetic heading.
+    /// The All Commands Vectors group: four blocks, each under a bold label (<see cref="SectionLabel"/>) carrying its state
+    /// text — Heading (<see cref="Heading"/>), Altitude (<see cref="Altitude"/>), Speed (<see cref="Speed"/>) and Route
+    /// (<see cref="Route"/>) — each holding the rows its builder lists, in its order. A block with no rows is left out.
+    /// Null when no block is left.
+    /// </summary>
+    public static MenuItem? Vectors(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = MenuCategories.Label(MenuCategory.Vectors) };
+        foreach (
+            MenuItem block in (MenuItem[])
+                [Heading(aircraft, context, host), Altitude(aircraft, context, host), Speed(aircraft, context, host), Route(aircraft, context, host)]
+        )
+        {
+            string label =
+                block.Header as string
+                ?? throw new InvalidOperationException($"The Vectors block has a {block.Header?.GetType().Name} header, not a label.");
+            AddLabelledBlock(menu.Items, label, TakeItems(block));
+        }
+
+        return (menu.Items.Count > 0) ? menu : null;
+    }
+
+    /// <summary>
+    /// The Track and coordination group: four blocks, each under a bold label — Track (<see cref="Track"/>'s rows), Data block
+    /// (<see cref="DataBlock"/>'s rows), Squawk (the <see cref="Squawk"/> flyout) and Coordination (<see cref="Coordination"/>'s
+    /// rows) — then after a separator Edit flight plan where it applies. A block with no rows is left out. A menu that cannot
+    /// command the aircraft (<paramref name="commandsTheAircraft"/> false, a surface live-traffic shadow) gets only the Track,
+    /// Data block and Coordination blocks. Null when nothing is left.
+    /// </summary>
+    public static MenuItem? TrackAndCoordination(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, bool commandsTheAircraft)
+    {
+        var menu = new MenuItem { Header = MenuCategories.Label(MenuCategory.TrackAndCoordination) };
+        AddLabelledBlock(menu.Items, "Track", TakeItems(Track(aircraft, context, host)));
+        AddLabelledBlock(menu.Items, "Data block", TakeItems(DataBlock(aircraft, context, host)));
+        if (commandsTheAircraft)
+        {
+            AddLabelledBlock(menu.Items, "Squawk", [Squawk(aircraft, context, host)]);
+        }
+
+        AddLabelledBlock(menu.Items, "Coordination", TakeItems(Coordination(aircraft, context, host)));
+        if (commandsTheAircraft && (EditFlightPlan(aircraft, context, host) is { } editFlightPlan))
+        {
+            AddSeparatedBlock(menu.Items, [editFlightPlan]);
+        }
+
+        return (menu.Items.Count > 0) ? menu : null;
+    }
+
+    /// <summary>
+    /// The Pilot reports group, each block after a separator when one precedes it: while the phase shows the flight commands
+    /// (<paramref name="hidesFlightCommands"/> false) Report field in sight and Report traffic in sight, then the Report when…
+    /// flyout; then the Say flyout (<see cref="AskPilot"/>) for an aircraft that can be asked
+    /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>). Null when nothing applies.
+    /// </summary>
+    public static MenuItem? PilotReports(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, bool hidesFlightCommands)
+    {
+        var menu = new MenuItem { Header = MenuCategories.Label(MenuCategory.PilotReports) };
+        if (!hidesFlightCommands)
+        {
+            var inSight = new MenuItem();
+            TryAdd(inSight.Items, TryLeaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
+            TryAdd(inSight.Items, TryLeaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
+            AddSeparatedBlock(menu.Items, TakeItems(inSight));
+            if (TryLeaf(MenuIds.ApproachReportWhen, aircraft, context, host) is { } reportWhen)
+            {
+                AddSeparatedBlock(menu.Items, [reportWhen]);
+            }
+        }
+
+        if (AircraftCommandApplicability.CanAskPilot(aircraft))
+        {
+            AddSeparatedBlock(menu.Items, [AskPilot(aircraft, context, host)]);
+        }
+
+        return (menu.Items.Count > 0) ? menu : null;
+    }
+
+    /// <summary>Adds a bold <paramref name="label"/> row, then <paramref name="rows"/>; nothing when there are no rows.</summary>
+    private static void AddLabelledBlock(ItemCollection items, string label, List<Control> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        items.Add(SectionLabel(label));
+        AddRange(items, rows);
+    }
+
+    /// <summary>Adds <paramref name="rows"/> after a separator when items precede them; nothing when there are no rows.</summary>
+    private static void AddSeparatedBlock(ItemCollection items, List<Control> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        AddSeparatorIfNonEmpty(items);
+        AddRange(items, rows);
+    }
+
+    /// <summary>
+    /// Detaches every item of <paramref name="menu"/> and returns them in order, so they can sit in another menu (an item
+    /// keeps its logical parent while it is in a collection).
+    /// </summary>
+    private static List<Control> TakeItems(MenuItem menu)
+    {
+        List<Control> rows = [.. menu.Items.OfType<Control>()];
+        menu.Items.Clear();
+        return rows;
+    }
+
+    /// <summary>
+    /// The Vectors group's Heading block, as a submenu: present heading and the heading flyout's entries (Fly heading, Turn
+    /// left, Turn right and the two degree turns). The header, the block's label, names the fix the aircraft is navigating
+    /// to, else its assigned magnetic heading.
     /// </summary>
     public static MenuItem Heading(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -626,7 +740,10 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The Altitude submenu: the Maintain altitude flyout, under a header naming the assigned altitude.</summary>
+    /// <summary>
+    /// The Vectors group's Altitude block, as a submenu: the Maintain altitude flyout, under a header (the block's label)
+    /// naming the assigned altitude.
+    /// </summary>
     public static MenuItem Altitude(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         string header = aircraft?.AssignedAltitude is { } assigned ? $"Altitude (→ {MenuCatalog.FormatAltitude((int)assigned)})" : "Altitude";
@@ -636,8 +753,8 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Speed submenu: the speed picker and input, resume normal speed and final approach speed, under a header
-    /// naming the assigned speed.
+    /// The Vectors group's Speed block, as a submenu: the speed picker and input, resume normal speed and final approach
+    /// speed, under a header (the block's label) naming the assigned speed.
     /// </summary>
     public static MenuItem Speed(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -651,22 +768,31 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Navigation submenu: direct to, and while the aircraft is navigating to a fix (named in the header) append
-    /// direct to.
+    /// The Vectors group's Route block, as a submenu headed <c>Route</c>, or <c>Route (→ {fix})</c> while the aircraft is
+    /// navigating to a fix: Direct to…, Append direct to… (while navigating), Proceed on course, the cross and depart fix
+    /// flyouts, the join airway flyout, the two join-radial entries, each opening the join radial flyout on its own side,
+    /// then Climb via SID.
     /// </summary>
-    public static MenuItem Navigation(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static MenuItem Route(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        string header = aircraft is { NavigatingTo.Length: > 0 } ? $"Navigation (→ {aircraft.NavigatingTo})" : "Navigation";
+        string header = aircraft is { NavigatingTo.Length: > 0 } ? $"Route (→ {aircraft.NavigatingTo})" : "Route";
         var menu = new MenuItem { Header = header };
         TryAdd(menu.Items, TryLeaf(MenuIds.NavigationDirectTo, aircraft, context, host));
         AddIfApplicable(menu.Items, MenuIds.NavigationAppendDirectTo, aircraft, context, host);
+        AddIfApplicable(menu.Items, MenuIds.NavigationOnCourse, aircraft, context, host);
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinAirway, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinRadialOutbound, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinRadialInbound, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
         return menu;
     }
 
     /// <summary>
-    /// The Hold submenu: for an IFR aircraft in the air Hold at fix…, opening the holding-pattern flyout; hold at present
-    /// position with left and right turns; then for an aircraft offered VFR maneuvers the left and right 360s at a fix, each
-    /// opening the 360s flyout.
+    /// The holds, as a submenu whose rows the Approach group's last block takes: for an IFR aircraft in the air Hold at
+    /// fix…, opening the holding-pattern flyout; hold at present position with left and right turns; then for an aircraft
+    /// offered VFR maneuvers the left and right 360s at a fix, each opening the 360s flyout.
     /// </summary>
     public static MenuItem Hold(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -686,69 +812,54 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The Approach submenu: the approach entries (each opening its verb's approach flyout), the visual approach for an IFR
-    /// aircraft (the Cleared approach flyout opened on its visual row), the in-sight requests, then the Report when… flyout.
-    /// The header names the active approach, else the expected one.
+    /// The Approach group, in three blocks, each after a separator when one precedes it: the approach entries (each opening
+    /// its verb's approach flyout) and the visual approach for an IFR aircraft (the Cleared approach flyout opened on its
+    /// visual row); Join STAR (the tabbed STAR flyout, which holds Descend via STAR), Descend via STAR only while Join STAR
+    /// offers no flyout, then PTAC; then the holds (<see cref="Hold"/>'s rows). The header names the active approach, else
+    /// the expected one. Null when no block has a row.
     /// </summary>
-    public static MenuItem Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static MenuItem? Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
+        string label = MenuCategories.Label(MenuCategory.Approach);
         string header = aircraft switch
         {
-            { ActiveApproachId: { Length: > 0 } active } => $"Approach ({active})",
-            { ExpectedApproach: { Length: > 0 } expected } => $"Approach (exp: {expected})",
-            _ => "Approach",
+            { ActiveApproachId: { Length: > 0 } active } => $"{label} ({active})",
+            { ExpectedApproach: { Length: > 0 } expected } => $"{label} (exp: {expected})",
+            _ => label,
         };
         var menu = new MenuItem { Header = header };
+        var pickers = new MenuItem();
         foreach (string id in MenuCatalog.ApproachPickerIds)
         {
-            TryAdd(menu.Items, TryLeaf(id, aircraft, context, host));
+            TryAdd(pickers.Items, TryLeaf(id, aircraft, context, host));
         }
 
-        AddIfApplicable(menu.Items, MenuIds.ApproachClearedVisual, aircraft, context, host);
+        AddIfApplicable(pickers.Items, MenuIds.ApproachClearedVisual, aircraft, context, host);
+        AddSeparatedBlock(menu.Items, TakeItems(pickers));
 
-        menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
-        AddIfApplicable(menu.Items, MenuIds.PatternFollow, aircraft, context, host);
-        menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportWhen, aircraft, context, host));
-        return menu;
-    }
-
-    /// <summary>
-    /// The Procedures submenu: join STAR (the tabbed STAR flyout, which holds Descend via STAR), climb via SID, descend via
-    /// STAR only while Join STAR offers no flyout, the cross and depart fix flyouts, PTAC, the join airway flyout, then the two
-    /// join-radial entries, each opening the join radial flyout on its own side.
-    /// </summary>
-    public static MenuItem Procedures(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        var menu = new MenuItem { Header = "Procedures" };
+        var star = new MenuItem();
         MenuItem? joinStar = TryLeaf(MenuIds.ProceduresJoinStar, aircraft, context, host);
-        TryAdd(menu.Items, joinStar);
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
+        TryAdd(star.Items, joinStar);
         if (joinStar is not { IsEnabled: true })
         {
-            TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
+            TryAdd(star.Items, TryLeaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
         }
 
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresPtac, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinAirway, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinRadialOutbound, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinRadialInbound, aircraft, context, host));
-        return menu;
+        TryAdd(star.Items, TryLeaf(MenuIds.ProceduresPtac, aircraft, context, host));
+        AddSeparatedBlock(menu.Items, TakeItems(star));
+        AddSeparatedBlock(menu.Items, TakeItems(Hold(aircraft, context, host)));
+        return (menu.Items.Count > 0) ? menu : null;
     }
 
     /// <summary>
-    /// The Tower submenu, state-aware: the departure clearances, then the landing and option clearances with go around
-    /// and cancel landing clearance while any of cleared to land, go around or cancel landing clearance applies, then
-    /// the runway exits after touchdown, each block after a separator when items precede it. Null when nothing applies,
-    /// so the caller omits the submenu.
+    /// The Runway group (the tower's clearances), state-aware: the departure clearances, then the landing and option
+    /// clearances with go around and cancel landing clearance while any of cleared to land, go around or cancel landing
+    /// clearance applies, then the runway exits after touchdown, each block after a separator when items precede it. Null
+    /// when nothing applies, so the caller omits the submenu.
     /// </summary>
     public static MenuItem? Tower(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = "Tower" };
+        var menu = new MenuItem { Header = MenuCategories.Label(MenuCategory.Runway) };
         AddIfApplicable(menu.Items, MenuIds.TowerLineUpAndWait, aircraft, context, host);
         AddIfApplicable(menu.Items, MenuIds.TowerClearedForTakeoff, aircraft, context, host);
         AddIfApplicable(menu.Items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
@@ -790,13 +901,14 @@ public static class SharedMenuGroups
     ];
 
     /// <summary>
-    /// The Pattern submenu, state-aware: the pattern entries that apply, each its runway flyout, then the leg turns, the
-    /// spacing adjustments, the orbits and Circle airport, each block after a separator when it has an item and items precede
-    /// it. Null when nothing applies, so the caller omits the submenu.
+    /// The Pattern group, state-aware: the pattern entries that apply, each its runway flyout, then the leg turns, the
+    /// spacing adjustments, the orbits, Circle airport, then Make left closed traffic, Make right closed traffic and Follow
+    /// traffic…, each block after a separator when it has an item and items precede it. Null when nothing applies, so the
+    /// caller omits the submenu.
     /// </summary>
     public static MenuItem? Pattern(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = "Pattern" };
+        var menu = new MenuItem { Header = MenuCategories.Label(MenuCategory.Pattern) };
         foreach (string id in PatternEntryIds)
         {
             if (IsApplicable(id, aircraft, context))
@@ -823,7 +935,10 @@ public static class SharedMenuGroups
         MenuIds.PatternEnterFinal,
     ];
 
-    /// <summary>The Pattern submenu's maneuver blocks, in menu order: leg turns, spacing, orbits, then Circle airport.</summary>
+    /// <summary>
+    /// The Pattern group's maneuver blocks, in menu order: leg turns, spacing, orbits, Circle airport, then closed traffic
+    /// and Follow traffic….
+    /// </summary>
     private static readonly string[][] PatternManeuverBlocks =
     [
         [MenuIds.PatternTurnCrosswind, MenuIds.PatternTurnDownwind, MenuIds.PatternTurnBase],
@@ -837,6 +952,7 @@ public static class SharedMenuGroups
             MenuIds.PatternCancel270,
         ],
         [MenuIds.PatternCircleAirport],
+        [MenuIds.PatternMakeLeftTraffic, MenuIds.PatternMakeRightTraffic, MenuIds.PatternFollow],
     ];
 
     /// <summary>Adds the applicable entries of <paramref name="ids"/> after a separator when items precede them; nothing when none applies.</summary>
@@ -873,43 +989,6 @@ public static class SharedMenuGroups
 
         items.Add(item);
         return true;
-    }
-
-    /// <summary>
-    /// Adds the items of <paramref name="ids"/> that apply to <paramref name="aircraft"/>, after a separator when
-    /// <paramref name="items"/> already holds one, and nothing at all when none of them applies.
-    /// </summary>
-    private static void AddBlockIfAnyApplies(
-        ItemCollection items,
-        IReadOnlyList<string> ids,
-        IMenuAircraft? aircraft,
-        MenuContext context,
-        IMenuHost host
-    )
-    {
-        List<MenuItem> applies = [];
-        foreach (string id in ids)
-        {
-            if (IsApplicable(id, aircraft, context) && (TryLeaf(id, aircraft, context, host) is { } item))
-            {
-                applies.Add(item);
-            }
-        }
-
-        if (applies.Count == 0)
-        {
-            return;
-        }
-
-        if (items.Count > 0)
-        {
-            items.Add(new Separator());
-        }
-
-        foreach (MenuItem item in applies)
-        {
-            items.Add(item);
-        }
     }
 
     /// <summary>

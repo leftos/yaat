@@ -7,7 +7,16 @@ strip: [tower.cleared-to-land, tower.go-around, speed.final-approach]
 Command…
 Note…
 All Commands
-  Heading
+  Runway
+    Cleared to land 28R
+    Force landing 28R
+    Cleared for the option 28R
+    Touch and go 28R
+    Stop and go 28R
+    Low approach 28R
+    Go around 28R
+  Vectors
+    Heading [disabled]
     Present heading
     Fly heading
       heading flyout
@@ -19,26 +28,31 @@ All Commands
       heading flyout
     Turn right (degrees)
       heading flyout
-  Altitude
+    Altitude [disabled]
     Maintain altitude
       maintain altitude flyout
-  Speed
+    Speed [disabled]
     Assign speed
       speed flyout
     Speed…
       speed flyout
     Resume normal speed
     Reduce to final approach speed
-  Navigation
+    Route [disabled]
     Direct to…
       direct to flyout
-  Hold
-    Hold present position (left)
-    Hold present position (right)
-    Left 360s at fix…
-      360s at fix flyout
-    Right 360s at fix…
-      360s at fix flyout
+    Proceed on course
+    Cross fix…
+      cross fix flyout
+    Depart fix…
+      depart fix flyout
+    Join airway…
+      join airway flyout
+    Join radial outbound…
+      join radial flyout
+    Join radial inbound…
+      join radial flyout
+    Climb via SID
   Approach
     Cleared approach
       approach flyout, built when it opens
@@ -57,46 +71,17 @@ All Commands
     Expect approach
       approach flyout, built when it opens
     ---
-    Report field in sight…
-      report field in sight flyout
-    Report traffic in sight… · no other aircraft airborne [disabled]
-    Follow traffic… · no other aircraft airborne [disabled]
-    ---
-    Report when…
-      Report when… · N308AB · RWY 28R [disabled]
-      Mile final — ···
-      Passing a fix — ···
-      Reporting points · nearest first [disabled]
-      VPBCQ · 0.7 NM · 281° — REPORT VPBCQ
-      OAK30NUM · 1.7 NM · 262° — REPORT OAK30NUM
-      VPBCR · 2.2 NM · 182° — REPORT VPBCR
-      VPBEH · 3.2 NM · 226° — REPORT VPBEH
-      VPCOL · 3.2 NM · 332° — REPORT VPCOL
-      VPCBT · 3.5 NM · 048° — REPORT VPCBT
-  Procedures
     Join STAR
       join STAR flyout
-    Climb via SID
-    Cross fix…
-      cross fix flyout
-    Depart fix…
-      depart fix flyout
     PTAC…
       ptac flyout
-    Join airway…
-      join airway flyout
-    Join radial outbound…
-      join radial flyout
-    Join radial inbound…
-      join radial flyout
-  Tower
-    Cleared to land 28R
-    Force landing 28R
-    Cleared for the option 28R
-    Touch and go 28R
-    Stop and go 28R
-    Low approach 28R
-    Go around 28R
+    ---
+    Hold present position (left)
+    Hold present position (right)
+    Left 360s at fix…
+      360s at fix flyout
+    Right 360s at fix…
+      360s at fix flyout
   Pattern
     Enter left downwind
       Runway 10L — ELD 10L
@@ -143,23 +128,65 @@ All Commands
       Runway 28R — EF 28R
       Runway 30 — EF 30
       Runway 33 — EF 33
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
     ---
-    Custom — SAY ···
-  Coordination
+    Make left closed traffic
+    Make right closed traffic
+    Follow traffic… · no other aircraft airborne [disabled]
+  Pilot reports
+    Report field in sight…
+      report field in sight flyout
+    Report traffic in sight… · no other aircraft airborne [disabled]
+    ---
+    Report when…
+      Report when… · N308AB · RWY 28R [disabled]
+      Mile final — ···
+      Passing a fix — ···
+      Reporting points · nearest first [disabled]
+      VPBCQ · 0.7 NM · 281° — REPORT VPBCQ
+      OAK30NUM · 1.7 NM · 262° — REPORT OAK30NUM
+      VPBCR · 2.2 NM · 182° — REPORT VPBCR
+      VPBEH · 3.2 NM · 226° — REPORT VPBEH
+      VPCOL · 3.2 NM · 332° — REPORT VPCOL
+      VPCBT · 3.5 NM · 048° — REPORT VPCBT
+    ---
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track
+    Data block [disabled]
+    Scratchpad…
+      Scratchpad — SP ···
+    Temporary altitude…
+      temporary altitude flyout
+    Cruise…
+      cruise flyout
+    Annotate
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
     Release
     Hold
     Recall
     Acknowledge release
-  ---
-  Edit flight plan
+    ---
+    Edit flight plan
   ---
   Warp…
     Warp · N308AB · now 267° · 800 ft · 90 kt [disabled]
@@ -172,26 +199,6 @@ All Commands
 Favorite Commands
   (no items) [disabled]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad…
-    Scratchpad — SP ···
-  Temporary altitude…
-    temporary altitude flyout
-  Cruise…
-    cruise flyout
-  Annotate
-Squawk
-  Code — SQ ···
-  ---
-  Squawk assigned code
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
 Display
   Mini datablock
   Show nav route

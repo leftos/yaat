@@ -375,7 +375,7 @@ public class ScopePreviewFlyoutTests
 
     /// <summary>The All Commands submenu's Give way to… entry.</summary>
     private static MenuItem GiveWay(ContextMenu menu) =>
-        Item(Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items, MenuCatalog.Get(MenuIds.GroundGiveWay).Label);
+        Item(AllCommandsPath.Group(menu, MenuCategory.Taxi).Items, MenuCatalog.Get(MenuIds.GroundGiveWay).Label);
 
     private static MenuItem Item(ItemCollection items, string header) =>
         Assert.Single(items.OfType<MenuItem>(), item => (item.Header as string) == header);

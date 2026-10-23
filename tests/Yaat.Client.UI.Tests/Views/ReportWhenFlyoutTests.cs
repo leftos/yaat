@@ -594,22 +594,23 @@ public class ReportWhenFlyoutTests
         Assert.DoesNotContain(MenuIds.ApproachReportAtFix, ids);
     }
 
-    /// <summary>All Commands › Approach shows one Report when… flyout item, with no nested submenu left in it.</summary>
+    /// <summary>All Commands › Pilot reports shows one Report when… flyout item, with no nested submenu left in it.</summary>
     [AvaloniaFact]
-    public void Approach_ShowsOneReportWhenFlyout_WithNoNestedSubmenu()
+    public void PilotReports_ShowsOneReportWhenFlyout_WithNoNestedSubmenu()
     {
-        MenuItem approach = SharedMenuGroups.Approach(
+        MenuItem pilotReports = SharedMenuGroups.PilotReports(
             PatternAircraft() with
             {
                 ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, null, null),
             },
             Context(),
-            Host()
-        );
+            Host(),
+            hidesFlightCommands: false
+        )!;
 
-        MenuItem reportWhen = Assert.Single(approach.Items.OfType<MenuItem>(), item => (item.Header as string) == "Report when…");
+        MenuItem reportWhen = Assert.Single(pilotReports.Items.OfType<MenuItem>(), item => (item.Header as string) == "Report when…");
         Assert.DoesNotContain(reportWhen.Items.OfType<MenuItem>(), item => item.Items.Count > 0);
         Assert.Contains(reportWhen.Items.OfType<MenuItem>(), item => item.Header is ReportWhenTitleLine);
-        Assert.DoesNotContain(approach.Items.OfType<MenuItem>(), item => (item.Header as string) == "Stop reporting");
+        Assert.DoesNotContain(pilotReports.Items.OfType<MenuItem>(), item => (item.Header as string) == "Stop reporting");
     }
 }

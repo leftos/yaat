@@ -13,12 +13,7 @@ strip: [ground.cross-runway]
 Command…
 Note…
 All Commands
-  Taxi to runway
-    Finding runway entries…
-  Preset taxi route
-    30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
-  Cross 30
-  Tower
+  Runway
     Line up and wait 30
     Cleared for takeoff 30
       Cleared for takeoff — CTO
@@ -26,47 +21,55 @@ All Commands
       Fly runway heading — CTO RH
       ---
       Custom — CTO
-  Draw taxi route…
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom — SAY ···
-  Coordination
+  Taxi
+    Taxi to runway
+      Finding runway entries…
+    Preset taxi route
+      30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
+    Cross 30
+    Draw taxi route…
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track
+    Data block [disabled]
+    Scratchpad…
+      Scratchpad — SP ···
+    Temporary altitude…
+      temporary altitude flyout
+    Cruise…
+      cruise flyout
+    Annotate
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
     Release
     Hold
     Recall
     Acknowledge release
-  ---
-  Edit flight plan
+    ---
+    Edit flight plan
 Favorite Commands
   (no items) [disabled]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad…
-    Scratchpad — SP ···
-  Temporary altitude…
-    temporary altitude flyout
-  Cruise…
-    cruise flyout
-  Annotate
-Squawk
-  Code — SQ ···
-  ---
-  Squawk assigned code
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
 Display
   Taxi route
     Always show

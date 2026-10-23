@@ -48,7 +48,7 @@ public class MenuFootTests
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "live-traffic-surface", assumedFromLiveFeed: false);
 
-        Assert.Equal(["Display", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["---", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
         Assert.DoesNotContain("Warp…", commands);
     }
 
@@ -59,19 +59,19 @@ public class MenuFootTests
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Data Block", "Squawk", "Display", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
-        Assert.Equal(["Edit flight plan", "---", "Release to live feed"], commands[^3..]);
+        Assert.Equal(["Favorite Commands", "---", "Display", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Track and coordination", "---", "Release to live feed"], commands[^3..]);
     }
 
-    // The list's view section is empty, so the foot follows Squawk; Edit flight plan stays in the command tree, before
+    // The list's view section is empty, so the foot follows Favorites; Edit flight plan stays in the command tree, before
     // the sim-control items, of which the taxiing aircraft gets only the release: Warp… is not offered on the ground.
     [AvaloniaFact]
     public void ListMenu_EndsWithDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.List, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Track", "Data Block", "Squawk", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
-        Assert.Equal(["Coordination", "---", "Edit flight plan", "---", "Release to live feed"], commands[^5..]);
+        Assert.Equal(["Note…", "All Commands", "Favorite Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Track and coordination", "---", "Release to live feed"], commands[^3..]);
     }
 
     [AvaloniaFact]

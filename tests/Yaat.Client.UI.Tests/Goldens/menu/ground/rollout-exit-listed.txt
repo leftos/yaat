@@ -7,7 +7,7 @@ strip: [tower.exit-left, tower.exit-right, ground.draw-taxi-route]
 Command…
 Note…
 All Commands
-  Tower
+  Runway
     Exit left
       Exits ahead, left side · from the aircraft [disabled]
       Taxiway W1 · ~900 ft — EL W1
@@ -19,46 +19,48 @@ All Commands
       Taxiway W3 · ~3,600 ft — ER W3
       ---
       Pilot's choice — ER
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom — SAY ···
-  Coordination
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track
+    Data block [disabled]
+    Scratchpad…
+      Scratchpad — SP ···
+    Temporary altitude…
+      temporary altitude flyout
+    Cruise…
+      cruise flyout
+    Annotate
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
     Release
     Hold
     Recall
     Acknowledge release
-  ---
-  Edit flight plan
+    ---
+    Edit flight plan
 Favorite Commands
   (no items) [disabled]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad…
-    Scratchpad — SP ···
-  Temporary altitude…
-    temporary altitude flyout
-  Cruise…
-    cruise flyout
-  Annotate
-Squawk
-  Code — SQ ···
-  ---
-  Squawk assigned code
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
 Display
   Taxi route
     Always show

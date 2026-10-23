@@ -7,57 +7,59 @@ strip: [ground.air-taxi, ground.taxi-preset, ground.draw-taxi-route]
 Command…
 Note…
 All Commands
-  Push back
-  Push back to…
-    Computing targets… [disabled]
-  Push route…
-  Taxi to runway
-    Finding runway entries…
-  Preset taxi route
-    TERMINAL to 30 · via T U W · ~14,350 ft — TAXI T U W RWY 30
-  Air taxi
-    Air taxi to · Filter pads, parking, spots, runways
-  Follow… · no other aircraft on the ground [disabled]
-  Draw taxi route…
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom — SAY ···
-  Coordination
+  Taxi
+    Push back
+    Push back to…
+      Computing targets… [disabled]
+    Push route…
+    Taxi to runway
+      Finding runway entries…
+    Preset taxi route
+      TERMINAL to 30 · via T U W · ~14,350 ft — TAXI T U W RWY 30
+    Air taxi
+      Air taxi to · Filter pads, parking, spots, runways
+    Follow… · no other aircraft on the ground [disabled]
+    Draw taxi route…
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track
+    Data block [disabled]
+    Scratchpad…
+      Scratchpad — SP ···
+    Temporary altitude…
+      temporary altitude flyout
+    Cruise…
+      cruise flyout
+    Annotate
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
     Release
     Hold
     Recall
     Acknowledge release
-  ---
-  Edit flight plan
+    ---
+    Edit flight plan
 Favorite Commands
   (no items) [disabled]
----
-Track
-  Initiate Track
-Data Block
-  Scratchpad…
-    Scratchpad — SP ···
-  Temporary altitude…
-    temporary altitude flyout
-  Cruise…
-    cruise flyout
-  Annotate
-Squawk
-  Code — SQ ···
-  ---
-  Squawk assigned code
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
 ---
 Delete

@@ -27,7 +27,7 @@ public class GroundContextMenuHoldShortTests
         };
         ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick("N784ME", null, null, []), new RecordingMenuHost(""), _ => []);
 
-        ItemCollection commandTree = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader).Items;
+        ItemCollection commandTree = AllCommandsPath.Group(menu, MenuCategory.Taxi).Items;
         var crossItems = commandTree
             .OfType<MenuItem>()
             .Where(m => m.Header is string s && s.StartsWith("Cross ", StringComparison.Ordinal))

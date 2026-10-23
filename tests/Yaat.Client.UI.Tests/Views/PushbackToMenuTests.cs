@@ -761,8 +761,11 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
     /// <summary>Opens the open menu's All Commands, then its Push back to… submenu, and lays them out; returns Push back to….</summary>
     private static MenuItem OpenPushBackToSubmenu(ContextMenu menu)
     {
-        MenuItem all = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
+        MenuItem all = AllCommandsPath.AllCommands(menu);
         all.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        MenuItem taxi = AllCommandsPath.Group(menu, MenuCategory.Taxi);
+        taxi.IsSubMenuOpen = true;
         Dispatcher.UIThread.RunJobs();
         MenuItem pushTo = Submenu(menu);
         pushTo.IsSubMenuOpen = true;
@@ -803,12 +806,9 @@ public class PushbackToMenuTests(OakPushTargetSeedCopy seedCopy) : IClassFixture
         Dispatcher.UIThread.RunJobs();
     }
 
-    /// <summary>The Push back to… submenu under the menu's All Commands.</summary>
-    private static MenuItem Submenu(ContextMenu menu)
-    {
-        MenuItem all = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
-        return all.Items.OfType<MenuItem>().Single(m => (m.Header as string) == PushBackTo);
-    }
+    /// <summary>The Push back to… submenu under the menu's All Commands › Taxi.</summary>
+    private static MenuItem Submenu(ContextMenu menu) =>
+        AllCommandsPath.Group(menu, MenuCategory.Taxi).Items.OfType<MenuItem>().Single(m => (m.Header as string) == PushBackTo);
 
     private static MenuItem Row(MenuItem pushTo, string command) =>
         pushTo.Items.OfType<MenuItem>().Single(m => (m.Header is PushbackToMenu.PushTargetRow) && (MenuCommandText.GetCommand(m) == command));

@@ -42,9 +42,6 @@ public class AircraftMenuBuilderTests
                 AllCommands,
                 Label(MenuIds.FavoritesMenu),
                 "---",
-                "Track",
-                "Data Block",
-                "Squawk",
                 ViewItem,
                 "---",
                 Label(MenuIds.SimControlDelete),
@@ -205,9 +202,8 @@ public class AircraftMenuBuilderTests
                 Label(MenuIds.AircraftCommand),
                 Label(MenuIds.AircraftNote),
                 "---",
-                "Track",
-                "Data Block",
                 ViewItem,
+                "---",
                 Label(MenuIds.FavoritesMenu),
                 AllCommands,
                 "---",
@@ -228,12 +224,13 @@ public class AircraftMenuBuilderTests
         ContextMenu menu = Build(ac, host, _ => []);
         List<string> top = Sequence(menu);
         List<string> all = Sequence(AllCommandsItem(menu));
+        List<string> grouped = Grouped(AllCommandsItem(menu));
 
         string[] moved = ["Ask pilot to say…", "Coordination", Label(MenuIds.SimControlWarp), Label(MenuIds.LiveTrafficUnassume)];
         foreach (string label in moved)
         {
             Assert.DoesNotContain(label, top);
-            Assert.Contains(label, all);
+            Assert.Contains(label, grouped);
         }
 
         Assert.Equal([Label(MenuIds.SimControlWarp), Label(MenuIds.LiveTrafficUnassume)], all[^2..]);
@@ -260,10 +257,6 @@ public class AircraftMenuBuilderTests
                 AllCommands,
                 Label(MenuIds.FavoritesMenu),
                 "---",
-                "Track",
-                "Data Block",
-                "Squawk",
-                "---",
                 Label(MenuIds.SimControlDelete),
             ],
             items
@@ -281,10 +274,10 @@ public class AircraftMenuBuilderTests
         host.PushbackTargets = PushTargetList.Ready([new MenuPushTarget(MenuPushTargetKind.Taxilane, "TE", null, 140, "PUSH TE", [], null)]);
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("Via B", "TAXI B 30"));
 
-        List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
+        List<string> atParking = Grouped(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
         AssertBeforeCoordination(atParking, Label(MenuIds.GroundPushback), Label(MenuIds.GroundPushbackTo), Label(MenuIds.GroundFollow));
 
-        List<string> taxiing = Sequence(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
+        List<string> taxiing = Grouped(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
         AssertBeforeCoordination(taxiing, Label(MenuIds.GroundHoldPosition), Label(MenuIds.GroundBreakConflict), Label(MenuIds.GroundTaxiPreset));
     }
 
@@ -298,13 +291,13 @@ public class AircraftMenuBuilderTests
         };
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("Via B", "TAXI B 30"));
 
-        List<string> atParking = Sequence(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
+        List<string> atParking = Grouped(AllCommandsItem(Build(Fixture("at-parking"), host, _ => [])));
         Assert.True(
             atParking.IndexOf(Label(MenuIds.GroundPushRoute)) == atParking.IndexOf(Label(MenuIds.GroundPushbackTo)) + 1,
             $"Push route… should follow Push back to… in: {string.Join(" | ", atParking)}"
         );
 
-        List<string> taxiing = Sequence(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
+        List<string> taxiing = Grouped(AllCommandsItem(Build(Fixture("taxiing"), host, _ => [])));
         Assert.True(
             taxiing.IndexOf(Label(MenuIds.GroundTaxiPreset)) == taxiing.IndexOf(Label(MenuIds.GroundTaxiToRunway)) + 1,
             $"Preset taxi route should follow Taxi to runway in: {string.Join(" | ", taxiing)}"
@@ -353,14 +346,14 @@ public class AircraftMenuBuilderTests
 
         List<string> all = Sequence(AllCommandsItem(Build(Fixture("approach-ifr"), host, _ => [])));
 
-        string[] heads = ["Heading", "Altitude", "Speed", "Navigation", "Hold", "Approach", "Procedures", "Tower"];
+        string[] heads = ["Runway", "Vectors", "Approach", "Pilot reports", "Track and coordination"];
         List<int> positions = [.. heads.Select(head => all.FindIndex(item => item.StartsWith(head, StringComparison.Ordinal)))];
         Assert.DoesNotContain(-1, positions);
         Assert.Equal([.. positions.Order()], positions);
     }
 
     [AvaloniaFact]
-    public void ViewSection_SitsAfterSquawkBeforeTheFoot()
+    public void ViewSection_SitsAfterFavoritesBeforeTheFoot()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
@@ -370,7 +363,7 @@ public class AircraftMenuBuilderTests
         List<string> items = Sequence(Build(ac, host, _ => [new MenuItem { Header = ViewItem }]));
 
         int view = items.IndexOf(ViewItem);
-        Assert.Equal(["Squawk", ViewItem, "---"], items[(view - 1)..(view + 2)]);
+        Assert.Equal([Label(MenuIds.FavoritesMenu), "---", ViewItem, "---"], items[(view - 2)..(view + 2)]);
         Assert.Equal(Label(MenuIds.SimControlDelete), items[^1]);
         Assert.Equal([ac.Callsign], Assert.Single(host.RpoRequests));
     }
@@ -490,7 +483,7 @@ public class AircraftMenuBuilderTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         MenuFixture fixture = RelativeFixture();
 
-        List<string> all = Sequence(AllCommandsItem(BuildWithSelection(fixture, new RecordingMenuHost(""))));
+        List<string> all = Grouped(AllCommandsItem(BuildWithSelection(fixture, new RecordingMenuHost(""))));
 
         Assert.DoesNotContain(all, item => item.Contains("AAL602", StringComparison.Ordinal));
         Assert.DoesNotContain("Report in sight", all);
@@ -520,6 +513,82 @@ public class AircraftMenuBuilderTests
         Assert.DoesNotContain(items, item => item.StartsWith("For ", StringComparison.Ordinal));
     }
 
+    /// <summary>An airborne IFR aircraft's All Commands lists its task groups in category order, then the sim control.</summary>
+    [AvaloniaFact]
+    public void AirborneIfr_AllCommandsListsTheTaskGroupsInCategoryOrder()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+
+        List<string> all = Sequence(AllCommandsItem(Build(Fixture("ifr-enroute"), new RecordingMenuHost(""), _ => [])));
+
+        Assert.Equal(["Vectors", "Approach", "Pilot reports", "Track and coordination", "---", Label(MenuIds.SimControlWarp)], all);
+    }
+
+    /// <summary>A taxiing aircraft's All Commands holds the runway, taxi, pilot-report and track groups, and no Vectors.</summary>
+    [AvaloniaFact]
+    public void Taxiing_AllCommandsHoldsTheGroundTaskGroups_AndNoVectors()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+
+        List<string> all = Sequence(AllCommandsItem(Build(Fixture("taxiing"), new RecordingMenuHost(""), _ => [])));
+
+        foreach (string group in (string[])["Runway", "Taxi", "Pilot reports", "Track and coordination"])
+        {
+            Assert.Contains(group, all);
+        }
+
+        Assert.DoesNotContain("Vectors", all);
+    }
+
+    /// <summary>Track, Data Block and Squawk live under All Commands › Track and coordination, not at the root.</summary>
+    [AvaloniaFact]
+    public void Root_HoldsNoTrackDataBlockOrSquawk()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+
+        List<string> root = Sequence(Build(Fixture("ifr-enroute"), new RecordingMenuHost(""), _ => []));
+
+        Assert.DoesNotContain("Track", root);
+        Assert.DoesNotContain("Data Block", root);
+        Assert.DoesNotContain("Squawk", root);
+    }
+
+    /// <summary>Vectors' Route block and Pattern's closed-traffic rows are commands the category map files under that group.</summary>
+    [AvaloniaFact]
+    public void CategoryGroups_RouteAndClosedTrafficRows_MapBackToTheirCategory()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+
+        MenuItem vectors = Child(AllCommandsItem(Build(Fixture("ifr-enroute"), host, _ => [])), "Vectors");
+        List<string> route =
+        [
+            .. Sequence(vectors)
+                .SkipWhile(label => !label.StartsWith("Route", StringComparison.Ordinal))
+                .Skip(1)
+                .Where(label => label is not ("" or "---")),
+        ];
+        Assert.Contains(Label(MenuIds.NavigationOnCourse), route);
+        Assert.All(route, label => Assert.Equal(MenuCategory.Vectors, CategoryOfLabel(label)));
+
+        MenuItem pattern = Child(AllCommandsItem(Build(Fixture("pattern-vfr"), host, _ => [])), "Pattern");
+        foreach (string id in (string[])[MenuIds.PatternMakeLeftTraffic, MenuIds.PatternMakeRightTraffic])
+        {
+            Assert.Contains(Label(id), Sequence(pattern));
+            Assert.Equal(MenuCategory.Pattern, CategoryOfLabel(Label(id)));
+        }
+    }
+
+    /// <summary>The submenu of <paramref name="parent"/> headed <paramref name="header"/>.</summary>
+    private static MenuItem Child(MenuItem parent, string header) =>
+        parent.Items.OfType<MenuItem>().Single(item => (item.Header as string) == header);
+
+    /// <summary>The category of the one catalog entry, point items aside, labelled <paramref name="label"/>.</summary>
+    private static MenuCategory? CategoryOfLabel(string label) =>
+        MenuCategories.Of(
+            Assert.Single(MenuCatalog.All, entry => (entry.Label == label) && !entry.Id.StartsWith("point.", StringComparison.Ordinal)).Id
+        );
+
     /// <summary>
     /// The radar relative-selection fixture: AAL601 right-clicked with AAL602 selected, both airborne, AAL602 having
     /// reported AAL601 in sight.
@@ -545,6 +614,10 @@ public class AircraftMenuBuilderTests
 
     /// <summary>Each of the submenu's items as its header text, with a separator written as <c>---</c>.</summary>
     private static List<string> Sequence(MenuItem submenu) => Sequence(submenu.Items);
+
+    /// <summary>All Commands' own items as <see cref="Sequence(MenuItem)"/> lists them, then each of its groups' items, group by group.</summary>
+    private static List<string> Grouped(MenuItem allCommands) =>
+        [.. Sequence(allCommands), .. allCommands.Items.OfType<MenuItem>().SelectMany(group => Sequence(group))];
 
     /// <summary>Each item as its header text, with a separator written as <c>---</c> and the quick-command strip as <see cref="StripRow"/>.</summary>
     private static List<string> Sequence(ItemCollection items) =>

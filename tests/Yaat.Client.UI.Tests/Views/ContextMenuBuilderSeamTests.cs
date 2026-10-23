@@ -108,33 +108,12 @@ public class ContextMenuBuilderSeamTests
             "All Commands",
             "Favorite Commands",
             "---",
-            "Track",
-            "Data Block",
-            "Squawk",
             "Display",
             "Draw route",
             "---",
             "Delete"
         );
-        Assert.Equal(
-            [
-                "Heading",
-                "Altitude",
-                "Speed",
-                "Navigation",
-                "Hold",
-                "Approach",
-                "Procedures",
-                "---",
-                "Ask pilot to say…",
-                "Coordination",
-                "---",
-                "Edit flight plan",
-                "---",
-                "Warp…",
-            ],
-            AllCommandsSequence(menu)
-        );
+        Assert.Equal(["Vectors", "Approach", "Pilot reports", "Track and coordination", "---", "Warp…"], AllCommandsSequence(menu));
     }
 
     [AvaloniaFact]
@@ -156,15 +135,14 @@ public class ContextMenuBuilderSeamTests
             "Command…",
             "Note…",
             "---",
-            "Track",
-            "Data Block",
             "Display",
+            "---",
             "Favorite Commands",
             "All Commands",
             "---",
             "Delete"
         );
-        Assert.Equal(["Coordination"], AllCommandsSequence(menu));
+        Assert.Equal(["Track and coordination"], AllCommandsSequence(menu));
         // A surface shadow is not assumable, so it gets neither the assume items nor any relative-traffic block.
         Assert.DoesNotContain(Sequence(menu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
     }
@@ -246,11 +224,11 @@ public class ContextMenuBuilderSeamTests
     {
         AircraftModel shadow = SurfaceShadow("SWA9");
 
-        string[] canvas = ["Track", "Data Block", "Display", "Favorite Commands", "All Commands", "---", "Delete"];
+        string[] canvas = ["Display", "---", "Favorite Commands", "All Commands", "---", "Delete"];
         Assert.Equal(canvas, AfterHeader(RadarSurfaceShadowMenu(shadow)));
         Assert.Equal(canvas, AfterHeader(GroundSurfaceShadowMenu(shadow)));
-        Assert.Equal(["Track", "Data Block", "Favorite Commands", "All Commands", "---", "Delete"], AfterHeader(ListSurfaceShadowMenu(shadow)));
-        Assert.Equal(["Coordination"], AllCommandsSequence(ListSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Favorite Commands", "All Commands", "---", "Delete"], AfterHeader(ListSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Track and coordination"], AllCommandsSequence(ListSurfaceShadowMenu(shadow)));
     }
 
     // Only the ground view's shadow offers the ground's own display entries; the radar's does not.
@@ -293,13 +271,11 @@ public class ContextMenuBuilderSeamTests
             "All Commands",
             "Favorite Commands",
             "---",
-            "Track",
-            "Data Block",
-            "Squawk",
             "Display",
             "---",
             "Delete"
         );
+        Assert.Equal(["Taxi", "Pilot reports", "Track and coordination"], AllCommandsSequence(menu));
         Assert.Equal(
             [
                 "Push back",
@@ -308,13 +284,8 @@ public class ContextMenuBuilderSeamTests
                 // No other aircraft is on the ground: the entry stays, disabled with the reason, rather than leaving the list.
                 "Follow… · no other aircraft on the ground",
                 "Draw taxi route…",
-                "---",
-                "Ask pilot to say…",
-                "Coordination",
-                "---",
-                "Edit flight plan",
             ],
-            AllCommandsSequence(menu)
+            Sequence(AllCommandsPath.Group(menu, MenuCategory.Taxi).Items)
         );
     }
 
@@ -334,23 +305,8 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]);
 
-        AssertSequence(
-            menu,
-            "UAL100 · B738",
-            "Line up and wait",
-            "---",
-            "Command…",
-            "Note…",
-            "All Commands",
-            "Favorite Commands",
-            "---",
-            "Track",
-            "Data Block",
-            "Squawk",
-            "---",
-            "Delete"
-        );
-        Assert.Equal(["Tower", "---", "Ask pilot to say…", "Coordination", "---", "Edit flight plan"], AllCommandsSequence(menu));
+        AssertSequence(menu, "UAL100 · B738", "Line up and wait", "---", "Command…", "Note…", "All Commands", "Favorite Commands", "---", "Delete");
+        Assert.Equal(["Runway", "Pilot reports", "Track and coordination"], AllCommandsSequence(menu));
     }
 
     [AvaloniaFact]
@@ -409,14 +365,13 @@ public class ContextMenuBuilderSeamTests
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
         // "Fly heading" opens the heading flyout, a submenu holding its panel, and carries no popup descriptor.
-        MenuItem heading = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Heading");
-        MenuItem flyHeading = heading.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Fly heading");
+        MenuItem vectors = AllCommandsPath.Group(menu, MenuCategory.Vectors);
+        MenuItem flyHeading = vectors.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Fly heading");
         Assert.Null(flyHeading.Tag);
         Assert.IsType<HeadingFlyoutHost>(Assert.Single(flyHeading.Items.OfType<MenuItem>()).Header);
 
         // "Speed…" opens the speed flyout, a submenu holding its panel, and carries no popup descriptor.
-        MenuItem speed = AllCommands(menu).Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed");
-        MenuItem speedInput = speed.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed…");
+        MenuItem speedInput = vectors.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed…");
         Assert.Null(speedInput.Tag);
         Assert.IsType<SpeedFlyoutHost>(Assert.Single(speedInput.Items.OfType<MenuItem>()).Header);
     }

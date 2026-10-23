@@ -375,7 +375,7 @@ public class FollowFlyoutTests
         );
 
     private static MenuItem Follow(ContextMenu menu) =>
-        Item(Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items, MenuCatalog.Get(MenuIds.GroundFollow).Label);
+        Item(AllCommandsPath.Group(menu, MenuCategory.Taxi).Items, MenuCatalog.Get(MenuIds.GroundFollow).Label);
 
     private static MenuItem Item(ItemCollection items, string header) =>
         Assert.Single(items.OfType<MenuItem>(), item => (item.Header as string) == header);

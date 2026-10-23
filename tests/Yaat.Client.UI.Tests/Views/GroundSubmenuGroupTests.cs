@@ -434,7 +434,8 @@ public class GroundSubmenuGroupTests
         [.. items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
 
     /// <summary>The items of the menu's All Commands submenu, where the ground block lives.</summary>
-    private static ItemCollection CommandTree(ContextMenu menu) => Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items;
+    private static ItemCollection CommandTree(ContextMenu menu) =>
+        (AllCommandsPath.FindGroup(menu, MenuCategory.Taxi) ?? AllCommandsPath.AllCommands(menu)).Items;
 
     private static MenuItem Item(ItemCollection items, string header)
     {

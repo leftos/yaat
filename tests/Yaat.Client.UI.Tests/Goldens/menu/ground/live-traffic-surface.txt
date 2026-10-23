@@ -4,16 +4,6 @@ UAL402 · B738 [disabled]
 Command…
 Note…
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad…
-    Scratchpad — SP ···
-  Temporary altitude…
-    temporary altitude flyout
-  Cruise…
-    cruise flyout
-  Annotate
 Display
   Taxi route
     Always show
@@ -21,10 +11,22 @@ Display
     Follow “Show all” setting [checked]
   Hide datablock
   Measure from UAL402
+---
 Favorite Commands
   (no items) [disabled]
 All Commands
-  Coordination
+  Track and coordination
+    Track [disabled]
+    Initiate Track
+    Data block [disabled]
+    Scratchpad…
+      Scratchpad — SP ···
+    Temporary altitude…
+      temporary altitude flyout
+    Cruise…
+      cruise flyout
+    Annotate
+    Coordination [disabled]
     Release
     Hold
     Recall

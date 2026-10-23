@@ -7,7 +7,11 @@ strip: [heading.fly, altitude.maintain, approach.report-field-in-sight]
 Command…
 Note…
 All Commands
-  Heading
+  Runway
+    Cleared to land 30
+    Force landing 30
+  Vectors
+    Heading [disabled]
     Present heading
     Fly heading
       heading flyout
@@ -19,24 +23,31 @@ All Commands
       heading flyout
     Turn right (degrees)
       heading flyout
-  Altitude
+    Altitude [disabled]
     Maintain altitude
       maintain altitude flyout
-  Speed
+    Speed [disabled]
     Assign speed
       speed flyout
     Speed…
       speed flyout
     Resume normal speed
     Reduce to final approach speed
-  Navigation
+    Route [disabled]
     Direct to…
       direct to flyout
-  Hold
-    Hold at fix…
-      hold at fix flyout
-    Hold present position (left)
-    Hold present position (right)
+    Proceed on course
+    Cross fix…
+      cross fix flyout
+    Depart fix…
+      depart fix flyout
+    Join airway…
+      join airway flyout
+    Join radial outbound…
+      join radial flyout
+    Join radial inbound…
+      join radial flyout
+    Climb via SID
   Approach
     Cleared approach
       approach flyout, built when it opens
@@ -57,6 +68,16 @@ All Commands
     Cleared visual approach
       approach flyout, built when it opens
     ---
+    Join STAR
+      join STAR flyout
+    PTAC…
+      ptac flyout
+    ---
+    Hold at fix…
+      hold at fix flyout
+    Hold present position (left)
+    Hold present position (right)
+  Pilot reports
     Report field in sight…
       report field in sight flyout
     Report traffic in sight… · no other aircraft airborne [disabled]
@@ -65,42 +86,45 @@ All Commands
       Report when… · AAL208 · RWY 30 [disabled]
       Mile final — ···
       Passing a fix — ···
-  Procedures
-    Join STAR
-      join STAR flyout
-    Climb via SID
-    Cross fix…
-      cross fix flyout
-    Depart fix…
-      depart fix flyout
-    PTAC…
-      ptac flyout
-    Join airway…
-      join airway flyout
-    Join radial outbound…
-      join radial flyout
-    Join radial inbound…
-      join radial flyout
-  Tower
-    Cleared to land 30
-    Force landing 30
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
     ---
-    Custom — SAY ···
-  Coordination
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track
+    Data block [disabled]
+    Scratchpad…
+      Scratchpad — SP ···
+    Temporary altitude…
+      temporary altitude flyout
+    Cruise…
+      cruise flyout
+    Annotate
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
     Release
     Hold
     Recall
     Acknowledge release
-  ---
-  Edit flight plan
+    ---
+    Edit flight plan
   ---
   Warp…
     Warp · AAL208 · now 281° · 1,000 ft · 180 kt [disabled]
@@ -113,26 +137,6 @@ All Commands
 Favorite Commands
   (no items) [disabled]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad…
-    Scratchpad — SP ···
-  Temporary altitude…
-    temporary altitude flyout
-  Cruise…
-    cruise flyout
-  Annotate
-Squawk
-  Code — SQ ···
-  ---
-  Squawk assigned code
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
 Display
   Taxi route
     Always show

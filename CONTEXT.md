@@ -587,7 +587,10 @@ The short, user-editable list of commands an aircraft's right-click menu shows f
 _Avoid_: favorites (the Favorite Commands submenu is the user's own typed commands, the same in every situation)
 
 **All Commands**:
-The aircraft menu's submenu holding every command for the aircraft in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
+The aircraft menu's submenu holding every command for the aircraft, grouped by task category in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
+
+**Task category**:
+One of the seven groups All Commands sorts its commands into, in this order: Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination (`MenuCategory`; `MenuCategories.Of` gives a catalog id's category, `Label` the group's header). An id in none (Favorites, Command…, Note…, Delete, Warp, the live-traffic, release, spawn, point-menu and For-section items) is in `MenuCategories.Uncategorized`.
 
 **Icon strip**:
 The up to fifteen glyph buttons (three rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply.

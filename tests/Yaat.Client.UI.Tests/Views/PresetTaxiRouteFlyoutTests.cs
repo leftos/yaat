@@ -134,7 +134,7 @@ public class PresetTaxiRouteFlyoutTests
             menu.Items.OfType<MenuItem>().Where(QuickCommandStrip.IsStrip).SelectMany(QuickCommandStrip.Buttons),
             b => (string)b.Tag! == MenuIds.GroundTaxiPreset
         );
-        MenuItem allCommands = Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader);
+        MenuItem allCommands = AllCommandsPath.Group(menu, MenuCategory.Taxi);
         Assert.DoesNotContain(Flatten(allCommands.Items), item => (item.Header as string) == MenuCatalog.Get(MenuIds.GroundTaxiPreset).Label);
     }
 
@@ -492,7 +492,7 @@ public class PresetTaxiRouteFlyoutTests
     /// <summary>The All Commands submenu's Preset taxi route entry.</summary>
     private static MenuItem AllCommandsPresets(ContextMenu menu) =>
         Assert.Single(
-            Flatten(Item(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items),
+            Flatten(AllCommandsPath.Group(menu, MenuCategory.Taxi).Items),
             item => (item.Header as string) == MenuCatalog.Get(MenuIds.GroundTaxiPreset).Label
         );
 

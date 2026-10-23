@@ -919,10 +919,13 @@ public class LiveRefillFlyoutTests
         menu.Open(window);
         Dispatcher.UIThread.RunJobs();
         menu.UpdateLayout();
-        MenuItem all = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
+        MenuItem all = AllCommandsPath.AllCommands(menu);
         all.IsSubMenuOpen = true;
         Dispatcher.UIThread.RunJobs();
-        MenuItem follow = all.Items.OfType<MenuItem>().Single(item => (item.Header as string) == MenuCatalog.Get(MenuIds.GroundFollow).Label);
+        MenuItem taxi = AllCommandsPath.Group(menu, MenuCategory.Taxi);
+        taxi.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        MenuItem follow = taxi.Items.OfType<MenuItem>().Single(item => (item.Header as string) == MenuCatalog.Get(MenuIds.GroundFollow).Label);
         follow.IsSubMenuOpen = true;
         Dispatcher.UIThread.RunJobs();
         LayoutSubmenu(follow);

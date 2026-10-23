@@ -27,7 +27,8 @@ public class GroundMovementMenuTests
     private const double Lon = -122.380;
 
     /// <summary>The headers of the command tree under All Commands, where the ground block and the flight groups live.</summary>
-    private static List<string> Headers(ContextMenu menu) => HeadersIn(AllCommands(menu).Items);
+    private static List<string> Headers(ContextMenu menu) =>
+        [.. HeadersIn(AllCommands(menu).Items), .. AllCommands(menu).Items.OfType<MenuItem>().SelectMany(group => HeadersIn(group.Items))];
 
     /// <summary>The headers of the menu's top level.</summary>
     private static List<string> TopHeaders(ContextMenu menu) => HeadersIn(menu.Items);
@@ -161,12 +162,12 @@ public class GroundMovementMenuTests
         ContextMenu menu = BuildWholeGroundMenu(AirborneIfr("AAL601", "ApproachNav"));
         List<string> headers = Headers(menu);
 
-        string[] expected = ["Heading", "Altitude", "Speed", "Navigation", "Approach", "Procedures", "Coordination", "Edit flight plan"];
+        string[] expected = ["Vectors", "Heading", "Altitude", "Speed", "Route", "Approach", "Coordination", "Edit flight plan"];
         Assert.All(expected, header => Assert.Contains(header, headers));
-        Assert.All(["Track", "Data Block", "Squawk"], header => Assert.Contains(header, TopHeaders(menu)));
+        Assert.All(["Track", "Data block", "Squawk"], header => Assert.Contains(header, headers));
     }
 
-    // The ground's canvas items live in its view section: one Display submenu between Squawk and Favorites, and none of
+    // The ground's canvas items live in its view section: one Display submenu after Favorites, and none of
     // them flat at the top level or in the command tree.
     [AvaloniaFact]
     public void GroundMenu_DisplayIsASubmenuInTheViewSection()
@@ -179,7 +180,7 @@ public class GroundMovementMenuTests
         Assert.Equal(["Taxi route", "Hide datablock", "Measure from UAL100"], displayHeaders);
 
         int displayIndex = items.IndexOf(display);
-        Assert.Equal("Squawk", Assert.IsType<MenuItem>(items[displayIndex - 1]).Header);
+        Assert.IsType<Separator>(items[displayIndex - 1]);
         Assert.IsType<Separator>(items[displayIndex + 1]);
         Assert.Contains("Edit flight plan", Headers(menu));
 

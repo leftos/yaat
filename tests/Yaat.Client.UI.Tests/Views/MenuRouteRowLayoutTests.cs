@@ -68,7 +68,10 @@ public class MenuRouteRowLayoutTests
         MenuItem allCommands = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == AircraftMenuBuilder.AllCommandsHeader);
         allCommands.Open();
         Render();
-        MenuItem submenu = allCommands.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Preset taxi route");
+        MenuItem taxi = AllCommandsPath.Group(menu, MenuCategory.Taxi);
+        taxi.Open();
+        Render();
+        MenuItem submenu = taxi.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Preset taxi route");
         submenu.Open();
         Render();
 

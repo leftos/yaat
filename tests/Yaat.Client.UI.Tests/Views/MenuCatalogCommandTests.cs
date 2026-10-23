@@ -1354,17 +1354,29 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void NavigationGroup_OffersAppendDirectToOnlyWhileNavigating()
+    public void RouteBlock_OffersAppendDirectToOnlyWhileNavigating()
     {
         var host = new RecordingMenuHost("");
-        MenuItem idle = SharedMenuGroups.Navigation(new FakeMenuAircraft(), Context(), host);
-        MenuItem navigating = SharedMenuGroups.Navigation(new FakeMenuAircraft { NavigatingTo = Fix }, Context(), host);
+        MenuItem idle = SharedMenuGroups.Route(new FakeMenuAircraft(), Context(), host);
+        MenuItem navigating = SharedMenuGroups.Route(new FakeMenuAircraft { NavigatingTo = Fix }, Context(), host);
 
-        Assert.Equal("Navigation", idle.Header as string);
-        Assert.Equal(["Direct to…"], idle.Items.Select(Describe));
-        Assert.Equal("Navigation (→ SUNOL)", navigating.Header as string);
-        Assert.Equal(["Direct to…", "Append direct to…"], navigating.Items.Select(Describe));
+        Assert.Equal("Route", idle.Header as string);
+        Assert.Equal(["Direct to…", .. RouteTail], idle.Items.Select(Describe));
+        Assert.Equal("Route (→ SUNOL)", navigating.Header as string);
+        Assert.Equal(["Direct to…", "Append direct to…", .. RouteTail], navigating.Items.Select(Describe));
     }
+
+    /// <summary>The Route block's rows after Direct to… and Append direct to….</summary>
+    private static readonly string[] RouteTail =
+    [
+        "Proceed on course",
+        "Cross fix…",
+        "Depart fix…",
+        "Join airway…",
+        "Join radial outbound…",
+        "Join radial inbound…",
+        "Climb via SID",
+    ];
 
     /// <summary>A circling approach id splits into its kind, its full published kind and its variant letter.</summary>
     [Theory]
@@ -1381,7 +1393,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "30" };
 
-        MenuItem approach = SharedMenuGroups.Approach(aircraft, Context(), host);
+        MenuItem approach = SharedMenuGroups.Approach(aircraft, Context(), host)!;
 
         Assert.Equal(
             [
@@ -1488,8 +1500,8 @@ public class MenuCatalogCommandTests
         Assert.Equal(MenuFlightRules.IfrOnly, entry.DefaultFlightRules);
         Assert.True(entry.IsApplicable(ifr, Context()));
         Assert.False(entry.IsApplicable(vfr, Context()));
-        Assert.Contains("Cleared visual approach", SharedMenuGroups.Approach(ifr, Context(), host).Items.Select(Describe));
-        Assert.DoesNotContain("Cleared visual approach", SharedMenuGroups.Approach(vfr, Context(), host).Items.Select(Describe));
+        Assert.Contains("Cleared visual approach", SharedMenuGroups.Approach(ifr, Context(), host)!.Items.Select(Describe));
+        Assert.DoesNotContain("Cleared visual approach", SharedMenuGroups.Approach(vfr, Context(), host)!.Items.Select(Describe));
     }
 
     /// <summary>An IFR arrival to <see cref="ApproachAirport"/> that has reported the field in sight, so its visual rows are live.</summary>
@@ -2165,14 +2177,14 @@ public class MenuCatalogCommandTests
     {
         var host = new RecordingMenuHost("");
 
-        Assert.Equal("Approach", SharedMenuGroups.Approach(new FakeMenuAircraft(), Context(), host).Header as string);
+        Assert.Equal("Approach", SharedMenuGroups.Approach(new FakeMenuAircraft(), Context(), host)!.Header as string);
         Assert.Equal(
             "Approach (exp: I28R)",
-            SharedMenuGroups.Approach(new FakeMenuAircraft { ExpectedApproach = ApproachId }, Context(), host).Header as string
+            SharedMenuGroups.Approach(new FakeMenuAircraft { ExpectedApproach = ApproachId }, Context(), host)!.Header as string
         );
         Assert.Equal(
             "Approach (I30)",
-            SharedMenuGroups.Approach(new FakeMenuAircraft { ActiveApproachId = "I30", ExpectedApproach = ApproachId }, Context(), host).Header
+            SharedMenuGroups.Approach(new FakeMenuAircraft { ActiveApproachId = "I30", ExpectedApproach = ApproachId }, Context(), host)!.Header
                 as string
         );
     }
@@ -2218,7 +2230,7 @@ public class MenuCatalogCommandTests
 
         AssertUnavailable(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host), "Join STAR", "no STARs at KLVK");
         AssertUnavailable(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(new FakeMenuAircraft(), Context(), host), "Join STAR", "no destination");
-        Assert.Contains("Descend via STAR", SharedMenuGroups.Procedures(aircraft, Context(), host).Items.Select(Describe));
+        Assert.Contains("Descend via STAR", SharedMenuGroups.Approach(aircraft, Context(), host)!.Items.Select(Describe));
     }
 
     /// <summary>
@@ -2307,7 +2319,7 @@ public class MenuCatalogCommandTests
         panel.Strip.Select(1);
         Assert.Equal("OAKES3 ◆ | [AANET1] | EMZOH4 | PIRAT3 | PXN6 | WNDSR2", panel.Lines[1]);
         Assert.Equal("Join · nearest fix ahead — JARR AANET1", panel.Lines[2]);
-        Assert.DoesNotContain("Descend via STAR", SharedMenuGroups.Procedures(aircraft, Context(), host).Items.Select(Describe));
+        Assert.DoesNotContain("Descend via STAR", SharedMenuGroups.Approach(aircraft, Context(), host)!.Items.Select(Describe));
     }
 
     /// <summary>With no STAR filed, the Join STAR flyout's tabs are alphabetical and the first is selected.</summary>
