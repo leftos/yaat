@@ -189,6 +189,7 @@ public class AiAnsweredCallupE2ETests
             IsScenarioScripted = true,
             FacilityHint = null,
             LayoutForAirport = null,
+            SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
         BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);

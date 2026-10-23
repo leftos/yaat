@@ -97,6 +97,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = facilityHint ?? Scenario?.StudentPosition?.FacilityId,
             LayoutForAirport = ResolveAirportLayout,
+            SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
     }
 
@@ -183,6 +184,12 @@ public sealed partial class SimulationEngine
         bool human = origin == DispatchOrigin.Human;
         double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
         BravoClearanceWording? bravoGrant = null;
+        // Whether the controller had acknowledged the pilot's contact before this command, so the read-back to the command
+        // that acknowledges it keeps the full callsign: read before the registration below, and false for a compound
+        // carrying a STBY/ROGER, whose dispatch has already set the flag.
+        bool acknowledgedBefore =
+            aircraft.HasControllerAcknowledgedInitialContact
+            && !compound.Blocks.SelectMany(b => b.Commands).Any(c => c is AcknowledgePilotContactCommand);
 
         if (result.Success)
         {
@@ -221,23 +228,13 @@ public sealed partial class SimulationEngine
 
         if (result.Success && answering)
         {
-            FrequencyActivityLevel activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
-            SimScenarioState scenario =
-                Scenario ?? throw new InvalidOperationException($"{aircraft.Callsign}: a pilot answering a dispatch needs a loaded scenario.");
-            // The pilot speaks at the band its trait shifts the meter to; the raw band stamped on the transmission for the
-            // speech rate never reads the trait.
-            var speechContext = new PilotSpeechContext(
-                PilotPersonality.Varied,
-                PilotTraits.EffectiveBand(activityLevel.ToLoadBand(), PilotTraits.For(aircraft.Callsign, scenario.RngSeed)),
-                scenario.RngSeed,
-                (int)Math.Floor(elapsedSeconds)
-            );
+            PilotSpeechContext speechContext = PilotSpeechContextFor(aircraft, acknowledgedBefore);
             PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext);
             if (readback is not null)
             {
                 if (bravoGrant is { } wording)
                 {
-                    readback = PilotResponder.WithBravoClearance(aircraft, readback, wording);
+                    readback = PilotResponder.WithBravoClearance(aircraft, readback, wording, speechContext);
                 }
 
                 World.ExpectPilotReadback(aircraft.Callsign, elapsedSeconds);
@@ -250,6 +247,58 @@ public sealed partial class SimulationEngine
             }
         }
     }
+
+    /// <summary>
+    /// The spoken-wording context of a pilot's read-back now: <see cref="PilotSpeechContext.Canonical"/> unless a pilot is
+    /// answering, else the varied personality at the band the pilot's trait shifts the frequency's activity to (the raw
+    /// band stamped on the transmission for the speech rate never reads the trait), the scenario seed, the whole second,
+    /// whether the pilot abbreviates its N-number (<see cref="SpokenFormDraws.CanShortenCallsign"/> against the other
+    /// aircraft on the frequency, then <see cref="SpokenFormDraws.DrawShortCallsign"/>) and whether a contact read-back
+    /// groups its frequency (<see cref="SpokenFormDraws.DrawGroupedContactFrequency"/>).
+    /// </summary>
+    /// <param name="aircraft">The aircraft reading back.</param>
+    /// <param name="acknowledgedBefore">Whether the controller had acknowledged the pilot's contact before this command.</param>
+    private PilotSpeechContext PilotSpeechContextFor(AircraftState aircraft, bool acknowledgedBefore)
+    {
+        if ((Scenario is not { } scenario) || !scenario.PilotContacts.AnyAnswering)
+        {
+            return PilotSpeechContext.Canonical;
+        }
+
+        double elapsedSeconds = scenario.ElapsedSeconds;
+        int second = (int)Math.Floor(elapsedSeconds);
+        FrequencyLoadBand band = PilotTraits.EffectiveBand(
+            World.ActiveFrequency.GetActivityLevel(elapsedSeconds).ToLoadBand(),
+            PilotTraits.For(aircraft.Callsign, scenario.RngSeed)
+        );
+        bool shortenCallsign =
+            SpokenFormDraws.CanShortenCallsign(
+                aircraft.Callsign,
+                acknowledgedBefore,
+                aircraft.HasLeftStudentFrequency,
+                OtherCallsignsOnFrequency(aircraft)
+            ) && SpokenFormDraws.DrawShortCallsign(aircraft.Callsign, scenario.RngSeed, second);
+        return new PilotSpeechContext(PilotPersonality.Varied, band, scenario.RngSeed, second)
+        {
+            ShortenCallsign = shortenCallsign,
+            GroupContactFrequency = SpokenFormDraws.DrawGroupedContactFrequency(aircraft.Callsign, band, scenario.RngSeed, second),
+        };
+    }
+
+    /// <summary>
+    /// The callsigns of the other aircraft still on the student's frequency: live in the session, not shadow traffic, and
+    /// not yet sent to another controller.
+    /// </summary>
+    private IEnumerable<string> OtherCallsignsOnFrequency(AircraftState aircraft) =>
+        World
+            .GetSnapshot()
+            .Where(other =>
+                !ReferenceEquals(other, aircraft)
+                && !other.IsShadow
+                && (other.CompletionReason == CompletionReason.Active)
+                && !other.HasLeftStudentFrequency
+            )
+            .Select(other => other.Callsign);
 
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
     {

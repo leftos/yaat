@@ -933,7 +933,7 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
-    /// Spoken radio frequency per FAA 7110.65 §2-4-16: separate digits before and after the decimal,
+    /// Spoken radio frequency per FAA 7110.65 §2-4-17.k.1: separate digits before and after the decimal,
     /// "point" at the decimal. Truncates after the second fractional digit; drops trailing zeros so
     /// 121.5 MHz reads "one two one point five" (not "...point five zero"). Whole numbers like
     /// 369.0 read "three six nine point zero" (single zero after point).
@@ -942,7 +942,7 @@ public static class PhraseologyVerbalizer
     {
         int integerPart = (int)Math.Floor(mhz);
         double fractional = mhz - integerPart;
-        // 7110.65 §2-4-16: omit digits after the second decimal — truncate, don't round.
+        // 7110.65 §2-4-17.k.1: omit digits after the second decimal — truncate, don't round.
         // The 1e-9 nudge absorbs binary-fp drift (e.g. 119.6 → 119.60000000000001) so
         // 119.6 reads "point six" instead of "point five nine".
         int hundredths = (int)Math.Floor(fractional * 100 + 1e-9);
@@ -964,6 +964,27 @@ public static class PhraseologyVerbalizer
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Spoken radio frequency, grouped the way a pilot on a busy frequency says it when <paramref name="grouped"/>: the
+    /// leading 1 dropped and the digits paired ("twenty five thirty five" for 125.35, "twenty one point five" for 121.5).
+    /// Only a frequency from 110 to 199 MHz whose first decimal is not 0 groups; any other frequency, and every frequency
+    /// when <paramref name="grouped"/> is false, reads as <see cref="FrequencyToWords(double)"/>. Truncates after the
+    /// second decimal as that method does.
+    /// </summary>
+    public static string FrequencyToWords(double mhz, bool grouped)
+    {
+        int integerPart = (int)Math.Floor(mhz);
+        int hundredths = (int)Math.Floor((mhz - integerPart) * 100 + 1e-9);
+        int tenths = hundredths / 10;
+        if (!grouped || (integerPart < 110) || (integerPart > 199) || (tenths == 0))
+        {
+            return FrequencyToWords(mhz);
+        }
+
+        string megahertz = TwoDigitWords(integerPart - 100);
+        return (hundredths % 10) == 0 ? $"{megahertz} point {SpellDigit((char)('0' + tenths))}" : $"{megahertz} {TwoDigitWords(hundredths)}";
     }
 
     private static string SpellDigit(char c) =>

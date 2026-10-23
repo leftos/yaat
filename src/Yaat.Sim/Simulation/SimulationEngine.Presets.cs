@@ -309,6 +309,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             LayoutForAirport = ResolveAirportLayout,
+            SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         // The pilot's "ready for departure" call is answered even though the automated tower issued the
@@ -440,6 +441,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = scenario.StudentPosition?.FacilityId,
             LayoutForAirport = ResolveAirportLayout,
+            SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
     }
 
@@ -557,6 +559,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             LayoutForAirport = ResolveAirportLayout,
+            SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
         TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
         CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);

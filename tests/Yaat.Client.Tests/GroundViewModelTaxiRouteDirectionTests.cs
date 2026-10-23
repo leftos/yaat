@@ -10,6 +10,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.Tests;
@@ -86,6 +87,7 @@ public class GroundViewModelTaxiRouteDirectionTests
             IsScenarioScripted = false,
             FacilityHint = null,
             LayoutForAirport = null,
+            SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI S HS B");
         Assert.True(parsed.IsSuccess, parsed.Reason);

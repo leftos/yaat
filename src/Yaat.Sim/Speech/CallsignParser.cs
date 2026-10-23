@@ -198,6 +198,23 @@ public static class CallsignParser
     }
 
     /// <summary>
+    /// The abbreviated spoken form of an FAA N-number: "november" and its last three characters, spelled as
+    /// <see cref="GetSpokenVariants"/> spells its last-three form ("N123AB" → "november three alpha bravo"), which a pilot
+    /// may use once the controller has abbreviated it (AIM 4-2-4.a.2). Null for any callsign that is not an N-number of at
+    /// least five characters: airline, military and other callsigns are never abbreviated this way.
+    /// </summary>
+    public static string? ShortenedNNumberSpoken(string icaoCallsign)
+    {
+        string upper = icaoCallsign.Trim().ToUpperInvariant();
+        if (!IsUsGa(upper) || (upper.Length < 5))
+        {
+            return null;
+        }
+
+        return "november " + string.Join(' ', upper[^3..].Select(SpellChar));
+    }
+
+    /// <summary>
     /// Return every reasonable spoken form of a callsign for Whisper <c>initial_prompt</c> seeding.
     /// Caller pumps the full list into the prompt so transcription is primed for any form a pilot
     /// might use.

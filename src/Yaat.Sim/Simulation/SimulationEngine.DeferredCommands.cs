@@ -200,6 +200,7 @@ public sealed partial class SimulationEngine
                     IsScenarioScripted = d.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
                     LayoutForAirport = ResolveAirportLayout,
+                    SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
                 };
                 CommandResult deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
                 if (!deferredResult.Success)

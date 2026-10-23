@@ -69,9 +69,10 @@ public static class ContactCommandHandler
             aircraft.Ground.ReleasedToGround = true;
         }
 
+        PilotSpeechContext speechContext = ctx.SpeechContextFor(aircraft);
         PilotSpeechText pilotSpeech = frequencyMhz is double freq
-            ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq)
-            : BuildContactReadbackNoFreq(aircraft, facilityName);
+            ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq, speechContext)
+            : BuildContactReadbackNoFreq(aircraft, facilityName, speechContext);
         string warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
         Route(aircraft, ctx, pilotSpeech, warning);
         StampHandoffCompletion(aircraft, ctx, handoffDetail);
@@ -87,7 +88,7 @@ public static class ContactCommandHandler
     public static CommandResult HandleFrequencyChangeApproved(AircraftState aircraft, DispatchContext ctx)
     {
         aircraft.Ground.ReleasedToGround = true;
-        PilotSpeechText pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft);
+        PilotSpeechText pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft, ctx.SpeechContextFor(aircraft));
         Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved");
         StampHandoffCompletion(aircraft, ctx, detail: null);
         return new CommandResult(true, "");
@@ -131,9 +132,9 @@ public static class ContactCommandHandler
         PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);
     }
 
-    private static Pilot.PilotSpeechText BuildContactReadbackNoFreq(AircraftState aircraft, string facilityName)
+    private static Pilot.PilotSpeechText BuildContactReadbackNoFreq(AircraftState aircraft, string facilityName, PilotSpeechContext speechContext)
     {
-        string spoken = Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        string spoken = PilotResponder.SpokenReadbackCallsign(aircraft, speechContext);
         return new Pilot.PilotSpeechText($"{facilityName}, so long.", $"{facilityName}, {spoken}, so long.");
     }
 

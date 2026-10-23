@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
@@ -56,5 +57,6 @@ internal static class TestDispatch
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = null,
             LayoutForAirport = null,
+            SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
 }

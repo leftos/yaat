@@ -328,6 +328,23 @@ public class CallsignParserTests
         Assert.Equal("", CallsignParser.IcaoToSpoken("   "));
     }
 
+    // --- ShortenedNNumberSpoken ---
+
+    [Theory]
+    [InlineData("N123AB", "november three alpha bravo")]
+    [InlineData("N12AB", "november two alpha bravo")]
+    [InlineData("N1234", "november two three four")]
+    [InlineData("n123ab", "november three alpha bravo")]
+    public void ShortenedNNumberSpoken_NNumber_IsNovemberAndTheLastThree(string callsign, string expected) =>
+        Assert.Equal(expected, CallsignParser.ShortenedNNumberSpoken(callsign));
+
+    [Theory]
+    [InlineData("N12A")]
+    [InlineData("AAL123")]
+    [InlineData("NASA1")]
+    [InlineData("")]
+    public void ShortenedNNumberSpoken_NotAnEligibleNNumber_IsNull(string callsign) => Assert.Null(CallsignParser.ShortenedNNumberSpoken(callsign));
+
     // --- GetSpokenVariants: airline ---
 
     [Fact]

@@ -241,17 +241,24 @@ public static partial class PilotResponder
         string termBody = string.Join(", then ", blockTermTexts);
         string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), termBody, compound, speechContext);
         string rpoBody = string.Join(", then ", blockRpoTexts);
-        return FrameReadback(aircraft, termBody, ttsBody, rpoBody);
+        return FrameReadback(aircraft, speechContext, termBody, ttsBody, rpoBody);
     }
 
     /// <summary>
     /// Frames a readback into its delivered forms: the terminal SAY message (compact body, no
-    /// callsign — the SAY column carries it), the spoken TTS line (body + spelled callsign), and the
-    /// RPO terminal body when a clause carries a diagnostic the solo student must not see.
+    /// callsign — the SAY column carries it), the spoken TTS line (body + spelled callsign, abbreviated when
+    /// <paramref name="speechContext"/> says so), and the RPO terminal body when a clause carries a diagnostic the solo
+    /// student must not see.
     /// </summary>
-    private static PilotSpeechText FrameReadback(AircraftState aircraft, string terminalBody, string ttsBody, string rpoBody)
+    private static PilotSpeechText FrameReadback(
+        AircraftState aircraft,
+        PilotSpeechContext speechContext,
+        string terminalBody,
+        string ttsBody,
+        string rpoBody
+    )
     {
-        string spoken = SpokenOwnCallsign(aircraft);
+        string spoken = SpokenReadbackCallsign(aircraft, speechContext);
         return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."))
         {
             RpoTerminal = string.Equals(rpoBody, terminalBody, StringComparison.Ordinal) ? null : rpoBody,
@@ -269,6 +276,22 @@ public static partial class PilotResponder
         string spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
         string? suffix = WakeClassSuffix(aircraft);
         return suffix is null ? spoken : $"{spoken} {suffix}";
+    }
+
+    /// <summary>
+    /// The callsign a readback closes with: the abbreviated N-number (<see cref="CallsignParser.ShortenedNNumberSpoken"/>)
+    /// when <paramref name="speechContext"/> says the pilot abbreviates it and the callsign has a short form, else the full
+    /// <see cref="SpokenOwnCallsign"/>; the wake-class suffix follows either (AIM 4-2-4.a.5).
+    /// </summary>
+    public static string SpokenReadbackCallsign(AircraftState aircraft, PilotSpeechContext speechContext)
+    {
+        if (!speechContext.ShortenCallsign || (CallsignParser.ShortenedNNumberSpoken(aircraft.Callsign) is not { } shortened))
+        {
+            return SpokenOwnCallsign(aircraft);
+        }
+
+        string? suffix = WakeClassSuffix(aircraft);
+        return suffix is null ? shortened : $"{shortened} {suffix}";
     }
 
     /// <summary>
@@ -1408,15 +1431,22 @@ public static partial class PilotResponder
     /// controller side reads "contact (facility) on (frequency)"; the pilot drops the verb,
     /// repeats the frequency for confirmation, and signs off. Output:
     /// <c>"[N123AB] approach on one two five point three five, november one two three alpha bravo, so long."</c>
+    /// <paramref name="speechContext"/> may abbreviate the callsign and group the spoken frequency
+    /// ("twenty five thirty five"); the terminal text always carries the frequency in figures.
     /// </summary>
-    public static PilotSpeechText BuildContactReadback(AircraftState aircraft, string facilityName, double frequencyMhz)
+    public static PilotSpeechText BuildContactReadback(
+        AircraftState aircraft,
+        string facilityName,
+        double frequencyMhz,
+        PilotSpeechContext speechContext
+    )
     {
-        string spoken = SpokenOwnCallsign(aircraft);
+        string spoken = SpokenReadbackCallsign(aircraft, speechContext);
         // Caller decides casing — pass Position.RadioName ("NorCal Approach") or the
         // capitalized FacilityShortname fallback ("Approach"), which reads sentence-initial.
         return new PilotSpeechText(
             $"{facilityName} on {frequencyMhz.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}, so long.",
-            $"{facilityName} on {PhraseologyVerbalizer.FrequencyToWords(frequencyMhz)}, {spoken}, so long."
+            $"{facilityName} on {PhraseologyVerbalizer.FrequencyToWords(frequencyMhz, speechContext.GroupContactFrequency)}, {spoken}, so long."
         );
     }
 
@@ -1426,9 +1456,9 @@ public static partial class PilotResponder
     /// don't recite it verbatim. Real readback (per AIM 4-2-3 ¶3) is a sign-off:
     /// <c>"[N123AB] november one two three alpha bravo, good day."</c>
     /// </summary>
-    public static PilotSpeechText BuildFrequencyChangeApproved(AircraftState aircraft)
+    public static PilotSpeechText BuildFrequencyChangeApproved(AircraftState aircraft, PilotSpeechContext speechContext)
     {
-        string spoken = SpokenOwnCallsign(aircraft);
+        string spoken = SpokenReadbackCallsign(aircraft, speechContext);
         return new PilotSpeechText("good day.", $"{spoken}, good day.");
     }
 
@@ -2138,10 +2168,15 @@ public static partial class PilotResponder
     /// the spoken form gains it ahead of the closing callsign (<c>"fly heading zero nine zero, cleared into the bravo,
     /// november …"</c>), or at the end when the readback does not close with the callsign.
     /// </summary>
-    public static PilotSpeechText WithBravoClearance(AircraftState aircraft, PilotSpeechText readback, BravoClearanceWording wording)
+    public static PilotSpeechText WithBravoClearance(
+        AircraftState aircraft,
+        PilotSpeechText readback,
+        BravoClearanceWording wording,
+        PilotSpeechContext speechContext
+    )
     {
         string clause = $", cleared {BravoPreposition(wording)} the bravo";
-        string callsignTail = NormalizeForTts($", {SpokenOwnCallsign(aircraft)}.");
+        string callsignTail = NormalizeForTts($", {SpokenReadbackCallsign(aircraft, speechContext)}.");
         string tts = readback.Tts.EndsWith(callsignTail, StringComparison.Ordinal)
             ? readback.Tts[..^callsignTail.Length] + clause + callsignTail
             : readback.Tts.TrimEnd('.') + clause + ".";

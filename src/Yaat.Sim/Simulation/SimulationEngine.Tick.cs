@@ -176,6 +176,7 @@ public sealed partial class SimulationEngine
                     IsScenarioScripted = block.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
                     LayoutForAirport = ResolveAirportLayout,
+                    SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
                 };
 
                 if (!CommandDispatcher.RehydrateRestoredBlock(block, aircraft, ctx))

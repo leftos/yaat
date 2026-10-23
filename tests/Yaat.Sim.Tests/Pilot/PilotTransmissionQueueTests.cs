@@ -485,6 +485,151 @@ public sealed class PilotTransmissionQueueTests
     }
 
     [Fact]
+    public void SendCommand_SoloTraining_AbbreviatesTheNNumberOnlyAfterTheControllerAcknowledged()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        // Two seconds at which this pilot's seeded draw abbreviates its callsign, so only the acknowledgement decides.
+        int[] shortSeconds = [.. ShortCallsignSeconds("N123AB", from: 30).Take(2)];
+
+        engine.Scenario!.ElapsedSeconds = shortSeconds[0];
+        CommandResult first = engine.SendCommand("N123AB", "DM 5000");
+        engine.Scenario!.ElapsedSeconds = shortSeconds[1];
+        CommandResult second = engine.SendCommand("N123AB", "FH 270");
+
+        Assert.True(first.Success, first.Message);
+        Assert.True(second.Success, second.Message);
+        Assert.Equal(2, aircraft.PendingPilotTransmissions.Count);
+        // The readback to the acknowledging command keeps the full callsign; the next one is abbreviated.
+        Assert.EndsWith(", november one two three alpha bravo.", aircraft.PendingPilotTransmissions[0].SpeechText);
+        Assert.EndsWith(", november three alpha bravo.", aircraft.PendingPilotTransmissions[1].SpeechText);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_StandbyChainedIntoTheFirstCommandKeepsTheFullCallsign()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario!.ElapsedSeconds = ShortCallsignSeconds("N123AB", from: 30).First();
+
+        CommandResult result = engine.SendCommand("N123AB", "STBY, FH 270");
+
+        Assert.True(result.Success, result.Message);
+        // The standby is the acknowledgement itself, so the readback to it is not after one.
+        Assert.EndsWith(", november one two three alpha bravo.", aircraft.PendingPilotTransmissions[^1].SpeechText);
+    }
+
+    [Theory]
+    [InlineData(false, ", november one two three alpha bravo.")]
+    [InlineData(true, ", november three alpha bravo.")]
+    public void SendCommand_SoloTraining_SimilarCallsignStillOnTheFrequencyKeepsTheFullCallsign(bool otherLeftFrequency, string expectedTail)
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        AircraftState similar = NewAircraft("N456AB");
+        similar.HasLeftStudentFrequency = otherLeftFrequency;
+        engine.World.AddAircraft(aircraft);
+        engine.World.AddAircraft(similar);
+        int[] shortSeconds = [.. ShortCallsignSeconds("N123AB", from: 30).Take(2)];
+
+        engine.Scenario!.ElapsedSeconds = shortSeconds[0];
+        Assert.True(engine.SendCommand("N123AB", "DM 5000").Success);
+        engine.Scenario!.ElapsedSeconds = shortSeconds[1];
+        CommandResult result = engine.SendCommand("N123AB", "FH 270");
+
+        Assert.True(result.Success, result.Message);
+        Assert.EndsWith(expectedTail, aircraft.PendingPilotTransmissions[^1].SpeechText);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_FrequencyChangeApprovedAfterAcknowledgementShortens()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        int[] shortSeconds = [.. ShortCallsignSeconds("N123AB", from: 30).Take(2)];
+
+        engine.Scenario!.ElapsedSeconds = shortSeconds[0];
+        Assert.True(engine.SendCommand("N123AB", "DM 5000").Success);
+        engine.Scenario!.ElapsedSeconds = shortSeconds[1];
+        CommandResult result = engine.SendCommand("N123AB", "FCA");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(aircraft.PendingPilotTransmissions, t => t.SpeechText == "november three alpha bravo, good day.");
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_NoAbbreviatedCallsignAfterContactingTheNextController()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        engine.Scenario!.ArtccConfig = TestArtccConfig.LoadZoa() ?? throw new InvalidOperationException("ZOA snapshot missing");
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        int[] shortSeconds = [.. ShortCallsignSeconds("N123AB", from: 30).Take(3)];
+
+        engine.Scenario!.ElapsedSeconds = shortSeconds[0];
+        Assert.True(engine.SendCommand("N123AB", "DM 5000").Success);
+        engine.Scenario!.ElapsedSeconds = shortSeconds[1];
+        Assert.True(engine.SendCommand("N123AB", "CT OAK_TWR").Success);
+        engine.Scenario!.ElapsedSeconds = shortSeconds[2];
+        CommandResult afterContact = engine.SendCommand("N123AB", "FH 270");
+
+        Assert.True(afterContact.Success, afterContact.Message);
+        Assert.True(aircraft.HasLeftStudentFrequency);
+        // The contact readback itself is still on the student's frequency, after the acknowledgement.
+        PilotTransmission contactReadback = Assert.Single(aircraft.PendingPilotTransmissions, t => t.SpeechText.EndsWith(", so long."));
+        Assert.EndsWith(", november three alpha bravo, so long.", contactReadback.SpeechText);
+        Assert.EndsWith(", november one two three alpha bravo.", aircraft.PendingPilotTransmissions[^1].SpeechText);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_BusyContactReadbackGroupsTheFrequency()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        engine.Scenario!.ArtccConfig = TestArtccConfig.LoadZoa() ?? throw new InvalidOperationException("ZOA snapshot missing");
+        // N0000A is terse at seed 1 (PilotTraitsTests.For_IsPinned): at a busy meter it speaks at the busy band.
+        AircraftState aircraft = NewAircraft("N0000A");
+        engine.World.AddAircraft(aircraft);
+        int second = Enumerable.Range(30, 200).First(s => SpokenFormDraws.DrawGroupedContactFrequency("N0000A", FrequencyLoadBand.Busy, 1, s));
+        engine.Scenario!.ElapsedSeconds = second;
+        // 13 pilot transmissions: Busy before the controller's CT is counted, which is the level the contact readback reads.
+        for (int i = 0; i < 13; i++)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(second - 12 + i);
+        }
+
+        CommandResult result = engine.SendCommand("N0000A", "CT OAK_G_APP");
+
+        Assert.True(result.Success, result.Message);
+        PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        Assert.StartsWith("NorCal Approach on twenty five thirty five, ", transmission.SpeechText);
+        Assert.Contains("125.35", transmission.Text);
+    }
+
+    private static IEnumerable<int> ShortCallsignSeconds(string callsign, int from) =>
+        Enumerable.Range(from, 1000).Where(s => SpokenFormDraws.DrawShortCallsign(callsign, rngSeed: 1, elapsedSecond: s));
+
+    [Fact]
     public void SendCommand_NonSolo_DoesNotQueueVariedReadback()
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())

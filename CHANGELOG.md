@@ -30,6 +30,8 @@
 - In solo sessions, your own transmissions count toward how busy pilots judge the frequency, and a rewind keeps that judgement.
 - In solo sessions, pilots speak about 10% faster than your Speech Speed setting while the frequency is busy.
 - In solo sessions, the terminal always shows the full readback; only the spoken one shortens on a busy frequency, keeping every number and direction.
+- In solo sessions, an N-number pilot may read back with a short callsign ("november three alpha bravo") once you've acknowledged its call.
+- In solo sessions, pilots on a busy frequency often read back a contact frequency grouped, such as "twenty five thirty five" for 125.35.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.

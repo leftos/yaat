@@ -200,8 +200,9 @@ Example: Alright, we'll turn left heading 200, N696CL, thanks.
 
 When the radio is busy, pilots are much more likely to drop the leading 1 in frequency
 readbacks AND switch to grouped-digit speech: `"twenty-two seventy-five"` instead of
-`"one two two point seven five"`. Requires per-frequency activity tracking; defer until we
-have meaningful frequency state.
+`"one two two point seven five"`. **Implemented** for the spoken contact readback only
+(`SpokenFormDraws.DrawGroupedContactFrequency`, `PhraseologyVerbalizer.FrequencyToWords(double, bool)`;
+see `docs/solo-training-pilot-speech.md`).
 
 ### FAA: drop trailing 5 in `.XX5`
 
@@ -214,11 +215,12 @@ here so future readers know the rule exists but is intentionally elided.
 
 After initial contact, FAA domestic GA callsigns (e.g. `N835LC`, but **NOT** foreign GA like
 `CLDTS`) can be shortened to `N` + last 3 chars: `"N5LC"`. Also `[type] [last-3]`:
-`"Cessna 5LC"`, `"Bonanza 5LC"`. Requires:
+`"Cessna 5LC"`, `"Bonanza 5LC"`.
 
-- `aircraft.HasEstablishedContactWith[facility]` state (to gate "after initial contact").
-- `aircraft.IsDomesticGa` classification (to exclude foreign tails).
-- Aircraft-type lookup for `[type] 5LC` form.
+**Implemented:** the `N` + last three form, spoken ("november three alpha bravo"), gated on
+`HasControllerAcknowledgedInitialContact` and drawn by `SpokenFormDraws`
+(see `docs/solo-training-pilot-speech.md`). **Not implemented:** the `[type] [last-3]` form,
+which would need an aircraft-type lookup for the `[type] 5LC` spoken form.
 
 Foreign GA callsigns are NEVER shortened by FAA controllers in spoken transmissions.
 
@@ -226,7 +228,7 @@ Foreign GA callsigns are NEVER shortened by FAA controllers in spoken transmissi
 
 After initial contact, ICAO callsigns shorten to first letter + last two letters:
 `"D-IACG"` → `"Delta Charlie Golf"`. Requires the same initial-contact state plus a
-locale flag (`PilotLocale.Faa` / `PilotLocale.Icao`). **Not implemented** (out of scope per `docs/plans/pilot-phraseology-variation.md`).
+locale flag (`PilotLocale.Faa` / `PilotLocale.Icao`). **Not implemented**: the first-letter-plus-last-two form is out of scope per `docs/plans/pilot-phraseology-variation.md`, unlike the N-number shortening above.
 
 ---
 

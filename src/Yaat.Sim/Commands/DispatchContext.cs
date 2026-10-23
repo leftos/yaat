@@ -1,6 +1,7 @@
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
@@ -113,6 +114,13 @@ public sealed record DispatchContext
     /// stays as it is.
     /// </summary>
     public required Func<string, AirportGroundLayout?>? LayoutForAirport { get; init; }
+
+    /// <summary>
+    /// The spoken-wording context a handler-built pilot transmission (the CT and FCA readbacks) uses for an aircraft:
+    /// the engine's live band, seed, second and abbreviation draws when a pilot is answering, else
+    /// <see cref="PilotSpeechContext.Canonical"/>. Read before the controller's transmission is counted on the frequency.
+    /// </summary>
+    public required Func<AircraftState, PilotSpeechContext> SpeechContextFor { get; init; }
 
     /// <summary>
     /// The id of the transmission being dispatched when it carries a crossing restriction (a CFIX or a constrained

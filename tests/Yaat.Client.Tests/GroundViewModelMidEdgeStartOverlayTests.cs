@@ -9,6 +9,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.Tests;
@@ -527,6 +528,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
             IsScenarioScripted = false,
             FacilityHint = null,
             LayoutForAirport = null,
+            SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
 
     private static LatLon Along(LatLon from, LatLon to, double fraction) =>

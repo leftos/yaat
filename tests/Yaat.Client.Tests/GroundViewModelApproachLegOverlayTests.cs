@@ -10,6 +10,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.Tests;
@@ -137,6 +138,7 @@ public class GroundViewModelApproachLegOverlayTests
             IsScenarioScripted = false,
             FacilityHint = null,
             LayoutForAirport = null,
+            SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
         CommandResult result = CommandDispatcher.Dispatch(new TaxiCommand(["T7A"], [], Expedite: false, DestinationSpot: "7A"), aircraft, ctx);
         Assert.True(result.Success, result.Message);

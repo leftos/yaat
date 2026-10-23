@@ -88,7 +88,15 @@ public class PilotResponderTests
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
         string? result = PilotResponder
-            .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0))
+            .BuildReadback(
+                compound,
+                ac,
+                new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+                {
+                    ShortenCallsign = false,
+                    GroupContactFrequency = false,
+                }
+            )
             ?.Tts;
 
         Assert.Equal("down to five thousand, right heading two seven zero, american one twenty three.", result);
@@ -101,7 +109,15 @@ public class PilotResponderTests
         CompoundCommand compound = Compound(new LineUpAndWaitCommand());
 
         string? result = PilotResponder
-            .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0))
+            .BuildReadback(
+                compound,
+                ac,
+                new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+                {
+                    ShortenCallsign = false,
+                    GroupContactFrequency = false,
+                }
+            )
             ?.Tts;
 
         Assert.Equal("line up and wait runway two eight right, november four three six mike sierra.", result);
@@ -117,7 +133,7 @@ public class PilotResponderTests
         PilotSpeechText? varied = PilotResponder.BuildReadback(
             compound,
             ac,
-            new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+            new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0) { ShortenCallsign = false, GroupContactFrequency = false }
         );
 
         Assert.NotNull(canonical);
@@ -190,10 +206,26 @@ public class PilotResponderTests
             CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
 
             string? first = PilotResponder
-                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, 0))
+                .BuildReadback(
+                    compound,
+                    ac,
+                    new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, 0)
+                    {
+                        ShortenCallsign = false,
+                        GroupContactFrequency = false,
+                    }
+                )
                 ?.Tts;
             string? second = PilotResponder
-                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, 0))
+                .BuildReadback(
+                    compound,
+                    ac,
+                    new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, 0)
+                    {
+                        ShortenCallsign = false,
+                        GroupContactFrequency = false,
+                    }
+                )
                 ?.Tts;
 
             Assert.Equal(first, second);
@@ -219,7 +251,15 @@ public class PilotResponderTests
         for (int second = 0; second < 200; second++)
         {
             string? tts = PilotResponder
-                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second))
+                .BuildReadback(
+                    compound,
+                    ac,
+                    new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second)
+                    {
+                        ShortenCallsign = false,
+                        GroupContactFrequency = false,
+                    }
+                )
                 ?.Tts;
             int pick = VariantPick.Index(ac.Callsign, canonical.Terminal, second, 1, 100);
             picks.Add(pick);
@@ -301,7 +341,11 @@ public class PilotResponderTests
         bool thanksPicked = false;
         for (int second = 0; second < 200; second++)
         {
-            var context = new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second);
+            var context = new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second)
+            {
+                ShortenCallsign = false,
+                GroupContactFrequency = false,
+            };
             string spoken = PilotResponder.ApplyQuietFlavor(callsign, body, canonicalBody, compound, context);
             int pick = VariantPick.Index(callsign, canonicalBody, second, 1, 100);
             alrightPicked |= pick < 5;
@@ -328,7 +372,15 @@ public class PilotResponderTests
         for (int second = 0; second < 200; second++)
         {
             string? tts = PilotResponder
-                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second))
+                .BuildReadback(
+                    compound,
+                    ac,
+                    new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second)
+                    {
+                        ShortenCallsign = false,
+                        GroupContactFrequency = false,
+                    }
+                )
                 ?.Tts;
             int pick = VariantPick.Index(ac.Callsign, canonical.Terminal, second, 1, 100);
             alrightPicked |= pick < 5;
@@ -350,7 +402,15 @@ public class PilotResponderTests
         CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
 
         string? result = PilotResponder
-            .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0))
+            .BuildReadback(
+                compound,
+                ac,
+                new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+                {
+                    ShortenCallsign = false,
+                    GroupContactFrequency = false,
+                }
+            )
             ?.Tts;
 
         Assert.Equal("heading two seven zero, november zero zero four alpha bravo.", result);
@@ -1485,7 +1545,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("N123AB");
 
-        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35);
+        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35, PilotSpeechContext.Canonical);
 
         // Facility name preserves the caller's casing — sentence-initial after the bracket
         // strip in CompactForTerminal, so capitalization matters for the terminal display.
@@ -1497,7 +1557,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("AAL123");
 
-        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Departure", 119.6);
+        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Departure", 119.6, PilotSpeechContext.Canonical);
 
         Assert.Equal("Departure on one one nine point six, american one twenty three, so long.", result.Tts);
     }
@@ -1509,9 +1569,67 @@ public class PilotResponderTests
 
         // Caller may pass a Position.RadioName like "NorCal Approach" or "Oakland Tower" —
         // multi-word natural casing must reach the terminal and TTS unchanged.
-        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "NorCal Approach", 125.35);
+        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "NorCal Approach", 125.35, PilotSpeechContext.Canonical);
 
         Assert.Contains("NorCal Approach on", result.Tts);
+    }
+
+    [Fact]
+    public void BuildContactReadback_GroupedFrequency_SpeaksItWithoutTheLeadingOne()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        var busy = new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+        {
+            ShortenCallsign = false,
+            GroupContactFrequency = true,
+        };
+
+        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35, busy);
+
+        Assert.Equal("Approach on twenty five thirty five, november one two three alpha bravo, so long.", result.Tts);
+        Assert.Equal("Approach on 125.35, so long.", result.Terminal);
+    }
+
+    [Fact]
+    public void BuildContactReadback_NotGrouped_KeepsTheDigitForm()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        var busy = new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+        {
+            ShortenCallsign = false,
+            GroupContactFrequency = false,
+        };
+
+        PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35, busy);
+
+        Assert.Equal("Approach on one two five point three five, november one two three alpha bravo, so long.", result.Tts);
+        Assert.Equal("Approach on 125.35, so long.", result.Terminal);
+    }
+
+    [Fact]
+    public void BuildReadback_ShortenCallsign_EndsWithTheAbbreviatedNNumber()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        CompoundCommand compound = Compound(new DescendMaintainCommand(5000));
+
+        PilotSpeechText full = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical)!;
+        PilotSpeechText shortened = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical with { ShortenCallsign = true })!;
+
+        Assert.EndsWith(", november one two three alpha bravo.", full.Tts);
+        Assert.EndsWith(", november three alpha bravo.", shortened.Tts);
+        Assert.Equal(full.Terminal, shortened.Terminal);
+    }
+
+    [Fact]
+    public void WithBravoClearance_ShortenedCallsign_KeepsTheCallsignLast()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechContext shortened = PilotSpeechContext.Canonical with { ShortenCallsign = true };
+        PilotSpeechText readback = PilotResponder.BuildReadback(Compound(new DescendMaintainCommand(5000)), ac, shortened)!;
+
+        PilotSpeechText result = PilotResponder.WithBravoClearance(ac, readback, BravoClearanceWording.Into, shortened);
+
+        Assert.EndsWith(", cleared into the bravo, november three alpha bravo.", result.Tts);
     }
 
     // --- BuildFrequencyChangeApproved ---
@@ -1523,7 +1641,7 @@ public class PilotResponderTests
         // "frequency change approved" (which is the controller's phraseology in 7110.65 §7-6-11).
         AircraftState ac = MakeAircraft("N123AB", isVfr: true);
 
-        PilotSpeechText result = PilotResponder.BuildFrequencyChangeApproved(ac);
+        PilotSpeechText result = PilotResponder.BuildFrequencyChangeApproved(ac, PilotSpeechContext.Canonical);
 
         Assert.Equal("november one two three alpha bravo, good day.", result.Tts);
         Assert.DoesNotContain("frequency change approved", result.Tts);
@@ -1534,7 +1652,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("AAL123");
 
-        PilotSpeechText result = PilotResponder.BuildFrequencyChangeApproved(ac);
+        PilotSpeechText result = PilotResponder.BuildFrequencyChangeApproved(ac, PilotSpeechContext.Canonical);
 
         Assert.Equal("american one twenty three, good day.", result.Tts);
     }

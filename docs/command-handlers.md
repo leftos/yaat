@@ -359,6 +359,7 @@ and which domains read them:
 | `TerminalEmitter` | SAY-class verbs broadcast through it; **nulled in dry-run / parser tests** so SAYs don't fire twice. |
 | `ArtccConfig` | `ContactCommandHandler` target → frequency resolution; `RunwaySafetyAdvisor` safety-logic gate (nullable). |
 | `ScenarioElapsedSeconds` | CT/FCA handoff-completion stamp. |
+| `SpeechContextFor` | `ContactCommandHandler`'s CT/FCA readbacks (callsign form, contact frequency form): the engine's `PilotSpeechContextFor` on its sites, `PilotSpeechContext.Canonical` on non-answering paths and in tests. |
 
 All fields are positional and required so a future addition breaks at the compiler, not silently at runtime. **Add a new contextual flag here and set
 it at the `SimulationEngine` / `RoomEngine` call sites — never pass it as a handler parameter.** The bundle exists to avoid signature creep.

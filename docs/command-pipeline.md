@@ -260,6 +260,7 @@ Threaded through `DispatchCompound` and every handler. Holds:
 | `AutoCrossRunwayMode` | which runway crossings to pre-clear (Off / All / InactiveOnly, the last judged against `ActiveRunways`) |
 | `SoloTrainingMode`, `RpoShowPilotSpeech` | scenario flags |
 | `TerminalEmitter` | broadcasts SAY-class verbs to the terminal log; **null in dry-run / tests**, otherwise SAYs would fire twice |
+| `SpeechContextFor` | aircraft → `PilotSpeechContext` for the CT/FCA readbacks a handler builds: the engine's `PilotSpeechContextFor` on its sites, `PilotSpeechContext.Canonical` on non-answering paths and in tests |
 | `PreserveConditionals` | true **only** when a deferred dispatch fires its payload (`SimulationEngine.ProcessDeferredDispatches`); makes that payload preserve pending triggered conditionals + sibling deferrals instead of superseding them. Every other call site passes false |
 
 Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at the call sites in `SimulationEngine` / `RoomEngine`, and read from `ctx`. Don't pass it as a parameter — the bundle exists to avoid signature creep.

@@ -386,24 +386,42 @@ public class PhraseologyVerbalizerTests
         // PilotSpeechText.Tts is built from this spoken form ("whiskey three", never "W3").
         Assert.Contains("exit left whiskey three", PhraseologyVerbalizer.Verbalize(new ExitLeftCommand(Taxiway: "W3")));
 
-    // --- Frequency formatting (FAA 7110.65 §2-4-16) ---
+    // --- Frequency formatting (FAA 7110.65 §2-4-17.k.1) ---
+
+    [Theory]
+    [InlineData(125.35, "twenty five thirty five")]
+    [InlineData(118.65, "eighteen sixty five")]
+    [InlineData(120.85, "twenty eighty five")]
+    [InlineData(125.3, "twenty five point three")]
+    [InlineData(121.5, "twenty one point five")]
+    [InlineData(118.275, "eighteen twenty seven")]
+    [InlineData(118.05, "one one eight point zero five")]
+    [InlineData(121.0, "one two one point zero")]
+    [InlineData(108.2, "one zero eight point two")]
+    [InlineData(251.0, "two five one point zero")]
+    public void FrequencyToWords_Grouped_DropsTheLeadingOneWhereTheFrequencyGroups(double mhz, string expected) =>
+        Assert.Equal(expected, PhraseologyVerbalizer.FrequencyToWords(mhz, grouped: true));
+
+    [Fact]
+    public void FrequencyToWords_NotGrouped_IsTheDigitForm() =>
+        Assert.Equal("one two five point three five", PhraseologyVerbalizer.FrequencyToWords(125.35, grouped: false));
 
     [Fact]
     public void FrequencyToWords_TwoDecimalDigits() => Assert.Equal("one two five point three five", PhraseologyVerbalizer.FrequencyToWords(125.35));
 
     [Fact]
     public void FrequencyToWords_OneDecimalDigit_NoZeroPad() =>
-        // 7110.65 §2-4-16 example: 121.5 MHz → "One two one point five." Trailing zeros dropped.
+        // 7110.65 §2-4-17.k.1 example: 121.5 MHz → "One two one point five." Trailing zeros dropped.
         Assert.Equal("one two one point five", PhraseologyVerbalizer.FrequencyToWords(121.5));
 
     [Fact]
     public void FrequencyToWords_ThirdDecimalTruncated() =>
-        // 7110.65 §2-4-16 example: 135.275 MHz → "One three five point two seven."
+        // 7110.65 §2-4-17.k.1 example: 135.275 MHz → "One three five point two seven."
         Assert.Equal("one three five point two seven", PhraseologyVerbalizer.FrequencyToWords(135.275));
 
     [Fact]
     public void FrequencyToWords_WholeNumber_SingleZeroAfterPoint() =>
-        // 7110.65 §2-4-16 example: 369.0 MHz → "Three six niner point zero." YAAT uses "nine"
+        // 7110.65 §2-4-17.k.1 example: 369.0 MHz → "Three six niner point zero." YAAT uses "nine"
         // for digit 9 across all spoken numbers; see DigitToWord in AtcNumberParser.
         Assert.Equal("three six nine point zero", PhraseologyVerbalizer.FrequencyToWords(369.0));
 
