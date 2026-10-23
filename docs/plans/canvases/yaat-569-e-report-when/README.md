@@ -41,3 +41,15 @@ Each option's worst case is on the page.
 - The findings on the page are static reads of the source, not run in the client or the sim: the straight-line mile-final trigger and its inbound-to-land gate (`PilotProactive.cs:198-206`, `ApproachCommandHandler.cs:2605-2614`), the 0.5 NM fix trigger, the cancel replies, the 2-5 character fix rule.
 
 Source files read for it: `MenuCatalog.cs`, `SharedMenuGroups.cs`, `QuickCommandDefaults.cs`, `QuickCommandGlyphs.cs`, `IMenuAircraft.cs`, `HoldShortLadder.cs`, `src/Yaat.Client/Views/MenuPopups.cs`, `src/Yaat.Sim/Commands/CommandParser.cs` (`ParseReport`), `NavigationCommandHandler.cs` (`DispatchReport`), `AircraftApproachState.cs`, `Pilot/PilotProactive.cs` (`TickReportTriggers`), `ApproachCommandHandler.cs` (`IsInboundToLand`), `docs/client-context-menus.md`, COMMANDS.md (`REPORT`), and the family F mock `yaat-569-f-pickers/`.
+
+## The strip button (`strip-button.html`)
+
+A second page, for the three questions YAAT-1018's family E rulings left open about the one Report when… strip button that replaces At N-mile final… and At fix… (ruling 8). It is static, self-contained inline SVG and HTML, with no web fonts and no image files.
+
+Each question is an artboard with three lanes side by side, and under each lane a line on how it works and its worst case in use. Strips are drawn at the client's size (a 40 px cell, a 32 px glyph, stroke 1.9) and 3× enlarged, among the VFR arrival default list's neighbours (Enter right base, Make straight-in, Report when…, Cleared to land, Follow traffic…). The flyouts follow the settled row order (E-e).
+
+1. Glyph of the Report when… button: a the N-mile final glyph (runway and radio arcs), b the At fix glyph (triangle and radio arcs), c a new glyph in the same stroke style, radio arcs over a speech mark. Each lane also shows the button beside the alias a saved list may still hold.
+2. Armed mark on the button: a none, b a small teal dot in the upper right while any report is armed, c a teal count badge with the number armed. Each is drawn with nothing armed and with Turning base and a 5-mile final armed, on glyph 1a; the mark sits upper right because the submenu notch takes the lower right.
+3. Focus when the flyout opens from the strip button: a the fix box, always, b the miles box when a runway is assigned, else the fix box, c no box, the keyboard on the flyout's first row. Each is drawn for N738SP (C172, right downwind 28R at KOAK, base armed) and N52TW (PA28 departing KOAK VFR, no runway, no pattern, nothing armed).
+
+Glyph 1c, the dot and the badge are drawings of options, not built UI. Aircraft, positions and reporting-point distances and bearings are illustrative.

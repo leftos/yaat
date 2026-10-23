@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report When Strip Button</title>
+<style>
+  /* Layout: one artboard per open question, its three lanes side by side as columns. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8336a; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1760px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; letter-spacing: -.01em; }
+  .lede { max-width: 96ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .note-box { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--tag-a); border-radius: 8px; padding: 12px 16px; margin: 18px 0 22px; max-width: 130ch; }
+  .note-box.ask { border-left-color: var(--tag-b); }
+  .note-box h2 { font: 600 16px/1.3 var(--f-display); margin: 0 0 6px; }
+  .note-box ul, .note-box ol { margin: 0; padding-left: 20px; }
+  .note-box li { margin: 0 0 6px; color: var(--muted); }
+  .note-box li b { color: var(--ink); font-weight: 600; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; }
+  .art-meta { margin-bottom: 14px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; }
+  .art-meta p { margin: 0 0 6px; max-width: 120ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 130ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; display: flex; flex-direction: column; gap: 14px; }
+  .states { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .frame { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .flabel { font: 500 11px Consolas, monospace; color: #a4adb8; letter-spacing: .02em; }
+  .flabel b { color: #e4e7eb; font-weight: 400; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: max-content; position: relative; }
+  .menu.w { width: 100%; max-width: 440px; min-width: 330px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; position: relative; }
+  .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.title { grid-template-columns: minmax(0, 1fr) auto; min-height: 24px; padding-top: 7px; padding-bottom: 3px; font-size: 11.5px; color: #a4adb8; }
+  .mi.title .et b { color: #e4e7eb; font-size: 12.5px; font-weight: 600; }
+  .mi.title .r { font: 11.5px Consolas, monospace; color: #a4adb8; padding-left: 12px; white-space: nowrap; }
+  .mi.stop .n { color: #ffb4b4; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .gly.blank { width: 22px; height: 22px; border: 1px dashed #3a414b; border-radius: 4px; }
+  .nm { min-width: 0; display: flex; align-items: center; gap: 0 6px; overflow: hidden; }
+  .nm .n { white-space: nowrap; }
+  .nm.col { flex-direction: column; align-items: flex-start; overflow: visible; gap: 2px; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmd { padding-left: 14px; font: 12px Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .cmd.wait { opacity: .38; }
+  .bdg { flex: 0 0 auto; border: 1px solid #6ee0ce; color: #6ee0ce; border-radius: 3px; padding: 0 4px; font-size: 11px; line-height: 15px; white-space: nowrap; }
+  .mono { font-family: Consolas, monospace; font-size: 13px; }
+  .grp { font-size: 11px; color: #a4adb8; padding: 7px 11px 2px; letter-spacing: .02em; }
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { display: inline-flex; align-items: center; font: 13px Consolas, monospace; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a; border-radius: 4px; padding: 0 8px; height: 28px; width: 200px; }
+  .tbox.sm { width: 74px; }
+  .tbox .ph { color: #8f969e; font-family: Inter, "Segoe UI", sans-serif; white-space: nowrap; overflow: hidden; }
+  .tbox.focus { border-bottom: 2px solid #8fc1ff; background: #1f1f1f; box-shadow: 0 0 0 2px rgba(143, 193, 255, .35); }
+  .caret { display: inline-block; width: 1.5px; height: 16px; background: #ffffff; margin-right: 2px; flex: none; }
+  .chip { font: 12px Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 3px; padding: 3px 8px; }
+  .chip.armed { border-color: #6ee0ce; color: #6ee0ce; }
+  .callout { max-width: 440px; font: 11.5px/1.45 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #8fc1ff; border-radius: 4px; padding: 5px 8px; }
+  .callout b { color: #8fc1ff; font-weight: 600; }
+  .callout .w { color: #ffc062; }
+  .callout code { font: 11px Consolas, monospace; color: #8fc1ff; }
+
+  /* The aircraft menu's strip, as QuickCommandStrip draws it: 40 px cells in a 1 px border, 6 px apart, on the #1F2226 well. */
+  .smenu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; width: max-content; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); }
+  .smenu .t { font: 700 14px Inter, "Segoe UI", sans-serif; color: #fff; padding: 4px 6px 0; }
+  .hline { font: 12px Inter, "Segoe UI", sans-serif; color: #ededed; padding: 2px 6px 4px; white-space: nowrap; }
+  .hline .st { color: #9a9a9a; font-size: 11px; }
+  .qrow { display: flex; gap: 6px; padding: 3px 4px 3px; }
+  .qbtn { width: 42px; height: 42px; flex: none; border: 1px solid rgba(255, 255, 255, .08); border-radius: 4px; background: #1f2226; padding: 0; display: grid; place-items: center; position: relative; }
+  .qbtn.hov { background: #2c3036; }
+  .qbtn.sticky { background: #24406a; }
+  .qbtn svg.cell { display: block; }
+  .qbtn.ring::after { content: ""; position: absolute; inset: -5px; border: 1.5px dashed #ffc062; border-radius: 7px; pointer-events: none; }
+  .big { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+  .qbtn.x3 { width: 126px; height: 126px; border-width: 3px; border-radius: 12px; }
+  .bigcap { font: 11px Consolas, monospace; color: #a4adb8; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+    .menu.w { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-1018 · family E · Report when… strip button · mock for the owner's decisions</div>
+  <h1>Report when… strip button</h1>
+  <p class="lede">One <b>Report when…</b> strip button replaces <b>At N-mile final…</b> and <b>At fix…</b> in the default quick-command lists (owner ruling 8). Three things about that button are open: its <b>glyph</b>, whether it shows an <b>armed mark</b>, and <b>which row has focus</b> when it opens its flyout. Each is drawn below as three lanes side by side, with a line under each lane on how it works and its worst case in use.</p>
+  <p class="lede">Strips are drawn at the size the client draws them (a 40 px cell in a 1 px border, a 32 px glyph, stroke 1.9) and 3× enlarged. The flyouts follow the settled row order (E-e): the Stop section, only with something armed; the title line; the turn rows, only in a pattern circuit; Mile final, only with an assigned runway; Passing a fix; reporting points nearest first. Nothing on the page is live.</p>
+
+  <section class="note-box">
+    <h2>Settled already, drawn as given</h2>
+    <ul>
+      <li><b>The old two entries stay as aliases</b> (ruling 9): At N-mile final… and At fix… keep their ids and glyphs and open the same flyout on the miles box and the fix box. A saved list may hold an alias beside the new button.</li>
+      <li><b>The button opens a submenu</b>, so it carries the corner notch at its lower right, where the force mark also sits. Any armed mark in question 2 goes in the upper right.</li>
+      <li><b>Armed rows are marked</b> (E-f) and the Stop section lists only what is armed (ruling 6), each armed report then Stop all reports.</li>
+    </ul>
+  </section>
+
+  <div id="arts"></div>
+
+  <section class="note-box ask">
+    <h2>The decisions, to answer as "1a, 2b, 3b"</h2>
+    <ol>
+      <li><b>Glyph of the Report when… button</b>: a the N-mile final glyph (runway and radio arcs), b the At fix glyph (triangle and radio arcs), c a new glyph (radio arcs over a speech mark).</li>
+      <li><b>Armed mark on the button</b>: a none, b a small filled dot in the upper right while any report is armed, c a count badge with the number armed.</li>
+      <li><b>Focus when opened from the strip button</b>: a the fix box, always, b the miles box when a runway is assigned, else the fix box, c no box (the keyboard starts on the flyout's first row).</li>
+    </ol>
+  </section>
+
+  <footer class="foot">Glyph paths are copied from <code>QuickCommandGlyphs.cs</code> (<code>ApproachReportNMileFinal</code>, <code>ApproachReportAtFix</code>, the pattern entries, <code>TowerClearedToLand</code>, <code>PatternFollow</code>), drawn as <code>QuickCommandStrip.GlyphCell</code> draws them: 32 px on the 24 px view box, stroke 1.9, round caps and joins, in the family colours (tower amber <code>#FFC062</code>, pattern violet <code>#DDBDFF</code>), the notch <code>M6 0V6H0z</code> in <code>#9AA3AD</code> on buttons that open a flyout (the pattern entries, Report when…, Follow traffic…; Cleared to land is a plain leaf). Glyph 1c, the armed dot and the count badge are drawings of options, not built UI; the dot and badge are teal <code>#6EE0CE</code>, the colour of the flyout's "armed" mark, ringed in the well colour as the force mark is. The neighbours are the VFR arrival default list (<code>QuickCommandDefaults.cs</code>, <code>VfrArrivalInbound</code>) in list order, with Report when… where At N-mile final… stood. Aircraft, positions and reporting-point distances and bearings are illustrative; the reporting points are the bundled ZOA visual points. Rows with no glyph show a dashed empty slot, as the earlier family E mock (<code>index.html</code>) draws them. The page loads no web fonts and has no image files.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const TOWER = "#FFC062", PATTERN = "#DDBDFF", WELL = "#1F2226", STICKY = "#24406A", ARMED = "#6EE0CE";
+  const RECT = "M3.5 9h12a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-2a2 2 0 0 1 2 -2z";
+  const LT = `${RECT} M11 7.4 L9.4 9 L11 10.6`, RT = `${RECT} M11 13.4 L9.4 15 L11 16.6`;
+  const ARCS = "M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0";
+  const P = {
+    NMI: "M7 21l3-10h4l3 10 M12 14v1.5 M12 18v1.5 M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0",
+    FIX: "M12 10l6 11H6z M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0",
+    NEW: `${ARCS} M7 11h10a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-6l-3.5 3v-3H7a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2z M9 14.5h6`,
+    ERB: `${RT} M17.5 1 V7.4 M17.5 7.4 l-2.2 -2.2 M17.5 7.4 l2.2 -2.2`,
+    EF: `${LT} M23.5 9 H19.1 M19.1 9 l2.2 -2.2 M19.1 9 l2.2 2.2`,
+    CTL: "M2 20h20 M5 6l11 9 M10 15h6v-6",
+    FOL: "M4 17l5-5-5-5 M17 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  /* ---------- Strip cells ---------- */
+  /** The armed mark on the 40 px cell's coordinates: none, a dot, or a count badge, upper right, ringed in the well colour. */
+  function mark(kind, count, bg) {
+    if (!count || kind === "none") return "";
+    if (kind === "dot") return `<circle cx="34" cy="6" r="3.2" fill="${ARMED}" stroke="${bg}" stroke-width="1.6"/>`;
+    return `<circle cx="33" cy="7" r="6.6" fill="${ARMED}" stroke="${bg}" stroke-width="1.6"/><text x="33" y="10.4" text-anchor="middle" font-family="Segoe UI, Inter, sans-serif" font-weight="700" font-size="9.5" fill="#0f1a1a">${count}</text>`;
+  }
+  /** One strip cell, drawn on a 40 × 40 box: the 32 px glyph centred, the notch lower right, the armed mark upper right. */
+  function cell(o, size) {
+    const bg = o.sticky ? STICKY : WELL;
+    const g = `<g transform="translate(4 4) scale(${32 / 24})"><path d="${o.p}" fill="none" stroke="${o.c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    const notch = o.sub ? `<path d="M37 31V37H31z" fill="#9AA3AD"/>` : "";
+    return `<svg class="cell" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${g}${notch}${mark(o.mark || "none", o.count || 0, bg)}</svg>`;
+  }
+  const btn = (o, x3) => `<span class="qbtn${x3 ? " x3" : ""}${o.sticky ? " sticky" : ""}${o.hov ? " hov" : ""}${o.ring ? " ring" : ""}" title="${esc(o.name)}">${cell(o, x3 ? 120 : 40)}</span>`;
+  const neighbours = rw => [
+    { p: P.ERB, c: PATTERN, sub: true, name: "Enter right base ›" },
+    { p: P.EF, c: PATTERN, sub: true, name: "Make straight-in ›" },
+    Object.assign({ c: TOWER, sub: true, name: "Report when… ›" }, rw),
+    { p: P.CTL, c: TOWER, sub: false, name: "Cleared to land 28R" },
+    { p: P.FOL, c: PATTERN, sub: true, name: "Follow traffic… ›" },
+  ];
+  /** A menu stub: callsign, the header line (the pointed button's label), one strip row of five. */
+  function stripMenu(rw, label) {
+    const row = neighbours(rw).map(b => btn(b, false)).join("");
+    return `<div class="smenu"><div class="t">N738SP <span class="st" style="font-weight:400;font-size:11px;color:#9a9a9a">C172 · VFR</span></div><div class="hline">${label}</div><div class="qrow">${row}</div></div>`;
+  }
+  const frame = (label, inner) => `<div class="frame"><div class="flabel">${label}</div>${inner}</div>`;
+
+  /* ---------- Flyout rows, as the earlier family E mock's lane A draws them ---------- */
+  const gl = (path, color) => `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+  const blank = `<span class="gly blank" aria-hidden="true"></span>`;
+  const sep = `<div class="msep"></div>`;
+  const grp = t => `<div class="grp">${t}</div>`;
+  function row(o) {
+    const badge = o.armed ? `<span class="bdg">armed</span>` : "";
+    const note = o.note ? `<span class="note">· ${esc(o.note)}</span>` : "";
+    const line1 = `<span class="n${o.mono ? " mono" : ""}">${esc(o.n)}</span>${badge}${note}`;
+    const nm = o.sub ? `<span class="nm col"><span class="nm">${line1}</span><span class="note">${esc(o.sub)}</span></span>` : `<span class="nm">${line1}</span>`;
+    return `<div class="mi${o.focus ? " kfocus" : ""}${o.stop ? " stop" : ""}">${o.g || blank}${nm}<span class="cmd">${esc(o.cmd)}</span></div>`;
+  }
+  const tbox = (ph, o = {}) => `<span class="tbox${o.sm ? " sm" : ""}${o.focus ? " focus" : ""}">${o.focus ? `<i class="caret"></i>` : ""}<span class="ph">${esc(ph)}</span></span>`;
+
+  const AC = {
+    pat: { cs: "N738SP", type: "C172", rwy: "28R", pattern: true, armedLegs: ["BASE"],
+      fixes: [["VPCOL", "Oakland Coliseum", 0.8, "001"], ["VPMOR", "Mormon Temple", 4.1, "351"], ["VPCBT", "Lake Chabot", 4.8, "090"], ["VPSMB", "San Mateo Bridge Toll Plaza", 8.1, "144"], ["VPMID", "Midspan San Mateo Bridge", 9.5, "181"]] },
+    dep: { cs: "N52TW", type: "PA28", rwy: null, pattern: false, armedLegs: [],
+      fixes: [["VPCOL", "Oakland Coliseum", 1.2, "042"], ["VPCBT", "Lake Chabot", 4.1, "101"], ["VPMOR", "Mormon Temple", 4.6, "018"], ["VPSMB", "San Mateo Bridge Toll Plaza", 6.9, "158"], ["VPMID", "Midspan San Mateo Bridge", 8.6, "196"]] },
+  };
+  const LEGS = [["Turning crosswind", "CROSSWIND"], ["Turning downwind", "DOWNWIND"], ["Midfield", "MIDFIELD"], ["Turning base", "BASE"], ["Turning final", "FINAL"]];
+
+  /** The open flyout; focus is "fix", "mile" or "row" (the first row). */
+  function flyout(ac, focus) {
+    let h = "";
+    let first = true;
+    const take = () => { const f = first && focus === "row"; first = false; return f; };
+    if (ac.armedLegs.length) {
+      h += grp("Stop reporting");
+      for (const L of ac.armedLegs) {
+        const name = LEGS.find(l => l[1] === L)[0].toLowerCase();
+        h += row({ n: `Stop: ${name}`, cmd: `REPORT OFF ${L}`, stop: true, focus: take() });
+      }
+      h += row({ n: "Stop all reports", cmd: "REPORT OFF", stop: true, focus: take() });
+      h += sep;
+    }
+    h += `<div class="mi title"><span class="et"><b>Report when…</b></span><span class="r">${ac.cs}${ac.rwy ? ` · RWY ${ac.rwy}` : ""}</span></div>`;
+    if (ac.pattern) {
+      for (const [n, L] of LEGS) h += row({ n, cmd: `REPORT ${L}`, armed: ac.armedLegs.includes(L), focus: take() });
+      h += sep;
+    }
+    if (ac.rwy) {
+      const f = take();
+      const chips = [2, 3, 5, 10].map(n => `<span class="chip">${n}</span>`).join("");
+      h += `<div class="mi${f ? " kfocus" : ""}">${gl(P.NMI, TOWER)}<span class="nm col"><span class="n">Mile final</span><span class="under">${chips}${tbox("miles", { sm: true, focus: focus === "mile" })}</span></span><span class="cmd wait">REPORT ··· FINAL</span></div>`;
+    }
+    {
+      const f = take();
+      h += `<div class="mi${f ? " kfocus" : ""}">${gl(P.FIX, TOWER)}<span class="nm col"><span class="n">Passing a fix</span><span class="under">${tbox("fix name, e.g. VPCOL", { focus: focus === "fix" })}</span></span><span class="cmd wait">REPORT ···</span></div>`;
+    }
+    h += grp("Reporting points · nearest first");
+    h += ac.fixes.map(f => row({ n: f[0], mono: true, note: f[1], sub: `${f[2].toFixed(1)} NM · ${f[3]}°`, cmd: `REPORT ${f[0]}` })).join("");
+    return `<div class="menu m w">${h}</div>`;
+  }
+
+  /* ---------- Artboards ---------- */
+  const lane = l => `<section class="lane"><div class="lane-h"><span class="tag ${l.k}">${l.tag}</span><h3>${esc(l.name)}</h3></div><div class="stage">${l.body}</div><dl class="cap"><dt>How it works</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl></section>`;
+  const art = a => `<section class="art"><div class="art-meta"><h2>${esc(a.title)}</h2>${a.intro.map(p => `<p>${p}</p>`).join("")}</div><div class="lanes">${a.lanes.map(lane).join("")}</div></section>`;
+
+  /* Question 1: the glyph, in context and 3× enlarged. */
+  const hovLabel = `Report when… ›`;
+  function q1(path) {
+    const rw = { p: path, hov: true, ring: true };
+    const big = Object.assign({ c: TOWER, sub: true, name: "Report when… ›" }, { p: path });
+    const alias = path === P.NMI ? { p: P.NMI, c: TOWER, sub: true, name: "At N-mile final… ›" } : path === P.FIX ? { p: P.FIX, c: TOWER, sub: true, name: "At fix… ›" } : null;
+    let h = frame(`<b>VFR arrival list</b> · actual size · Report when… pointed (dashed ring marks it on this page only)`, stripMenu(rw, hovLabel));
+    h += frame(`<b>3× enlarged</b>`, `<div class="big">${btn(big, true)}${btn({ p: P.NMI, c: TOWER, sub: true, name: "At N-mile final…" }, false)}${btn({ p: P.FIX, c: TOWER, sub: true, name: "At fix…" }, false)}<span class="bigcap">the two aliases, actual size</span></div>`);
+    if (alias) h += frame(`<b>A saved list holding the alias too</b> · actual size`, `<div class="qrow" style="padding:0">${btn(big, false)}${btn(alias, false)}</div><div class="bigcap">${esc(alias.name)} and Report when… draw the same glyph</div>`);
+    else h += frame(`<b>A saved list holding both aliases too</b> · actual size`, `<div class="qrow" style="padding:0">${btn(big, false)}${btn({ p: P.NMI, c: TOWER, sub: true, name: "" }, false)}${btn({ p: P.FIX, c: TOWER, sub: true, name: "" }, false)}</div><div class="bigcap">three different glyphs, one flyout</div>`);
+    return h;
+  }
+
+  /* Question 2: the armed mark, nothing armed and two armed. Drawn on glyph 1a; every candidate has the arcs in the upper right. */
+  function q2(kind) {
+    const state = (count, label) => {
+      const rw = { p: P.NMI, mark: kind, count };
+      const big = Object.assign({ c: TOWER, sub: true, name: "Report when… ›" }, rw);
+      return frame(label, `${stripMenu(rw, `<span class="st">right downwind 28R · 1.4 NM · 1,000 ft</span>`)}<div class="big">${btn(big, true)}<span class="bigcap">3×</span></div>`);
+    };
+    return `<div class="states">${state(0, "<b>Nothing armed</b>")}${state(2, "<b>Two armed</b> · Turning base + 5-mile final")}</div>`;
+  }
+
+  /* Question 3: focus on open, two aircraft. */
+  function q3(mode) {
+    const patFocus = mode === "a" ? "fix" : mode === "b" ? "mile" : "row";
+    const depFocus = mode === "c" ? "row" : "fix";
+    const notes = {
+      a: [`<b>Focus: the fix box.</b> <code>VPCOL</code> Enter sends <code>REPORT VPCOL</code>. A 5-mile final is a click on chip 5 or on the miles box; <span class="w">typing 5 here is refused, not a fix</span>.`,
+          `<b>Focus: the fix box</b>, the same box as on every aircraft. <code>VPCOL</code> Enter sends <code>REPORT VPCOL</code>.`],
+      b: [`<b>Focus: the miles box</b> (a runway is assigned). <code>5</code> Enter sends <code>REPORT 5 FINAL</code>; <span class="w">typing VPCOL here is refused, not a distance</span>.`,
+          `<b>Focus: the fix box</b> (no runway, so no Mile final row). <code>VPCOL</code> Enter sends <code>REPORT VPCOL</code>.`],
+      c: [`<b>Focus: the first row, Stop: turning base.</b> <span class="w">Enter sends <code>REPORT OFF BASE</code> and cancels the armed report</span>; typed letters go to no box until one is clicked.`,
+          `<b>Focus: the first row, Passing a fix</b>; its box is not focused, so typing reaches it only after a click or Enter on the row.`],
+    }[mode];
+    const pat = frame(`<b>N738SP</b> · C172 · right downwind 28R at KOAK · base armed · opened from the strip button`, flyout(AC.pat, patFocus) + `<div class="callout">${notes[0]}</div>`);
+    const dep = frame(`<b>N52TW</b> · PA28 · departing KOAK VFR · no runway, no pattern · nothing armed`, flyout(AC.dep, depFocus) + `<div class="callout">${notes[1]}</div>`);
+    return pat + dep;
+  }
+
+  const ARTS = [
+    { title: "1 · Glyph of the Report when… button",
+      intro: ["Each lane shows the button among its neighbours in the VFR arrival default list, at the strip's own size with the header line reading its label, then 3× enlarged beside the two alias glyphs, then how it sits beside an alias a saved list may still hold. The new button is tower amber, as both aliases are."],
+      lanes: [
+        { k: "a", tag: "1a", name: "Reuse the N-mile final glyph", body: q1(P.NMI),
+          how: "The button wears the runway-and-arcs glyph At N-mile final… had, so the default VFR arrival strip looks as it did, one button fewer.",
+          worst: "On the VFR departure list (no runway, so no Mile final row) a runway glyph promises a mile-final report the flyout does not have; and a saved list keeping the At N-mile final… alias shows two identical buttons." },
+        { k: "b", tag: "1b", name: "Reuse the At fix glyph", body: q1(P.FIX),
+          how: "The triangle-and-arcs glyph: Passing a fix is the one row every aircraft has, so the glyph is true on every list.",
+          worst: "In the pattern the instructor after \"report base\" or \"5-mile final\" reads the triangle as fix-only and hunts in All Commands; a saved list keeping At fix… shows two identical buttons." },
+        { k: "c", tag: "1c", name: "New glyph: radio arcs over a speech mark", body: q1(P.NEW),
+          how: "The aliases' radio arcs over a speech bubble, \"the pilot will call\", same stroke, caps and colour; unlike either alias, it names no one report.",
+          worst: "A shape nobody has seen yet: in the first sessions an instructor scanning for the old runway or triangle glyph misses it, and at 32 px the bubble may read as Say rather than Report." },
+      ] },
+    { title: "2 · Armed mark on the strip button",
+      intro: ["Each lane shows the strip with nothing armed and with two reports armed (Turning base and a 5-mile final), at the strip's size and 3×. Drawn on glyph 1a; every candidate glyph has its arcs in the upper right, where the mark sits, since the notch takes the lower right. The mark is teal, the flyout's \"armed\" colour, ringed in the well colour as the force mark is."],
+      lanes: [
+        { k: "a", tag: "2a", name: "No mark", body: q2("none"),
+          how: "The button looks the same whatever is armed; what is armed shows only in the flyout's Stop section and marked rows.",
+          worst: "Nothing on the strip says a report is pending, so the instructor arms a second fix report over the first (it replaces it) or forgets a 5-mile final still waiting." },
+        { k: "b", tag: "2b", name: "Dot while any report is armed", body: q2("dot"),
+          how: "A 6 px teal dot in the upper right while one or more reports are armed; gone when the last fires or is stopped.",
+          worst: "At 6 px on a busy strip it is easy to miss, and it does not say how many: one stale fix report and three live ones look the same." },
+        { k: "c", tag: "2c", name: "Count badge", body: q2("count"),
+          how: "A 13 px teal disc with the number armed (a turn leg, the mile final and the fix count one each), gone at zero.",
+          worst: "The disc covers the end of the outer radio arc, so the glyph reads clipped; and the turn reports repeat each circuit, so the count can stay at 1 for the whole session and stop being noticed." },
+      ] },
+    { title: "3 · Which row has focus when the flyout opens from the strip button",
+      intro: ["Two aircraft, each flyout as it opens from the Report when… button, the focused box with its blue underline and caret, or the focused row outlined. The aliases keep their own focus whichever is chosen (At N-mile final… the miles box, At fix… the fix box; ruling 9)."],
+      lanes: [
+        { k: "a", tag: "3a", name: "The fix box, always", body: q3("a"),
+          how: "Typing goes to the fix box on every aircraft, the one row always present; chips and reporting points are one click; the miles box is a click away.",
+          worst: "On a runway-assigned aircraft the instructor types 5 for a 5-mile final into the fix box and is refused; a retype after a click." },
+        { k: "b", tag: "3b", name: "Miles box with a runway, else the fix box", body: q3("b"),
+          how: "Focus goes to the most likely box: the miles box when a Mile final row exists, else the fix box.",
+          worst: "The box that takes the typing changes with the aircraft's runway, so a blind VPCOL lands in the miles box on N738SP and is refused, and the instructor must look first." },
+        { k: "c", tag: "3c", name: "No box focused; keyboard on the first row", body: q3("c"),
+          how: "The flyout opens like a plain submenu: the arrow keys walk the rows, and a box takes typing only after it is clicked or entered.",
+          worst: "With a report armed the first row is a Stop row, so an Enter right after opening (habit from the Squawk, Say and Warp flyouts, which open on their box) cancels Turning base on N738SP; and typing goes nowhere." },
+      ] },
+  ];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+})();
+</script>
+</body>
+</html>
