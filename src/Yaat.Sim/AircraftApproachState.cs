@@ -110,8 +110,8 @@ public class AircraftApproachState
     /// the corresponding pattern phase voices a "turning crosswind/downwind/base/final" pilot
     /// report on each circuit. These flags persist across laps (the phase instances are rebuilt
     /// fresh by <see cref="Phases.PatternBuilder.BuildNextCircuit"/> but the armed state lives
-    /// here), giving the requested re-arm-every-round behavior. Cleared by <c>REPORT OFF</c>,
-    /// landing, or track teardown. Snapshot-serialized.
+    /// here), giving the requested re-arm-every-round behavior. Cleared by the <c>REPORT OFF</c>
+    /// forms and on full-stop landing. Snapshot-serialized.
     /// </summary>
     public bool ReportArmedCrosswind { get; set; }
     public bool ReportArmedDownwind { get; set; }

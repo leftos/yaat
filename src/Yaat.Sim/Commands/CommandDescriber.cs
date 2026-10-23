@@ -2901,7 +2901,13 @@ public static class CommandDescriber
             ReportTrigger.Midfield => "REPORT MIDFIELD",
             ReportTrigger.MileFinal => $"REPORT {cmd.DistanceNm} FINAL",
             ReportTrigger.AtFix => $"REPORT {cmd.FixName}",
-            ReportTrigger.Cancel => cmd.CancelTarget is { } leg ? $"REPORT OFF {ReportLegToken(leg)}" : "REPORT OFF",
+            ReportTrigger.Cancel => cmd.CancelTarget switch
+            {
+                ReportTrigger.MileFinal => $"REPORT OFF {cmd.DistanceNm} FINAL",
+                ReportTrigger.AtFix => $"REPORT OFF {cmd.FixName}",
+                { } leg => $"REPORT OFF {ReportLegToken(leg)}",
+                null => "REPORT OFF",
+            },
             _ => "REPORT",
         };
 
@@ -2915,7 +2921,13 @@ public static class CommandDescriber
             ReportTrigger.Midfield => "Report midfield downwind",
             ReportTrigger.MileFinal => $"Report {cmd.DistanceNm}-mile final",
             ReportTrigger.AtFix => $"Report at {cmd.FixName}",
-            ReportTrigger.Cancel => cmd.CancelTarget is { } leg ? $"Cancel {ReportLegWord(leg)} report" : "Cancel all reports",
+            ReportTrigger.Cancel => cmd.CancelTarget switch
+            {
+                ReportTrigger.MileFinal => $"Cancel {cmd.DistanceNm}-mile final report",
+                ReportTrigger.AtFix => $"Cancel report at {cmd.FixName}",
+                { } leg => $"Cancel {ReportLegWord(leg)} report",
+                null => "Cancel all reports",
+            },
             _ => "Report",
         };
 

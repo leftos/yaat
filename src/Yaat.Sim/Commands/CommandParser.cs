@@ -2404,35 +2404,15 @@ public static class CommandParser
 
         string[] tokens = [.. SplitTokens(arg).Select(t => t.ToUpperInvariant())];
 
-        // Cancel forms: any token is a cancel keyword. An accompanying leg keyword scopes the
-        // cancel to that single leg; otherwise cancel all standing reports.
+        // Cancel forms: any token is a cancel keyword. ParseReportCancel decides what it scopes.
         if (tokens.Any(IsReportCancelKeyword))
         {
-            ReportTrigger? target = null;
-            foreach (string? token in tokens)
-            {
-                if (TryParseReportLeg(token) is { } leg)
-                {
-                    target = leg;
-                    break;
-                }
-            }
-
-            return PR.Ok(new ReportCommand(ReportTrigger.Cancel, CancelTarget: target));
+            return ParseReportCancel(tokens);
         }
 
         // N-mile final: a positive integer plus the FINAL keyword (either order).
-        bool hasFinalKeyword = tokens.Any(t => t == "FINAL");
-        int? miles = null;
-        foreach (string? token in tokens)
-        {
-            if (int.TryParse(token, out int n))
-            {
-                miles = n;
-            }
-        }
-
-        if (hasFinalKeyword && miles is not null)
+        int? miles = TryReadFinalMiles(tokens);
+        if (miles is not null)
         {
             if (miles <= 0)
             {
@@ -2449,13 +2429,70 @@ public static class CommandParser
                 return PR.Ok(new ReportCommand(leg));
             }
 
-            if (LooksLikeFixToken(tokens[0]))
+            if (IsReportFixName(tokens[0]))
             {
                 return PR.Ok(new ReportCommand(ReportTrigger.AtFix, FixName: tokens[0]));
             }
         }
 
         return PR.Fail("unrecognized REPORT form; try REPORT BASE, REPORT MIDFIELD, REPORT 5 FINAL, REPORT MENLO, or REPORT OFF");
+    }
+
+    /// <summary>
+    /// The cancel half of <c>REPORT</c>: a cancel keyword plus, most specific first, a FINAL keyword
+    /// with a whole number (the N-mile-final report alone), a leg keyword (that leg alone), or a lone
+    /// remaining token shaped like a fix name (the at-fix report alone). Anything else — <c>ALL</c>
+    /// included — cancels every standing report.
+    /// </summary>
+    private static PR ParseReportCancel(string[] tokens)
+    {
+        int? miles = TryReadFinalMiles(tokens);
+        if (miles is not null)
+        {
+            if (miles <= 0)
+            {
+                return PR.Fail("final distance must be a positive whole number of miles");
+            }
+
+            return PR.Ok(new ReportCommand(ReportTrigger.Cancel, DistanceNm: miles, CancelTarget: ReportTrigger.MileFinal));
+        }
+
+        ReportTrigger? target = tokens.Select(TryParseReportLeg).FirstOrDefault(leg => leg is not null);
+        if (target is not null)
+        {
+            return PR.Ok(new ReportCommand(ReportTrigger.Cancel, CancelTarget: target));
+        }
+
+        string[] names = [.. tokens.Where(t => !IsReportCancelKeyword(t))];
+        if (names.Length == 1 && IsReportFixName(names[0]))
+        {
+            return PR.Ok(new ReportCommand(ReportTrigger.Cancel, FixName: names[0], CancelTarget: ReportTrigger.AtFix));
+        }
+
+        return PR.Ok(new ReportCommand(ReportTrigger.Cancel));
+    }
+
+    /// <summary>
+    /// The mileage of an N-mile-final form: the whole number in <paramref name="tokens"/> when a
+    /// FINAL token is present, else null. A later number wins.
+    /// </summary>
+    private static int? TryReadFinalMiles(string[] tokens)
+    {
+        if (!tokens.Any(t => t == "FINAL"))
+        {
+            return null;
+        }
+
+        int? miles = null;
+        foreach (string token in tokens)
+        {
+            if (int.TryParse(token, out int n))
+            {
+                miles = n;
+            }
+        }
+
+        return miles;
     }
 
     private static bool IsReportCancelKeyword(string token) => token is "OFF" or "CANCEL" or "NONE" or "STOP";
@@ -2471,8 +2508,26 @@ public static class CommandParser
             _ => null,
         };
 
-    private static bool LooksLikeFixToken(string token) =>
-        token.Length is >= 2 and <= 5 && char.IsLetter(token[0]) && token.All(char.IsLetterOrDigit);
+    /// <summary>
+    /// Whether <paramref name="token"/> is shaped like a fix name in a <c>REPORT</c> command: at
+    /// least two characters, an ASCII letter first, then ASCII letters and digits only, and neither a
+    /// cancel keyword, <c>ALL</c>, nor a pattern leg. The navigation database is consulted by the
+    /// dispatcher, not here, so a token can pass this check and still be refused as unknown.
+    /// </summary>
+    public static bool IsReportFixName(string token)
+    {
+        if (string.IsNullOrEmpty(token) || token.Length < 2)
+        {
+            return false;
+        }
+
+        string upper = token.ToUpperInvariant();
+        return char.IsAsciiLetter(upper[0])
+            && upper.All(char.IsAsciiLetterOrDigit)
+            && !IsReportCancelKeyword(upper)
+            && upper != "ALL"
+            && (TryParseReportLeg(upper) is null);
+    }
 
     private static string[] SplitTokens(string arg) => arg.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 

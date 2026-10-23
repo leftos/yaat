@@ -1869,7 +1869,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `CLAND 33` (during a low approach) | Low approach, then land a diverging runway. During a low approach (`LA`), clearing a light aircraft to a different, non-intersecting runway flies the low pass and turns onto that runway to land (e.g. `LA` then `CLAND 33` for a low approach 28R, land 33). The pilot reads back "change to runway 33, cleared to land". Declined when the runways are too close/divergent or the turn can't be made. |
 | `CLANDF` | Force landing — clears the aircraft and forces it down regardless of energy state, overriding the automatic go-around, or cancelling an in-progress go-around and re-establishing the aircraft on final. It lands and stops on the runway even when issued past the threshold, taking an exit it can make or stopping short of the runway end (RPO-only; cancel with `GA` or `CLC`) |
 | `CWT` | Caution wake turbulence |
-| `REPORT BASE` | Have the pilot report turning base (repeats each circuit; also `REPORT MIDFIELD` for midfield downwind, `REPORT 5 FINAL`, `REPORT SUNOL`; cancel with `REPORT OFF`) |
+| `REPORT BASE` | Have the pilot report turning base (repeats each circuit; also `REPORT MIDFIELD` for midfield downwind, `REPORT 5 FINAL`, `REPORT SUNOL`; cancel with `REPORT OFF`, or one report with `REPORT OFF BASE`, `REPORT OFF 5 FINAL` or `REPORT OFF SUNOL`) |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
 | `CLBRV` | Cleared through/to enter/out of Bravo airspace |
 | `STBY` | Acknowledge pilot contact without issuing a maneuver |

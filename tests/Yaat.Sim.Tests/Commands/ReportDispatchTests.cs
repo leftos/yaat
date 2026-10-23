@@ -157,6 +157,116 @@ public class ReportDispatchTests
     }
 
     [Fact]
+    public void CancelMileFinal_ClearsOnlyTheMileReport()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Approach.ReportArmedBase = true;
+        ac.Approach.ReportFinalMileTarget = 5;
+        ac.Approach.ReportAtFixName = "SUNOL";
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Cancel, DistanceNm: 3, CancelTarget: ReportTrigger.MileFinal),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.True(result.Success);
+        Assert.Equal("Cancelled 5-mile final report", result.Message);
+        Assert.Null(ac.Approach.ReportFinalMileTarget);
+        Assert.True(ac.Approach.ReportArmedBase);
+        Assert.Equal("SUNOL", ac.Approach.ReportAtFixName);
+    }
+
+    [Fact]
+    public void CancelMileFinal_NoneArmed_IsRefused()
+    {
+        AircraftState ac = MakeAircraft();
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Cancel, DistanceNm: 3, CancelTarget: ReportTrigger.MileFinal),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.False(result.Success);
+        Assert.Equal("Unable, N123AB is not reporting a mile final", result.Message);
+        Assert.Null(ac.Approach.ReportFinalMileTarget);
+    }
+
+    [Fact]
+    public void CancelFix_MatchingName_ClearsOnlyTheFix()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Approach.ReportAtFixName = "SUNOL";
+        ac.Approach.ReportAtFixLat = 37.6;
+        ac.Approach.ReportAtFixLon = -121.9;
+        ac.Approach.ReportFinalMileTarget = 5;
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Cancel, FixName: "SUNOL", CancelTarget: ReportTrigger.AtFix),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.True(result.Success);
+        Assert.Equal("Cancelled report passing SUNOL", result.Message);
+        Assert.Null(ac.Approach.ReportAtFixName);
+        Assert.Null(ac.Approach.ReportAtFixLat);
+        Assert.Null(ac.Approach.ReportAtFixLon);
+        Assert.Equal(5, ac.Approach.ReportFinalMileTarget);
+    }
+
+    [Fact]
+    public void CancelFix_OtherFixArmed_IsRefused()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.Approach.ReportAtFixName = "SUNOL";
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Cancel, FixName: "MENLO", CancelTarget: ReportTrigger.AtFix),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.False(result.Success);
+        Assert.Equal("Unable, N123AB is not reporting passing MENLO", result.Message);
+        Assert.Equal("SUNOL", ac.Approach.ReportAtFixName);
+    }
+
+    [Fact]
+    public void CancelFix_NoneArmed_IsRefused()
+    {
+        AircraftState ac = MakeAircraft();
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.Cancel, FixName: "MENLO", CancelTarget: ReportTrigger.AtFix),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.False(result.Success);
+        Assert.Equal("Unable, N123AB is not reporting passing MENLO", result.Message);
+    }
+
+    [Fact]
+    public void ReportAtLongFixName_Arms()
+    {
+        AircraftState ac = MakeAircraft();
+
+        CommandResult result = CommandDispatcher.Dispatch(
+            new ReportCommand(ReportTrigger.AtFix, FixName: "OAK30NUM"),
+            ac,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.True(result.Success);
+        Assert.Equal("Will report passing OAK30NUM", result.Message);
+        Assert.Equal("OAK30NUM", ac.Approach.ReportAtFixName);
+        Assert.NotNull(ac.Approach.ReportAtFixLat);
+        Assert.NotNull(ac.Approach.ReportAtFixLon);
+    }
+
+    [Fact]
     public void ArmedReports_SurviveSnapshotRoundTrip()
     {
         var approach = new AircraftApproachState

@@ -10,6 +10,7 @@
 - Auto cross-runway has a third choice, Inactive runways only, which pre-clears crossings of runways not in use and holds aircraft short of active ones.
 - `REPORT MIDFIELD` has a pattern aircraft report midfield downwind on every circuit until cancelled with `REPORT OFF MIDFIELD`.
 - Bug report bundles record which YAAT server the session ran on, so a report can be traced to that server's logs.
+- `REPORT OFF 5 FINAL` and `REPORT OFF SUNOL` cancel just the mile-final or fix report, and `REPORT` accepts long reporting-point names such as `OAK30NUM`.
 
 ### Changed
 

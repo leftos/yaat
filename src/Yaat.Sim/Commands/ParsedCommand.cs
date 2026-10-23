@@ -156,8 +156,10 @@ public enum ReportTrigger
 /// <summary>
 /// Controller <c>REPORT</c> command: arms a deferred pilot position report (or cancels one). The fix
 /// for <see cref="ReportTrigger.AtFix"/> is resolved to coordinates at dispatch time. For
-/// <see cref="ReportTrigger.Cancel"/>, <see cref="CancelTarget"/> names a single pattern leg to stop
-/// reporting, or is null to cancel all standing reports.
+/// <see cref="ReportTrigger.Cancel"/>, <see cref="CancelTarget"/> names the single report to stop —
+/// a pattern leg, <see cref="ReportTrigger.MileFinal"/> (with <see cref="DistanceNm"/>), or
+/// <see cref="ReportTrigger.AtFix"/> (with <see cref="FixName"/>) — or is null to cancel all
+/// standing reports.
 /// </summary>
 public record ReportCommand(ReportTrigger Trigger, int? DistanceNm = null, string? FixName = null, ReportTrigger? CancelTarget = null)
     : ParsedCommand;

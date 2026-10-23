@@ -2265,7 +2265,7 @@ internal static class NavigationCommandHandler
         switch (cmd.Trigger)
         {
             case ReportTrigger.Cancel:
-                return DispatchReportCancel(cmd, approach);
+                return DispatchReportCancel(cmd, aircraft);
 
             case ReportTrigger.Crosswind:
             case ReportTrigger.Downwind:
@@ -2299,22 +2299,76 @@ internal static class NavigationCommandHandler
         }
     }
 
-    private static CommandResult DispatchReportCancel(ReportCommand cmd, AircraftApproachState approach)
+    private static CommandResult DispatchReportCancel(ReportCommand cmd, AircraftState aircraft)
     {
-        if (cmd.CancelTarget is { } leg)
+        switch (cmd.CancelTarget)
         {
-            SetPatternLegReportArmed(approach, leg, false);
-            return CommandDispatcher.Ok($"Cancelled {ReportLegWord(leg)} report");
+            case ReportTrigger.MileFinal:
+                return CancelMileFinalReport(aircraft);
+
+            case ReportTrigger.AtFix:
+                return CancelAtFixReport(cmd, aircraft);
+
+            case ReportTrigger.Crosswind:
+            case ReportTrigger.Downwind:
+            case ReportTrigger.Base:
+            case ReportTrigger.Final:
+            case ReportTrigger.Midfield:
+                return CancelPatternLegReport(aircraft.Approach, cmd.CancelTarget.Value);
+
+            default:
+                aircraft.Approach.ClearArmedReports();
+                return CommandDispatcher.Ok("Reports cancelled");
+        }
+    }
+
+    private static CommandResult CancelMileFinalReport(AircraftState aircraft)
+    {
+        if (aircraft.Approach.ReportFinalMileTarget is not { } miles)
+        {
+            return new CommandResult(false, $"Unable, {aircraft.Callsign} is not reporting a mile final");
         }
 
-        approach.ClearArmedReports();
-        return CommandDispatcher.Ok("Reports cancelled");
+        aircraft.Approach.ReportFinalMileTarget = null;
+        return CommandDispatcher.Ok($"Cancelled {miles}-mile final report");
+    }
+
+    private static CommandResult CancelAtFixReport(ReportCommand cmd, AircraftState aircraft)
+    {
+        string? fixName = NormalizeFixName(cmd.FixName);
+        if (fixName is null)
+        {
+            return new CommandResult(false, "REPORT requires a fix name");
+        }
+
+        if (!string.Equals(aircraft.Approach.ReportAtFixName, fixName, StringComparison.Ordinal))
+        {
+            return new CommandResult(false, $"Unable, {aircraft.Callsign} is not reporting passing {fixName}");
+        }
+
+        aircraft.Approach.ReportAtFixName = null;
+        aircraft.Approach.ReportAtFixLat = null;
+        aircraft.Approach.ReportAtFixLon = null;
+        return CommandDispatcher.Ok($"Cancelled report passing {fixName}");
+    }
+
+    private static CommandResult CancelPatternLegReport(AircraftApproachState approach, ReportTrigger leg)
+    {
+        SetPatternLegReportArmed(approach, leg, false);
+        return CommandDispatcher.Ok(PatternReportCancelledEcho(leg));
+    }
+
+    /// <summary>The trimmed, upper-cased fix name, or null when the command carried none.</summary>
+    private static string? NormalizeFixName(string? fixName)
+    {
+        string? normalized = fixName?.Trim().ToUpperInvariant();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static CommandResult DispatchReportAtFix(ReportCommand cmd, AircraftState aircraft)
     {
-        string? fixName = cmd.FixName?.Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(fixName))
+        string? fixName = NormalizeFixName(cmd.FixName);
+        if (fixName is null)
         {
             return new CommandResult(false, "REPORT requires a fix name");
         }
@@ -2358,9 +2412,15 @@ internal static class NavigationCommandHandler
         }
     }
 
+    /// <summary>How a pattern-leg report names itself: "turning crosswind", or "midfield downwind".</summary>
+    private static string PatternReportPhrase(ReportTrigger leg) =>
+        leg == ReportTrigger.Midfield ? ReportLegWord(leg) : $"turning {ReportLegWord(leg)}";
+
     /// <summary>The echo for an armed pattern-leg report: "Will report midfield downwind", else "Will report turning {leg}".</summary>
-    private static string PatternReportArmedEcho(ReportTrigger leg) =>
-        leg == ReportTrigger.Midfield ? $"Will report {ReportLegWord(leg)}" : $"Will report turning {ReportLegWord(leg)}";
+    private static string PatternReportArmedEcho(ReportTrigger leg) => $"Will report {PatternReportPhrase(leg)}";
+
+    /// <summary>The echo for a cancelled pattern-leg report: "Cancelled midfield downwind report", else "Cancelled turning {leg} report".</summary>
+    private static string PatternReportCancelledEcho(ReportTrigger leg) => $"Cancelled {PatternReportPhrase(leg)} report";
 
     private static string ReportLegWord(ReportTrigger leg) =>
         leg switch
