@@ -9,21 +9,21 @@
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
 
 - [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext
-  - [ ] YAAT-1078 Keep the Terminal readback canonical; vary only the spoken form (YAAT-849 part C) · release vNext
-  - [ ] YAAT-1080 Shorten an N-number callsign after the controller acknowledges contact (YAAT-849 part E) · release vNext
-  - [ ] YAAT-1081 Speak a contact frequency grouped without the leading 1 when busy (YAAT-849 part F) · release vNext
   - [ ] YAAT-1082 Give every pilot readback terse, normal and chatty spoken variants (YAAT-849 part G) · release vNext
   - [ ] YAAT-1086 Merge feat/pilot-phraseology-load to main (#1342)
+- [ ] YAAT-1101 Harden the readback aviation floor: LUAW 'up', pilot -ing forms, runway-designator collapse, F6 test
+- [ ] YAAT-1103 Short callsign: gate on the student's dispatch; close the acknowledging-transmission gaps; sound-alike forms
 
 ## Context-menu flyouts (feat/context-menu-flyouts)
 
 - [ ] YAAT-1034 Context-menu flyouts and All Commands (feat/context-menu-flyouts) · release vNext
-  - [/] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
   - [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
   - [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
   - [ ] YAAT-1048 Decide the focus when a runway tab is switched in a Cleared approach flyout opened on the visual
   - [ ] YAAT-1052 Merge feat/context-menu-flyouts to main (#1341)
   - [ ] YAAT-1067 Hide the Squawk assigned code row for an aircraft with no assigned code
+- [ ] YAAT-1102 Exact custom-fix read for nearby reporting points; isolate armed-report change-detection edges
+- [ ] YAAT-1104 Report when strip button: armed state in its label; chip keyboard reach; mock waiting text
 
 ## Context-menu quick commands (#471)
 
