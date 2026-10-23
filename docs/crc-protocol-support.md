@@ -100,7 +100,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] `SaveAsdexTempDataPreset(facilityId, AsdexTempDataPresetDto)` — stores preset
 - [x] `ToggleAsdexTempDataPreset(facilityId, tempDataPresetId)` — toggles preset active state
 - [x] `DeleteAsdexTempDataPreset(facilityId, tempDataPresetId)` — removes preset
-- [x] `UpdateAsdexSafetyLogicConfiguration(facilityId, AsdexSafetyLogicConfigurationDto)` — recorded (`RecordedAsdexSafetyLogicChange`) and stored as scenario state (`SimScenarioState.AsdexSafetyLogicConfig`, Sim-native via `DtoConverter.FromAsdexSafetyLogicConfigDto`), echoed to the `AsdexSafetyLogicConfiguration` topic; refused with no scenario loaded. The topic has no clear, so a configuration a rewind drops is not withdrawn from displays (see [crc-display-state.md](crc-display-state.md))
+- [x] `UpdateAsdexSafetyLogicConfiguration(facilityId, AsdexSafetyLogicConfigurationDto)` — recorded (`RecordedAsdexSafetyLogicChange`) and stored as scenario state (`SimScenarioState.AsdexSafetyLogicConfigs`, under the pushing facility, via `DtoConverter.FromAsdexSafetyLogicConfigDto`), echoed as one DTO to that facility's subscribers; refused with no scenario loaded. No topic clear, so a configuration a rewind drops stays on displays (see [crc-display-state.md](crc-display-state.md))
 
 ### Flight Strips
 
@@ -180,10 +180,10 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] `DeleteAsdexTargets(Topic, List<string>)` — aircraft removal
 - [x] `ReceiveAsdexTracks(Topic, List<AsdexTrackDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteAsdexTracks(Topic, List<string>)` — aircraft removal
-- [x] `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)` — initial data + event-driven (`CrcBroadcastService.cs` + `CrcClientState.Asdex.cs`)
+- [x] `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)` — one DTO (not a list, as CRC binds it) for the subscribing facility, sent before the ack on subscribe, on a display's push echo and on every scenario load for each seeded ASDE-X facility (`AsdexSafetyLogicSeed.Build`); runway ids are the facility's own pair ids (`28R-10L`), all open, no runway configuration id (`CrcBroadcastService.cs`, `CrcClientState.Asdex.cs`, `ScenarioLifecycleService.cs`)
 - [x] `ReceiveAsdexHoldBars(Topic, List<AsdexHoldBarDto>)` — empty-list initial broadcast on subscribe; no geometry source yet (hold-bar polylines live in ASDEX video maps, not config)
-- [ ] `ReceiveAsdexAlerts(Topic, List<AsdexAlertDto>)` — requires safety-logic detector (deferred)
-- [ ] `DeleteAsdexAlerts(Topic, List<string>)` — paired with detector
+- [x] `ReceiveAsdexAlerts(Topic, List<AsdexAlertDto>)` — per facility, on the raising facility's `AsdexAlerts` topic only; `RunwayIds` are single ends, and the aural sequence and `MessageLines[0]` name the end the claimant is using, the claimant ranked by role: a low arrival (airborne within 300 ft of the field), then a departure lined up or rolling, then any other aircraft, alignment breaking ties (the pair id when no claimant is held)
+- [x] `DeleteAsdexAlerts(Topic, List<string>)` — paired with the detector, same per-facility topic
 - [x] `ReceiveAsdexTempDatas(Topic, List<AsdexTempDataDto>)` — initial + event-driven (`CrcClientState.Asdex.cs`)
 - [x] `DeleteAsdexTempDatas(Topic, List<string>)`
 - [x] `ReceiveAsdexTempDataPresets(Topic, List<AsdexTempDataPresetDto>)` — initial + event-driven
@@ -292,7 +292,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)
 - [x] ERAM short-term conflict detection + broadcast (`EramConflictDetector`; see [conflict-and-visual-detection.md](./conflict-and-visual-detection.md))
 - [x] ERAM target history UDP stream (`EramTargetHistoryEntryDto`, union tag 13); `DeleteEramTargetHistoryEntries` is still open (above)
-- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — sole remaining ASDE-X parity gap; needs hold-bar geometry synthesis + aviation review (the shipped safety-logic plan, `docs/plans/archive/asdex-safety-logic.md`, is in git history)
+- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — needs hold-bar geometry synthesis + aviation review. It is not the only ASDE-X parity gap: runway-configuration gating, use of the positions and the arrival-alert inhibit, and the converging-runway alerts are also missing (see [plans/asdex-safety-logic-parity.md](plans/asdex-safety-logic-parity.md))
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
 
 ---

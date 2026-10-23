@@ -293,7 +293,7 @@ public class RecordedStateChangeTests
         CommandResult applied = engine.Actions.ApplyRecorded(change, host);
 
         Assert.True(applied.Success, applied.Message);
-        Assert.Same(config, engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.Same(config, engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
     }
 
     [Fact]

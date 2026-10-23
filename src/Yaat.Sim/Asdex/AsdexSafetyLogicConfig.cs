@@ -3,11 +3,12 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Asdex;
 
 /// <summary>
-/// The ASDE-X Safety Logic configuration a CRC surface display pushes for a facility: the runway footprints the
-/// detector watches, the id of the runway configuration they came from, and the positions whose arrival alerts are
-/// inhibited. Scenario state (<see cref="Simulation.SimScenarioState.AsdexSafetyLogicConfig"/>) and snapshotted, so
-/// every run kind carries it and a rewind onto a snapshot that predates a push rebuilds it from the action log
-/// instead of keeping the configuration the live room happened to be holding.
+/// The ASDE-X Safety Logic configuration of one facility, seeded at load (<see cref="AsdexSafetyLogicSeed"/>) or pushed
+/// by a CRC surface display: the runway footprints the detector watches, the id of the runway configuration they came
+/// from, and the positions whose arrival alerts are inhibited. Scenario state, per facility
+/// (<see cref="Simulation.SimScenarioState.AsdexSafetyLogicConfigs"/>), and snapshotted, so every run kind carries it
+/// and a rewind onto a snapshot that predates a push returns to what the snapshot holds instead of keeping the
+/// configuration the live room happened to be holding.
 /// </summary>
 public sealed record AsdexSafetyLogicConfig(
     IReadOnlyList<AsdexRunwayConfig> Runways,

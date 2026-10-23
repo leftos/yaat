@@ -129,8 +129,8 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnEramConflictSettingsChanged() => _bare.OnEramConflictSettingsChanged();
 
-    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
-        _bare.OnAsdexAlertsChanged(newAlerts, clearedAlertIds);
+    public void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
+        _bare.OnAsdexAlertsChanged(facilityId, newAlerts, clearedAlertIds);
 
     public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) => _bare.OnDisconnectCoastExpired(expired);
 

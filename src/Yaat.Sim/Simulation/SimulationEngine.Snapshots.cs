@@ -340,28 +340,20 @@ public sealed partial class SimulationEngine
 
             CoordinationChannelSnapshotMapper.RestoreChannels(Scenario.CoordinationChannels, scenarioDto.CoordinationChannels);
 
-            // Replace, never merge: a snapshot that predates the last push (or predates the feature) carries no
-            // configuration, and the log's pushes after this snapshot are what rebuild it.
-            Scenario.AsdexSafetyLogicConfig = scenarioDto.AsdexSafetyLogicConfig is { } asdexConfig
-                ? AsdexSafetyLogicConfig.FromSnapshot(asdexConfig)
-                : null;
+            // Replace, never merge: the snapshot holds every facility's configuration as it stood (the load's seed, and
+            // any push before it), and the log's pushes after this snapshot are what move it on. A restore keeps what
+            // the snapshot holds rather than re-deriving the seed.
+            var restoredConfigs = AsdexSafetyLogicSeed.Empty.ToBuilder();
+            foreach ((string facilityId, AsdexSafetyLogicConfigDto configDto) in scenarioDto.AsdexSafetyLogicConfigs ?? [])
+            {
+                restoredConfigs[facilityId] = AsdexSafetyLogicConfig.FromSnapshot(configDto);
+            }
+
+            Scenario.AsdexSafetyLogicConfigs = restoredConfigs.ToImmutable();
 
             // Same rule for the standing alerts: a snapshot from before they were raised carries none, and the
             // detector re-raises whatever the restored world still warrants on the next tick.
-            var restoredAlerts = Scenario.ActiveAsdexAlerts.Clear().ToBuilder();
-            foreach (AsdexSafetyAlertDto alertDto in scenarioDto.ActiveAsdexAlerts ?? [])
-            {
-                restoredAlerts[alertDto.Id] = new AsdexSafetyAlert(
-                    alertDto.Id,
-                    alertDto.Kind,
-                    [.. alertDto.RunwayIds],
-                    [.. alertDto.Callsigns],
-                    [.. alertDto.MessageLines],
-                    alertDto.PlayAuralAlert
-                );
-            }
-
-            Scenario.ActiveAsdexAlerts = restoredAlerts.ToImmutable();
+            Scenario.ActiveAsdexAlerts = RestoreAsdexAlerts(scenarioDto.ActiveAsdexAlerts);
 
             // Replace, never merge, for the coasts too: a snapshot that predates the feature carries none, and the
             // coasts registered in the undone future must go with it. The pending cleared-callsign list is emptied

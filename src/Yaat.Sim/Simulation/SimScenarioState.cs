@@ -503,33 +503,46 @@ public sealed class SimScenarioState
 
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];
 
+    private volatile ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> _asdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Empty;
+
     /// <summary>
-    /// The ASDE-X Safety Logic configuration a CRC surface display last pushed, or null while no display has pushed
-    /// one. Written by a <see cref="RecordedAsdexSafetyLogicChange"/> and read by the surface-alert detector.
+    /// The ASDE-X Safety Logic configuration of every ASDE-X facility, keyed by facility id (ordinal); empty, never
+    /// null. A load seeds it from the ARTCC config and navdata (<see cref="AsdexSafetyLogicSeed"/>), a
+    /// <see cref="RecordedAsdexSafetyLogicChange"/> replaces the pushing facility's entry, and a snapshot restore
+    /// replaces the whole map. Read by the surface-alert detector, one facility at a time. Same gate invariant as
+    /// <see cref="ActiveAsdexAlerts"/>: written only on the tick thread (or at load, before the first tick), every write
+    /// replaces the whole collection, and a reader on another thread takes the reference once.
     /// </summary>
-    public AsdexSafetyLogicConfig? AsdexSafetyLogicConfig { get; set; }
+    public ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> AsdexSafetyLogicConfigs
+    {
+        get => _asdexSafetyLogicConfigs;
+        set => _asdexSafetyLogicConfigs = value;
+    }
 
-    private volatile ImmutableSortedDictionary<string, AsdexSafetyAlert> _activeAsdexAlerts = ImmutableSortedDictionary.Create<
-        string,
-        AsdexSafetyAlert
-    >(StringComparer.Ordinal);
+    /// <summary>No standing alerts at a facility: what a facility without an entry in <see cref="ActiveAsdexAlerts"/> reads as.</summary>
+    public static ImmutableSortedDictionary<string, AsdexSafetyAlert> NoAsdexAlerts { get; } =
+        ImmutableSortedDictionary.Create<string, AsdexSafetyAlert>(StringComparer.Ordinal);
+
+    private volatile ImmutableSortedDictionary<string, ImmutableSortedDictionary<string, AsdexSafetyAlert>> _activeAsdexAlerts =
+        ImmutableSortedDictionary.Create<string, ImmutableSortedDictionary<string, AsdexSafetyAlert>>(StringComparer.Ordinal);
 
     /// <summary>
-    /// The ASDE-X Safety Logic alerts standing right now, keyed by alert id. Maintained by
-    /// <see cref="SimulationEngine.TickAsdexAlerts"/>, which diffs the detector's findings against this set and hands
-    /// the host only what appeared and what went away. Ordinal-sorted so every iteration that can reach a snapshot, a
-    /// broadcast or a recording is in the same order on every run.
+    /// The ASDE-X Safety Logic alerts standing right now, keyed by facility id then alert id, so two facilities' alerts
+    /// on runways of the same name never collide; a facility with no standing alert has no entry. Maintained by
+    /// <see cref="SimulationEngine.TickAsdexAlerts"/>, which diffs each facility's detector findings against its set and
+    /// hands the host only what appeared and what went away. Ordinal-sorted so every iteration that can reach a
+    /// snapshot, a broadcast or a recording is in the same order on every run.
     ///
     /// <para>
-    /// <b>Gate invariant.</b> The set is written only on the tick thread — the detector pass, the clear when no
-    /// safety-logic configuration stands, and the snapshot restore — and every write replaces the whole collection
-    /// rather than editing one in place. Readers run on any thread: the initial-data build for a newly subscribing
-    /// CRC client (<c>CrcBroadcastService.BuildAsdexAlertsData</c>) enumerates this from a connection's thread. They
-    /// take the reference once and read an immutable set, which a concurrent tick cannot disturb; reading the
-    /// property twice in one body can straddle a tick and see two different sets.
+    /// <b>Gate invariant.</b> The set is written only on the tick thread — the detector pass, the clear when a facility
+    /// has no runways configured, and the snapshot restore — and every write replaces the whole collection rather than
+    /// editing one in place. Readers run on any thread: the initial-data build for a newly subscribing CRC client
+    /// (<c>CrcBroadcastService.BuildAsdexAlertsData</c>) enumerates this from a connection's thread. They take the
+    /// reference once and read an immutable set, which a concurrent tick cannot disturb; reading the property twice in
+    /// one body can straddle a tick and see two different sets.
     /// </para>
     /// </summary>
-    public ImmutableSortedDictionary<string, AsdexSafetyAlert> ActiveAsdexAlerts
+    public ImmutableSortedDictionary<string, ImmutableSortedDictionary<string, AsdexSafetyAlert>> ActiveAsdexAlerts
     {
         get => _activeAsdexAlerts;
         set => _activeAsdexAlerts = value;
@@ -713,26 +726,41 @@ public sealed class SimScenarioState
                     ]
                     : null,
             NextTimerId = NextTimerId,
-            AsdexSafetyLogicConfig = AsdexSafetyLogicConfig?.ToSnapshot(),
-            ActiveAsdexAlerts =
-                ActiveAsdexAlerts.Count > 0
-                    ?
-                    [
-                        .. ActiveAsdexAlerts.Values.Select(a => new AsdexSafetyAlertDto
-                        {
-                            Id = a.Id,
-                            Kind = a.Kind,
-                            RunwayIds = [.. a.RunwayIds],
-                            Callsigns = [.. a.Callsigns],
-                            MessageLines = [.. a.MessageLines],
-                            PlayAuralAlert = a.PlayAuralAlert,
-                        }),
-                    ]
-                    : null,
+            AsdexSafetyLogicConfigs = SnapshotAsdexSafetyLogicConfigs(),
+            ActiveAsdexAlerts = SnapshotAsdexAlerts(),
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
             ActiveRunways = SnapshotRunways(),
             DisconnectCoasts = SnapshotDisconnectCoasts(),
         };
+
+    /// <summary>The per-facility configurations in ordinal facility order, or null when no facility has one.</summary>
+    private Dictionary<string, AsdexSafetyLogicConfigDto>? SnapshotAsdexSafetyLogicConfigs()
+    {
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs = AsdexSafetyLogicConfigs;
+        return configs.Count > 0 ? configs.ToDictionary(entry => entry.Key, entry => entry.Value.ToSnapshot(), StringComparer.Ordinal) : null;
+    }
+
+    /// <summary>The standing alerts, facility by facility then by id, or null when none stands.</summary>
+    private List<AsdexSafetyAlertDto>? SnapshotAsdexAlerts()
+    {
+        ImmutableSortedDictionary<string, ImmutableSortedDictionary<string, AsdexSafetyAlert>> standing = ActiveAsdexAlerts;
+        List<AsdexSafetyAlertDto> dtos =
+        [
+            .. standing.SelectMany(facility =>
+                facility.Value.Values.Select(a => new AsdexSafetyAlertDto
+                {
+                    FacilityId = facility.Key,
+                    Id = a.Id,
+                    Kind = a.Kind,
+                    RunwayIds = [.. a.RunwayIds],
+                    Callsigns = [.. a.Callsigns],
+                    MessageLines = [.. a.MessageLines],
+                    PlayAuralAlert = a.PlayAuralAlert,
+                })
+            ),
+        ];
+        return dtos.Count > 0 ? dtos : null;
+    }
 
     /// <summary>
     /// The coast set as snapshot DTOs, or null when nothing is coasting. The volatile property is read into a local

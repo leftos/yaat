@@ -63,7 +63,7 @@ public sealed record AsdexSafetyAlert(
 public static class AsdexSafetyLogicDetector
 {
     /// <summary>Arrival is treated as airborne over the runway up to this AGL (7110.65 §3-6-4).</summary>
-    private const double ArrivalAglCeilingFt = 300;
+    public const double ArrivalAglCeilingFt = 300;
 
     /// <summary>Heading tolerance (deg, either direction along the axis) for treating an aircraft as aligned with a runway.</summary>
     private const double AlignmentToleranceDeg = 35;

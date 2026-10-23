@@ -76,7 +76,7 @@ public class AsdexAlertStepTests
         // Through the whole second, not the body alone: the spine entry is what has to deliver this on every run kind.
         engine.RunSecond(spine);
 
-        AsdexSafetyAlert standing = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.Values);
+        AsdexSafetyAlert standing = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts).Values);
         Assert.Equal(AsdexAlertKind.ClosedRunway, standing.Kind);
         Assert.Equal([ac.Callsign], standing.Callsigns);
         Assert.Equal(["28R", ac.Callsign, "CLOSED RWY"], standing.MessageLines);
@@ -89,7 +89,7 @@ public class AsdexAlertStepTests
         // standing alert is not re-announced.
         engine.RunSecond(spine);
         Assert.Single(spine.AsdexAlertChanges);
-        Assert.Single(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
     }
 
     [Fact]
@@ -105,12 +105,12 @@ public class AsdexAlertStepTests
         AircraftState ac = PutOnTheRunway(engine);
 
         engine.TickAsdexAlerts(spine);
-        string raisedId = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.Keys);
+        string raisedId = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts).Keys);
 
         ac.Position = OffTheRunway;
         engine.TickAsdexAlerts(spine);
 
-        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
         Assert.Equal(2, spine.AsdexAlertChanges.Count);
 
         (IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) = spine.AsdexAlertChanges[1];
@@ -132,7 +132,10 @@ public class AsdexAlertStepTests
         engine.TickAsdexAlerts(spine);
 
         // What the CRC initial-data build does off the tick thread: take the reference once, enumerate it later.
-        IReadOnlyDictionary<string, AsdexSafetyAlert> captured = engine.Scenario!.ActiveAsdexAlerts;
+        IReadOnlyDictionary<string, AsdexSafetyAlert> captured = engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(
+            "OAK",
+            SimScenarioState.NoAsdexAlerts
+        );
         string raisedId = Assert.Single(captured.Keys);
 
         // The tick that clears the alert must not reach into what the reader is holding.
@@ -142,7 +145,7 @@ public class AsdexAlertStepTests
         AsdexSafetyAlert held = Assert.Single(captured.Values);
         Assert.Equal(raisedId, held.Id);
         Assert.Equal(AsdexAlertKind.ClosedRunway, held.Kind);
-        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
     }
 
     [Fact]
@@ -158,10 +161,10 @@ public class AsdexAlertStepTests
 
         // No display has pushed a safety-logic configuration, so there are no runway footprints to alert on — the
         // detector is not even reached, and the aircraft sitting where a closed runway would be is not an alert.
-        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
         engine.RunSecond(spine);
 
-        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
         Assert.Empty(spine.AsdexAlertChanges);
     }
 
@@ -178,7 +181,7 @@ public class AsdexAlertStepTests
         PutOnTheRunway(engine);
         engine.TickAsdexAlerts(spine);
 
-        AsdexSafetyAlert raised = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.Values);
+        AsdexSafetyAlert raised = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts).Values);
 
         // Through the serializer a recording writes the snapshot with, not just the in-memory DTO: the nested
         // callsign and message-line lists are the part a plain object graph would hide.
@@ -188,7 +191,7 @@ public class AsdexAlertStepTests
         engine.Scenario!.ActiveAsdexAlerts = engine.Scenario!.ActiveAsdexAlerts.Clear();
         engine.RestoreFromSnapshot(reread);
 
-        AsdexSafetyAlert restored = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.Values);
+        AsdexSafetyAlert restored = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts).Values);
         Assert.Equal(raised.Id, restored.Id);
         Assert.Equal(raised.Kind, restored.Kind);
         Assert.Equal(raised.RunwayIds, restored.RunwayIds);
@@ -216,12 +219,12 @@ public class AsdexAlertStepTests
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", ClosedRunways("28R")));
         PutOnTheRunway(engine);
         engine.TickAsdexAlerts(spine);
-        Assert.NotEmpty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.NotEmpty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
 
         // A rewind onto a second before the alert went up: the set is replaced, never merged, so the alert that the
         // rewind has undone is gone and the next tick decides afresh whether the restored world still warrants it.
         engine.RestoreFromSnapshot(snapshot);
-        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
     }
 
     [Fact]
@@ -236,13 +239,13 @@ public class AsdexAlertStepTests
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", ClosedRunways("28R")));
         PutOnTheRunway(engine);
         engine.TickAsdexAlerts(spine);
-        Assert.NotEmpty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.NotEmpty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
 
         // The engine-level unload/reload: a fresh scenario replaces the state the alerts live on, and the
         // configuration they were raised against goes with it.
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc));
 
-        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts);
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
     }
 
     [Fact]

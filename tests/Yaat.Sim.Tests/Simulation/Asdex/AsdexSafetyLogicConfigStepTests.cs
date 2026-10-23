@@ -67,7 +67,7 @@ public class AsdexSafetyLogicConfigStepTests
 
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", config));
 
-        Assert.Same(config, engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.Same(config, engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class AsdexSafetyLogicConfigStepTests
         // picking up the one that arrived while there was nowhere to put it.
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc));
 
-        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
     }
 
     [Fact]
@@ -102,10 +102,10 @@ public class AsdexSafetyLogicConfigStepTests
         // ring is the part a plain object graph would hide.
         StateSnapshotDto reread = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
 
-        engine.Scenario!.AsdexSafetyLogicConfig = null;
+        engine.Scenario!.AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Empty;
         engine.RestoreFromSnapshot(reread);
 
-        AssertMatches(config, engine.Scenario!.AsdexSafetyLogicConfig);
+        AssertMatches(config, engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
     }
 
     [Fact]
@@ -117,12 +117,12 @@ public class AsdexSafetyLogicConfigStepTests
         }
 
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
-        Assert.Null(snapshot.Scenario.AsdexSafetyLogicConfig);
+        Assert.Null(snapshot.Scenario.AsdexSafetyLogicConfigs?.GetValueOrDefault("OAK"));
 
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Config(isClosed: true)));
         engine.RestoreFromSnapshot(snapshot);
 
-        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
     }
 
     [Fact]
@@ -148,12 +148,12 @@ public class AsdexSafetyLogicConfigStepTests
         }
 
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Config(isClosed: true)));
-        Assert.NotNull(engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.NotNull(engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
 
         // The engine-level unload/reload: a fresh scenario replaces the state the configuration lives on, so the
         // configuration — which tracks a runway configuration the reload is expected to change — goes with it.
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc));
 
-        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfig);
+        Assert.Null(engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
     }
 }

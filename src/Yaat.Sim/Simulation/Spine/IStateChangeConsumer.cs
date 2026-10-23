@@ -77,13 +77,14 @@ public interface IStateChangeConsumer
     void OnEramConflictSettingsChanged();
 
     /// <summary>
-    /// The ASDE-X Safety Logic alerts the post-physics detector pass raised and cleared this second. The diff rather
-    /// than the whole set, because CRC's alert topic is additive with an explicit delete: the new alerts go out as
-    /// <c>ReceiveAsdexAlerts</c> and the cleared ids as <c>DeleteAsdexAlerts</c>. Never called with both sides empty.
+    /// The ASDE-X Safety Logic alerts the post-physics detector pass raised and cleared this second at one ASDE-X
+    /// facility, called once per facility that moved. The diff rather than the whole set, because CRC's alert topic is
+    /// additive with an explicit delete: the new alerts go out as <c>ReceiveAsdexAlerts</c> and the cleared ids as
+    /// <c>DeleteAsdexAlerts</c>, on <paramref name="facilityId"/>'s alert topic only. Never called with both sides empty.
     /// Same suppression rule as <see cref="OnStripsChanged"/> — a reconstruction stays silent. Nothing re-sends the
     /// standing set when it lands: a display learns it from its next initial-data build and from later diffs.
     /// </summary>
-    void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds);
+    void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds);
 
     /// <summary>
     /// The disconnect-coast facets the post-physics expiry step retired this second, ordered by callsign then facet

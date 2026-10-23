@@ -96,7 +96,7 @@ public sealed class AttendanceActionHost : IActionHost
     /// <summary>Every ASDE-X Safety Logic diff a drain handed over, in order.</summary>
     public List<(IReadOnlyList<AsdexSafetyAlert> NewAlerts, IReadOnlyList<string> ClearedAlertIds)> AsdexAlertChanges { get; } = [];
 
-    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
+    public void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
         AsdexAlertChanges.Add((newAlerts, clearedAlertIds));
 
     /// <summary>Every batch of disconnect-coast facets a drain handed over as expired, in order.</summary>

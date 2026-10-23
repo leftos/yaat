@@ -86,10 +86,14 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
     /// <summary>Every ASDE-X Safety Logic diff the post-physics detector step handed over, in order.</summary>
     public List<(IReadOnlyList<AsdexSafetyAlert> NewAlerts, IReadOnlyList<string> ClearedAlertIds)> AsdexAlertChanges { get; } = [];
 
-    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds)
+    /// <summary>The facility each entry of <see cref="AsdexAlertChanges"/> named, in the same order.</summary>
+    public List<string> AsdexAlertFacilities { get; } = [];
+
+    public void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds)
     {
         AsdexAlertChanges.Add((newAlerts, clearedAlertIds));
-        _inner.OnAsdexAlertsChanged(newAlerts, clearedAlertIds);
+        AsdexAlertFacilities.Add(facilityId);
+        _inner.OnAsdexAlertsChanged(facilityId, newAlerts, clearedAlertIds);
     }
 
     /// <summary>Every batch of disconnect-coast facets the post-physics expiry step retired, in order.</summary>

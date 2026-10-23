@@ -319,7 +319,19 @@ The vStrips *Request Strip* action (`RecordedStripRequest`: the own facility plu
 
 Both apply through engine bodies (`StripRequests.PrintRequestedStrip`, `SimulationEngine.ApplyRecordedAsdexSafetyLogic`) because strips and the safety-logic configuration are engine state, and the handlers still publish their topics when fresh.
 
-The safety-logic configuration is scenario state — `SimScenarioState.AsdexSafetyLogicConfig`, carried by the Sim snapshot — so `CrcBroadcastService.BuildAsdexSafetyLogicConfiguration` and the Sim alert step `SimulationEngine.TickAsdexAlerts` both read the scenario's `AsdexSafetyLogicConfig` (the server as `room.ActiveScenario?.AsdexSafetyLogicConfig`), with `DtoConverter.ToAsdexSafetyLogicConfig` projecting it back to the MessagePack DTO.
+The safety-logic configuration is scenario state, one per ASDE-X facility — `SimScenarioState.AsdexSafetyLogicConfigs`, an ordinal map keyed by facility id and carried by the Sim snapshot — so `CrcBroadcastService.BuildAsdexSafetyLogicConfiguration` and the Sim alert step `SimulationEngine.TickAsdexAlerts` both read it (the server as `room.ActiveScenario?.AsdexSafetyLogicConfigs`), with `DtoConverter.ToAsdexSafetyLogicConfig` projecting an entry back to the MessagePack DTO.
+
+A push is stored under the pushing facility and echoed as one `AsdexSafetyLogicConfigurationDto` (not a list: CRC's `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)` binds a single payload) by `ICrcBroadcast.BroadcastAsdexSafetyLogicConfigurationAsync`, to that facility's subscribers only.
+
+A subscribe to the topic gets the subscribing facility's own configuration and then the ack, or only the ack when that facility has none.
+
+Every scenario load seeds the map before the first tick (`AsdexSafetyLogicSeed.Build` over the ARTCC config and navdata, in both load paths: `SimulationEngine`'s scenario load and `ScenarioLifecycleService.BuildScenarioState` for a room load or reload), so snapshot 0 carries it and a rewind before any push returns to it.
+
+The seed is derived, not recorded: one entry per facility with an `asdexConfiguration` and navdata runways, and nothing with no ARTCC config, no `asdexConfiguration` or no navdata runways.
+
+Seeded runway ids are the facility's own pair ids from its ASDE-X positions (SFO `1L-19R`, `1R-19L`, `28L-10R`, `28R-10L`), with `{end1}-{end2}` for a runway no position names; every runway starts open and no runway configuration id is sent, so CRC keeps its own default (`LIMITED`).
+
+After a load, `ScenarioLifecycleService.PublishAsdexSafetyLogicSeed` sends each facility's seed to the displays already subscribed, because CRC subscribes once per display and nothing else would send it.
 
 A push with no scenario loaded is refused by `ApplyAndRecord` (`No scenario loaded`) and acked without an echo.
 
@@ -327,9 +339,13 @@ A rewind to before the push drops the configuration, a rewind to after it rebuil
 
 Pushing an empty configuration in its place is deliberately not done: it is unverified whether CRC would read it as "no closed runways" or overwrite its own console configuration with it.
 
-The `AsdexAlerts` topic has two sources, both over the same scenario state. The standing set is `SimScenarioState.ActiveAsdexAlerts`, maintained by `SimulationEngine.TickAsdexAlerts` and carried by the Sim snapshot (`ScenarioSnapshotDto.ActiveAsdexAlerts`), so a rewind and a prepared restart land on the alerts the target second held.
+The `AsdexAlerts` topic has two sources, both over the same scenario state. The standing set is `SimScenarioState.ActiveAsdexAlerts` (keyed by facility id, then alert id), maintained by `SimulationEngine.TickAsdexAlerts` per facility and carried by the Sim snapshot (`ScenarioSnapshotDto.ActiveAsdexAlerts`, each entry with its `FacilityId`), so a rewind and a prepared restart land on the alerts the target second held.
 
-Per tick, the step hands the host a diff through `IStateChangeConsumer.OnAsdexAlertsChanged(newAlerts, clearedAlertIds)` and `RoomHost` sends it with `ICrcBroadcast.BroadcastAsdexAlertsAsync` — `ReceiveAsdexAlerts` for the new alerts, `DeleteAsdexAlerts` for the cleared ids — unless `Room.IsBroadcastSuppressed`. A newly subscribing display gets the whole standing set from `CrcBroadcastService.BuildAsdexAlertsData`, projected by `DtoConverter.ToAsdexAlert`.
+Per tick, the step hands the host a diff through `IStateChangeConsumer.OnAsdexAlertsChanged(facilityId, newAlerts, clearedAlertIds)`, once per facility that moved, and `RoomHost` sends it with `ICrcBroadcast.BroadcastAsdexAlertsAsync(room, facilityId, …)` — `ReceiveAsdexAlerts` for the new alerts, `DeleteAsdexAlerts` for the cleared ids — on the raising facility's `AsdexAlerts` topic only, unless `Room.IsBroadcastSuppressed`.
+
+A newly subscribing display gets that facility's standing set from `CrcBroadcastService.BuildAsdexAlertsData`, projected by `DtoConverter.ToAsdexAlert`.
+
+An alert's `RunwayIds` are single runway ends, and the aural sequence and `MessageLines[0]` name the end the claimant is using. The claimant is ranked by role: a low arrival (airborne within `AsdexSafetyLogicDetector.ArrivalAglCeilingFt` of the facility elevation; the lowest arrival with an end under 90° of its course wins), then a departure (`TakeoffPhase` or `LinedUpAndWaitingPhase`), then any other aircraft; among departures, and among the rest, the aircraft whose course is closest to an end (under 90°) wins, ties to the ordinal callsign. With no facility elevation in navdata no aircraft ranks as an arrival. No aligned aircraft names the first end; the pair id is used when no claimant is held.
 
 **Footgun:** the standing set is an ordinal `ImmutableSortedDictionary` that every write replaces by reference, precisely because that initial-data build runs off the tick gate — `CrcClientState.TryBindToRoom` → `SendInitialDataForSubscriptionsAsync` → `BuildInitialData` executes on the connection's thread while the tick may be writing.
 
@@ -438,6 +454,7 @@ Wire-format contract, all of which YAAT got wrong before #312 — check these wh
   `UpdateAsdexSafetyLogicConfiguration(facilityId, config)`. Reading slot 0 as the DTO throws inside
   MessagePack, and the exception is swallowed by the dispatch try/catch — the mutation silently vanishes.
   `EditAsdexDbFields(dto)` is the exception: one argument, whose *field* 0 is the facility id.
+- **A `Receive*` method that takes one entity needs a single payload, not a one-element list**: `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)` binds one DTO, and a list there fails to bind on CRC. The wire-contract dump (`CrcWireDump`, diffed by `CrcWireContractTests`) covers DTO layouts, not hub-method signatures, so it cannot catch this: read the method's parameter list in the decompiled CRC.
 - **`TempDataType` is on the wire as a string** (`"RestrictedArea"`), not an int. Deserialize the DTO type
   rather than hand-rolling the reader, so `StringEnumFormatter` handles it.
 - **The preset id is the controller's SET number**, sent by CRC. The server stores what it is given; it must
@@ -565,7 +582,7 @@ Tests: `AutoScratchpadResolverTests` (branch matrix against the real ZOA snapsho
 - `StripState.Reset()` + `StripBroadcaster.BroadcastFullStateAsync`; `TdlsState.Reset()` + `TdlsBroadcaster.BroadcastFullStateAsync`.
 - `LineNumbers.Reset()` (server-only; the per-callsign delete loop already emits `DeleteStarsLineNumbers`).
 - `EramState.ClearScenarioArtifacts()` (route lines) + `BroadcastEramRouteLinesClearAsync` — the per-callsign delete loop only clears *per-aircraft* artifacts, so non-per-aircraft ones need this room-wide topic clear.
-- `AsdexState.Reset()` / `SaidState.Reset()` clear the per-tick termination drain and the coasting surface tracks — but **not** temp data or presets. Those are facility furniture, not scenario state; see "Surface temp data" below. The ASDE-X safety-logic configuration and the alerts it drives are scenario state (`SimScenarioState.AsdexSafetyLogicConfig` / `.ActiveAsdexAlerts`), so they go with the engine the unload drops.
+- `AsdexState.Reset()` / `SaidState.Reset()` clear the per-tick termination drain and the coasting surface tracks — but **not** temp data or presets. Those are facility furniture, not scenario state; see "Surface temp data" below. The ASDE-X safety-logic configuration and the alerts it drives are scenario state (`SimScenarioState.AsdexSafetyLogicConfigs` / `.ActiveAsdexAlerts`), so they go with the engine the unload drops.
 - ERAM FDB-open and point-out minimize are per-aircraft Sim state (`AircraftEramState.FdbOpenSectors` / `PointoutMinimizedSectors`, keyed by facility and sector), set by the recorded `FDB` / `MIN` entries and cleared by a successful `PO` apply, so they replay, rewind and leave with the aircraft; the unload has nothing room-wide to clear for them.
 - **Preserve** ERAM `SectorConfigurations` (velocity-vector length, CRR color) and `QuickLook` — controller-workstation display *preferences*, not scenario data; wiping them on unload is a regression.
 

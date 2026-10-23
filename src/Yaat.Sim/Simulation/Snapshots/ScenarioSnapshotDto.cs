@@ -151,15 +151,23 @@ public sealed class ScenarioSnapshotDto
     public List<ActiveTimerDto>? ActiveTimers { get; init; }
     public int NextTimerId { get; init; }
 
-    // The ASDE-X Safety Logic configuration a CRC surface display pushed. Optional: null in snapshots that predate it
-    // and in every session where no display ever pushed one, which is also what the scenario state then holds.
-    public AsdexSafetyLogicConfigDto? AsdexSafetyLogicConfig { get; init; }
+    // The ASDE-X Safety Logic configuration of every ASDE-X facility, keyed by facility id in ordinal order: the load's
+    // seed, with each facility a display pushed for replaced by its push. Optional: null in snapshots that predate it and
+    // whenever no facility has one (no ARTCC config, no ASDE-X facility or no navdata runways), which is also what the
+    // scenario state then holds, as an empty map.
+    public Dictionary<string, AsdexSafetyLogicConfigDto>? AsdexSafetyLogicConfigs { get; set; }
 
-    // The ASDE-X Safety Logic alerts standing at the moment of the snapshot, ordinal-sorted by id. Optional: null in
-    // snapshots that predate it and in every second where the detector found nothing, which is also what the scenario
-    // state then holds. Snapshotted because the per-tick diff against it is what decides which alerts a display is
-    // told about — a restore that started from an empty set would re-announce every standing alert.
-    public List<AsdexSafetyAlertDto>? ActiveAsdexAlerts { get; init; }
+    // The single scenario-wide configuration snapshots before V36 carried; SnapshotSchemaMigrator moves it under the
+    // primary airport's facility in AsdexSafetyLogicConfigs and nulls it, so a rewritten snapshot drops it.
+    [JsonPropertyName("AsdexSafetyLogicConfig")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AsdexSafetyLogicConfigDto? LegacyAsdexSafetyLogicConfig { get; set; }
+
+    // The ASDE-X Safety Logic alerts standing at the moment of the snapshot, ordinal-sorted by facility then id. Optional:
+    // null in snapshots that predate it and in every second where the detector found nothing, which is also what the
+    // scenario state then holds. Snapshotted because the per-tick diff against it is what decides which alerts a display
+    // is told about — a restore that started from an empty set would re-announce every standing alert.
+    public List<AsdexSafetyAlertDto>? ActiveAsdexAlerts { get; set; }
 
     // The tracks still coasting after their aircraft left the world, in the dictionary's ordinal callsign order and
     // each facet in its registered order. Optional: null in snapshots that predate it and whenever nothing is
@@ -183,6 +191,8 @@ public sealed class ScenarioSnapshotDto
 /// world, so this exists to keep the set a rewind or a session restore lands on identical to the live one.</summary>
 public sealed class AsdexSafetyAlertDto
 {
+    // The ASDE-X facility the alert stands at. Empty in snapshots before V36, which SnapshotSchemaMigrator fills in.
+    public string FacilityId { get; set; } = "";
     public required string Id { get; init; }
     public required AsdexAlertKind Kind { get; init; }
     public required List<string> RunwayIds { get; init; }

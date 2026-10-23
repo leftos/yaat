@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
@@ -71,6 +72,10 @@ public sealed partial class SimulationEngine
             InitialStripBayByCallsign = result.InitialStripBayByCallsign,
         };
         configureBeforePresets(Scenario);
+
+        // Derived, not recorded: every ASDE-X facility starts on the configuration its ARTCC config and navdata give it,
+        // which the first snapshot then carries. No ARTCC config (a bare load) seeds nothing.
+        Scenario.AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Build(Scenario.ArtccConfig, NavigationDatabase.InstanceOrNull);
 
         // Add immediate aircraft and dispatch their presets
         foreach (LoadedAircraft loaded in result.ImmediateAircraft)

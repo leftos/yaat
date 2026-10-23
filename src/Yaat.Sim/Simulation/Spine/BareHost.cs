@@ -151,7 +151,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void OnEramConflictSettingsChanged() { }
 
     /// <summary>Discarded: a bare engine has no surface display to alert. The standing set is engine state.</summary>
-    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) { }
+    public void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) { }
 
     /// <summary>Discarded: a bare engine has no display coasting a track. The coasts are engine state.</summary>
     public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) { }

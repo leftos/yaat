@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -24,7 +26,9 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 35;
+    private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
+
+    public const int CurrentSchemaVersion = 36;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -265,7 +269,50 @@ public static class SnapshotSchemaMigrator
             snapshot.Scenario.LegacyAutoCrossRunway = null;
         }
 
+        // V35→V36: the single scenario-wide ScenarioSnapshotDto.AsdexSafetyLogicConfig replaced by AsdexSafetyLogicConfigs (one
+        //   per ASDE-X facility), and AsdexSafetyAlertDto gained FacilityId. A legacy config and the legacy alerts move under one
+        //   facility: the snapshot's PrimaryAirportId, a four-letter id losing its leading ICAO "K". With no PrimaryAirportId
+        //   there is no facility to file them under, so both are dropped with a warning; the next tick re-raises whatever alert
+        //   a configuration still standing warrants. The legacy field is nulled so a rewritten snapshot drops it.
+        if (snapshot.SchemaVersion < 36)
+        {
+            MigrateLegacyAsdexSafetyLogic(snapshot.Scenario);
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    /// <summary>Files a pre-V36 snapshot's single safety-logic configuration and its alerts under the primary airport's facility.</summary>
+    private static void MigrateLegacyAsdexSafetyLogic(ScenarioSnapshotDto scenario)
+    {
+        if ((scenario.LegacyAsdexSafetyLogicConfig is null) && (scenario.ActiveAsdexAlerts is not { Count: > 0 }))
+        {
+            return;
+        }
+
+        if (scenario.PrimaryAirportId is not { Length: > 0 } primaryAirportId)
+        {
+            Log.LogWarning(
+                "Snapshot before schema 36 has an ASDE-X safety-logic configuration or alerts "
+                    + "but no primary airport to file them under; dropping them"
+            );
+            scenario.LegacyAsdexSafetyLogicConfig = null;
+            scenario.ActiveAsdexAlerts = null;
+            return;
+        }
+
+        string facilityId = NavigationDatabase.NormalizeAirport(primaryAirportId);
+        if (scenario.LegacyAsdexSafetyLogicConfig is { } legacy)
+        {
+            scenario.AsdexSafetyLogicConfigs = new Dictionary<string, AsdexSafetyLogicConfigDto>(StringComparer.Ordinal) { [facilityId] = legacy };
+        }
+
+        foreach (AsdexSafetyAlertDto alert in scenario.ActiveAsdexAlerts ?? [])
+        {
+            alert.FacilityId = facilityId;
+        }
+
+        scenario.LegacyAsdexSafetyLogicConfig = null;
     }
 
     /// <summary>Moves each trigger's pre-V34 <c>Radial</c> into <see cref="BlockTriggerDto.TrueRadial"/>; a legacy queue may be null.</summary>

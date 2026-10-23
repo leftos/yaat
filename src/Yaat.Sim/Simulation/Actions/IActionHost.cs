@@ -16,7 +16,7 @@ namespace Yaat.Sim.Simulation.Actions;
 /// engine's (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
 /// <see cref="SimScenarioState.CoordinationChannels"/> / <see cref="SimScenarioState.Bookmarks"/> /
 /// <see cref="SimScenarioState.IsPaused"/> and <see cref="SimScenarioState.SimRate"/> /
-/// <see cref="SimulationEngine.CrrGroups"/> / <see cref="SimScenarioState.AsdexSafetyLogicConfig"/> /
+/// <see cref="SimulationEngine.CrrGroups"/> / <see cref="SimScenarioState.AsdexSafetyLogicConfigs"/> /
 /// the <c>Asdex*</c> and <c>Said*</c> fields of
 /// <see cref="AircraftStarsState"/> — all but the bookmarks snapshotted, the timeline metadata a rewind carries over
 /// verbatim instead, so every run kind carries them), and so are the room's active runways
