@@ -32,17 +32,18 @@ namespace Yaat.Sim.Speech;
 /// sorting, and future context-sensitive rule disambiguation (e.g. <c>maintain {alt}</c>
 /// dispatching to CM vs DM based on current altitude).
 /// </param>
-/// <param name="PilotShortcuts">
-/// Optional alternate output-only forms used by the pilot AI's <c>PhraseologyVerbalizer</c>
-/// when <c>PilotPersonality.Varied</c> is enabled. Same <c>{name}</c> placeholder syntax as
-/// <see cref="Pattern"/>; same spoken-form formatters apply. Examples populated from the
-/// corpus in <c>docs/pilot-phraseology-examples.md</c>:
+/// <param name="PilotVariants">
+/// Optional output-only spoken wordings, per frequency load band, that the pilot AI's <c>PhraseologyVerbalizer</c> picks
+/// among when <c>PilotPersonality.Varied</c> is enabled. Each row is a template over the same <c>{name}</c> captures as
+/// <see cref="Pattern"/>, rendered by the same spoken-form formatters, and must keep the aviation floor against the pattern
+/// (<c>AviationFloor.HoldsTemplate</c>). The verbalizer renders the band's rows, drops any that leave a placeholder
+/// unresolved or whose tags rule them out, and picks one by a seeded, uniform pick (<c>VariantPick</c>):
 /// <code>
 /// new(
 ///     ["climb", "and?", "maintain", "{alt}"],
 ///     "CM {alt}",
 ///     ClimbMaintain,
-///     PilotShortcuts: ["up to {alt}", "up to {alt-tens}", "climbing to {alt}"])
+///     PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("up to {alt}", PilotVariantTags.FlightLevelOnly)))
 /// </code>
 /// When null, the verbalizer always emits the pattern-derived verbatim form.
 /// </param>
@@ -57,7 +58,7 @@ public sealed record PhraseologyRule(
     string[] Pattern,
     string OutputTemplate,
     CanonicalCommandType Type,
-    string[]? PilotShortcuts = null,
+    PilotVariantSet? PilotVariants = null,
     bool SttOnly = false
 )
 {

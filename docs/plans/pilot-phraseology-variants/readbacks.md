@@ -7,7 +7,7 @@ How to mark it up: strike a variant (`~~text~~`), add a row under its canonical 
 ## Reading the tables
 
 - **Canonical** is today's spoken body, quoted from the code (path:line under `src/Yaat.Sim/`). Each family's first table lists them as C1, C2, …; the variant table refers to them.
-- **Every variant ends ", {cs}"** unless the row shows `{cs}` somewhere else. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in today's spoken form (digits, AIM 4-2-9.a) except the busy group-form altitude rows (see "Floor as the owner's rulings change it" below).
+- **Every variant ends ", {cs}"** unless the row shows `{cs}` somewhere else. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
 - **Owner ruling 1, 2, 3** in a Basis cell name the owner's YAAT-1082 rulings listed in the next section.
 - **Bands**: Q quiet, N normal, B busy. The pilot's trait shifts the band first; then a seeded pick chooses one row of that band per transmission. N always holds the canonical, marked `= C`.
 - **Ruling**: `OK` (obeys the floor), `No: F4` (breaks that floor rule, kept to show the boundary), `No: J` (breaks no F-rule, rejected on judgement, reason in Basis).
@@ -35,7 +35,7 @@ My judgement on scope, for the owner to overrule:
 - **Which readbacks count as a "runway clearance" (ruling 1)**: the F12 clearance verbs that carry a runway, plus line up and wait and approach clearances, because each puts the aircraft on or toward that runway and its readback is the runway check. Not the taxi destination ("runway three zero via sierra one, echo": with "taxi" already dropped in busy, a bare "three zero via …" loses the cue), not "expect" (no clearance yet), not a pattern entry (an instruction, not a clearance).
 - **Group form never applies to flight levels**: 7110.65 2-4-17.b.1 NOTE allows group form for altitudes only, and 2-4-17.b.2 gives flight levels as separate digits with no such note; AIM 4-2-9.b agrees. I found no basis to extend ruling 2 above FL180.
 - **Group form stays out of the families held canonical-only** (military routes, the crossing restriction with speed, LAHSO and the rest in the summary): those keep the canonical exactly, number form included.
-- **Group form for speeds stays rejected**: ruling 2 names altitudes; "two fifty" for a speed is unchanged (§3).
+- **Speeds follow altitudes**: Q and N speak separate digits plus 'knots' (AIM 4-2-11; 7110.65 2-4-17.l.1; group form is ATC's 'by N knots' form, 5-7-2.a.4); B may say 'two fifty knots' / 'speed two fifty'. Today's `SpeedWords` speaks group form in every band; Q and N must move to digits (owner ruling).
 - The variant tables show group form only where a family's example altitude is 10,000 ft or more; in every other busy row, an altitude from 10,000 to 17,900 ft may take group form under F3 as restated.
 
 ## 1. Heading and turns
@@ -79,9 +79,9 @@ My judgement on scope, for the owner to overrule:
 |---|---|---|
 | C1 | climb and maintain one one thousand | PhraseologyRules.cs:74 (CM, below FL180; DM alike) |
 | C2 | descend and maintain flight level one niner zero | PhraseologyRules.cs:79 (DM, FL; CM alike) |
-| C3 | maintain at or above four thousand ("maintain VFR at or above …" when VFR) | Pilot/PilotResponder.cs:831; Pilot/PhraseologyVerbalizer.cs:149 |
-| C4 | climb and maintain one one thousand, expedite climb | PilotResponder.cs:801 (EXP with altitude) |
-| C5 | expedite descent | PilotResponder.cs:826 (bare EXP airborne) |
+| C3 | maintain at or above four thousand ("maintain VFR at or above …" when VFR) | Pilot/PilotResponder.cs:894; Pilot/PhraseologyVerbalizer.cs:149 |
+| C4 | climb and maintain one one thousand, expedite climb | PilotResponder.cs:866 (EXP with altitude) |
+| C5 | expedite descent | PilotResponder.cs:887 (bare EXP airborne) |
 | C6 | cross sunol at or above four thousand nine hundred | PhraseologyVerbalizer.cs:163 (CFIX A/B) |
 | C7 | cross sunol at and maintain one one thousand at two five zero knots | PhraseologyRules.cs:191 (CFIX alt + speed) |
 | C8 | climb via sid / climb via sid except maintain five thousand | PhraseologyRules.cs:128-129 (CVIA) |
@@ -110,7 +110,7 @@ My judgement on scope, for the owner to overrule:
 | C2 | B | flight level one niner zero | OK | US |
 | C2 | B | down to one niner zero | No: F3 | bare FL digits (AIM 4-2-9.b) |
 | C2 | B | flight level one ninety | No: F3 | group form is for altitudes below FL180 only (7110.65 2-4-17.b.2; owner ruling 2 does not reach FLs) |
-| C3 | Q | at or above four thousand, {cs}, thanks | OK | J |
+| C3 | Q | maintaining at or above four thousand, {cs}, thanks | OK | J; verb kept outside B; "VFR" kept when canonical has it |
 | C3 | N | maintain at or above four thousand | OK | = C |
 | C3 | B | at or above four thousand | OK | J; qualifier and keyword kept |
 | C3 | B | above four thousand | No: F3 | qualifier changed |
@@ -147,20 +147,22 @@ My judgement on scope, for the owner to overrule:
 
 | Ref | Canonical | Source |
 |---|---|---|
-| C1 | maintain two five zero knots | PhraseologyRules.cs:97 |
+| C1 | maintain two five zero knots | PhraseologyRules.cs:97 (code speaks 'two fifty knots', `PhraseologyVerbalizer.SpeedWords`) |
 | C2 | maintain two five zero knots until sunol | PhraseologyRules.cs:117 |
 | C3 | maintain mach point seven eight | PhraseologyRules.cs:111 |
 | C4 | resume normal speed / no speed restrictions / reduce to final approach speed | PhraseologyRules.cs:103-109 |
 
 | Ref | Band | Variant | Ruling | Basis |
 |---|---|---|---|---|
-| C1 | Q | slowing to two five zero knots / speeding up to two five zero knots | OK | US; "knots" must follow the number (to/two); verb from current vs assigned speed |
+| C1 | Q, N | slowing to two five zero knots / speeding up to two five zero knots | OK | 7110.65 5-7-2.a.4 form; only when current speed is more than 10 kt from assigned (AIM 4-4-12.c), verb matches the direction, "knots" required, never with a speed modifier or "until" |
 | C1 | Q | we'll maintain two five zero knots, {cs}, thanks | OK | owner's verbose form |
 | C1 | N | maintain two five zero knots | OK | = C |
 | C1 | N | two five zero knots | OK | US; today's shortcut |
 | C1 | B | two five zero knots | OK | US |
 | C1 | B | speed two five zero | OK | US; F9 keyword "speed" |
-| C1 | B | two fifty / speed two fifty | No: F9 / J | bare number; group form is a number-form change (7110.65 2-4-17.l) |
+| C1 | B | two fifty knots / speed two fifty | OK | busy group form, keyword kept (F9) |
+| C1 | Q, N | two fifty knots | No: J | digits outside busy (AIM 4-2-11; 7110.65 2-4-17.l.1, 5-7-2.a.4) |
+| C1 | any | two fifty | No: F9 | bare number |
 | C1 | any | warp speed ahead / on the brakes, two five zero knots | No: F14 | owner's playful forms, AIM 4-2-1.c |
 | C2 | N | maintain two five zero knots until sunol | OK | = C |
 | C2 | B | two five zero knots until sunol | OK | J |
@@ -170,7 +172,7 @@ My judgement on scope, for the owner to overrule:
 | C3 | B | point seven eight | No: F9 | |
 | C4 | Q | resuming normal speed | OK | US |
 | C4 | N | resume normal speed (and the other two as written) | OK | = C |
-| C4 | B | wilco | OK | no number (AIM 4-2-3.c; 7110.65 2-4-3 NOTE 1.a) |
+| C4 | B | wilco (resume normal speed, reduce to final approach speed only) | OK | no number (7110.65 2-4-3 NOTE 1.a); delete speed restrictions keeps its words (J: 5-7-4.a NOTE vs 5-7-4.d) |
 
 ## 4. Direct-to and navigation
 
@@ -518,5 +520,5 @@ Variation covers every readback, so these need rulings too; drafted briefly.
 
 ## Notes for the implementer
 
-- The generic aviation-floor check YAAT-1078 adds compares digit runs after `AtcNumberParser.NormalizeDigits`. Group-form altitudes need that check to equate "eleven thousand" with "one one thousand" (and "seventeen thousand niner hundred" with "one seven thousand niner hundred"); the YAAT-1082 build adds that equivalence. It must stay limited to altitudes below FL180 followed by "thousand", so "flight level one ninety" and a speed "two fifty" still fail.
+- The value floor (`AviationFloor.HoldsTemplate`) compares captures, not rendered digit runs, so group and digit forms come from one number by construction and no equivalence between "eleven thousand" and "one one thousand" is needed.
 - The same check fails a runway designator spoken without "runway" today. The busy band needs it to accept "two eight right" for the runway-clearance families listed under F5 above, and only there; every other family and band keeps the "runway" requirement.

@@ -125,7 +125,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`ground-layout-generation.md`](docs/ground-layout-generation.md) — `GeoJsonParser` → fillet arcs → ground-graph construction (the full import pipeline behind `AirportGroundLayout`)
 - [`speech-recognition-pipeline.md`](docs/speech-recognition-pipeline.md) — `src/Yaat.Sim/Speech/`, `WhisperSttEngine`, `LocalLlm*`, `SpeechRecognitionService`, `tools/Yaat.SpeechSandbox` (STT input)
 - [`solo-training-pilot-speech.md`](docs/solo-training-pilot-speech.md) — `src/Yaat.Sim/Pilot/`, `PendingPilotTransmissions`, `ActiveFrequency`, `PilotVoiceService` (TTS output)
-- [`pilot-phraseology.md`](docs/pilot-phraseology.md) — `PilotResponder.Build*`, `PhraseologyVerbalizer`, `PilotSpeechText` (Terminal/Tts/RpoTerminal): what pilots say + AIM/7110.65 grounding (read before changing any pilot wording) → source corpus for `PhraseologyRule.PilotShortcuts`: [`pilot-phraseology-examples.md`](docs/pilot-phraseology-examples.md)
+- [`pilot-phraseology.md`](docs/pilot-phraseology.md) — `PilotResponder.Build*`, `PhraseologyVerbalizer`, `PilotSpeechText` (Terminal/Tts/RpoTerminal): what pilots say + AIM/7110.65 grounding (read before changing any pilot wording) → source corpus for `PhraseologyRule.PilotVariants`: [`pilot-phraseology-examples.md`](docs/pilot-phraseology-examples.md)
 - [`flight-strips.md`](docs/flight-strips.md) — `FlightStripState`, `StripItemDto`, `CrcClientState.Strips.cs`, strip commands
 - [`vtdls.md`](docs/vtdls.md) — Tower Data Link Services (PDC) emulation: `src/Yaat.Client.Tdls/`, `tools/Yaat.VTdls.Web`, server vTDLS state
 - [`phases.md`](docs/phases.md) — anything under `src/Yaat.Sim/Phases/` (base contract, `CommandAcceptance`, `PhaseRunner`)

@@ -502,7 +502,7 @@ Established on the final and no further out than a limit measured to the landing
 ## Pilot speech
 
 **Aviation floor**:
-The content a varied spoken clause may never drop, add or reorder against its canonical clause (headings, runways, altitudes with their unit words, speeds, squawks, hold-short and crossing), checked by `AviationFloor.Holds`; a clause that fails it is spoken canonical (docs/plans/pilot-phraseology-variation.md).
+The content a varied spoken clause may never drop, add or reorder against its canonical clause (headings, runways, altitudes with their unit words, speeds, squawks, hold-short and crossing), checked by `AviationFloor.HoldsTemplate` for rule variant rows (the **value floor**) and `AviationFloor.Holds` for clause builders that only produce strings; a clause that fails it is spoken canonical (docs/plans/pilot-phraseology-variation.md).
 
 **Effective band**:
 The load band a pilot speaks at: the frequency's load band shifted by the pilot's trait, terse one step busier and chatty one quieter, clamped to quiet..busy (`PilotTraits.EffectiveBand`); the speech-rate nudge still uses the raw band (docs/solo-training-pilot-speech.md).
@@ -513,6 +513,12 @@ _Avoid_: activity level (the meter's four-step reading)
 
 **Pilot trait**:
 How much a pilot says on the frequency regardless of load: terse (25%), normal (50%) or chatty (25%), derived from the callsign and the scenario seed and never stored. Terse speaks at the next busier load band, chatty at the next quieter, clamped to quiet..busy (`PilotTrait`, `PilotTraits.EffectiveBand`, docs/solo-training-pilot-speech.md).
+
+**Value floor**:
+The aviation floor for a rule's variant rows, checked by value rather than by rendered text: a row must carry the rule pattern's captures in the same order and the same ordered keyword classes, and only a busy row may drop climb/descend or the word runway on a runway clearance (`AviationFloor.HoldsTemplate`, enforced at test time over every row, docs/solo-training-pilot-speech.md).
+
+**Variant row**:
+One alternative spoken wording of a rule's readback, a template over the rule pattern's own `{capture}` placeholders listed under a load band in the rule's `PilotVariantSet` (`PilotVariant`, `PhraseologyRule.PilotVariants`); a Varied pilot's seeded pick chooses among the band's renderable rows (docs/solo-training-pilot-speech.md).
 
 ## Live traffic
 

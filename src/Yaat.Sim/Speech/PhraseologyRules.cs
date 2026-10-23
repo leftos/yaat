@@ -55,12 +55,37 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] HeadingRules() =>
         [
-            new(["turn", "left", "heading", "{hdg}"], "TL {hdg}", TurnLeft, PilotShortcuts: ["left heading {hdg}"]),
-            new(["turn", "right", "heading", "{hdg}"], "TR {hdg}", TurnRight, PilotShortcuts: ["right heading {hdg}"]),
+            new(
+                ["turn", "left", "heading", "{hdg}"],
+                "TL {hdg}",
+                TurnLeft,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("left heading {hdg}", PilotVariantTags.None))
+            ),
+            new(
+                ["turn", "right", "heading", "{hdg}"],
+                "TR {hdg}",
+                TurnRight,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("right heading {hdg}", PilotVariantTags.None))
+            ),
             // Relative turns — canonical 7110.65 5-6-2 form is "TURN (N) DEGREES LEFT/RIGHT".
-            new(["turn", "{deg}", "degrees", "left"], "RELL {deg}", RelativeLeft, PilotShortcuts: ["{deg} degrees left"]),
-            new(["turn", "{deg}", "degrees", "right"], "RELR {deg}", RelativeRight, PilotShortcuts: ["{deg} degrees right"]),
-            new(["fly", "heading", "{hdg}"], "FH {hdg}", FlyHeading, PilotShortcuts: ["heading {hdg}"]),
+            new(
+                ["turn", "{deg}", "degrees", "left"],
+                "RELL {deg}",
+                RelativeLeft,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("{deg} degrees left", PilotVariantTags.None))
+            ),
+            new(
+                ["turn", "{deg}", "degrees", "right"],
+                "RELR {deg}",
+                RelativeRight,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("{deg} degrees right", PilotVariantTags.None))
+            ),
+            new(
+                ["fly", "heading", "{hdg}"],
+                "FH {hdg}",
+                FlyHeading,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("heading {hdg}", PilotVariantTags.None))
+            ),
             new(["heading", "{hdg}"], "FH {hdg}", FlyHeading),
             new(["fly", "present", "heading"], "FPH", FlyPresentHeading),
             new(["maintain", "present", "heading"], "FPH", FlyPresentHeading),
@@ -71,12 +96,28 @@ public static class PhraseologyRules
     private static PhraseologyRule[] AltitudeSpeedRules() =>
         [
             // Climb forms
-            new(["climb", "and?", "maintain", "{alt}"], "CM {alt}", ClimbMaintain, PilotShortcuts: ["climbing to {alt}", "up to {alt}"]),
+            new(
+                ["climb", "and?", "maintain", "{alt}"],
+                "CM {alt}",
+                ClimbMaintain,
+                PilotVariants: PilotVariantSet.BusyOnly(
+                    new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly),
+                    new PilotVariant("up to {alt}", PilotVariantTags.FlightLevelOnly)
+                )
+            ),
             new(["climb", "to?", "{alt}"], "CM {alt}", ClimbMaintain),
             new(["expedite", "climb", "to?", "{alt}"], "EXP {alt}", Expedite),
             new(["expedite", "climb"], "EXP", Expedite),
             // Descend forms
-            new(["descend", "and?", "maintain", "{alt}"], "DM {alt}", DescendMaintain, PilotShortcuts: ["descending to {alt}", "down to {alt}"]),
+            new(
+                ["descend", "and?", "maintain", "{alt}"],
+                "DM {alt}",
+                DescendMaintain,
+                PilotVariants: PilotVariantSet.BusyOnly(
+                    new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly),
+                    new PilotVariant("down to {alt}", PilotVariantTags.FlightLevelOnly)
+                )
+            ),
             new(["descend", "to?", "{alt}"], "DM {alt}", DescendMaintain),
             // "descent and maintain" — STT-only acoustic alias for Whisper mistranscriptions of
             // the verb "descend" as the homophone-adjacent noun "descent". Pattern is distinct
@@ -94,7 +135,15 @@ public static class PhraseologyRules
             // For now we emit CM; a future iteration can add context-sensitive dispatch.
             new(["maintain", "{alt}"], "CM {alt}", ClimbMaintain),
             // Speed — 7110.65 §5-7-2.a.1 canonical form is "MAINTAIN (speed) KNOTS".
-            new(["maintain", "{spd}", "knots"], "SPD {spd}", Speed, PilotShortcuts: ["{spd} knots", "speed {spd} knots"]),
+            new(
+                ["maintain", "{spd}", "knots"],
+                "SPD {spd}",
+                Speed,
+                PilotVariants: PilotVariantSet.BusyOnly(
+                    new PilotVariant("{spd} knots", PilotVariantTags.None),
+                    new PilotVariant("speed {spd} knots", PilotVariantTags.None)
+                )
+            ),
             new(["reduce", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
             new(["increase", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
             new(["maintain", "speed", "{spd}"], "SPD {spd}", Speed),
@@ -167,12 +216,32 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] NavigationRules() =>
         [
-            new(["proceed", "direct", "to?", "{fix}"], "DCT {fix}", DirectTo, PilotShortcuts: ["direct {fix}"]),
+            new(
+                ["proceed", "direct", "to?", "{fix}"],
+                "DCT {fix}",
+                DirectTo,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("direct {fix}", PilotVariantTags.None))
+            ),
             new(["direct", "to?", "{fix}"], "DCT {fix}", DirectTo),
             new(["fly", "direct", "{fix}"], "DCT {fix}", DirectTo),
-            new(["turn", "left", "direct", "to?", "{fix}"], "TLDCT {fix}", TurnLeftDirectTo, PilotShortcuts: ["left direct {fix}"]),
-            new(["turn", "right", "direct", "to?", "{fix}"], "TRDCT {fix}", TurnRightDirectTo, PilotShortcuts: ["right direct {fix}"]),
-            new(["when", "able", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo, PilotShortcuts: ["when able direct {fix}"]),
+            new(
+                ["turn", "left", "direct", "to?", "{fix}"],
+                "TLDCT {fix}",
+                TurnLeftDirectTo,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("left direct {fix}", PilotVariantTags.None))
+            ),
+            new(
+                ["turn", "right", "direct", "to?", "{fix}"],
+                "TRDCT {fix}",
+                TurnRightDirectTo,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("right direct {fix}", PilotVariantTags.None))
+            ),
+            new(
+                ["when", "able", "direct", "to?", "{fix}"],
+                "ADCT {fix}",
+                AppendDirectTo,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("when able direct {fix}", PilotVariantTags.None))
+            ),
             new(["after", "{current}", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo),
             // Cross-fix altitude restrictions. FAA 7110.65 §4-5-7, §5-7-2.d, AIM §4-4-10, §5-3-1.
             // The bare "cross {fix} at {alt}" form is declared first so it wins the verbalizer's
@@ -759,8 +828,13 @@ public static class PhraseologyRules
             // Taxi — runway-only, path-only and path-with-runway forms. The runway-only form is the
             // readback for a bare "TAXI 1L" issued to an aircraft already at its runway (and for
             // TAXIAUTO); the via forms below carry more captures and win whenever a route is spoken.
-            // Shortcut is the AIM 4-3-18.a.9 mandatory readback (the runway assignment), keeping the word "taxi".
-            new(["taxi", "to?", "runway", "{rwy}"], "TAXI {rwy}", Taxi, PilotShortcuts: ["taxi runway {rwy}"]),
+            // The busy variant row keeps the AIM 4-3-18.a.9 mandatory readback (the runway assignment) and the word "taxi".
+            new(
+                ["taxi", "to?", "runway", "{rwy}"],
+                "TAXI {rwy}",
+                Taxi,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("taxi runway {rwy}", PilotVariantTags.None))
+            ),
             // Parking / spot destinations — 7110.65 §3-7-2.a "TAXI TO (location)", the pilot naming
             // the position. The name is spoken as words and characters ("cargo one", "bravo one
             // two", "four one dash one zero"), so it is a variadic capture that PhraseologyMapper

@@ -1,6 +1,6 @@
 # Pilot Phraseology Examples — Reference Corpus
 
-Source corpus for populating `PhraseologyRule.PilotShortcuts` over time. Compiled by Leftos
+Source corpus for populating `PhraseologyRule.PilotVariants` over time. Compiled by Leftos
 from prior ATC-app work; the items marked `[Complete]` were canonical readbacks in that app.
 Used by YAAT's pilot AI (`src/Yaat.Sim/Pilot/PilotResponder.cs`) once the inversion machinery
 ships in M10.1 and shortcut population begins in M10.x.
@@ -181,7 +181,7 @@ Shorter: Direct GUBLO at or above 4.9, cleared ILS-Z 34, N696CL.
 ## Cross-cutting modifiers
 
 Things that wrap around or modify any of the above readbacks. These are NOT simple
-`PilotShortcuts` array entries — they need a small modifier layer in the verbalizer that
+`PilotVariants` row entries — they need a small modifier layer in the verbalizer that
 reads aircraft / context state.
 
 ### "Thanks" / "Alright" sprinkles (personality)

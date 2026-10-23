@@ -9,6 +9,11 @@ namespace Yaat.Sim.Tests.Pilot;
 
 public class PhraseologyVerbalizerTests
 {
+    private const string Callsign = "N123AB";
+
+    private static PilotSpeechContext Varied(FrequencyLoadBand band, int rngSeed, int second) =>
+        new(PilotPersonality.Varied, band, rngSeed, second) { ShortenCallsign = false, GroupContactFrequency = false };
+
     public PhraseologyVerbalizerTests()
     {
         // CrossFix readback walks SpellFix → NavigationDatabase to resolve fix pronunciations
@@ -43,7 +48,7 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_VariedNormal_KeepsVerbatim()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, FrequencyLoadBand.Normal);
+        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), Callsign, Varied(FrequencyLoadBand.Normal, 1, 0));
 
         Assert.Equal("climb and maintain five thousand", result);
     }
@@ -51,11 +56,13 @@ public class PhraseologyVerbalizerTests
     [Theory]
     [InlineData(FrequencyActivityLevel.Busy)]
     [InlineData(FrequencyActivityLevel.Saturated)]
-    public void Verbalize_VariedBusy_UsesShortestAltitudeShortcut(FrequencyActivityLevel activityLevel)
+    public void Verbalize_VariedBusy_AltitudeShortcutIsFlightLevelOnly(FrequencyActivityLevel activityLevel)
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), PilotPersonality.Varied, activityLevel.ToLoadBand());
+        string? belowFl180 = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), Callsign, Varied(activityLevel.ToLoadBand(), 1, 0));
+        string? flightLevel = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(19000), Callsign, Varied(activityLevel.ToLoadBand(), 1, 0));
 
-        Assert.Equal("up to five thousand", result);
+        Assert.Equal("climb and maintain five thousand", belowFl180);
+        Assert.Contains(flightLevel, (string[])["climbing to flight level one nine zero", "up to flight level one nine zero"]);
     }
 
     // --- Heading ---
@@ -82,12 +89,12 @@ public class PhraseologyVerbalizerTests
     }
 
     [Fact]
-    public void Verbalize_VariedBusy_UsesShortestHeadingShortcut()
+    public void Verbalize_VariedBusy_SpeaksTheHeadingBusyRow()
     {
         string? result = PhraseologyVerbalizer.Verbalize(
             new TurnLeftCommand(new MagneticHeading(90)),
-            PilotPersonality.Varied,
-            FrequencyLoadBand.Busy
+            Callsign,
+            Varied(FrequencyLoadBand.Busy, 1, 0)
         );
 
         Assert.Equal("left heading zero nine zero", result);
@@ -103,14 +110,15 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_VariedBusy_RelativeTurnShortcutKeepsDegrees()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new LeftTurnCommand(30), PilotPersonality.Varied, FrequencyLoadBand.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new LeftTurnCommand(30), Callsign, Varied(FrequencyLoadBand.Busy, 1, 0));
 
         Assert.Equal("thirty degrees left", result);
     }
 
     /// <summary>
-    /// Every rule with pilot shortcuts speaks its shortest shortcut at Varied/Busy, not the canonical form: the floor must
-    /// pass each one. One row per <c>PilotShortcuts</c> rule in <c>PhraseologyRules</c>.
+    /// Every rule with busy variant rows speaks one of them at Varied/Busy, never the canonical form. CM and DM use flight
+    /// levels, since their rows are flight-level only. One row per
+    /// <c>PilotVariants</c> rule in <c>PhraseologyRules</c>; <paramref name="expected"/> lists the allowed texts, split on '|'.
     /// </summary>
     [Theory]
     [InlineData("TL", "left heading zero nine zero")]
@@ -118,15 +126,15 @@ public class PhraseologyVerbalizerTests
     [InlineData("RELL", "thirty degrees left")]
     [InlineData("RELR", "thirty degrees right")]
     [InlineData("FH", "heading two seven zero")]
-    [InlineData("CM", "up to five thousand")]
-    [InlineData("DM", "down to five thousand")]
-    [InlineData("SPD", "two fifty knots")]
+    [InlineData("CM", "climbing to flight level one nine zero|up to flight level one nine zero")]
+    [InlineData("DM", "descending to flight level two four zero|down to flight level two four zero")]
+    [InlineData("SPD", "two fifty knots|speed two fifty knots")]
     [InlineData("DCT", "direct {fix}")]
     [InlineData("TLDCT", "left direct {fix}")]
     [InlineData("TRDCT", "right direct {fix}")]
     [InlineData("ADCT", "when able direct {fix}")]
     [InlineData("TAXI", "taxi runway one left")]
-    public void Verbalize_VariedBusy_EveryShortcutRuleSpeaksItsShortestShortcut(string rule, string expected)
+    public void Verbalize_VariedBusy_EveryShortcutRuleSpeaksABusyRow(string rule, string expected)
     {
         List<ResolvedFix> fixes = [new ResolvedFix("SUNOL", 37.6, -121.9)];
         ParsedCommand command = rule switch
@@ -136,8 +144,8 @@ public class PhraseologyVerbalizerTests
             "RELL" => new LeftTurnCommand(30),
             "RELR" => new RightTurnCommand(30),
             "FH" => new FlyHeadingCommand(new MagneticHeading(270)),
-            "CM" => new ClimbMaintainCommand(5000),
-            "DM" => new DescendMaintainCommand(5000),
+            "CM" => new ClimbMaintainCommand(19000),
+            "DM" => new DescendMaintainCommand(24000),
             "SPD" => new SpeedCommand(250),
             "DCT" => new DirectToCommand(fixes, []),
             "TLDCT" => new TurnLeftDirectToCommand(fixes, []),
@@ -147,21 +155,126 @@ public class PhraseologyVerbalizerTests
             _ => throw new ArgumentOutOfRangeException(nameof(rule), rule, "No representative command for this rule."),
         };
 
-        string? busy = PhraseologyVerbalizer.Verbalize(command, PilotPersonality.Varied, FrequencyLoadBand.Busy);
+        string? busy = PhraseologyVerbalizer.Verbalize(command, Callsign, Varied(FrequencyLoadBand.Busy, 1, 0));
 
-        Assert.Equal(expected.Replace("{fix}", PhraseologyVerbalizer.SpellFixSequence(fixes), StringComparison.Ordinal), busy);
-        Assert.NotEqual(PhraseologyVerbalizer.Verbalize(command), busy);
+        string[] allowed = expected.Replace("{fix}", PhraseologyVerbalizer.SpellFixSequence(fixes), StringComparison.Ordinal).Split('|');
+        string? canonical = PhraseologyVerbalizer.Verbalize(command);
+        Assert.Contains(busy, allowed);
+        Assert.NotEqual(canonical, busy);
     }
 
     [Fact]
     public void PhraseologyRules_ShortcutRuleCount_MatchesTheWiringTheory()
     {
-        int shortcutRules = PhraseologyRules.All.Count(rule => rule.PilotShortcuts is { Length: > 0 });
+        int shortcutRules = PhraseologyRules.All.Count(rule =>
+            rule.PilotVariants is { } variants && (variants.Quiet.Count + variants.Normal.Count + variants.Busy.Count > 0)
+        );
 
         Assert.True(
             shortcutRules == 13,
-            $"PhraseologyRules has {shortcutRules} rules with PilotShortcuts, the wiring theory covers 13: add a row to "
-                + $"{nameof(Verbalize_VariedBusy_EveryShortcutRuleSpeaksItsShortestShortcut)} for each new rule and update this count."
+            $"PhraseologyRules has {shortcutRules} rules with PilotVariants rows, the wiring theory covers 13: add a row to "
+                + $"{nameof(Verbalize_VariedBusy_EveryShortcutRuleSpeaksABusyRow)} for each new rule and update this count."
+        );
+    }
+
+    [Theory]
+    [InlineData("CM")]
+    [InlineData("DM")]
+    public void Verbalize_VariedBusy_BelowFl180_NeverSaysToBeforeTheAltitude(string rule)
+    {
+        ParsedCommand command = rule == "CM" ? new ClimbMaintainCommand(5000) : new DescendMaintainCommand(5000);
+
+        for (int second = 0; second < 200; second++)
+        {
+            string? spoken = PhraseologyVerbalizer.Verbalize(command, Callsign, Varied(FrequencyLoadBand.Busy, 7, second));
+
+            Assert.NotNull(spoken);
+            int altitudeAt = spoken.IndexOf("five thousand", StringComparison.Ordinal);
+            Assert.True(altitudeAt >= 0, $"Second {second}: \"{spoken}\" does not speak the altitude.");
+            Assert.DoesNotContain(" to ", " " + spoken[..altitudeAt], StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Verbalize_VariedBusy_FlightLevel_MayUseUpTo()
+    {
+        string flightLevel = PhraseologyVerbalizer.AltitudeWords(19000);
+        string[] toRows = [$"up to {flightLevel}", $"climbing to {flightLevel}"];
+        Assert.StartsWith("flight level ", flightLevel);
+
+        bool spokeToRow = Enumerable
+            .Range(0, 200)
+            .Select(second => PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(19000), Callsign, Varied(FrequencyLoadBand.Busy, 7, second)))
+            .Any(spoken => toRows.Contains(spoken));
+
+        Assert.True(spokeToRow, "No second in 0-199 spoke a flight-level \"to\" row for CM 19000 at Busy.");
+    }
+
+    /// <summary>
+    /// The pick is a pure function of callsign, canonical clause, second and seed; and over many seconds it reaches more than
+    /// one row. FH has a single busy row, so the spread is shown on SPD, which has two. One SPD pick is pinned, so a change
+    /// to the pick's inputs (its salt) shows up here.
+    /// </summary>
+    [Fact]
+    public void Verbalize_VariedBusy_PickIsDeterministic()
+    {
+        var heading = new FlyHeadingCommand(new MagneticHeading(270));
+        for (int second = 0; second < 200; second++)
+        {
+            PilotSpeechContext context = Varied(FrequencyLoadBand.Busy, 7, second);
+            Assert.Equal(PhraseologyVerbalizer.Verbalize(heading, Callsign, context), PhraseologyVerbalizer.Verbalize(heading, Callsign, context));
+        }
+
+        int distinctSpeedRows = Enumerable
+            .Range(0, 200)
+            .Select(second => PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), Callsign, Varied(FrequencyLoadBand.Busy, 7, second)))
+            .Distinct()
+            .Count();
+
+        Assert.True(distinctSpeedRows >= 2, $"SPD 250 at Busy spoke {distinctSpeedRows} distinct row(s) over seconds 0-199.");
+        Assert.Equal("speed two fifty knots", PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), Callsign, Varied(FrequencyLoadBand.Busy, 7, 0)));
+    }
+
+    [Fact]
+    public void PhraseologyRules_FlightLevelOnlyRows_SitOnClimbOrDescendRules()
+    {
+        string[] misplaced =
+        [
+            .. PhraseologyRules
+                .All.Where(rule => rule.PilotVariants is not null)
+                .Where(rule => rule.Type is not (CanonicalCommandType.ClimbMaintain or CanonicalCommandType.DescendMaintain))
+                .SelectMany(rule =>
+                    new[] { rule.PilotVariants!.Quiet, rule.PilotVariants.Normal, rule.PilotVariants.Busy }
+                        .SelectMany(rows => rows)
+                        .Where(variant => variant.Tags.HasFlag(PilotVariantTags.FlightLevelOnly))
+                        .Select(variant => $"{rule.OutputTemplate}: \"{variant.Template}\"")
+                ),
+        ];
+
+        Assert.True(misplaced.Length == 0, $"FlightLevelOnly rows on a rule with no altitude to test: {string.Join(", ", misplaced)}");
+    }
+
+    [Fact]
+    public void PhraseologyRules_EveryVariant_HoldsTheFloor()
+    {
+        FrequencyLoadBand[] bands = [FrequencyLoadBand.Quiet, FrequencyLoadBand.Normal, FrequencyLoadBand.Busy];
+        List<string> failures =
+        [
+            .. PhraseologyRules
+                .All.Where(rule => rule.PilotVariants is not null)
+                .SelectMany(rule =>
+                    bands.SelectMany(band =>
+                        PhraseologyVerbalizer
+                            .BandRows(rule.PilotVariants!, band)
+                            .Where(variant => !AviationFloor.HoldsTemplate(rule.Pattern, rule.Type, variant, band))
+                            .Select(variant => $"{rule.OutputTemplate} {band}: \"{variant.Template}\" against \"{string.Join(' ', rule.Pattern)}\"")
+                    )
+                ),
+        ];
+
+        Assert.True(
+            failures.Count == 0,
+            $"Variant rows that break the aviation floor:{Environment.NewLine}{string.Join(Environment.NewLine, failures)}"
         );
     }
 
@@ -193,9 +306,9 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_VariedBusy_SpeedShortcutKeepsKnots()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), PilotPersonality.Varied, FrequencyLoadBand.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), Callsign, Varied(FrequencyLoadBand.Busy, 1, 0));
 
-        Assert.Equal("two fifty knots", result);
+        Assert.Contains(result, (string[])["two fifty knots", "speed two fifty knots"]);
     }
 
     // --- Transponder ---
@@ -225,7 +338,7 @@ public class PhraseologyVerbalizerTests
     [Fact]
     public void Verbalize_VariedBusy_NoShortcutFallsBackToVerbatim()
     {
-        string? result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), PilotPersonality.Varied, FrequencyLoadBand.Busy);
+        string? result = PhraseologyVerbalizer.Verbalize(new IdentCommand(), Callsign, Varied(FrequencyLoadBand.Busy, 1, 0));
 
         Assert.Equal("squawk ident", result);
     }

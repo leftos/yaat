@@ -15,8 +15,8 @@ namespace Yaat.Sim.Pilot;
 /// Pipeline:
 /// <list type="number">
 ///   <item><description>Look up the preferred rule for the command's canonical type. First-declared wins
-///     (textbook readback before terser variants — pilot shortcuts are opt-in via
-///     <c>PilotPersonality.Varied</c> when populated).</description></item>
+///     (textbook readback before terser variants — a rule's <c>PilotVariants</c> rows are spoken
+///     only by a <c>PilotPersonality.Varied</c> pilot, by a seeded pick per load band).</description></item>
 ///   <item><description>Extract the command's capture arguments via a subtype switch. Each capture name
 ///     (<c>{alt}</c>, <c>{hdg}</c>, etc.) gets formatted in its spoken form for that capture
 ///     class — altitudes via <see cref="AtcNumberParser.AltitudeToWords"/>, headings as
@@ -107,10 +107,24 @@ public static class PhraseologyVerbalizer
     private static readonly CaptureFormatter Spoken = new SpokenCaptureFormatter();
     private static readonly CaptureFormatter Terminal = new TerminalCaptureFormatter();
 
-    public static string? Verbalize(ParsedCommand cmd) => Verbalize(cmd, PilotPersonality.Verbatim, FrequencyLoadBand.Normal);
+    /// <summary>The canonical spoken readback of <paramref name="cmd"/>: the rule pattern's own wording, never a variant.</summary>
+    /// <param name="cmd">The command to read back.</param>
+    /// <returns>The spoken clause, or null when no rule speaks the command.</returns>
+    public static string? Verbalize(ParsedCommand cmd) => VerbalizeCore(cmd, string.Empty, PilotSpeechContext.Canonical, Spoken);
 
-    public static string? Verbalize(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band) =>
-        VerbalizeCore(cmd, personality, band, Spoken);
+    /// <summary>
+    /// The spoken readback of <paramref name="cmd"/> as this pilot says it now. A <see cref="PilotPersonality.Varied"/> pilot
+    /// whose rule has <see cref="PhraseologyRule.PilotVariants"/> speaks one row of the context's load band (Normal: the
+    /// canonical pattern or a Normal row), chosen by a seeded, uniform pick over the callsign, the canonical clause, the whole
+    /// second and the scenario seed, so a replay speaks the same row; rows that leave a placeholder unresolved, or are tagged
+    /// flight-level-only for an altitude below FL180, are never candidates, and with no candidate left the canonical is spoken.
+    /// A <see cref="PilotPersonality.Verbatim"/> pilot always speaks the canonical.
+    /// </summary>
+    /// <param name="cmd">The command to read back.</param>
+    /// <param name="callsign">The reading-back aircraft's callsign, which seeds the pick.</param>
+    /// <param name="context">The pilot's personality, the trait-shifted load band, the scenario seed and the elapsed second.</param>
+    /// <returns>The spoken clause, or null when no rule speaks the command.</returns>
+    public static string? Verbalize(ParsedCommand cmd, string callsign, PilotSpeechContext context) => VerbalizeCore(cmd, callsign, context, Spoken);
 
     /// <summary>
     /// Compact controller-readable form of the same readback — runway/taxiway identifiers
@@ -119,9 +133,14 @@ public static class PhraseologyVerbalizer
     /// the per-capture token formatting differs. Used for the terminal <c>SAY</c> echo, which is
     /// built independently from the canonical command — never by stripping the spoken string.
     /// </summary>
-    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeCore(cmd, PilotPersonality.Verbatim, FrequencyLoadBand.Normal, Terminal);
+    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeCore(cmd, string.Empty, PilotSpeechContext.Canonical, Terminal);
 
-    private static string? VerbalizeCore(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band, CaptureFormatter fmt)
+    /// <summary>
+    /// Renders <paramref name="cmd"/> with <paramref name="fmt"/>: a direct-rendered shape when the command needs one, else
+    /// the preferred rule's pattern, replaced by a seeded pick among the rule's variant rows when the context is varied
+    /// (<see cref="Verbalize(ParsedCommand, string, PilotSpeechContext)"/>).
+    /// </summary>
+    private static string? VerbalizeCore(ParsedCommand cmd, string callsign, PilotSpeechContext context, CaptureFormatter fmt)
     {
         // UnsupportedCommand and similar non-canonical placeholders shouldn't crash the
         // verbalizer — they just have no pilot speech to render.
@@ -240,55 +259,86 @@ public static class PhraseologyVerbalizer
         }
 
         string canonical = RenderPattern(rule.Pattern, args);
-        if (
-            ShouldUseShortcut(personality, band)
-            && TryRenderShortestShortcut(rule, args, out string? shortcut)
-            && AviationFloor.Holds(canonical, shortcut)
-        )
+        if ((context.Personality != PilotPersonality.Varied) || (rule.PilotVariants is not { } variants))
         {
-            return shortcut;
+            return canonical;
         }
 
-        return canonical;
+        return PickVariant(cmd, variants, canonical, args, callsign, context);
     }
 
-    private static bool ShouldUseShortcut(PilotPersonality personality, FrequencyLoadBand band) =>
-        (personality == PilotPersonality.Varied) && (band == FrequencyLoadBand.Busy);
-
-    private static bool TryRenderShortestShortcut(
-        PhraseologyRule rule,
+    /// <summary>
+    /// One seeded, uniform pick among the band's speakable rows (Normal: the canonical first, then the Normal rows). A row is
+    /// speakable when every placeholder resolves and, if tagged <see cref="PilotVariantTags.FlightLevelOnly"/>, the command's
+    /// altitude is a flight level. The pick salts the canonical with its own prefix, which keeps it apart from other
+    /// <see cref="VariantPick"/> draws on the same callsign, second and seed; with no speakable row it is the canonical.
+    /// </summary>
+    private static string PickVariant(
+        ParsedCommand cmd,
+        PilotVariantSet variants,
+        string canonical,
         IReadOnlyDictionary<string, string> args,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? shortcut
+        string callsign,
+        PilotSpeechContext context
     )
     {
-        shortcut = null;
-        if (rule.PilotShortcuts is null || rule.PilotShortcuts.Length == 0)
+        List<string> candidates = (context.Band == FrequencyLoadBand.Normal) ? [canonical] : [];
+        bool flightLevel = IsFlightLevel(cmd);
+        foreach (PilotVariant variant in BandRows(variants, context.Band))
         {
-            return false;
-        }
+            if (variant.Tags.HasFlag(PilotVariantTags.FlightLevelOnly) && !flightLevel)
+            {
+                continue;
+            }
 
-        var candidates = rule
-            .PilotShortcuts.Select(template => RenderShortcutTemplate(template, args))
-            .Where(rendered => !string.IsNullOrWhiteSpace(rendered) && !ContainsUnresolvedPlaceholder(rendered))
-            .OrderBy(WordCount)
-            .ThenBy(s => s.Length)
-            .ToList();
+            string rendered = RenderVariantTemplate(variant.Template, args);
+            if (!string.IsNullOrWhiteSpace(rendered) && !ContainsUnresolvedPlaceholder(rendered))
+            {
+                candidates.Add(rendered);
+            }
+        }
 
         if (candidates.Count == 0)
         {
-            return false;
+            return canonical;
         }
 
-        shortcut = candidates[0];
-        return true;
+        int index = VariantPick.Index(callsign, "readback-variant:" + canonical, context.ElapsedSecond, context.RngSeed, candidates.Count);
+        return candidates[index];
     }
 
-    private static string RenderShortcutTemplate(string template, IReadOnlyDictionary<string, string> args) =>
+    /// <summary>
+    /// Whether the command's assigned altitude is a flight level (<see cref="AtcNumberParser.IsFlightLevel"/>), read from the
+    /// command, never from the rendered text; a command with no altitude is not a flight level.
+    /// </summary>
+    private static bool IsFlightLevel(ParsedCommand cmd)
+    {
+        int? feet = cmd switch
+        {
+            ClimbMaintainCommand climb => climb.Altitude,
+            DescendMaintainCommand descend => descend.Altitude,
+            _ => null,
+        };
+        return (feet is int altitude) && AtcNumberParser.IsFlightLevel(altitude);
+    }
+
+    /// <summary>The listed rows of <paramref name="band"/>, without the canonical pattern the Normal band also speaks.</summary>
+    /// <param name="variants">The rule's variant set.</param>
+    /// <param name="band">The frequency load band.</param>
+    /// <returns>The band's rows.</returns>
+    public static IReadOnlyList<PilotVariant> BandRows(PilotVariantSet variants, FrequencyLoadBand band) =>
+        band switch
+        {
+            FrequencyLoadBand.Quiet => variants.Quiet,
+            FrequencyLoadBand.Normal => variants.Normal,
+            FrequencyLoadBand.Busy => variants.Busy,
+            _ => throw new ArgumentOutOfRangeException(nameof(band), band, "Unknown frequency load band."),
+        };
+
+    private static string RenderVariantTemplate(string template, IReadOnlyDictionary<string, string> args) =>
         RenderPattern(template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), args);
 
     private static bool ContainsUnresolvedPlaceholder(string text) => text.Contains('{') || text.Contains('}');
-
-    private static int WordCount(string text) => text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
 
     /// <summary>
     /// Per-subtype extractor: pulls the command's parsed args into a capture-name → spoken-string

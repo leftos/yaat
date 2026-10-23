@@ -322,6 +322,11 @@ public static class AtcNumberParser
         return ones == 0 ? tensWord : tensWord + " " + DigitToWord[ones];
     }
 
+    /// <summary>Whether an altitude is spoken as a flight level: at least 18000 ft and a multiple of 100.</summary>
+    /// <param name="feet">The altitude in feet MSL.</param>
+    /// <returns>True for a flight level.</returns>
+    public static bool IsFlightLevel(int feet) => (feet >= 18000) && (feet % 100 == 0);
+
     /// <summary>
     /// Convert an altitude (in feet MSL) to its spoken ATC form.
     /// Below 18000: "five thousand", "eleven thousand five hundred".
@@ -335,7 +340,7 @@ public static class AtcNumberParser
         }
 
         // Flight level form for FL180+. FL is altitudeFeet / 100, spoken digit-by-digit.
-        if (altitudeFeet >= 18000 && altitudeFeet % 100 == 0)
+        if (IsFlightLevel(altitudeFeet))
         {
             int fl = altitudeFeet / 100;
             string digits = fl.ToString("D3");

@@ -426,14 +426,14 @@ public sealed class PilotTransmissionQueueTests
             engine.World.ActiveFrequency.ActivityMeter.Record(i);
         }
 
-        CommandResult result = engine.SendCommand("N123AB", "DM 5000");
+        CommandResult result = engine.SendCommand("N123AB", "FH 270");
 
         Assert.True(result.Success, result.Message);
         PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
-        // Busy or Saturated activity level uses the terse "down to" shortcut. Spoken form spells the
-        // altitude and appends the callsign; the terminal SAY message is the canonical text, compact and callsign-less.
-        Assert.Equal("down to five thousand, november one two three alpha bravo.", transmission.SpeechText);
-        Assert.Equal("descend and maintain 5000", transmission.Text);
+        // Busy or Saturated activity level speaks the busy "heading" row (a descent below FL180 has no busy row). Spoken form
+        // spells the heading and appends the callsign; the terminal SAY message is the canonical text, compact and callsign-less.
+        Assert.Equal("heading two seven zero, november one two three alpha bravo.", transmission.SpeechText);
+        Assert.Equal("fly heading 270", transmission.Text);
     }
 
     [Fact]
@@ -452,12 +452,12 @@ public sealed class PilotTransmissionQueueTests
             engine.World.ActiveFrequency.ActivityMeter.Record(i);
         }
 
-        CommandResult result = engine.SendCommand("N0000A", "DM 5000");
+        CommandResult result = engine.SendCommand("N0000A", "FH 270");
 
         Assert.True(result.Success, result.Message);
         PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
-        Assert.StartsWith("down to five thousand, ", transmission.SpeechText);
-        Assert.Equal("descend and maintain 5000", transmission.Text);
+        Assert.StartsWith("heading two seven zero, ", transmission.SpeechText);
+        Assert.Equal("fly heading 270", transmission.Text);
     }
 
     [Fact]

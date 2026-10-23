@@ -1,5 +1,7 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -38,4 +40,42 @@ public class AviationFloorTests
     [InlineData("climb and maintain flight level two three zero", "climbing to two three thousand")]
     [InlineData("descend and maintain five thousand", "down to five zero zero zero")]
     public void Holds_VariantBreaksTheFloor_Rejects(string canonical, string variant) => Assert.False(AviationFloor.Holds(canonical, variant));
+
+    [Theory]
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "{alt}", FrequencyLoadBand.Busy)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speed {spd}", FrequencyLoadBand.Normal)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speed {spd} knots", FrequencyLoadBand.Busy)]
+    [InlineData("cleared to land runway {rwy}", CanonicalCommandType.ClearedToLand, "cleared to land {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speeding up to {spd} knots", FrequencyLoadBand.Quiet)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing down to {spd} knots", FrequencyLoadBand.Quiet)]
+    // Repeats merge after omission: with the runway dropped, the two lefts read as one.
+    [InlineData("left runway left {rwy}", CanonicalCommandType.ClearedToLand, "left left {rwy}", FrequencyLoadBand.Busy)]
+    public void HoldsTemplate_VariantKeepsTheFloor_Accepts(
+        string canonicalPattern,
+        CanonicalCommandType type,
+        string template,
+        FrequencyLoadBand band
+    ) => Assert.True(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, PilotVariantTags.None), band));
+
+    [Theory]
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "{alt}", FrequencyLoadBand.Normal)]
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "descending {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("fly heading {hdg}", CanonicalCommandType.FlyHeading, "heading", FrequencyLoadBand.Busy)]
+    [InlineData("proceed direct to? {fix}", CanonicalCommandType.DirectTo, "direct {fix} {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("{spd} knots until {fix}", CanonicalCommandType.Speed, "{spd} knots", FrequencyLoadBand.Busy)]
+    [InlineData("maintain at or above {alt}", CanonicalCommandType.ClimbMaintain, "maintain {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("turn left heading {hdg}", CanonicalCommandType.TurnLeft, "right heading {hdg}", FrequencyLoadBand.Busy)]
+    [InlineData("hold short runway {rwy}", CanonicalCommandType.HoldShort, "hold short {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("cross runway {rwy}", CanonicalCommandType.CrossRunway, "cross {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("taxi runway {rwy}", CanonicalCommandType.Taxi, "taxi {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("line up and wait runway {rwy}", CanonicalCommandType.LineUpAndWait, "lining up runway {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("expect {app} approach", CanonicalCommandType.ExpectApproach, "{app} approach", FrequencyLoadBand.Busy)]
+    [InlineData("when able direct to? {fix}", CanonicalCommandType.AppendDirectTo, "direct {fix}", FrequencyLoadBand.Busy)]
+    [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "cross {fix} {alt}", FrequencyLoadBand.Busy)]
+    public void HoldsTemplate_VariantBreaksTheFloor_Rejects(
+        string canonicalPattern,
+        CanonicalCommandType type,
+        string template,
+        FrequencyLoadBand band
+    ) => Assert.False(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, PilotVariantTags.None), band));
 }

@@ -370,7 +370,7 @@ public static partial class PilotResponder
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
                 BuildAltitudeRestrictionClause(aircraft, cm),
             LineUpAndWaitCommand luaw => AppendWithoutDelayClause(BuildRunwayInstructionClause(aircraft, "line up and wait"), luaw.WithoutDelay)
-                ?? VerbalizeDual(luaw, speechContext),
+                ?? VerbalizeDual(luaw, aircraft.Callsign, speechContext),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
                 aircraft,
                 cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
@@ -403,25 +403,26 @@ public static partial class PilotResponder
                 PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: false),
                 PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: true)
             ),
-            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, speechContext),
+            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, aircraft.Callsign, speechContext),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId) ?? VerbalizeDual(tg, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
+                    ?? VerbalizeDual(tg, aircraft.Callsign, speechContext),
                 tg.TrafficPattern,
                 tg.PatternRunwayId
             ),
             StopAndGoCommand sg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, aircraft.Callsign, speechContext),
                 sg.TrafficPattern,
                 sg.PatternRunwayId
             ),
             LowApproachCommand la => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, aircraft.Callsign, speechContext),
                 la.TrafficPattern,
                 la.PatternRunwayId
             ),
             ClearedForOptionCommand option => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, aircraft.Callsign, speechContext),
                 option.TrafficPattern,
                 option.PatternRunwayId
             ),
@@ -443,7 +444,7 @@ public static partial class PilotResponder
             FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
-            _ => VerbalizeDual(cmd, speechContext),
+            _ => VerbalizeDual(cmd, aircraft.Callsign, speechContext),
         };
 
     /// <summary>
@@ -717,10 +718,11 @@ public static partial class PilotResponder
     /// <summary>
     /// Default rule-driven clause for commands without a dedicated readback builder: the compact
     /// terminal form and the spoken form, both produced from the canonical command by the verbalizer.
-    /// Only the spoken form varies with the speech context; the terminal form is always the canonical text.
+    /// Only the spoken form varies with the speech context and the callsign that seeds its variant pick; the terminal form is
+    /// always the canonical text.
     /// </summary>
-    private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, PilotSpeechContext speechContext) =>
-        Dual(PhraseologyVerbalizer.VerbalizeTerminal(cmd), PhraseologyVerbalizer.Verbalize(cmd, speechContext.Personality, speechContext.Band));
+    private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, string callsign, PilotSpeechContext speechContext) =>
+        Dual(PhraseologyVerbalizer.VerbalizeTerminal(cmd), PhraseologyVerbalizer.Verbalize(cmd, callsign, speechContext));
 
     /// <summary>
     /// Builds the EXT readback dynamically from the aircraft's current pattern phase
@@ -734,7 +736,7 @@ public static partial class PilotResponder
         PatternEntryLeg? leg = ext.Leg ?? CurrentPatternLeg(aircraft.Phases?.CurrentPhase);
         if (leg is not { } resolved)
         {
-            return VerbalizeDual(ext, PilotSpeechContext.Canonical);
+            return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical);
         }
 
         string? legWord = resolved switch
@@ -746,7 +748,7 @@ public static partial class PilotResponder
         };
         if (legWord is null)
         {
-            return VerbalizeDual(ext, PilotSpeechContext.Canonical);
+            return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical);
         }
 
         string? runway = aircraft.Procedure.DestinationRunway;
