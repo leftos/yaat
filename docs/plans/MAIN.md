@@ -10,7 +10,6 @@
 
 - [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext
   - [ ] YAAT-1078 Keep the Terminal readback canonical; vary only the spoken form (YAAT-849 part C) · release vNext
-  - [/] YAAT-1079 Nudge the pilot TTS speed by frequency load, up to ±10% (YAAT-849 part D) · release vNext
   - [ ] YAAT-1080 Shorten an N-number callsign after the controller acknowledges contact (YAAT-849 part E) · release vNext
   - [ ] YAAT-1081 Speak a contact frequency grouped without the leading 1 when busy (YAAT-849 part F) · release vNext
   - [ ] YAAT-1082 Give every pilot readback terse, normal and chatty spoken variants (YAAT-849 part G) · release vNext
@@ -419,6 +418,8 @@
 - [ ] YAAT-1008 Stop the automation host accepting pipe clients after Dispose on Unix
 - [ ] YAAT-1013 Boil settled mocks down to a decision record and a rebuild recipe
 - [ ] YAAT-1038 Make the dotnet-format hook restore (or refuse) in a worktree with no local restore
+- [ ] YAAT-1097 Make dotnet format style and the build agree on var for a nullable static factory
+- [ ] YAAT-1100 Split PhraseologyVerbalizer.VerbalizeCore under the 100-line limit
 
 ## Singles
 
@@ -726,6 +727,8 @@
 - [ ] YAAT-1094 Spoken holding-short and not-clear calls say raw taxiway ids and drop "runway"
 - [ ] YAAT-1095 Count solo Say answers on the frequency load meter
 - [ ] YAAT-1096 Voice typed SAY answers in solo mode
+- [ ] YAAT-1098 Fail a REPORT cancel with unrecognised tokens instead of cancelling every report
+- [ ] YAAT-1099 Have a solo pilot acknowledge a cancelled report request
 
 ## No project
 
