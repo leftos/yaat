@@ -9,20 +9,18 @@
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
 
 - [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext
-  - [/] YAAT-1076 Count controller transmissions in the frequency load meter, doubled thresholds, snapshotted (YAAT-849 part A) · release vNext
-  - [ ] YAAT-1077 Seed a terse-to-chatty personality per pilot and a per-transmission variant pick (YAAT-849 part B) · release vNext
   - [ ] YAAT-1078 Keep the Terminal readback canonical; vary only the spoken form (YAAT-849 part C) · release vNext
-  - [ ] YAAT-1079 Nudge the pilot TTS speed by frequency load, up to ±10% (YAAT-849 part D) · release vNext
+  - [/] YAAT-1079 Nudge the pilot TTS speed by frequency load, up to ±10% (YAAT-849 part D) · release vNext
   - [ ] YAAT-1080 Shorten an N-number callsign after the controller acknowledges contact (YAAT-849 part E) · release vNext
   - [ ] YAAT-1081 Speak a contact frequency grouped without the leading 1 when busy (YAAT-849 part F) · release vNext
   - [ ] YAAT-1082 Give every pilot readback terse, normal and chatty spoken variants (YAAT-849 part G) · release vNext
+  - [ ] YAAT-1086 Merge feat/pilot-phraseology-load to main (#1342)
 
 ## Context-menu flyouts (feat/context-menu-flyouts)
 
 - [ ] YAAT-1034 Context-menu flyouts and All Commands (feat/context-menu-flyouts) · release vNext
   - [/] YAAT-1018 Retire the remaining menu popups as flyouts: runway/STAR pickers, Report when, text boxes, Warp · release vNext
   - [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
-  - [ ] YAAT-1035 Warp… popup sends a sub-1000 ft altitude as hundreds (800 ft becomes 80,000 ft)
   - [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
   - [ ] YAAT-1048 Decide the focus when a runway tab is switched in a Cleared approach flyout opened on the visual
   - [ ] YAAT-1052 Merge feat/context-menu-flyouts to main (#1341)
@@ -718,6 +716,16 @@
 - [ ] YAAT-1073 Trim the approach transition at a direct-to fix instead of looping back through it
 - [ ] YAAT-1074 Apply or refuse a CM/DM given beside a tower command (CLAND, DM 020)
 - [ ] YAAT-1075 Check every command of a block against the phase, not only its driver
+- [ ] YAAT-1087 Cache inline box readings so a Warp keystroke does not re-search fixes many times
+- [ ] YAAT-1088 Name the fix in the Warp flyout's reading line (SFO · San Francisco VOR)
+- [ ] YAAT-1089 Menu fix boxes accept any text as a known fix before navigation data loads
+- [ ] YAAT-1090 Clear armed pattern and midfield reports when an aircraft leaves the pattern
+- [ ] YAAT-1091 LAHSO readback says "hold short runway" without "of"
+- [ ] YAAT-1092 PTAC readback omits "until established"
+- [ ] YAAT-1093 Give join airway and join radial a pilot readback
+- [ ] YAAT-1094 Spoken holding-short and not-clear calls say raw taxiway ids and drop "runway"
+- [ ] YAAT-1095 Count solo Say answers on the frequency load meter
+- [ ] YAAT-1096 Voice typed SAY answers in solo mode
 
 ## No project
 
