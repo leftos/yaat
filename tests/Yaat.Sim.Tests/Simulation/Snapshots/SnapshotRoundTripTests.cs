@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
@@ -1237,6 +1238,136 @@ public class SnapshotRoundTripTests
         Assert.Same(sjcLayout, restoredSatellite.Ground.Layout);
         Assert.Equal("SJC", restoredSatellite.Ground.LayoutAirportId);
         Assert.Same(oakLayout, restoredPrimary.Ground.Layout);
+    }
+
+    /// <summary>
+    /// A rewind resumes in the frequency-load band the run was in. The meter is keyed on sim time, so a restore that
+    /// left it empty (or kept the pre-rewind times) would put pilot speech into a band the run never reached — and
+    /// a replay after a restore would sound different from the run it replays.
+    /// </summary>
+    [Fact]
+    public void RestoreFromSnapshot_KeepsTheFrequencyLoad()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        double now = scenario.ElapsedSeconds;
+        // 15 transmissions inside the last minute: Busy.
+        for (int second = 15; second >= 1; second--)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(now - second);
+        }
+
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
+
+        for (int second = 1; second <= 20; second++)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(now + second);
+        }
+
+        engine.RestoreFromSnapshot(snapshot);
+
+        Assert.Equal(15, engine.World.ActiveFrequency.ActivityMeter.Count);
+        Assert.Equal(FrequencyActivityLevel.Busy, engine.World.ActiveFrequency.GetActivityLevel(now));
+    }
+
+    /// <summary>
+    /// A snapshot written before the meter was captured omits the field entirely; the restore then starts with an
+    /// empty meter instead of throwing, and stale times from before a rewind never survive.
+    /// </summary>
+    [Fact]
+    public void RestoreFromSnapshot_WithoutFrequencyTimes_RestoresAnEmptyMeter()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        for (int second = 25; second >= 1; second--)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds - second);
+        }
+
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        JsonObject node = JsonNode.Parse(json)!.AsObject();
+        Assert.True(node.ContainsKey(nameof(StateSnapshotDto.FrequencyTransmissionTimes)));
+        node.Remove(nameof(StateSnapshotDto.FrequencyTransmissionTimes));
+
+        StateSnapshotDto withoutTimes = JsonSerializer.Deserialize<StateSnapshotDto>(node.ToJsonString(), RecordingJsonOptions.Default)!;
+
+        engine.RestoreFromSnapshot(withoutTimes);
+
+        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+    }
+
+    /// <summary>
+    /// A reload starts the frequency quiet: a reload-and-replay from zero must not inherit times recorded later in the
+    /// run the load replaces, or the replay's first minute runs in the wrong band.
+    /// </summary>
+    [Fact]
+    public void LoadScenario_ResetsTheFrequencyLoad()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        for (int second = 15; second >= 1; second--)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds - second);
+        }
+
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+
+        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+    }
+
+    /// <summary>
+    /// An empty meter writes no field at all, so a snapshot of a quiet frequency is byte-identical to one taken before
+    /// the meter was captured — which is what keeps a pinned snapshot hash over the whole DTO from moving.
+    /// </summary>
+    [Fact]
+    public void CaptureSnapshot_WithAnEmptyMeter_WritesNoFrequencyTimes()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is null)
+        {
+            return;
+        }
+
+        // Plain default options, as yaat-server's pinned snapshot-zero hash test serializes the snapshot.
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot());
+
+        Assert.DoesNotContain(nameof(StateSnapshotDto.FrequencyTransmissionTimes), json, StringComparison.Ordinal);
     }
 
     /// <summary>An airborne aircraft carrying <paramref name="layout"/>, or none at all.</summary>

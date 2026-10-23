@@ -208,6 +208,10 @@ public sealed partial class SimulationEngine
                 // last proactive call) clears. Commands that produce a readback also
                 // arm the readback gate just below; both gates are independent.
                 World.AcknowledgeControllerResponse(aircraft.Callsign);
+                // One controller transmission per successful dispatch, however many commands it chained, recorded
+                // before the read-back below reads the activity level, so the read-back's level counts the
+                // controller's transmission.
+                World.RecordControllerTransmission(elapsedSeconds);
             }
         }
         else if (answering)

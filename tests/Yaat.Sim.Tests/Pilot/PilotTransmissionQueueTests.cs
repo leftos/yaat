@@ -312,6 +312,60 @@ public sealed class PilotTransmissionQueueTests
         Assert.Equal(FrequencyActivityLevel.Quiet, frequency.GetActivityLevel(80));
     }
 
+    [Theory]
+    [InlineData(4, FrequencyActivityLevel.Quiet)]
+    [InlineData(5, FrequencyActivityLevel.Moderate)]
+    [InlineData(12, FrequencyActivityLevel.Moderate)]
+    [InlineData(13, FrequencyActivityLevel.Busy)]
+    [InlineData(20, FrequencyActivityLevel.Busy)]
+    [InlineData(21, FrequencyActivityLevel.Saturated)]
+    public void FrequencyActivityMeter_ClassifiesCountsAtThresholds(int count, FrequencyActivityLevel expected)
+    {
+        var meter = new FrequencyActivityMeter();
+        for (int i = 0; i < count; i++)
+        {
+            meter.Record(i);
+        }
+
+        Assert.Equal(expected, meter.Level);
+    }
+
+    [Fact]
+    public void FrequencyActivityLevel_ToLoadBand_MapsFourLevelsToThree()
+    {
+        Assert.Equal(FrequencyLoadBand.Quiet, FrequencyActivityLevel.Quiet.ToLoadBand());
+        Assert.Equal(FrequencyLoadBand.Normal, FrequencyActivityLevel.Moderate.ToLoadBand());
+        Assert.Equal(FrequencyLoadBand.Busy, FrequencyActivityLevel.Busy.ToLoadBand());
+        Assert.Equal(FrequencyLoadBand.Busy, FrequencyActivityLevel.Saturated.ToLoadBand());
+    }
+
+    [Fact]
+    public void FrequencyActivityMeter_Restore_ReplacesTimesAndLevel()
+    {
+        var meter = new FrequencyActivityMeter();
+        for (int i = 0; i < 30; i++)
+        {
+            meter.Record(i);
+        }
+
+        meter.Restore([1, 2]);
+
+        Assert.Equal(2, meter.Count);
+        Assert.Equal([1.0, 2.0], meter.TransmissionTimes);
+        Assert.Equal(FrequencyActivityLevel.Quiet, meter.Level);
+
+        var fifteen = new List<double>();
+        for (int i = 0; i < 15; i++)
+        {
+            fifteen.Add(i);
+        }
+
+        meter.Restore(fifteen);
+
+        Assert.Equal(15, meter.Count);
+        Assert.Equal(FrequencyActivityLevel.Busy, meter.Level);
+    }
+
     [Fact]
     public void SendCommand_SoloTraining_UsesVariedReadbackWithCurrentActivityLevel()
     {
@@ -321,7 +375,9 @@ public sealed class PilotTransmissionQueueTests
         };
         AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
-        for (int i = 0; i < 21; i++)
+        // 12 pilot transmissions, plus the controller's own makes 13 — Busy, which is what selects the terse
+        // shortcut asserted below, but only if the controller's count lands before the read-back reads the level.
+        for (int i = 0; i < 12; i++)
         {
             engine.World.ActiveFrequency.ActivityMeter.Record(i);
         }
@@ -330,7 +386,7 @@ public sealed class PilotTransmissionQueueTests
 
         Assert.True(result.Success, result.Message);
         PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
-        // Saturated activity level uses the terse "down to" shortcut. Spoken form spells the
+        // Busy or Saturated activity level uses the terse "down to" shortcut. Spoken form spells the
         // altitude and appends the callsign; the terminal SAY message is compact and callsign-less.
         Assert.Equal("down to five thousand, november one two three alpha bravo.", transmission.SpeechText);
         Assert.Equal("down to 5000", transmission.Text);
@@ -350,6 +406,73 @@ public sealed class PilotTransmissionQueueTests
 
         Assert.True(result.Success, result.Message);
         Assert.Empty(aircraft.PendingPilotTransmissions);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_CountsTheControllerTransmission()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+
+        CommandResult result = engine.SendCommand("N123AB", "DM 5000");
+
+        Assert.True(result.Success, result.Message);
+        // The controller's own transmission counts on the same meter, at the command's sim time.
+        Assert.Equal(1, engine.World.ActiveFrequency.ActivityMeter.Count);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_ChainedCommands_CountOnce()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+
+        CommandResult result = engine.SendCommand("N123AB", "DM 5000, FH 270");
+
+        Assert.True(result.Success, result.Message);
+        // One transmission however many commands it chains.
+        Assert.Equal(1, engine.World.ActiveFrequency.ActivityMeter.Count);
+    }
+
+    [Fact]
+    public void SendCommand_NobodyAnswering_DoesNotCountTheController()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+
+        CommandResult result = engine.SendCommand("N123AB", "DM 5000");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_FailedCommand_DoesNotCountTheController()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" };
+        engine.World.AddAircraft(aircraft);
+
+        CommandResult result = engine.SendCommand("N123AB", "CVA 28R");
+
+        Assert.False(result.Success);
+        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
     }
 
     [Fact]

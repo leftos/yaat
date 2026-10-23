@@ -41,7 +41,13 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 
    The gate has an `AwaitedReadbackTimeoutSeconds` ceiling (8 s); past that, it releases the frequency to FIFO so a missing readback (deleted aircraft, future bug, etc.) can never silence the airport indefinitely. The awaited callsign stays set — if the readback arrives later, it dequeues normally; the gate just stops vetoing others.
 3. **Airtime gate.** A transmission can only dequeue when `elapsedSeconds >= _nextAvailableAtSeconds`. After dequeue, set the next slot to `now + (~0.25 s/word, min 1 s)`.
-4. **Activity meter.** `FrequencyActivityMeter` records each transmitted message in a rolling 60-second window. Counts classify into Quiet (<5) / Moderate (≤12) / Busy (≤20) / Saturated.
+4. **Activity meter.** `FrequencyActivityMeter` records each transmitted message in a rolling 60-second window. Counts classify into Quiet (<5) / Moderate (≤12) / Busy (≤20) / Saturated (above).
+
+   The meter counts the controller's own transmissions alongside the pilots': each pilot transmission dequeued records one time, and each successful command dispatch records one more through `SimulationWorld.RecordControllerTransmission`, however many commands the dispatch chained, at the command's sim time and before the read-back is built, so the read-back's level counts the controller's transmission. It counts transmissions, never airtime, so shorter busy read-backs cannot feed back into the count.
+
+   `FrequencyActivityLevel.ToLoadBand()` collapses the four levels to a three-way `FrequencyLoadBand`: Quiet is Quiet, Moderate is Normal, Busy and Saturated are Busy. No reader consumes the band.
+
+   The recorded times are snapshotted (`FrequencyActivityMeter.TransmissionTimes`, restored by `Restore`), so a rewind or restore resumes in the load band the run was in: see [snapshots-and-replay.md](snapshots-and-replay.md). `SimulationEngine.LoadScenario` empties the meter, so a reload replayed from zero never keeps times from later in the run.
 
 Drained transmissions become terminal entries with kind `SayReadback` (for readbacks) or `SayPilot` (for proactive/reports). The client renders both as green SAY lines and routes them to `PilotVoiceService` if Piper is installed.
 
@@ -80,7 +86,7 @@ For commands that *produce* a readback, both gates run sequentially: dispatch cl
 
 ## Activity-aware readback shortening
 
-`PilotPersonality.Varied` + Busy/Saturated activity unlocks `PhraseologyVerbalizer.PilotShortcuts` — the phraseology rule's secondary patterns produce shorter readbacks ("two eighty" instead of "fly heading two eight zero"). The base verbatim form fires at Quiet/Moderate.
+`PilotPersonality.Varied` + Busy/Saturated activity unlocks `PhraseologyVerbalizer.PilotShortcuts` — the phraseology rule's secondary patterns produce shorter readbacks ("two eighty" instead of "fly heading two eight zero"), in the Terminal form and the spoken form alike. The base verbatim form fires at Quiet/Moderate.
 
 `SimulationEngine.SendCommand` always passes `PilotPersonality.Varied` plus the live activity level into `PilotResponder.BuildReadback`, so shortening is automatic on the live path. Tests that need stable output use the parameterless `BuildReadback(compound, aircraft)` overload, which defaults to `Verbatim` + `Moderate`.
 

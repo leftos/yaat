@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
@@ -16,6 +18,15 @@ public sealed class StateSnapshotDto
     public required double ElapsedSeconds { get; init; }
     public required RngState Rng { get; init; }
     public string? WeatherJson { get; init; }
+
+    /// <summary>
+    /// The active frequency's recorded transmission times, oldest first, so a rewind or restore resumes in the
+    /// load band the run was in. Written only when the meter holds a time: an empty meter is left out of the JSON,
+    /// exactly as a snapshot written before this field existed, and either restores an empty meter.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<double>? FrequencyTransmissionTimes { get; init; }
+
     public required List<AircraftSnapshotDto> Aircraft { get; init; }
     public required ScenarioSnapshotDto Scenario { get; init; }
     public ServerSnapshotDto? Server { get; init; }

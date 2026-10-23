@@ -27,6 +27,7 @@
 - One Report when… quick command replaces At N-mile final… and At fix… in the default lists, with a dot while a report is armed.
 - All Commands groups commands by task, such as Runway, Taxi and Vectors; Track, Data Block, Squawk, Display and Draw route move into it.
 - Every right-click menu command row shows the command you would type, in your command scheme's own alias.
+- In solo sessions, your own transmissions count toward how busy pilots judge the frequency, and a rewind keeps that judgement.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.

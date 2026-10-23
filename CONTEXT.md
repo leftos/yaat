@@ -499,6 +499,12 @@ A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the
 **Inside the FAF**:
 Established on the final and no further out than a limit measured to the landing threshold. For the speed gate and the FOLLOW refusal the limit is the published FAF capped at 5 NM (`FinalApproachFix.IsInside`); for the altitude hold and the bare-go-around refusal it is the published FAF uncapped (`FinalApproachFix.IsInsidePublishedFaf`, docs/approach-and-pattern-geometry.md).
 
+## Pilot speech
+
+**Load band**:
+How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
+_Avoid_: activity level (the meter's four-step reading)
+
 ## Live traffic
 
 **Shadow**:

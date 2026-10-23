@@ -6,15 +6,78 @@ Design seed for the Linear issue "Vary solo pilot readback phraseology by how bu
 
 Pilots know whether the frequency is busy. On a busy frequency they read back laconically (shorter forms, grouped frequency digits, dropped words); on a quiet one they are more relaxed (fuller forms, an occasional "Alright, " prefix or ", thanks" suffix). The TTS speech rate can follow the same load, a little faster when busy.
 
-Open questions for the design interview (not settled):
+## Current state
 
-- How "busy" is measured (transmissions per minute on the frequency, aircraft on frequency, pending pilot transmissions, the controller's recent transmission density) and over what window.
-- Whether variation is per transmission (random within a load band) or per pilot (a pilot personality: terse vs chatty) or both, and how it stays deterministic for replay (seeded).
-- Which readbacks get variants first, and where the variants live (`PilotResponder.Build*`, `PhraseologyVerbalizer`, `PilotSpeechText`; `docs/pilot-phraseology.md`, `docs/pilot-phraseology-examples.md`).
-- Whether the Terminal text varies with the speech or only the spoken form.
-- Speech-rate range and how it combines with Settings › Speech's Speed slider.
-- Which forms are FAA-correct (7110.65 / AIM pilot readback guidance) versus merely common; every variant gets an `aviation-sim-expert` ruling.
-- The callsign abbreviation notes (FAA N-number after initial contact; ICAO first letter plus last two) and the trailing-digit frequency note: in scope here or separate items.
+Part of the machinery already exists:
+
+- `FrequencyActivityMeter` keeps a rolling 60 s count of transmissions on the active frequency and classifies it Quiet / Moderate / Busy / Saturated ([solo-training-pilot-speech.md](../solo-training-pilot-speech.md)). It counts the controller's transmissions as well as the pilots', and `ToLoadBand()` collapses the four levels to a Quiet / Normal / Busy `FrequencyLoadBand`.
+- `PhraseologyVerbalizer.ShouldUseShortcut` makes a `PilotPersonality.Varied` pilot use a rule's `PilotShortcuts` (the shortest) at Busy and Saturated.
+- `PilotResponder.ApplyQuietFlavor` adds an "alright, " prefix or a ", thanks" suffix to the spoken body, drawn from a hash of the callsign and body (deterministic, but not yet seeded per pilot).
+
+What is not built: a per-pilot terse-to-chatty trait, a per-transmission seeded pick among variants, variants beyond the busy shortcuts, the speech-rate nudge, the callsign abbreviation and the grouped frequency form. The decomposition below plans them.
+
+## Settled answers
+
+Owner rulings:
+
+- Busy is transmissions per minute on the frequency, controller and pilot, over a trailing window, banded quiet / normal / busy.
+- Variation is both per pilot and per transmission: each pilot has a seeded personality (terse to chatty) that shifts the band, and each readback picks a seeded variant within it, so replay stays deterministic.
+- Only the spoken form varies; the Terminal keeps the canonical readback text.
+- Every readback gets variants, each variant ruled by `aviation-sim-expert`.
+- The Settings › Speech Speed slider sets the base speech rate; frequency load nudges it by up to ±10% (faster when busy, slower when quiet).
+- In scope: the FAA N-number shortening after initial contact and the grouped frequency form. The ICAO "first letter plus last two" shortening is dropped, since it conflicts with 7110.65 2-4-9.b.3 in US airspace. The 7110.65 2-4-20 rule that a pilot abbreviates only after the controller has is deliberately not modelled.
+- Grouped frequency without the leading 1 ("twenty-five thirty-five" for 125.35): mostly when busy, rarely when normal, never when quiet; one-decimal frequencies keep "point"; no grouping when the first decimal is 0.
+- "Climbing up to" / "descending down to" shortcuts apply to flight levels only; below FL180 the altitude form keeps no "to" before the number.
+
+Orchestrator decisions (open to the owner):
+
+- The four-level meter maps to three bands: Quiet to quiet, Moderate to normal, Busy and Saturated to busy. The thresholds stay at quiet under 5 transmissions per 60 s, Moderate 5 to 12, Busy 13 to 20, Saturated above 20, now counted on both sides (each pilot transmission dequeued plus one per successful controller dispatch).
+- The controller side is counted once per successful dispatch, at the command's sim time. The meter counts transmissions, never airtime, so shorter busy readbacks cannot feed back into the count.
+- The meter's timestamps are snapshotted, so a rewind or restore resumes in the same band.
+- Personality is derived, never stored: `Fnv1a(callsign) ^ RngSeed` gives each pilot a terse-to-chatty trait, and `PilotPersonality` stays as the variation on/off switch. The trait is terse (25%), normal (50%) or chatty (25%); terse speaks one load band busier, chatty one band quieter, clamped to quiet..busy (owner ruling).
+- The per-transmission pick hashes the callsign, the canonical body and the sim second, so replay is deterministic and two identical readbacks a minute apart can differ.
+- The Terminal never varies: busy shortcuts reach only the spoken form, and `VerbalizeTerminal` and the RPO terminal get the canonical values.
+- The load nudge is computed by the server and sent on the pilot-transmission broadcast; the client multiplies the Speech Speed slider value by it (0.9 to 1.1) and clamps the product to the engine's 0.75 to 1.5.
+- Variation covers every readback (rule-path readbacks, handler readbacks, direct-render clauses and the contact readback) and the calls the pilot starts itself (check-ins, position reports, ready-for-departure calls, requests). Unable replies keep their wording, so a refusal stays unmistakable (owner ruling).
+- Callsign abbreviation waits for `HasControllerAcknowledgedInitialContact`, per controller, and never applies to airline, military or MEDEVAC call signs or when a similar callsign (same last two characters) is on the frequency (AIM 4-2-4.a.1 to a.3, 7110.65 2-4-9).
+- The existing busy shortcuts the aviation consult rejects are fixed in the same programme: `"{deg} left"` keeps "degrees", and the route-less TAXI shortcut keeps "taxi".
+
+## Aviation floor
+
+Every variant, in every band, obeys these invariants; a variant that fails one is discarded and the canonical text is spoken. One generic check enforces F3 to F9: each number, runway, hold-short and crossing token of the canonical spoken text appears in the variant with its type keyword, in the same order.
+
+| # | Invariant | Cite |
+|---|---|---|
+| F1 | Callsign present in every readback, at the start or the end (full, or a legal abbreviated form). Busier frequency makes this more important, never less. | AIM 4-4-7.b.1; AIM 4-2-3.c; 7110.65 2-4-3.c |
+| F2 | Wake suffix "heavy" / "super" kept whenever the canonical has it (house rule; the 2-4-14 NOTE could license dropping it later). | AIM 4-2-4.a.5; 7110.65 2-4-14.b/c |
+| F3 | Every assigned altitude or restriction is spoken with its keyword ("thousand" / "hundred" or "flight level") and its qualifier ("at", "at or above", "at or below", "until established", "except maintain"). No decimal shorthand, no bare FL digits. | AIM 4-4-7.b, 4-4-7.b.2, 4-2-9.a/b; 7110.65 2-4-17.b |
+| F4 | Every heading is spoken with the word "heading" and its three digits; the turn direction is kept whenever the controller gave one; relative turns keep "degrees". | AIM 4-4-7.b, 4-2-10; 7110.65 2-4-17.h |
+| F5 | Every runway assignment keeps L/R/C: taxi, line-up, takeoff, landing, option / T&G / S&G / low approach, approach clearance, pattern entry with a runway. | AIM 4-4-7.b.4, 4-3-18.a.9.a; 7110.65 2-4-3 NOTE 1.c |
+| F6 | Every hold-short is spoken "hold short (of) {target}", with "runway" kept for a runway target and any locative. Never "short runway 33". | 7110.65 2-4-3.b, 3-7-2.h; AIM 4-3-18.a.9.c, 4-3-18.b.1 |
+| F7 | Every runway crossing or entry is spoken "cross runway {rwy}" (plus "at {twy}" if given); "line up and wait" keeps its runway. | AIM 4-3-18.a.9.b, 4-3-18.b.1 |
+| F8 | LAHSO: "cleared to land runway {rwy}, hold short of {target}" in full, every band; no courtesy, no shortening. | AIM 4-3-11.b.7, 4-3-11.c.2; 7110.65 3-10-5.b |
+| F9 | Speeds and Mach keep a keyword ("knots", "speed", "Mach"); squawk codes keep "squawk" and all four digits; frequencies keep enough digits to be unambiguous. | 7110.65 2-4-3 NOTE 1.a, 2-4-17.i/k/l |
+| F10 | Variants never reorder clauses: they drop or swap words inside a clause, prepend or append the acknowledgement or courtesy, and move the callsign between start and end. The one exception: TAXI may say "taxi via {twy} to runway {rwy}", the route itself staying in order. | AIM 4-4-7.b.2 |
+| F11 | Taxi route: every cleared taxiway, in order, plus the destination (house rule; the FAA mandates only runway, entries and hold-shorts). | AIM 4-3-18.a.9; `docs/pilot-phraseology.md` |
+| F12 | Safety-critical verbs are never reduced to "wilco" / "roger": go around, cancel takeoff or landing clearance, hold position, line up and wait, cleared for takeoff / to land, cross runway, hold short, follow / behind, cleared into or through the bravo. | AIM 4-3-18.b.1; 7110.65 2-4-3 |
+| F13 | No charted altitude added that the controller did not state. | AIM 4-4-7.b.3; 7110.65 2-4-3 NOTE 1.b |
+| F14 | No jargon or CB slang ("warp speed ahead", "on the brakes", "see ya"). | AIM 4-2-1.c |
+
+What may vary: verbs and particles inside a clause, "taxi" / "via" / "contact" / "on", the facility name on a frequency change, the acknowledgement words, courtesy ("alright, " never on runway clearances or an F12 verb, nor when the readback holds "left" or "right"; ", thanks" never on go-around, cancel, hold position or LAHSO), callsign position and form, and frequency form. A readback with no number and no runway, hold or crossing element may collapse to "wilco, {cs}" or "{cs}". The Terminal stays canonical, so the student sees the textbook form even when the voice is laconic.
+
+## Code map
+
+Entry points for the work, by decomposition part (each part is its own issue under YAAT-849, landed on `feat/pilot-phraseology-load`):
+
+- **A, YAAT-1076, load meter.** `Pilot/FrequencyActivityMeter.cs` (bands, `FrequencyLoadBand`, `TransmissionTimes`, `Restore`), `Pilot/FrequencyState.cs` (the pilot-side `Record` at dequeue), `SimulationWorld.RecordControllerTransmission`, `Simulation/SimulationEngine.Commands.cs` (`ApplyPostDispatch`, the controller-side hook), `Simulation/SimulationEngine.Snapshots.cs` and `StateSnapshotDto.FrequencyTransmissionTimes`.
+- **B, YAAT-1077, seed and personality.** A per-pilot trait derived from `DeterministicHash.Fnv1a` and `SimScenarioState.RngSeed`, and a seeded variant pick; replaces the global `PilotPersonality` use at `SimulationEngine.Commands.cs` and the `PilotResponder` / `PhraseologyVerbalizer` signatures.
+- **C, YAAT-1078, spoken-only seam.** `Pilot/PilotResponder.cs` (`BuildReadback`, `FrameReadback`, `ApplyQuietFlavor`, `VerbalizeDual`) and `Pilot/PhraseologyVerbalizer.cs` (`Verbalize` vs `VerbalizeTerminal`): the band and personality reach only the spoken form, the Terminal and RPO body stay canonical.
+- **D, YAAT-1079, speech-rate nudge (cross-repo).** `PilotTransmission` and the queue methods in `PilotResponder`; yaat-server `Simulation/TickProcessor.cs`, `TrainingBroadcastService` and `PilotTransmissionBroadcastDto`; client `MainViewModel.Aircraft.cs` (`OnPilotTransmissionReceived`), `Services/PilotVoiceService.cs` and `SherpaOnnxPilotVoiceSynthesizer.SpeakAsync`.
+- **E, YAAT-1080, callsign abbreviation.** `PilotResponder.SpokenOwnCallsign` and its callers, `Speech/CallsignParser.cs` (`IcaoToSpoken`, `GetSpokenVariants`), `AircraftState.HasControllerAcknowledgedInitialContact`.
+- **F, YAAT-1081, grouped frequency form.** `PhraseologyVerbalizer.FrequencyToWords` (a form overload) and `PilotResponder.BuildContactReadback`.
+- **G, YAAT-1082, variants per readback family.** `Speech/PhraseologyRules.cs` (`PilotShortcuts` as tiered forms), the direct renders in `PhraseologyVerbalizer.VerbalizeCore`, the direct clause builders in `PilotResponder`, and the handler readbacks (`CommandResult.PilotReadback`); each family needs an `aviation-sim-expert` ruling first.
+
+Order: A, B and F start together; D and E follow; C needs A and B; G needs C.
 
 ## Owner's reference examples
 

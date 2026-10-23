@@ -32,6 +32,9 @@ public sealed partial class SimulationEngine
     {
         SimScenarioState scenario = Scenario ?? throw new InvalidOperationException("No scenario loaded.");
         List<AircraftState> aircraft = World.GetSnapshot();
+        // An empty meter writes no field, so a snapshot of a quiet frequency is byte-identical to one written before
+        // the meter was captured, and the server's pinned snapshot-zero hash stays put.
+        List<double> frequencyTransmissionTimes = [.. World.ActiveFrequency.ActivityMeter.TransmissionTimes];
         if (World.Weather is { WindGrid: not null, WindGridHash: null } unnamedGridWeather)
         {
             Logger.LogWarning(
@@ -45,6 +48,7 @@ public sealed partial class SimulationEngine
             ElapsedSeconds = scenario.ElapsedSeconds,
             Rng = World.Rng.GetState(),
             WeatherJson = World.Weather is not null ? JsonSerializer.Serialize(World.Weather) : null,
+            FrequencyTransmissionTimes = frequencyTransmissionTimes.Count > 0 ? frequencyTransmissionTimes : null,
             Aircraft = [.. aircraft.Select(ac => ac.ToSnapshot())],
             Scenario = scenario.ToSnapshot(),
             Server = CaptureServerSnapshot(aircraft),
@@ -74,6 +78,9 @@ public sealed partial class SimulationEngine
         SnapshotSchemaMigrator.Migrate(snapshot);
 
         World.Clear();
+        // Restoring the meter's times replaces whatever the run carried past the rewind point, so stale times from
+        // before a rewind never survive; an older snapshot's absent field empties the meter.
+        World.ActiveFrequency.ActivityMeter.Restore(snapshot.FrequencyTransmissionTimes ?? []);
         _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(snapshot.Rng.S0, snapshot.Rng.S1, snapshot.Rng.S2, snapshot.Rng.S3);
         World.Weather = snapshot.WeatherJson is not null ? JsonSerializer.Deserialize<WeatherProfile>(snapshot.WeatherJson) : null;

@@ -471,6 +471,12 @@ public sealed class SimulationWorld
     /// </summary>
     public void AcknowledgeControllerResponse(string callsign) => ActiveFrequency.AcknowledgeControllerResponse(callsign);
 
+    /// <summary>
+    /// Counts one controller transmission on the active frequency at <paramref name="elapsedSeconds"/>: one per
+    /// successful command dispatch, however many commands it chained. The meter counts transmissions, not airtime.
+    /// </summary>
+    public void RecordControllerTransmission(double elapsedSeconds) => ActiveFrequency.ActivityMeter.Record(elapsedSeconds);
+
     public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds)
     {
         var result = new List<PilotTransmission>();

@@ -9,7 +9,7 @@
 ```
 StateSnapshotDto
 ├─ SchemaVersion (int)
-├─ ElapsedSeconds, Rng (RngState), WeatherJson, Server?
+├─ ElapsedSeconds, Rng (RngState), WeatherJson, FrequencyTransmissionTimes?, Server?
 └─ Aircraft[] : AircraftSnapshotDto
     ├─ identity + kinematics (callsign, lat/lon, true heading, alt, IAS, …)
     ├─ FlightPlan       — AircraftFlightPlanDto
@@ -55,6 +55,10 @@ The table lists only the steps with a data *transform*; the authoritative full c
 `PhaseListDto.GivenUpExitTaxiways` (the taxiways the crew has said "unable" to on this landing — [landing-and-runway-exit.md](landing-and-runway-exit.md) § The given-up set) is `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`: written only when the set is non-empty, and then sorted (`StringComparer.OrdinalIgnoreCase`) so two runs holding the same set in a different hash order serialize identically; absent on read means none given up.
 
 No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. The same additive, no-bump pattern covers `LandingPhaseDto.UnableBroadcast` and `OriginalPreferenceIsRequestedExit` (false when absent) and `RunwayExitPhaseDto.TurnOffDecelRate` (null when absent: the taxi rate older builds turned off at) and `RunwayExitPhaseDto.InferredSideValue` (the default exit side `ArrivalExitSide` resolved; null when absent, which restores no side).
+
+`StateSnapshotDto.FrequencyTransmissionTimes` (`List<double>?`, `WhenWritingNull`) carries the active frequency's `FrequencyActivityMeter` times, oldest first, so a rewind or restore resumes in the load band the run was in ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) § the activity meter). `CaptureSnapshot` writes it only when the meter holds a time, so a snapshot of a quiet frequency is byte-identical to one written before the field existed, and the pinned snapshot-zero hash stays put; no schema bump.
+
+`RestoreFromSnapshot` replaces the meter's times with the field (absent restores an empty meter), without trimming them: the next `Record` or `Trim` trims, as the original run would have. Only the active frequency's meter is captured.
 
 `PhaseListDto.TaxiRoute` (a `TaxiRouteDto`) is the route a TAXI on the landing rollout stores behind the exit ([landing-and-runway-exit.md](landing-and-runway-exit.md) § TAXI on the rollout), null otherwise; `PhaseListDto.StoredTaxiDestinationRunway` is the destination runway that TAXI named, `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]` and restored only with a route. `PhaseListDto.RequestedExitIsTaxiImplied` (true, not written while null) marks `RequestedExit` as the exit that TAXI implied (`PhaseList.TaxiImpliedExit`), and `LandingPhaseDto.ActivePreferenceIsRequestedExit` (the same, for the landing's active possibly-relaxed preference), so a restore shares the instance again and a go-around still tells the implied exit from the controller's own. `LandingPhaseDto.SideTowardTaxiRoute` is true while `InferredSideValue` points toward the stored route and `SideBeforeTaxiRouteValue` is the side it replaced, given back when the route is dropped. All are additive and omitted while null, so snapshot 0 is unchanged. `HoldShortPointDto.RecrossesLandingRunway` (true, omitted otherwise) is the re-crossing of the landing runway on that route, which auto-cross never clears. A restore with no ground layout, or whose route nodes are not in the layout, drops the stored route and logs.
 
