@@ -260,7 +260,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     /// <summary>The session the menu is built with: initials "AB", no solo training, no VFR commands for IFR aircraft.</summary>
     public MenuSession Session { get; init; } =
-        new("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false);
+        new("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false, CommandScheme.Default());
 
     /// <summary>The callsign lists the RPO items were asked for, in order; the host answers none.</summary>
     public List<IReadOnlyList<string>> RpoRequests { get; } = [];

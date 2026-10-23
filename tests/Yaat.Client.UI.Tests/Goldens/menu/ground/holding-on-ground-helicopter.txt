@@ -8,11 +8,11 @@ Command…
 Note…
 All Commands
   Taxi
-    Taxi to runway
+    Taxi to runway alias:TAXI
       Finding runway entries…
-    Preset taxi route
+    Preset taxi route alias:TAXI
       TERMINAL to 30 · via T U W · ~13,300 ft — TAXI T U W RWY 30
-    Air taxi
+    Air taxi alias:ATXI
       Air taxi to · Filter pads, parking, spots, runways
     Follow… · no other aircraft on the ground [disabled]
     Give way to… · no other aircraft on the ground [disabled]
@@ -29,15 +29,15 @@ All Commands
       Custom — SAY ···
   Track and coordination
     Track [disabled]
-    Initiate Track
+    Initiate Track alias:TRACK
     Data block [disabled]
-    Scratchpad…
+    Scratchpad… alias:SP1 / SP2
       Scratchpad — SP ···
-    Temporary altitude…
+    Temporary altitude… alias:TEMPALT
       temporary altitude flyout
-    Cruise…
+    Cruise… alias:CRUISE
       cruise flyout
-    Annotate
+    Annotate alias:ANNOTATE
     Squawk [disabled]
     Squawk
       Code — SQ ···
@@ -50,10 +50,10 @@ All Commands
       ---
       Ident
     Coordination [disabled]
-    Release
-    Hold
-    Recall
-    Acknowledge release
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
     ---
     Edit flight plan
 Favorite Commands
@@ -67,4 +67,4 @@ Display
   Hide datablock
   Measure from N812HM
 ---
-Delete
+Delete alias:DEL

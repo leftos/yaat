@@ -334,6 +334,7 @@ public static class AircraftMenuBuilder
         {
             if (entry.Build(aircraft, context, host) is { } item)
             {
+                MenuAlias.Apply(entry.Id, item, context);
                 menu.Items.Add(item);
             }
         }

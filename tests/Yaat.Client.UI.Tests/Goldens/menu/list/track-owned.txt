@@ -9,73 +9,73 @@ Note…
 All Commands
   Vectors
     Heading [disabled]
-    Present heading
-    Fly heading
+    Present heading alias:FPH
+    Fly heading alias:FH
       heading flyout
-    Turn left
+    Turn left alias:TL
       heading flyout
-    Turn right
+    Turn right alias:TR
       heading flyout
-    Turn left (degrees)
+    Turn left (degrees) alias:RELL
       heading flyout
-    Turn right (degrees)
+    Turn right (degrees) alias:RELR
       heading flyout
     Altitude [disabled]
-    Maintain altitude
+    Maintain altitude alias:CM / DM
       maintain altitude flyout
     Speed [disabled]
-    Assign speed
+    Assign speed alias:SPD …
       speed flyout
-    Speed…
+    Speed… alias:SPD …
       speed flyout
-    Resume normal speed
-    Reduce to final approach speed
+    Resume normal speed alias:RNS
+    Reduce to final approach speed alias:RFAS
     Route [disabled]
-    Direct to…
+    Direct to… alias:DCT
       direct to flyout
-    Proceed on course
-    Cross fix…
+    Proceed on course alias:OC
+    Cross fix… alias:CFIX
       cross fix flyout
-    Depart fix…
+    Depart fix… alias:DEPART
       depart fix flyout
-    Join airway…
+    Join airway… alias:JAWY
       join airway flyout
-    Join radial outbound…
+    Join radial outbound… alias:JRADO
       join radial flyout
-    Join radial inbound…
+    Join radial inbound… alias:JRADI
       join radial flyout
-    Climb via SID
+    Climb via SID alias:CVIA
   Approach
-    Cleared approach
+    Cleared approach alias:CAPP …
       approach flyout, built when it opens
-    Join approach
+    Join approach alias:JAPP
       approach flyout, built when it opens
-    Cleared straight-in
+    Cleared straight-in alias:CAPPSI
       approach flyout, built when it opens
-    Join straight-in
+    Join straight-in alias:JAPPSI
       approach flyout, built when it opens
-    Cleared approach (force)
+    Cleared approach (force) alias:CAPPF
       approach flyout, built when it opens
-    Join approach (force)
+    Join approach (force) alias:JAPPF
       approach flyout, built when it opens
-    Join final approach course
+    Join final approach course alias:JFAC
       approach flyout, built when it opens
-    Expect approach
+    Expect approach alias:EAPP
       approach flyout, built when it opens
-    Cleared visual approach
+    Cleared visual approach alias:CVA …
       approach flyout, built when it opens
     ---
-    Join STAR
+    Join STAR alias:JARR / DVIA
       join STAR flyout
-    PTAC…
+    PTAC… alias:PTAC / PTACF
       ptac flyout
     ---
-    Hold at fix…
+    Hold at fix… alias:HOLDP
       hold at fix flyout
-    Hold present position (left)
-    Hold present position (right)
+    Hold present position (left) alias:HPPL
+    Hold present position (right) alias:HPPR
   Pattern
-    Make straight-in
+    Make straight-in alias:EF
       Runway 10R — EF 10R
       Runway 12 — EF 12
       Runway 28L — EF 28L
@@ -85,11 +85,11 @@ All Commands
       Runway 28R · short — EF 28R
       Runway 33 · short — EF 33
   Pilot reports
-    Report field in sight…
+    Report field in sight… alias:RFIS
       report field in sight flyout
     Report traffic in sight… · no other aircraft airborne [disabled]
     ---
-    Report when…
+    Report when… alias:REPORT
       Report when… · AAL211 · RWY 30 [disabled]
       Mile final — ···
       Passing a fix — ···
@@ -105,19 +105,19 @@ All Commands
       Custom — SAY ···
   Track and coordination
     Track [disabled]
-    Initiate handoff…
+    Initiate handoff… alias:HO
       coordination flyout
-    Point out…
+    Point out… alias:PO
       coordination flyout
-    Drop track
+    Drop track alias:DROP
     Data block [disabled]
-    Scratchpad…
+    Scratchpad… alias:SP1 / SP2
       Scratchpad — SP ···
-    Temporary altitude…
+    Temporary altitude… alias:TEMPALT
       temporary altitude flyout
-    Cruise…
+    Cruise… alias:CRUISE
       cruise flyout
-    Annotate
+    Annotate alias:ANNOTATE
     Squawk [disabled]
     Squawk
       Code — SQ ···
@@ -130,14 +130,14 @@ All Commands
       ---
       Ident
     Coordination [disabled]
-    Release
-    Hold
-    Recall
-    Acknowledge release
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
     ---
     Edit flight plan
   ---
-  Warp…
+  Warp… alias:WARP
     Warp · AAL211 · now 281° · 33,000 ft · 180 kt [disabled]
     Fix or FRD — ···
     Heading (magnetic) — —
@@ -148,4 +148,4 @@ All Commands
 Favorite Commands
   (no items) [disabled]
 ---
-Delete
+Delete alias:DEL

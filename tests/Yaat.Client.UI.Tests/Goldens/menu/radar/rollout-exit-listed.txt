@@ -8,12 +8,12 @@ Command…
 Note…
 All Commands
   Runway
-    Exit left
+    Exit left alias:EL
       Exits ahead, left side · from the aircraft [disabled]
       Taxiway W1 · ~900 ft — EL W1
       ---
       Pilot's choice — EL
-    Exit right
+    Exit right alias:ER
       Exits ahead, right side · from the aircraft [disabled]
       Taxiway W2 · planned · ~1,800 ft — ER W2
       Taxiway W3 · ~3,600 ft — ER W3
@@ -31,15 +31,15 @@ All Commands
       Custom — SAY ···
   Track and coordination
     Track [disabled]
-    Initiate Track
+    Initiate Track alias:TRACK
     Data block [disabled]
-    Scratchpad…
+    Scratchpad… alias:SP1 / SP2
       Scratchpad — SP ···
-    Temporary altitude…
+    Temporary altitude… alias:TEMPALT
       temporary altitude flyout
-    Cruise…
+    Cruise… alias:CRUISE
       cruise flyout
-    Annotate
+    Annotate alias:ANNOTATE
     Squawk [disabled]
     Squawk
       Code — SQ ···
@@ -52,10 +52,10 @@ All Commands
       ---
       Ident
     Coordination [disabled]
-    Release
-    Hold
-    Recall
-    Acknowledge release
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
     ---
     Edit flight plan
 Favorite Commands
@@ -94,4 +94,4 @@ Display
   Blank target
   Unblank target
 ---
-Delete
+Delete alias:DEL

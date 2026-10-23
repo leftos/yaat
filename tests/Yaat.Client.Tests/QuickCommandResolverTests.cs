@@ -63,7 +63,7 @@ public class QuickCommandResolverTests
     private static MenuContext Context(Func<AircraftSituation, IReadOnlyList<QuickCommandEntry>> lists) =>
         new(
             new MenuClick("TST123", null, null, []),
-            new MenuSession("XX", false, VfrCommandsForIfr.None, lists, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession("XX", false, VfrCommandsForIfr.None, lists, SoloAdvisoryPrefill.TrueValues, false, CommandScheme.Default())
         );
 
     private static List<QuickCommandEntry> Entries(params string[] ids) => [.. ids.Select(id => new CatalogQuickCommandEntry(id, null))];
@@ -320,7 +320,7 @@ public class QuickCommandResolverTests
         List<QuickCommandEntry> entries = [new CustomQuickCommandEntry("Left traffic", "MLT", null, MenuFlightRules.VfrOnly)];
         var context = new MenuContext(
             new MenuClick("TST123", null, null, []),
-            new MenuSession("XX", false, mode, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession("XX", false, mode, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false, CommandScheme.Default())
         );
 
         QuickCommandResolution resolution = QuickCommandResolver.Resolve(entries, Airborne("IFR", AircraftSituation.IfrEnroute), context, _ => true);

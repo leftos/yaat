@@ -586,6 +586,9 @@ _Avoid_: phase (one situation spans several phases)
 The short, user-editable list of commands an aircraft's right-click menu shows first for its current situation; the rest sit under All Commands.
 _Avoid_: favorites (the Favorite Commands submenu is the user's own typed commands, the same in every situation)
 
+**Alias (menu alias)**:
+The command verb a menu row shows beside its label, right-aligned and dimmed, so a mouse user learns what to type: the row's verb as the controller's command scheme spells it (the primary verb), `A / B` for a row sending two verbs and `A …` for three or more.
+
 **All Commands**:
 The aircraft menu's submenu holding every command for the aircraft, grouped by task category in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
 
@@ -645,6 +648,9 @@ A disabled, dimmed label row in a menu that sends nothing (`SharedMenuGroups.Det
 
 **Point menu**:
 The menu a right-click on empty map (radar) or on a taxi node, runway threshold or runway surface (ground) opens for the selected aircraft: on the ground, an icon strip of the taxi items that apply, then the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Taxi to runway, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD, Draw taxi route from the node).
+
+**Primary verb**:
+The first alias of a command in the controller's command scheme (`CommandPattern.PrimaryVerb`), the verb the command bar completes to and a menu row shows as its **alias**.
 
 **Radar cue**:
 What a pointed or focused menu row draws on the radar views (`RadarCue`, sent through `IMenuHost.SetRadarCue`): a solid ring on the aircraft the row names, a dashed bearing line to it from the commanded aircraft labelled with its clock position and miles, and a dashed ring on the aircraft the call resolves to when that is another one. It clears when the menu closes; the radar's counterpart of the **scope preview**, which the radar does not draw.

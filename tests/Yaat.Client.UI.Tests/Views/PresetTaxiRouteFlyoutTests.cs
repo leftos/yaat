@@ -433,7 +433,8 @@ public class PresetTaxiRouteFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
         host.PresetTaxiChoices.AddRange(presets);

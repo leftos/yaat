@@ -8,19 +8,19 @@ Command…
 Note…
 All Commands
   Runway
-    Line up and wait 30
-    Cleared for takeoff 30
+    Line up and wait 30 alias:LUAW
+    Cleared for takeoff 30 alias:CTO
       Cleared for takeoff — CTO
       Fly heading — CTO ···
       Fly runway heading — CTO RH
       ---
       Custom — CTO
   Taxi
-    Taxi to runway
+    Taxi to runway alias:TAXI
       Finding runway entries…
-    Preset taxi route
+    Preset taxi route alias:TAXI
       30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
-    Cross 30
+    Cross 30 alias:CROSS
     Draw taxi route…
   Pilot reports
     Ask pilot to say…
@@ -34,15 +34,15 @@ All Commands
       Custom — SAY ···
   Track and coordination
     Track [disabled]
-    Initiate Track
+    Initiate Track alias:TRACK
     Data block [disabled]
-    Scratchpad…
+    Scratchpad… alias:SP1 / SP2
       Scratchpad — SP ···
-    Temporary altitude…
+    Temporary altitude… alias:TEMPALT
       temporary altitude flyout
-    Cruise…
+    Cruise… alias:CRUISE
       cruise flyout
-    Annotate
+    Annotate alias:ANNOTATE
     Squawk [disabled]
     Squawk
       Code — SQ ···
@@ -55,13 +55,13 @@ All Commands
       ---
       Ident
     Coordination [disabled]
-    Release
-    Hold
-    Recall
-    Acknowledge release
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
     ---
     Edit flight plan
 Favorite Commands
   (no items) [disabled]
 ---
-Delete
+Delete alias:DEL

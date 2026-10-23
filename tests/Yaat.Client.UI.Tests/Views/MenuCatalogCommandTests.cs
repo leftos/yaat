@@ -273,6 +273,14 @@ public class MenuCatalogCommandTests
         Assert.Equal(MenuCatalog.All.Select(e => e.Id).Order(StringComparer.Ordinal), covered.Order(StringComparer.Ordinal));
     }
 
+    [Theory]
+    [MemberData(nameof(SingleCommandLeaves))]
+    public void AliasTable_SingleCommandLeaf_HasItsCommandsFirstTokenAsItsOnlyVerb(string id, string input, string command)
+    {
+        _ = input;
+        Assert.Equal([command.Split(' ')[0]], MenuAliases.CanonicalVerbs[id]);
+    }
+
     [AvaloniaFact]
     public void AssumeAndTrack_Click_SendsAssumeThenTrack()
     {
@@ -751,6 +759,30 @@ public class MenuCatalogCommandTests
         Click(item);
 
         Assert.Equal([(Callsign, "WARPG #7", Initials)], host.Sent);
+    }
+
+    /// <summary>Warp here at a taxi node shows only the verb it sends, <c>WARPG</c>, and the row's alias pass keeps it.</summary>
+    [AvaloniaFact]
+    public void WarpHere_AtATaxiNode_AliasIsWarpgAlone()
+    {
+        var node = new GroundNodeDto(7, 37.7210, -122.2200, "TaxiwayIntersection", null, null, null);
+        MenuContext context = PointContext(new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null, [], null));
+        MenuItem item = Assert.IsType<MenuItem>(
+            MenuCatalog.Get(MenuIds.PointWarpHere).Build(new FakeMenuAircraft { IsOnGround = true }, context, new RecordingMenuHost(""))
+        );
+
+        MenuAlias.Apply(MenuIds.PointWarpHere, item, context);
+
+        Assert.Equal("WARPG", MenuAlias.GetText(item));
+    }
+
+    /// <summary>Warp here at a map point opens the Warp flyout and shows only the verb it sends, <c>WARP</c>.</summary>
+    [AvaloniaFact]
+    public void WarpHere_AtAMapPoint_AliasIsWarpAlone()
+    {
+        MenuItem warpHere = WarpHere(new RecordingMenuHost("") { PointDescription = "OAK090010" });
+
+        Assert.Equal("WARP", MenuAlias.GetText(warpHere));
     }
 
     /// <summary>Warp here at a map point opens the Warp flyout with the clicked point's FRD in the FRD box; Enter sends it.</summary>

@@ -183,7 +183,8 @@ public class TaxiToRunwayFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
 
@@ -228,7 +229,8 @@ public class TaxiToRunwayFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
             TaxiToRunway = new TaxiToRunwayMenu(ends),
         };
@@ -915,7 +917,8 @@ public class TaxiToRunwayFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
             TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search)),
         };

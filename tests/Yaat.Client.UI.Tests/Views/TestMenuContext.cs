@@ -17,6 +17,14 @@ internal static class TestMenuContext
     ) =>
         new(
             new MenuClick(callsign, previousSelection, null, []),
-            new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession(
+                initials,
+                soloTrainingMode,
+                vfrCommandsForIfr,
+                QuickCommandDefaults.For,
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default()
+            )
         );
 }

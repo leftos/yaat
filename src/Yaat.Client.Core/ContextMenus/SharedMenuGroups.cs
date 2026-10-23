@@ -94,7 +94,7 @@ public static class SharedMenuGroups
     /// </summary>
     private static MenuItem? SquawkRow(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (TryLeaf(id, aircraft, context, host) is not { } item)
+        if (FlyoutRow(id, aircraft, context, host) is not { } item)
         {
             return null;
         }
@@ -147,12 +147,12 @@ public static class SharedMenuGroups
     public static MenuItem AskPilotFlyout(string header, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = header };
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotAltitude, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotHeading, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotSpeed, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotMach, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotPosition, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotExpectedApproach, aircraft, context, host));
+        TryAdd(menu.Items, FlyoutRow(MenuIds.AskPilotAltitude, aircraft, context, host));
+        TryAdd(menu.Items, FlyoutRow(MenuIds.AskPilotHeading, aircraft, context, host));
+        TryAdd(menu.Items, FlyoutRow(MenuIds.AskPilotSpeed, aircraft, context, host));
+        TryAdd(menu.Items, FlyoutRow(MenuIds.AskPilotMach, aircraft, context, host));
+        TryAdd(menu.Items, FlyoutRow(MenuIds.AskPilotPosition, aircraft, context, host));
+        TryAdd(menu.Items, FlyoutRow(MenuIds.AskPilotExpectedApproach, aircraft, context, host));
         menu.Items.Add(new Separator());
         InlineBoxRow customRow = MenuCatalog.SayCustomRow(context, host);
         menu.Items.Add(customRow.Item);
@@ -174,8 +174,8 @@ public static class SharedMenuGroups
         if (IsApplicable(MenuIds.DataBlockScratchpadClear1, aircraft, context) || IsApplicable(MenuIds.DataBlockScratchpadClear2, aircraft, context))
         {
             menu.Items.Add(new Separator());
-            AddIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear1, aircraft, context, host);
-            AddIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear2, aircraft, context, host);
+            AddFlyoutRowIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear1, aircraft, context, host);
+            AddFlyoutRowIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear2, aircraft, context, host);
         }
 
         FocusTheBoxOnOpen(menu, row);
@@ -1135,8 +1135,32 @@ public static class SharedMenuGroups
     public static MenuItem Favorites(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         Leaf(MenuIds.FavoritesMenu, aircraft, context, host);
 
-    /// <summary>The entry's item, or null when the entry's own state hides it.</summary>
-    private static MenuItem? TryLeaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+    /// <summary>Adds the entry's flyout row (<see cref="FlyoutRow"/>) when its predicate allows it and it builds one.</summary>
+    private static void AddFlyoutRowIfApplicable(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (IsApplicable(id, aircraft, context))
+        {
+            TryAdd(items, FlyoutRow(id, aircraft, context, host));
+        }
+    }
+
+    /// <summary>The entry's item as a menu row with its command alias (<see cref="MenuAlias.Apply"/>), or null when the entry's own state hides it.</summary>
+    private static MenuItem? TryLeaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (FlyoutRow(id, aircraft, context, host) is not { } item)
+        {
+            return null;
+        }
+
+        MenuAlias.Apply(id, item, context);
+        return item;
+    }
+
+    /// <summary>
+    /// The entry's item as a row inside a flyout, which names its command another way and so shows no alias, or null when
+    /// the entry's own state hides it.
+    /// </summary>
+    private static MenuItem? FlyoutRow(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         MenuCatalog.Get(id).Build(aircraft, context, host);
 
     /// <summary>The entry's item, which must exist (Delete, Favorites).</summary>

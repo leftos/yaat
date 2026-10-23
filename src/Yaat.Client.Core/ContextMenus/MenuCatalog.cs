@@ -1227,13 +1227,13 @@ public static class MenuCatalog
     /// <summary>
     /// Warp here: to a clicked taxi node, <c>WARPG #node</c>; to a map point, the Warp flyout with the point's
     /// fix-radial-distance in its FRD box (<see cref="WarpFlyout.Build"/>); null at a map point the host cannot name, or for an
-    /// aircraft Warp… is not offered for.
+    /// aircraft Warp… is not offered for. Each records the alias of the one verb it sends.
     /// </summary>
     private static MenuItem? BuildPointWarp(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
     {
         if ((point.Node ?? point.WarpNode) is { } node)
         {
-            return BuildSend("Warp here", $"WARPG #{node.Id}", context, host);
+            return WithOwnAlias(BuildSend("Warp here", $"WARPG #{node.Id}", context, host), "WARPG", context);
         }
 
         if (!CanWarp(aircraft) || (host.DescribePoint(point.Position) is not { } frd))
@@ -1241,7 +1241,17 @@ public static class MenuCatalog
             return null;
         }
 
-        return WarpFlyout.Build($"Warp here ({frd})", aircraft, WarpFrdSeed.ClickedPoint(frd), context, host);
+        return WithOwnAlias(WarpFlyout.Build($"Warp here ({frd})", aircraft, WarpFrdSeed.ClickedPoint(frd), context, host), "WARP", context);
+    }
+
+    /// <summary>
+    /// Records on <paramref name="item"/> the alias of <paramref name="verb"/>, the one verb this build of an entry that can send
+    /// several sends, so <see cref="MenuAlias.Apply"/> keeps it rather than listing them all.
+    /// </summary>
+    private static MenuItem WithOwnAlias(MenuItem item, string verb, MenuContext context)
+    {
+        MenuAlias.SetText(item, MenuAliases.Display([verb], context.Scheme));
+        return item;
     }
 
     /// <summary>

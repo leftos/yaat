@@ -447,13 +447,21 @@ public class FieldAdvisoryFlyoutTests
     private static MenuContext Rpo() =>
         new(
             new MenuClick(Callsign, null, null, []),
-            new MenuSession(Initials, false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession(
+                Initials,
+                false,
+                VfrCommandsForIfr.None,
+                QuickCommandDefaults.For,
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default()
+            )
         );
 
     private static MenuContext Solo(SoloAdvisoryPrefill prefill, bool liveCheck) =>
         new(
             new MenuClick(Callsign, null, null, []),
-            new MenuSession(Initials, true, VfrCommandsForIfr.None, QuickCommandDefaults.For, prefill, liveCheck)
+            new MenuSession(Initials, true, VfrCommandsForIfr.None, QuickCommandDefaults.For, prefill, liveCheck, CommandScheme.Default())
         );
 
     private static MenuItem Build(AircraftModel aircraft, MenuContext context, RecordingMenuHost host) =>

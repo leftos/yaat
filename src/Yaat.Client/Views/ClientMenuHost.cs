@@ -654,7 +654,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             main.VfrCommandsForIfr,
             situation => QuickCommandListFor(main.Preferences, situation),
             main.SessionSoloAdvisoryPrefill,
-            main.SessionSoloAdvisoryLiveCheck
+            main.SessionSoloAdvisoryLiveCheck,
+            main.Preferences.CommandScheme
         );
 
     /// <summary>

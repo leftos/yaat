@@ -10,7 +10,7 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
-Spawn now
+Spawn now alias:SPAWN
 Change spawn delay
   15 seconds
   30 seconds
@@ -20,4 +20,4 @@ Change spawn delay
   10 minutes
   ---
   <TextBox>
-Delete
+Delete alias:DEL

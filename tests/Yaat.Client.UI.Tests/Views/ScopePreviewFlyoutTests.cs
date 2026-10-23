@@ -264,7 +264,8 @@ public class ScopePreviewFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
         host.HoldShortChoices.Add(
@@ -315,7 +316,8 @@ public class ScopePreviewFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null), new CatalogQuickCommandEntry(MenuIds.GroundFollow, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
         host.GroundTraffic.AddRange(traffic);

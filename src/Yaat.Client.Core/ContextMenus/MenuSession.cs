@@ -20,11 +20,15 @@ namespace Yaat.Client.ContextMenus;
 /// <param name="SoloAdvisoryLiveCheck">
 /// The session's "Live advisory check" setting: whether the solo advisory flyout grades the call as it is typed.
 /// </param>
+/// <param name="Scheme">
+/// The controller's command scheme, whose primary verbs the rows' command aliases show (<see cref="MenuAliases.Display"/>).
+/// </param>
 public sealed record MenuSession(
     string Initials,
     bool SoloTrainingMode,
     VfrCommandsForIfr VfrCommandsForIfr,
     Func<AircraftSituation, IReadOnlyList<QuickCommandEntry>> QuickCommandLists,
     SoloAdvisoryPrefill SoloAdvisoryPrefill,
-    bool SoloAdvisoryLiveCheck
+    bool SoloAdvisoryLiveCheck,
+    CommandScheme Scheme
 );

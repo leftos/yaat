@@ -212,7 +212,8 @@ public class HoldShortLadderFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
             HoldShortRouteLine = RouteLine,
             HoldShortMeLine = MeLine,

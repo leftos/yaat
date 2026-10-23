@@ -121,7 +121,8 @@ public class AircraftMenuBuilderTests
                         new CatalogQuickCommandEntry(MenuIds.CoordinationCheckReleaseWindow, null),
                     ],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
 
@@ -662,7 +663,8 @@ public class AircraftMenuBuilderTests
                 VfrCommandsForIfr.EnterFinalOnly,
                 _ => [new CatalogQuickCommandEntry(MenuIds.ApproachJoin, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
 }

@@ -136,6 +136,11 @@ internal static class MenuTreeSnapshot
             parts.Add(DescribePicker(picker));
         }
 
+        if (MenuAlias.GetText(menuItem) is { } alias)
+        {
+            parts.Add($"alias:{alias}");
+        }
+
         return string.Join(' ', parts);
     }
 

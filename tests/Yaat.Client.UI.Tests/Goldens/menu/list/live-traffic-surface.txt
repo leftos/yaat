@@ -9,19 +9,19 @@ Favorite Commands
 All Commands
   Track and coordination
     Track [disabled]
-    Initiate Track
+    Initiate Track alias:TRACK
     Data block [disabled]
-    Scratchpad…
+    Scratchpad… alias:SP1 / SP2
       Scratchpad — SP ···
-    Temporary altitude…
+    Temporary altitude… alias:TEMPALT
       temporary altitude flyout
-    Cruise…
+    Cruise… alias:CRUISE
       cruise flyout
-    Annotate
+    Annotate alias:ANNOTATE
     Coordination [disabled]
-    Release
-    Hold
-    Recall
-    Acknowledge release
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
 ---
-Delete
+Delete alias:DEL

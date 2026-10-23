@@ -850,7 +850,8 @@ public class LiveRefillFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null), new CatalogQuickCommandEntry(MenuIds.GroundFollow, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
         host.GroundTraffic.AddRange(traffic);

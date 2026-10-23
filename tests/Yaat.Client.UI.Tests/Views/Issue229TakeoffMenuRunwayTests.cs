@@ -29,7 +29,8 @@ public class Issue229TakeoffMenuRunwayTests
                 VfrCommandsForIfr.EnterFinalOnly,
                 QuickCommandDefaults.For,
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
 

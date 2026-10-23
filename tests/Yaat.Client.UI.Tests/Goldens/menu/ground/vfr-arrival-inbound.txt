@@ -9,73 +9,73 @@ Note…
 All Commands
   Vectors
     Heading [disabled]
-    Present heading
-    Fly heading
+    Present heading alias:FPH
+    Fly heading alias:FH
       heading flyout
-    Turn left
+    Turn left alias:TL
       heading flyout
-    Turn right
+    Turn right alias:TR
       heading flyout
-    Turn left (degrees)
+    Turn left (degrees) alias:RELL
       heading flyout
-    Turn right (degrees)
+    Turn right (degrees) alias:RELR
       heading flyout
     Altitude [disabled]
-    Maintain altitude
+    Maintain altitude alias:CM / DM
       maintain altitude flyout
     Speed [disabled]
-    Assign speed
+    Assign speed alias:SPD …
       speed flyout
-    Speed…
+    Speed… alias:SPD …
       speed flyout
-    Resume normal speed
-    Reduce to final approach speed
+    Resume normal speed alias:RNS
+    Reduce to final approach speed alias:RFAS
     Route [disabled]
-    Direct to…
+    Direct to… alias:DCT
       direct to flyout
-    Proceed on course
-    Cross fix…
+    Proceed on course alias:OC
+    Cross fix… alias:CFIX
       cross fix flyout
-    Depart fix…
+    Depart fix… alias:DEPART
       depart fix flyout
-    Join airway…
+    Join airway… alias:JAWY
       join airway flyout
-    Join radial outbound…
+    Join radial outbound… alias:JRADO
       join radial flyout
-    Join radial inbound…
+    Join radial inbound… alias:JRADI
       join radial flyout
-    Climb via SID
+    Climb via SID alias:CVIA
   Approach
-    Cleared approach
+    Cleared approach alias:CAPP …
       approach flyout, built when it opens
-    Join approach
+    Join approach alias:JAPP
       approach flyout, built when it opens
-    Cleared straight-in
+    Cleared straight-in alias:CAPPSI
       approach flyout, built when it opens
-    Join straight-in
+    Join straight-in alias:JAPPSI
       approach flyout, built when it opens
-    Cleared approach (force)
+    Cleared approach (force) alias:CAPPF
       approach flyout, built when it opens
-    Join approach (force)
+    Join approach (force) alias:JAPPF
       approach flyout, built when it opens
-    Join final approach course
+    Join final approach course alias:JFAC
       approach flyout, built when it opens
-    Expect approach
+    Expect approach alias:EAPP
       approach flyout, built when it opens
     ---
-    Join STAR
+    Join STAR alias:JARR / DVIA
       join STAR flyout
-    PTAC…
+    PTAC… alias:PTAC / PTACF
       ptac flyout
     ---
-    Hold present position (left)
-    Hold present position (right)
-    Left 360s at fix…
+    Hold present position (left) alias:HPPL
+    Hold present position (right) alias:HPPR
+    Left 360s at fix… alias:HFIXL
       360s at fix flyout
-    Right 360s at fix…
+    Right 360s at fix… alias:HFIXR
       360s at fix flyout
   Pattern
-    Enter left downwind
+    Enter left downwind alias:ELD
       Runway 10L — ELD 10L
       Runway 10R — ELD 10R
       Runway 12 — ELD 12
@@ -84,7 +84,7 @@ All Commands
       Runway 28R — ELD 28R
       Runway 30 — ELD 30
       Runway 33 — ELD 33
-    Enter right downwind
+    Enter right downwind alias:ERD
       Runway 10L — ERD 10L
       Runway 10R — ERD 10R
       Runway 12 — ERD 12
@@ -93,7 +93,7 @@ All Commands
       Runway 28R — ERD 28R
       Runway 30 — ERD 30
       Runway 33 — ERD 33
-    Enter left base
+    Enter left base alias:ELB
       Runway 10L — ELB 10L
       Runway 10R — ELB 10R
       Runway 12 — ELB 12
@@ -102,7 +102,7 @@ All Commands
       Runway 28R — ELB 28R
       Runway 30 — ELB 30
       Runway 33 — ELB 33
-    Enter right base
+    Enter right base alias:ERB
       Runway 10L — ERB 10L
       Runway 10R — ERB 10R
       Runway 12 — ERB 12
@@ -111,7 +111,7 @@ All Commands
       Runway 28R — ERB 28R
       Runway 30 — ERB 30
       Runway 33 — ERB 33
-    Make straight-in
+    Make straight-in alias:EF
       Runway 10L — EF 10L
       Runway 10R — EF 10R
       Runway 12 — EF 12
@@ -121,15 +121,15 @@ All Commands
       Runway 30 — EF 30
       Runway 33 — EF 33
     ---
-    Make left closed traffic
-    Make right closed traffic
+    Make left closed traffic alias:MLT
+    Make right closed traffic alias:MRT
     Follow traffic… · no other aircraft airborne [disabled]
   Pilot reports
-    Report field in sight…
+    Report field in sight… alias:RFIS
       report field in sight flyout
     Report traffic in sight… · no other aircraft airborne [disabled]
     ---
-    Report when…
+    Report when… alias:REPORT
       Report when… · N303AB [disabled]
       Passing a fix — ···
       Reporting points · nearest first [disabled]
@@ -151,15 +151,15 @@ All Commands
       Custom — SAY ···
   Track and coordination
     Track [disabled]
-    Initiate Track
+    Initiate Track alias:TRACK
     Data block [disabled]
-    Scratchpad…
+    Scratchpad… alias:SP1 / SP2
       Scratchpad — SP ···
-    Temporary altitude…
+    Temporary altitude… alias:TEMPALT
       temporary altitude flyout
-    Cruise…
+    Cruise… alias:CRUISE
       cruise flyout
-    Annotate
+    Annotate alias:ANNOTATE
     Squawk [disabled]
     Squawk
       Code — SQ ···
@@ -172,14 +172,14 @@ All Commands
       ---
       Ident
     Coordination [disabled]
-    Release
-    Hold
-    Recall
-    Acknowledge release
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
     ---
     Edit flight plan
   ---
-  Warp…
+  Warp… alias:WARP
     Warp · N303AB · now 157° · 3,500 ft · 110 kt [disabled]
     Fix or FRD — ···
     Heading (magnetic) — —
@@ -198,4 +198,4 @@ Display
   Hide datablock
   Measure from N303AB
 ---
-Delete
+Delete alias:DEL

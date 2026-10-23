@@ -548,7 +548,15 @@ public class AircraftCommandApplicabilityTests
     private static MenuContext Context(AircraftModel? previousSelection) =>
         new(
             new MenuClick("TST123", previousSelection, null, []),
-            new MenuSession("AB", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession(
+                "AB",
+                false,
+                VfrCommandsForIfr.None,
+                QuickCommandDefaults.For,
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default()
+            )
         );
 
     /// <summary>Another on-ground aircraft, selected before the right-click, which makes the ground menu relative.</summary>
@@ -904,7 +912,15 @@ public class AircraftCommandApplicabilityTests
     private static MenuContext TrackMenuContext() =>
         new(
             new MenuClick("TST123", null, null, []),
-            new MenuSession("XX", false, VfrCommandsForIfr.None, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession(
+                "XX",
+                false,
+                VfrCommandsForIfr.None,
+                QuickCommandDefaults.For,
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default()
+            )
         );
 
     /// <summary>The Track entries the catalog offers for <paramref name="ac"/>, in <see cref="TrackIds"/> order.</summary>

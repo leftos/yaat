@@ -28,6 +28,9 @@ public sealed record MenuContext(MenuClick Click, MenuSession Session)
     /// <summary>The controller's "VFR commands for IFR aircraft" setting.</summary>
     public VfrCommandsForIfr VfrCommandsForIfr => Session.VfrCommandsForIfr;
 
+    /// <summary>The controller's command scheme, whose primary verbs the rows' command aliases show.</summary>
+    public CommandScheme Scheme => Session.Scheme;
+
     /// <summary>The effective quick-command list for <paramref name="situation"/>: the controller's stored list, else the default.</summary>
     public IReadOnlyList<QuickCommandEntry> QuickCommandListFor(AircraftSituation situation) => Session.QuickCommandLists(situation);
 }

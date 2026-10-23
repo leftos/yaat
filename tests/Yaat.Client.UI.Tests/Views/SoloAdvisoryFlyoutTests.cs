@@ -597,7 +597,7 @@ public class SoloAdvisoryFlyoutTests
     private static MenuContext SoloContext(SoloAdvisoryPrefill prefill, bool liveCheck) =>
         new(
             new MenuClick(Callsign, null, null, []),
-            new MenuSession(Initials, true, VfrCommandsForIfr.None, QuickCommandDefaults.For, prefill, liveCheck)
+            new MenuSession(Initials, true, VfrCommandsForIfr.None, QuickCommandDefaults.For, prefill, liveCheck, CommandScheme.Default())
         );
 
     private static SoloAdvisoryPanel Open(RecordingMenuHost host, SoloAdvisoryPrefill prefill, bool liveCheck) =>

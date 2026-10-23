@@ -30,7 +30,7 @@ public class QuickCommandVisibilityRulesTests
     private static MenuContext Context(VfrCommandsForIfr mode) =>
         new(
             new MenuClick("TST123", null, null, []),
-            new MenuSession("XX", false, mode, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false)
+            new MenuSession("XX", false, mode, QuickCommandDefaults.For, SoloAdvisoryPrefill.TrueValues, false, CommandScheme.Default())
         );
 
     private static bool Shows(AircraftModel aircraft, string id, VfrCommandsForIfr mode)

@@ -298,7 +298,8 @@ public class GiveWayFlyoutTests
                 VfrCommandsForIfr.None,
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null)],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
         host.GroundTraffic.AddRange(traffic);

@@ -426,7 +426,8 @@ public class AirborneTrafficFlyoutTests
                         new CatalogQuickCommandEntry(MenuIds.PatternFollow, null),
                     ],
                 SoloAdvisoryPrefill.TrueValues,
-                false
+                false,
+                CommandScheme.Default()
             ),
         };
         host.AirborneTraffic.AddRange(traffic);

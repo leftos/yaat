@@ -39,6 +39,12 @@ public sealed record MenuCommandRow
     /// <summary>The widest a route row's command is drawn before it too is trimmed with an ellipsis.</summary>
     public const double RouteCommandMaxWidth = 180;
 
+    /// <summary>The size a row's command is drawn at, and a catalog row's command alias (<see cref="MenuAliasTemplate"/>).</summary>
+    public const double CommandFontSize = 12;
+
+    /// <summary>The opacity that dims a row's command, and a catalog row's command alias (<see cref="MenuAliasTemplate"/>).</summary>
+    public const double CommandOpacity = 0.7;
+
     /// <summary>The quick-command glyph leading the row, or null for none.</summary>
     public required QuickCommandGlyph? Glyph { get; init; }
 
@@ -270,8 +276,8 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
         var command = new TextBlock
         {
             Text = commandText,
-            FontSize = 12,
-            Opacity = 0.7,
+            FontSize = MenuCommandRow.CommandFontSize,
+            Opacity = MenuCommandRow.CommandOpacity,
             Margin = new Thickness(16, 0, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
