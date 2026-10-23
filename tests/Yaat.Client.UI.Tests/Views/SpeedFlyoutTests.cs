@@ -458,7 +458,10 @@ public class SpeedFlyoutTests
         Assert.Equal([open.Panel.KnotChip(240)], open.Panel.KnotChips.Where(chip => chip.Classes.Contains(SpeedFlyout.AssignedClass)));
     }
 
-    /// <summary>Reopening the flyout clears the box and forgets the chip that was pointed at, so the readout shows the empty box.</summary>
+    /// <summary>
+    /// Reopening the flyout clears the box and forgets the chip that was pointed at, so the readout shows the empty box; the pointer leaves
+    /// the chip before the reopen, so the render frames that follow it hit empty window rather than the chip again.
+    /// </summary>
     [AvaloniaFact]
     public void Reopen_ClearsTheBoxAndThePointedChip()
     {
@@ -472,7 +475,11 @@ public class SpeedFlyoutTests
 
         open.Entry.IsSubMenuOpen = false;
         Dispatcher.UIThread.RunJobs();
+        top.MouseMove(new Point(top.Bounds.Width - 2, top.Bounds.Height - 2));
+        Dispatcher.UIThread.RunJobs();
         open.Entry.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(2);
         Dispatcher.UIThread.RunJobs();
 
         Assert.Same(panel, Assert.IsType<SpeedFlyoutHost>(Assert.Single(open.Entry.Items.OfType<MenuItem>()).Header).Child);
