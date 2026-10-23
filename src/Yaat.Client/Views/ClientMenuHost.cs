@@ -52,6 +52,13 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public MenuPositions GetPositions() => new([.. main.OnlineControllers], main.ActiveTcp, main.ActivePosition);
 
+    /// <summary>
+    /// The limit the server last sent (<see cref="MainViewModel.ScratchpadMaxLength"/>); none (0 or less: no scenario, no STARS
+    /// config, an older checkpoint) reads as the server's default, the limit with no STARS config
+    /// (<see cref="ScratchpadRuleEngine.MaxScratchpadLength"/>).
+    /// </summary>
+    public int ScratchpadMaxLength => (main.ScratchpadMaxLength > 0) ? main.ScratchpadMaxLength : ScratchpadRuleEngine.MaxScratchpadLength(null);
+
     public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
 
     public Task SendGatedAsync(string callsign, string command, string initials) =>

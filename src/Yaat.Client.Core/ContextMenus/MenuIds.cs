@@ -108,6 +108,12 @@ public static class MenuIds
     /// <summary>Set the data-block scratchpad (<c>SP</c>).</summary>
     public const string DataBlockScratchpad = "datablock.scratchpad";
 
+    /// <summary>Clear the data block's primary scratchpad (a bare <c>SP1</c>).</summary>
+    public const string DataBlockScratchpadClear1 = "datablock.scratchpad-clear1";
+
+    /// <summary>Clear the data block's secondary scratchpad (a bare <c>SP2</c>).</summary>
+    public const string DataBlockScratchpadClear2 = "datablock.scratchpad-clear2";
+
     /// <summary>Set the data block's temporary altitude (<c>TEMPALT</c>).</summary>
     public const string DataBlockTempAltitude = "datablock.temp-altitude";
 

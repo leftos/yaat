@@ -36,7 +36,6 @@ public class MenuCatalogCommandTests
 {
     private const string Callsign = "N123AB";
     private const string Initials = "AB";
-    private const string BlockText = "gate 25";
     private const string Fix = "SUNOL";
     private const string ApproachId = "I28R";
     private const string StarId = "EMZOH4";
@@ -78,7 +77,8 @@ public class MenuCatalogCommandTests
         (MenuIds.CoordinationAcknowledge, "", "RDACK"),
         (MenuIds.CoordinationReleaseHeld, "", $"REL {Callsign}"),
         (MenuIds.CoordinationCheckReleaseWindow, "", "CFR CHECK"),
-        (MenuIds.DataBlockScratchpad, BlockText, $"SP {BlockText}"),
+        (MenuIds.DataBlockScratchpadClear1, "", "SP1"),
+        (MenuIds.DataBlockScratchpadClear2, "", "SP2"),
         (MenuIds.DataBlockAnnotate, "", "ANNOTATE"),
         (MenuIds.SimControlDelete, "", "DEL"),
         (MenuIds.HeadingPresent, "", "FPH"),
@@ -225,6 +225,8 @@ public class MenuCatalogCommandTests
         // Squawk… and Ask pilot to say › Custom… open the Squawk and Say flyouts; the Squawk and Say tests below type in their box rows.
         MenuIds.SquawkCode,
         MenuIds.AskPilotCustom,
+        // Scratchpad… opens the Scratchpad flyout; the Scratchpad tests below type in its box row and click its Clear rows.
+        MenuIds.DataBlockScratchpad,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
         // PointMenuTests builds them through AircraftMenuBuilder and clicks their items there.
         MenuIds.PointFlyHeading,
@@ -1191,18 +1193,21 @@ public class MenuCatalogCommandTests
     }
 
     /// <summary>
-    /// Squawk… and Custom… opened from the quick-command strip, whose flyout holds the entry's items without opening its
-    /// submenu, open with the caret in the box too. Custom… has no quick-command glyph, so the resolver never puts it on the
-    /// strip; it is given Squawk…'s glyph here so the strip's path is pinned for both flyouts.
+    /// Squawk…, Custom… and Scratchpad… opened from the quick-command strip, whose flyout holds the entry's items without opening
+    /// its submenu, open with the caret in the box too. Custom… and Scratchpad… have no quick-command glyph, so the resolver never
+    /// puts them on the strip; they are given Squawk…'s glyph here so the strip's path is pinned for every box flyout. The aircraft
+    /// holds a Scratchpad 1, so Scratchpad…'s box opens holding it, all of it selected; the other boxes open empty.
     /// </summary>
     [AvaloniaTheory]
-    [InlineData(MenuIds.SquawkCode)]
-    [InlineData(MenuIds.AskPilotCustom)]
-    public void StripFlyout_OpensWithFocusInTheBox(string id)
+    [InlineData(MenuIds.SquawkCode, "")]
+    [InlineData(MenuIds.AskPilotCustom, "")]
+    [InlineData(MenuIds.DataBlockScratchpad, "I30")]
+    public void StripFlyout_OpensWithFocusInTheBox(string id, string seed)
     {
         var host = new RecordingMenuHost("");
         MenuCatalogEntry entry = MenuCatalog.Get(id);
-        MenuItem built = Assert.IsType<MenuItem>(entry.Build(new FakeMenuAircraft { AssignedBeaconCode = 4613 }, Context(), host));
+        var aircraft = new FakeMenuAircraft { AssignedBeaconCode = 4613, Scratchpad1 = "I30" };
+        MenuItem built = Assert.IsType<MenuItem>(entry.Build(aircraft, Context(), host));
         InlineBoxRow row = BoxRow(built);
         var menu = new ContextMenu();
         MenuItem strip = Assert.IsType<MenuItem>(
@@ -1224,6 +1229,11 @@ public class MenuCatalogCommandTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.True(row.Box.IsFocused, $"the box did not take focus when the strip opened {id}'s flyout");
+            Assert.Equal(seed, row.Box.Text ?? "");
+            Assert.Equal(
+                (0, seed.Length),
+                (Math.Min(row.Box.SelectionStart, row.Box.SelectionEnd), Math.Max(row.Box.SelectionStart, row.Box.SelectionEnd))
+            );
         }
         finally
         {
@@ -1465,6 +1475,240 @@ public class MenuCatalogCommandTests
 
         Assert.Empty(host.Sent);
         Assert.Equal($"SAY {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
+    }
+
+    /// <summary>The Scratchpad… entry's flyout for <paramref name="aircraft"/>.</summary>
+    private static MenuItem Scratchpad(IMenuAircraft? aircraft, RecordingMenuHost host) =>
+        Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.DataBlockScratchpad).Build(aircraft, Context(), host));
+
+    /// <summary>
+    /// The Scratchpad… entry opens a flyout whose first row is the box, <c>SP</c> drawn in it, holding the present Scratchpad 1
+    /// and, as it opens, the focus with the whole text selected, so typing replaces it.
+    /// </summary>
+    [AvaloniaFact]
+    public void Scratchpad_Flyout_OpensOnTheBox_HoldingScratchpad1Selected()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("");
+        MenuItem scratchpad = Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30" }, host);
+        var menu = new ContextMenu { Items = { scratchpad } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            scratchpad.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("Scratchpad…", scratchpad.Header);
+            MenuItem first = Assert.IsType<MenuItem>(scratchpad.Items[0]);
+            InlineBoxRow row = Assert.IsType<InlineBoxRow>(first.Header);
+            Assert.Equal("I30", row.Box.Text);
+            Assert.True(row.Box.IsFocused, "the Scratchpad box did not take focus when the flyout opened");
+            Assert.Equal((0, 3), (Math.Min(row.Box.SelectionStart, row.Box.SelectionEnd), Math.Max(row.Box.SelectionStart, row.Box.SelectionEnd)));
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// The seeded Scratchpad box selects the whole seed again each time it takes the focus back still holding it untouched, so
+    /// the first keystroke after a visit to another row still replaces it.
+    /// </summary>
+    [AvaloniaFact]
+    public void ScratchpadBox_RefocusedWhileUntouched_SelectsTheSeedAgain()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("");
+        MenuItem scratchpad = Scratchpad(new FakeMenuAircraft { Scratchpad1 = "ABC" }, host);
+        var menu = new ContextMenu { Items = { scratchpad } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            scratchpad.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            InlineBoxRow row = BoxRow(scratchpad);
+            MenuItem clear = Assert.Single(scratchpad.Items.OfType<MenuItem>(), m => (m.Header as string) == "Clear Scratchpad 1");
+
+            Assert.True(clear.Focus(), "the Clear Scratchpad 1 row did not take the focus");
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(row.Box.IsFocused, "the Scratchpad box kept the focus after another row took it");
+            row.Box.Focus();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("ABC", row.Box.Text);
+            Assert.True(row.Box.IsFocused, "the Scratchpad box did not take the focus back");
+            Assert.Equal((0, 3), (Math.Min(row.Box.SelectionStart, row.Box.SelectionEnd), Math.Max(row.Box.SelectionStart, row.Box.SelectionEnd)));
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// Enter on the present scratchpad, as seeded or typed again in any case, sends nothing: <c>SP</c> with the present value
+    /// is the sim's toggle back to the previous scratchpad.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(null)]
+    [InlineData("I30")]
+    [InlineData(" i30 ")]
+    public void Scratchpad_Box_PresentValue_EnterSendsNothing(string? typed)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30" }, host));
+
+        if (typed is not null)
+        {
+            row.Box.Text = typed;
+        }
+
+        PressEnter(row.Box);
+
+        Assert.Empty(host.Sent);
+        Assert.DoesNotContain(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.Equal($"SP {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
+    }
+
+    /// <summary>New text in the Scratchpad box is sent trimmed and upper-cased after <c>SP</c>, on Enter.</summary>
+    [AvaloniaTheory]
+    [InlineData("ABC", "SP ABC")]
+    [InlineData(" ab ", "SP AB")]
+    public void Scratchpad_Box_NewText_EnterSendsIt(string typed, string command)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30" }, host));
+
+        row.Box.Text = typed;
+        PressEnter(row.Box);
+
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        Assert.Empty(host.InputPlaceholders);
+    }
+
+    /// <summary>A click on the Scratchpad box row sends its text too.</summary>
+    [AvaloniaFact]
+    public void Scratchpad_Box_ClickSendsTheText()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem scratchpad = Scratchpad(new FakeMenuAircraft(), host);
+        InlineBoxRow row = BoxRow(scratchpad);
+
+        row.Box.Text = "V28";
+        Click(Assert.Single(scratchpad.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row)));
+
+        Assert.Equal([(Callsign, "SP V28", Initials)], host.Sent);
+    }
+
+    /// <summary>A blank Scratchpad box sends nothing: the Clear rows clear a scratchpad.</summary>
+    [AvaloniaTheory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Scratchpad_Box_Blank_EnterSendsNothing(string typed)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30" }, host));
+
+        row.Box.Text = typed;
+        PressEnter(row.Box);
+
+        Assert.Empty(host.Sent);
+        Assert.Equal($"SP {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
+    }
+
+    /// <summary>
+    /// Text longer than the room's scratchpad limit is refused inline: the red underline, the reason line naming the limit, "can't
+    /// send" in the command column; Enter and a click send nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public void Scratchpad_Box_LongerThanTheLimit_RefusesInline_SendsNothing()
+    {
+        var host = new RecordingMenuHost("") { ScratchpadMaxLength = 3 };
+        MenuItem scratchpad = Scratchpad(new FakeMenuAircraft(), host);
+        InlineBoxRow row = BoxRow(scratchpad);
+
+        row.Box.Text = "ABCD";
+
+        Assert.Contains(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.True(row.Refusal.ReasonLine.IsVisible, "A refused scratchpad should show its reason line.");
+        Assert.Equal("Scratchpad holds at most 3 characters", row.Refusal.ReasonLine.Text);
+        Assert.Equal(InlineBoxRow.CantSend, row.CommandColumn.Text);
+
+        PressEnter(row.Box);
+        Click(Assert.Single(scratchpad.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row)));
+
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>Where the room allows four-character scratchpads, four characters are sent.</summary>
+    [AvaloniaFact]
+    public void Scratchpad_Box_FourCharactersUnderAFourCharacterLimit_EnterSendsThem()
+    {
+        var host = new RecordingMenuHost("") { ScratchpadMaxLength = 4 };
+        InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft(), host));
+
+        row.Box.Text = "ABCD";
+        PressEnter(row.Box);
+
+        Assert.Equal([(Callsign, "SP ABCD", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// The destination the scope shows where no real Scratchpad 1 is set (<see cref="AircraftModel.AutoScratchpad1"/>) seeds
+    /// nothing: seeded, it would be sent as typed text.
+    /// </summary>
+    [AvaloniaFact]
+    public void Scratchpad_Box_AutoScratchpad1Alone_SeedsNothing()
+    {
+        var host = new RecordingMenuHost("");
+        var aircraft = new AircraftModel { Callsign = Callsign, AutoScratchpad1 = "OAK" };
+
+        InlineBoxRow row = BoxRow(Scratchpad(aircraft, host));
+
+        Assert.Equal("", row.Box.Text ?? "");
+    }
+
+    /// <summary>
+    /// Clear Scratchpad 1 and Clear Scratchpad 2 follow the box after a separator, each only while its scratchpad holds a value
+    /// (a bare <c>SP1</c> or <c>SP2</c> on an empty slot puts back the previous value); with neither, no separator.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(null, null, new string[0])]
+    [InlineData("I30", null, new[] { "---", "Clear Scratchpad 1" })]
+    [InlineData(null, "HEL", new[] { "---", "Clear Scratchpad 2" })]
+    [InlineData("I30", "HEL", new[] { "---", "Clear Scratchpad 1", "Clear Scratchpad 2" })]
+    public void Scratchpad_Flyout_ClearRowsShowOnlyWhileTheirSlotHoldsAValue(string? scratchpad1, string? scratchpad2, string[] after)
+    {
+        var host = new RecordingMenuHost("");
+
+        MenuItem scratchpad = Scratchpad(new FakeMenuAircraft { Scratchpad1 = scratchpad1, Scratchpad2 = scratchpad2 }, host);
+
+        Assert.Equal([$"Scratchpad — SP {TakeoffFlyout.Unfilled}", .. after], scratchpad.Items.Select(DescribeRow));
+    }
+
+    /// <summary>Clear Scratchpad 1 sends a bare <c>SP1</c> and Clear Scratchpad 2 a bare <c>SP2</c>.</summary>
+    [AvaloniaTheory]
+    [InlineData("Clear Scratchpad 1", "SP1")]
+    [InlineData("Clear Scratchpad 2", "SP2")]
+    public void Scratchpad_Flyout_ClearRow_SendsTheBareSlotVerb(string label, string command)
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem scratchpad = Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30", Scratchpad2 = "HEL" }, host);
+
+        Click(Assert.Single(scratchpad.Items.OfType<MenuItem>(), m => (m.Header as string) == label));
+
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
     }
 
     /// <summary>The one inline box row among <paramref name="flyout"/>'s items.</summary>

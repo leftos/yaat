@@ -32,6 +32,32 @@ public class ClientMenuHostTests
         Assert.Empty(ClientMenuHost.SuggestFixes("SUN", aircraft, null));
     }
 
+    /// <summary>The Scratchpad box's limit is the one the server sent with the student's display config.</summary>
+    [AvaloniaFact]
+    public void ScratchpadMaxLength_ReadsTheLimitTheServerSent()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "4U", null, 4));
+
+        Assert.Equal(4, new ClientMenuHost(main, null, new Border()).ScratchpadMaxLength);
+    }
+
+    /// <summary>
+    /// No limit from the server (0 from an older checkpoint, or no display config at all) reads as the server's default of 3.
+    /// </summary>
+    [AvaloniaFact]
+    public void ScratchpadMaxLength_NoLimitFromTheServer_ReadsThree()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        var host = new ClientMenuHost(main, null, new Border());
+
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "4U", null, 0));
+        Assert.Equal(3, host.ScratchpadMaxLength);
+
+        main.SetActivePositionFromServer(null);
+        Assert.Equal(3, host.ScratchpadMaxLength);
+    }
+
     [AvaloniaFact]
     public async Task FailedSend_IsShownInTheStatusLine()
     {

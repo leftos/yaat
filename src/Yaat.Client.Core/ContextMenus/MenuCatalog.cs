@@ -122,7 +122,9 @@ public static class MenuCatalog
             "CFR CHECK",
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
-        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", "Text", input => $"SP {input}"),
+        HostLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", Always, SharedMenuGroups.ScratchpadFlyout),
+        Leaf(MenuIds.DataBlockScratchpadClear1, "Clear Scratchpad 1", "SP1", (ac, _) => !string.IsNullOrEmpty(ac?.Scratchpad1)),
+        Leaf(MenuIds.DataBlockScratchpadClear2, "Clear Scratchpad 2", "SP2", (ac, _) => !string.IsNullOrEmpty(ac?.Scratchpad2)),
         AltitudeBoxEntry(MenuIds.DataBlockTempAltitude, "Temporary altitude…", AltitudeBoxKind.TemporaryAltitude),
         AltitudeBoxEntry(MenuIds.DataBlockCruise, "Cruise…", AltitudeBoxKind.Cruise),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
@@ -941,6 +943,7 @@ public static class MenuCatalog
                 Placeholder = "0000-7777",
                 BoxName = "SquawkCodeBox",
                 BoxWidth = 120,
+                Seed = "",
                 Read = ReadSquawkCode,
             },
             command => host.SendAsync(context.Callsign, command, context.Initials)
@@ -960,10 +963,58 @@ public static class MenuCatalog
                 Placeholder = "words the pilot says",
                 BoxName = "SayCustomBox",
                 BoxWidth = 260,
+                Seed = "",
                 Read = ReadSayText,
             },
             command => host.SendAsync(context.Callsign, command, context.Initials)
         );
+
+    /// <summary>
+    /// The Scratchpad flyout's box row, always open, <c>SP</c> drawn in its box, opening on the aircraft's present Scratchpad 1
+    /// (never the destination the scope shows in its place), selected: new text is sent trimmed and upper-cased (<c>SP I30</c>);
+    /// text longer than the room's limit (<see cref="IMenuHost.ScratchpadMaxLength"/>) is refused inline; a blank box, or the
+    /// present value again, sends nothing (a bare <c>SP</c> clears, and <c>SP</c> with the present value toggles back to the
+    /// previous scratchpad).
+    /// </summary>
+    internal static InlineBoxRow ScratchpadRow(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        string present = aircraft?.Scratchpad1 ?? "";
+        int maxLength = host.ScratchpadMaxLength;
+        return InlineBoxRow.Create(
+            new InlineBoxSpec
+            {
+                Label = "Scratchpad",
+                Glyph = QuickCommandGlyphs.For(MenuIds.DataBlockScratchpad),
+                Verb = "SP",
+                Placeholder = $"up to {maxLength} characters",
+                BoxName = "ScratchpadBox",
+                BoxWidth = 160,
+                Seed = present,
+                Read = text => ReadScratchpad(text, present, maxLength),
+            },
+            command => host.SendAsync(context.Callsign, command, context.Initials)
+        );
+    }
+
+    /// <summary>The reason the Scratchpad box gives for text longer than <paramref name="maxLength"/>.</summary>
+    internal static string ScratchpadTooLong(int maxLength) => $"Scratchpad holds at most {maxLength} characters";
+
+    /// <summary>
+    /// The Scratchpad box's reading: the trimmed text, upper-cased after <c>SP</c>; blank, or the <paramref name="present"/>
+    /// scratchpad in any case, waits; longer than <paramref name="maxLength"/> is refused.
+    /// </summary>
+    private static InlineBoxReading ReadScratchpad(string text, string present, int maxLength)
+    {
+        string typed = text.Trim();
+        if ((typed.Length == 0) || string.Equals(typed, present.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return InlineBoxReading.Blank;
+        }
+
+        return (typed.Length > maxLength)
+            ? InlineBoxReading.Refuses(ScratchpadTooLong(maxLength))
+            : InlineBoxReading.Sends($"SP {typed.ToUpperInvariant()}");
+    }
 
     /// <summary>The Squawk box's reading: four octal digits, trimmed, sent as typed; blank waits; anything else is refused.</summary>
     private static InlineBoxReading ReadSquawkCode(string text)

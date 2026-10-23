@@ -128,6 +128,8 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public MenuPositions GetPositions() => inner.GetPositions();
 
+    public int ScratchpadMaxLength => inner.ScratchpadMaxLength;
+
     public bool IsOnTaxiRoute(string callsign, string otherCallsign) => inner.IsOnTaxiRoute(callsign, otherCallsign);
 
     public void HighlightAircraft(string? callsign) => inner.HighlightAircraft(callsign);

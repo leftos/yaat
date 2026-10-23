@@ -339,6 +339,9 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public MenuPositions GetPositions() => new(Controllers, ActiveTcp, ActivePosition);
 
+    /// <summary>The scratchpad length limit the Scratchpad box checks at; the server's default of 3 unless a test sets it.</summary>
+    public int ScratchpadMaxLength { get; set; } = 3;
+
     /// <summary>
     /// The airborne traffic the Report traffic in sight… and Follow traffic… flyouts list, whatever the callsign asked about,
     /// in the order given; none by default.

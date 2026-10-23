@@ -118,6 +118,10 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public string Note => "";
 
+    public string? Scratchpad1 { get; init; }
+
+    public string? Scratchpad2 { get; init; }
+
     public string Destination { get; init; } = "";
 
     public string Departure { get; init; } = "";

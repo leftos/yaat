@@ -90,6 +90,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public MenuPositions GetPositions() => inner.GetPositions();
 
+    public int ScratchpadMaxLength => inner.ScratchpadMaxLength;
+
     public bool IsOnTaxiRoute(string callsign, string otherCallsign) => inner.IsOnTaxiRoute(callsign, otherCallsign);
 
     public void HighlightAircraft(string? callsign) => inner.HighlightAircraft(callsign);

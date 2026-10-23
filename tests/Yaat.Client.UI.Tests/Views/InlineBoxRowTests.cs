@@ -28,6 +28,7 @@ public class InlineBoxRowTests
         Placeholder = "words",
         BoxName = "TestInlineBox",
         BoxWidth = 200,
+        Seed = "",
         Read = Read,
     };
 

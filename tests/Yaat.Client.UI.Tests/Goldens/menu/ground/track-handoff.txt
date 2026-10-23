@@ -134,7 +134,8 @@ Track
   Accept handoff
   Cancel handoff
 Data Block
-  Scratchpad… picker:input
+  Scratchpad…
+    Scratchpad — SP ···
   Temporary altitude…
     temporary altitude flyout
   Cruise…

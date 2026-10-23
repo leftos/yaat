@@ -131,7 +131,8 @@ Track
     coordination flyout
   Drop track
 Data Block
-  Scratchpad… picker:input
+  Scratchpad…
+    Scratchpad — SP ···
   Temporary altitude…
     temporary altitude flyout
   Cruise…

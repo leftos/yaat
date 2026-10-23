@@ -102,7 +102,7 @@ public class MainViewModelActivePositionTests
         "4U"
     );
 
-    private static PositionDisplayConfigDto Config(string tcp, ActivePositionDto? activePosition) => new([], [], [], tcp, activePosition);
+    private static PositionDisplayConfigDto Config(string tcp, ActivePositionDto? activePosition) => new([], [], [], tcp, activePosition, 3);
 
     private static ScenarioBootstrap Bootstrap(PositionDisplayConfigDto config) =>
         new()

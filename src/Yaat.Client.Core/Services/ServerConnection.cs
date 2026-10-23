@@ -472,14 +472,20 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<List<AccessibleFacilityDto>>("GetAccessibleTdlsFacilities");
     }
 
-    /// <summary>Returns the vTDLS bootstrap for a facility page — one config (SIDs, transitions, dropdowns, mandatory flags) per member facility.</summary>
+    /// <summary>
+    /// Returns the vTDLS bootstrap for a facility page — one config (SIDs, transitions, dropdowns, mandatory flags) per member
+    /// facility.
+    /// </summary>
     public async Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId)
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<TdlsFacilityViewDto?>("GetTdlsFacilityView", facilityId);
     }
 
-    /// <summary>Asks the server to push the room's current full TDLS state via <see cref="TdlsStateChanged"/>. Used on initial subscribe and after facility switches.</summary>
+    /// <summary>
+    /// Asks the server to push the room's current full TDLS state via <see cref="TdlsStateChanged"/>. Used on initial subscribe
+    /// and after facility switches.
+    /// </summary>
     public async Task RequestFullTdlsStateAsync()
     {
         EnsureConnected();
@@ -1520,14 +1526,16 @@ public sealed record ScenarioExportFlagDto(string Callsign, string Reason);
 
 /// <summary>
 /// The display config of the position the controller operates as (<see cref="TcpCode"/>), and that position itself
-/// (<see cref="ActivePosition"/>), null when the server does not find its config entry.
+/// (<see cref="ActivePosition"/>), null when the server does not find its config entry, and the most characters the facility's
+/// STARS scratchpads hold (<see cref="ScratchpadMaxLength"/>, 3 or 4); 0 from a room restored from an older checkpoint.
 /// </summary>
 public record PositionDisplayConfigDto(
     List<int?> MapGroupMapIds,
     List<string> MapGroupTcpCodes,
     List<string> UnderlyingAirports,
     string TcpCode,
-    ActivePositionDto? ActivePosition
+    ActivePositionDto? ActivePosition,
+    int ScratchpadMaxLength
 );
 
 /// <summary>

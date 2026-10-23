@@ -367,19 +367,19 @@ public class MenuPopupsTests
     public void DataGridMenu_InputPopup_OpensOnTheGrid()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        AircraftModel ac = TaxiingJet();
+        AircraftModel ac = AirborneJet();
         main.Aircraft.Add(ac);
 
         var grid = new DataGrid();
         new Window { Content = grid }.ShowAndRunLayout();
 
         ContextMenu menu = DataGridView.BuildAircraftMenu(main, grid, ac, null, [ac]);
-        MenuItem dataBlock = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Data Block");
-        Click(dataBlock.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Scratchpad…"));
+        MenuItem reportWhen = Submenu(Submenu(Submenu(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items, "Approach").Items, "Report when…");
+        Click(Submenu(reportWhen.Items, "At fix…"));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(grid);
-        Assert.True(popup.IsOpen, "Clicking Scratchpad… should open the list's input popup.");
+        Assert.True(popup.IsOpen, "Clicking Report when… › At fix… should open the list's input popup.");
         Assert.Same(grid, popup.PlacementTarget);
     }
 
@@ -395,6 +395,19 @@ public class MenuPopupsTests
             CurrentPhase = "Taxiing",
             AssignedRunway = "30",
         };
+
+    private static AircraftModel AirborneJet() =>
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            IsOnGround = false,
+            Altitude = 5000,
+        };
+
+    /// <summary>The menu item headed <paramref name="header"/> among <paramref name="items"/>.</summary>
+    private static MenuItem Submenu(ItemCollection items, string header) => items.OfType<MenuItem>().Single(m => (m.Header as string) == header);
 
     private static (Window window, Control anchor) ShowAnchorWindow()
     {

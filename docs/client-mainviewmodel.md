@@ -149,7 +149,7 @@ A scenario becomes active through **three** distinct entry points, and they all 
 | **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs:823`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` and active runways |
 
 `ScenarioBootstrap` (`ScenarioBootstrap.cs`) is a small record that exists precisely so the three differently-named
-DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `PositionDisplayConfig` — its `TcpCode` and `ActivePosition` reach `ActiveTcp` and `MainViewModel.ActivePosition` through `SetActivePositionFromServer`, which `OnPositionDisplayChanged` and the scenario unload call too; a pick in the active-position dropdown clears `ActivePosition` until the server answers —,
+DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `PositionDisplayConfig` — its `TcpCode`, `ActivePosition` and `ScratchpadMaxLength` reach `ActiveTcp`, `MainViewModel.ActivePosition` and `MainViewModel.ScratchpadMaxLength` through `SetActivePositionFromServer`, which `OnPositionDisplayChanged` and the scenario unload call too; a pick in the active-position dropdown clears `ActivePosition` until the server answers —,
 `FlightStripsConfig`, `Aircraft`, `ElapsedSeconds`). `ElapsedSeconds` is how long the scenario has already been
 running when this client picks it up: the loader and broadcast paths pass 0 (both fire as the scenario starts), the
 join path passes the room's `RoomStateDto.ElapsedSeconds`. `ApplyScenarioBootstrap` then does the work common to all

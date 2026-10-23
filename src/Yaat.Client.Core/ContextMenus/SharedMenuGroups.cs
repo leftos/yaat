@@ -161,6 +161,28 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
+    /// The Scratchpad flyout headed <paramref name="header"/>, the Data Block group's Scratchpad… entry: the Scratchpad box row
+    /// first, always open, holding the present Scratchpad 1 selected and the focus as the flyout opens
+    /// (<see cref="MenuCatalog.ScratchpadRow"/>), then after a separator Clear Scratchpad 1 and Clear Scratchpad 2, each only while
+    /// its scratchpad holds a value; with neither, no separator.
+    /// </summary>
+    public static MenuItem ScratchpadFlyout(string header, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = header };
+        InlineBoxRow row = MenuCatalog.ScratchpadRow(aircraft, context, host);
+        menu.Items.Add(row.Item);
+        if (IsApplicable(MenuIds.DataBlockScratchpadClear1, aircraft, context) || IsApplicable(MenuIds.DataBlockScratchpadClear2, aircraft, context))
+        {
+            menu.Items.Add(new Separator());
+            AddIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear1, aircraft, context, host);
+            AddIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear2, aircraft, context, host);
+        }
+
+        FocusTheBoxOnOpen(menu, row.Box);
+        return menu;
+    }
+
+    /// <summary>
     /// Focuses <paramref name="box"/> each time <paramref name="menu"/> opens, while it stays open: as its own submenu, or as
     /// the flyout a quick-command strip button opens over its items, where the submenu never opens.
     /// </summary>

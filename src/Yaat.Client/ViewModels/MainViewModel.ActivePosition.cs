@@ -38,12 +38,19 @@ public partial class MainViewModel
     public ActivePositionDto? ActivePosition { get; private set; }
 
     /// <summary>
-    /// Sets the active position and its TCP from the server's <paramref name="config"/> (bootstrap seed or
-    /// <c>PositionDisplayChanged</c>); null clears both.
+    /// The most characters the room's STARS scratchpads hold, as the server last sent it with the active position; 0 before a
+    /// scenario loads, when the student has no STARS display config, and from a room restored from an older checkpoint.
+    /// </summary>
+    public int ScratchpadMaxLength { get; private set; }
+
+    /// <summary>
+    /// Sets the active position, its TCP and the scratchpad length limit from the server's <paramref name="config"/> (bootstrap
+    /// seed or <c>PositionDisplayChanged</c>); null clears them.
     /// </summary>
     internal void SetActivePositionFromServer(PositionDisplayConfigDto? config)
     {
         ActivePosition = config?.ActivePosition;
+        ScratchpadMaxLength = config?.ScratchpadMaxLength ?? 0;
         SetActiveTcpFromServer(config?.TcpCode);
     }
 

@@ -420,7 +420,11 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
 Text that is not a valid code, `8888` for one, keeps the box's frame with a red bar under it, the line "Not a valid squawk code (0000-7777)" and "can't send" in the command column. Enter or a click sends nothing until it is four octal digits, and a blank box sends nothing.
 
-The Ask pilot to say… flyout lists the six queries, a separator and a Custom box with `SAY` drawn inside it, focused as the flyout opens; a blank box sends nothing. Custom taxi… still opens a text popup, where Enter or OK sends once: a second press while the send is still under way does nothing.
+The Data Block group's Scratchpad… opens a flyout with a Scratchpad box, `SP` drawn inside it, focused as the flyout opens and holding the aircraft's present Scratchpad 1 (never the destination the scope shows in its place), all selected, so typing replaces it. Enter or a click on the row sends the text trimmed and upper-cased; a blank box, or the present value again, sends nothing. Text longer than the room's scratchpad limit (3 characters, or 4 where the student's facility allows four-character scratchpads) keeps the box's frame with a red bar under it, a reason line and "can't send", and sends nothing.
+
+After a separator, Clear Scratchpad 1 and Clear Scratchpad 2 clear that slot; each shows only while its slot holds a value, and with neither there is no separator.
+
+The Ask pilot to say… flyout lists the six queries, a separator and a Custom box with `SAY` drawn inside it, focused as the flyout opens; a blank box sends nothing. Custom taxi… and the At N-mile final… / At fix… report entries still open a text popup, where Enter or OK sends once: a second press while the send is still under way does nothing.
 
 The altitude boxes (Maintain altitude, Temporary altitude… and Cruise…) take `050`, `230`, `23000`, `FL230`, `fl 230`, `5,000` and above-ground altitudes such as `KOAK+010`. An altitude above FL999, `FL` with four or more digits, a malformed thousands group such as `2,30`, or an above-ground altitude while the navigation data is not loaded is not read: the box shows `CM ···` faded in Maintain altitude and `Not a valid altitude` in the other two.
 

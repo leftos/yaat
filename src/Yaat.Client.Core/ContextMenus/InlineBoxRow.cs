@@ -45,6 +45,9 @@ internal sealed record InlineBoxSpec
     /// <summary>The box's width.</summary>
     public required double BoxWidth { get; init; }
 
+    /// <summary>The text the box opens holding, all of it selected whenever the box takes the focus still holding it; empty for none.</summary>
+    public required string Seed { get; init; }
+
     /// <summary>Reads the box's text as typed.</summary>
     public required Func<string, InlineBoxReading> Read { get; init; }
 }
@@ -90,6 +93,12 @@ internal sealed class InlineBoxRow : Grid
             Margin = new Thickness(0, 3, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Left,
         };
+        if (spec.Seed.Length > 0)
+        {
+            Box.Text = spec.Seed;
+            SelectTheSeedOnFocus();
+        }
+
         AutomationProperties.SetName(Box, $"{spec.Label} after {spec.Verb}");
         TakeoffFlyout.KeepClicksInside(Box);
         Refusal = new RefusableBox(Box);
@@ -199,6 +208,21 @@ internal sealed class InlineBoxRow : Grid
             item.FindLogicalAncestorOfType<ContextMenu>()?.Close();
         };
         return item;
+    }
+
+    /// <summary>
+    /// Selects the whole seed each time the box takes the focus while it still holds the seed untouched, so the first keystroke
+    /// replaces it; a box losing the focus drops its selection, so a first focus alone would not keep it selected.
+    /// </summary>
+    private void SelectTheSeedOnFocus()
+    {
+        Box.GotFocus += (_, _) =>
+        {
+            if (string.Equals(Box.Text, _spec.Seed, StringComparison.Ordinal))
+            {
+                Box.SelectAll();
+            }
+        };
     }
 
     /// <summary>The row as one line, <c>Label — Command</c>.</summary>

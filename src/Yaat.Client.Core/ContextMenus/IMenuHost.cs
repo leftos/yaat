@@ -310,6 +310,12 @@ public interface IMenuHost
     /// as, which the Initiate handoff… and Point out… flyouts read as they open (<see cref="MenuPositions"/>).
     /// </summary>
     MenuPositions GetPositions();
+
+    /// <summary>
+    /// The most characters the room's STARS scratchpads hold, which the Scratchpad box refuses typed text past: 3, or 4 where
+    /// the student's facility allows four-character scratchpads.
+    /// </summary>
+    int ScratchpadMaxLength { get; }
 }
 
 /// <summary>

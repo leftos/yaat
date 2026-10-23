@@ -206,6 +206,15 @@ public interface IMenuAircraft
     /// <summary>The instructor note on the aircraft, empty when none; the note popup opens prefilled with it.</summary>
     string Note { get; }
 
+    /// <summary>
+    /// The primary scratchpad the controller set, null or empty when none; never the destination the scope shows in its place,
+    /// which the Scratchpad box must not seed.
+    /// </summary>
+    string? Scratchpad1 { get; }
+
+    /// <summary>The secondary scratchpad, null or empty when none.</summary>
+    string? Scratchpad2 { get; }
+
     /// <summary>The flight plan's destination airport, empty when none.</summary>
     string Destination { get; }
 
