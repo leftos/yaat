@@ -22,6 +22,8 @@ namespace Yaat.ClientDriver.Mcp.Tests;
 /// </summary>
 public sealed class WaitForAndFilePickTests : AutomationHostFixture
 {
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(2);
+
     private static int Pid => Environment.ProcessId;
 
     protected override void Dispose(bool disposing)
@@ -37,9 +39,17 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
-            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync("#Box", "exists", CancellationToken.None, Pid);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync(
+                "#Box",
+                "exists",
+                guard.Token,
+                Pid,
+                timeoutMs: 30000
+            );
 
             Assert.StartsWith("exists held on '#Box' after ", result, StringComparison.Ordinal);
             Assert.EndsWith(" ms (1 matches, pipe)", result, StringComparison.Ordinal);
@@ -57,11 +67,18 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
             directory.RememberTarget(Pid);
 
-            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync("#Box", "visible", CancellationToken.None);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync(
+                "#Box",
+                "visible",
+                guard.Token,
+                timeoutMs: 30000
+            );
 
             Assert.StartsWith("visible held on '#Box' after ", result, StringComparison.Ordinal);
         }
@@ -87,12 +104,14 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
             var tools = new PipeTools(directory, RecordingFakes.NewSession());
 
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                tools.WaitForAsync("#Box", "not_exists", CancellationToken.None, Pid, timeoutMs: 200)
+                tools.WaitForAsync("#Box", "not_exists", guard.Token, Pid, timeoutMs: 200)
             );
 
             Assert.StartsWith(
@@ -113,14 +132,17 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
             string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync(
                 "#Box",
                 "text_contains",
-                CancellationToken.None,
+                guard.Token,
                 Pid,
-                "koak"
+                "koak",
+                timeoutMs: 30000
             );
 
             Assert.StartsWith("text_contains held on '#Box' after ", result, StringComparison.Ordinal);
@@ -173,10 +195,12 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
             string result = await new PipeTools(directory, RecordingFakes.NewSession()).QueueFilePickAsync(
-                CancellationToken.None,
+                guard.Token,
                 @"C:\temp\scenario.json",
                 false,
                 Pid
@@ -200,9 +224,11 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
-            string result = await new PipeTools(directory, RecordingFakes.NewSession()).QueueFilePickAsync(CancellationToken.None, "", true, Pid);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).QueueFilePickAsync(guard.Token, "", true, Pid);
 
             Assert.Equal("queued a cancel (1 waiting, pipe)", result);
             Assert.True(FilePickQueue.TryDequeue(out FilePickAnswer? answer));
@@ -221,12 +247,14 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         ShowWindow("PipeWindow", Form(), null);
         PipeDirectory directory = NewPipeDirectory();
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
             var tools = new PipeTools(directory, RecordingFakes.NewSession());
 
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-                tools.QueueFilePickAsync(CancellationToken.None, @"C:\temp\scenario.json", true, Pid)
+                tools.QueueFilePickAsync(guard.Token, @"C:\temp\scenario.json", true, Pid)
             );
 
             Assert.StartsWith("INVALID_PARAM: Give either 'path' or 'cancel', not both.", failure.Message, StringComparison.Ordinal);
@@ -259,7 +287,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         new(
             DiscoveryDirectory,
             Process.GetCurrentProcess().ProcessName,
-            TimeProvider.System,
+            new HeldClock(),
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );

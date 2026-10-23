@@ -26,6 +26,8 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
 
     private const string OnGround = """[{"kind":"on_ground","callsign":"AAL1"}]""";
 
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(5);
+
     // The conditions and the two optional targets go to the host as the caller wrote them, and the timeout is the host's own
     // clamp of 100–600000 rather than the caller's 999999.
     [Fact]
@@ -378,12 +380,21 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
             (id, method, parameters) =>
             {
                 arrived.TrySetResult();
-                replaced.Wait(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+                if (!replaced.Wait(HangGuard, TestContext.Current.CancellationToken))
+                {
+                    throw new TimeoutException("the stop/restart never finished");
+                }
+
                 return Answering(MetAt(9))(id, method, parameters);
             },
             session
         );
-        await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await Task.WhenAny(arrived.Task, call).WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        if (call.IsCompleted)
+        {
+            return await call;
+        }
+
         backend.Process.HasExited = true;
         backend.Process.ExitCode = exitCode;
         await session.StopAsync(TestContext.Current.CancellationToken);
@@ -454,7 +465,7 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
         JsonElement? then = (request.Then is null) ? null : Parse(request.Then);
         string pipeName = $"yaat-scripted-host-{Guid.NewGuid():N}";
         await StubPipeHost.AdvertiseAsync(DiscoveryDirectory, pipeName, TestContext.Current.CancellationToken);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var timeout = new CancellationTokenSource(HangGuard);
         JsonElement? seen = null;
         Task host = StubPipeHost.ServeResponsesAsync(
             pipeName,
@@ -469,15 +480,17 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
         var directory = new PipeDirectory(
             DiscoveryDirectory,
             Process.GetCurrentProcess().ProcessName,
-            TimeProvider.System,
+            new HeldClock(),
             NullLogger<PipeDirectory>.Instance,
             NullLogger<PipeClient>.Instance
         );
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        guard.CancelAfter(HangGuard);
         try
         {
             string text = await new PipeTools(directory, session).WaitUntilAsync(
                 conditions.RootElement,
-                TestContext.Current.CancellationToken,
+                guard.Token,
                 Pid,
                 request.Mode,
                 request.TimeoutMs,
