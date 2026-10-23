@@ -39,6 +39,7 @@ The pipe client keeps one request in flight per connection and matches each answ
 Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Pipe\PipeClient.cs:11-28, 60-72, 151-156, 174-196; tests PipeClientTests.cs:71-136; D:\yaat\src\Yaat.Client\Automation\AutomationDispatcher.cs:57-101. Seen: documented.
 
 ### The host's pipe transport is the only disposer of its server streams
+<!-- rule: transport-sole-stream-disposer -->
 
 On Unix, .NET's `NamedPipeServerStream` instances of one name share a listening socket, and two concurrent disposals of one instance do not both wait: the first unlinks the path and closes the socket, the second returns at once. A host whose shutdown disposes instances while a connection task or the request handler disposes the same one can return from shutdown with the socket still bound, and a client connecting in that gap counts as connected. So the transport tracks every instance, every disposal (the connection task's release when its handler ends, and shutdown's) happens under the transport's one lock, shutdown never waits on connection tasks (a request may call it), and the handler opens its reader and writer with `leaveOpen: true`.
 Source: D:\yaat\src\Yaat.Client\Automation\Transport\NamedPipeTransport.cs (Release, Dispose); D:\yaat\src\Yaat.Client\Automation\AutomationHost.cs (HandleConnection); tests AutomationHostTests.cs (`Dispose_NoClientCanConnectAfterwards_Repeated`, red only on the gate's macOS builder). Seen: 1 (YAAT-1039).
