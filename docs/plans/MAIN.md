@@ -4,8 +4,6 @@
 
 ## Do first
 
-- [ ] YAAT-1044 Make SpeedFlyoutTests.Reopen_ClearsTheBoxAndThePointedChip load-proof · release vNext — Urgent · Singles
-- [ ] YAAT-1045 Make WaitUntilToolTests.StopRecording_DiedAndRestartedIntoTheSameOut load-proof · release vNext — Urgent · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Context-menu flyouts (feat/context-menu-flyouts)
@@ -15,8 +13,9 @@
   - [ ] YAAT-1026 Context menu: All Commands reorganized, contextual commands as text rows, command alias on every row · release vNext
   - [ ] YAAT-1035 Warp… popup sends a sub-1000 ft altitude as hundreds (800 ft becomes 80,000 ft)
   - [ ] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
-  - [ ] YAAT-1019 Offer the standalone Cleared visual entry to IFR aircraft only · release vNext
   - [ ] YAAT-1048 Decide the focus when a runway tab is switched in a Cleared approach flyout opened on the visual
+  - [ ] YAAT-1052 Merge feat/context-menu-flyouts to main (#1341)
+  - [ ] YAAT-1067 Hide the Squawk assigned code row for an aircraft with no assigned code
 
 ## Context-menu quick commands (#471)
 
@@ -44,7 +43,6 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-1032 Add a midfield-downwind pattern report (REPORT MIDFIELD) · release vNext
 
 ## Bug reports and feature requests
 
@@ -56,7 +54,18 @@
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
-- [ ] YAAT-1050 Stop speed commands (SPDN) cancelling an approach; audit every command that cancels one · release vNext
+- [/] YAAT-1050 Stop speed commands (SPDN) cancelling an approach; audit every command that cancels one · release vNext
+- [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
+  - [ ] YAAT-1058 Seed the ASDE-X safety-logic configuration (runway areas, closed flags, default configuration) at scenario load · release vNext
+  - [ ] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext
+  - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext
+  - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
+  - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
+  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
+  - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext
+  - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
+  - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext
+  - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext
 
 ## Say again
 
@@ -303,7 +312,6 @@
 
 - [ ] YAAT-95 Warn at ATXI issue time for each runway the direct air-taxi path crosses
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
-- [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload
 
 ## Wave 7 — Client UI cleanup
 
@@ -691,3 +699,6 @@
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 - [ ] YAAT-1031 Keep an auto-cleared crossing the aircraft can no longer stop short of when the active runways change
 - [ ] YAAT-1049 Make a concurrent second automation-pipe Dispose wait for the first; observe the read-ahead task
+- [ ] YAAT-1054 Report a client-driver pipe connect timeout as a timeout, not a closed pipe
+- [ ] YAAT-1055 Stop a re-created pattern leg re-voicing its turn report after a 360 or a rebuild
+- [ ] YAAT-1056 Give the automation host's wait_for handler a clock tests can hold
