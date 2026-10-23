@@ -1,0 +1,106 @@
+# ASDE-X safety logic gap analysis (CRC vs YAAT), SFO
+
+## Headline
+1. In real CRC the safety logic is NOT in the client. The decompiled CRC only receives `AsdexAlertDto`, `AsdexHoldBarDto` and `AsdexSafetyLogicConfigurationDto` from the vNAS server and displays them. The alert detection logic lives in the vNAS server, which is not in the decompiled tree or the vnas-messaging DTOs. So "what CRC's logic does" can only be taken from the CRC manual (`docs/crc/asdex.md:916-1056`) and the client rendering. Trigger geometry, timing and thresholds are unverified.
+2. YAAT's detector (`AsdexSafetyLogicDetector`) is a simplified stand-in that only runs after a CRC display has pushed a safety-logic configuration. Nothing in yaat or yaat-server seeds that configuration from the ARTCC config or the airport. It is probably never active in a normal session. This is the most likely cause of the complaint, and it is a loading/seeding problem, not only missing logic.
+3. YAAT never reads SFO's `runwayConfigurations` or `positions` for the ASDE-X surface logic. Only `targetVisibility*` and the existence of runway configurations (`AirportHasFullSafetyLogic`, which gates 7110.65 3-9-4 advisories) are used.
+
+## 1. CRC ASDE-X safety logic
+Source for alert types: manual `docs/crc/asdex.md:922-931`. Wire/render: decompiled CRC.
+
+| Feature | Trigger (manual) | What the controller sees/hears | Config driving it | CRC file:line |
+|---|---|---|---|---|
+| Landing on closed runway | arrival imminent on closed rwy | alert box, red octagon, aural "Closed" | runway `IsClosed` (pushed by CRC) | asdex.md:924; aural enum `AsdexAuralAlert.Closed` (messaging/Entities/AsdexAuralAlert.cs) |
+| Landing on occupied runway | | same, aural "Occupied" | active runway configuration | asdex.md:925 |
+| Two aircraft landing on converging runways | | same, aural `Converging` | runway config | asdex.md:926 |
+| Landing vs converging-rwy departure | | same | runway config | asdex.md:927 |
+| Departing on closed runway | | same | closed flag | asdex.md:928 |
+| Departing on occupied runway | | same | | asdex.md:929 |
+| Taxi onto occupied runway (arrival or departure) | | same | | asdex.md:930 |
+| Taxiway landing | landing on a *configured* taxiway | aural `Taxiway` + phonetic | server-side taxiway config (not in facility JSON; unverified) | asdex.md:931 |
+| Opposite-direction alerts | aural tokens `OppDirTaxi`, `OppDirDeparture`, `OppDirLander`, `GoAround`, `Converging`, `Center`, `Left`, `Right` exist | spoken | server logic (unverified) | AsdexAuralAlert.cs |
+| Target alert presentation | any alert | target flashes red/normal, red octagon, full datablocks for involved and partial for the rest | n/a | WindowElementTargets.cs:179,221,257,264,315,445,462; asdex.md:933-940 |
+| Alert Message Box | up to 5 alerts, 3 lines (runway/twy, callsigns, text) | green text, red border | `AlertMessageLocation` pref | WindowElementAlertMessage.cs:46-63 |
+| Alert filter by active tower position | an alert with `RunwayIds` shows only if the runway is in an active local position's `runwayIds` (split on "-") | | `AsdexConfiguration.Positions[].RunwayIds` | AsdexAlertRepository.cs:54,67-74 |
+| Aural alert | `PlayAuralAlert` and runway match; F12 silences | sound | | AsdexAlertRepository.cs:54-57; InputManager.cs:272 |
+| Closed runway display | white X at each end | | runway `Area` (4 points) | WindowElementSafetyLogicRunways.cs:37-60 |
+| Closed-runway toggle | DCB CLOSED RWY sends config with `IsClosed` flipped. Throws "nonexistent runway" if the runway is not in the received list | | | AsdexSafetyLogicConfigurationRepository.cs:90-100; InputManager.cs:2065 |
+| Hold bars | lime line strips for `Status != Suppressed`; the server drives Active/Suppressed (manual: shown at intersections of an occupied runway, not at other active runways unless LAHSO) | | `holdShortRunwayPairs` | WindowElementSafetyLogicRunways.cs:62-68; AsdexHoldBarsRepository.cs; asdex.md:982-988 |
+| Runway configuration select | DCB RWY CONFIG (up to 60), F2; pushes `RunwayConfigurationId`. Preview Area line 1 "RWY CFG: name". Default id "limited" (LIMITED: only closed-runway alerts) | | `runwayConfigurations[]` (id, name, arrival/departure ids, holdShortRunwayPairs) | AsdexSafetyLogicConfigurationRepository.cs:61-65,102-105; AsdexRunwayConfiguration.cs:7-17; WindowElementPreviewArea.cs:61; asdex.md:990-1006 |
+| Tower config positions | local toggle; GC/LC | | `positions`, `defaultPositionId` | asdex.md:1008-1018 |
+| Arrival-alert inhibit per position | global; manual says 3 min or until config change (that timer is server-side, unverified) | Preview Area line 4 | `InhibitedArrivalAlertPositionIds` | AsdexSafetyLogicConfigurationRepository.cs:107-119; asdex.md:1024-1030 |
+| Per-target alert inhibit / ALL TRACKS ENABLE | square around target; `TRK ALERT INHIB` | | | asdex.md:1038-1054 |
+| MIL scratchpad | `MIL` in the scratchpad suppresses alerts between formation aircraft | | | asdex.md:1056 |
+| Temporary closed/restricted areas | map areas | | temp data | asdex.md:1066-1074 (out of scope here) |
+
+Key mechanism: CRC builds its runway list (`mRunways`) only from the server's `AsdexSafetyLogicConfiguration` topic (AsdexSafetyLogicConfigurationRepository.cs:49-60). If the server never sends it, the Closed Runway submenu is empty and no runway X is drawn.
+
+## 2. ZOA / SFO configuration
+Fetched live to `X:/dev/yaat/.tmp/zoa-artcc.json` (854,494 bytes, HTTP 200). Facility `/ZOA/NCT/SFO` (type Atct), `asdexConfiguration`:
+
+- `videoMapId` = 01GKQDSRS28S2X85BXZF3NAKN0; `defaultRotation` 28; `defaultZoomRange` 100; `targetVisibilityRange` 15; `targetVisibilityCeiling` 1500; `useDestinationIdAsFix` true; 41 `fixRules`; `towerLocation` = {0,0}
+- `runwayConfigurations` (6; `holdShortRunwayPairs` empty in all, so no LAHSO):
+  - L28D01 (arr/dep 1L,1R,28L,28R)
+  - L28D28 (28L,28R)
+  - L19D10 (10L,10R,19L,19R)
+  - L19D19 (10L,19L,19R,28R)
+  - L10D10 (10L,10R)
+  - L01D01 (1L,1R,28L,28R)
+- `positions`: LC (`runwayIds` 1L-19R, 1R-19L, 28L-10R, 28R-10L) and GC (none). `defaultPositionId` is GC's id, so the default position covers no runways. Only LC activates alerts.
+- No taxiway, converging-pair or hold-bar field exists in the facility config.
+- There is a "LIMITED" config in addition to these 6 (implicit, CRC default id).
+- SFO is the only ZOA facility with runway configurations: OAK, SJC, SMF, RNO and HWD have 0 (from `docs/vnas-artcc-config-examples/zoa.json`, which also has SFO's 6). Other ARTCCs with ASDE-X configs in the cache: PHX 2, DEN 15, LAX 3, SNA 2, SAN 3, LAS 4 (4 LAHSO pairs), SLC 2, MSP 11 (4 LAHSO pairs), PDX 3, SEA 6. SFO is therefore a full safety-logic airport and not a LIMITED-only one, but unlike LAS and MSP it has no LAHSO.
+- I did not fetch the `/api/training/airports/SFO/map` ground map. Hold-bar and taxiway-landing geometry would not come from it, per `crc-protocol-support.md:184` (hold-bar lines live in the ASDEX video map). Unverified.
+
+## 3. YAAT today
+| CRC feature | State | Evidence |
+|---|---|---|
+| Closed-runway alert | Implemented, but depends on a CRC-pushed config | AsdexSafetyLogicDetector.cs:101-109 |
+| Occupied-runway and taxi-onto-active alerts | Partial. They are binary: footprint overlap, one aligned claimant, plus a second aircraft. There is no time-to-collision look-ahead and no approach-corridor projection. Arrivals count at <= 300 ft AGL over the footprint | AsdexSafetyLogicDetector.cs:111-129, 66, 223 |
+| Landing on converging runways, landing vs converging departure | Missing (deliberately; the enum notes it) | AsdexSafetyLogicDetector.cs:6-9 |
+| Taxiway landing | Partial. Centerline proximity of 0.015 nm to ANY taxiway (not "configured" taxiways), so false positives are likely | AsdexSafetyLogicDetector.cs:136-174, 72 |
+| Opposite-direction, go-around and other aural tokens | Missing. Aural sequence is only Warning/Runway/id + Closed or Occupied, or Warning/Taxiway/phonetic | DtoConverter.cs:2221-2239 |
+| Active runway configuration gating (which alerts fire per `runwayConfigurations`) | Missing. `RunwayConfigurationId` is stored and echoed but the detector ignores it, including LIMITED, and arrival/departure runway ids | AsdexSafetyLogicConfig.cs:12-16; detector takes no config id |
+| Position filter (LC/GC `runwayIds`) | Missing on the server (CRC filters client-side from the facility JSON, which YAAT passes through). `AsdexPositionConfig` is parsed, but nothing in yaat-server uses it | ArtccConfig.cs:720-730 |
+| Arrival-alert inhibit by position (and 3-min timer) | Stored and echoed only; the detector ignores `InhibitedArrivalAlertPositionIds` | AsdexSafetyLogicConfig.cs:15; detector |
+| Per-target inhibit and ALL TRACKS ENABLE | Implemented; the detector excludes inhibited aircraft | TrackEngine.cs:501; SimulationEngine.Asdex.cs:332-339; detector.cs:82 |
+| MIL scratchpad suppression | Missing. No "MIL" handling found in src (search for the literal returned none) | |
+| Hold bars (`ReceiveAsdexHoldBars`) | Missing. The server always sends an empty list; LAHSO pairs are `JsonElement` and unused | CrcBroadcastService.cs:1932-1935; ArtccConfig.cs:746-747 |
+| Closed-runway X and DCB runway list | Depends on a config being sent. The server can only send one after a CRC push, and it returns null when there is none | CrcBroadcastService.cs:1882-1892 |
+| Seeding of runway footprints (`Area`) and `IsClosed` | Missing. No code in src builds an `AsdexSafetyLogicConfig` except from a CRC push or a snapshot. `RunwayConfigurations` and `HoldShortRunwayPairs` have no use in yaat-server (search returned nothing) | SimulationEngine.Asdex.cs:102-114; Snapshots.cs:345 |
+| Config echo, recording and replay | Implemented | CrcClientState.Asdex.cs:245-272 |
+| Standing-set withdrawal on rewind/unload | Known gap, no Delete | crc-display-state.md:326 |
+
+Facts about the `Detect` input: it is `Yaat.Sim.Simulation.SimulationEngine.TickAsdexAlerts` (SimulationEngine.Asdex.cs:197-231), which clears all alerts when the config is null or has no runways (lines 207-217). It resolves the runway elevation with the nearest airport within 5 nm. Magnetic variation is applied to the runway id's heading (alignment +/-35 deg).
+
+## 4. Gap table
+| Feature | CRC behaviour | YAAT state | Config field | Size | Repo |
+|---|---|---|---|---|---|
+| Seed `AsdexSafetyLogicConfiguration` (runway polygons, closed flags, default config) at scenario load | vNAS server sends it at subscription so the CRC Closed Runway menu and X markers work | Not seeded; detector idle until a push, and a push cannot be built from an empty list | `runwayConfigurations`, nav-DB runway geometry | multi-file (runway rectangle synthesis from nav DB, seed on subscribe and at scenario load, record as an action for replay) | yaat-server + yaat |
+| Honor active runway configuration (incl. LIMITED) | gates alert set | ignored | `runwayConfigurations[].arrival/departureRunwayIds`, `RunwayConfigurationId` | multi-file | yaat (Sim detector) |
+| Position gating and arrival-alert inhibit with 3-min timer | Position filter is client-side; arrival inhibit is server-side | inhibit list stored, ignored; no timer | `positions`, `InhibitedArrivalAlertPositionIds` | multi-file | yaat |
+| Converging-runway alerts (2 types) | alert and aural `Converging` | missing | runway geometry plus intersection | multi-file / design (needs aviation review) | yaat |
+| Opposite-direction / go-around alerts and aural | exist in aural enum | missing | | multi-file / design | yaat + yaat-server |
+| Hold bars with Active/Suppressed status | lime lines at intersections, LAHSO aware | empty list | `holdShortRunwayPairs` (SFO has none), video-map geometry | design (geometry synthesis) | yaat-server + yaat |
+| Look-ahead (time-to-collision) instead of binary overlap | real ASDE-X predicts; manual says "imminent" | footprint overlap only | n/a | design | yaat |
+| Taxiway landing restricted to configured taxiways | only configured taxiways | any taxiway centerline | not in facility JSON (unverified where CRC gets it) | one-file but data-blocked | yaat |
+| MIL scratchpad suppression | formation exemption | missing | scratchpad | one-file | yaat |
+| Alert withdrawal after rewind/unload | n/a (CRC re-syncs) | known gap | | one-file | yaat-server |
+
+## 5. Configuration / loading suspicions (ranked)
+1. Seeding (above): the detector cannot run unless a config reaches the scenario; the CRC UI cannot make one when `mRunways` is empty (`GetOpenCloseRunwayDto` throws; `GetSetRunwayConfigurationDto` would push an empty runway list, which the detector treats as "no config"). This looks like a loading problem. Verify live: connect CRC to SFO ASDE-X, open the DCB CLOSED RWY menu. If it is empty, the confirmation is complete. Unverified by running.
+2. `AirportHasFullSafetyLogic` is true for SFO because `runwayConfigurations.Count` is 6, so YAAT's 7110.65 3-9-4 advisories are already relaxed (RunwayAdvisor.cs:529). That is the only SFO-config-dependent behavior YAAT has today.
+3. If the user means the YAAT instructor client: it has no ASDE-X alert view (docs say server-side emulation only: crc-display-state.md:380). Unverified for alerts specifically.
+4. `defaultPositionId` is GC with no runways, so by manual rule alerts show only when the LC position is activated in the DCB. This is a CRC-side setting, not a YAAT defect.
+
+## DOC DRIFT
+- `docs/crc-protocol-support.md:185-186` marks `ReceiveAsdexAlerts`/`DeleteAsdexAlerts` `[ ]` "requires detector (deferred)"; code ships them (`CrcBroadcastService.cs:606-634`, and the same file's line 289 is `[x]`). Doc wrong; owner crc-protocol-support.md.
+- `docs/crc-protocol-support.md:295` says hold-bar status is the "sole remaining ASDE-X parity gap". This understates it: runway-config gating, position/arrival-inhibit use, converging alerts and config seeding are also missing. Owner crc-protocol-support.md.
+- `CrcBroadcastService.cs:1933` comment ("no safety-logic detector yet") is stale; the detector exists. Code comment, yaat-server.
+- `AsdexSafetyLogicDetector.cs:48` says "Mirrors CRC's simplified binary alerting"; the real alerting is server-side and unverified, so the claim is unsupported.
+
+## TASK INDEX GAP
+Task: "ASDE-X safety logic / alerts / hold bars for CRC at an airport". Files in order: `docs/crc/asdex.md:916-1056`, `docs/crc-display-state.md` (safety-logic section, ~318-334), `docs/crc-protocol-support.md:177-190,285-295`, `src/Yaat.Sim/Asdex/AsdexSafetyLogicDetector.cs`, `AsdexSafetyLogicConfig.cs`, `SimulationEngine.Asdex.cs:96-266`, `yaat-server/.../CrcClientState.Asdex.cs:245`, `CrcBroadcastService.cs:1882-1935`, `DtoConverter.cs:2137-2260`, `Data/Vnas/ArtccConfig.cs:374-408,720-748`, decompiled `Asdex.SafetyLogic/*`. architecture.md has file-tree rows (1352-1357) but no Task Index row.
+
+## MISSING ENTRY POINT
+None. `docs/architecture.md` and `docs/README.md` exist. The terms "LIMITED configuration" and "tower configuration position" are used in a project sense with no CONTEXT.md glossary entry (not checked in CONTEXT.md; unverified).
