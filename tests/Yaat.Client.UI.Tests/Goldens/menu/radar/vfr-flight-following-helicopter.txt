@@ -150,7 +150,7 @@ All Commands
     Position
     Expected approach
     ---
-    Custom… picker:input
+    Custom — SAY ···
   Coordination
     Release
     Hold
@@ -173,7 +173,8 @@ Data Block
     cruise flyout
   Annotate
 Squawk
-  Squawk… picker:input
+  Code — SQ ···
+  ---
   Squawk assigned code
   Squawk random
   Squawk VFR

@@ -91,14 +91,7 @@ public static class MenuCatalog
             (label, ac, context, host) => CoordinationFlyout.Build(label, CoordinationVerb.PointOut, ac, context, host)
         ),
         Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", (ac, _) => AircraftCommandApplicability.HasPendingPointout(ac)),
-        CheckedInputLeaf(
-            MenuIds.SquawkCode,
-            "Squawk…",
-            "Code (0000-7777)",
-            BlankInput.Closes,
-            FormatSquawkCode,
-            "Not a valid squawk code (0000-7777)"
-        ),
+        HostLeaf(MenuIds.SquawkCode, "Squawk…", Always, SharedMenuGroups.SquawkFlyout),
         Leaf(MenuIds.SquawkAssigned, "Squawk assigned code", "SQ", (ac, _) => AircraftCommandApplicability.HasAssignedBeaconCode(ac)),
         Leaf(MenuIds.SquawkRandom, "Squawk random", "RANDSQ", Always),
         Leaf(MenuIds.SquawkVfr, "Squawk VFR", "SQVFR", Always),
@@ -111,13 +104,7 @@ public static class MenuCatalog
         Leaf(MenuIds.AskPilotMach, "Mach", "SMACH", CanAskPilot),
         Leaf(MenuIds.AskPilotPosition, "Position", "SPOS", CanAskPilot),
         Leaf(MenuIds.AskPilotExpectedApproach, "Expected approach", "SEAPP", CanAskPilot),
-        new(
-            MenuIds.AskPilotCustom,
-            "Custom…",
-            MenuFlightRules.Both,
-            CanAskPilot,
-            (_, context, host) => BuildInput("Custom…", "Text", BlankInput.Closes, input => $"SAY {input}", context, host)
-        ),
+        HostLeaf(MenuIds.AskPilotCustom, "Custom…", CanAskPilot, SharedMenuGroups.AskPilotFlyout),
         Leaf(MenuIds.CoordinationRelease, "Release", "RD", Always),
         Leaf(MenuIds.CoordinationHold, "Hold", "RDH", Always),
         Leaf(MenuIds.CoordinationRecall, "Recall", "RDR", Always),
@@ -135,7 +122,7 @@ public static class MenuCatalog
             "CFR CHECK",
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
-        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", "Text", BlankInput.Closes, input => $"SP {input}"),
+        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", "Text", input => $"SP {input}"),
         AltitudeBoxEntry(MenuIds.DataBlockTempAltitude, "Temporary altitude…", AltitudeBoxKind.TemporaryAltitude),
         AltitudeBoxEntry(MenuIds.DataBlockCruise, "Cruise…", AltitudeBoxKind.Cruise),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
@@ -185,8 +172,8 @@ public static class MenuCatalog
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
         Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
         Leaf(MenuIds.ApproachReportDownwind, "Turning downwind", "REPORT DOWNWIND", Always),
-        InputLeaf(MenuIds.ApproachReportNMileFinal, "At N-mile final…", "Distance (NM)", BlankInput.Closes, input => $"REPORT {input} FINAL"),
-        InputLeaf(MenuIds.ApproachReportAtFix, "At fix…", "Fix name", BlankInput.Closes, input => $"REPORT {input}"),
+        InputLeaf(MenuIds.ApproachReportNMileFinal, "At N-mile final…", "Distance (NM)", input => $"REPORT {input} FINAL"),
+        InputLeaf(MenuIds.ApproachReportAtFix, "At fix…", "Fix name", input => $"REPORT {input}"),
         Leaf(MenuIds.ApproachReportOffBase, "Base", "REPORT OFF BASE", Always),
         Leaf(MenuIds.ApproachReportOffFinal, "Final", "REPORT OFF FINAL", Always),
         Leaf(MenuIds.ApproachReportOffCrosswind, "Crosswind", "REPORT OFF CROSSWIND", Always),
@@ -899,34 +886,14 @@ public static class MenuCatalog
         return BuildTemplatedSend(row, MenuGlyphRowTemplate.Instance, send, context, host);
     }
 
-    private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, BlankInput blank, Func<string, string> format) =>
-        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, blank, format, context, host));
-
-    /// <summary>
-    /// An input picker whose text must read as a command: <paramref name="format"/> returns null when it does not, and
-    /// the popup then shows <paramref name="invalidMessage"/> under its box, sending nothing, staying open.
-    /// </summary>
-    private static MenuCatalogEntry CheckedInputLeaf(
-        string id,
-        string label,
-        string placeholder,
-        BlankInput blank,
-        Func<string, string?> format,
-        string invalidMessage
-    ) =>
-        new(
-            id,
-            label,
-            MenuFlightRules.Both,
-            Always,
-            (_, context, host) => BuildCheckedInput(label, placeholder, blank, format, invalidMessage, context, host)
-        );
+    private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, Func<string, string> format) =>
+        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host));
 
     /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
-    /// the flight-plan editor, the display toggles and measure item that read and drive the surface's own state, and
-    /// the ground submenus whose choices the host answers (hold short, follow, give way, push back to, preset taxi, taxi to
-    /// runway).
+    /// the Squawk and Say flyouts with their box rows, the flight-plan editor, the display toggles and measure item that read
+    /// and drive the surface's own state, and the ground submenus whose choices the host answers (hold short, follow, give
+    /// way, push back to, preset taxi, taxi to runway).
     /// <paramref name="build"/> receives the entry's own label, so the item's text lives in one place, though a
     /// state-dependent item overrides it. A builder returns null for an item the surface's state hides.
     /// </summary>
@@ -945,60 +912,78 @@ public static class MenuCatalog
     private static MenuCatalogEntry Picker(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build) =>
         new(id, label, MenuFlightRules.Both, Always, (aircraft, context, host) => build(label, aircraft, context, host));
 
-    internal static MenuItem BuildInput(
-        string label,
-        string placeholder,
-        BlankInput blank,
-        Func<string, string> format,
-        MenuContext context,
-        IMenuHost host
-    )
+    /// <summary>
+    /// An input picker's item: the host's input popup, empty, sending the trimmed text it submits through
+    /// <paramref name="format"/>; a blank submit closes it, sending nothing.
+    /// </summary>
+    internal static MenuItem BuildInput(string label, string placeholder, Func<string, string> format, MenuContext context, IMenuHost host)
     {
         var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
-        item.Click += (_, _) =>
-            host.ShowInputPopup(placeholder, blank, "", 0, input => Accept(host.SendAsync(context.Callsign, format(input), context.Initials)));
+        item.Click += (_, _) => host.ShowInputPopup(placeholder, "", 0, input => host.SendAsync(context.Callsign, format(input), context.Initials));
         return item;
     }
+
+    /// <summary>The reason the Squawk box gives for text that is not four octal digits.</summary>
+    internal const string InvalidSquawkCode = "Not a valid squawk code (0000-7777)";
 
     /// <summary>
-    /// A checked input picker's item: <paramref name="format"/> reads the typed text, and text it cannot read (null)
-    /// leaves the popup open showing <paramref name="invalidMessage"/>, sending nothing.
+    /// The Squawk flyout's code box row, always open, <c>SQ</c> drawn in its box: four octal digits are sent as typed
+    /// (<c>SQ 0123</c>); other text is refused inline; a blank box sends nothing (a bare <c>SQ</c> is Squawk assigned code,
+    /// which keeps its own row).
     /// </summary>
-    private static MenuItem BuildCheckedInput(
-        string label,
-        string placeholder,
-        BlankInput blank,
-        Func<string, string?> format,
-        string invalidMessage,
-        MenuContext context,
-        IMenuHost host
-    )
-    {
-        var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
-        item.Click += (_, _) =>
-            host.ShowInputPopup(
-                placeholder,
-                blank,
-                "",
-                0,
-                input =>
-                {
-                    if (format(input) is not { } command)
-                    {
-                        return Task.FromResult<string?>(invalidMessage);
-                    }
+    internal static InlineBoxRow SquawkCodeRow(MenuContext context, IMenuHost host) =>
+        InlineBoxRow.Create(
+            new InlineBoxSpec
+            {
+                Label = "Code",
+                Glyph = QuickCommandGlyphs.For(MenuIds.SquawkCode),
+                Verb = "SQ",
+                Placeholder = "0000-7777",
+                BoxName = "SquawkCodeBox",
+                BoxWidth = 120,
+                Read = ReadSquawkCode,
+            },
+            command => host.SendAsync(context.Callsign, command, context.Initials)
+        );
 
-                    return Accept(host.SendAsync(context.Callsign, command, context.Initials));
-                }
-            );
-        return item;
+    /// <summary>
+    /// The Say flyout's Custom box row, always open, <c>SAY</c> drawn in its box: the text is sent trimmed, case kept; a blank
+    /// box sends nothing (a bare <c>SAY</c> parses as an unsupported command).
+    /// </summary>
+    internal static InlineBoxRow SayCustomRow(MenuContext context, IMenuHost host) =>
+        InlineBoxRow.Create(
+            new InlineBoxSpec
+            {
+                Label = "Custom",
+                Glyph = null,
+                Verb = "SAY",
+                Placeholder = "words the pilot says",
+                BoxName = "SayCustomBox",
+                BoxWidth = 260,
+                Read = ReadSayText,
+            },
+            command => host.SendAsync(context.Callsign, command, context.Initials)
+        );
+
+    /// <summary>The Squawk box's reading: four octal digits, trimmed, sent as typed; blank waits; anything else is refused.</summary>
+    private static InlineBoxReading ReadSquawkCode(string text)
+    {
+        string code = text.Trim();
+        if (code.Length == 0)
+        {
+            return InlineBoxReading.Blank;
+        }
+
+        return ((code.Length == 4) && code.All(digit => digit is >= '0' and <= '7'))
+            ? InlineBoxReading.Sends($"SQ {code}")
+            : InlineBoxReading.Refuses(InvalidSquawkCode);
     }
 
-    /// <summary>Awaits <paramref name="send"/> and takes the text, so the input popup closes.</summary>
-    private static async Task<string?> Accept(Task send)
+    /// <summary>The Say Custom box's reading: the trimmed text after <c>SAY</c>; blank waits.</summary>
+    private static InlineBoxReading ReadSayText(string text)
     {
-        await send;
-        return null;
+        string said = text.Trim();
+        return (said.Length == 0) ? InlineBoxReading.Blank : InlineBoxReading.Sends($"SAY {said}");
     }
 
     /// <summary>The <c>TEMPALT</c> command for the altitude the controller typed, or null when it is not one.</summary>
@@ -1083,10 +1068,6 @@ public static class MenuCatalog
             && groups[0].All(char.IsAsciiDigit)
             && groups.Skip(1).All(group => (group.Length == 3) && group.All(char.IsAsciiDigit));
     }
-
-    /// <summary>The <c>SQ</c> command for a four-digit octal code, or null for anything else.</summary>
-    private static string? FormatSquawkCode(string input) =>
-        ((input.Length == 4) && input.All(digit => digit is >= '0' and <= '7')) ? $"SQ {int.Parse(input)}" : null;
 
     /// <summary>The <c>SPD</c> command for a positive whole number of knots, or null for anything else.</summary>
     internal static string? FormatAssignedSpeed(string input) =>
@@ -1228,13 +1209,7 @@ public static class MenuCatalog
         MenuTextSeed seed = host.GetCustomTaxiSeed(node, point.RunwayEnd);
         var item = new MenuItem { Header = "Custom taxi…", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
         item.Click += (_, _) =>
-            host.ShowInputPopup(
-                "Taxi command",
-                BlankInput.Closes,
-                seed.Text,
-                seed.Caret,
-                text => Accept(host.SendAsync(context.Callsign, text.Trim(), context.Initials))
-            );
+            host.ShowInputPopup("Taxi command", seed.Text, seed.Caret, text => host.SendAsync(context.Callsign, text.Trim(), context.Initials));
         return item;
     }
 

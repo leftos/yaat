@@ -1,5 +1,9 @@
 using System.Globalization;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Yaat.Client.Services;
 using Yaat.Sim;
@@ -45,25 +49,104 @@ public static class SharedMenuGroups
         [MenuIds.TrackAcknowledgePointout],
     ];
 
-    /// <summary>The Squawk submenu: the code items, then Ident.</summary>
-    public static MenuItem Squawk(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    /// <summary>The Squawk flyout, headed "Squawk" (<see cref="SquawkFlyout"/>).</summary>
+    public static MenuItem Squawk(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) => SquawkFlyout("Squawk", aircraft, context, host);
+
+    /// <summary>
+    /// The Squawk flyout headed <paramref name="header"/>, the root's Squawk group and the Squawk… entry alike: the code box
+    /// row first, always open and holding the focus as the flyout opens (<see cref="MenuCatalog.SquawkCodeRow"/>), then
+    /// after a separator Squawk assigned code and the presets, then after another separator Ident.
+    /// </summary>
+    public static MenuItem SquawkFlyout(string header, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = "Squawk" };
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkCode, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkAssigned, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkRandom, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkVfr, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkNormal, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkStandby, aircraft, context, host));
+        var menu = new MenuItem { Header = header };
+        InlineBoxRow codeRow = MenuCatalog.SquawkCodeRow(context, host);
+        menu.Items.Add(codeRow.Item);
         menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkIdent, aircraft, context, host));
+        foreach (string id in SquawkPresetIds)
+        {
+            TryAdd(menu.Items, SquawkRow(id, aircraft, context, host));
+        }
+
+        if (SquawkRow(MenuIds.SquawkIdent, aircraft, context, host) is { } ident)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(ident);
+        }
+
+        FocusTheBoxOnOpen(menu, codeRow.Box);
         return menu;
     }
 
-    /// <summary>The "Ask pilot to say…" submenu: the say queries and the free-text one.</summary>
-    public static MenuItem AskPilot(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    /// <summary>The Squawk flyout's preset rows, in order: Squawk assigned code, then the presets.</summary>
+    private static readonly string[] SquawkPresetIds =
+    [
+        MenuIds.SquawkAssigned,
+        MenuIds.SquawkRandom,
+        MenuIds.SquawkVfr,
+        MenuIds.SquawkNormal,
+        MenuIds.SquawkStandby,
+    ];
+
+    /// <summary>
+    /// The entry's item as a Squawk flyout row, where its predicate allows it: its label led by the glyph column (its quick-command
+    /// glyph, else a blank slot as wide), so its label starts where the code box does.
+    /// </summary>
+    private static MenuItem? SquawkRow(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = "Ask pilot to say…" };
+        if (TryLeaf(id, aircraft, context, host) is not { } item)
+        {
+            return null;
+        }
+
+        if (item.Header is not string label)
+        {
+            throw new InvalidOperationException($"The Squawk flyout row '{id}' has a {item.Header?.GetType().Name} header, not a label.");
+        }
+
+        item.Header = new GlyphColumnLabel(QuickCommandGlyphs.For(id), label);
+        item.HeaderTemplate = GlyphColumnLabel.Template;
+        AutomationProperties.SetName(item, label);
+        return item;
+    }
+
+    /// <summary>A Squawk flyout row's header: <see cref="Label"/> after the glyph column, <see cref="Glyph"/> or a blank slot.</summary>
+    private sealed record GlyphColumnLabel(QuickCommandGlyph? Glyph, string Label)
+    {
+        /// <summary>Draws the glyph column, then the label.</summary>
+        public static FuncDataTemplate<GlyphColumnLabel> Template { get; } = new((row, _) => Build(row));
+
+        /// <summary>The row as one line: its label.</summary>
+        public override string ToString() => Label;
+
+        private static StackPanel Build(GlyphColumnLabel row)
+        {
+            Control slot = (row.Glyph is { } glyph) ? QuickCommandStrip.GlyphIcon(glyph) : QuickCommandStrip.GlyphSlot();
+            slot.Margin = new Thickness(0, 0, 8, 0);
+            return new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    slot,
+                    new TextBlock { Text = row.Label, VerticalAlignment = VerticalAlignment.Center },
+                },
+            };
+        }
+    }
+
+    /// <summary>The Say flyout, headed "Ask pilot to say…" (<see cref="AskPilotFlyout"/>).</summary>
+    public static MenuItem AskPilot(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        AskPilotFlyout("Ask pilot to say…", aircraft, context, host);
+
+    /// <summary>
+    /// The Say flyout headed <paramref name="header"/>, All Commands' Ask pilot to say… group and the Custom… entry alike: the six
+    /// say queries, then after a separator the Custom box row, always open and holding the focus as the flyout opens
+    /// (<see cref="MenuCatalog.SayCustomRow"/>).
+    /// </summary>
+    public static MenuItem AskPilotFlyout(string header, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = header };
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotAltitude, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotHeading, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotSpeed, aircraft, context, host));
@@ -71,8 +154,45 @@ public static class SharedMenuGroups
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotPosition, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotExpectedApproach, aircraft, context, host));
         menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotCustom, aircraft, context, host));
+        InlineBoxRow customRow = MenuCatalog.SayCustomRow(context, host);
+        menu.Items.Add(customRow.Item);
+        FocusTheBoxOnOpen(menu, customRow.Box);
         return menu;
+    }
+
+    /// <summary>
+    /// Focuses <paramref name="box"/> each time <paramref name="menu"/> opens, while it stays open: as its own submenu, or as
+    /// the flyout a quick-command strip button opens over its items, where the submenu never opens.
+    /// </summary>
+    private static void FocusTheBoxOnOpen(MenuItem menu, TextBox box)
+    {
+        menu.SubmenuOpened += (_, e) =>
+        {
+            if (ReferenceEquals(e.Source, menu))
+            {
+                FlyoutPanelParts.FocusLater(box, () => menu.IsSubMenuOpen, () => { });
+            }
+        };
+        QuickCommandStrip.FollowInFlyout(menu, new StripBoxFocus(box));
+    }
+
+    /// <summary>
+    /// Focuses a flyout's box when the quick-command strip opens the entry's flyout, where the submenu
+    /// (<see cref="MenuItem.IsSubMenuOpen"/>) never opens, unless the flyout closed before the focus ran.
+    /// </summary>
+    private sealed class StripBoxFocus(TextBox box) : IStripFlyoutContent
+    {
+        private bool _open;
+
+        public void Opened(ItemCollection items, Action close)
+        {
+            _open = true;
+            FlyoutPanelParts.FocusLater(box, () => _open, () => { });
+        }
+
+        public void PointerInside(bool inside) { }
+
+        public void Closed() => _open = false;
     }
 
     /// <summary>The Coordination submenu: the departure-release items.</summary>

@@ -307,7 +307,7 @@ public sealed class HoldPatternFlyoutPanel : FixValueFlyoutPanel
     public TextBox CourseBox { get; }
 
     /// <summary>The Inbound course box's refusal: <see cref="HoldFlyout.CourseRequired"/> or <see cref="HoldFlyout.InvalidCourse"/>.</summary>
-    public TextBlock CourseError { get; } = Refusal(HoldFlyout.CourseRequired);
+    public TextBlock CourseError { get; } = FlyoutPanelParts.Refusal(HoldFlyout.CourseRequired);
 
     /// <summary>The direction of holding (and at a VOR the radial) for the fix box's fix and course; empty while there is none.</summary>
     public string SideText => _side.Text ?? "";

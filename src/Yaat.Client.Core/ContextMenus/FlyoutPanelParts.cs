@@ -103,9 +103,9 @@ internal static class FlyoutPanelParts
         };
 
     /// <summary>
-    /// One button of a verb toggle strip (<see cref="ToggleStrip"/>): <paramref name="label"/> with the verb's <paramref name="code"/>
-    /// beside it (none when it is empty), not focusable, running <paramref name="onClick"/> when clicked. Every button but the <paramref name="first"/>
-    /// has a line on its left.
+    /// One button of a verb toggle strip (<see cref="ToggleStrip"/>): <paramref name="label"/> with the verb's
+    /// <paramref name="code"/> beside it (none when it is empty), not focusable, running <paramref name="onClick"/> when
+    /// clicked. Every button but the <paramref name="first"/> has a line on its left.
     /// </summary>
     public static ToggleButton VerbToggle(string label, string code, bool first, Action onClick)
     {
@@ -307,5 +307,70 @@ internal static class FlyoutPanelParts
         };
         Mono(command);
         return command;
+    }
+
+    /// <summary>A red refusal line under a box reading <paramref name="text"/>, hidden.</summary>
+    public static TextBlock Refusal(string text) =>
+        new()
+        {
+            Text = text,
+            FontSize = 11,
+            Foreground = RefusalBrush,
+            Margin = new Thickness(33, 0, 11, 2),
+            IsVisible = false,
+        };
+}
+
+/// <summary>
+/// A box that refuses its text inline: while refused, a 2 px red bar laid over the box's bottom edge, the box's own frame
+/// kept, and a red reason line to set under it; the box carries <see cref="RefusedClass"/> meanwhile. The box's
+/// <see cref="Layoutable.HorizontalAlignment"/> and <see cref="Layoutable.Margin"/> must be final before it is wrapped: the
+/// host and the bar copy them once, as the box is wrapped.
+/// </summary>
+internal sealed class RefusableBox
+{
+    /// <summary>The style class a box holding text it refuses carries.</summary>
+    public const string RefusedClass = "refused";
+
+    private readonly TextBox _box;
+
+    /// <summary>Wraps <paramref name="box"/>, unrefused.</summary>
+    public RefusableBox(TextBox box)
+    {
+        _box = box;
+        Underline = new Border
+        {
+            Background = FlyoutPanelParts.RefusalBrush,
+            Height = 2,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(box.Margin.Left, 0, box.Margin.Right, box.Margin.Bottom),
+            IsHitTestVisible = false,
+            IsVisible = false,
+        };
+        Host = new Panel { HorizontalAlignment = box.HorizontalAlignment, Children = { box, Underline } };
+        ReasonLine = FlyoutPanelParts.Refusal("");
+        ReasonLine.Margin = new Thickness(0, 2, 0, 0);
+    }
+
+    /// <summary>The box with its bar over it: what a caller adds to its layout in the box's place.</summary>
+    public Control Host { get; }
+
+    /// <summary>The red bar over the box's bottom edge, shown while refused.</summary>
+    public Border Underline { get; }
+
+    /// <summary>The red line naming why the box's text is refused, for the caller to set under the box; hidden while not refused.</summary>
+    public TextBlock ReasonLine { get; }
+
+    /// <summary>Whether the box's text is refused now.</summary>
+    public bool IsRefused => _box.Classes.Contains(RefusedClass);
+
+    /// <summary>Shows <paramref name="refusal"/> as the reason the box's text is refused, or, when null, clears the refusal.</summary>
+    public void ShowRefusal(string? refusal)
+    {
+        bool refused = refusal is not null;
+        _box.Classes.Set(RefusedClass, refused);
+        Underline.IsVisible = refused;
+        ReasonLine.Text = refusal ?? "";
+        ReasonLine.IsVisible = refused;
     }
 }

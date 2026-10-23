@@ -210,7 +210,7 @@ public abstract class FixValueFlyoutPanel : StackPanel, IFlyoutPanel
     public TextBlock BoxCommandText { get; } = new();
 
     /// <summary>The refusal under the fix box (<see cref="DirectToFlyout.UnknownFix"/>), shown while its text names no fix.</summary>
-    public TextBlock BoxError { get; } = Refusal(DirectToFlyout.UnknownFix);
+    public TextBlock BoxError { get; } = FlyoutPanelParts.Refusal(DirectToFlyout.UnknownFix);
 
     /// <summary>The caption under the boxes: what Enter sends, as a controller says it; hidden while it cannot send.</summary>
     public TextBlock Caption { get; } =
@@ -368,17 +368,6 @@ public abstract class FixValueFlyoutPanel : StackPanel, IFlyoutPanel
         return box;
     }
 
-    /// <summary>A red refusal line under a box reading <paramref name="text"/>, hidden.</summary>
-    protected static TextBlock Refusal(string text) =>
-        new()
-        {
-            Text = text,
-            FontSize = 11,
-            Foreground = FlyoutPanelParts.RefusalBrush,
-            Margin = new Thickness(33, 0, 11, 2),
-            IsVisible = false,
-        };
-
     /// <summary>The verb's value boxes, top to bottom.</summary>
     protected abstract IReadOnlyList<TextBox> ValueBoxes();
 
@@ -517,10 +506,10 @@ public sealed class CrossFixFlyoutPanel : FixValueFlyoutPanel
     public TextBox SpeedBox { get; }
 
     /// <summary>The Altitude box's refusal: <see cref="FixValueFlyout.AltitudeRequired"/> or <see cref="AltitudeFlyout.InvalidAltitude"/>.</summary>
-    public TextBlock AltitudeError { get; } = Refusal(FixValueFlyout.AltitudeRequired);
+    public TextBlock AltitudeError { get; } = FlyoutPanelParts.Refusal(FixValueFlyout.AltitudeRequired);
 
     /// <summary>The Speed box's refusal: <see cref="FixValueFlyout.SpeedSteps"/> or <see cref="SpeedFlyout.InvalidSpeed"/>.</summary>
-    public TextBlock SpeedError { get; } = Refusal(FixValueFlyout.SpeedSteps);
+    public TextBlock SpeedError { get; } = FlyoutPanelParts.Refusal(FixValueFlyout.SpeedSteps);
 
     /// <summary>The toggle button of <paramref name="at"/>.</summary>
     public ToggleButton Toggle(CrossFixAltitudeType at) => _toggles[(int)at];
@@ -623,7 +612,7 @@ public sealed class DepartFixFlyoutPanel : FixValueFlyoutPanel
     public TextBox HeadingBox { get; }
 
     /// <summary>The Heading box's refusal: <see cref="FixValueFlyout.HeadingRequired"/> or <see cref="FixValueFlyout.InvalidHeading"/>.</summary>
-    public TextBlock HeadingError { get; } = Refusal(FixValueFlyout.HeadingRequired);
+    public TextBlock HeadingError { get; } = FlyoutPanelParts.Refusal(FixValueFlyout.HeadingRequired);
 
     /// <inheritdoc />
     public override string? CommandFor(string fix) =>

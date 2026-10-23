@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -35,8 +36,6 @@ public class MenuCatalogCommandTests
 {
     private const string Callsign = "N123AB";
     private const string Initials = "AB";
-    private const string PositionOrCode = "1234";
-    private const string SayText = "say again";
     private const string BlockText = "gate 25";
     private const string Fix = "SUNOL";
     private const string ApproachId = "I28R";
@@ -61,7 +60,6 @@ public class MenuCatalogCommandTests
         (MenuIds.TrackAcceptHandoff, "", "ACCEPT"),
         (MenuIds.TrackCancelHandoff, "", "CANCEL"),
         (MenuIds.TrackAcknowledgePointout, "", "OK"),
-        (MenuIds.SquawkCode, PositionOrCode, "SQ 1234"),
         (MenuIds.SquawkAssigned, "", "SQ"),
         (MenuIds.SquawkRandom, "", "RANDSQ"),
         (MenuIds.SquawkVfr, "", "SQVFR"),
@@ -74,7 +72,6 @@ public class MenuCatalogCommandTests
         (MenuIds.AskPilotMach, "", "SMACH"),
         (MenuIds.AskPilotPosition, "", "SPOS"),
         (MenuIds.AskPilotExpectedApproach, "", "SEAPP"),
-        (MenuIds.AskPilotCustom, SayText, "SAY say again"),
         (MenuIds.CoordinationRelease, "", "RD"),
         (MenuIds.CoordinationHold, "", "RDH"),
         (MenuIds.CoordinationRecall, "", "RDR"),
@@ -225,6 +222,9 @@ public class MenuCatalogCommandTests
         MenuIds.ApproachReportFieldInSight,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
+        // Squawk… and Ask pilot to say › Custom… open the Squawk and Say flyouts; the Squawk and Say tests below type in their box rows.
+        MenuIds.SquawkCode,
+        MenuIds.AskPilotCustom,
         // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
         // PointMenuTests builds them through AircraftMenuBuilder and clicks their items there.
         MenuIds.PointFlyHeading,
@@ -349,7 +349,7 @@ public class MenuCatalogCommandTests
     {
         var host = new RecordingMenuHost("");
         MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host);
-        MenuItem ident = Assert.Single(squawk.Items.OfType<MenuItem>(), i => (i.Header as string) == "Ident");
+        MenuItem ident = Assert.Single(squawk.Items.OfType<MenuItem>(), i => i.Header?.ToString() == "Ident");
 
         Click(ident);
 
@@ -1132,16 +1132,346 @@ public class MenuCatalogCommandTests
         return host;
     }
 
+    /// <summary>
+    /// The Squawk flyout opens on the code box row, always open, its <c>SQ</c> drawn in the box; then after a separator Squawk
+    /// assigned code and the presets, then after another separator Ident; no input popup.
+    /// </summary>
     [AvaloniaFact]
-    public void Squawk_AsksWithBlankCloses()
+    public void Squawk_Flyout_HoldsTheCodeBoxThenTheGroup()
     {
-        var host = new RecordingMenuHost(PositionOrCode);
-        MenuItem? item = MenuCatalog.Get(MenuIds.SquawkCode).Build(null, Context(), host);
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { BeaconCode = 1200, AssignedBeaconCode = 4613 };
 
-        Click(AssertPicker(item, "Squawk…", MenuPickerDescriptor.Input, []));
+        MenuItem squawk = SharedMenuGroups.Squawk(aircraft, Context(), host);
 
-        Assert.Equal(BlankInput.Closes, host.LastBlankInput);
+        Assert.Equal(
+            [
+                $"Code — SQ {TakeoffFlyout.Unfilled}",
+                "---",
+                "Squawk assigned code",
+                "Squawk random",
+                "Squawk VFR",
+                "Squawk normal",
+                "Squawk standby",
+                "---",
+                "Ident",
+            ],
+            squawk.Items.Select(DescribeRow)
+        );
+        Assert.Empty(host.InputPlaceholders);
     }
+
+    /// <summary>The Squawk flyout opens with the caret in its code box, its first row, so typed digits land there.</summary>
+    [AvaloniaFact]
+    public void Squawk_Flyout_OpensWithFocusInTheCodeBox()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("");
+        MenuItem squawk = SharedMenuGroups.Squawk(new FakeMenuAircraft { AssignedBeaconCode = 4613 }, Context(), host);
+        var menu = new ContextMenu { Items = { squawk } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            squawk.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            MenuItem first = Assert.IsType<MenuItem>(squawk.Items[0]);
+            InlineBoxRow row = Assert.IsType<InlineBoxRow>(first.Header);
+            Assert.True(row.Box.IsFocused, "the code box did not take focus when the Squawk flyout opened");
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// Squawk… and Custom… opened from the quick-command strip, whose flyout holds the entry's items without opening its
+    /// submenu, open with the caret in the box too. Custom… has no quick-command glyph, so the resolver never puts it on the
+    /// strip; it is given Squawk…'s glyph here so the strip's path is pinned for both flyouts.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(MenuIds.SquawkCode)]
+    [InlineData(MenuIds.AskPilotCustom)]
+    public void StripFlyout_OpensWithFocusInTheBox(string id)
+    {
+        var host = new RecordingMenuHost("");
+        MenuCatalogEntry entry = MenuCatalog.Get(id);
+        MenuItem built = Assert.IsType<MenuItem>(entry.Build(new FakeMenuAircraft { AssignedBeaconCode = 4613 }, Context(), host));
+        InlineBoxRow row = BoxRow(built);
+        var menu = new ContextMenu();
+        MenuItem strip = Assert.IsType<MenuItem>(
+            QuickCommandStrip.FromBuilt(menu, [(new QuickCommandStripItem(entry, QuickCommandGlyphs.For(MenuIds.SquawkCode)!), built)])
+        );
+        menu.Items.Add(strip);
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            menu.UpdateLayout();
+            Button button = Assert.Single(QuickCommandStrip.Buttons(strip));
+            QuickCommandStrip.OpenSubmenu(button);
+            Dispatcher.UIThread.RunJobs();
+            MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+            Assert.IsAssignableFrom<Control>(flyout.Popup.Child).UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(row.Box.IsFocused, $"the box did not take focus when the strip opened {id}'s flyout");
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>The Say flyout opens with the caret in its Custom box, its last row, so typed words land there.</summary>
+    [AvaloniaFact]
+    public void Say_Flyout_OpensWithFocusInTheCustomBox()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("");
+        MenuItem say = SharedMenuGroups.AskPilot(new FakeMenuAircraft(), Context(), host);
+        var menu = new ContextMenu { Items = { say } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            say.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            MenuItem last = Assert.IsType<MenuItem>(say.Items[^1]);
+            InlineBoxRow row = Assert.IsType<InlineBoxRow>(last.Header);
+            Assert.True(row.Box.IsFocused, "the Custom box did not take focus when the Say flyout opened");
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// Every Squawk flyout row leads with the glyph column, a blank slot where the row has no glyph, so the code box starts
+    /// where the presets' labels start.
+    /// </summary>
+    [AvaloniaFact]
+    public void Squawk_Flyout_TheCodeBoxLinesUpWithThePresetLabels()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("");
+        MenuItem squawk = SharedMenuGroups.Squawk(new FakeMenuAircraft { AssignedBeaconCode = 4613 }, Context(), host);
+        var menu = new ContextMenu { Items = { squawk } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            squawk.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            InlineBoxRow row = BoxRow(squawk);
+            (TopLevel.GetTopLevel(row) as Control)?.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            double boxLeft = LeftEdge(row.Box);
+            foreach (string preset in new[] { "Squawk assigned code", "Squawk random", "Squawk normal", "Ident" })
+            {
+                MenuItem item = Assert.Single(squawk.Items.OfType<MenuItem>(), m => m.Header?.ToString() == preset);
+                TextBlock label = Assert.Single(item.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == preset);
+                Assert.Equal(boxLeft, LeftEdge(label), 1);
+            }
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>The left edge of <paramref name="control"/> in its top level.</summary>
+    private static double LeftEdge(Control control) =>
+        Assert.NotNull(control.TranslatePoint(default, Assert.IsAssignableFrom<Visual>(TopLevel.GetTopLevel(control)))).X;
+
+    /// <summary>The Squawk… entry, which a quick-command list can name, builds the same flyout, so its strip button opens it.</summary>
+    [AvaloniaFact]
+    public void SquawkCodeEntry_BuildsTheSquawkFlyout()
+    {
+        var host = new RecordingMenuHost("");
+
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.SquawkCode).Build(null, Context(), host));
+
+        Assert.Equal("Squawk…", item.Header);
+        Assert.Contains(item.Items.OfType<MenuItem>(), m => m.Header?.ToString() == "Ident");
+        Assert.NotNull(BoxRow(item));
+    }
+
+    /// <summary>Four octal digits typed in the Squawk box are sent as typed, a leading zero kept, on Enter.</summary>
+    [AvaloniaTheory]
+    [InlineData("1234", "SQ 1234")]
+    [InlineData("0123", "SQ 0123")]
+    [InlineData(" 4613 ", "SQ 4613")]
+    public void Squawk_CodeBox_EnterSendsTheFourDigits(string typed, string command)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(SharedMenuGroups.Squawk(null, Context(), host));
+
+        row.Box.Text = typed;
+        PressEnter(row.Box);
+
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        Assert.Empty(host.InputPlaceholders);
+    }
+
+    /// <summary>A click on the Squawk box row sends its code too.</summary>
+    [AvaloniaFact]
+    public void Squawk_CodeBox_ClickSendsTheCode()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host);
+        InlineBoxRow row = BoxRow(squawk);
+
+        row.Box.Text = "7000";
+        Click(Assert.Single(squawk.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row)));
+
+        Assert.Equal([(Callsign, "SQ 7000", Initials)], host.Sent);
+    }
+
+    /// <summary>A click on the Squawk box row while its box is blank or refused sends nothing, as Enter does.</summary>
+    [AvaloniaTheory]
+    [InlineData("")]
+    [InlineData("8888")]
+    public void Squawk_CodeBox_BlankOrRefused_ClickSendsNothing(string typed)
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host);
+        InlineBoxRow row = BoxRow(squawk);
+
+        row.Box.Text = typed;
+        MenuItem item = Assert.Single(squawk.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row));
+        Click(item);
+
+        Assert.Empty(host.Sent);
+        Assert.True(item.StaysOpenOnClick, "A row that cannot send should stay open on its click.");
+    }
+
+    /// <summary>
+    /// Text that is not four octal digits is refused inline: the red underline, the reason line under the box, "can't send"
+    /// in the command column; Enter sends nothing.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("8000")]
+    [InlineData("123")]
+    [InlineData("12345")]
+    [InlineData("abcd")]
+    public void Squawk_CodeBox_NotFourOctalDigits_RefusesInline_EnterSendsNothing(string typed)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(SharedMenuGroups.Squawk(null, Context(), host));
+
+        row.Box.Text = typed;
+
+        Assert.Contains(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.True(row.Refusal.ReasonLine.IsVisible, "A refused code should show its reason line.");
+        Assert.Equal(MenuCatalog.InvalidSquawkCode, row.Refusal.ReasonLine.Text);
+        Assert.Equal(InlineBoxRow.CantSend, row.CommandColumn.Text);
+
+        PressEnter(row.Box);
+
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>A blank Squawk box sends nothing: a bare <c>SQ</c> is Squawk assigned code, which keeps its own row.</summary>
+    [AvaloniaTheory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Squawk_CodeBox_Blank_EnterSendsNothing(string typed)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(SharedMenuGroups.Squawk(null, Context(), host));
+
+        row.Box.Text = typed;
+        PressEnter(row.Box);
+
+        Assert.Empty(host.Sent);
+        Assert.DoesNotContain(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.Equal($"SQ {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
+    }
+
+    /// <summary>The Say flyout carries the six Say queries, then after a separator the Custom box row, its <c>SAY</c> drawn in the box.</summary>
+    [AvaloniaFact]
+    public void Say_Flyout_HoldsTheSixQueriesThenTheCustomBox()
+    {
+        var host = new RecordingMenuHost("");
+
+        MenuItem say = SharedMenuGroups.AskPilot(new FakeMenuAircraft(), Context(), host);
+
+        Assert.Equal(
+            ["Altitude", "Heading", "Speed", "Mach", "Position", "Expected approach", "---", $"Custom — SAY {TakeoffFlyout.Unfilled}"],
+            say.Items.Select(DescribeRow)
+        );
+        Assert.Empty(host.InputPlaceholders);
+    }
+
+    /// <summary>The Custom… entry, which a quick-command list can name, builds the same flyout, so its strip button opens it.</summary>
+    [AvaloniaFact]
+    public void AskPilotCustomEntry_BuildsTheSayFlyout()
+    {
+        var host = new RecordingMenuHost("");
+
+        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.AskPilotCustom).Build(new FakeMenuAircraft(), Context(), host));
+
+        Assert.Equal("Custom…", item.Header);
+        Assert.Contains(item.Items.OfType<MenuItem>(), m => (m.Header as string) == "Altitude");
+        Assert.NotNull(BoxRow(item));
+    }
+
+    /// <summary>The Say Custom box sends <c>SAY</c> and the text trimmed, case kept, on Enter.</summary>
+    [AvaloniaTheory]
+    [InlineData("say again", "SAY say again")]
+    [InlineData("  Request Higher ", "SAY Request Higher")]
+    public void Say_CustomBox_EnterSendsTheTrimmedText(string typed, string command)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(SharedMenuGroups.AskPilot(new FakeMenuAircraft(), Context(), host));
+
+        row.Box.Text = typed;
+        PressEnter(row.Box);
+
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        Assert.Empty(host.InputPlaceholders);
+    }
+
+    /// <summary>A blank Say Custom box sends nothing: a bare <c>SAY</c> parses as an unsupported command.</summary>
+    [AvaloniaTheory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Say_CustomBox_Blank_EnterSendsNothing(string typed)
+    {
+        var host = new RecordingMenuHost("");
+        InlineBoxRow row = BoxRow(SharedMenuGroups.AskPilot(new FakeMenuAircraft(), Context(), host));
+
+        row.Box.Text = typed;
+        PressEnter(row.Box);
+
+        Assert.Empty(host.Sent);
+        Assert.Equal($"SAY {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
+    }
+
+    /// <summary>The one inline box row among <paramref name="flyout"/>'s items.</summary>
+    private static InlineBoxRow BoxRow(MenuItem flyout) =>
+        Assert.IsType<InlineBoxRow>(Assert.Single(flyout.Items.OfType<MenuItem>(), m => m.Header is InlineBoxRow).Header);
+
+    private static void PressEnter(TextBox box) => box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
 
     [AvaloniaFact]
     public void Approach_Header_ShowsActiveThenExpected()

@@ -39,7 +39,7 @@ public class MenuPopupsTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
 
-        MenuPopups.ShowInput(anchor, Placeholder, "", 0, BlankInput.Closes, _ => Task.FromResult<string?>(null));
+        MenuPopups.ShowInput(anchor, Placeholder, "", 0, _ => Task.CompletedTask);
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(anchor);
@@ -54,7 +54,7 @@ public class MenuPopupsTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
 
-        MenuPopups.ShowInput(anchor, Placeholder, "TAXI A B", 5, BlankInput.Closes, _ => Task.FromResult<string?>(null));
+        MenuPopups.ShowInput(anchor, Placeholder, "TAXI A B", 5, _ => Task.CompletedTask);
         HeadlessWindowExtensions.PumpDispatcher();
 
         TextBox textBox = FindTextBox(anchor);
@@ -74,11 +74,10 @@ public class MenuPopupsTests
             Placeholder,
             "",
             0,
-            BlankInput.Closes,
             value =>
             {
                 submitted.TrySetResult(value);
-                return Task.FromResult<string?>(null);
+                return Task.CompletedTask;
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -98,14 +97,13 @@ public class MenuPopupsTests
     public void Enter_TwiceWhileTheSendIsInFlight_SendsOnce()
     {
         (Window _, Control anchor) = ShowAnchorWindow();
-        var inFlight = new TaskCompletionSource<string?>();
+        var inFlight = new TaskCompletionSource();
         int sent = 0;
         MenuPopups.ShowInput(
             anchor,
             Placeholder,
             "",
             0,
-            BlankInput.Closes,
             _ =>
             {
                 sent++;
@@ -122,7 +120,7 @@ public class MenuPopupsTests
 
         Assert.Equal(1, sent);
 
-        inFlight.SetResult(null);
+        inFlight.SetResult();
         HeadlessWindowExtensions.PumpDispatcher();
         Assert.False(popup.IsOpen, "A completed submit should close the popup.");
     }
@@ -137,11 +135,10 @@ public class MenuPopupsTests
             Placeholder,
             "",
             0,
-            BlankInput.Closes,
             _ =>
             {
                 submitted = true;
-                return Task.FromResult<string?>(null);
+                return Task.CompletedTask;
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -166,11 +163,10 @@ public class MenuPopupsTests
             Placeholder,
             "",
             0,
-            BlankInput.Closes,
             _ =>
             {
                 submitted = true;
-                return Task.FromResult<string?>(null);
+                return Task.CompletedTask;
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -193,11 +189,10 @@ public class MenuPopupsTests
             Placeholder,
             "",
             0,
-            BlankInput.Closes,
             _ =>
             {
                 submitted = true;
-                return Task.FromResult<string?>(null);
+                return Task.CompletedTask;
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -211,37 +206,6 @@ public class MenuPopupsTests
         Assert.False(submitted, "Escape must not invoke the submit callback.");
         Assert.False(popup.IsOpen, "Escape should dismiss the popup.");
         Assert.DoesNotContain(popup, OverlayLayer.GetOverlayLayer(anchor)!.Children);
-    }
-
-    /// <summary>A field opened with <see cref="BlankInput.Closes"/> sends nothing on a blank submit.</summary>
-    [AvaloniaFact]
-    public void Input_BlankSubmit_Closes_SendsNothing()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        bool submitted = false;
-
-        MenuPopups.ShowInput(
-            anchor,
-            Placeholder,
-            "",
-            0,
-            BlankInput.Closes,
-            _ =>
-            {
-                submitted = true;
-                return Task.FromResult<string?>(null);
-            }
-        );
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        TextBox textBox = FindTextBox(anchor);
-        textBox.Text = "   ";
-        RaiseKey(textBox, Key.Enter);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.False(submitted, "A Closes field must not invoke the submit callback on blank.");
-        Assert.False(popup.IsOpen, "A blank submit should still close the popup.");
     }
 
     /// <summary>The note flyout opens on its anchor, prefilled with the current note, and sends the NOTE command.</summary>
@@ -375,13 +339,12 @@ public class MenuPopupsTests
         string? got = null;
         host.ShowInputPopup(
             Placeholder,
-            BlankInput.Closes,
             "",
             0,
             v =>
             {
                 got = v;
-                return Task.FromResult<string?>(null);
+                return Task.CompletedTask;
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();

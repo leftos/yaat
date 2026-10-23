@@ -57,8 +57,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     public Task SendGatedAsync(string callsign, string command, string initials) =>
         main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials);
 
-    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task<string?>> onSubmit) =>
-        MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, blank, onSubmit);
+    public void ShowInputPopup(string placeholder, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
+        MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, onSubmit);
 
     /// <summary>
     /// The point as the primary radar view model's fixes name it (<see cref="FrdResolver.ToFrd"/>); null before the fixes and the

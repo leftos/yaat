@@ -255,6 +255,16 @@ public static class QuickCommandStrip
         };
     }
 
+    /// <summary>An empty box the size of a glyph's icon (<see cref="GlyphIcon"/>): a glyph column's slot for a row with no glyph.</summary>
+    public static Control GlyphSlot() =>
+        new Border
+        {
+            Width = GlyphSize,
+            Height = GlyphSize,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
     /// <summary>
     /// Draws the force mark on a glyph's view box: an amber disc in the lower right with an "!" cut into it, both ringed and
     /// drawn in the strip's well colour (<see cref="WellBrush"/>) to part the disc from the glyph's strokes.

@@ -416,7 +416,11 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
   A runway is short for the type when its landing distance available is under 1.15 times the type's landing distance. Such a row reads "Runway 28R · short" and is dimmed, but you can still click it. The icon on the strip turns to the aircraft's assigned runway the same way.
 
-**Typing into a menu popup.** The menu's Squawk… popup checks what you typed before sending it. A value that cannot be read or is out of range — a squawk with a digit outside 0–7, for one — is refused with a one-line message under the box, and the popup stays open with your text so you can correct it. In every menu text popup, Enter or OK sends once: a second press while the send is still under way does nothing.
+**Typing into a menu box.** The Squawk flyout (the Squawk group and Squawk…) opens on a code box with `SQ` drawn inside it and the caret in it, then a separator, Squawk assigned code, random, VFR, normal and standby, another separator and Ident; each row leads with a glyph column. Type four digits 0–7 and press Enter, or click the row, to send `SQ` and the code.
+
+Text that is not a valid code, `8888` for one, keeps the box's frame with a red bar under it, the line "Not a valid squawk code (0000-7777)" and "can't send" in the command column. Enter or a click sends nothing until it is four octal digits, and a blank box sends nothing.
+
+The Ask pilot to say… flyout lists the six queries, a separator and a Custom box with `SAY` drawn inside it, focused as the flyout opens; a blank box sends nothing. Custom taxi… still opens a text popup, where Enter or OK sends once: a second press while the send is still under way does nothing.
 
 The altitude boxes (Maintain altitude, Temporary altitude… and Cruise…) take `050`, `230`, `23000`, `FL230`, `fl 230`, `5,000` and above-ground altitudes such as `KOAK+010`. An altitude above FL999, `FL` with four or more digits, a malformed thousands group such as `2,30`, or an above-ground altitude while the navigation data is not loaded is not read: the box shows `CM ···` faded in Maintain altitude and `Not a valid altitude` in the other two.
 

@@ -55,12 +55,10 @@ public interface IMenuHost
 
     /// <summary>
     /// Opens the surface's free-text input showing <paramref name="placeholder"/>, holding <paramref name="initialText"/>
-    /// with the caret at <paramref name="caretIndex"/>, and hands the submitted text to <paramref name="onSubmit"/>. A
-    /// blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/> closes the popup without calling it.
-    /// <paramref name="onSubmit"/> returns null when it took the text (having sent what it should); a non-null return is
-    /// the one-line reason it refused the text, which the popup shows under its box, staying open.
+    /// with the caret at <paramref name="caretIndex"/>, and hands the submitted text, trimmed, to <paramref name="onSubmit"/>,
+    /// closing once it has run. A blank submit closes the popup without calling it.
     /// </summary>
-    void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task<string?>> onSubmit);
+    void ShowInputPopup(string placeholder, string initialText, int caretIndex, Func<string, Task> onSubmit);
 
     /// <summary>
     /// The point at <paramref name="position"/> as a fix-radial-distance the point menu's Direct to, Hold and Warp here

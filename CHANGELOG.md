@@ -18,6 +18,7 @@
 - Join STAR opens a flyout with a tab per STAR, and the menus' "(other)" list items are gone.
 - Cleared visual opens the Cleared approach flyout on the default runway, and is offered to IFR aircraft only.
 - Pattern entries open a runway flyout on the assigned runway, and Cleared for takeoff ends in a Custom box.
+- Squawk opens a flyout led by a code box that refuses an invalid code, and Ask pilot to say… ends in a Custom box.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.

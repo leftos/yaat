@@ -81,6 +81,25 @@ public class PhaseTransparentCommandTests
         Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
     }
 
+    /// <summary>
+    /// A code typed with its leading zero (<c>SQ 0123</c>, as the menu's Squawk box sends four digits) sets the same code as
+    /// the command bar's <c>SQ 123</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("SQ 0123")]
+    [InlineData("SQ 123")]
+    public void SquawkWithLeadingZero_SetsTheSameCodeAsWithout(string text)
+    {
+        AircraftState ac = MakeAircraftInUpwind();
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess);
+
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(123u, ac.Transponder.Code);
+    }
+
     [Fact]
     public void SquawkPreservesCommandQueue()
     {

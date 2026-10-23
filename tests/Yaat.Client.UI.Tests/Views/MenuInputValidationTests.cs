@@ -1,9 +1,6 @@
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.LogicalTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -17,10 +14,10 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The four validated inputs, driven through the real client host: Squawk… through the input popup, Temporary altitude… and
-/// Cruise… through their one-box flyouts, and Speed… through the speed flyout's box. Text an input cannot read sends nothing, keeps the popup or the
-/// flyout open and shows its one-line reason (under the popup's box, in the flyout's command column), and every form it
-/// does read sends the command it should.
+/// The four validated inputs, driven through the real client host: Squawk… through the Squawk flyout's code box row, Temporary
+/// altitude… and Cruise… through their one-box flyouts, and Speed… through the speed flyout's box. Text an input cannot read
+/// sends nothing, keeps the flyout open and shows its one-line reason (on the line under the Squawk box, in the flyout's
+/// command column), and every form it does read sends the command it should.
 /// </summary>
 public class MenuInputValidationTests
 {
@@ -111,14 +108,43 @@ public class MenuInputValidationTests
     // --- Squawk… --------------------------------------------------------------------------------
 
     [AvaloniaFact]
-    public void Squawk_FourOctalDigits_SendsTheCode() => AssertSends(MenuIds.SquawkCode, "1234", "SQ 1234");
+    public void Squawk_FourOctalDigits_SendsTheCodeAndClosesTheMenu()
+    {
+        SquawkFlyout open = OpenSquawk();
+        try
+        {
+            SubmitBox(open.Row.Box, "1234");
+
+            Assert.Equal([(Callsign, "SQ 1234", "AB")], open.Sent.Sent);
+            Assert.False(open.Menu.IsOpen);
+        }
+        finally
+        {
+            open.Close();
+        }
+    }
 
     [AvaloniaTheory]
     [InlineData("123")]
     [InlineData("12345")]
     [InlineData("1298")]
     [InlineData("ABCD")]
-    public void Squawk_NotFourOctalDigits_SendsNothingAndKeepsThePopupOpen(string typed) => AssertRefuses(MenuIds.SquawkCode, typed, BadSquawk);
+    public void Squawk_NotFourOctalDigits_SendsNothingAndKeepsTheFlyoutOpen(string typed)
+    {
+        SquawkFlyout open = OpenSquawk();
+        try
+        {
+            SubmitBox(open.Row.Box, typed);
+
+            Assert.Empty(open.Sent.Sent);
+            Assert.Equal(BadSquawk, open.Row.Refusal.ReasonLine.Text);
+            Assert.True(open.Menu.IsOpen, "A refused code should leave the flyout open.");
+        }
+        finally
+        {
+            open.Close();
+        }
+    }
 
     // --- Speed… ---------------------------------------------------------------------------------
 
@@ -134,39 +160,6 @@ public class MenuInputValidationTests
         AssertBoxRefuses(MenuIds.SpeedCustom, typed, BadSpeed);
 
     // --- Fixtures -------------------------------------------------------------------------------
-
-    private static void AssertSends(string id, string typed, string command)
-    {
-        (Window window, Control anchor, SendCapturingHost sent) = Open(id);
-        try
-        {
-            Submit(anchor, typed);
-
-            Assert.Equal([(Callsign, command, "AB")], sent.Sent);
-            AssertNoPopup(anchor);
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    private static void AssertRefuses(string id, string typed, string message)
-    {
-        (Window window, Control anchor, SendCapturingHost sent) = Open(id);
-        try
-        {
-            Submit(anchor, typed);
-
-            Assert.Empty(sent.Sent);
-            Assert.Equal(message, Message(anchor));
-            Assert.True(FindPopup(anchor).IsOpen, "A refused submit should leave the popup open.");
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
 
     private static void AssertBoxSends(string id, string typed, string command)
     {
@@ -275,8 +268,17 @@ public class MenuInputValidationTests
         return (main, aircraft);
     }
 
-    /// <summary>Opens the picker's input popup on a window's anchor, through the real client host under a send capturer.</summary>
-    private static (Window Window, Control Anchor, SendCapturingHost Sent) Open(string id)
+    /// <summary>The Squawk flyout opened under a context menu on a shown window, through the real client host: its code box row.</summary>
+    private sealed record SquawkFlyout(Window Window, ContextMenu Menu, InlineBoxRow Row, SendCapturingHost Sent)
+    {
+        public void Close()
+        {
+            Menu.Close();
+            Window.Close();
+        }
+    }
+
+    private static SquawkFlyout OpenSquawk()
     {
         (MainViewModel main, AircraftModel aircraft) = MainWithAircraft();
         var anchor = new Border();
@@ -290,44 +292,13 @@ public class MenuInputValidationTests
 
         var sent = new SendCapturingHost(new ClientMenuHost(main, aircraft, anchor), "AB");
         MenuContext context = TestMenuContext.Create(Callsign, "AB", null, false, VfrCommandsForIfr.None);
-        MenuItem item = Assert.IsType<MenuItem>(MenuCatalog.Get(id).Build(aircraft, context, sent));
-        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        MenuItem entry = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.SquawkCode).Build(aircraft, context, sent));
+        var menu = new ContextMenu { Items = { entry } };
+        menu.Open(window);
         HeadlessWindowExtensions.PumpDispatcher();
-        return (window, anchor, sent);
-    }
-
-    private static void Submit(Control anchor, string typed)
-    {
-        TextBox box = FindTextBox(anchor);
-        box.Text = typed;
-        box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        entry.IsSubMenuOpen = true;
         HeadlessWindowExtensions.PumpDispatcher();
-    }
-
-    /// <summary>The one-line reason the open popup shows under its box.</summary>
-    private static string? Message(Control anchor) =>
-        FindPopup(anchor).Child?.GetLogicalDescendants().OfType<TextBlock>().LastOrDefault(text => text.IsVisible)?.Text;
-
-    private static Popup FindPopup(Control anchor)
-    {
-        var overlay = OverlayLayer.GetOverlayLayer(anchor);
-        Assert.NotNull(overlay);
-        Popup? popup = overlay!.Children.OfType<Popup>().LastOrDefault();
-        Assert.NotNull(popup);
-        return popup!;
-    }
-
-    private static void AssertNoPopup(Control anchor)
-    {
-        var overlay = OverlayLayer.GetOverlayLayer(anchor);
-        Assert.NotNull(overlay);
-        Assert.Empty(overlay!.Children.OfType<Popup>());
-    }
-
-    private static TextBox FindTextBox(Control anchor)
-    {
-        TextBox? textBox = FindPopup(anchor).Child?.GetLogicalDescendants().OfType<TextBox>().FirstOrDefault();
-        Assert.NotNull(textBox);
-        return textBox!;
+        MenuItem row = Assert.Single(entry.Items.OfType<MenuItem>(), item => item.Header is InlineBoxRow);
+        return new SquawkFlyout(window, menu, (InlineBoxRow)row.Header!, sent);
     }
 }
