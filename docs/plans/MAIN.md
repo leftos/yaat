@@ -55,17 +55,20 @@
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [/] YAAT-1050 Stop speed commands (SPDN) cancelling an approach; audit every command that cancels one · release vNext
-- [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
-  - [ ] YAAT-1058 Seed the ASDE-X safety-logic configuration (runway areas, closed flags, default configuration) at scenario load · release vNext
-  - [ ] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext
-  - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext
-  - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
-  - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
-  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
-  - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext
-  - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
-  - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext
-  - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext
+- [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext+1
+  - [/] YAAT-1058 Seed the ASDE-X safety-logic configuration (runway areas, closed flags, default configuration) at scenario load · release vNext
+  - [ ] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext+1
+  - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
+  - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
+  - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
+  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext+1
+  - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext+1
+  - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext+1
+  - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext+1
+  - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext+1
+  - [ ] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext+1
+  - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext+1
+  - [ ] YAAT-1070 Re-send the ASDE-X safety-logic configuration to subscribed CRC displays after a rewind or session restore
 
 ## Say again
 
@@ -702,3 +705,4 @@
 - [ ] YAAT-1054 Report a client-driver pipe connect timeout as a timeout, not a closed pipe
 - [ ] YAAT-1055 Stop a re-created pattern leg re-voicing its turn report after a 360 or a rebuild
 - [ ] YAAT-1056 Give the automation host's wait_for handler a clock tests can hold
+- [ ] YAAT-1071 Keep the approach on a bare EXP, and decide whether SPDN overrides the procedure-turn speed ceiling
