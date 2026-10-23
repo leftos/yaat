@@ -224,9 +224,11 @@ public sealed partial class SimulationEngine
             FrequencyActivityLevel activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
             SimScenarioState scenario =
                 Scenario ?? throw new InvalidOperationException($"{aircraft.Callsign}: a pilot answering a dispatch needs a loaded scenario.");
+            // The pilot speaks at the band its trait shifts the meter to; the raw band stamped on the transmission for the
+            // speech rate never reads the trait.
             var speechContext = new PilotSpeechContext(
                 PilotPersonality.Varied,
-                activityLevel.ToLoadBand(),
+                PilotTraits.EffectiveBand(activityLevel.ToLoadBand(), PilotTraits.For(aircraft.Callsign, scenario.RngSeed)),
                 scenario.RngSeed,
                 (int)Math.Floor(elapsedSeconds)
             );

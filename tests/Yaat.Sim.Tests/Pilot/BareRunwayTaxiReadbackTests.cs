@@ -29,6 +29,17 @@ public class BareRunwayTaxiReadbackTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Verbalize_PathlessTaxiVariedBusy_ShortcutKeepsTaxi()
+    {
+        TestVnasData.EnsureInitialized();
+        var taxi = new TaxiCommand([], [], Expedite: false, "1L");
+
+        string? spoken = PhraseologyVerbalizer.Verbalize(taxi, PilotPersonality.Varied, FrequencyLoadBand.Busy);
+
+        Assert.Equal("taxi runway one left", spoken);
+    }
+
+    [Fact]
     public void Verbalize_TaxiAuto_ReadsBackLikePathlessTaxi()
     {
         TestVnasData.EnsureInitialized();

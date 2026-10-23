@@ -431,9 +431,57 @@ public sealed class PilotTransmissionQueueTests
         Assert.True(result.Success, result.Message);
         PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
         // Busy or Saturated activity level uses the terse "down to" shortcut. Spoken form spells the
-        // altitude and appends the callsign; the terminal SAY message is compact and callsign-less.
+        // altitude and appends the callsign; the terminal SAY message is the canonical text, compact and callsign-less.
         Assert.Equal("down to five thousand, november one two three alpha bravo.", transmission.SpeechText);
-        Assert.Equal("down to 5000", transmission.Text);
+        Assert.Equal("descend and maintain 5000", transmission.Text);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_TersePilotAtNormalLoadSpeaksTheBusyShortcut()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        // N0000A is terse at seed 1 (PilotTraitsTests.For_IsPinned): one band busier than the meter.
+        AircraftState aircraft = NewAircraft("N0000A");
+        engine.World.AddAircraft(aircraft);
+        // 8 pilot transmissions plus the controller's own make 9: Normal.
+        for (int i = 0; i < 8; i++)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(i);
+        }
+
+        CommandResult result = engine.SendCommand("N0000A", "DM 5000");
+
+        Assert.True(result.Success, result.Message);
+        PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        Assert.StartsWith("down to five thousand, ", transmission.SpeechText);
+        Assert.Equal("descend and maintain 5000", transmission.Text);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_ChattyPilotAtBusyLoadSpeaksVerbatim()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        // N0003A is chatty at seed 1 (PilotTraitsTests.For_IsPinned): one band quieter than the meter.
+        AircraftState aircraft = NewAircraft("N0003A");
+        engine.World.AddAircraft(aircraft);
+        // 12 pilot transmissions plus the controller's own make 13: Busy.
+        for (int i = 0; i < 12; i++)
+        {
+            engine.World.ActiveFrequency.ActivityMeter.Record(i);
+        }
+
+        CommandResult result = engine.SendCommand("N0003A", "DM 5000");
+
+        Assert.True(result.Success, result.Message);
+        PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        Assert.StartsWith("descend and maintain five thousand, ", transmission.SpeechText);
+        Assert.Equal("descend and maintain 5000", transmission.Text);
     }
 
     [Fact]

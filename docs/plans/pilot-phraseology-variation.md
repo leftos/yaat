@@ -44,7 +44,7 @@ Orchestrator decisions (open to the owner):
 
 ## Aviation floor
 
-Every variant, in every band, obeys these invariants; a variant that fails one is discarded and the canonical text is spoken. One generic check enforces F3 to F9: each number, runway, hold-short and crossing token of the canonical spoken text appears in the variant with its type keyword, in the same order.
+Every variant, in every band, obeys these invariants; a variant that fails one is discarded and the canonical text is spoken. One generic check, `AviationFloor.Holds`, enforces F3 to F9: the variant carries the same ordered anchors as the canonical clause (digit-leading tokens including runway designators; the keywords heading, degrees, knots, mach, squawk and runway; the direction classes left/right and climb/descend; hold short; cross) and the same ordered altitude unit words (flight level, thousand, hundred), else the canonical clause is spoken.
 
 | # | Invariant | Cite |
 |---|---|---|

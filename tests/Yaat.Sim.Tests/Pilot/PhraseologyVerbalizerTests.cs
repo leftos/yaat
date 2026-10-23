@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Speech;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -97,6 +98,71 @@ public class PhraseologyVerbalizerTests
     {
         string? result = PhraseologyVerbalizer.Verbalize(new LeftTurnCommand(30));
         Assert.Equal("turn thirty degrees left", result);
+    }
+
+    [Fact]
+    public void Verbalize_VariedBusy_RelativeTurnShortcutKeepsDegrees()
+    {
+        string? result = PhraseologyVerbalizer.Verbalize(new LeftTurnCommand(30), PilotPersonality.Varied, FrequencyLoadBand.Busy);
+
+        Assert.Equal("thirty degrees left", result);
+    }
+
+    /// <summary>
+    /// Every rule with pilot shortcuts speaks its shortest shortcut at Varied/Busy, not the canonical form: the floor must
+    /// pass each one. One row per <c>PilotShortcuts</c> rule in <c>PhraseologyRules</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("TL", "left heading zero nine zero")]
+    [InlineData("TR", "right heading two seven zero")]
+    [InlineData("RELL", "thirty degrees left")]
+    [InlineData("RELR", "thirty degrees right")]
+    [InlineData("FH", "heading two seven zero")]
+    [InlineData("CM", "up to five thousand")]
+    [InlineData("DM", "down to five thousand")]
+    [InlineData("SPD", "two fifty knots")]
+    [InlineData("DCT", "direct {fix}")]
+    [InlineData("TLDCT", "left direct {fix}")]
+    [InlineData("TRDCT", "right direct {fix}")]
+    [InlineData("ADCT", "when able direct {fix}")]
+    [InlineData("TAXI", "taxi runway one left")]
+    public void Verbalize_VariedBusy_EveryShortcutRuleSpeaksItsShortestShortcut(string rule, string expected)
+    {
+        List<ResolvedFix> fixes = [new ResolvedFix("SUNOL", 37.6, -121.9)];
+        ParsedCommand command = rule switch
+        {
+            "TL" => new TurnLeftCommand(new MagneticHeading(90)),
+            "TR" => new TurnRightCommand(new MagneticHeading(270)),
+            "RELL" => new LeftTurnCommand(30),
+            "RELR" => new RightTurnCommand(30),
+            "FH" => new FlyHeadingCommand(new MagneticHeading(270)),
+            "CM" => new ClimbMaintainCommand(5000),
+            "DM" => new DescendMaintainCommand(5000),
+            "SPD" => new SpeedCommand(250),
+            "DCT" => new DirectToCommand(fixes, []),
+            "TLDCT" => new TurnLeftDirectToCommand(fixes, []),
+            "TRDCT" => new TurnRightDirectToCommand(fixes, []),
+            "ADCT" => new AppendDirectToCommand(fixes, []),
+            "TAXI" => new TaxiCommand([], [], Expedite: false, "1L"),
+            _ => throw new ArgumentOutOfRangeException(nameof(rule), rule, "No representative command for this rule."),
+        };
+
+        string? busy = PhraseologyVerbalizer.Verbalize(command, PilotPersonality.Varied, FrequencyLoadBand.Busy);
+
+        Assert.Equal(expected.Replace("{fix}", PhraseologyVerbalizer.SpellFixSequence(fixes), StringComparison.Ordinal), busy);
+        Assert.NotEqual(PhraseologyVerbalizer.Verbalize(command), busy);
+    }
+
+    [Fact]
+    public void PhraseologyRules_ShortcutRuleCount_MatchesTheWiringTheory()
+    {
+        int shortcutRules = PhraseologyRules.All.Count(rule => rule.PilotShortcuts is { Length: > 0 });
+
+        Assert.True(
+            shortcutRules == 13,
+            $"PhraseologyRules has {shortcutRules} rules with PilotShortcuts, the wiring theory covers 13: add a row to "
+                + $"{nameof(Verbalize_VariedBusy_EveryShortcutRuleSpeaksItsShortestShortcut)} for each new rule and update this count."
+        );
     }
 
     [Fact]

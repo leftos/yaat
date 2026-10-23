@@ -501,6 +501,12 @@ Established on the final and no further out than a limit measured to the landing
 
 ## Pilot speech
 
+**Aviation floor**:
+The content a varied spoken clause may never drop, add or reorder against its canonical clause (headings, runways, altitudes with their unit words, speeds, squawks, hold-short and crossing), checked by `AviationFloor.Holds`; a clause that fails it is spoken canonical (docs/plans/pilot-phraseology-variation.md).
+
+**Effective band**:
+The load band a pilot speaks at: the frequency's load band shifted by the pilot's trait, terse one step busier and chatty one quieter, clamped to quiet..busy (`PilotTraits.EffectiveBand`); the speech-rate nudge still uses the raw band (docs/solo-training-pilot-speech.md).
+
 **Load band**:
 How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
 _Avoid_: activity level (the meter's four-step reading)

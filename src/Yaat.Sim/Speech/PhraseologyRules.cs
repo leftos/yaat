@@ -58,8 +58,8 @@ public static class PhraseologyRules
             new(["turn", "left", "heading", "{hdg}"], "TL {hdg}", TurnLeft, PilotShortcuts: ["left heading {hdg}"]),
             new(["turn", "right", "heading", "{hdg}"], "TR {hdg}", TurnRight, PilotShortcuts: ["right heading {hdg}"]),
             // Relative turns — canonical 7110.65 5-6-2 form is "TURN (N) DEGREES LEFT/RIGHT".
-            new(["turn", "{deg}", "degrees", "left"], "RELL {deg}", RelativeLeft, PilotShortcuts: ["{deg} left"]),
-            new(["turn", "{deg}", "degrees", "right"], "RELR {deg}", RelativeRight, PilotShortcuts: ["{deg} right"]),
+            new(["turn", "{deg}", "degrees", "left"], "RELL {deg}", RelativeLeft, PilotShortcuts: ["{deg} degrees left"]),
+            new(["turn", "{deg}", "degrees", "right"], "RELR {deg}", RelativeRight, PilotShortcuts: ["{deg} degrees right"]),
             new(["fly", "heading", "{hdg}"], "FH {hdg}", FlyHeading, PilotShortcuts: ["heading {hdg}"]),
             new(["heading", "{hdg}"], "FH {hdg}", FlyHeading),
             new(["fly", "present", "heading"], "FPH", FlyPresentHeading),
@@ -238,7 +238,7 @@ public static class PhraseologyRules
             new(["line", "up", "and", "wait", "runway", "{rwy}"], "LUAW", LineUpAndWait),
             new(["line", "up", "and", "wait"], "LUAW", LineUpAndWait),
             new(["position", "and", "hold"], "LUAW", LineUpAndWait), // legacy US phraseology
-            // Cleared for takeoff. FAA 7110.65 3-9-9 leads with the runway ("RUNWAY 28R, cleared
+            // Cleared for takeoff. FAA 7110.65 3-9-10 leads with the runway ("RUNWAY 28R, cleared
             // for takeoff"); ICAO phraseology trails it ("cleared for takeoff runway 28R"). The
             // {rwy} capture is intentionally not reflected in the canonical output — CTO uses the
             // aircraft's already-assigned takeoff runway; the runway literal is in the pattern so
@@ -268,7 +268,7 @@ public static class PhraseologyRules
             new(["go", "around", "make", "left", "traffic"], "GA MLT", GoAround),
             new(["go", "around", "make", "right", "traffic"], "GA MRT", GoAround),
             new(["go", "around"], "GA", GoAround),
-            // Option/touch-and-go. Per 7110.65 3-9-7 the runway leads ("RUNWAY 28R, cleared
+            // Option/touch-and-go. Per 7110.65 3-8-2 the runway leads ("RUNWAY 28R, cleared
             // touch and go") in US tower phraseology; runway-suffix form accepted for ICAO parity.
             new(["runway", "{rwy}", "cleared", "for", "touch", "and", "go"], "TG", TouchAndGo),
             new(["runway", "{rwy}", "cleared", "touch", "and", "go"], "TG", TouchAndGo),
@@ -759,8 +759,8 @@ public static class PhraseologyRules
             // Taxi — runway-only, path-only and path-with-runway forms. The runway-only form is the
             // readback for a bare "TAXI 1L" issued to an aircraft already at its runway (and for
             // TAXIAUTO); the via forms below carry more captures and win whenever a route is spoken.
-            // Shortcut is the AIM 4-3-18.a.9 mandatory readback (runway assignment alone).
-            new(["taxi", "to?", "runway", "{rwy}"], "TAXI {rwy}", Taxi, PilotShortcuts: ["runway {rwy}"]),
+            // Shortcut is the AIM 4-3-18.a.9 mandatory readback (the runway assignment), keeping the word "taxi".
+            new(["taxi", "to?", "runway", "{rwy}"], "TAXI {rwy}", Taxi, PilotShortcuts: ["taxi runway {rwy}"]),
             // Parking / spot destinations — 7110.65 §3-7-2.a "TAXI TO (location)", the pilot naming
             // the position. The name is spoken as words and characters ("cargo one", "bravo one
             // two", "four one dash one zero"), so it is a variadic capture that PhraseologyMapper

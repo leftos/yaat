@@ -226,7 +226,7 @@ Foreign GA callsigns are NEVER shortened by FAA controllers in spoken transmissi
 
 After initial contact, ICAO callsigns shorten to first letter + last two letters:
 `"D-IACG"` → `"Delta Charlie Golf"`. Requires the same initial-contact state plus a
-locale flag (`PilotLocale.Faa` / `PilotLocale.Icao`).
+locale flag (`PilotLocale.Faa` / `PilotLocale.Icao`). **Not implemented** (out of scope per `docs/plans/pilot-phraseology-variation.md`).
 
 ---
 

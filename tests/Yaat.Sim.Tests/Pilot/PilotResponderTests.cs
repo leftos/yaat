@@ -108,6 +108,26 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildReadback_VariedBusy_TerminalIsCanonical()
+    {
+        AircraftState ac = MakeAircraft("AAL123");
+        CompoundCommand compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
+        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
+
+        PilotSpeechText? varied = PilotResponder.BuildReadback(
+            compound,
+            ac,
+            new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+        );
+
+        Assert.NotNull(canonical);
+        Assert.NotNull(varied);
+        Assert.Equal(canonical.Terminal, varied.Terminal);
+        Assert.Equal(canonical.TerminalForRpo, varied.TerminalForRpo);
+        Assert.StartsWith("down to five thousand", varied.Tts);
+    }
+
+    [Fact]
     public void BuildReadback_LineUpAndWaitWithoutDelay_AppendsWithoutDelay()
     {
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
@@ -185,6 +205,142 @@ public class PilotResponderTests
 
         Assert.NotEmpty(flavored);
         Assert.InRange(flavored.Count, 20, 150);
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_PicksFromTheCanonicalBody()
+    {
+        AircraftState ac = MakeAircraft("N004AB");
+        CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
+        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
+        Assert.NotNull(canonical);
+
+        var picks = new List<int>();
+        for (int second = 0; second < 200; second++)
+        {
+            string? tts = PilotResponder
+                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second))
+                ?.Tts;
+            int pick = VariantPick.Index(ac.Callsign, canonical.Terminal, second, 1, 100);
+            picks.Add(pick);
+
+            Assert.NotNull(tts);
+            Assert.Equal(pick < 5, tts.StartsWith("alright, ", StringComparison.Ordinal));
+            Assert.Equal(pick is >= 5 and < 10, tts.Contains("thanks", StringComparison.Ordinal));
+        }
+
+        Assert.Contains(picks, pick => pick < 10);
+        Assert.Contains(picks, pick => pick >= 10);
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_PlainDescentTakesBothFlavors() =>
+        AssertQuietFlavors(MakeAircraft("N004AB"), Compound(new DescendMaintainCommand(5000)), alrightAllowed: true, thanksAllowed: true);
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_NoAlrightOnLandingClearance() =>
+        AssertQuietFlavors(
+            MakeAircraftWithAssignedRunway("N004AB", "28R"),
+            Compound(new ClearedToLandCommand()),
+            alrightAllowed: false,
+            thanksAllowed: true
+        );
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_NoAlrightOnTurn() =>
+        AssertQuietFlavors(
+            MakeAircraft("N004AB"),
+            Compound(new TurnRightCommand(new MagneticHeading(270))),
+            alrightAllowed: false,
+            thanksAllowed: true
+        );
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_NoFlavorOnGoAround() =>
+        AssertQuietFlavors(
+            MakeAircraftWithAssignedRunway("N004AB", "28R"),
+            Compound(new GoAroundCommand(null, null, null)),
+            alrightAllowed: false,
+            thanksAllowed: false
+        );
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_NoThanksOnLahso() =>
+        AssertQuietFlavors(
+            MakeAircraftWithAssignedRunway("N004AB", "28R"),
+            Compound(new LandAndHoldShortCommand("33")),
+            alrightAllowed: false,
+            thanksAllowed: false
+        );
+
+    [Fact]
+    public void BuildReadback_VariedQuietFlavor_NoAlrightOnRunwaySide()
+    {
+        TestVnasData.EnsureInitialized();
+        AssertQuietFlavors(
+            MakeAircraft("N004AB"),
+            Compound(new TaxiCommand([], [], Expedite: false, "28R")),
+            alrightAllowed: false,
+            thanksAllowed: true
+        );
+    }
+
+    /// <summary>
+    /// The HOLD readback on a runway mid-crossing ("holding position on runway 33") takes neither flavour: the pilot's
+    /// -ing form of hold position is as safety-critical as the controller's.
+    /// </summary>
+    [Fact]
+    public void ApplyQuietFlavor_HoldingPositionOnRunway_TakesNoFlavor()
+    {
+        const string callsign = "N004AB";
+        const string canonicalBody = "holding position on runway 33";
+        const string body = "holding position on runway three three";
+        CompoundCommand compound = Compound(new HoldPositionCommand());
+
+        bool alrightPicked = false;
+        bool thanksPicked = false;
+        for (int second = 0; second < 200; second++)
+        {
+            var context = new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second);
+            string spoken = PilotResponder.ApplyQuietFlavor(callsign, body, canonicalBody, compound, context);
+            int pick = VariantPick.Index(callsign, canonicalBody, second, 1, 100);
+            alrightPicked |= pick < 5;
+            thanksPicked |= pick is >= 5 and < 10;
+
+            Assert.Equal(body, spoken);
+        }
+
+        Assert.True(alrightPicked);
+        Assert.True(thanksPicked);
+    }
+
+    /// <summary>
+    /// Over seconds 0..199 at Quiet, the readback carries "alright, " exactly where the pick allows it and the body permits
+    /// it, and ", thanks" likewise; both picks occur in the loop, so each permission is exercised.
+    /// </summary>
+    private static void AssertQuietFlavors(AircraftState ac, CompoundCommand compound, bool alrightAllowed, bool thanksAllowed)
+    {
+        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
+        Assert.NotNull(canonical);
+
+        bool alrightPicked = false;
+        bool thanksPicked = false;
+        for (int second = 0; second < 200; second++)
+        {
+            string? tts = PilotResponder
+                .BuildReadback(compound, ac, new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Quiet, 1, second))
+                ?.Tts;
+            int pick = VariantPick.Index(ac.Callsign, canonical.Terminal, second, 1, 100);
+            alrightPicked |= pick < 5;
+            thanksPicked |= pick is >= 5 and < 10;
+
+            Assert.NotNull(tts);
+            Assert.Equal(alrightAllowed && (pick < 5), tts.StartsWith("alright, ", StringComparison.Ordinal));
+            Assert.Equal(thanksAllowed && (pick is >= 5 and < 10), tts.Contains("thanks", StringComparison.Ordinal));
+        }
+
+        Assert.True(alrightPicked);
+        Assert.True(thanksPicked);
     }
 
     [Fact]

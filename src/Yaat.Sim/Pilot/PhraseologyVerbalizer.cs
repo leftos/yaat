@@ -119,10 +119,7 @@ public static class PhraseologyVerbalizer
     /// the per-capture token formatting differs. Used for the terminal <c>SAY</c> echo, which is
     /// built independently from the canonical command — never by stripping the spoken string.
     /// </summary>
-    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeTerminal(cmd, PilotPersonality.Verbatim, FrequencyLoadBand.Normal);
-
-    public static string? VerbalizeTerminal(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band) =>
-        VerbalizeCore(cmd, personality, band, Terminal);
+    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeCore(cmd, PilotPersonality.Verbatim, FrequencyLoadBand.Normal, Terminal);
 
     private static string? VerbalizeCore(ParsedCommand cmd, PilotPersonality personality, FrequencyLoadBand band, CaptureFormatter fmt)
     {
@@ -242,12 +239,17 @@ public static class PhraseologyVerbalizer
             return null;
         }
 
-        if (ShouldUseShortcut(personality, band) && TryRenderShortestShortcut(rule, args, out string? shortcut))
+        string canonical = RenderPattern(rule.Pattern, args);
+        if (
+            ShouldUseShortcut(personality, band)
+            && TryRenderShortestShortcut(rule, args, out string? shortcut)
+            && AviationFloor.Holds(canonical, shortcut)
+        )
         {
             return shortcut;
         }
 
-        return RenderPattern(rule.Pattern, args);
+        return canonical;
     }
 
     private static bool ShouldUseShortcut(PilotPersonality personality, FrequencyLoadBand band) =>

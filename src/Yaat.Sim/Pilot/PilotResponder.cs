@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Commands;
@@ -31,7 +30,7 @@ namespace Yaat.Sim.Pilot;
 /// it and compacts obvious spoken runway/distance forms, while TTS keeps the spoken phrase
 /// without the bracket prefix.
 /// </summary>
-public static class PilotResponder
+public static partial class PilotResponder
 {
     public const string SourceResponse = "Response";
     public const string SourceSayReadback = "SayReadback";
@@ -239,8 +238,8 @@ public static class PilotResponder
             return null;
         }
 
-        string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), speechContext);
         string termBody = string.Join(", then ", blockTermTexts);
+        string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), termBody, compound, speechContext);
         string rpoBody = string.Join(", then ", blockRpoTexts);
         return FrameReadback(aircraft, termBody, ttsBody, rpoBody);
     }
@@ -695,12 +694,10 @@ public static class PilotResponder
     /// <summary>
     /// Default rule-driven clause for commands without a dedicated readback builder: the compact
     /// terminal form and the spoken form, both produced from the canonical command by the verbalizer.
+    /// Only the spoken form varies with the speech context; the terminal form is always the canonical text.
     /// </summary>
     private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, PilotSpeechContext speechContext) =>
-        Dual(
-            PhraseologyVerbalizer.VerbalizeTerminal(cmd, speechContext.Personality, speechContext.Band),
-            PhraseologyVerbalizer.Verbalize(cmd, speechContext.Personality, speechContext.Band)
-        );
+        Dual(PhraseologyVerbalizer.VerbalizeTerminal(cmd), PhraseologyVerbalizer.Verbalize(cmd, speechContext.Personality, speechContext.Band));
 
     /// <summary>
     /// Builds the EXT readback dynamically from the aircraft's current pattern phase
@@ -750,28 +747,79 @@ public static class PilotResponder
             _ => null,
         };
 
-    private static string ApplyQuietFlavor(string callsign, string body, PilotSpeechContext speechContext)
+    /// <summary>
+    /// Flavours the spoken body on a quiet frequency, rarely: the pick hashes the canonical terminal body, so a pilot's
+    /// flavour does not change with the band's wording. "alright, " never leads a runway clearance, a safety-critical verb,
+    /// a turn or a runway spoken with its side, and ", thanks" never follows a go-around, a cancellation, a hold position or
+    /// a LAHSO clearance (F8, F12);
+    /// a pick that lands on an excluded flavour leaves the readback unflavoured.
+    /// </summary>
+    public static string ApplyQuietFlavor(
+        string callsign,
+        string body,
+        string canonicalBody,
+        CompoundCommand compound,
+        PilotSpeechContext speechContext
+    )
     {
         if ((speechContext.Personality != PilotPersonality.Varied) || (speechContext.Band != FrequencyLoadBand.Quiet))
         {
             return body;
         }
 
-        int bucket = StableBucket($"{callsign}|{body}", 100);
+        int bucket = VariantPick.Index(callsign, canonicalBody, speechContext.ElapsedSecond, speechContext.RngSeed, 100);
+        string[] words = [.. Regex.Split(canonicalBody.ToLowerInvariant(), "[^a-z0-9]+").Where(word => word.Length > 0)];
         return bucket switch
         {
-            < 5 => $"alright, {body}",
-            < 10 => $"{body}, thanks",
+            < 5 when !ContainsAny(words, NoAlrightTerms) && !words.Any(RunwayWithSide().IsMatch) => $"alright, {body}",
+            >= 5 and < 10 when !ContainsAny(words, NoThanksTerms) && !HoldsLandAndHoldShort(compound) => $"{body}, thanks",
             _ => body,
         };
     }
 
-    private static int StableBucket(string input, int modulo)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        uint value = ((uint)hash[0] << 24) | ((uint)hash[1] << 16) | ((uint)hash[2] << 8) | hash[3];
-        return (int)(value % modulo);
-    }
+    private static readonly string[][] NoAlrightTerms =
+    [
+        ["left"],
+        ["right"],
+        ["cleared"],
+        ["cancel"],
+        ["cross"],
+        ["follow"],
+        ["behind"],
+        ["bravo"],
+        ["option"],
+        ["line", "up", "and", "wait"],
+        ["touch", "and", "go"],
+        ["stop", "and", "go"],
+        ["low", "approach"],
+        ["go", "around"],
+        ["hold", "position"],
+        ["hold", "short"],
+        ["holding", "position"],
+        ["holding", "short"],
+        ["crossing"],
+    ];
+
+    private static readonly string[][] NoThanksTerms =
+    [
+        ["go", "around"],
+        ["cancel"],
+        ["hold", "position"],
+        ["holding", "position"],
+    ];
+
+    /// <summary>A Terminal runway token carrying its side, such as <c>28r</c> or <c>1l</c>.</summary>
+    [GeneratedRegex(@"^\d{1,2}[lrc]$")]
+    private static partial Regex RunwayWithSide();
+
+    private static bool HoldsLandAndHoldShort(CompoundCommand compound) =>
+        compound.Blocks.Any(block => block.Commands.Any(cmd => cmd is LandAndHoldShortCommand));
+
+    /// <summary>Whether <paramref name="words"/> holds any of <paramref name="terms"/> as consecutive whole words.</summary>
+    private static bool ContainsAny(string[] words, string[][] terms) =>
+        terms.Any(term =>
+            Enumerable.Range(0, Math.Max(0, words.Length - term.Length + 1)).Any(start => term.SequenceEqual(words.Skip(start).Take(term.Length)))
+        );
 
     /// <summary>
     /// EXP has four readbacks and a <see cref="PhraseologyRule"/> can express none of them: rule
