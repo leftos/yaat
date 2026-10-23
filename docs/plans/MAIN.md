@@ -6,6 +6,17 @@
 
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
+## Pilot phraseology by load (feat/pilot-phraseology-load)
+
+- [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext
+  - [/] YAAT-1076 Count controller transmissions in the frequency load meter, doubled thresholds, snapshotted (YAAT-849 part A) · release vNext
+  - [ ] YAAT-1077 Seed a terse-to-chatty personality per pilot and a per-transmission variant pick (YAAT-849 part B) · release vNext
+  - [ ] YAAT-1078 Keep the Terminal readback canonical; vary only the spoken form (YAAT-849 part C) · release vNext
+  - [ ] YAAT-1079 Nudge the pilot TTS speed by frequency load, up to ±10% (YAAT-849 part D) · release vNext
+  - [ ] YAAT-1080 Shorten an N-number callsign after the controller acknowledges contact (YAAT-849 part E) · release vNext
+  - [ ] YAAT-1081 Speak a contact frequency grouped without the leading 1 when busy (YAAT-849 part F) · release vNext
+  - [ ] YAAT-1082 Give every pilot readback terse, normal and chatty spoken variants (YAAT-849 part G) · release vNext
+
 ## Context-menu flyouts (feat/context-menu-flyouts)
 
 - [ ] YAAT-1034 Context-menu flyouts and All Commands (feat/context-menu-flyouts) · release vNext
@@ -54,7 +65,6 @@
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
-- [/] YAAT-1050 Stop speed commands (SPDN) cancelling an approach; audit every command that cancels one · release vNext
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext+1
   - [ ] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext+1
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
@@ -635,7 +645,6 @@
 - [ ] YAAT-841 Tidy the visual-approach and towered-airport code paths after YAAT-828
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
 - [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
-- [ ] YAAT-849 Vary solo pilot readback phraseology and speech rate by how busy the frequency is · release vNext
 - [ ] YAAT-877 Remove the WingspanLateralCheck flags only a deleted capture test set
 - [ ] YAAT-883 Split GroundCommandHandler.TryTaxiCore under the function-length limit
 - [ ] YAAT-884 PUSH B FACE SW from SFO G10 holds 113 ft off taxiway B
@@ -709,3 +718,9 @@
 - [ ] YAAT-1073 Trim the approach transition at a direct-to fix instead of looping back through it
 - [ ] YAAT-1074 Apply or refuse a CM/DM given beside a tower command (CLAND, DM 020)
 - [ ] YAAT-1075 Check every command of a block against the phase, not only its driver
+
+## No project
+
+- [ ] YAAT-1083 Reset or snapshot the active frequency's queue and gates on a snapshot restore
+- [ ] YAAT-1084 Clear the approach clearance on a bare go-around that re-enters the traffic pattern
+- [ ] YAAT-1085 Climb a pattern go-around with a heading to pattern altitude on an instrument approach
