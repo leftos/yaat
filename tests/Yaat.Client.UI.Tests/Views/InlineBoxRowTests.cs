@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Xunit;
@@ -195,6 +197,73 @@ public class InlineBoxRowTests
         }
 
         return (trimmed == "bad") ? InlineBoxReading.Refuses(Reason) : InlineBoxReading.Sends($"SAY {trimmed}");
+    }
+
+    /// <summary>Controls put beside the box sit on the box's line before it, and Enter in the box still sends.</summary>
+    [AvaloniaFact]
+    public void PutBesideBox_PutsTheControlsBeforeTheBox_EnterStillSends()
+    {
+        OpenRow open = Open();
+        try
+        {
+            var first = new Button { Content = "2" };
+            var second = new Button { Content = "3" };
+            open.Row.PutBesideBox([first, second]);
+
+            StackPanel line = Assert.IsType<StackPanel>(open.Row.Refusal.Host.Parent);
+            Assert.Equal(Orientation.Horizontal, line.Orientation);
+            Assert.Equal<Control>([first, second, open.Row.Refusal.Host], line.Children);
+
+            Type(open.Row, "say again");
+            PressEnter(BoxOf(open.Row));
+
+            Assert.Equal(["SAY say again"], open.Sent);
+        }
+        finally
+        {
+            open.Close();
+        }
+    }
+
+    /// <summary>
+    /// A row focusing on click: text it cannot read shows <c>can't send</c> and Enter sends nothing; a click on the row sends
+    /// nothing and leaves the menu open; text it reads sends on Enter and closes the menu.
+    /// </summary>
+    [AvaloniaFact]
+    public void FocusingOnClick_RefusalReadsCantSend_ClickStaysOpen_EnterSends()
+    {
+        List<string> sent = [];
+        var row = InlineBoxRow.CreateFocusingOnClick(
+            Spec,
+            command =>
+            {
+                sent.Add(command);
+                return Task.CompletedTask;
+            }
+        );
+        OpenRow open = OpenItem(row.Item, sent);
+        try
+        {
+            Type(row, "bad");
+            Assert.Equal(InlineBoxRow.CantSend, row.CommandColumn.Text);
+            PressEnter(BoxOf(row));
+            Assert.Empty(sent);
+
+            Type(row, "say again");
+            row.Item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.True(row.Item.StaysOpenOnClick, "A click on a row focusing on click should leave the menu open.");
+            Assert.Empty(sent);
+            Assert.True(open.Menu.IsOpen);
+
+            PressEnter(BoxOf(row));
+
+            Assert.Equal(["SAY say again"], sent);
+            Assert.False(open.Menu.IsOpen, "Enter on a readable text should send and close the menu.");
+        }
+        finally
+        {
+            open.Close();
+        }
     }
 
     private sealed record OpenRow(Window Window, ContextMenu Menu, InlineBoxRow Row, List<string> Sent)

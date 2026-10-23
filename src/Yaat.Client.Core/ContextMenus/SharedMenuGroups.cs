@@ -687,7 +687,7 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The Approach submenu: the approach entries (each opening its verb's approach flyout), the visual approach for an IFR
-    /// aircraft (the Cleared approach flyout opened on its visual row), the in-sight requests, then the Report when… submenu.
+    /// aircraft (the Cleared approach flyout opened on its visual row), the in-sight requests, then the Report when… flyout.
     /// The header names the active approach, else the expected one.
     /// </summary>
     public static MenuItem Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -711,31 +711,7 @@ public static class SharedMenuGroups
         TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
         AddIfApplicable(menu.Items, MenuIds.PatternFollow, aircraft, context, host);
         menu.Items.Add(new Separator());
-        menu.Items.Add(ReportWhen(aircraft, context, host));
-        return menu;
-    }
-
-    /// <summary>The Report when… submenu: the turn and position reports, then the Stop reporting submenu.</summary>
-    private static MenuItem ReportWhen(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        var menu = new MenuItem { Header = "Report when…" };
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportBase, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportFinal, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportCrosswind, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportDownwind, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportNMileFinal, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportAtFix, aircraft, context, host));
-
-        var stop = new MenuItem { Header = "Stop reporting" };
-        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffBase, aircraft, context, host));
-        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffFinal, aircraft, context, host));
-        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffCrosswind, aircraft, context, host));
-        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffDownwind, aircraft, context, host));
-        stop.Items.Add(new Separator());
-        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffAll, aircraft, context, host));
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(stop);
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportWhen, aircraft, context, host));
         return menu;
     }
 

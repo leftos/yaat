@@ -406,6 +406,7 @@ internal static class MenuGoldenFixtures
             new("approach-vfr", AirborneCessna("N305AB", "ApproachNav", AircraftSituation.Approach, new LatLon(37.6500, -122.1000), 2500), null),
             new("holding-vfr", AirborneCessna("N306AB", "HoldingPattern", AircraftSituation.Holding, new LatLon(37.6000, -122.0500), 4000), null),
             new("pattern-vfr", AirborneCessna("N307AB", "Downwind", AircraftSituation.Pattern, new LatLon(37.7100, -122.2000), 1000), null),
+            new("pattern-vfr-armed", ArmedCircuitCessna("N310AB", new LatLon(37.7100, -122.2000)), null),
             new("final-vfr", AirborneCessna("N308AB", "FinalApproach", AircraftSituation.Final, new LatLon(37.7000, -122.1800), 800), null),
             new("go-around-vfr", AirborneCessna("N309AB", "GoAround", AircraftSituation.GoAround, new LatLon(37.7200, -122.2200), 600), null),
         ];
@@ -429,6 +430,18 @@ internal static class MenuGoldenFixtures
             Destination = "KOAK",
             AssignedRunway = "28R",
         };
+
+    /// <summary>
+    /// A C172 on the downwind of a KOAK circuit to 28R at 1,000 ft, its phase sequence holding the circuit, with Turning base and
+    /// a 5-mile final armed: the Report when… flyout's turn rows, armed marks and Stop section.
+    /// </summary>
+    private static AircraftModel ArmedCircuitCessna(string callsign, LatLon position)
+    {
+        AircraftModel aircraft = AirborneCessna(callsign, "Downwind", AircraftSituation.Pattern, position, 1000);
+        aircraft.PhaseSequence = "Downwind > Base > FinalApproach > Landing";
+        aircraft.ArmedReports = new ArmedReportsDto(ArmedReportLegs.Base, 5, null);
+        return aircraft;
+    }
 
     /// <summary>An airborne C172 with no phase, classified by its flight rules alone: KSTS to KOAK.</summary>
     private static AircraftModel VfrCessnaNoPhase(string callsign, AircraftSituation situation, LatLon position, double altitude) =>

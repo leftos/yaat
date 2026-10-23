@@ -22,6 +22,8 @@
 - Squawk opens a flyout led by a code box that refuses an invalid code, and Ask pilot to say… ends in a Custom box.
 - Scratchpad… opens a flyout led by a box holding the present scratchpad, held to the facility's length, then Clear Scratchpad 1 and 2.
 - Warp… opens a flyout of fix, heading, altitude and speed boxes, where heading, altitude and speed are optional; it is offered to airborne aircraft only.
+- Report when… opens one flyout: Stop rows for armed reports, turn reports, mile-final chips, a fix box, and nearby reporting points (VFR) or route fixes (IFR).
+- One Report when… quick command replaces At N-mile final… and At fix… in the default lists, with a dot while a report is armed.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.

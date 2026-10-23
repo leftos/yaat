@@ -2,7 +2,7 @@
 N304AB · C172 [disabled]
 Pattern exit · 1,500 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-strip: [heading.fly, navigation.on-course, altitude.maintain, approach.report-at-fix, pattern.make-left-traffic, pattern.make-right-traffic]
+strip: [heading.fly, navigation.on-course, altitude.maintain, approach.report-when, pattern.make-left-traffic, pattern.make-right-traffic]
 ---
 Command…
 Note…
@@ -63,20 +63,16 @@ All Commands
     Follow traffic… · no other aircraft airborne [disabled]
     ---
     Report when…
-      Turning base
-      Turning final
-      Turning crosswind
-      Turning downwind
-      At N-mile final… picker:input
-      At fix… picker:input
-      ---
-      Stop reporting
-        Base
-        Final
-        Crosswind
-        Downwind
-        ---
-        All reports
+      Report when… · N304AB · RWY 28R [disabled]
+      Mile final — ···
+      Passing a fix — ···
+      Reporting points · nearest first [disabled]
+      VPBCN · 0.3 NM · 318° — REPORT VPBCN
+      VPBDS · 1.2 NM · 001° — REPORT VPBDS
+      VPBEL · 2.2 NM · 205° — REPORT VPBEL
+      VPCOL · 2.6 NM · 061° — REPORT VPCOL
+      OAK30NUM · 2.8 NM · 131° — REPORT OAK30NUM
+      VPBCQ · 3.4 NM · 116° — REPORT VPBCQ
   Procedures
     Join STAR
       join STAR flyout

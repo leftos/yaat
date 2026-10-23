@@ -110,12 +110,20 @@ internal sealed class InlineBoxRow : Grid
     private readonly InlineBoxSpec _spec;
     private readonly Func<InlineBoxRow, string?> _commandToSend;
     private readonly bool _sendsOnClick;
+    private readonly bool _refusalReadsCantSend;
 
-    private InlineBoxRow(InlineBoxSpec spec, Func<InlineBoxRow, string?> commandToSend, bool sendsOnClick, Func<string, Task> send)
+    private InlineBoxRow(
+        InlineBoxSpec spec,
+        Func<InlineBoxRow, string?> commandToSend,
+        bool sendsOnClick,
+        bool refusalReadsCantSend,
+        Func<string, Task> send
+    )
     {
         _spec = spec;
         _commandToSend = commandToSend;
         _sendsOnClick = sendsOnClick;
+        _refusalReadsCantSend = refusalReadsCantSend;
         ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
         Control? glyphCell =
             (spec.Glyph is { } glyph) ? QuickCommandStrip.GlyphIcon(glyph) : (spec.BlankGlyphSlot ? QuickCommandStrip.GlyphSlot() : null);
@@ -226,7 +234,7 @@ internal sealed class InlineBoxRow : Grid
         Reading switch
         {
             { Command: { } command } => command,
-            { Refusal: not null } => _sendsOnClick ? CantSend : RefusedMark,
+            { Refusal: not null } => _refusalReadsCantSend ? CantSend : RefusedMark,
             { LeftOut: true } => LeftOutMark,
             _ => (_spec.Verb.Length > 0) ? $"{_spec.Verb} {TakeoffFlyout.Unfilled}" : TakeoffFlyout.Unfilled,
         };
@@ -244,7 +252,14 @@ internal sealed class InlineBoxRow : Grid
     /// cannot send. Enter in the box, or a click on the row, hands the row's command to <paramref name="send"/> and closes the
     /// menu; while the row cannot send, both do nothing.
     /// </summary>
-    public static InlineBoxRow Create(InlineBoxSpec spec, Func<string, Task> send) => new(spec, row => row.Command, true, send);
+    public static InlineBoxRow Create(InlineBoxSpec spec, Func<string, Task> send) => new(spec, row => row.Command, true, true, send);
+
+    /// <summary>
+    /// A row for <paramref name="spec"/> that sends its own command on Enter, handing it to <paramref name="send"/> and closing the
+    /// menu, and does nothing while it cannot send; a click on the row never sends: it focuses the row's box, the menu staying
+    /// open. Text it cannot send reads <see cref="CantSend"/> in the command column, as a <see cref="Create"/> row's does.
+    /// </summary>
+    public static InlineBoxRow CreateFocusingOnClick(InlineBoxSpec spec, Func<string, Task> send) => new(spec, row => row.Command, false, true, send);
 
     /// <summary>
     /// A row for <paramref name="spec"/> that is one field of a larger command: its command column shows what its box puts in
@@ -254,7 +269,7 @@ internal sealed class InlineBoxRow : Grid
     /// changes the whole command or what this row's box reads as.
     /// </summary>
     public static InlineBoxRow CreateSendingAll(InlineBoxSpec spec, Func<string?> wholeCommand, Func<string, Task> send) =>
-        new(spec, _ => wholeCommand(), false, send);
+        new(spec, _ => wholeCommand(), false, false, send);
 
     /// <summary>Brings the row up to date with the fields beside it: re-reads its box, whose reading may hang on them, and what it sends.</summary>
     public void RefollowSend()
@@ -278,6 +293,25 @@ internal sealed class InlineBoxRow : Grid
             },
             DispatcherPriority.Loaded
         );
+
+    /// <summary>
+    /// Puts <paramref name="controls"/> on the box's own line, in order, before the box: the Report when… flyout's mile chips
+    /// beside its miles box.
+    /// </summary>
+    public void PutBesideBox(IReadOnlyList<Control> controls)
+    {
+        if (Refusal.Host.Parent is not StackPanel name)
+        {
+            throw new InvalidOperationException($"The box row '{_spec.Label}' holds its box in no label stack; it is beside other controls already.");
+        }
+
+        int index = name.Children.IndexOf(Refusal.Host);
+        name.Children.RemoveAt(index);
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        line.Children.AddRange(controls);
+        line.Children.Add(Refusal.Host);
+        name.Children.Insert(index, line);
+    }
 
     private TextBox? EntryBox() => (Input as TextBox) ?? Input.GetVisualDescendants().OfType<TextBox>().FirstOrDefault();
 

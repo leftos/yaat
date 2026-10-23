@@ -33,7 +33,7 @@ public class QuickCommandResolverTests
         MenuIds.ProceduresDepartFix,
         MenuIds.ProceduresJoinAirway,
         MenuIds.ProceduresCrossFix,
-        MenuIds.ApproachReportAtFix,
+        MenuIds.ApproachReportWhen,
         MenuIds.ApproachReportFieldInSight,
         MenuIds.HoldPattern,
     ];

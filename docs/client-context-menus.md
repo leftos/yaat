@@ -51,7 +51,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   After a separator come Clear Scratchpad 1 and Clear Scratchpad 2 (bare `SP1` and `SP2`), each shown only while its slot holds a value, since a bare clear on an empty slot restores the previous value; with neither shown, there is no separator.
 
-  The Say flyout (`SharedMenuGroups.AskPilotFlyout`, All Commands' Ask pilot to say… and its Custom… entry alike) lists the six queries, a separator and the Custom box (`MenuCatalog.SayCustomRow`, verb `SAY`, box `SayCustomBox`), focused as it opens, from a submenu or a strip button; blank sends nothing. The text popup (`IMenuHost.ShowInputPopup`: placeholder, seeded text, caret and callback, trimmed, a blank submit closes) is left to Custom taxi and to the `InputLeaf` entries (At N-mile final…, At fix…).
+  The Say flyout (`SharedMenuGroups.AskPilotFlyout`, All Commands' Ask pilot to say… and its Custom… entry alike) lists the six queries, a separator and the Custom box (`MenuCatalog.SayCustomRow`, verb `SAY`, box `SayCustomBox`), focused as it opens, from a submenu or a strip button; blank sends nothing. The text popup (`IMenuHost.ShowInputPopup`: placeholder, seeded text, caret and callback, trimmed, a blank submit closes) is left to Custom taxi on the point menu, the one menu item that still opens it.
 
   A click on a box row or a box itself must not close the menu: `QuickCommandStrip.CloseOnChoice` skips a click already handled and an item marked `StaysOpenOnClick`.
 
@@ -282,6 +282,16 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   With no resolvable destination the All Commands entry is disabled as `Report field in sight… · no destination field` and the strip's button is faded and inert. Tests: `tests/Yaat.Client.UI.Tests/Views/FieldAdvisoryFlyoutTests.cs`.
 
+- **Report when… flyout.** `ReportWhenFlyout.Build` (All Commands › Approach and the strip alike) is one flyout in place of the old Report when… submenu, its Stop reporting submenu and the `approach.report-base`, `-final`, `-crosswind`, `-downwind` and `-off-*` entries, whose ids a saved quick list drops with a logged warning. `MenuIds.ApproachReportWhen` opens it on the miles box (the fix box with no assigned runway); the aliases At N-mile final… (`ApproachReportNMileFinal`) and At fix… (`ApproachReportAtFix`) open the same flyout on the miles box and the fix box (`ReportWhenFocus`).
+
+  While `IMenuAircraft.ArmedReports` holds anything, the flyout opens with the Stop reporting group: a row per armed report (Turning base sends `REPORT OFF BASE`, Midfield downwind `REPORT OFF MIDFIELD`, `{n}-mile final` `REPORT OFF {n} FINAL`, `Passing {FIX}` `REPORT OFF {FIX}`) and All reports (`REPORT OFF`), and the entry's strip button carries a small teal dot (`QuickCommandStrip.MarkArmed`, read by `ShowsArmedDot`).
+
+  Then the title line `Report when… · {callsign} · RWY {rwy}`; in a pattern circuit only (`AircraftCommandApplicability.IsInPatternCircuit`) the five turn rows (Turning crosswind, Turning downwind, Midfield downwind, Turning base, Turning final), an armed one badged `armed`; with an assigned runway only the Mile final row, chips 2, 3, 5 and 10 sending at once beside the miles box (`ReportMilesBox`, `InlineBoxRow.PutBesideBox`); and the Passing a fix box (`ReportFixBox`) with suggestions from `IMenuHost.SuggestFixes`.
+
+  Both boxes are `InlineBoxRow.CreateFocusingOnClick` rows: Enter sends, a click only focuses the box, and a refused box reads `can't send`. The miles box refuses `Whole miles only` and `1 mile or more` and reads `Pilot: will report {n}-mile final`; the fix box refuses `Not a fix name` and `Not a known fix` (not while a suggested name is being typed) and reads `Pilot: will report passing {FIX}`.
+
+  Last come the points, up to six, each `{NAME} · {d.d} NM · {bbb}°` (magnetic bearing) and sending `REPORT {NAME}` on a click: an IFR aircraft's group `Route fixes · in order` (the programmed route from the next fix), any other aircraft's `Reporting points · nearest first` (`IMenuHost.GetReportingPointsNearby`, visual points within 10 NM). Rows the sim would refuse are left out. Tests: `tests/Yaat.Client.UI.Tests/Views/ReportWhenFlyoutTests.cs`.
+
 ## Quick commands by situation
 
 The default list of each situation, most frequent first (`QuickCommandDefaults`); *(IFR)* and *(VFR)* mark a per-entry flight-rules override and *(helicopter)* an entry only a helicopter is offered (see [When a quick command shows](#when-a-quick-command-shows)). An aircraft whose situation is Unknown shows no quick commands and no strip. A list names catalog actions only, never a view's display item.
@@ -307,8 +317,8 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | Rollout / exit | Exit left ▸, Exit right ▸, Air taxi ▸ *(helicopter, once settled)*, Cross, Draw taxi route… |
 | Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, Report field in sight… *(IFR)*, Cleared visual *(IFR)*, *(VFR)* Enter left / right downwind, Land ▸ *(helicopter)* |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic…, Land ▸ *(helicopter)* |
-| VFR departure | Fly heading ▸, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic, Land ▸ *(helicopter)* |
+| VFR arrival, inbound | Enter left / right downwind, Enter left / right base, Make straight-in, Report when…, Cleared to land, Follow traffic…, Land ▸ *(helicopter)* |
+| VFR departure | Fly heading ▸, Proceed on course, Maintain altitude, Report when…, Make left / right closed traffic, Land ▸ *(helicopter)* |
 
 Every list but Live traffic's opens with **Squawk assigned code** (bare `SQ`), and every ground list (At parking through Lined up, and Rollout / exit) opens with **Squawk normal** (`SQNORM`) before it. Neither is repeated in the table: each shows only while the transponder needs it (see [When a quick command shows](#when-a-quick-command-shows)).
 

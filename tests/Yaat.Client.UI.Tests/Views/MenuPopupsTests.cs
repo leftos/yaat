@@ -274,32 +274,6 @@ public class MenuPopupsTests
         Assert.Equal("LT 270", got);
     }
 
-    // --- The list's own menu anchors its popups on the grid -----------------------------------
-
-    /// <summary>
-    /// The aircraft list's menu, built through <see cref="DataGridView.BuildAircraftMenu"/>, opens its input popups on
-    /// the DataGrid the right-click came from, so Data Block › Scratchpad… places its popup there.
-    /// </summary>
-    [AvaloniaFact]
-    public void DataGridMenu_InputPopup_OpensOnTheGrid()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        AircraftModel ac = AirborneJet();
-        main.Aircraft.Add(ac);
-
-        var grid = new DataGrid();
-        new Window { Content = grid }.ShowAndRunLayout();
-
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, grid, ac, null, [ac]);
-        MenuItem reportWhen = Submenu(Submenu(Submenu(menu.Items, AircraftMenuBuilder.AllCommandsHeader).Items, "Approach").Items, "Report when…");
-        Click(Submenu(reportWhen.Items, "At fix…"));
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(grid);
-        Assert.True(popup.IsOpen, "Clicking Report when… › At fix… should open the list's input popup.");
-        Assert.Same(grid, popup.PlacementTarget);
-    }
-
     // --- Fixtures -----------------------------------------------------------------------------
 
     private static AircraftModel TaxiingJet() =>
@@ -312,19 +286,6 @@ public class MenuPopupsTests
             CurrentPhase = "Taxiing",
             AssignedRunway = "30",
         };
-
-    private static AircraftModel AirborneJet() =>
-        new()
-        {
-            Callsign = Callsign,
-            AircraftType = "B738",
-            FlightRules = "IFR",
-            IsOnGround = false,
-            Altitude = 5000,
-        };
-
-    /// <summary>The menu item headed <paramref name="header"/> among <paramref name="items"/>.</summary>
-    private static MenuItem Submenu(ItemCollection items, string header) => items.OfType<MenuItem>().Single(m => (m.Header as string) == header);
 
     private static (Window window, Control anchor) ShowAnchorWindow()
     {
@@ -361,8 +322,6 @@ public class MenuPopupsTests
         Assert.NotNull(button);
         return button!;
     }
-
-    private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
     private static void RaiseKey(Control control, Key key) =>
         control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });

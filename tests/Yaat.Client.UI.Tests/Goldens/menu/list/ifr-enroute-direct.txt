@@ -65,20 +65,11 @@ All Commands
     Report traffic in sight… · no other aircraft airborne [disabled]
     ---
     Report when…
-      Turning base
-      Turning final
-      Turning crosswind
-      Turning downwind
-      At N-mile final… picker:input
-      At fix… picker:input
-      ---
-      Stop reporting
-        Base
-        Final
-        Crosswind
-        Downwind
-        ---
-        All reports
+      Report when… · AAL209 [disabled]
+      Passing a fix — ···
+      Route fixes · in order [disabled]
+      SUNOL · 8.2 NM · 308° — REPORT SUNOL
+      ALTAM · 18.9 NM · 341° — REPORT ALTAM
   Procedures
     Join STAR
       join STAR flyout

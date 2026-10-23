@@ -1,0 +1,230 @@
+# ground pattern-vfr-armed
+N310AB · C172 [disabled]
+Downwind · 1,000 ft · 90 kt · KOAK rwy 28R [disabled]
+---
+strip: [tower.cleared-to-land, tower.cleared-option, tower.touch-and-go, pattern.follow, pattern.extend, pattern.short-approach, pattern.left-360, pattern.right-360, pattern.turn-base, tower.go-around]
+---
+Command…
+Note…
+All Commands
+  Heading
+    Present heading
+    Fly heading
+      heading flyout
+    Turn left
+      heading flyout
+    Turn right
+      heading flyout
+    Turn left (degrees)
+      heading flyout
+    Turn right (degrees)
+      heading flyout
+  Altitude
+    Maintain altitude
+      maintain altitude flyout
+  Speed
+    Assign speed
+      speed flyout
+    Speed…
+      speed flyout
+    Resume normal speed
+    Reduce to final approach speed
+  Navigation
+    Direct to…
+      direct to flyout
+  Hold
+    Hold present position (left)
+    Hold present position (right)
+    Left 360s at fix…
+      360s at fix flyout
+    Right 360s at fix…
+      360s at fix flyout
+  Approach
+    Cleared approach
+      approach flyout, built when it opens
+    Join approach
+      approach flyout, built when it opens
+    Cleared straight-in
+      approach flyout, built when it opens
+    Join straight-in
+      approach flyout, built when it opens
+    Cleared approach (force)
+      approach flyout, built when it opens
+    Join approach (force)
+      approach flyout, built when it opens
+    Join final approach course
+      approach flyout, built when it opens
+    Expect approach
+      approach flyout, built when it opens
+    ---
+    Report field in sight…
+      report field in sight flyout
+    Report traffic in sight… · no other aircraft airborne [disabled]
+    Follow traffic… · no other aircraft airborne [disabled]
+    ---
+    Report when…
+      Stop reporting [disabled]
+      Turning base — REPORT OFF BASE
+      5-mile final — REPORT OFF 5 FINAL
+      All reports — REPORT OFF
+      ---
+      Report when… · N310AB · RWY 28R [disabled]
+      Turning · repeats each circuit until stopped [disabled]
+      Turning crosswind — REPORT CROSSWIND
+      Turning downwind — REPORT DOWNWIND
+      Midfield downwind — REPORT MIDFIELD
+      Turning base [armed] — REPORT BASE
+      Turning final — REPORT FINAL
+      ---
+      Mile final · replaces the armed 5-mile final — ···
+      Passing a fix — ···
+      Reporting points · nearest first [disabled]
+      VPBCQ · 0.4 NM · 125° — REPORT VPBCQ
+      OAK30NUM · 0.9 NM · 224° — REPORT OAK30NUM
+      VPCOL · 2.5 NM · 350° — REPORT VPCOL
+      VPBCR · 2.7 NM · 159° — REPORT VPBCR
+      VPBEH · 2.9 NM · 205° — REPORT VPBEH
+      VPBCN · 3.3 NM · 297° — REPORT VPBCN
+  Procedures
+    Join STAR
+      join STAR flyout
+    Climb via SID
+    Cross fix…
+      cross fix flyout
+    Depart fix…
+      depart fix flyout
+    PTAC…
+      ptac flyout
+    Join airway…
+      join airway flyout
+    Join radial outbound…
+      join radial flyout
+    Join radial inbound…
+      join radial flyout
+  Tower
+    Cleared to land 28R
+    Force landing 28R
+    Cleared for the option 28R
+    Touch and go 28R
+    Stop and go 28R
+    Low approach 28R
+    Go around 28R
+  Pattern
+    Enter left downwind
+      Runway 10L — ELD 10L
+      Runway 10R — ELD 10R
+      Runway 12 — ELD 12
+      Runway 15 — ELD 15
+      Runway 28L — ELD 28L
+      Runway 28R — ELD 28R
+      Runway 30 — ELD 30
+      Runway 33 — ELD 33
+    Enter right downwind
+      Runway 10L — ERD 10L
+      Runway 10R — ERD 10R
+      Runway 12 — ERD 12
+      Runway 15 — ERD 15
+      Runway 28L — ERD 28L
+      Runway 28R — ERD 28R
+      Runway 30 — ERD 30
+      Runway 33 — ERD 33
+    Enter left base
+      Runway 10L — ELB 10L
+      Runway 10R — ELB 10R
+      Runway 12 — ELB 12
+      Runway 15 — ELB 15
+      Runway 28L — ELB 28L
+      Runway 28R — ELB 28R
+      Runway 30 — ELB 30
+      Runway 33 — ELB 33
+    Enter right base
+      Runway 10L — ERB 10L
+      Runway 10R — ERB 10R
+      Runway 12 — ERB 12
+      Runway 15 — ERB 15
+      Runway 28L — ERB 28L
+      Runway 28R — ERB 28R
+      Runway 30 — ERB 30
+      Runway 33 — ERB 33
+    Make straight-in
+      Runway 10L — EF 10L
+      Runway 10R — EF 10R
+      Runway 12 — EF 12
+      Runway 15 — EF 15
+      Runway 28L — EF 28L
+      Runway 28R — EF 28R
+      Runway 30 — EF 30
+      Runway 33 — EF 33
+    ---
+    Turn base
+    ---
+    Extend pattern leg
+    Make short approach
+    Make normal approach
+    ---
+    Make left 360
+    Make right 360
+    Make left 270
+    Make right 270
+    Plan 270 at next turn
+    Cancel 270
+    ---
+    Circle airport
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom — SAY ···
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+    Warp · N310AB · now 267° · 1,000 ft · 90 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad…
+    Scratchpad — SP ···
+  Temporary altitude…
+    temporary altitude flyout
+  Cruise…
+    cruise flyout
+  Annotate
+Squawk
+  Code — SQ ···
+  ---
+  Squawk assigned code
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from N310AB
+---
+Delete

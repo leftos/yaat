@@ -63,20 +63,16 @@ All Commands
     Follow traffic… · no other aircraft airborne [disabled]
     ---
     Report when…
-      Turning base
-      Turning final
-      Turning crosswind
-      Turning downwind
-      At N-mile final… picker:input
-      At fix… picker:input
-      ---
-      Stop reporting
-        Base
-        Final
-        Crosswind
-        Downwind
-        ---
-        All reports
+      Report when… · N309AB · RWY 28R [disabled]
+      Mile final — ···
+      Passing a fix — ···
+      Reporting points · nearest first [disabled]
+      OAK30NUM · 1.1 NM · 155° — REPORT OAK30NUM
+      VPBCQ · 1.5 NM · 114° — REPORT VPBCQ
+      VPBCN · 2.2 NM · 300° — REPORT VPBCN
+      VPCOL · 2.2 NM · 016° — REPORT VPCOL
+      VPBDS · 2.6 NM · 321° — REPORT VPBDS
+      VPBEL · 2.8 NM · 246° — REPORT VPBEL
   Procedures
     Join STAR
       join STAR flyout

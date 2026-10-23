@@ -115,6 +115,10 @@ public static class QuickCommandGlyphs
             [MenuIds.TowerExitRight] = Tower("M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4"),
             [MenuIds.ApproachReportTrafficInSight] = Tower("M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"),
             [MenuIds.ApproachReportFieldInSight] = Tower("M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"),
+            [MenuIds.ApproachReportWhen] = Tower(
+                "M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0"
+                    + " M7 11h10a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-6l-3.5 3v-3H7a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2z M9 14.5h6"
+            ),
             [MenuIds.ApproachReportNMileFinal] = Tower("M7 21l3-10h4l3 10 M12 14v1.5 M12 18v1.5 M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0"),
             [MenuIds.ApproachReportAtFix] = Tower("M12 10l6 11H6z M8.5 7a5 5 0 0 1 7 0 M5.5 4a9 9 0 0 1 13 0"),
             [MenuIds.GroundPushback] = Ground("M12 3v12 M8 11l4 4 4-4 M6 20h12"),

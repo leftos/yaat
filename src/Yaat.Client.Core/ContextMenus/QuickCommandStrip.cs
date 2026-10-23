@@ -90,6 +90,13 @@ public static class QuickCommandStrip
     private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
     private static readonly ConditionalWeakTable<MenuItem, IStripFlyoutContent> FlyoutContents = [];
     private static readonly ConditionalWeakTable<MenuItem, string> InertLabels = [];
+    private static readonly ConditionalWeakTable<MenuItem, object> ArmedEntries = [];
+
+    /// <summary>The value <see cref="ArmedEntries"/> holds for a marked entry: only its presence is read.</summary>
+    private static readonly object ArmedMarker = new();
+
+    /// <summary>The style class the armed dot carries, by which <see cref="ShowsArmedDot"/> knows it.</summary>
+    private const string ArmedDotClass = "armed-dot";
 
     /// <summary>
     /// The strip for <paramref name="items"/>, in order, or null when there are none or none of them builds a menu item
@@ -351,9 +358,15 @@ public static class QuickCommandStrip
         InertLabels.TryGetValue(built, out string? inertLabel);
         bool opensSubmenu = (inertLabel is null) && (built.Items.Count > 0);
         StripLabelText text = (inertLabel is null) ? LabelText(item.Entry, built) : new(inertLabel, null);
+        Grid cell = GlyphCell(item.Glyph, opensSubmenu);
+        if (ArmedEntries.TryGetValue(built, out _))
+        {
+            cell.Children.Add(ArmedDot());
+        }
+
         var button = new Button
         {
-            Content = GlyphCell(item.Glyph, opensSubmenu),
+            Content = cell,
             Padding = new Thickness(0),
             Tag = item.Entry.Id,
             Classes = { ButtonClass },
@@ -455,6 +468,42 @@ public static class QuickCommandStrip
     /// <param name="entry">The item a catalog entry built that has nothing to offer now.</param>
     /// <param name="label">The label naming the entry and why it offers nothing.</param>
     public static void MarkInert(MenuItem entry, string label) => InertLabels.AddOrUpdate(entry, label);
+
+    /// <summary>
+    /// Has the strip button standing for <paramref name="entry"/> carry the armed dot, a small teal disc in its upper right
+    /// ringed in the well colour: a report the entry's flyout offers is armed.
+    /// </summary>
+    /// <param name="entry">The item a catalog entry built.</param>
+    public static void MarkArmed(MenuItem entry) => ArmedEntries.AddOrUpdate(entry, ArmedMarker);
+
+    /// <summary>Whether <paramref name="button"/>, a strip button, carries the armed dot (<see cref="MarkArmed"/>).</summary>
+    /// <param name="button">A strip button.</param>
+    public static bool ShowsArmedDot(Button button) =>
+        (button.Content is Grid cell) && cell.Children.OfType<Ellipse>().Any(dot => dot.Classes.Contains(ArmedDotClass));
+
+    /// <summary>
+    /// The armed dot on a 40 px cell: a teal disc centred at (34, 6), 8 px across its 1.6 px ring in the well colour, which an
+    /// ellipse draws inside its bounds.
+    /// </summary>
+    private static Ellipse ArmedDot()
+    {
+        const double diameter = 8;
+        const double inset = 6 - (diameter / 2);
+        var dot = new Ellipse
+        {
+            Width = diameter,
+            Height = diameter,
+            Fill = ReportWhenFlyout.ArmedBrush,
+            Stroke = WellBrush,
+            StrokeThickness = 1.6,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, inset, inset, 0),
+            IsHitTestVisible = false,
+        };
+        dot.Classes.Add(ArmedDotClass);
+        return dot;
+    }
 
     /// <summary>Whether <paramref name="entry"/> was marked inert (<see cref="MarkInert"/>), so its strip button stays, faded.</summary>
     /// <param name="entry">The item a catalog entry built.</param>

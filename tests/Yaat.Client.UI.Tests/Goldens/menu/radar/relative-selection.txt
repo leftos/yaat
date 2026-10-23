@@ -69,20 +69,9 @@ All Commands
       report traffic in sight flyout
     ---
     Report when…
-      Turning base
-      Turning final
-      Turning crosswind
-      Turning downwind
-      At N-mile final… picker:input
-      At fix… picker:input
-      ---
-      Stop reporting
-        Base
-        Final
-        Crosswind
-        Downwind
-        ---
-        All reports
+      Report when… · AAL601 · RWY 30 [disabled]
+      Mile final — ···
+      Passing a fix — ···
   Procedures
     Join STAR
       join STAR flyout

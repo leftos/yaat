@@ -63,7 +63,7 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public string AssignedRunway { get; init; } = "";
 
-    public string PhaseSequence => "";
+    public string PhaseSequence { get; init; } = "";
 
     public string LandingClearance => "";
 
@@ -154,7 +154,7 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public IReadOnlyList<ExitAheadDto>? ExitsAhead { get; init; }
 
-    public ArmedReportsDto? ArmedReports { get; set; }
+    public ArmedReportsDto? ArmedReports { get; init; }
 
     public IReadOnlyList<GroundMeetPointDto>? MeetPoints { get; init; }
 

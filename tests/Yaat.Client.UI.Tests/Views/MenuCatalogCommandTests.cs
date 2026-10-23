@@ -86,17 +86,6 @@ public class MenuCatalogCommandTests
         (MenuIds.SpeedFinalApproach, "", "RFAS"),
         (MenuIds.HoldPresentLeft, "", "HPPL"),
         (MenuIds.HoldPresentRight, "", "HPPR"),
-        (MenuIds.ApproachReportBase, "", "REPORT BASE"),
-        (MenuIds.ApproachReportFinal, "", "REPORT FINAL"),
-        (MenuIds.ApproachReportCrosswind, "", "REPORT CROSSWIND"),
-        (MenuIds.ApproachReportDownwind, "", "REPORT DOWNWIND"),
-        (MenuIds.ApproachReportNMileFinal, "5", "REPORT 5 FINAL"),
-        (MenuIds.ApproachReportAtFix, Fix, "REPORT SUNOL"),
-        (MenuIds.ApproachReportOffBase, "", "REPORT OFF BASE"),
-        (MenuIds.ApproachReportOffFinal, "", "REPORT OFF FINAL"),
-        (MenuIds.ApproachReportOffCrosswind, "", "REPORT OFF CROSSWIND"),
-        (MenuIds.ApproachReportOffDownwind, "", "REPORT OFF DOWNWIND"),
-        (MenuIds.ApproachReportOffAll, "", "REPORT OFF"),
         (MenuIds.ProceduresClimbViaSid, "", "CVIA"),
         (MenuIds.ProceduresDescendViaStar, "", "DVIA"),
         (MenuIds.TowerLineUpAndWait, "", "LUAW"),
@@ -220,6 +209,11 @@ public class MenuCatalogCommandTests
         MenuIds.PatternFollow,
         // Report field in sight… opens the field advisory flyout over the destination field; FieldAdvisoryFlyoutTests clicks it.
         MenuIds.ApproachReportFieldInSight,
+        // Report when… and its aliases At N-mile final… and At fix… open the Report when… flyout; ReportWhenFlyoutTests clicks its
+        // rows, chips and boxes.
+        MenuIds.ApproachReportWhen,
+        MenuIds.ApproachReportNMileFinal,
+        MenuIds.ApproachReportAtFix,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
         // Squawk… and Ask pilot to say › Custom… open the Squawk and Say flyouts; the Squawk and Say tests below type in their box rows.
@@ -2208,46 +2202,6 @@ public class MenuCatalogCommandTests
 
         AssertUnavailable(item, "Cleared visual approach", "no destination");
         Assert.Empty(host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void ReportWhen_LeavesSendTheirCommands()
-    {
-        var host = new RecordingMenuHost("5");
-        MenuItem reportWhen = Assert.Single(
-            SharedMenuGroups.Approach(null, Context(), host).Items.OfType<MenuItem>(),
-            i => (i.Header as string) == "Report when…"
-        );
-        MenuItem stop = Assert.IsType<MenuItem>(reportWhen.Items[^1]);
-
-        Assert.Equal(
-            ["Turning base", "Turning final", "Turning crosswind", "Turning downwind", "At N-mile final…", "At fix…", "---", "Stop reporting"],
-            reportWhen.Items.Select(Describe)
-        );
-        Assert.Equal(["Base", "Final", "Crosswind", "Downwind", "---", "All reports"], stop.Items.Select(Describe));
-
-        foreach (MenuItem item in reportWhen.Items.OfType<MenuItem>().Where(i => i != stop).Concat(stop.Items.OfType<MenuItem>()))
-        {
-            Click(item);
-        }
-
-        Assert.Equal(["Distance (NM)", "Fix name"], host.InputPlaceholders);
-        Assert.Equal(
-            [
-                "REPORT BASE",
-                "REPORT FINAL",
-                "REPORT CROSSWIND",
-                "REPORT DOWNWIND",
-                "REPORT 5 FINAL",
-                "REPORT 5",
-                "REPORT OFF BASE",
-                "REPORT OFF FINAL",
-                "REPORT OFF CROSSWIND",
-                "REPORT OFF DOWNWIND",
-                "REPORT OFF",
-            ],
-            host.Sent.Select(s => s.Command)
-        );
     }
 
     /// <summary>

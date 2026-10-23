@@ -62,20 +62,8 @@ All Commands
     Report traffic in sight… · no other aircraft airborne [disabled]
     ---
     Report when…
-      Turning base
-      Turning final
-      Turning crosswind
-      Turning downwind
-      At N-mile final… picker:input
-      At fix… picker:input
-      ---
-      Stop reporting
-        Base
-        Final
-        Crosswind
-        Downwind
-        ---
-        All reports
+      Report when… · AAL203 [disabled]
+      Passing a fix — ···
   Procedures
     Join STAR
       join STAR flyout

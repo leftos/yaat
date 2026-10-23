@@ -358,8 +358,8 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | Rollout / exit | Exit left, Exit right, Air taxi (helicopter, once settled), Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
 | Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
 | Live traffic | Assume control, Assume and track |
-| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, At N-mile final…, At fix…, Cleared to land, Follow traffic…, Land (helicopter) |
-| VFR departure | Fly heading, Proceed on course, Maintain altitude, At fix…, Make left / right closed traffic, Land (helicopter) |
+| VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, Report when…, Cleared to land, Follow traffic…, Land (helicopter) |
+| VFR departure | Fly heading, Proceed on course, Maintain altitude, Report when…, Make left / right closed traffic, Land (helicopter) |
 
 **Squawk shortcuts.** Two squawk commands lead a list when they apply, and are not repeated in the table. **Squawk normal** (`SQNORM`, a transponder box with a check mark) leads the ground lists (At parking through Lined up, and Rollout / exit) while the aircraft sits on the ground with its transponder in standby. **Squawk assigned code** (`SQ`, a box with a return arrow) leads every list except Live traffic whenever the datablock flags a [squawk mismatch](#squawk-beacon-code-mismatch). The same two commands are in the Squawk submenu (Squawk assigned code follows Squawk…) and under All Commands, and can be added to any situation in Settings › Quick commands.
 
@@ -400,6 +400,15 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
   The box starts with the true clock and miles, which follow the aircraft until you edit the box or the dial or stepper, or send. In solo training with **Pre-fill traffic advisories** set to **Left for the student** the box starts empty.
 
   The field's row at the bottom reads `● KOAK · Oakland San Francisco Bay · destination` and, live, the clock, miles and the runways (the room's arrival runways, else every runway) or `find it on the scope`. Enter sends; a refusal keeps the flyout open with the sim's reply and your values, and an incomplete advisory sends nothing. There is no radar cue.
+- **Report when…** (the strip icon, a speech bubble with radio arcs over it, and All Commands › Approach) opens one flyout for every `REPORT`. The quick commands **At N-mile final…** and **At fix…** open the same flyout on their own box. The icon carries a small teal dot while any report is armed.
+
+  While a report is armed, the flyout starts with **Stop reporting**: a row per armed report (Turning base, Midfield downwind, `{n}-mile final`, `Passing {FIX}`), each cancelling just that report (`REPORT OFF BASE`, `REPORT OFF MIDFIELD`, `REPORT OFF {n} FINAL`, `REPORT OFF {FIX}`), and **All reports** (`REPORT OFF`).
+
+  The title line reads `Report when… · {callsign} · RWY {rwy}`. For an aircraft in a pattern circuit, rows for Turning crosswind, Turning downwind, Midfield downwind, Turning base and Turning final follow, an armed one badged `armed`. With an assigned runway, **Mile final** has chips 2, 3, 5 and 10 that send at once, and a miles box. **Passing a fix** has a fix box with suggestions.
+
+  The miles box refuses `Whole miles only` and `1 mile or more` and reads `Pilot: will report {n}-mile final`. The fix box refuses `Not a fix name` and `Not a known fix` (not while you are typing a suggested name) and reads `Pilot: will report passing {FIX}`. A refused box reads `can't send`; Enter in a box sends, and a click on its row only focuses the box.
+
+  The last group lists up to 6 points, each as `{NAME} · {d.d} NM · {bbb}°` (magnetic bearing), and a click sends `REPORT {NAME}`: **Reporting points · nearest first** (visual points within 10 NM) for a VFR aircraft, **Route fixes · in order** (the programmed route from the next fix) for an IFR one.
 - **Cleared to land** hides on final once the aircraft is cleared to land.
 - **Cleared visual** is offered to IFR aircraft only (it is hidden, not greyed, for a VFR one) and opens the Cleared approach flyout on the default runway's tab, showing its visual rows; no row has the focus until the aircraft reports the field in sight. It shows only after an IFR aircraft reports the field or the preceding traffic in sight. It defaults to the assigned runway, else the runway of the active or expected approach, even when that approach is written in shorthand (an expected `R28L` at KOAK gives runway 28L and sends `CVA 28L`; an expected visual, `VIS28R` from `EAPP VIS28R`, gives "Cleared visual approach 28R"). Typing `CVA <airport>` without a runway clears a visual to an untowered field and the pilot picks the runway (most headwind within the tailwind limit, else the end aligned with its track); at a towered field it is refused unless a visual is expected (`EAPP VIS28R`), which a bare `CVA` then clears.
 - **Fly heading** (the strip icon, and All Commands › Heading › Fly heading, Turn left, Turn right, Turn left (degrees) and Turn right (degrees)) opens one flyout beside the menu, titled `Fly heading · now 270`. Turn left and Turn right open it with the toggle on that verb; the two degree entries open on Fly heading with focus on their side's 30° chip. **Present heading** stays a plain entry under All Commands › Heading.
@@ -438,7 +447,7 @@ The Data Block group's Scratchpad… opens a flyout with a Scratchpad box, `SP` 
 
 After a separator, Clear Scratchpad 1 and Clear Scratchpad 2 clear that slot; each shows only while its slot holds a value, and with neither there is no separator.
 
-The Ask pilot to say… flyout lists the six queries, a separator and a Custom box with `SAY` drawn inside it, focused as the flyout opens; a blank box sends nothing. Custom taxi… and the At N-mile final… / At fix… report entries still open a text popup, where Enter or OK sends once: a second press while the send is still under way does nothing.
+The Ask pilot to say… flyout lists the six queries, a separator and a Custom box with `SAY` drawn inside it, focused as the flyout opens; a blank box sends nothing. Custom taxi… on the point menu is the one entry that still opens a text popup, where Enter or OK sends once: a second press while the send is still under way does nothing.
 
 The altitude boxes (Maintain altitude, Temporary altitude… and Cruise…) take `050`, `230`, `23000`, `FL230`, `fl 230`, `5,000` and above-ground altitudes such as `KOAK+010`. An altitude above FL999, `FL` with four or more digits, a malformed thousands group such as `2,30`, or an above-ground altitude while the navigation data is not loaded is not read: the box shows `CM ···` faded in Maintain altitude and `Not a valid altitude` in the other two.
 

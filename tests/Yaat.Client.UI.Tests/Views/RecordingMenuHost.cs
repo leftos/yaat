@@ -180,8 +180,11 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         }
     }
 
-    /// <summary>The host places no fix.</summary>
-    public LatLon? GetFixPosition(string name) => null;
+    /// <summary>The fixes the host places, by name, case ignored; none by default.</summary>
+    public Dictionary<string, LatLon> FixPositions { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The fix's position from <see cref="FixPositions"/>; null for a fix not listed.</summary>
+    public LatLon? GetFixPosition(string name) => FixPositions.TryGetValue(name, out LatLon position) ? position : null;
 
     /// <summary>The reporting points every position is answered with; none by default.</summary>
     public List<string> ReportingPoints { get; } = [];

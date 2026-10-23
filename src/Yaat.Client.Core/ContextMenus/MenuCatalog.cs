@@ -171,17 +171,9 @@ public static class MenuCatalog
             "Report traffic in sight…",
             (label, ac, context, host) => AirborneTrafficFlyout.BuildReportInSight(label, ac, context, host)
         ),
-        Leaf(MenuIds.ApproachReportBase, "Turning base", "REPORT BASE", Always),
-        Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
-        Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
-        Leaf(MenuIds.ApproachReportDownwind, "Turning downwind", "REPORT DOWNWIND", Always),
-        InputLeaf(MenuIds.ApproachReportNMileFinal, "At N-mile final…", "Distance (NM)", input => $"REPORT {input} FINAL"),
-        InputLeaf(MenuIds.ApproachReportAtFix, "At fix…", "Fix name", input => $"REPORT {input}"),
-        Leaf(MenuIds.ApproachReportOffBase, "Base", "REPORT OFF BASE", Always),
-        Leaf(MenuIds.ApproachReportOffFinal, "Final", "REPORT OFF FINAL", Always),
-        Leaf(MenuIds.ApproachReportOffCrosswind, "Crosswind", "REPORT OFF CROSSWIND", Always),
-        Leaf(MenuIds.ApproachReportOffDownwind, "Downwind", "REPORT OFF DOWNWIND", Always),
-        Leaf(MenuIds.ApproachReportOffAll, "All reports", "REPORT OFF", Always),
+        ReportWhenEntry(MenuIds.ApproachReportWhen, "Report when…", ReportWhenFocus.MilesBox),
+        ReportWhenEntry(MenuIds.ApproachReportNMileFinal, "At N-mile final…", ReportWhenFocus.MilesBox),
+        ReportWhenEntry(MenuIds.ApproachReportAtFix, "At fix…", ReportWhenFocus.FixBox),
         Picker(MenuIds.ProceduresJoinStar, JoinStarLabel, BuildJoinStar),
         Leaf(MenuIds.ProceduresClimbViaSid, "Climb via SID", "CVIA", Always),
         Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
@@ -884,8 +876,12 @@ public static class MenuCatalog
         return BuildTemplatedSend(row, MenuGlyphRowTemplate.Instance, send, context, host);
     }
 
-    private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, Func<string, string> format) =>
-        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host));
+    /// <summary>
+    /// A Report when… entry: the Report when… flyout (<see cref="ReportWhenFlyout"/>), its menu row reading
+    /// <paramref name="label"/>, opening with the focus in the box <paramref name="focus"/> names.
+    /// </summary>
+    private static MenuCatalogEntry ReportWhenEntry(string id, string label, ReportWhenFocus focus) =>
+        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => ReportWhenFlyout.Build(label, ac, focus, context, host));
 
     /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the Warp flyout,
@@ -909,17 +905,6 @@ public static class MenuCatalog
     /// </summary>
     private static MenuCatalogEntry Picker(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build) =>
         new(id, label, MenuFlightRules.Both, Always, (aircraft, context, host) => build(label, aircraft, context, host));
-
-    /// <summary>
-    /// An input picker's item: the host's input popup, empty, sending the trimmed text it submits through
-    /// <paramref name="format"/>; a blank submit closes it, sending nothing.
-    /// </summary>
-    internal static MenuItem BuildInput(string label, string placeholder, Func<string, string> format, MenuContext context, IMenuHost host)
-    {
-        var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
-        item.Click += (_, _) => host.ShowInputPopup(placeholder, "", 0, input => host.SendAsync(context.Callsign, format(input), context.Initials));
-        return item;
-    }
 
     /// <summary>The reason the Squawk box gives for text that is not four octal digits.</summary>
     internal const string InvalidSquawkCode = "Not a valid squawk code (0000-7777)";

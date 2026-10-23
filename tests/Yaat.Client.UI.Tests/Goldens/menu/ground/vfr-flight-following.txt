@@ -63,20 +63,15 @@ All Commands
     Follow traffic… · no other aircraft airborne [disabled]
     ---
     Report when…
-      Turning base
-      Turning final
-      Turning crosswind
-      Turning downwind
-      At N-mile final… picker:input
-      At fix… picker:input
-      ---
-      Stop reporting
-        Base
-        Final
-        Crosswind
-        Downwind
-        ---
-        All reports
+      Report when… · N302AB [disabled]
+      Passing a fix — ···
+      Reporting points · nearest first [disabled]
+      VPGGF · 4.3 NM · 142° — REPORT VPGGF
+      VPBCL · 6.0 NM · 163° — REPORT VPBCL
+      VPBCK · 8.6 NM · 218° — REPORT VPBCK
+      VPSSR · 8.8 NM · 267° — REPORT VPSSR
+      VPCQZ · 8.9 NM · 029° — REPORT VPCQZ
+      VPBCD · 9.9 NM · 100° — REPORT VPBCD
   Procedures
     Join STAR
       join STAR flyout

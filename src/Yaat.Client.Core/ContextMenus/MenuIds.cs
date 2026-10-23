@@ -222,38 +222,14 @@ public static class MenuIds
     /// <summary>Ask the pilot to report traffic in sight, optionally naming the target (<c>RTIS</c>).</summary>
     public const string ApproachReportTrafficInSight = "approach.report-traffic-in-sight";
 
-    /// <summary>Ask the pilot to report turning base (<c>REPORT BASE</c>).</summary>
-    public const string ApproachReportBase = "approach.report-base";
+    /// <summary>Open the Report when… flyout: the turn, mile-final and fix reports and their cancels (<c>REPORT …</c>).</summary>
+    public const string ApproachReportWhen = "approach.report-when";
 
-    /// <summary>Ask the pilot to report turning final (<c>REPORT FINAL</c>).</summary>
-    public const string ApproachReportFinal = "approach.report-final";
-
-    /// <summary>Ask the pilot to report turning crosswind (<c>REPORT CROSSWIND</c>).</summary>
-    public const string ApproachReportCrosswind = "approach.report-crosswind";
-
-    /// <summary>Ask the pilot to report turning downwind (<c>REPORT DOWNWIND</c>).</summary>
-    public const string ApproachReportDownwind = "approach.report-downwind";
-
-    /// <summary>Ask the pilot to report a typed distance on final (<c>REPORT {n} FINAL</c>).</summary>
+    /// <summary>Open the Report when… flyout on its miles box (<c>REPORT {n} FINAL</c>).</summary>
     public const string ApproachReportNMileFinal = "approach.report-n-mile-final";
 
-    /// <summary>Ask the pilot to report at a typed fix (<c>REPORT {fix}</c>).</summary>
+    /// <summary>Open the Report when… flyout on its fix box (<c>REPORT {fix}</c>).</summary>
     public const string ApproachReportAtFix = "approach.report-at-fix";
-
-    /// <summary>Cancel the turning-base report (<c>REPORT OFF BASE</c>).</summary>
-    public const string ApproachReportOffBase = "approach.report-off-base";
-
-    /// <summary>Cancel the turning-final report (<c>REPORT OFF FINAL</c>).</summary>
-    public const string ApproachReportOffFinal = "approach.report-off-final";
-
-    /// <summary>Cancel the turning-crosswind report (<c>REPORT OFF CROSSWIND</c>).</summary>
-    public const string ApproachReportOffCrosswind = "approach.report-off-crosswind";
-
-    /// <summary>Cancel the turning-downwind report (<c>REPORT OFF DOWNWIND</c>).</summary>
-    public const string ApproachReportOffDownwind = "approach.report-off-downwind";
-
-    /// <summary>Cancel every pending report (<c>REPORT OFF</c>).</summary>
-    public const string ApproachReportOffAll = "approach.report-off-all";
 
     /// <summary>Join a STAR (<c>JARR</c>).</summary>
     public const string ProceduresJoinStar = "procedures.join-star";
