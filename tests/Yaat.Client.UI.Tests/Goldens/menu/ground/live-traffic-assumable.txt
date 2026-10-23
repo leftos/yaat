@@ -113,6 +113,13 @@ All Commands
     Acknowledge release
   ---
   Warp…
+    Warp · UAL401 · now 317° · 11,000 ft · 250 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
 Favorite Commands
   (no items) [disabled]
 ---

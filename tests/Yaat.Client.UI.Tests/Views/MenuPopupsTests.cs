@@ -23,7 +23,7 @@ using Headless = Avalonia.Headless.HeadlessWindowExtensions;
 namespace Yaat.Client.UI.Tests.Views;
 
 // Coverage for MenuPopups, the popup service every view's menu host opens its pickers through: the free-text input
-// (with an initial text and caret), the list, the type-to-filter list and the warp popup, each opening on its anchor's
+// (with an initial text and caret), the list and the type-to-filter list, each opening on its anchor's
 // overlay, handing back what the controller picked or typed, and closing without sending on a blank submit, the Clear
 // button or Escape.
 public class MenuPopupsTests
@@ -235,89 +235,6 @@ public class MenuPopupsTests
         RaiseKey(textBox, Key.Enter);
 
         Assert.Equal("NOTE MONITOR 121.5", await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
-    }
-
-    // --- The warp popup -----------------------------------------------------------------------
-
-    /// <summary>The warp popup opens seeded with the aircraft's values and hands back FRD, heading, altitude and speed.</summary>
-    [AvaloniaFact]
-    public void Warp_SubmitHandsBackFrdHeadingAltitudeSpeed()
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        (string Frd, int Heading, int Altitude, int Speed)? submitted = null;
-        MenuPopups.ShowWarp(
-            anchor,
-            new MenuPopups.WarpSeed(Callsign, "SFO", 90, 5000, 250),
-            (frd, heading, altitude, speed) =>
-            {
-                submitted = (frd, heading, altitude, speed);
-                return Task.CompletedTask;
-            }
-        );
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        Assert.Contains(popup.Child!.GetLogicalDescendants().OfType<TextBlock>(), block => block.Text == $"Warp {Callsign}");
-        TextBox[] boxes = [.. popup.Child!.GetLogicalDescendants().OfType<TextBox>()];
-        Assert.Equal(["SFO", "90", "5000", "250"], boxes.Select(b => b.Text));
-        Assert.True(boxes[0].IsFocused, "The FRD box should receive focus when the popup opens.");
-
-        boxes[0].Text = " OAK180010 ";
-        boxes[3].Text = "210";
-        RaiseKey(boxes[1], Key.Enter);
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.Equal(("OAK180010", 90, 5000, 210), submitted);
-        Assert.False(popup.IsOpen, "Submitting should close the warp popup.");
-    }
-
-    /// <summary>
-    /// The warp popup closes without submitting on a blank FRD, a heading that is not a number, Cancel and Escape.
-    /// </summary>
-    [AvaloniaTheory]
-    [InlineData("blank-frd")]
-    [InlineData("bad-heading")]
-    [InlineData("cancel")]
-    [InlineData("escape")]
-    public void Warp_ClosesWithoutSubmitting(string how)
-    {
-        (Window _, Control anchor) = ShowAnchorWindow();
-        bool submitted = false;
-        MenuPopups.ShowWarp(
-            anchor,
-            new MenuPopups.WarpSeed(Callsign, "SFO", 90, 5000, 250),
-            (_, _, _, _) =>
-            {
-                submitted = true;
-                return Task.CompletedTask;
-            }
-        );
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Popup popup = FindPopup(anchor);
-        TextBox[] boxes = [.. popup.Child!.GetLogicalDescendants().OfType<TextBox>()];
-        switch (how)
-        {
-            case "blank-frd":
-                boxes[0].Text = "   ";
-                RaiseKey(boxes[0], Key.Enter);
-                break;
-            case "bad-heading":
-                boxes[1].Text = "abc";
-                RaiseKey(boxes[1], Key.Enter);
-                break;
-            case "cancel":
-                FindButton(anchor, "Cancel").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                break;
-            default:
-                RaiseKey(boxes[2], Key.Escape);
-                break;
-        }
-
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        Assert.False(submitted, $"The warp popup must not submit on {how}.");
-        Assert.False(popup.IsOpen, $"The warp popup should close on {how}.");
     }
 
     /// <summary>

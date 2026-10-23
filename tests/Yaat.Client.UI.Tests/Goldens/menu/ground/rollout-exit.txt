@@ -29,8 +29,6 @@ All Commands
     Acknowledge release
   ---
   Edit flight plan
-  ---
-  Warp…
 Favorite Commands
   (no items) [disabled]
 ---

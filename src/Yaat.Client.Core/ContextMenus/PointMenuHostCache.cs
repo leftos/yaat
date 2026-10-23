@@ -112,9 +112,6 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public void EnterDrawRoute(string callsign) => inner.EnterDrawRoute(callsign);
 
-    public void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        inner.ShowWarpPopup(callsign, frd, heading, altitude, speed, onSubmit);
-
     public void ShowCommandFlyout(string callsign, string initials) => inner.ShowCommandFlyout(callsign, initials);
 
     public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>

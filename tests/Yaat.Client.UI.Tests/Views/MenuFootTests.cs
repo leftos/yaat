@@ -34,7 +34,7 @@ public class MenuFootTests
     [AvaloniaFact]
     public void RadarMenu_HasNoSimControlSubmenu()
     {
-        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "taxiing", assumedFromLiveFeed: false);
+        (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: false);
 
         Assert.DoesNotContain("Sim Control", items);
         Assert.DoesNotContain("Sim Control", commands);
@@ -52,24 +52,26 @@ public class MenuFootTests
         Assert.DoesNotContain("Warp…", commands);
     }
 
+    // Warp… is not offered on the ground (WARP leaves the aircraft airborne), so the taxiing aircraft's All Commands closes
+    // with the release alone.
     [AvaloniaFact]
-    public void GroundMenu_EndsWithDeleteThenRpoItems_WarpAndReleaseCloseAllCommands()
+    public void GroundMenu_EndsWithDeleteThenRpoItems_ReleaseClosesAllCommands()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
         Assert.Equal(["Data Block", "Squawk", "Display", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
-        Assert.Equal(["---", "Warp…", "Release to live feed"], commands[^3..]);
+        Assert.Equal(["Edit flight plan", "---", "Release to live feed"], commands[^3..]);
     }
 
     // The list's view section is empty, so the foot follows Squawk; Edit flight plan stays in the command tree, before
-    // the sim-control items.
+    // the sim-control items, of which the taxiing aircraft gets only the release: Warp… is not offered on the ground.
     [AvaloniaFact]
     public void ListMenu_EndsWithDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.List, "taxiing", assumedFromLiveFeed: true);
 
         Assert.Equal(["Track", "Data Block", "Squawk", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
-        Assert.Equal(["Coordination", "---", "Edit flight plan", "---", "Warp…", "Release to live feed"], commands[^6..]);
+        Assert.Equal(["Coordination", "---", "Edit flight plan", "---", "Release to live feed"], commands[^5..]);
     }
 
     [AvaloniaFact]

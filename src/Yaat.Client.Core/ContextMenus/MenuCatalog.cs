@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -24,7 +25,7 @@ namespace Yaat.Client.ContextMenus;
 /// flyouts (<see cref="AltitudeFlyout"/>); Assign speed and Speed… open the speed flyout (<see cref="SpeedFlyout"/>); an
 /// approach entry opens its verb's approach flyout
 /// (<see cref="ApproachFlyout"/>); a host leaf asks the host for the item itself,
-/// for the entries that open a host surface or act on the surface — the warp popup, the flight-plan editor, route and
+/// for the entries that open a host surface or act on the surface — the Warp flyout, the flight-plan editor, route and
 /// push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and preset-taxi submenus over the
 /// choices the host answers (the pushback faces are flat items of a companion helper, <see cref="BuildPushbackFaces"/>),
 /// and so is the delayed spawn's Change spawn
@@ -128,7 +129,7 @@ public static class MenuCatalog
         AltitudeBoxEntry(MenuIds.DataBlockTempAltitude, "Temporary altitude…", AltitudeBoxKind.TemporaryAltitude),
         AltitudeBoxEntry(MenuIds.DataBlockCruise, "Cruise…", AltitudeBoxKind.Cruise),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
-        HostLeaf(MenuIds.SimControlWarp, "Warp…", Always, BuildWarp),
+        HostLeaf(MenuIds.SimControlWarp, "Warp…", (ac, _) => CanWarp(ac), BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
         HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
         HostLeaf(MenuIds.AircraftCommand, "Command…", Always, BuildCommand),
@@ -387,12 +388,7 @@ public static class MenuCatalog
         ),
         PointEntry(MenuIds.PointPushTo, "Push to", AtNodePushable, BuildPointPushTo),
         PointEntry(MenuIds.PointCustomTaxi, "Custom taxi…", AtNodeTaxiable, BuildPointCustomTaxi),
-        PointEntry(
-            MenuIds.PointWarpHere,
-            "Warp here",
-            (ac, context) => (context.Click.Point is not null) && AircraftCommandApplicability.IsControllable(ac),
-            BuildPointWarp
-        ),
+        PointEntry(MenuIds.PointWarpHere, "Warp here", CanWarpHere, BuildPointWarp),
         new(
             MenuIds.PatternMakeLeftTraffic,
             "Make left closed traffic",
@@ -892,7 +888,7 @@ public static class MenuCatalog
         new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host));
 
     /// <summary>
-    /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
+    /// An entry whose item the host builds for a surface of its own rather than from a command text: the Warp flyout,
     /// the Squawk and Say flyouts with their box rows, the flight-plan editor, the display toggles and measure item that read
     /// and drive the surface's own state, and the ground submenus whose choices the host answers (hold short, follow, give
     /// way, push back to, preset taxi, taxi to runway).
@@ -939,11 +935,13 @@ public static class MenuCatalog
             {
                 Label = "Code",
                 Glyph = QuickCommandGlyphs.For(MenuIds.SquawkCode),
+                BlankGlyphSlot = false,
                 Verb = "SQ",
                 Placeholder = "0000-7777",
                 BoxName = "SquawkCodeBox",
                 BoxWidth = 120,
                 Seed = "",
+                FixSuggestions = null,
                 Read = ReadSquawkCode,
             },
             command => host.SendAsync(context.Callsign, command, context.Initials)
@@ -959,11 +957,13 @@ public static class MenuCatalog
             {
                 Label = "Custom",
                 Glyph = null,
+                BlankGlyphSlot = false,
                 Verb = "SAY",
                 Placeholder = "words the pilot says",
                 BoxName = "SayCustomBox",
                 BoxWidth = 260,
                 Seed = "",
+                FixSuggestions = null,
                 Read = ReadSayText,
             },
             command => host.SendAsync(context.Callsign, command, context.Initials)
@@ -985,11 +985,13 @@ public static class MenuCatalog
             {
                 Label = "Scratchpad",
                 Glyph = QuickCommandGlyphs.For(MenuIds.DataBlockScratchpad),
+                BlankGlyphSlot = false,
                 Verb = "SP",
                 Placeholder = $"up to {maxLength} characters",
                 BoxName = "ScratchpadBox",
                 BoxWidth = 160,
                 Seed = present,
+                FixSuggestions = null,
                 Read = text => ReadScratchpad(text, present, maxLength),
             },
             command => host.SendAsync(context.Callsign, command, context.Initials)
@@ -1125,53 +1127,18 @@ public static class MenuCatalog
         (input.All(char.IsAsciiDigit) && int.TryParse(input, out int knots) && (knots > 0)) ? $"SPD {knots}" : null;
 
     /// <summary>
-    /// Warp is offered only for a controllable aircraft: the warp goes through the command path, which auto-assumes an
-    /// airborne shadow but refuses an unassumable surface one.
+    /// Warp is offered only for a controllable airborne aircraft: the warp goes through the command path, which auto-assumes
+    /// an airborne shadow but refuses an unassumable surface one, and WARP always leaves the aircraft airborne, so the ground
+    /// warp is Warp here at a taxi node (<c>WARPG</c>).
     /// </summary>
-    private static bool CanWarp(IMenuAircraft? aircraft) => AircraftCommandApplicability.IsControllable(aircraft);
+    private static bool CanWarp([NotNullWhen(true)] IMenuAircraft? aircraft) => AircraftCommandApplicability.IsAirborneControllable(aircraft);
 
     /// <summary>
-    /// The Warp item, or null when the aircraft is not controllable (<see cref="CanWarp"/>). It seeds the host's warp
-    /// popup with the aircraft's heading, altitude and indicated airspeed and sends
-    /// <c>WARP {frd} {heading} {altitude} {speed}</c> for the values the popup submits. A WARP needs a real heading, so
-    /// a zero or negative one is clamped to 360.
+    /// The Warp flyout with an empty FRD box (<see cref="WarpFlyout.Build"/>), or null where Warp is not offered
+    /// (<see cref="CanWarp"/>).
     /// </summary>
-    private static MenuItem? BuildWarp(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (!CanWarp(aircraft))
-        {
-            return null;
-        }
-
-        var item = new MenuItem { Header = label };
-        item.Click += (_, _) => ShowWarp(aircraft, "", context, host);
-        return item;
-    }
-
-    /// <summary>
-    /// Opens the host's warp popup at <paramref name="frd"/>, seeded with the aircraft's magnetic heading (a zero or
-    /// negative one clamped to 360), altitude and indicated airspeed, and sends <c>WARP {frd} {heading} {altitude} {speed}</c>
-    /// for the values the popup submits.
-    /// </summary>
-    private static void ShowWarp(IMenuAircraft? aircraft, string frd, MenuContext context, IMenuHost host)
-    {
-        int heading = aircraft is not null ? (int)Math.Round(aircraft.MagneticHeadingDegrees) : 0;
-        if (heading <= 0)
-        {
-            heading = 360;
-        }
-
-        int altitude = aircraft is not null ? (int)Math.Round(aircraft.AltitudeFeet) : 0;
-        int speed = aircraft is not null ? (int)Math.Round(aircraft.IndicatedAirspeedKnots) : 0;
-        host.ShowWarpPopup(
-            context.Callsign,
-            frd,
-            heading,
-            altitude,
-            speed,
-            (position, h, a, s) => host.SendAsync(context.Callsign, $"WARP {position} {h} {a} {s}", context.Initials)
-        );
-    }
+    private static MenuItem? BuildWarp(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        CanWarp(aircraft) ? WarpFlyout.Build(label, aircraft, WarpFrdSeed.Empty, context, host) : null;
 
     // --- Point menu ---------------------------------------------------------------------------
 
@@ -1265,8 +1232,17 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// Warp here: to a clicked taxi node, <c>WARPG #node</c>; to a map point, the warp popup at its fix-radial-distance,
-    /// seeded as Warp… seeds it; null at a map point the host cannot name.
+    /// Warp here is offered at a taxi node (the ground warp, <c>WARPG</c>) for any controllable aircraft, and at a map point
+    /// only where Warp… is (<see cref="CanWarp"/>): never for an aircraft on the ground.
+    /// </summary>
+    private static bool CanWarpHere(IMenuAircraft? aircraft, MenuContext context) =>
+        (context.Click.Point is { } point)
+        && (((point.Node ?? point.WarpNode) is not null) ? AircraftCommandApplicability.IsControllable(aircraft) : CanWarp(aircraft));
+
+    /// <summary>
+    /// Warp here: to a clicked taxi node, <c>WARPG #node</c>; to a map point, the Warp flyout with the point's
+    /// fix-radial-distance in its FRD box (<see cref="WarpFlyout.Build"/>); null at a map point the host cannot name, or for an
+    /// aircraft Warp… is not offered for.
     /// </summary>
     private static MenuItem? BuildPointWarp(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
     {
@@ -1275,14 +1251,12 @@ public static class MenuCatalog
             return BuildSend("Warp here", $"WARPG #{node.Id}", context, host);
         }
 
-        if (host.DescribePoint(point.Position) is not { } frd)
+        if (!CanWarp(aircraft) || (host.DescribePoint(point.Position) is not { } frd))
         {
             return null;
         }
 
-        var item = new MenuItem { Header = $"Warp here ({frd})" };
-        item.Click += (_, _) => ShowWarp(aircraft, frd, context, host);
-        return item;
+        return WarpFlyout.Build($"Warp here ({frd})", aircraft, WarpFrdSeed.ClickedPoint(frd), context, host);
     }
 
     /// <summary>

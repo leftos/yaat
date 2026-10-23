@@ -121,6 +121,13 @@ All Commands
   Edit flight plan
   ---
   Warp…
+    Warp · AAL203 · now 317° · 16,000 ft · 280 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
 Favorite Commands
   (no items) [disabled]
 ---

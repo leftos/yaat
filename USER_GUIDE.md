@@ -334,7 +334,7 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
   Typing filters the rows by the start of the code, the name or a word of it, the callsign or the frequency, and outlines the first match; Enter sends it, and a click sends any row. The list is read when the flyout opens and does not move while it is open.
 
   The track's owner stays in the list, greyed and marked "owns the track", and cannot be picked. **Point out…** lists only positions with a STARS TCP. A code that matches no staffed position shows "Not a staffed position: sent as typed", and Enter sends what you typed for the sim to answer. Point out has a pointing-hand icon, so you can add it to the quick-command strip in **Settings › Input › Quick commands**.
-- **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** and **Release to live feed**.
+- **All Commands**: every command for the aircraft — the traffic actions for a selected aircraft, the ground items, Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern (only Tower while the aircraft is on the ground or rolling on the runway), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan, and last **Warp…** (airborne aircraft only) and **Release to live feed**.
 - **Delete** and the RPO assignment items.
 
 **Quick commands by situation.** YAAT sorts each aircraft into a situation and shows that situation's quick commands, most used first:
@@ -409,7 +409,21 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
   Click the rose, or drag across it and release, to send the toggle's verb with a three-digit heading (`FH 005`, `TL 270`; north is 360). A drag released more than 30 px outside the rim sends nothing. The box does the same on Enter, and reads `L180` as `TL 180` and `R090` as `TR 090`. A chip sends `LT n` or `RT n`, and its tooltip shows where it would leave the aircraft (`LT 20 → 250`).
 
   Focus starts in the box. Down or Tab moves to the rose at the present heading; ← ↓ and → ↑ step 5° (Shift 30°), Enter sends, and Tab moves on to the chips, where Left and Right cross between the columns. Escape closes the flyout. Once a second the needle, the "now" heading, the Present heading row, the chip tooltips and the readout follow the aircraft; the heading you picked stays.
-- **Warp starts from the datablock heading.** The Warp popup is pre-filled with the aircraft's magnetic heading (rounded to 5°).
+- **Warp… and Warp here (at a map point) open a flyout** titled `Warp`, with the aircraft's present state under it (`{callsign} · now {hdg}° · {alt} ft · {spd} kt`, the heading magnetic, as the datablock shows it).
+
+  Four boxes follow, each with its command column: **Fix or FRD** (fix suggestions as you type; empty for Warp…, and for Warp here holding the clicked point's FRD, labelled `Fix or FRD · the clicked point`), **Heading** (001-360), **Altitude (hundreds, feet or FL)** (`110`, `11000` and `FL110` all read as 11,000 ft) and **Speed** (whole knots, indicated).
+
+  The last row shows the whole command, such as `WARP SFO 270 110 250`.
+
+  Heading, Altitude and Speed are optional. A typed value shows a green reading under its box (`heading 090 magnetic`, `→ 80,000 ft`, `250 kt indicated`). A blank one after the last filled box is left out (`—`, with `left out: the sim keeps …` in amber), and the aircraft keeps its present value. A blank one before a filled box has its present value put in its place, in amber (`kept: … sent in its place, since a gap would shift the slots`), because the sim reads the values left to right.
+
+  When the present altitude rounds below 100 ft there is no altitude word to put in a blank Altitude's place, so a blank Altitude before a filled Speed is refused (`Blank before a filled field, and the present … ft has no word the sim reads as it: type an altitude`).
+
+  The Fix or FRD box reads its entry back in green: `10 NM on the 090° radial of OAK (magnetic)` for an FRD, `SFO · fix` for a plain fix. While the suggestions still offer names for a partial entry with no digits, the box shows no refusal and its column reads `···`; the refusal shows once nothing is suggested.
+
+  A box whose text does not read is refused with a red reason under it, and its command column shows `✕`. Clicking a box row only moves the focus there and keeps the menu open; Enter in a box, or a click on the last row, sends the whole command. That row reads `can't send` in red while the Fix or FRD box is blank or any box is refused.
+
+  Warp… and Warp here at a map point are offered for airborne aircraft only. For an aircraft on the ground, "Warp here" at a taxi node is the ground warp (`WARPG`).
 - **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix.
 - **Give way to…** needs a taxi route (on the landing rollout or the runway exit, one a `TAXI` stored behind the exit is enough); **Climb via SID** and **Descend via STAR** need an assigned or filed procedure.
 - **Enter left / right downwind, Enter left / right base and Make straight-in** always open a runway flyout, from the menu and from the strip; with a runway assigned, its row has the focus when the flyout opens. Each row is the runway with an arrow turned to point the way an aircraft lands on it, then the command it sends (`ELD 28R`). Runways in use for arrivals come first, then a separator and the rest; in each group the runways the aircraft's type can land on come before the short ones.
@@ -590,7 +604,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
   Choosing a route sends the taxi, and the route previews on the map while you point at or arrow onto it. "Warp here" warps to the node nearest the click, and "Draw taxi route…" starts from that node.
 - **On an aircraft** — the same [aircraft menu](#aircraft-right-click-menu) the [Radar View](#radar-view-1) and the Aircraft List show, so every command is reachable from any view: the quick commands and icon strip for the aircraft's situation, then Track, Data Block, Squawk, the ground's own **Display** (Taxi route, Show/Hide datablock, Reset datablock position once you have dragged it, Measure from {callsign}), Favorite Commands and **All Commands**.
 
-  Under All Commands sit the items below by phase, then the tower submenu (Line up and wait, Cleared for takeoff, the landing clearances and the runway exits sit in **Tower**), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan and Warp…. The ground items under All Commands, by phase:
+  Under All Commands sit the items below by phase, then the tower submenu (Line up and wait, Cleared for takeoff, the landing clearances and the runway exits sit in **Tower**), Draw taxi route…, Ask pilot to say…, Coordination, Edit flight plan and Warp… (airborne aircraft only). The ground items under All Commands, by phase:
   - *At Parking*: "Push back" (default — a straight-back push, the nose keeps the stand heading) and "Push back, face {taxiway}" per connected edge (use this, or a typed `PUSH Y A1` / `PUSH Y FACE S`, when the aircraft should end up aligned for its taxi out).
 
     Then a "Push back to…" submenu of the places a tug push can take the aircraft, in two sections sorted by distance: "Behind the aircraft" (badge TL or TW) and "Taxi spots" (badge S). A target with two or more facings shows "then face" under its name and one chip per direction (N, S, …) that picks which way the aircraft ends up facing; a target with one facing shows a dim "faces E" note. The strip button's flyout shows the same list and follows it as it fills.
@@ -949,7 +963,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   All Commands holds the ground items for an aircraft on the ground (Push back, Hold position, Hold short of…, Follow…, Give way to…, Cross — see the Ground View) and the groups Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern in that order (only Tower while the aircraft is on the ground or rolling on the runway).
 
-  After them come Draw taxi route… (which switches to the Ground View to draw), Ask pilot to say, Coordination, Edit flight plan and Warp…; last Delete and the RPO items.
+  After them come Draw taxi route… (which switches to the Ground View to draw), Ask pilot to say, Coordination, Edit flight plan and Warp… (airborne aircraft only); last Delete and the RPO items.
 
   Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway.
 
@@ -1050,7 +1064,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   For an airborne aircraft an icon strip follows: **Fly heading**, **Direct to**, **Hold left**, **Hold right** and **Warp here**; pointing at an icon names what it sends, such as "Direct to {FRD}". Under the strip come "Fly heading {hdg}" (the magnetic heading to the point, to the nearest 5°), a dimmed line saying which way and how far the aircraft turns to fly it (`FH 270 · left turn, 40°`, left out when it is already on that heading), and "Append direct to {FRD}" (while it is navigating to a fix).
 
-  An aircraft on the ground gets only "Warp here ({FRD})" here; its taxi items are on the Ground View's node menu.
+  An aircraft on the ground gets no "Warp here" at a map point, since a warp to a fix leaves the aircraft airborne; its taxi items and its ground warp ("Warp here" at a taxi node) are on the Ground View's node menu.
 
 ##### Minimum Vectoring Altitude awareness
 

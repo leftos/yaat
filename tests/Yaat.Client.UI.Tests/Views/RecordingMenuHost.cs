@@ -37,10 +37,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public List<string> DrawRouteCallsigns { get; } = [];
 
-    public List<(string Callsign, string Frd, int Heading, int Altitude, int Speed)> WarpPopups { get; } = [];
-
-    public Func<string, int, int, int, Task>? WarpSubmit { get; private set; }
-
     public int FlightPlanEditorOpens { get; private set; }
 
     /// <summary>Every send through the VFR gate (<see cref="IMenuHost.SendGatedAsync"/>), in order; not in <see cref="Sent"/>.</summary>
@@ -244,12 +240,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     }
 
     public void EnterDrawRoute(string callsign) => DrawRouteCallsigns.Add(callsign);
-
-    public void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit)
-    {
-        WarpPopups.Add((callsign, frd, heading, altitude, speed));
-        WarpSubmit = onSubmit;
-    }
 
     /// <summary>The callsign each flight-plan editor was opened for, in order.</summary>
     public List<string> FlightPlanEditorCallsigns { get; } = [];

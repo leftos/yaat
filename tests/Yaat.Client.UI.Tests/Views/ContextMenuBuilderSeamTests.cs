@@ -313,8 +313,6 @@ public class ContextMenuBuilderSeamTests
                 "Coordination",
                 "---",
                 "Edit flight plan",
-                "---",
-                "Warp…",
             ],
             AllCommandsSequence(menu)
         );
@@ -352,7 +350,7 @@ public class ContextMenuBuilderSeamTests
             "---",
             "Delete"
         );
-        Assert.Equal(["Tower", "---", "Ask pilot to say…", "Coordination", "---", "Edit flight plan", "---", "Warp…"], AllCommandsSequence(menu));
+        Assert.Equal(["Tower", "---", "Ask pilot to say…", "Coordination", "---", "Edit flight plan"], AllCommandsSequence(menu));
     }
 
     [AvaloniaFact]

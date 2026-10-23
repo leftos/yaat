@@ -24,11 +24,13 @@ public class InlineBoxRowTests
     {
         Label = "Custom",
         Glyph = null,
+        BlankGlyphSlot = false,
         Verb = "SAY",
         Placeholder = "words",
         BoxName = "TestInlineBox",
         BoxWidth = 200,
         Seed = "",
+        FixSuggestions = null,
         Read = Read,
     };
 
@@ -40,13 +42,13 @@ public class InlineBoxRowTests
         {
             Type(open.Row, "bad");
 
-            Assert.Contains(RefusableBox.RefusedClass, open.Row.Box.Classes);
+            Assert.Contains(RefusableBox.RefusedClass, BoxOf(open.Row).Classes);
             AssertBarShown(open.Row);
             Assert.True(open.Row.Refusal.ReasonLine.IsVisible, "A refused text should show its reason line.");
             Assert.Equal(Reason, open.Row.Refusal.ReasonLine.Text);
             Assert.Equal(InlineBoxRow.CantSend, open.Row.CommandColumn.Text);
 
-            PressEnter(open.Row.Box);
+            PressEnter(BoxOf(open.Row));
 
             Assert.Empty(open.Sent);
             Assert.True(open.Menu.IsOpen, "Enter on a refused text should leave the menu open.");
@@ -65,11 +67,11 @@ public class InlineBoxRowTests
         {
             Type(open.Row, "  say again ");
 
-            Assert.DoesNotContain(RefusableBox.RefusedClass, open.Row.Box.Classes);
+            Assert.DoesNotContain(RefusableBox.RefusedClass, BoxOf(open.Row).Classes);
             Assert.False(open.Row.Refusal.ReasonLine.IsVisible, "A readable text should show no reason line.");
             Assert.Equal("SAY say again", open.Row.CommandColumn.Text);
 
-            PressEnter(open.Row.Box);
+            PressEnter(BoxOf(open.Row));
 
             Assert.Equal(["SAY say again"], open.Sent);
             Assert.False(open.Menu.IsOpen, "Enter on a readable text should send and close the menu.");
@@ -88,11 +90,11 @@ public class InlineBoxRowTests
         {
             Type(open.Row, "   ");
 
-            Assert.DoesNotContain(RefusableBox.RefusedClass, open.Row.Box.Classes);
+            Assert.DoesNotContain(RefusableBox.RefusedClass, BoxOf(open.Row).Classes);
             Assert.False(open.Row.Refusal.ReasonLine.IsVisible, "A blank box should show no reason line.");
             Assert.Equal($"SAY {TakeoffFlyout.Unfilled}", open.Row.CommandColumn.Text);
 
-            PressEnter(open.Row.Box);
+            PressEnter(BoxOf(open.Row));
 
             Assert.Empty(open.Sent);
             Assert.True(open.Menu.IsOpen, "Enter on a blank box should leave the menu open.");
@@ -113,7 +115,7 @@ public class InlineBoxRowTests
             Type(open.Row, "bad");
             Type(open.Row, "unable");
 
-            Assert.DoesNotContain(RefusableBox.RefusedClass, open.Row.Box.Classes);
+            Assert.DoesNotContain(RefusableBox.RefusedClass, BoxOf(open.Row).Classes);
             Assert.False(open.Row.Refusal.ReasonLine.IsVisible, "A corrected text should hide the reason line.");
             Assert.Equal("SAY unable", open.Row.CommandColumn.Text);
         }
@@ -133,22 +135,22 @@ public class InlineBoxRowTests
         OpenRow open = OpenSquawk();
         try
         {
-            Assert.True(open.Row.Box.Focus(), "The Squawk box should take focus.");
+            Assert.True(BoxOf(open.Row).Focus(), "The Squawk box should take focus.");
             HeadlessWindowExtensions.PumpDispatcher();
-            Thickness frame = BorderElement(open.Row.Box).BorderThickness;
-            IBrush? frameBrush = BorderElement(open.Row.Box).BorderBrush;
+            Thickness frame = BorderElement(BoxOf(open.Row)).BorderThickness;
+            IBrush? frameBrush = BorderElement(BoxOf(open.Row)).BorderBrush;
 
             Type(open.Row, "8888");
-            TopLevel.GetTopLevel(open.Row.Box)!.UpdateLayout();
+            TopLevel.GetTopLevel(BoxOf(open.Row))!.UpdateLayout();
 
-            Assert.True(open.Row.Box.IsFocused, "Typing should leave the focus in the box.");
-            Assert.Contains(RefusableBox.RefusedClass, open.Row.Box.Classes);
+            Assert.True(BoxOf(open.Row).IsFocused, "Typing should leave the focus in the box.");
+            Assert.Contains(RefusableBox.RefusedClass, BoxOf(open.Row).Classes);
             AssertBarShown(open.Row);
-            Assert.Equal(frame, BorderElement(open.Row.Box).BorderThickness);
-            Assert.Same(frameBrush, BorderElement(open.Row.Box).BorderBrush);
+            Assert.Equal(frame, BorderElement(BoxOf(open.Row)).BorderThickness);
+            Assert.Same(frameBrush, BorderElement(BoxOf(open.Row)).BorderBrush);
             Border bar = open.Row.Refusal.Underline;
-            Point barBottom = Assert.NotNull(bar.TranslatePoint(new Point(0, bar.Bounds.Height), open.Row.Box));
-            Assert.Equal(open.Row.Box.Bounds.Height, barBottom.Y, 1);
+            Point barBottom = Assert.NotNull(bar.TranslatePoint(new Point(0, bar.Bounds.Height), BoxOf(open.Row)));
+            Assert.Equal(BoxOf(open.Row).Bounds.Height, barBottom.Y, 1);
         }
         finally
         {
@@ -168,7 +170,7 @@ public class InlineBoxRowTests
 
             Assert.False(open.Row.Refusal.Underline.IsVisible, "A valid code should hide the red bar.");
             Assert.False(open.Row.Refusal.ReasonLine.IsVisible, "A valid code should hide the reason line.");
-            Assert.DoesNotContain(RefusableBox.RefusedClass, open.Row.Box.Classes);
+            Assert.DoesNotContain(RefusableBox.RefusedClass, BoxOf(open.Row).Classes);
             Assert.Equal("SQ 1200", open.Row.CommandColumn.Text);
         }
         finally
@@ -252,9 +254,12 @@ public class InlineBoxRowTests
 
     private static void Type(InlineBoxRow row, string text)
     {
-        row.Box.Text = text;
+        BoxOf(row).Text = text;
         HeadlessWindowExtensions.PumpDispatcher();
     }
+
+    /// <summary>The plain text box of <paramref name="row"/>, a row that is no fix box.</summary>
+    private static TextBox BoxOf(InlineBoxRow row) => Assert.IsType<TextBox>(row.Input);
 
     private static void PressEnter(TextBox box)
     {

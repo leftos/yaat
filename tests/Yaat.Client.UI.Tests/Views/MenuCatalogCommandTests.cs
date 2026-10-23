@@ -358,41 +358,498 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "IDENT", Initials)], host.Sent);
     }
 
+    /// <summary>Only the fix typed: Enter in the FRD box sends <c>WARP {frd}</c>, the sim keeping the rest.</summary>
     [AvaloniaFact]
-    public async Task Warp_OpensPopupWithAircraftValues_AndSubmitSendsWarpText()
+    public void Warp_TypedFrdOnly_SendsWarpFrd()
+    {
+        var host = new RecordingMenuHost("");
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+
+        rows[0].Text = "SFO";
+        PressEnter(rows[0].Input);
+
+        Assert.Equal([(Callsign, "WARP SFO", Initials)], host.Sent);
+    }
+
+    /// <summary>
+    /// A blank heading and altitude before a typed speed are sent as the present values (the sim fills its slots left to right),
+    /// each shown as kept in its command column.
+    /// </summary>
+    [AvaloniaFact]
+    public void Warp_SpeedOnly_FillsHeadingAndAltitudeWithPresentValues()
+    {
+        var host = new RecordingMenuHost("");
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+
+        rows[0].Text = "SFO";
+        rows[3].Text = "230";
+
+        Assert.Equal("270", rows[1].CommandColumn.Text);
+        Assert.Equal("110", rows[2].CommandColumn.Text);
+        PressEnter(rows[3].Input);
+
+        Assert.Equal([(Callsign, "WARP SFO 270 110 230", Initials)], host.Sent);
+    }
+
+    /// <summary>A pattern aircraft at 800 ft keeps its altitude as the sim's hundreds, <c>8</c>, never <c>800</c> (80,000 ft).</summary>
+    [AvaloniaFact]
+    public void Warp_At800Feet_SendsTheAltitudeAsHundreds()
     {
         var host = new RecordingMenuHost("");
         var aircraft = new FakeMenuAircraft
         {
-            HeadingDegrees = 90.4,
-            AltitudeFeet = 5000,
-            IndicatedAirspeedKnots = 249.6,
+            HeadingDegrees = 130,
+            AltitudeFeet = 800,
+            IndicatedAirspeedKnots = 85,
         };
-        MenuItem? item = MenuCatalog.Get(MenuIds.SimControlWarp).Build(aircraft, Context(), host);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
 
-        Assert.NotNull(item);
-        Click((MenuItem)item);
+        rows[0].Text = "SFO";
+        rows[3].Text = "90";
+        PressEnter(rows[3].Input);
 
-        Assert.Equal([(Callsign, "", 90, 5000, 250)], host.WarpPopups);
-
-        Func<string, int, int, int, Task>? submit = host.WarpSubmit;
-        Assert.NotNull(submit);
-        await submit("OAK090010", 180, 6000, 210);
-
-        Assert.Equal([(Callsign, "WARP OAK090010 180 6000 210", Initials)], host.Sent);
+        Assert.Equal([(Callsign, "WARP SFO 130 8 90", Initials)], host.Sent);
     }
 
+    /// <summary>A zero present heading is kept as 360: WARP needs a heading from 001 to 360.</summary>
     [AvaloniaFact]
-    public void Warp_ZeroHeading_OpensPopupWith360()
+    public void Warp_ZeroHeading_KeepsAs360()
     {
         var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.SimControlWarp).Build(new FakeMenuAircraft(), Context(), host);
+        var aircraft = new FakeMenuAircraft
+        {
+            HeadingDegrees = 0,
+            AltitudeFeet = 5000,
+            IndicatedAirspeedKnots = 250,
+        };
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
 
-        Assert.NotNull(item);
-        Click((MenuItem)item);
+        rows[0].Text = "SFO";
+        rows[3].Text = "200";
+        PressEnter(rows[3].Input);
 
-        Assert.Equal([(Callsign, "", 360, 0, 0)], host.WarpPopups);
+        Assert.Equal([(Callsign, "WARP SFO 360 50 200", Initials)], host.Sent);
     }
+
+    /// <summary>The heading kept for a blank Heading box is the aircraft's magnetic heading, as WARP reads its heading.</summary>
+    [AvaloniaFact]
+    public void Warp_PresentHeadingIsMagnetic_NotTrue()
+    {
+        AircraftModel aircraft = OverKoakOnTrueHeading100();
+        int heading = int.Parse(aircraft.HeadingDisplay, CultureInfo.InvariantCulture);
+        Assert.NotEqual(100, heading);
+        var host = new RecordingMenuHost("");
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(aircraft, host));
+
+        rows[0].Text = "SFO";
+        rows[2].Text = "50";
+        PressEnter(rows[2].Input);
+
+        Assert.Equal([(Callsign, $"WARP SFO {heading:D3} 50", Initials)], host.Sent);
+    }
+
+    /// <summary>The Altitude box reads as the menu's other altitude boxes do: hundreds, feet or a flight level.</summary>
+    [AvaloniaTheory]
+    [InlineData("110")]
+    [InlineData("11000")]
+    [InlineData("FL110")]
+    public void Warp_AltitudeBoxReadsLikeTheOtherAltitudeBoxes(string typed)
+    {
+        var host = new RecordingMenuHost("");
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+
+        rows[0].Text = "SFO";
+        rows[2].Text = typed;
+        PressEnter(rows[2].Input);
+
+        Assert.Equal([(Callsign, "WARP SFO 270 110", Initials)], host.Sent);
+    }
+
+    /// <summary>A fix the navigation data does not know is refused inline under the FRD box; Enter in any box sends nothing.</summary>
+    [AvaloniaFact]
+    public void Warp_UnknownFix_RefusesInline_AndEnterSendsNothing()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        MenuItem warp = Warp(WarpAircraft(), host);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[0].Text = "QQQZZ";
+        rows[3].Text = "230";
+
+        Assert.Contains(RefusableBox.RefusedClass, rows[0].Input.Classes);
+        Assert.True(rows[0].Refusal.ReasonLine.IsVisible, "An unknown fix should show its reason line.");
+        Assert.Equal(WarpFlyout.UnknownFix, rows[0].Refusal.ReasonLine.Text);
+        Assert.Equal("✕", rows[0].CommandColumn.Text);
+        Assert.Equal(InlineBoxRow.CantSend, WarpSendLine(warp).CommandColumn.Text);
+
+        PressEnter(rows[0].Input);
+        PressEnter(rows[3].Input);
+
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>A heading outside 001-360 is refused inline under the Heading box; Enter sends nothing.</summary>
+    [AvaloniaFact]
+    public void Warp_BadHeading_RefusesInline()
+    {
+        var host = new RecordingMenuHost("");
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), host));
+
+        rows[0].Text = "SFO";
+        rows[1].Text = "400";
+
+        Assert.Contains(RefusableBox.RefusedClass, rows[1].Input.Classes);
+        Assert.Equal(WarpFlyout.InvalidHeading, rows[1].Refusal.ReasonLine.Text);
+        Assert.Equal("✕", rows[1].CommandColumn.Text);
+
+        PressEnter(rows[1].Input);
+        PressEnter(rows[0].Input);
+
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>With the FRD box blank there is nowhere to warp to: Enter in any box sends nothing.</summary>
+    [AvaloniaFact]
+    public void Warp_BlankFrd_EnterSendsNothing()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem warp = Warp(WarpAircraft(), host);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[3].Text = "230";
+        PressEnter(rows[3].Input);
+        PressEnter(rows[0].Input);
+        Click(Assert.Single(warp.Items.OfType<MenuItem>(), m => m.Header is WarpSendLine));
+
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>
+    /// An aircraft at 9 ft (a helicopter just lifted off) has no altitude word the sim reads back as its present altitude: a
+    /// blank Altitude before a typed Speed is refused, and Enter sends nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public void Warp_BlankAltitudeBeforeSpeed_PresentBelow100Ft_RefusesAndSendsNothing()
+    {
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft
+        {
+            HeadingDegrees = 90,
+            AltitudeFeet = 9,
+            IndicatedAirspeedKnots = 0,
+        };
+        MenuItem warp = Warp(aircraft, host);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[0].Text = "SFO";
+        rows[3].Text = "120";
+        PressEnter(rows[3].Input);
+
+        Assert.Empty(host.Sent);
+        Assert.True(rows[2].Refusal.ReasonLine.IsVisible, "A blank altitude with no kept word should show its reason line.");
+        Assert.Equal(
+            "Blank before a filled field, and the present 9 ft has no word the sim reads as it: type an altitude",
+            rows[2].Refusal.ReasonLine.Text
+        );
+        Assert.Equal(InlineBoxRow.CantSend, WarpSendLine(warp).CommandColumn.Text);
+    }
+
+    /// <summary>A click on a field row focuses that row's box and keeps the menu open; it never sends, even with a command ready.</summary>
+    [AvaloniaFact]
+    public void Warp_ClickOnAFieldRow_FocusesItsBoxAndSendsNothing()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("");
+        MenuItem warp = Warp(WarpAircraft(), host);
+        var menu = new ContextMenu { Items = { warp } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            warp.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+            rows[0].Text = "SFO";
+            rows[3].Text = "230";
+
+            Click(rows[1].Item);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(host.Sent);
+            Assert.True(BoxOf(rows[1]).IsFocused, "a click on the Heading row did not focus its box");
+            Assert.True(rows[1].Item.StaysOpenOnClick, "a click on a field row should leave the menu open");
+            Assert.True(menu.IsOpen);
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>A click on the send line sends the whole command.</summary>
+    [AvaloniaFact]
+    public void Warp_ClickOnTheSendLine_SendsTheWholeCommand()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem warp = Warp(WarpAircraft(), host);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[0].Text = "SFO";
+        rows[2].Text = "90";
+        Click(Assert.Single(warp.Items.OfType<MenuItem>(), m => m.Header is WarpSendLine));
+
+        Assert.Equal([(Callsign, "WARP SFO 270 90", Initials)], host.Sent);
+    }
+
+    /// <summary>A typed altitude is read back under its box: <c>800</c> is 80,000 ft, the way the menu's altitude boxes read it.</summary>
+    [AvaloniaFact]
+    public void Warp_TypedAltitude_ShowsItsReadingUnderTheBox()
+    {
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(PatternAircraft(), new RecordingMenuHost("")));
+
+        rows[2].Text = "800";
+
+        Assert.True(rows[2].NoteLine.IsVisible, "a typed altitude should show its reading under the box");
+        Assert.Equal("→ 80,000 ft", rows[2].NoteLine.Text);
+        Assert.Equal("800", rows[2].CommandColumn.Text);
+    }
+
+    /// <summary>Blanks after the last filled field are left out: <c>—</c> in the command column, the line naming what the sim keeps.</summary>
+    [AvaloniaFact]
+    public void Warp_TrailingBlank_ShowsDashAndLeftOutLine()
+    {
+        MenuItem warp = Warp(PatternAircraft(), new RecordingMenuHost(""));
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[0].Text = "SFO";
+        rows[1].Text = "90";
+
+        Assert.Equal(InlineBoxRow.LeftOutMark, rows[2].CommandColumn.Text);
+        Assert.Equal("left out: the sim keeps 800 ft", rows[2].NoteLine.Text);
+        Assert.Equal(InlineBoxRow.LeftOutMark, rows[3].CommandColumn.Text);
+        Assert.Equal("left out: the sim keeps 85 kt", rows[3].NoteLine.Text);
+        Assert.Equal("WARP SFO 090", WarpSendLine(warp).CommandColumn.Text);
+    }
+
+    /// <summary>A blank field before a filled one shows the present value it keeps, in amber, and the line saying why.</summary>
+    [AvaloniaFact]
+    public void Warp_BlankBeforeFilled_ShowsKeptValueAndKeptLine()
+    {
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(PatternAircraft(), new RecordingMenuHost("")));
+
+        rows[0].Text = "SFO";
+        rows[3].Text = "90";
+
+        Assert.Equal("130", rows[1].CommandColumn.Text);
+        Assert.Equal(FlyoutPanelParts.KeptBrush, rows[1].CommandColumn.Foreground);
+        Assert.Equal("kept: 130 sent in its place, since a gap would shift the slots", rows[1].NoteLine.Text);
+        Assert.Equal("8", rows[2].CommandColumn.Text);
+        Assert.Equal("kept: 8 sent in its place, since a gap would shift the slots", rows[2].NoteLine.Text);
+    }
+
+    /// <summary>A blank FRD box waits, with no refusal under it, while the send line says it can't send.</summary>
+    [AvaloniaFact]
+    public void Warp_BlankFrd_SendLineSaysCantSend()
+    {
+        MenuItem warp = Warp(WarpAircraft(), new RecordingMenuHost(""));
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[3].Text = "230";
+
+        Assert.False(rows[0].Refusal.ReasonLine.IsVisible, "a blank FRD box should wait, not refuse");
+        Assert.Equal(InlineBoxRow.CantSend, WarpSendLine(warp).CommandColumn.Text);
+        Assert.Equal(FlyoutPanelParts.RefusalBrush, WarpSendLine(warp).CommandColumn.Foreground);
+    }
+
+    /// <summary>A refused field shows <c>✕</c> in its own command column; <c>can't send</c> is the send line's alone.</summary>
+    [AvaloniaFact]
+    public void Warp_RefusedHeading_ShowsCrossInItsColumnAndCantSendOnTheSendLine()
+    {
+        MenuItem warp = Warp(WarpAircraft(), new RecordingMenuHost(""));
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[0].Text = "SFO";
+        rows[1].Text = "400";
+
+        Assert.Equal("✕", rows[1].CommandColumn.Text);
+        Assert.Equal(FlyoutPanelParts.RefusalBrush, rows[1].CommandColumn.Foreground);
+        Assert.Equal(InlineBoxRow.CantSend, WarpSendLine(warp).CommandColumn.Text);
+    }
+
+    /// <summary>A partial fix the suggestions still offer names for waits: no refusal under the FRD box, the send line can't send.</summary>
+    [AvaloniaFact]
+    public void Warp_PartialFrdWithSuggestions_ShowsNoRefusalYet()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("") { FixSuggestions = ["SUNOL"] };
+        MenuItem warp = Warp(WarpAircraft(), host);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warp);
+
+        rows[0].Text = "SUNO";
+
+        Assert.False(rows[0].Refusal.ReasonLine.IsVisible, "a partial fix with suggestions should not be refused yet");
+        Assert.DoesNotContain(RefusableBox.RefusedClass, rows[0].Input.Classes);
+        Assert.Equal(TakeoffFlyout.Unfilled, rows[0].CommandColumn.Text);
+        Assert.Equal(InlineBoxRow.CantSend, WarpSendLine(warp).CommandColumn.Text);
+    }
+
+    /// <summary>
+    /// A fix-radial-distance the FRD box reads is read back under the box in green; a plain fix reads as <c>{fix} · fix</c>
+    /// (<c>SFO · fix</c>).
+    /// </summary>
+    [AvaloniaFact]
+    public void Warp_ReadingFrd_ShowsItsReadingUnderTheBox()
+    {
+        TestVnasData.EnsureInitialized();
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(Warp(WarpAircraft(), new RecordingMenuHost("")));
+
+        rows[0].Text = "OAK090010";
+
+        Assert.True(rows[0].NoteLine.IsVisible, "a reading FRD should show its reading under the box");
+        Assert.Equal("10 NM on the 090° radial of OAK (magnetic)", rows[0].NoteLine.Text);
+        Assert.Equal(FlyoutPanelParts.ReadingBrush, rows[0].NoteLine.Foreground);
+
+        rows[0].Text = "SFO";
+
+        Assert.True(rows[0].NoteLine.IsVisible, "a plain fix should read as SFO · fix");
+        Assert.Equal("SFO · fix", rows[0].NoteLine.Text);
+    }
+
+    /// <summary>Warp… is not offered on the ground: WARP leaves the aircraft airborne; Warp here at a taxi node is the ground warp.</summary>
+    [AvaloniaFact]
+    public void Warp_HiddenOnTheGround()
+    {
+        MenuCatalogEntry warp = MenuCatalog.Get(MenuIds.SimControlWarp);
+
+        Assert.False(warp.IsApplicable(new FakeMenuAircraft { IsOnGround = true }, Context()));
+        Assert.True(warp.IsApplicable(WarpAircraft(), Context()));
+    }
+
+    /// <summary>Warp here at a map point is not offered for an aircraft on the ground.</summary>
+    [AvaloniaFact]
+    public void WarpHere_AtAMapPoint_HiddenOnTheGround()
+    {
+        MenuCatalogEntry warpHere = MenuCatalog.Get(MenuIds.PointWarpHere);
+        MenuContext context = PointContext(new MenuPoint(new LatLon(37.6, -121.9), null, null, [], null));
+
+        Assert.False(warpHere.IsApplicable(new FakeMenuAircraft { IsOnGround = true }, context));
+        Assert.True(warpHere.IsApplicable(WarpAircraft(), context));
+    }
+
+    /// <summary>Warp here at a taxi node stays the ground warp, <c>WARPG #node</c>, for an aircraft on the ground.</summary>
+    [AvaloniaFact]
+    public void WarpHere_AtATaxiNode_SendsWarpgOnTheGround()
+    {
+        var host = new RecordingMenuHost("");
+        var node = new GroundNodeDto(7, 37.7210, -122.2200, "TaxiwayIntersection", null, null, null);
+        MenuContext context = PointContext(new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null, [], null));
+        var aircraft = new FakeMenuAircraft { IsOnGround = true };
+        MenuCatalogEntry warpHere = MenuCatalog.Get(MenuIds.PointWarpHere);
+
+        Assert.True(warpHere.IsApplicable(aircraft, context));
+        MenuItem item = Assert.IsType<MenuItem>(warpHere.Build(aircraft, context, host));
+        Assert.Equal("Warp here", item.Header);
+        Click(item);
+
+        Assert.Equal([(Callsign, "WARPG #7", Initials)], host.Sent);
+    }
+
+    /// <summary>Warp here at a map point opens the Warp flyout with the clicked point's FRD in the FRD box; Enter sends it.</summary>
+    [AvaloniaFact]
+    public void WarpHere_SeedsTheClickedFrd()
+    {
+        var host = new RecordingMenuHost("") { PointDescription = "OAK090010" };
+        MenuItem warpHere = WarpHere(host);
+
+        Assert.Equal("Warp here (OAK090010)", warpHere.Header);
+        IReadOnlyList<InlineBoxRow> rows = WarpRows(warpHere);
+        Assert.Equal("OAK090010", rows[0].Text);
+        PressEnter(rows[0].Input);
+
+        Assert.Equal([(Callsign, "WARP OAK090010", Initials)], host.Sent);
+    }
+
+    /// <summary>The FRD box, a fix box with suggestions, takes the focus as the flyout opens, its Warp here seed selected.</summary>
+    [AvaloniaFact]
+    public void WarpHere_FrdBox_TakesTheFocusOnOpen_WithTheSeedSelected()
+    {
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        var host = new RecordingMenuHost("") { PointDescription = "OAK090010" };
+        MenuItem warpHere = WarpHere(host);
+        var menu = new ContextMenu { Items = { warpHere } };
+        try
+        {
+            menu.Open(window);
+            Dispatcher.UIThread.RunJobs();
+            warpHere.IsSubMenuOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            InlineBoxRow frd = WarpRows(warpHere)[0];
+            AutoCompleteBox fixBox = Assert.IsAssignableFrom<AutoCompleteBox>(frd.Input);
+            TextBox inner = fixBox.GetVisualDescendants().OfType<TextBox>().First();
+            Assert.True(inner.IsFocused, "the FRD box did not take focus when the Warp flyout opened");
+            Assert.Equal((0, 9), (Math.Min(inner.SelectionStart, inner.SelectionEnd), Math.Max(inner.SelectionStart, inner.SelectionEnd)));
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    /// <summary>An airborne aircraft on magnetic heading 270 at 11,000 ft and 250 knots.</summary>
+    private static FakeMenuAircraft WarpAircraft() =>
+        new()
+        {
+            HeadingDegrees = 270,
+            AltitudeFeet = 11000,
+            IndicatedAirspeedKnots = 250,
+        };
+
+    /// <summary>A pattern aircraft on magnetic heading 130 at 800 ft and 85 knots.</summary>
+    private static FakeMenuAircraft PatternAircraft() =>
+        new()
+        {
+            HeadingDegrees = 130,
+            AltitudeFeet = 800,
+            IndicatedAirspeedKnots = 85,
+        };
+
+    private static MenuItem Warp(IMenuAircraft aircraft, RecordingMenuHost host)
+    {
+        TestVnasData.EnsureInitialized();
+        return Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.SimControlWarp).Build(aircraft, Context(), host));
+    }
+
+    private static MenuItem WarpHere(RecordingMenuHost host)
+    {
+        TestVnasData.EnsureInitialized();
+        return Assert.IsType<MenuItem>(
+            MenuCatalog
+                .Get(MenuIds.PointWarpHere)
+                .Build(WarpAircraft(), PointContext(new MenuPoint(new LatLon(37.6, -121.9), null, null, [], null)), host)
+        );
+    }
+
+    private static MenuContext PointContext(MenuPoint point) => Context() with { Click = new MenuClick(Callsign, null, point, []) };
+
+    /// <summary>The Warp flyout's box rows, in order: FRD, Heading, Altitude, Speed.</summary>
+    private static List<InlineBoxRow> WarpRows(MenuItem warp)
+    {
+        List<InlineBoxRow> rows = [.. warp.Items.OfType<MenuItem>().Select(m => m.Header).OfType<InlineBoxRow>()];
+        Assert.Equal(4, rows.Count);
+        return rows;
+    }
+
+    private static WarpSendLine WarpSendLine(MenuItem warp) => warp.Items.OfType<MenuItem>().Select(m => m.Header).OfType<WarpSendLine>().Single();
 
     [AvaloniaFact]
     public void EditFlightPlan_CallsHostOpenFlightPlanEditor()
@@ -434,21 +891,6 @@ public class MenuCatalogCommandTests
         HeadingFlyoutPanel panel = HeadingFlyoutTests.PanelOf(item);
 
         Assert.Equal(magnetic, panel.Rose.PresentHeading, 6);
-    }
-
-    [AvaloniaFact]
-    public void Warp_SeedsPopupWithTheMagneticHeading_NotTheTrueOne()
-    {
-        AircraftModel aircraft = OverKoakOnTrueHeading100();
-        int heading = int.Parse(aircraft.HeadingDisplay, CultureInfo.InvariantCulture);
-        Assert.NotEqual(100, heading);
-        var host = new RecordingMenuHost("");
-
-        MenuItem? item = MenuCatalog.Get(MenuIds.SimControlWarp).Build(aircraft, Context(), host);
-        Assert.NotNull(item);
-        Click((MenuItem)item);
-
-        Assert.Equal(heading, Assert.Single(host.WarpPopups).Heading);
     }
 
     /// <summary>An aircraft over KOAK on true heading 100, which the local declination puts more than five degrees off magnetic.</summary>
@@ -1183,7 +1625,7 @@ public class MenuCatalogCommandTests
 
             MenuItem first = Assert.IsType<MenuItem>(squawk.Items[0]);
             InlineBoxRow row = Assert.IsType<InlineBoxRow>(first.Header);
-            Assert.True(row.Box.IsFocused, "the code box did not take focus when the Squawk flyout opened");
+            Assert.True(Assert.IsType<TextBox>(row.Input).IsFocused, "the code box did not take focus when the Squawk flyout opened");
         }
         finally
         {
@@ -1228,12 +1670,10 @@ public class MenuCatalogCommandTests
             Assert.IsAssignableFrom<Control>(flyout.Popup.Child).UpdateLayout();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.True(row.Box.IsFocused, $"the box did not take focus when the strip opened {id}'s flyout");
-            Assert.Equal(seed, row.Box.Text ?? "");
-            Assert.Equal(
-                (0, seed.Length),
-                (Math.Min(row.Box.SelectionStart, row.Box.SelectionEnd), Math.Max(row.Box.SelectionStart, row.Box.SelectionEnd))
-            );
+            TextBox box = Assert.IsType<TextBox>(row.Input);
+            Assert.True(box.IsFocused, $"the box did not take focus when the strip opened {id}'s flyout");
+            Assert.Equal(seed, box.Text ?? "");
+            Assert.Equal((0, seed.Length), (Math.Min(box.SelectionStart, box.SelectionEnd), Math.Max(box.SelectionStart, box.SelectionEnd)));
         }
         finally
         {
@@ -1262,7 +1702,7 @@ public class MenuCatalogCommandTests
 
             MenuItem last = Assert.IsType<MenuItem>(say.Items[^1]);
             InlineBoxRow row = Assert.IsType<InlineBoxRow>(last.Header);
-            Assert.True(row.Box.IsFocused, "the Custom box did not take focus when the Say flyout opened");
+            Assert.True(Assert.IsType<TextBox>(row.Input).IsFocused, "the Custom box did not take focus when the Say flyout opened");
         }
         finally
         {
@@ -1293,7 +1733,7 @@ public class MenuCatalogCommandTests
             (TopLevel.GetTopLevel(row) as Control)?.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
 
-            double boxLeft = LeftEdge(row.Box);
+            double boxLeft = LeftEdge(Assert.IsType<TextBox>(row.Input));
             foreach (string preset in new[] { "Squawk assigned code", "Squawk random", "Squawk normal", "Ident" })
             {
                 MenuItem item = Assert.Single(squawk.Items.OfType<MenuItem>(), m => m.Header?.ToString() == preset);
@@ -1335,8 +1775,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(SharedMenuGroups.Squawk(null, Context(), host));
 
-        row.Box.Text = typed;
-        PressEnter(row.Box);
+        BoxOf(row).Text = typed;
+        PressEnter(BoxOf(row));
 
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
         Assert.Empty(host.InputPlaceholders);
@@ -1350,7 +1790,7 @@ public class MenuCatalogCommandTests
         MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host);
         InlineBoxRow row = BoxRow(squawk);
 
-        row.Box.Text = "7000";
+        BoxOf(row).Text = "7000";
         Click(Assert.Single(squawk.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row)));
 
         Assert.Equal([(Callsign, "SQ 7000", Initials)], host.Sent);
@@ -1366,7 +1806,7 @@ public class MenuCatalogCommandTests
         MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host);
         InlineBoxRow row = BoxRow(squawk);
 
-        row.Box.Text = typed;
+        BoxOf(row).Text = typed;
         MenuItem item = Assert.Single(squawk.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row));
         Click(item);
 
@@ -1388,14 +1828,14 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(SharedMenuGroups.Squawk(null, Context(), host));
 
-        row.Box.Text = typed;
+        BoxOf(row).Text = typed;
 
-        Assert.Contains(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.Contains(RefusableBox.RefusedClass, BoxOf(row).Classes);
         Assert.True(row.Refusal.ReasonLine.IsVisible, "A refused code should show its reason line.");
         Assert.Equal(MenuCatalog.InvalidSquawkCode, row.Refusal.ReasonLine.Text);
         Assert.Equal(InlineBoxRow.CantSend, row.CommandColumn.Text);
 
-        PressEnter(row.Box);
+        PressEnter(BoxOf(row));
 
         Assert.Empty(host.Sent);
     }
@@ -1409,11 +1849,11 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(SharedMenuGroups.Squawk(null, Context(), host));
 
-        row.Box.Text = typed;
-        PressEnter(row.Box);
+        BoxOf(row).Text = typed;
+        PressEnter(BoxOf(row));
 
         Assert.Empty(host.Sent);
-        Assert.DoesNotContain(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.DoesNotContain(RefusableBox.RefusedClass, BoxOf(row).Classes);
         Assert.Equal($"SQ {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
     }
 
@@ -1454,8 +1894,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(SharedMenuGroups.AskPilot(new FakeMenuAircraft(), Context(), host));
 
-        row.Box.Text = typed;
-        PressEnter(row.Box);
+        BoxOf(row).Text = typed;
+        PressEnter(BoxOf(row));
 
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
         Assert.Empty(host.InputPlaceholders);
@@ -1470,8 +1910,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(SharedMenuGroups.AskPilot(new FakeMenuAircraft(), Context(), host));
 
-        row.Box.Text = typed;
-        PressEnter(row.Box);
+        BoxOf(row).Text = typed;
+        PressEnter(BoxOf(row));
 
         Assert.Empty(host.Sent);
         Assert.Equal($"SAY {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
@@ -1505,9 +1945,12 @@ public class MenuCatalogCommandTests
             Assert.Equal("Scratchpad…", scratchpad.Header);
             MenuItem first = Assert.IsType<MenuItem>(scratchpad.Items[0]);
             InlineBoxRow row = Assert.IsType<InlineBoxRow>(first.Header);
-            Assert.Equal("I30", row.Box.Text);
-            Assert.True(row.Box.IsFocused, "the Scratchpad box did not take focus when the flyout opened");
-            Assert.Equal((0, 3), (Math.Min(row.Box.SelectionStart, row.Box.SelectionEnd), Math.Max(row.Box.SelectionStart, row.Box.SelectionEnd)));
+            Assert.Equal("I30", BoxOf(row).Text);
+            Assert.True(BoxOf(row).IsFocused, "the Scratchpad box did not take focus when the flyout opened");
+            Assert.Equal(
+                (0, 3),
+                (Math.Min(BoxOf(row).SelectionStart, BoxOf(row).SelectionEnd), Math.Max(BoxOf(row).SelectionStart, BoxOf(row).SelectionEnd))
+            );
         }
         finally
         {
@@ -1541,13 +1984,16 @@ public class MenuCatalogCommandTests
 
             Assert.True(clear.Focus(), "the Clear Scratchpad 1 row did not take the focus");
             Dispatcher.UIThread.RunJobs();
-            Assert.False(row.Box.IsFocused, "the Scratchpad box kept the focus after another row took it");
-            row.Box.Focus();
+            Assert.False(BoxOf(row).IsFocused, "the Scratchpad box kept the focus after another row took it");
+            BoxOf(row).Focus();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("ABC", row.Box.Text);
-            Assert.True(row.Box.IsFocused, "the Scratchpad box did not take the focus back");
-            Assert.Equal((0, 3), (Math.Min(row.Box.SelectionStart, row.Box.SelectionEnd), Math.Max(row.Box.SelectionStart, row.Box.SelectionEnd)));
+            Assert.Equal("ABC", BoxOf(row).Text);
+            Assert.True(BoxOf(row).IsFocused, "the Scratchpad box did not take the focus back");
+            Assert.Equal(
+                (0, 3),
+                (Math.Min(BoxOf(row).SelectionStart, BoxOf(row).SelectionEnd), Math.Max(BoxOf(row).SelectionStart, BoxOf(row).SelectionEnd))
+            );
         }
         finally
         {
@@ -1571,13 +2017,13 @@ public class MenuCatalogCommandTests
 
         if (typed is not null)
         {
-            row.Box.Text = typed;
+            BoxOf(row).Text = typed;
         }
 
-        PressEnter(row.Box);
+        PressEnter(BoxOf(row));
 
         Assert.Empty(host.Sent);
-        Assert.DoesNotContain(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.DoesNotContain(RefusableBox.RefusedClass, BoxOf(row).Classes);
         Assert.Equal($"SP {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
     }
 
@@ -1590,8 +2036,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30" }, host));
 
-        row.Box.Text = typed;
-        PressEnter(row.Box);
+        BoxOf(row).Text = typed;
+        PressEnter(BoxOf(row));
 
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
         Assert.Empty(host.InputPlaceholders);
@@ -1605,7 +2051,7 @@ public class MenuCatalogCommandTests
         MenuItem scratchpad = Scratchpad(new FakeMenuAircraft(), host);
         InlineBoxRow row = BoxRow(scratchpad);
 
-        row.Box.Text = "V28";
+        BoxOf(row).Text = "V28";
         Click(Assert.Single(scratchpad.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row)));
 
         Assert.Equal([(Callsign, "SP V28", Initials)], host.Sent);
@@ -1620,8 +2066,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft { Scratchpad1 = "I30" }, host));
 
-        row.Box.Text = typed;
-        PressEnter(row.Box);
+        BoxOf(row).Text = typed;
+        PressEnter(BoxOf(row));
 
         Assert.Empty(host.Sent);
         Assert.Equal($"SP {TakeoffFlyout.Unfilled}", row.CommandColumn.Text);
@@ -1638,14 +2084,14 @@ public class MenuCatalogCommandTests
         MenuItem scratchpad = Scratchpad(new FakeMenuAircraft(), host);
         InlineBoxRow row = BoxRow(scratchpad);
 
-        row.Box.Text = "ABCD";
+        BoxOf(row).Text = "ABCD";
 
-        Assert.Contains(RefusableBox.RefusedClass, row.Box.Classes);
+        Assert.Contains(RefusableBox.RefusedClass, BoxOf(row).Classes);
         Assert.True(row.Refusal.ReasonLine.IsVisible, "A refused scratchpad should show its reason line.");
         Assert.Equal("Scratchpad holds at most 3 characters", row.Refusal.ReasonLine.Text);
         Assert.Equal(InlineBoxRow.CantSend, row.CommandColumn.Text);
 
-        PressEnter(row.Box);
+        PressEnter(BoxOf(row));
         Click(Assert.Single(scratchpad.Items.OfType<MenuItem>(), m => ReferenceEquals(m.Header, row)));
 
         Assert.Empty(host.Sent);
@@ -1658,8 +2104,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("") { ScratchpadMaxLength = 4 };
         InlineBoxRow row = BoxRow(Scratchpad(new FakeMenuAircraft(), host));
 
-        row.Box.Text = "ABCD";
-        PressEnter(row.Box);
+        BoxOf(row).Text = "ABCD";
+        PressEnter(BoxOf(row));
 
         Assert.Equal([(Callsign, "SP ABCD", Initials)], host.Sent);
     }
@@ -1676,7 +2122,7 @@ public class MenuCatalogCommandTests
 
         InlineBoxRow row = BoxRow(Scratchpad(aircraft, host));
 
-        Assert.Equal("", row.Box.Text ?? "");
+        Assert.Equal("", BoxOf(row).Text ?? "");
     }
 
     /// <summary>
@@ -1715,7 +2161,10 @@ public class MenuCatalogCommandTests
     private static InlineBoxRow BoxRow(MenuItem flyout) =>
         Assert.IsType<InlineBoxRow>(Assert.Single(flyout.Items.OfType<MenuItem>(), m => m.Header is InlineBoxRow).Header);
 
-    private static void PressEnter(TextBox box) => box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+    private static void PressEnter(Control box) => box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+
+    /// <summary>The plain text box of <paramref name="row"/>, a row that is no fix box.</summary>
+    private static TextBox BoxOf(InlineBoxRow row) => Assert.IsType<TextBox>(row.Input);
 
     [AvaloniaFact]
     public void Approach_Header_ShowsActiveThenExpected()

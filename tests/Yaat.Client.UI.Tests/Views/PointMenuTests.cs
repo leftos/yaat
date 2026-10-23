@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
@@ -14,9 +15,11 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -37,8 +40,9 @@ public class PointMenuTests
     // The icons carry Fly heading, Direct to, the two holds and Warp here; the text rows keep only Fly heading (with its
     // turn row) and Append direct to.
     [AvaloniaFact]
-    public async Task AirbornePoint_OffersHeadingDirectHoldWarp()
+    public void AirbornePoint_OffersHeadingDirectHoldWarp()
     {
+        TestVnasData.EnsureInitialized();
         AircraftModel ac = Airborne(new LatLon(37.5000, -121.7000));
         var point = new MenuPoint(new LatLon(37.6000, -121.9000), null, null, [], null);
         var host = new RecordingMenuHost("") { PointDescription = Frd };
@@ -74,15 +78,96 @@ public class PointMenuTests
             host.Sent
         );
 
-        StripButton(menu, MenuIds.PointWarpHere).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuContext context = TestMenuContext.Create(Callsign, "AB", null, false, VfrCommandsForIfr.EnterFinalOnly) with
+        {
+            Click = new MenuClick(Callsign, null, point, []),
+        };
+        MenuItem warpHere = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.PointWarpHere).Build(ac, context, host));
+        InlineBoxRow[] warpRows = [.. warpHere.Items.OfType<MenuItem>().Select(m => m.Header).OfType<InlineBoxRow>()];
         int warpHeading = int.Parse(ac.HeadingDisplay, CultureInfo.InvariantCulture);
-        Assert.Equal([(Callsign, Frd, warpHeading, 33000, 280)], host.WarpPopups);
-        Func<string, int, int, int, Task>? submit = host.WarpSubmit;
-        Assert.NotNull(submit);
-        await submit(Frd, 90, 12000, 250);
-        Assert.Equal((Callsign, $"WARP {Frd} 90 12000 250", "AB"), host.Sent[^1]);
+        Assert.Equal(Frd, warpRows[0].Text);
+        warpRows[3].Text = "250";
+        Assert.Equal(warpHeading.ToString("D3", CultureInfo.InvariantCulture), warpRows[1].CommandColumn.Text);
+        warpRows[3].Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Assert.Equal((Callsign, $"WARP {Frd} {warpHeading:D3} 330 250", "AB"), host.Sent[^1]);
         Assert.NotEmpty(host.DescribedPoints);
         Assert.All(host.DescribedPoints, described => Assert.Equal(point.Position, described));
+    }
+
+    // The radar strip's Warp here button opens the Warp flyout over the strip, its FRD box taking the focus with the clicked
+    // point's FRD selected, so the first keystroke replaces it.
+    [AvaloniaFact]
+    public void PointStrip_WarpHereButton_OpensTheWarpFlyout_FrdBoxFocusedWithTheSeedSelected()
+    {
+        AircraftModel ac = Airborne(new LatLon(37.5000, -121.7000));
+        var point = new MenuPoint(new LatLon(37.6000, -121.9000), null, null, [], null);
+        var host = new RecordingMenuHost("") { PointDescription = Frd };
+        ContextMenu menu = Build(ac, point, host, _ => []);
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        try
+        {
+            menu.Open(window);
+            HeadlessWindowExtensions.PumpDispatcher();
+            menu.UpdateLayout();
+            Button button = StripButton(menu, MenuIds.PointWarpHere);
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            HeadlessWindowExtensions.PumpDispatcher();
+            MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+            Assert.True(flyout.IsOpen);
+            Assert.IsAssignableFrom<Control>(flyout.Popup.Child).UpdateLayout();
+            HeadlessWindowExtensions.PumpDispatcher();
+
+            InlineBoxRow frd = flyout.Items.OfType<MenuItem>().Select(m => m.Header).OfType<InlineBoxRow>().First();
+            TextBox inner = frd.Input.GetVisualDescendants().OfType<TextBox>().First();
+            Assert.Equal(Frd, frd.Text);
+            Assert.True(inner.IsFocused, "the FRD box did not take focus when the strip opened Warp here");
+            Assert.Equal((0, Frd.Length), (Math.Min(inner.SelectionStart, inner.SelectionEnd), Math.Max(inner.SelectionStart, inner.SelectionEnd)));
+            Assert.Empty(host.Sent);
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
+    }
+
+    // Enter in the FRD box of the Warp flyout the strip's Warp here button opened sends the seeded warp and closes the menu.
+    [AvaloniaFact]
+    public void PointStrip_WarpHere_EnterInTheFrdBox_SendsAndClosesTheMenu()
+    {
+        TestVnasData.EnsureInitialized();
+        AircraftModel ac = Airborne(new LatLon(37.5000, -121.7000));
+        var point = new MenuPoint(new LatLon(37.6000, -121.9000), null, null, [], null);
+        var host = new RecordingMenuHost("") { PointDescription = Frd };
+        ContextMenu menu = Build(ac, point, host, _ => []);
+        var window = new Window { Width = 600, Height = 900 };
+        window.Show();
+        try
+        {
+            menu.Open(window);
+            HeadlessWindowExtensions.PumpDispatcher();
+            menu.UpdateLayout();
+            Button button = StripButton(menu, MenuIds.PointWarpHere);
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            HeadlessWindowExtensions.PumpDispatcher();
+            MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+            Assert.IsAssignableFrom<Control>(flyout.Popup.Child).UpdateLayout();
+            HeadlessWindowExtensions.PumpDispatcher();
+
+            InlineBoxRow frd = flyout.Items.OfType<MenuItem>().Select(m => m.Header).OfType<InlineBoxRow>().First();
+            frd.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+            HeadlessWindowExtensions.PumpDispatcher();
+
+            Assert.Equal([(Callsign, $"WARP {Frd}", "AB")], host.Sent);
+            Assert.False(menu.IsOpen, "Enter in the strip's Warp flyout should close the menu");
+            Assert.False(flyout.IsOpen, "Enter in the strip's Warp flyout should close the flyout too");
+        }
+        finally
+        {
+            menu.Close();
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -136,16 +221,17 @@ public class PointMenuTests
         Assert.Equal([MenuIds.PointFlyHeading], StripTags(menu));
     }
 
-    // A ground aircraft gets no radar icons, so Warp here stays a text row on the radar point menu.
+    // WARP leaves the aircraft airborne, so a ground aircraft gets no Warp here at a map point (its ground warp is Warp here
+    // at a taxi node, WARPG), and no radar icons.
     [AvaloniaFact]
-    public void RadarPoint_GroundAircraft_KeepsWarpHereAsText()
+    public void RadarPoint_GroundAircraft_OffersNoWarpHere()
     {
         var point = new MenuPoint(new LatLon(37.6000, -121.9000), null, null, [], null);
         var host = new RecordingMenuHost("") { PointDescription = Frd };
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), point, host, _ => []);
 
-        Assert.Equal([$"Warp here ({Frd})"], Labels(Body(menu)));
+        Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("Warp here", StringComparison.Ordinal));
         Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
     }
 
@@ -740,7 +826,6 @@ public class PointMenuTests
         Assert.DoesNotContain(labels, l => (l is "Taxi here" or "Custom taxi…") || l.StartsWith("Push to", StringComparison.Ordinal));
         Click(Item(menu.Items, "Warp here"));
         Assert.Equal([(Callsign, $"WARPG #{TaxiNode.Id}", "AB")], host.Sent);
-        Assert.Empty(host.WarpPopups);
     }
 
     // --- Same point, two views -------------------------------------------------------------
@@ -772,7 +857,6 @@ public class PointMenuTests
 
         Assert.NotEmpty(radarHost.Sent);
         Assert.Equal(radarHost.Sent, groundHost.Sent);
-        Assert.Equal(radarHost.WarpPopups, groundHost.WarpPopups);
     }
 
     // --- Fixtures ---------------------------------------------------------------------------

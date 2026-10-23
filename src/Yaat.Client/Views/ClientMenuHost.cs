@@ -421,9 +421,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// </summary>
     public double GetFieldElevation(string? destination) => main.Radar.GetFieldElevation(destination);
 
-    public void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        MenuPopups.ShowWarp(anchor, new MenuPopups.WarpSeed(callsign, frd, heading, altitude, speed), onSubmit);
-
     public void ShowCommandFlyout(string callsign, string initials) =>
         MenuPopups.ShowCommand(anchor, callsign, command => main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials));
 

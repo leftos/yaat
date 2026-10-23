@@ -477,7 +477,7 @@ public static class MenuIds
     /// <summary>Type a taxi command, prefilled for the right-clicked taxi node.</summary>
     public const string PointCustomTaxi = "point.custom-taxi";
 
-    /// <summary>Warp to the right-clicked taxi node (<c>WARPG</c>) or map point (<c>WARP</c>, through the warp popup).</summary>
+    /// <summary>Warp to the right-clicked taxi node (<c>WARPG</c>) or map point (<c>WARP</c>, through the Warp flyout).</summary>
     public const string PointWarpHere = "point.warp-here";
 
     /// <summary>Make left closed traffic in the air (<c>MLT</c>).</summary>

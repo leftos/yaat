@@ -2387,7 +2387,7 @@ Teleport an aircraft to a specific position:
 | `WARPG @B12` | Warp to parking B12 (ground aircraft only) |
 | `WARPG $9` | Warp to taxi spot 9 (ground aircraft only) |
 
-**WARP** accepts a fix name or [FRD](#fix-radial-distance-frd) as the position. The trailing heading, altitude, and speed are optional — when omitted, the aircraft keeps its current value for that parameter (the same way the radar context-menu Warp pre-fills current values).
+**WARP** accepts a fix name or [FRD](#fix-radial-distance-frd) as the position. The trailing heading, altitude, and speed are optional — when omitted, the aircraft keeps its current value for that parameter (the radar context menu's Warp… flyout works the same way: a blank Heading, Altitude or Speed keeps the present value, and it takes the altitude as hundreds, feet or FL, sending hundreds).
 
 Trailing tokens are matched left-to-right against `heading → altitude → speed`. A token fills `heading` only if it is an integer in 1–360; otherwise it skips heading and is tried against altitude (`AltitudeResolver`: shorthand hundreds, full feet, or AGL form), then speed.
 

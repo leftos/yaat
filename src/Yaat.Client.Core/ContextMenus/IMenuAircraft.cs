@@ -121,15 +121,15 @@ public interface IMenuAircraft
     double HeadingDegrees { get; }
 
     /// <summary>
-    /// The current heading in magnetic degrees, as the datablock shows it, which the heading flyout follows and the warp
-    /// popup seeds with.
+    /// The current heading in magnetic degrees, as the datablock shows it, which the heading flyout follows and the Warp
+    /// flyout keeps for a blank Heading box.
     /// </summary>
     double MagneticHeadingDegrees { get; }
 
-    /// <summary>The current altitude in feet, which the warp popup seeds its altitude field with.</summary>
+    /// <summary>The current altitude in feet, which the Warp flyout keeps for a blank Altitude box.</summary>
     double AltitudeFeet { get; }
 
-    /// <summary>The current indicated airspeed in knots, which the warp popup seeds its speed field with.</summary>
+    /// <summary>The current indicated airspeed in knots, which the Warp flyout keeps for a blank Speed box.</summary>
     double IndicatedAirspeedKnots { get; }
 
     /// <summary>The current ground speed in knots, which tells a rejected takeoff still braking from one slowed to taxi speed.</summary>

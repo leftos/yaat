@@ -148,13 +148,6 @@ public interface IMenuHost
     void EnterDrawRoute(string callsign);
 
     /// <summary>
-    /// Opens the surface's warp popup for <paramref name="callsign"/>, seeded with the position <paramref name="frd"/>
-    /// (<c>""</c> for none), <paramref name="heading"/>, <paramref name="altitude"/> and <paramref name="speed"/>, and
-    /// hands the submitted position, heading, altitude and speed to <paramref name="onSubmit"/>.
-    /// </summary>
-    void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit);
-
-    /// <summary>
     /// Opens the surface's free-text command popup for <paramref name="callsign"/>, and sends what the controller types
     /// on behalf of <paramref name="initials"/> through the VFR gate, as typed input goes.
     /// </summary>

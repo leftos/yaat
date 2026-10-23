@@ -181,6 +181,13 @@ All Commands
   Edit flight plan
   ---
   Warp…
+    Warp · N307AB · now 267° · 1,000 ft · 90 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
 Favorite Commands
   (no items) [disabled]
 ---

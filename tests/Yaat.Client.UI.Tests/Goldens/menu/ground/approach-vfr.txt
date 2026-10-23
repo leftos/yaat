@@ -166,6 +166,13 @@ All Commands
   Edit flight plan
   ---
   Warp…
+    Warp · N305AB · now 267° · 2,500 ft · 90 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
 Favorite Commands
   (no items) [disabled]
 ---

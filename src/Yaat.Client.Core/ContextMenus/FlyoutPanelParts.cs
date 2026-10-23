@@ -38,6 +38,12 @@ internal static class FlyoutPanelParts
     /// <summary>The red of a box's refusal (<c>Not a valid altitude</c>).</summary>
     public static IImmutableSolidColorBrush RefusalBrush { get; } = new ImmutableSolidColorBrush(Color.Parse("#E08A8A"));
 
+    /// <summary>The amber of a present value a box row keeps in the command for its blank box.</summary>
+    public static IImmutableSolidColorBrush KeptBrush { get; } = new ImmutableSolidColorBrush(Color.Parse("#FFC062"));
+
+    /// <summary>The green of a box row's reading of what was typed, on the line under its box.</summary>
+    public static IImmutableSolidColorBrush ReadingBrush { get; } = new ImmutableSolidColorBrush(Color.Parse("#9FE0C0"));
+
     /// <summary>The fill of the present value's row or chip.</summary>
     public static IImmutableSolidColorBrush NowFill { get; } = new ImmutableSolidColorBrush(Color.Parse("#2F4A6E"));
 
@@ -332,10 +338,10 @@ internal sealed class RefusableBox
     /// <summary>The style class a box holding text it refuses carries.</summary>
     public const string RefusedClass = "refused";
 
-    private readonly TextBox _box;
+    private readonly Control _box;
 
-    /// <summary>Wraps <paramref name="box"/>, unrefused.</summary>
-    public RefusableBox(TextBox box)
+    /// <summary>Wraps <paramref name="box"/>, a text box or a fix box, unrefused.</summary>
+    public RefusableBox(Control box)
     {
         _box = box;
         Underline = new Border

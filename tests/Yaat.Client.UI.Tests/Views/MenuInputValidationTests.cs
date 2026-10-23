@@ -113,7 +113,7 @@ public class MenuInputValidationTests
         SquawkFlyout open = OpenSquawk();
         try
         {
-            SubmitBox(open.Row.Box, "1234");
+            SubmitBox(Assert.IsType<TextBox>(open.Row.Input), "1234");
 
             Assert.Equal([(Callsign, "SQ 1234", "AB")], open.Sent.Sent);
             Assert.False(open.Menu.IsOpen);
@@ -134,7 +134,7 @@ public class MenuInputValidationTests
         SquawkFlyout open = OpenSquawk();
         try
         {
-            SubmitBox(open.Row.Box, typed);
+            SubmitBox(Assert.IsType<TextBox>(open.Row.Input), typed);
 
             Assert.Empty(open.Sent.Sent);
             Assert.Equal(BadSquawk, open.Row.Refusal.ReasonLine.Text);

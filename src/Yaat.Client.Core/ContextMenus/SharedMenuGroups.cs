@@ -74,7 +74,7 @@ public static class SharedMenuGroups
             menu.Items.Add(ident);
         }
 
-        FocusTheBoxOnOpen(menu, codeRow.Box);
+        FocusTheBoxOnOpen(menu, codeRow);
         return menu;
     }
 
@@ -156,7 +156,7 @@ public static class SharedMenuGroups
         menu.Items.Add(new Separator());
         InlineBoxRow customRow = MenuCatalog.SayCustomRow(context, host);
         menu.Items.Add(customRow.Item);
-        FocusTheBoxOnOpen(menu, customRow.Box);
+        FocusTheBoxOnOpen(menu, customRow);
         return menu;
     }
 
@@ -178,38 +178,38 @@ public static class SharedMenuGroups
             AddIfApplicable(menu.Items, MenuIds.DataBlockScratchpadClear2, aircraft, context, host);
         }
 
-        FocusTheBoxOnOpen(menu, row.Box);
+        FocusTheBoxOnOpen(menu, row);
         return menu;
     }
 
     /// <summary>
-    /// Focuses <paramref name="box"/> each time <paramref name="menu"/> opens, while it stays open: as its own submenu, or as
-    /// the flyout a quick-command strip button opens over its items, where the submenu never opens.
+    /// Focuses <paramref name="row"/>'s box each time <paramref name="menu"/> opens, while it stays open: as its own submenu, or
+    /// as the flyout a quick-command strip button opens over its items, where the submenu never opens.
     /// </summary>
-    private static void FocusTheBoxOnOpen(MenuItem menu, TextBox box)
+    internal static void FocusTheBoxOnOpen(MenuItem menu, InlineBoxRow row)
     {
         menu.SubmenuOpened += (_, e) =>
         {
             if (ReferenceEquals(e.Source, menu))
             {
-                FlyoutPanelParts.FocusLater(box, () => menu.IsSubMenuOpen, () => { });
+                row.FocusLater(() => menu.IsSubMenuOpen);
             }
         };
-        QuickCommandStrip.FollowInFlyout(menu, new StripBoxFocus(box));
+        QuickCommandStrip.FollowInFlyout(menu, new StripBoxFocus(row));
     }
 
     /// <summary>
     /// Focuses a flyout's box when the quick-command strip opens the entry's flyout, where the submenu
     /// (<see cref="MenuItem.IsSubMenuOpen"/>) never opens, unless the flyout closed before the focus ran.
     /// </summary>
-    private sealed class StripBoxFocus(TextBox box) : IStripFlyoutContent
+    private sealed class StripBoxFocus(InlineBoxRow row) : IStripFlyoutContent
     {
         private bool _open;
 
         public void Opened(ItemCollection items, Action close)
         {
             _open = true;
-            FlyoutPanelParts.FocusLater(box, () => _open, () => { });
+            row.FocusLater(() => _open);
         }
 
         public void PointerInside(bool inside) { }
@@ -567,10 +567,10 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The sim-control items that close All Commands: a separator (unless the list already ends in one), Warp… where it
-    /// applies (every view offers it, never a surface live-traffic shadow), then "Release to live feed" when the aircraft
-    /// was assumed from the feed (<see cref="AircraftCommandApplicability.CanUnassume"/>). Nothing, not even the
-    /// separator, when neither applies.
+    /// The sim-control items that close All Commands: a separator (unless the list already ends in one), Warp… where it applies
+    /// (for a controllable airborne aircraft only, <see cref="AircraftCommandApplicability.IsAirborneControllable"/>), then
+    /// "Release to live feed" when the aircraft was assumed from the feed
+    /// (<see cref="AircraftCommandApplicability.CanUnassume"/>). Nothing, not even the separator, when neither applies.
     /// </summary>
     public static void AddSimControl(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {

@@ -20,6 +20,7 @@
 - Pattern entries open a runway flyout on the assigned runway, and Cleared for takeoff ends in a Custom box.
 - Squawk opens a flyout led by a code box that refuses an invalid code, and Ask pilot to say… ends in a Custom box.
 - Scratchpad… opens a flyout led by a box holding the present scratchpad, held to the facility's length, then Clear Scratchpad 1 and 2.
+- Warp… opens a flyout of fix, heading, altitude and speed boxes, where heading, altitude and speed are optional; it is offered to airborne aircraft only.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.
@@ -43,6 +44,7 @@
 - Changing a pilot's voice type updates CRC's ASDE-X, SAID, ground and parked STARS displays at once, even for an aircraft standing still.
 - CRC's ASDE-X safety logic works from scenario load: every ASDE-X facility's runways load with the scenario, with no display push needed.
 - ASDE-X safety alerts reach only their own facility's displays and name the runway end the arrival or departure is using.
+- Warp… no longer sends an aircraft at 800 ft to 80,000 ft.
 
 ## v0.17.0-beta [2026/10/22]
 
