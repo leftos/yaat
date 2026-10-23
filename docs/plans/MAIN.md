@@ -56,7 +56,6 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [/] YAAT-1050 Stop speed commands (SPDN) cancelling an approach; audit every command that cancels one · release vNext
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext+1
-  - [/] YAAT-1058 Seed the ASDE-X safety-logic configuration (runway areas, closed flags, default configuration) at scenario load · release vNext
   - [ ] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext+1
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
@@ -706,3 +705,7 @@
 - [ ] YAAT-1055 Stop a re-created pattern leg re-voicing its turn report after a 360 or a rebuild
 - [ ] YAAT-1056 Give the automation host's wait_for handler a clock tests can hold
 - [ ] YAAT-1071 Keep the approach on a bare EXP, and decide whether SPDN overrides the procedure-turn speed ceiling
+- [ ] YAAT-1072 Fly a controller's CM/DM during the published missed approach
+- [ ] YAAT-1073 Trim the approach transition at a direct-to fix instead of looping back through it
+- [ ] YAAT-1074 Apply or refuse a CM/DM given beside a tower command (CLAND, DM 020)
+- [ ] YAAT-1075 Check every command of a block against the phase, not only its driver
