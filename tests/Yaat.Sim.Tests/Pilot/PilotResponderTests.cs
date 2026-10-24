@@ -714,6 +714,8 @@ public class PilotResponderTests
     [InlineData("join approach")]
     [InlineData("join straight in approach")]
     [InlineData("expect approach")]
+    [InlineData("cleared visual approach")]
+    [InlineData("follow traffic airborne")]
     public void BuilderVariantSet_Pattern_SpeaksTheBuildersCanonical(string setName)
     {
         BuilderVariantSet set = PhraseologyRules.BuilderVariantSets.Single(candidate => candidate.Name == setName);
@@ -757,6 +759,8 @@ public class PilotResponderTests
             "join approach" => new JoinApproachCommand("ILS28R", null, false),
             "join straight in approach" => new JoinApproachStraightInCommand("ILS28R", null),
             "expect approach" => new ExpectApproachCommand("RNAV28RZ", null),
+            "cleared visual approach" => new ClearedVisualApproachCommand("28R", null, PatternDirection.Left, "N456CD", false),
+            "follow traffic airborne" => new FollowCommand("N456CD", false),
             _ => throw new ArgumentOutOfRangeException(nameof(setName), setName, "No builder shape for this set."),
         };
         if (setName is "expedite taxi" or "expedite exit")
@@ -833,7 +837,12 @@ public class PilotResponderTests
     {
         FrequencyLoadBand[] bands = [FrequencyLoadBand.Quiet, FrequencyLoadBand.Normal, FrequencyLoadBand.Busy];
         List<string> failures = [];
-        foreach (BuilderVariantSet set in PhraseologyRules.BuilderVariantSets)
+        // The airport-level visual's runway is the pilot's pick resolved at dispatch, so only the handler readback carries it.
+        foreach (
+            BuilderVariantSet set in PhraseologyRules.BuilderVariantSets.Where(set =>
+                !ReferenceEquals(set, PhraseologyRules.AirportVisualApproachClearance)
+            )
+        )
         {
             (ParsedCommand command, AircraftState ac) = BuilderShape(set.Name);
             Assert.Same(set, SelectedBuilderSet(command, ac));
@@ -856,6 +865,50 @@ public class PilotResponderTests
             failures.Count == 0,
             $"SpokenCandidates differs from the spoken readbacks:{Environment.NewLine}{string.Join(Environment.NewLine, failures)}"
         );
+    }
+
+    /// <summary>
+    /// A bare CAPP clearing an expected visual reads back the visual clearance's rows; the candidates framed with the callsign
+    /// are exactly what the readback speaks over a sweep of seeds and seconds.
+    /// </summary>
+    [Theory]
+    [InlineData(FrequencyLoadBand.Busy)]
+    [InlineData(FrequencyLoadBand.Quiet)]
+    public void SpokenCandidates_BareCappClearingAnExpectedVisual_EqualsWhatItSpeaks(FrequencyLoadBand band)
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        ac.Approach.Expected = "VIS28R";
+        var command = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
+
+        HashSet<string> allowed = [.. PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null).Select(FramedWithN123AB)];
+        HashSet<string> spoken = [.. Enumerable.Range(0, 5).SelectMany(seed => SpokenOverSeconds(ac, command, band, seed))];
+
+        Assert.Contains(allowed, candidate => candidate.StartsWith("cleared visual", StringComparison.Ordinal));
+        Assert.True(spoken.SetEquals(allowed), $"Candidates: {string.Join(" | ", allowed)}; spoken: {string.Join(" | ", spoken)}");
+    }
+
+    /// <summary>
+    /// A CAPP with a route clears no expected visual (the dispatcher clears the visual only for a bare CAPP), so neither its
+    /// candidates nor its readback speak the visual clearance. The parser always gives a routed CAPP an approach id (its last
+    /// token), so the routed shape with none is built directly.
+    /// </summary>
+    [Fact]
+    public void SpokenCandidates_CappWithARoute_WithAVisualExpected_IsNotTheVisual()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        ac.Approach.Expected = "VIS28R";
+        var command = new ClearedApproachCommand(null, null, false, null, null, null, "SUNOL", 37.6, -121.9, null, null);
+
+        foreach (FrequencyLoadBand band in new[] { FrequencyLoadBand.Busy, FrequencyLoadBand.Normal })
+        {
+            Assert.DoesNotContain(
+                PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null),
+                candidate => candidate.StartsWith("cleared visual", StringComparison.Ordinal)
+            );
+        }
+
+        string tts = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
+        Assert.False(tts.StartsWith("cleared visual", StringComparison.Ordinal), tts);
     }
 
     /// <summary>The variant set the readback picks for <paramref name="command"/> by <paramref name="ac"/>.</summary>

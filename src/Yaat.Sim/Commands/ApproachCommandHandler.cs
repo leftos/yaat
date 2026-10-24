@@ -1240,21 +1240,56 @@ public static class ApproachCommandHandler
     /// </summary>
     private static CommandResult RunwayVisualCleared(ClearedVisualApproachCommand cmd, string runwayId)
     {
-        string traffic = TrafficSideClause(cmd);
-        string terminal = $"cleared visual approach runway {PhraseologyVerbalizer.CompactRunway(runwayId)}{traffic}";
-        string tts = $"cleared visual approach runway {PhraseologyVerbalizer.SpellRunway(runwayId)}{traffic}";
         string message = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}";
-        PilotSpeechText readback = new(terminal, tts);
         if (cmd.FollowCallsign is { } follow)
         {
             message += $", follow {follow}";
-            readback = new PilotSpeechText($"{terminal}, follow the traffic", $"{tts}, follow the traffic")
-            {
-                RpoTerminal = $"{terminal}, follow {follow}",
-            };
         }
 
-        return new CommandResult(true, message) { PilotReadback = new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback) };
+        (PilotSpeechText readback, IReadOnlyDictionary<string, string> captures) = RunwayVisualReadback(cmd, runwayId);
+        return new CommandResult(true, message)
+        {
+            PilotReadback = new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback)
+            {
+                Variants = PhraseologyRules.VisualApproachClearance,
+                Captures = captures,
+            },
+        };
+    }
+
+    /// <summary>
+    /// The pilot's readback of a visual clearance to a runway, "cleared visual approach runway two eight right", then the
+    /// pattern side and the traffic to follow (the RPO's text names its callsign), and the captures of
+    /// <see cref="PhraseologyRules.VisualApproachClearance"/>' rows: <c>{rwy}</c> the spoken runway, <c>{side}</c> and
+    /// <c>{follow}</c> the comma-led tail clauses, empty when the clearance has none.
+    /// </summary>
+    /// <param name="cmd">The visual clearance.</param>
+    /// <param name="runwayId">The runway it clears to.</param>
+    /// <returns>The canonical readback and the captures.</returns>
+    public static (PilotSpeechText Readback, IReadOnlyDictionary<string, string> Captures) RunwayVisualReadback(
+        ClearedVisualApproachCommand cmd,
+        string runwayId
+    )
+    {
+        string traffic = TrafficSideClause(cmd);
+        string spokenRunway = PhraseologyVerbalizer.SpellRunway(runwayId);
+        string terminal = $"cleared visual approach runway {PhraseologyVerbalizer.CompactRunway(runwayId)}{traffic}";
+        string tts = $"cleared visual approach runway {spokenRunway}{traffic}";
+        PilotSpeechText readback = new(terminal, tts);
+        string followClause = "";
+        if (cmd.FollowCallsign is { } follow)
+        {
+            followClause = ", follow the traffic";
+            readback = new PilotSpeechText($"{terminal}{followClause}", $"{tts}{followClause}") { RpoTerminal = $"{terminal}, follow {follow}" };
+        }
+
+        var captures = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["rwy"] = spokenRunway,
+            ["side"] = traffic,
+            ["follow"] = followClause,
+        };
+        return (readback, captures);
     }
 
     private static string TrafficSideClause(ClearedVisualApproachCommand cmd) =>
@@ -1394,9 +1429,19 @@ public static class ApproachCommandHandler
             $"cleared visual approach to {airport}, landing runway {PhraseologyVerbalizer.CompactRunway(runway)}{traffic}",
             $"cleared visual approach to {spokenAirport}, landing runway {spokenRunway}{traffic}"
         );
+        var captures = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["apt"] = spokenAirport,
+            ["rwy"] = spokenRunway,
+            ["side"] = traffic,
+        };
         return new CommandResult(true, $"Cleared visual approach to {airport}, landing runway {RunwayIdentifier.ToDisplayDesignator(runway)}")
         {
-            PilotReadback = new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback),
+            PilotReadback = new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback)
+            {
+                Variants = PhraseologyRules.AirportVisualApproachClearance,
+                Captures = captures,
+            },
         };
     }
 

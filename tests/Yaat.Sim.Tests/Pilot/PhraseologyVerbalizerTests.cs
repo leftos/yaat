@@ -336,6 +336,51 @@ public class PhraseologyVerbalizerTests
         );
     }
 
+    [Fact]
+    public void RenderSpokenVariant_CommaLedCapture_AttachesWithoutASpace() =>
+        Assert.Equal(
+            "cleared visual runway two eight right, left traffic, follow the traffic",
+            PhraseologyVerbalizer.RenderSpokenVariant(
+                "cleared visual runway {rwy} {side} {follow}",
+                new Dictionary<string, string>
+                {
+                    ["rwy"] = "two eight right",
+                    ["side"] = ", left traffic",
+                    ["follow"] = ", follow the traffic",
+                }
+            )
+        );
+
+    [Fact]
+    public void RenderSpokenVariant_EmptyCaptureBeforeAComma_KeepsTheComma() =>
+        Assert.Equal(
+            "cleared visual approach runway two eight right, {cs}, thanks",
+            PhraseologyVerbalizer.RenderSpokenVariant(
+                "cleared visual approach runway {rwy} {side} {follow}, {cs}, thanks",
+                new Dictionary<string, string>
+                {
+                    ["rwy"] = "two eight right",
+                    ["side"] = "",
+                    ["follow"] = "",
+                }
+            )
+        );
+
+    [Fact]
+    public void RenderSpokenVariant_PunctuatedCaptureToken_KeepsItsComma() =>
+        Assert.Equal(
+            "cleared visual approach to petaluma, landing runway two nine",
+            PhraseologyVerbalizer.RenderSpokenVariant(
+                "cleared visual approach to {apt}, landing runway {rwy} {side}",
+                new Dictionary<string, string>
+                {
+                    ["apt"] = "petaluma",
+                    ["rwy"] = "two nine",
+                    ["side"] = "",
+                }
+            )
+        );
+
     [Theory]
     [InlineData(4000)]
     [InlineData(19000)]

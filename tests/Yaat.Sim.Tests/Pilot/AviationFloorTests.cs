@@ -98,6 +98,19 @@ public class AviationFloorTests
     [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "{fix} at {alt}", FrequencyLoadBand.Busy)]
     [InlineData("climb via sid except maintain {alt}", CanonicalCommandType.ClimbVia, "climb via sid {alt}", FrequencyLoadBand.Busy)]
     [InlineData("expedite climb to? {alt}", CanonicalCommandType.Expedite, "{alt}", FrequencyLoadBand.Busy)]
+    // A visual clearance never drops the traffic to follow, and an airport-level one never drops the word runway after landing.
+    [InlineData(
+        "cleared visual approach runway {rwy} {side} {follow}",
+        CanonicalCommandType.ClearedVisualApproach,
+        "cleared visual runway {rwy} {side}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        "cleared visual approach to {apt}, landing runway {rwy} {side}",
+        CanonicalCommandType.ClearedVisualApproach,
+        "cleared visual to {apt}, landing {rwy} {side}",
+        FrequencyLoadBand.Busy
+    )]
     public void HoldsTemplate_VariantBreaksTheFloor_Rejects(
         string canonicalPattern,
         CanonicalCommandType type,

@@ -1421,6 +1421,50 @@ public static class PhraseologyRules
             )
         );
 
+    /// <summary>
+    /// "cleared visual approach runway {rwy}" (7110.65 7-4-3), then the pattern side and the traffic to follow as comma-led
+    /// captures: a busy pilot drops "approach", then the word runway, never "visual", the side or the follow.
+    /// </summary>
+    public static BuilderVariantSet VisualApproachClearance { get; } =
+        new(
+            "cleared visual approach",
+            ["cleared", "visual", "approach", "runway", "{rwy}", "{side}", "{follow}"],
+            ClearedVisualApproach,
+            new PilotVariantSet(
+                [new PilotVariant("cleared visual approach runway {rwy} {side} {follow}, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("cleared visual runway {rwy} {side} {follow}", PilotVariantTags.None),
+                    new PilotVariant("cleared visual {rwy} {side} {follow}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "cleared visual approach to {apt}, landing runway {rwy}" (7110.65 7-4-3), the runway the pilot's own pick: a busy pilot
+    /// drops only "approach", never "landing runway" or the side.
+    /// </summary>
+    public static BuilderVariantSet AirportVisualApproachClearance { get; } =
+        new(
+            "cleared visual approach to airport",
+            ["cleared", "visual", "approach", "to", "{apt},", "landing", "runway", "{rwy}", "{side}"],
+            ClearedVisualApproach,
+            PilotVariantSet.BusyOnly(new PilotVariant("cleared visual to {apt}, landing runway {rwy} {side}", PilotVariantTags.None))
+        );
+
+    /// <summary>"follow the traffic", an airborne follow (7110.65 7-2-1, AIM 5-5-12): a busy pilot keeps "the traffic" and the callsign.</summary>
+    public static BuilderVariantSet FollowTrafficAirborne { get; } =
+        new(
+            "follow traffic airborne",
+            ["follow", "the", "traffic"],
+            Follow,
+            new PilotVariantSet(
+                [new PilotVariant("we'll follow the traffic", PilotVariantTags.None)],
+                [],
+                [new PilotVariant("following the traffic, {cs}", PilotVariantTags.None)]
+            )
+        );
+
     /// <summary>Every clause-builder variant set, for the aviation-floor test over all rows.</summary>
     public static IReadOnlyList<BuilderVariantSet> BuilderVariantSets { get; } =
     [
@@ -1443,5 +1487,8 @@ public static class PhraseologyRules
         ApproachJoin,
         StraightInApproachJoin,
         ExpectedApproach,
+        VisualApproachClearance,
+        AirportVisualApproachClearance,
+        FollowTrafficAirborne,
     ];
 }

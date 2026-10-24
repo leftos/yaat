@@ -611,7 +611,6 @@ public static partial class PilotResponder
                 armedHold.RunwayEndFacing(aircraft)
             ),
             FollowGroundCommand follow => BuildFollowGroundClause(follow),
-            FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
             ClearedApproachCommand
@@ -1142,7 +1141,8 @@ public static partial class PilotResponder
 
     /// <summary>
     /// The clause the readback builds for <paramref name="cmd"/> from a variant set (an altitude restriction, an expedite, an
-    /// approach clearance or join), chosen by <paramref name="aircraft"/>; null for any other command, and for an approach
+    /// approach clearance or join, a visual clearance naming its runway, an airborne follow), chosen by
+    /// <paramref name="aircraft"/>; null for any other command (an airport-level visual among them), and for an approach
     /// clearance read back canonical in every band (a circling approach, a bare CAPP with no expected approach). The readback
     /// and <see cref="PhraseologyVerbalizer.SpokenCandidates"/> both dispatch through it.
     /// </summary>
@@ -1156,8 +1156,17 @@ public static partial class PilotResponder
             JoinApproachCommand japp => BuildVariedJoinApproachClause(japp, japp.ApproachId),
             ClearedApproachStraightInCommand cappsi => BuildVariedJoinApproachClause(cappsi, cappsi.ApproachId),
             JoinApproachStraightInCommand jappsi => BuildVariedJoinApproachClause(jappsi, jappsi.ApproachId),
+            ClearedVisualApproachCommand { RunwayId: { } runwayId } cva => BuildVariedRunwayVisualClause(cva, runwayId),
+            FollowCommand follow => new BuilderClause(BuildFollowAirborneClause(follow), PhraseologyRules.FollowTrafficAirborne),
             _ => null,
         };
+
+    /// <summary>A visual clearance to a runway the command names, with its variant set and the captures of its tail.</summary>
+    private static BuilderClause BuildVariedRunwayVisualClause(ClearedVisualApproachCommand cva, string runwayId)
+    {
+        (PilotSpeechText readback, IReadOnlyDictionary<string, string> captures) = ApproachCommandHandler.RunwayVisualReadback(cva, runwayId);
+        return new BuilderClause(readback, PhraseologyRules.VisualApproachClearance) { Captures = captures };
+    }
 
     /// <summary>
     /// The approach a CAPP with no handler readback names: its own id, else, for a bare CAPP, the expected approach it clears
@@ -1167,11 +1176,20 @@ public static partial class PilotResponder
 
     /// <summary>
     /// A CAPP's readback with the variant set of its final clause: the typed approach's set, or the "cleared approach" set when
-    /// the id names a runway but no type; null when it is read back canonical in every band.
+    /// the id names a runway but no type, or, for a bare CAPP clearing an expected visual, the visual clearance to its runway;
+    /// null when it is read back canonical in every band.
     /// </summary>
     private static BuilderClause? BuildVariedApproachClearanceClause(ClearedApproachCommand capp, AircraftState aircraft)
     {
         string? approachId = ClearedApproachId(capp, aircraft);
+        if (
+            (capp is { ApproachId: null, AtFix: null, DctFix: null, CrossFixAltitude: null })
+            && ApproachIds.TryParseVisual(aircraft.Approach.Expected, out string? visualRunway)
+        )
+        {
+            return BuildVariedRunwayVisualClause(new ClearedVisualApproachCommand(visualRunway, null, null, null, false), visualRunway);
+        }
+
         (BuilderVariantSet Set, IReadOnlyDictionary<string, string> Captures)? variants = ApproachReadbackName.SpokenParts(approachId) is { } parts
             ? ApproachCommandHandler.ClauseVariants(CommandDescriber.ToCanonicalType(capp), parts.Approach, parts.Runway)
             : null;
@@ -1254,7 +1272,7 @@ public static partial class PilotResponder
     {
         PilotSpeechText canonical = built.Canonical;
         IReadOnlyDictionary<string, string> captures = built.Captures ?? new Dictionary<string, string>();
-        string final = PhraseologyVerbalizer.RenderPattern(built.Variants.Pattern, captures);
+        string final = PhraseologyVerbalizer.RenderSetPattern(built.Variants, captures);
         if (!canonical.Tts.EndsWith(final, StringComparison.Ordinal))
         {
             Log.LogError(

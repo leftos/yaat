@@ -427,7 +427,7 @@ public static class PhraseologyVerbalizer
 
         if ((cmd is ExpectApproachCommand expected) && (ExpectApproachVariants(expected) is { } expect))
         {
-            string canonical = RenderPattern(expect.Set.Pattern, expect.Captures);
+            string canonical = RenderSetPattern(expect.Set, expect.Captures);
             return SetCandidates(expected, expect.Set.Variants, canonical, expect.Captures, filter);
         }
 
@@ -449,7 +449,7 @@ public static class PhraseologyVerbalizer
     private static List<string> FinalClauseCandidates(ParsedCommand cmd, PilotResponder.BuilderClause clause, CandidateFilter filter)
     {
         IReadOnlyDictionary<string, string> captures = clause.Captures ?? new Dictionary<string, string>();
-        string final = RenderPattern(clause.Variants.Pattern, captures);
+        string final = RenderSetPattern(clause.Variants, captures);
         string tts = clause.Canonical.Tts;
         if (!tts.EndsWith(final, StringComparison.Ordinal))
         {
@@ -624,10 +624,15 @@ public static class PhraseologyVerbalizer
     public static string RenderSpokenVariant(string template, IReadOnlyDictionary<string, string> captures) =>
         RenderVariantTemplate(template, captures);
 
+    /// <summary>The spoken render of <paramref name="set"/>'s pattern, whose tokens may carry punctuation, over a builder's <paramref name="captures"/>.</summary>
+    internal static string RenderSetPattern(BuilderVariantSet set, IReadOnlyDictionary<string, string> captures) =>
+        RenderVariantTemplate(string.Join(' ', set.Pattern), captures);
+
     /// <summary>
     /// Renders a variant row token by token, as <see cref="RenderPattern"/> does, except that a token may carry trailing
     /// punctuation ("{hdg}," or "alright,"), kept after its rendered value; the callsign placeholder stays as it is, for the
-    /// readback to fill.
+    /// readback to fill. A token whose value is empty (an optional tail such as no pattern side) still leaves its punctuation
+    /// on the text before it, unless that text already ends with it: the rule only stops the same mark doubling.
     /// </summary>
     private static string RenderVariantTemplate(string template, IReadOnlyDictionary<string, string> args)
     {
@@ -635,8 +640,16 @@ public static class PhraseologyVerbalizer
         foreach (string token in template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             string core = token.TrimEnd(',', '.');
+            string punctuation = token[core.Length..];
             string rendered = RenderPattern([core], args);
-            Append(sb, (rendered.Length == 0) ? rendered : rendered + token[core.Length..]);
+            if (rendered.Length > 0)
+            {
+                Append(sb, rendered + punctuation);
+            }
+            else if ((punctuation.Length > 0) && (sb.Length > 0) && (sb[^1] != punctuation[0]))
+            {
+                sb.Append(punctuation);
+            }
         }
 
         return sb.ToString();
@@ -1227,6 +1240,7 @@ public static class PhraseologyVerbalizer
         return sb.ToString();
     }
 
+    /// <summary>Appends <paramref name="s"/> after a space; a comma-led value (", left traffic") attaches without one.</summary>
     private static void Append(StringBuilder sb, string s)
     {
         if (string.IsNullOrEmpty(s))
@@ -1234,7 +1248,7 @@ public static class PhraseologyVerbalizer
             return;
         }
 
-        if (sb.Length > 0)
+        if ((sb.Length > 0) && !s.StartsWith(','))
         {
             sb.Append(' ');
         }

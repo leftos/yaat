@@ -32,7 +32,7 @@
 - In solo sessions, the terminal always shows the full readback; only the spoken one shortens on a busy frequency, keeping every number and direction.
 - In solo sessions, an N-number pilot may read back with a short callsign ("november three alpha bravo") once you've acknowledged its call.
 - In solo sessions, pilots on a busy frequency often read back a contact frequency grouped, such as "twenty five thirty five" for 125.35.
-- Solo pilots vary spoken readbacks, approach clearances included, with frequency load: chattier when quiet, terser when busy ("cleared ILS two eight right"); speeds read digit by digit.
+- Solo pilots vary spoken readbacks, approach, visual and follow clearances included, with frequency load: chattier when quiet, terser when busy ("cleared ILS two eight right"); speeds read digit by digit.
 - A readback of two or more instructions never uses chatty wording, and stays terse on a busy frequency.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.

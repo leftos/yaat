@@ -505,11 +505,14 @@ Established on the final and no further out than a limit measured to the landing
 The content a varied spoken clause may never drop, add or reorder against its canonical clause (headings, runways, altitudes with their unit words, speeds, squawks, hold-short and crossing), checked by `AviationFloor.HoldsTemplate` for rule variant rows (the **value floor**) and `AviationFloor.Holds` for clause builders that only produce strings; a clause that fails it is spoken canonical (docs/plans/pilot-phraseology-variation.md).
 
 **Builder variant set**:
-The variant rows of a clause a readback builder renders itself instead of reading a rule (an altitude restriction, an expedite, a cross-fix restriction, an approach clearance, join or expect), a `BuilderVariantSet` in `PhraseologyRules.BuilderVariantSets`; the builder returns its canonical with its set and `VerbalizeBuilderClause` picks among the canonical and the band's rows.
+The variant rows of a clause a readback builder renders itself instead of reading a rule (an altitude restriction, an expedite, a cross-fix restriction, an approach clearance, join or expect, a visual clearance, an airborne follow), a `BuilderVariantSet` in `PhraseologyRules.BuilderVariantSets`; the builder returns its canonical with its set and `VerbalizeBuilderClause` picks among the canonical and the band's rows.
 _Avoid_: variant row (a rule's own `PilotVariantSet` row)
 
 **Chained readback**:
 A readback of two or more commands (a CAPP with a route or crossing before it included): it never takes a chatty row or the quiet "alright," / ", thanks" flavour, a quiet frequency speaks the normal-band words and a busy one keeps its terse rows on every clause. A single command, conditioned or not, is not chained.
+
+**Comma-led capture**:
+A spoken capture value that begins with ", " (the visual clearance's `{side}` ", left traffic" and `{follow}` ", follow the traffic"): the renderer attaches it to the text before it with no space, and an empty one leaves the next comma in place (`PhraseologyVerbalizer.Append`, `RenderVariantTemplate`).
 
 **Effective band**:
 The load band a pilot speaks at: the frequency's load band shifted by the pilot's trait, terse one step busier and chatty one quieter, clamped to quiet..busy (`PilotTraits.EffectiveBand`); the speech-rate nudge still uses the raw band (docs/solo-training-pilot-speech.md).
