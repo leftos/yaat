@@ -67,6 +67,7 @@
   - [/] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext+1
   - [ ] YAAT-1070 Re-send the ASDE-X safety-logic configuration to subscribed CRC displays after a rewind or session restore
+- [/] YAAT-1155 Build a CRC probe hook (startup-hook assembly) that logs ASDE-X state without heap dumps · release vNext
 
 ## Say again
 
@@ -503,7 +504,6 @@
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
 - [ ] YAAT-1047 Check where a 45-degree downwind entry joins the downwind (abeam the midpoint per AIM 4-3-3)
 - [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
-- [/] YAAT-1138 Give approach clearance readbacks terse, normal and chatty variants (YAAT-1082 family 2) · release vNext
 - [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext+1
 - [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
 
