@@ -345,7 +345,10 @@ internal static class TtsBenchReport
         return md.ToString().ReplaceLineEndings("\n");
     }
 
-    /// <summary>The listening page: the results table, a dry/FX toggle, then one row per line with an audio player per model × voice.</summary>
+    /// <summary>
+    /// The listening page: the results table, a dry/FX toggle with a voice select and play-voice/stop controls, then one row
+    /// per line with an audio player per model × voice and a play-line button.
+    /// </summary>
     public static string BuildPage(TtsBenchResults results)
     {
         var html = new StringBuilder();
@@ -361,6 +364,11 @@ internal static class TtsBenchReport
         html.AppendLine(".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.25rem .75rem}");
         html.AppendLine(".clip{font-size:.75rem;color:#b8bcc4}.clip audio{width:100%;height:28px}");
         html.AppendLine("#mode{position:sticky;top:0;background:#16181c;padding:.5rem 0;z-index:1}");
+        html.AppendLine(
+            "button{background:#23262c;color:#e4e6ea;border:1px solid #3a3e46;border-radius:4px;padding:.1rem .5rem;font:inherit;"
+                + "font-size:.8rem;cursor:pointer}select{background:#23262c;color:#e4e6ea;border:1px solid #3a3e46;font-size:.8rem}"
+                + ".clip.playing{outline:2px solid #4c9aff;outline-offset:2px}"
+        );
         html.AppendLine("</style></head><body>");
         html.AppendLine("<h1>Small TTS model benchmark (YAAT-1136)</h1>");
         html.AppendLine(
@@ -372,16 +380,54 @@ internal static class TtsBenchReport
         AppendPageTable(html, results);
         html.AppendLine(
             "<div id=\"mode\"><label><input type=\"radio\" name=\"fx\" value=\"dry\" checked> Dry</label> "
-                + "<label><input type=\"radio\" name=\"fx\" value=\"fx\"> Radio FX</label></div>"
+                + "<label><input type=\"radio\" name=\"fx\" value=\"fx\"> Radio FX</label> · "
+                + "<select id=\"voice\" aria-label=\"Voice\"></select> <button type=\"button\" id=\"play-voice\">▶ Play voice</button> "
+                + "<button type=\"button\" id=\"stop\">■ Stop</button></div>"
         );
         foreach (TtsBenchLine line in results.Lines)
         {
             AppendLineRow(html, results, line);
         }
         html.AppendLine("<script>");
+        html.AppendLine("const audios=[...document.querySelectorAll('audio[data-base]')];");
+        html.AppendLine("const voiceOf=a=>a.dataset.base.split('/').slice(1,3).join('/');");
+        html.AppendLine("let seq=null;");
+        html.AppendLine("function stopSeq(){");
+        html.AppendLine("  if(!seq)return;");
+        html.AppendLine("  const s=seq;seq=null;clearTimeout(s.timer);");
+        html.AppendLine("  const a=s.list[s.i];");
+        html.AppendLine("  if(a){a.onended=null;a.pause();a.closest('.clip').classList.remove('playing');}");
+        html.AppendLine("}");
+        html.AppendLine("function step(s){");
+        html.AppendLine("  if(seq!==s)return;");
+        html.AppendLine("  if(s.i>=s.list.length){seq=null;return;}");
+        html.AppendLine("  const a=s.list[s.i],c=a.closest('.clip');");
+        html.AppendLine("  c.classList.add('playing');");
+        html.AppendLine("  c.scrollIntoView({block:'center',behavior:'smooth'});");
+        html.AppendLine("  a.currentTime=0;");
+        html.AppendLine(
+            "  a.onended=()=>{a.onended=null;c.classList.remove('playing');if(seq!==s)return;s.i++;s.timer=setTimeout(()=>step(s),400);};"
+        );
+        html.AppendLine("  a.play().catch(()=>{if(seq===s)stopSeq();});");
+        html.AppendLine("}");
+        html.AppendLine("function playList(list){stopSeq();if(list.length===0)return;const s={list,i:0,timer:0};seq=s;step(s);}");
+        html.AppendLine("document.addEventListener('play',e=>{if(seq&&e.target!==seq.list[seq.i])stopSeq();},true);");
+        html.AppendLine("document.querySelectorAll('.line').forEach(line=>{");
+        html.AppendLine("  const b=document.createElement('button');b.type='button';b.className='play-line';b.textContent='▶ Play line';");
+        html.AppendLine("  b.addEventListener('click',()=>playList([...line.querySelectorAll('audio[data-base]')]));");
+        html.AppendLine("  line.querySelector('.text').append(' ',b);");
+        html.AppendLine("});");
+        html.AppendLine("const sel=document.getElementById('voice');");
+        html.AppendLine(
+            "[...new Set(audios.map(voiceOf))].forEach(v=>{const o=document.createElement('option');o.value=v;"
+                + "o.textContent=v.replace('/',' · ');sel.append(o);});"
+        );
+        html.AppendLine("document.getElementById('play-voice').addEventListener('click',()=>playList(audios.filter(a=>voiceOf(a)===sel.value)));");
+        html.AppendLine("document.getElementById('stop').addEventListener('click',stopSeq);");
         html.AppendLine("document.querySelectorAll('input[name=fx]').forEach(r=>r.addEventListener('change',()=>{");
+        html.AppendLine("  stopSeq();");
         html.AppendLine("  const mode=document.querySelector('input[name=fx]:checked').value;");
-        html.AppendLine("  document.querySelectorAll('audio[data-base]').forEach(a=>{a.pause();a.src=a.dataset.base+'-'+mode+'.wav';});");
+        html.AppendLine("  audios.forEach(a=>{a.pause();a.src=a.dataset.base+'-'+mode+'.wav';});");
         html.AppendLine("}));");
         html.AppendLine("</script>");
         html.AppendLine("</body></html>");
