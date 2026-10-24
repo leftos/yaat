@@ -17,7 +17,6 @@
 ## Context-menu flyouts (feat/context-menu-flyouts)
 
 - [ ] YAAT-1034 Context-menu flyouts and All Commands (feat/context-menu-flyouts) · release vNext
-  - [/] YAAT-1028 Show every quick-command icon, grouped by category with small separators · release vNext
   - [ ] YAAT-1048 Decide the focus when a runway tab is switched in a Cleared approach flyout opened on the visual
   - [ ] YAAT-1052 Merge feat/context-menu-flyouts to main (#1341)
   - [ ] YAAT-1067 Hide the Squawk assigned code row for an aircraft with no assigned code
@@ -53,7 +52,6 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-1111 Scenario froze · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -708,7 +706,6 @@
 - [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
 - [ ] YAAT-1007 Check two UI tests that set the navdata singleton outside a scope
 - [ ] YAAT-1011 Pin and document the Tower Cab room-attach contract: kick-then-offer, kick-only isForcible, position fallbacks
-- [ ] YAAT-1016 Set a WebSocket keep-alive timeout so a silently dropped client is detached
 - [ ] YAAT-1017 Queue SetSessionActive on a Tower Cab's push chain
 - [ ] YAAT-1021 Take an unlinked CRC or vEDST joiner off the session's joined list when the session ends
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
@@ -747,3 +744,8 @@
 - [ ] YAAT-1121 Flatten CRC SendAsync/BroadcastAsync to void and remove the await-era send wrappers
 - [ ] YAAT-1122 Releasing a stale CRC connection deletes the reconnected session's position
 - [ ] YAAT-1123 Check whether a stalled YAAT client's SignalR sends can stop the tick loop
+- [ ] YAAT-1124 Make the CapturingLogger test stub hand out its entries under its lock
+- [ ] YAAT-1125 Refuse a vEDST join answer whose primary ended before it was queued
+- [ ] YAAT-1126 Send a Tower Cab viewer's active-state push through its session-push chain
+- [ ] YAAT-1127 Give CrcClientState an injected TimeProvider so the forced-disconnect test does not wait on the real close timeout
+- [ ] YAAT-1128 Speak the distance condition in a SPD ... UNTIL n readback
