@@ -102,7 +102,6 @@
 - [ ] YAAT-1117 Add a SpeechSandbox WER test over UWB-ATCC, downloaded at run time
 - [ ] YAAT-1118 Evaluate STT on the ATCO2 1 h test set, local only
 - [ ] YAAT-1135 Benchmark small TTS models for the pilot voice and let users pick from a local benchmark
-  - [/] YAAT-1136 Benchmark small TTS models: size, latency and a listening page of pilot readbacks · release vNext
 
 ## Wave 1 — Ground realism and braking
 
@@ -505,8 +504,8 @@
 - [ ] YAAT-1047 Check where a 45-degree downwind entry joins the downwind (abeam the midpoint per AIM 4-3-3)
 - [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
 - [ ] YAAT-1138 Give approach clearance readbacks terse, normal and chatty variants (YAAT-1082 family 2) · release vNext
-- [ ] YAAT-1140 Upgrade the client's sherpa-onnx to the TTS benchmark's version · release vNext
-- [ ] YAAT-1141 Stream the pilot voice: start speaking at the first synthesized chunk · release vNext
+- [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext+1
+- [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
 
 ## Backlog
 
@@ -749,9 +748,9 @@
 - [ ] YAAT-1128 Speak the distance condition in a SPD ... UNTIL n readback
 - [ ] YAAT-1129 Read back an expedite to the present altitude without a climb or descend verb
 - [ ] YAAT-1132 Pass the cancellation token to the client-driver one-shot handlers' dispatcher posts
-- [/] YAAT-1134 Read back approach clearances with their approach and runway (CAPP, CAPPSI, JAPP, PTAC, EAPP) · release vNext
-- [ ] YAAT-1137 Carry the PTAC turn direction and read it back (turn left/right heading)
+- [ ] YAAT-1137 Carry the PTAC turn direction and read it back (turn left/right heading) · release vNext
 - [ ] YAAT-1142 Name approaches in SAY replies with the shared approach-name helper
 - [ ] YAAT-1143 Read back a bare CAPPF after an expected visual as the visual clearance
 - [ ] YAAT-1144 Load Pocket TTS, Supertonic and Piper fp16 in the TTS benchmark and rerun them
 - [ ] YAAT-1145 Clear circling approaches (CAPP VOR-A) instead of refusing them
+- [ ] YAAT-1149 Decide whether the frequency-change sign-off says the callsign last (good day, {cs})
