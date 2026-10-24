@@ -34,7 +34,7 @@
        NAudio.Core for the radio-FX BiQuadFilter chain. PortAudioSharp2 is already pulled in
        transitively via Yaat.Client reference (used for STT capture today, output here). -->
   <ItemGroup>
-    <!-- 1.13.8 here (the client stays on 1.12.40): the tts-bench mode needs Kitten v0.8 support. -->
+    <!-- Keep in step with Yaat.Client's pin: a lower version here fails restore as a NU1605 downgrade. -->
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
   </ItemGroup>
