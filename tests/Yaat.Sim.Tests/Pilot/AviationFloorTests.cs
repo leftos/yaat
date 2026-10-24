@@ -46,8 +46,6 @@ public class AviationFloorTests
     [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speed {spd}", FrequencyLoadBand.Normal)]
     [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speed {spd} knots", FrequencyLoadBand.Busy)]
     [InlineData("cleared to land runway {rwy}", CanonicalCommandType.ClearedToLand, "cleared to land {rwy}", FrequencyLoadBand.Busy)]
-    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speeding up to {spd} knots", FrequencyLoadBand.Quiet)]
-    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing down to {spd} knots", FrequencyLoadBand.Quiet)]
     // Repeats merge after omission: with the runway dropped, the two lefts read as one.
     [InlineData("left runway left {rwy}", CanonicalCommandType.ClearedToLand, "left left {rwy}", FrequencyLoadBand.Busy)]
     // A group-form placeholder is its capture: the same value, spoken in the busy number form.
@@ -99,4 +97,149 @@ public class AviationFloorTests
         string template,
         FrequencyLoadBand band
     ) => Assert.False(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, PilotVariantTags.None), band));
+
+    [Theory]
+    // A capture-less "wilco" is a busy readback of resume normal speed and reduce to final approach speed only.
+    [InlineData("resume normal speed", CanonicalCommandType.ResumeNormalSpeed, "wilco", PilotVariantTags.None, FrequencyLoadBand.Busy)]
+    [InlineData(
+        "reduce to final approach speed",
+        CanonicalCommandType.ReduceToFinalApproachSpeed,
+        "wilco",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        "reduce to final approach speed",
+        CanonicalCommandType.ReduceToFinalApproachSpeed,
+        "{cs}, wilco",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Busy
+    )]
+    // A row may place the callsign once, anywhere; it is not a capture of the canonical.
+    [InlineData(
+        "climb and? maintain {alt}",
+        CanonicalCommandType.ClimbMaintain,
+        "alright, we'll climb and maintain {alt}, {cs}, thanks",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    // The speed-change rows: plain SPD, quiet or normal, "knots" right after the speed.
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing to {spd} knots", PilotVariantTags.SlowingOnly, FrequencyLoadBand.Quiet)]
+    [InlineData(
+        "maintain {spd} knots",
+        CanonicalCommandType.Speed,
+        "speeding up to {spd} knots",
+        PilotVariantTags.SpeedingOnly,
+        FrequencyLoadBand.Normal
+    )]
+    [InlineData(
+        "maintain {spd} knots",
+        CanonicalCommandType.Speed,
+        "maintaining {spd} knots",
+        PilotVariantTags.MaintainingOnly,
+        FrequencyLoadBand.Quiet
+    )]
+    // Only a courtesy follows a callsign the row places.
+    [InlineData(
+        "turn left heading {hdg}",
+        CanonicalCommandType.TurnLeft,
+        "left heading {hdg}, {cs}, thanks",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        "fly heading {hdg}",
+        CanonicalCommandType.FlyHeading,
+        "fly heading {hdg}, {cs}, good day",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    public void HoldsTemplate_TaggedOrPlacedVariantKeepsTheFloor_Accepts(
+        string canonicalPattern,
+        CanonicalCommandType type,
+        string template,
+        PilotVariantTags tags,
+        FrequencyLoadBand band
+    ) => Assert.True(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, tags), band));
+
+    [Theory]
+    // "wilco" never stands for delete speed restrictions (7110.65 5-7-4.a NOTE vs 5-7-4.d), a speed, or outside busy.
+    [InlineData("delete speed restrictions", CanonicalCommandType.DeleteSpeedRestrictions, "wilco", PilotVariantTags.None, FrequencyLoadBand.Busy)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "wilco", PilotVariantTags.None, FrequencyLoadBand.Busy)]
+    [InlineData("resume normal speed", CanonicalCommandType.ResumeNormalSpeed, "wilco", PilotVariantTags.None, FrequencyLoadBand.Normal)]
+    // The callsign at most once.
+    [InlineData(
+        "climb and? maintain {alt}",
+        CanonicalCommandType.ClimbMaintain,
+        "{cs}, climbing {alt}, {cs}, thanks",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    // A speed-change row is quiet or normal SPD only, and always says "knots" after the speed.
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing to {spd} knots", PilotVariantTags.SlowingOnly, FrequencyLoadBand.Busy)]
+    [InlineData(
+        "climb and? maintain {alt}",
+        CanonicalCommandType.ClimbMaintain,
+        "climbing {alt}",
+        PilotVariantTags.SlowingOnly,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing to {spd}", PilotVariantTags.SlowingOnly, FrequencyLoadBand.Quiet)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing, speed {spd}", PilotVariantTags.SlowingOnly, FrequencyLoadBand.Quiet)]
+    // The speed-change verb matches its tag, and is never spoken untagged.
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speeding up to {spd} knots", PilotVariantTags.None, FrequencyLoadBand.Quiet)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing down to {spd} knots", PilotVariantTags.None, FrequencyLoadBand.Quiet)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing to {spd} knots", PilotVariantTags.None, FrequencyLoadBand.Normal)]
+    [InlineData(
+        "maintain {spd} knots",
+        CanonicalCommandType.Speed,
+        "speeding up to {spd} knots",
+        PilotVariantTags.SlowingOnly,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing to {spd} knots", PilotVariantTags.SpeedingOnly, FrequencyLoadBand.Quiet)]
+    [InlineData(
+        "maintain {spd} knots",
+        CanonicalCommandType.Speed,
+        "speeding to {spd} knots",
+        PilotVariantTags.SpeedingOnly,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        "maintain {spd} knots",
+        CanonicalCommandType.Speed,
+        "slowing to {spd} knots",
+        PilotVariantTags.MaintainingOnly,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "holding {spd} knots", PilotVariantTags.MaintainingOnly, FrequencyLoadBand.Quiet)]
+    // Nothing but a courtesy follows a callsign the row places.
+    [InlineData(
+        "climb and? maintain {alt}",
+        CanonicalCommandType.ClimbMaintain,
+        "left heading {hdg}, {cs}, climbing {alt}",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        "climb and? maintain {alt}",
+        CanonicalCommandType.ClimbMaintain,
+        "climbing, {cs}, {alt}",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        "turn left heading {hdg}",
+        CanonicalCommandType.TurnLeft,
+        "turn left, {cs}, heading {hdg}",
+        PilotVariantTags.None,
+        FrequencyLoadBand.Quiet
+    )]
+    public void HoldsTemplate_TaggedOrPlacedVariantBreaksTheFloor_Rejects(
+        string canonicalPattern,
+        CanonicalCommandType type,
+        string template,
+        PilotVariantTags tags,
+        FrequencyLoadBand band
+    ) => Assert.False(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, tags), band));
 }

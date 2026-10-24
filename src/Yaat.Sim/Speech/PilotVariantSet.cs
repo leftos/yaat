@@ -18,6 +18,24 @@ public enum PilotVariantTags
     /// group form (<c>{alt:group}</c>) says different words from the digit form.
     /// </summary>
     GroupFormRange = 2,
+
+    /// <summary>
+    /// The row ("slowing to {spd} knots") may be spoken only when the aircraft's current indicated airspeed is more than
+    /// <see cref="PilotVariant.SpeedChangeThresholdKnots"/> above the assigned speed (AIM 4-4-12.c).
+    /// </summary>
+    SlowingOnly = 4,
+
+    /// <summary>
+    /// The row ("speeding up to {spd} knots") may be spoken only when the aircraft's current indicated airspeed is more than
+    /// <see cref="PilotVariant.SpeedChangeThresholdKnots"/> below the assigned speed (AIM 4-4-12.c).
+    /// </summary>
+    SpeedingOnly = 8,
+
+    /// <summary>
+    /// The row ("maintaining {spd} knots") may be spoken only when the aircraft's current indicated airspeed is within
+    /// <see cref="PilotVariant.SpeedChangeThresholdKnots"/> of the assigned speed.
+    /// </summary>
+    MaintainingOnly = 16,
 }
 
 /// <summary>
@@ -33,14 +51,52 @@ public sealed record PilotVariant(string Template, PilotVariantTags Tags)
     /// from the same value as the digit form.
     /// </summary>
     public const string GroupFormSuffix = ":group";
+
+    /// <summary>
+    /// The placeholder a row uses to speak the pilot's callsign inside the row ("…, {cs}, thanks"), at most once. The readback
+    /// speaks the same callsign form there that it would otherwise close with; a row without it is closed by the callsign.
+    /// </summary>
+    public const string CallsignPlaceholder = "{cs}";
+
+    /// <summary>
+    /// How far, in knots, the current speed must be from the assigned speed for a readback to say it is slowing or speeding up
+    /// (AIM 4-4-12.c); within it the readback says it is maintaining.
+    /// </summary>
+    public const int SpeedChangeThresholdKnots = 10;
+
+    /// <summary>The tags that make a row depend on the aircraft's current speed against the assigned one.</summary>
+    public const PilotVariantTags SpeedChangeTags = PilotVariantTags.SlowingOnly | PilotVariantTags.SpeedingOnly | PilotVariantTags.MaintainingOnly;
+
+    /// <summary>Whether the row places the callsign itself (<see cref="CallsignPlaceholder"/>).</summary>
+    public bool PlacesCallsign => Template.Contains(CallsignPlaceholder, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether the row is "wilco" and nothing else but, at most, the callsign: an acknowledgement that stands only for a whole
+    /// readback, never for one clause among others.
+    /// </summary>
+    public bool IsBareWilco
+    {
+        get
+        {
+            string[] words =
+            [
+                .. Template
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(word => word.Trim(',', '.').ToLowerInvariant())
+                    .Where(word => (word.Length > 0) && (word != CallsignPlaceholder)),
+            ];
+            return words is ["wilco"];
+        }
+    }
 }
 
 /// <summary>
-/// The spoken variants of one rule's readback, per frequency load band. The canonical pattern is always a Normal-band candidate
-/// in addition to the <see cref="Normal"/> rows. Quiet and Busy speak only their listed rows, and speak the canonical pattern
-/// when their list is empty or none of its rows can be spoken.
+/// The spoken variants of one rule's readback, per frequency load band. The canonical pattern is always a Quiet-band and a
+/// Normal-band candidate, in addition to the <see cref="Quiet"/> or <see cref="Normal"/> rows, every candidate equally likely.
+/// Busy speaks only its listed rows, and speaks the canonical pattern when its list is empty or none of its rows can be spoken.
+/// A rule with Quiet rows replaces the quiet frequency's "alright, " / ", thanks" flavour with them.
 /// </summary>
-/// <param name="Quiet">The rows a pilot may speak on a quiet frequency.</param>
+/// <param name="Quiet">The rows a pilot may speak on a quiet frequency, besides the canonical pattern.</param>
 /// <param name="Normal">The rows a pilot may speak at normal load, besides the canonical pattern.</param>
 /// <param name="Busy">The rows a pilot may speak on a busy frequency.</param>
 public sealed record PilotVariantSet(IReadOnlyList<PilotVariant> Quiet, IReadOnlyList<PilotVariant> Normal, IReadOnlyList<PilotVariant> Busy)
@@ -49,9 +105,4 @@ public sealed record PilotVariantSet(IReadOnlyList<PilotVariant> Quiet, IReadOnl
     /// <param name="busy">The busy-band rows.</param>
     /// <returns>The variant set.</returns>
     public static PilotVariantSet BusyOnly(params PilotVariant[] busy) => new([], [], busy);
-
-    /// <summary>A set whose rows a pilot may speak at normal load (beside the canonical) and on a busy frequency alike.</summary>
-    /// <param name="rows">The rows of both bands.</param>
-    /// <returns>The variant set.</returns>
-    public static PilotVariantSet NormalAndBusy(params PilotVariant[] rows) => new([], rows, rows);
 }

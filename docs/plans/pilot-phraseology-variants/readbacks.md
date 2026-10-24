@@ -2,17 +2,20 @@
 
 What this is: the catalogue of spoken readback bodies a solo pilot picks from in each load band, family by family, for part G of YAAT-849 (design: [pilot-phraseology-variation.md](../pilot-phraseology-variation.md)).
 Status: reviewed by the owner (2026-10-23); rulings applied.
+Build status: the family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. Pending (part B2b): the direct clause builders (expedite, the altitude restriction "maintaining at or above …", cross-fix at-or-above/below) and the VFR altitude rows; their Quiet rows below are not yet spoken.
 How to mark it up: strike a variant (`~~text~~`), add a row under its canonical with your band, or change the Band cell; write a ruling you disagree with as `owner: …` in its Basis cell.
 
 ## Reading the tables
 
 - **Canonical** is today's spoken body, quoted from the code (path:line under `src/Yaat.Sim/`). Each family's first table lists them as C1, C2, …; the variant table refers to them.
-- **Every variant ends ", {cs}"** unless the row shows `{cs}` somewhere else. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
+- **Every variant ends ", {cs}"** unless the row shows `{cs}` somewhere else.
+
+  A row places `{cs}` mid-row only in a single unconditioned readback, at most once, with only a courtesy after it, and a multi-clause readback closes with the callsign once. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
 - **Owner ruling 1, 2, 3** in a Basis cell name the owner's YAAT-1082 rulings listed in the next section.
 - **Bands**: Q quiet, N normal, B busy. The pilot's trait shifts the band first; then a seeded pick chooses one row of that band per transmission. N always holds the canonical, marked `= C`.
 - **Ruling**: `OK` (obeys the floor), `No: F4` (breaks that floor rule, kept to show the boundary), `No: J` (breaks no F-rule, rejected on judgement, reason in Basis).
 - **Basis**: `US` = I have heard it as ordinary US pilot usage; `J` = my judgement, no FAA text decides it; otherwise the AIM / 7110.65 paragraph. Cites are lettered (AIM 4-4-7.b.1), not the md files' numbering.
-- **Courtesy rules** (from the floor section of the design doc, applied everywhere below): "alright, " only in Q, never with "left"/"right" in the body, never on a runway clearance or an F12 verb; ", thanks" only in Q (rarely N), never on go around, cancel, hold position or LAHSO.
+- **Courtesy rules** (from the floor section of the design doc, applied everywhere below): "alright, " only in Q, never with "left"/"right" in the body, never on a runway clearance or an F12 verb; ", thanks" only in Q (rarely N), never on go around, cancel, hold position or LAHSO. A readback with a clause spoken from a rule that has Quiet rows (the family-1 rules) takes its courtesy from those rows and gets no random flavour; other readbacks keep it.
 
 ## Floor as the owner's rulings change it
 
@@ -109,6 +112,7 @@ My judgement on scope, for the owner to overrule:
 | C2 | B | down to flight level one niner zero | OK | owner ruling (FL only) |
 | C2 | B | flight level one niner zero | OK | US |
 | C2 | B | descending flight level one niner zero | OK | US |
+| C2 | Q | descending flight level one niner zero | OK | aviation review: approved, spoken; climb alike ("climbing flight level …"); the no-"to" form of the Q flight-level row above |
 | C2 | B | down to one niner zero | No: F3 | bare FL digits (AIM 4-2-9.b) |
 | C2 | B | flight level one ninety | No: F3 | group form is for altitudes below FL180 only (7110.65 2-4-17.b.2; owner ruling 2 does not reach FLs) |
 | C3 | Q | maintaining at or above four thousand, {cs}, thanks | OK | J; verb kept outside B; "VFR" kept when canonical has it |
@@ -124,7 +128,7 @@ My judgement on scope, for the owner to overrule:
 | C5 | N | expedite descent | OK | = C |
 | C5 | N | expediting | OK | US |
 | C5 | B | expediting | OK | US |
-| C5 | B | wilco | OK | no number (AIM 4-2-3.c); J: low weight, the controller wants to hear "expedite" |
+| C5 | B | wilco | OK | no number (AIM 4-2-3.c); J: low weight, the controller wants to hear "expedite"; not built (the floor allows a bare "wilco" only for resume normal speed and reduce to final approach speed) |
 | C6 | Q | we'll cross sunol at or above four thousand nine hundred | OK | J |
 | C6 | N | cross sunol at or above four thousand nine hundred | OK | = C |
 | C6 | B | cross sunol at or above four thousand nine hundred | OK | no shorter form |
@@ -144,6 +148,8 @@ My judgement on scope, for the owner to overrule:
 | C9 | B | one one thousand | No: J | "cruise" is the clearance (P/CG CRUISE: block from MEA up); dropping it turns it into a hard altitude |
 | C10 | N | depart sunol heading two seven zero | OK | = C; only courtesy varies (Q ", thanks") |
 
+Pending (part B2b), rows not yet spoken: C3 (altitude restriction "maintaining at or above …", VFR forms included), C4 and C5 (expedite), C6 and C7 (cross-fix at-or-above/below), since their clause builders render directly and do not read the rule rows. Only C1 and C2 have built Q rows ("climbing / descending {alt}", the flight-level "to" form, the verbose form); C8 and C9 Q rows are not built either.
+
 ## 3. Speed
 
 | Ref | Canonical | Source |
@@ -156,6 +162,7 @@ My judgement on scope, for the owner to overrule:
 | Ref | Band | Variant | Ruling | Basis |
 |---|---|---|---|---|
 | C1 | Q, N | slowing to two five zero knots / speeding up to two five zero knots | OK | 7110.65 5-7-2.a.4 form; only when current speed is more than 10 kt from assigned (AIM 4-4-12.c), verb matches the direction, "knots" required, never with a speed modifier or "until" |
+| C1 | Q, N | maintaining two five zero knots | OK | 7110.65 5-7-2.a.4 form; built with the slowing / speeding rows, spoken only when current speed is within 10 kt of assigned; first block only, no "until", no modifier |
 | C1 | Q | we'll maintain two five zero knots, {cs}, thanks | OK | owner's verbose form |
 | C1 | N | maintain two five zero knots | OK | = C |
 | C1 | N | two five zero knots | OK | US; today's shortcut |
@@ -173,7 +180,7 @@ My judgement on scope, for the owner to overrule:
 | C3 | B | point seven eight | No: F9 | |
 | C4 | Q | resuming normal speed | OK | US |
 | C4 | N | resume normal speed (and the other two as written) | OK | = C |
-| C4 | B | wilco (resume normal speed, reduce to final approach speed only) | OK | no number (7110.65 2-4-3 NOTE 1.a); delete speed restrictions keeps its words (J: 5-7-4.a NOTE vs 5-7-4.d) |
+| C4 | B | wilco (resume normal speed, reduce to final approach speed only) | OK | no number (7110.65 2-4-3 NOTE 1.a); delete speed restrictions keeps its words (J: 5-7-4.a NOTE vs 5-7-4.d); built, and spoken only when the command is the whole readback (single, unconditioned), never in a compound or an "until" form |
 
 ## 4. Direct-to and navigation
 
@@ -203,7 +210,7 @@ My judgement on scope, for the owner to overrule:
 | C4 | N | hold at sunol left turns | OK | = C |
 | C4 | B | hold sunol left turns | OK | J |
 | C4 | B | hold at sunol | No: J | drops "left turns", the non-standard-hold element (7110.65 4-6-1) |
-| C5 | all | canonical only | OK | F12: the airspace clearance is never shortened (AIM 3-2-3) |
+| C5 | all | canonical only | OK | F12: the airspace clearance is never shortened (AIM 3-2-3); an implicit ", cleared into/through the bravo" sits right before the readback's last callsign, and a closing ", thanks" gives way |
 
 Join airway / radial: when a readback is added, I suggest canonical "join victor two four four" and "intercept the Oakland one two zero radial" with no variants beyond courtesy until each is ruled; that is a pre-existing gap, not part of this catalogue.
 
@@ -522,4 +529,5 @@ Variation covers every readback, so these need rulings too; drafted briefly.
 ## Notes for the implementer
 
 - The value floor (`AviationFloor.HoldsTemplate`) compares captures, not rendered digit runs, so group and digit forms come from one number by construction and no equivalence between "eleven thousand" and "one one thousand" is needed.
+- The floor also ties each speed-change verb to its tag (`SlowingOnly`, `SpeedingOnly`, `MaintainingOnly`) and refuses an untagged "slowing" / "speeding", refuses any capture or keyword-class word after `{cs}` and a second `{cs}`, and allows a bare "wilco" only for resume normal speed and reduce to final approach speed in the Busy band (`WilcoTypes`).
 - The same check fails a runway designator spoken without "runway" today. The busy band needs it to accept "two eight right" for the runway-clearance families listed under F5 above, and only there; every other family and band keeps the "runway" requirement.

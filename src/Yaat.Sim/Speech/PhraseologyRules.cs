@@ -59,39 +59,69 @@ public static class PhraseologyRules
                 ["turn", "left", "heading", "{hdg}"],
                 "TL {hdg}",
                 TurnLeft,
-                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("left heading {hdg}", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [
+                        new PilotVariant("turning left heading {hdg}", PilotVariantTags.None),
+                        new PilotVariant("left heading {hdg}, {cs}, thanks", PilotVariantTags.None),
+                    ],
+                    [new PilotVariant("left heading {hdg}", PilotVariantTags.None)],
+                    [new PilotVariant("left heading {hdg}", PilotVariantTags.None)]
+                )
             ),
             new(
                 ["turn", "right", "heading", "{hdg}"],
                 "TR {hdg}",
                 TurnRight,
-                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("right heading {hdg}", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [
+                        new PilotVariant("turning right heading {hdg}", PilotVariantTags.None),
+                        new PilotVariant("right heading {hdg}, {cs}, thanks", PilotVariantTags.None),
+                    ],
+                    [new PilotVariant("right heading {hdg}", PilotVariantTags.None)],
+                    [new PilotVariant("right heading {hdg}", PilotVariantTags.None)]
+                )
             ),
             // Relative turns — canonical 7110.65 5-6-2 form is "TURN (N) DEGREES LEFT/RIGHT".
             new(
                 ["turn", "{deg}", "degrees", "left"],
                 "RELL {deg}",
                 RelativeLeft,
-                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("{deg} degrees left", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("turning {deg} degrees left", PilotVariantTags.None)],
+                    [new PilotVariant("{deg} degrees left", PilotVariantTags.None)],
+                    [new PilotVariant("{deg} degrees left", PilotVariantTags.None)]
+                )
             ),
             new(
                 ["turn", "{deg}", "degrees", "right"],
                 "RELR {deg}",
                 RelativeRight,
-                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("{deg} degrees right", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("turning {deg} degrees right", PilotVariantTags.None)],
+                    [new PilotVariant("{deg} degrees right", PilotVariantTags.None)],
+                    [new PilotVariant("{deg} degrees right", PilotVariantTags.None)]
+                )
             ),
             new(
                 ["fly", "heading", "{hdg}"],
                 "FH {hdg}",
                 FlyHeading,
-                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("heading {hdg}", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("fly heading {hdg}, {cs}, thanks", PilotVariantTags.None)],
+                    [new PilotVariant("heading {hdg}", PilotVariantTags.None)],
+                    [new PilotVariant("heading {hdg}", PilotVariantTags.None)]
+                )
             ),
             new(["heading", "{hdg}"], "FH {hdg}", FlyHeading),
             new(
                 ["fly", "present", "heading"],
                 "FPH",
                 FlyPresentHeading,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("present heading", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("maintaining present heading", PilotVariantTags.None)],
+                    [],
+                    [new PilotVariant("present heading", PilotVariantTags.None)]
+                )
             ),
             new(["maintain", "present", "heading"], "FPH", FlyPresentHeading),
         ];
@@ -106,7 +136,11 @@ public static class PhraseologyRules
                 "CM {alt}",
                 ClimbMaintain,
                 PilotVariants: new PilotVariantSet(
-                    [],
+                    [
+                        new PilotVariant("climbing {alt}", PilotVariantTags.None),
+                        new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly),
+                        new PilotVariant("alright, we'll climb and maintain {alt}, {cs}, thanks", PilotVariantTags.None),
+                    ],
                     [new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly)],
                     [
                         new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly),
@@ -127,7 +161,11 @@ public static class PhraseologyRules
                 "DM {alt}",
                 DescendMaintain,
                 PilotVariants: new PilotVariantSet(
-                    [],
+                    [
+                        new PilotVariant("descending {alt}", PilotVariantTags.None),
+                        new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly),
+                        new PilotVariant("alright, we'll descend and maintain {alt}, {cs}, thanks", PilotVariantTags.None),
+                    ],
                     [new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly)],
                     [
                         new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly),
@@ -160,9 +198,20 @@ public static class PhraseologyRules
                 ["maintain", "{spd}", "knots"],
                 "SPD {spd}",
                 Speed,
+                // The speed-change rows speak only against the aircraft's current speed (AIM 4-4-12.c, 7110.65 5-7-2.a.4 form).
                 PilotVariants: new PilotVariantSet(
-                    [],
-                    [new PilotVariant("{spd} knots", PilotVariantTags.None)],
+                    [
+                        new PilotVariant("slowing to {spd} knots", PilotVariantTags.SlowingOnly),
+                        new PilotVariant("speeding up to {spd} knots", PilotVariantTags.SpeedingOnly),
+                        new PilotVariant("maintaining {spd} knots", PilotVariantTags.MaintainingOnly),
+                        new PilotVariant("we'll maintain {spd} knots, {cs}, thanks", PilotVariantTags.None),
+                    ],
+                    [
+                        new PilotVariant("{spd} knots", PilotVariantTags.None),
+                        new PilotVariant("slowing to {spd} knots", PilotVariantTags.SlowingOnly),
+                        new PilotVariant("speeding up to {spd} knots", PilotVariantTags.SpeedingOnly),
+                        new PilotVariant("maintaining {spd} knots", PilotVariantTags.MaintainingOnly),
+                    ],
                     [
                         new PilotVariant("{spd} knots", PilotVariantTags.None),
                         new PilotVariant("speed {spd}", PilotVariantTags.None),
@@ -176,12 +225,28 @@ public static class PhraseologyRules
             new(["maintain", "speed", "{spd}"], "SPD {spd}", Speed),
             new(["speed", "{spd}"], "SPD {spd}", Speed),
             new(["slow", "to?", "{spd}"], "SPD {spd}", Speed),
-            new(["resume", "normal", "speed"], "RNS", ResumeNormalSpeed),
+            // A busy "wilco" reads back resume normal speed and reduce to final approach speed, which carry no number
+            // (7110.65 2-4-3 NOTE 1.a); delete speed restrictions keeps its words (7110.65 5-7-4.a NOTE vs 5-7-4.d).
+            new(
+                ["resume", "normal", "speed"],
+                "RNS",
+                ResumeNormalSpeed,
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("resuming normal speed", PilotVariantTags.None)],
+                    [],
+                    [new PilotVariant("wilco", PilotVariantTags.None)]
+                )
+            ),
             new(["no", "speed", "restrictions"], "DSR", DeleteSpeedRestrictions),
             new(["delete", "speed", "restrictions"], "DSR", DeleteSpeedRestrictions),
             // "Reduce to final approach speed" / "reduce to final" aren't in the 7110.65 phrase
             // boxes but are commonly spoken on frequency. Keep as recognition rules.
-            new(["reduce", "to", "final", "approach", "speed"], "RFAS", ReduceToFinalApproachSpeed),
+            new(
+                ["reduce", "to", "final", "approach", "speed"],
+                "RFAS",
+                ReduceToFinalApproachSpeed,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("wilco", PilotVariantTags.None))
+            ),
             new(["reduce", "to", "final"], "RFAS", ReduceToFinalApproachSpeed),
             new(["normal", "rate"], "NORM", NormalRate),
             new(
@@ -252,7 +317,14 @@ public static class PhraseologyRules
                 ["proceed", "direct", "to?", "{fix}"],
                 "DCT {fix}",
                 DirectTo,
-                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("direct {fix}", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [
+                        new PilotVariant("we'll head direct {fix}", PilotVariantTags.None),
+                        new PilotVariant("alright, direct {fix}, {cs}, thanks", PilotVariantTags.None),
+                    ],
+                    [new PilotVariant("direct {fix}", PilotVariantTags.None)],
+                    [new PilotVariant("direct {fix}", PilotVariantTags.None)]
+                )
             ),
             new(["direct", "to?", "{fix}"], "DCT {fix}", DirectTo),
             new(["fly", "direct", "{fix}"], "DCT {fix}", DirectTo),
@@ -260,13 +332,21 @@ public static class PhraseologyRules
                 ["turn", "left", "direct", "to?", "{fix}"],
                 "TLDCT {fix}",
                 TurnLeftDirectTo,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("left direct {fix}", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("turning left direct {fix}", PilotVariantTags.None)],
+                    [],
+                    [new PilotVariant("left direct {fix}", PilotVariantTags.None)]
+                )
             ),
             new(
                 ["turn", "right", "direct", "to?", "{fix}"],
                 "TRDCT {fix}",
                 TurnRightDirectTo,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("right direct {fix}", PilotVariantTags.None))
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("turning right direct {fix}", PilotVariantTags.None)],
+                    [],
+                    [new PilotVariant("right direct {fix}", PilotVariantTags.None)]
+                )
             ),
             new(
                 ["when", "able", "direct", "to?", "{fix}"],

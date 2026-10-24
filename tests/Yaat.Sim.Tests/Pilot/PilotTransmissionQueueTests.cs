@@ -504,9 +504,10 @@ public sealed class PilotTransmissionQueueTests
         Assert.True(first.Success, first.Message);
         Assert.True(second.Success, second.Message);
         Assert.Equal(2, aircraft.PendingPilotTransmissions.Count);
-        // The readback to the acknowledging command keeps the full callsign; the next one is abbreviated.
-        Assert.EndsWith(", november one two three alpha bravo.", aircraft.PendingPilotTransmissions[0].SpeechText);
-        Assert.EndsWith(", november three alpha bravo.", aircraft.PendingPilotTransmissions[1].SpeechText);
+        // The readback to the acknowledging command keeps the full callsign; the next one is abbreviated. A quiet row may place
+        // the callsign before its closing courtesy, so the form is checked wherever the callsign stands.
+        Assert.Contains(", november one two three alpha bravo", aircraft.PendingPilotTransmissions[0].SpeechText);
+        Assert.Contains(", november three alpha bravo", aircraft.PendingPilotTransmissions[1].SpeechText);
     }
 
     [Fact]

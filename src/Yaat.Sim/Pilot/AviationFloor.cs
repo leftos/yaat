@@ -150,7 +150,12 @@ public static class AviationFloor
     /// The classes must be equal, except that on a busy frequency the variant may omit the climb or descend verb, and on a
     /// runway clearance (<paramref name="type"/>) the word runway unless it follows hold short or cross; it may never speak a
     /// class the canonical lacks, such as the other direction. A group-form placeholder (<c>{alt:group}</c>) counts as its
-    /// capture (<c>alt</c>), since both are rendered from one value, and is refused outside the busy band.
+    /// capture (<c>alt</c>), since both are rendered from one value, and is refused outside the busy band. The callsign
+    /// placeholder (<c>{cs}</c>) is not a capture, may appear once and is followed by no capture and no class word, only a
+    /// courtesy. A row that is a bare "wilco" (with or without the callsign) holds only on a busy frequency for resume normal
+    /// speed and reduce to final approach speed. A row tagged with a speed-change condition holds only on the speed rule,
+    /// outside the busy band, saying its own verb and "knots" right after the speed; an untagged row never says "slowing"
+    /// or "speeding".
     /// <para>
     /// A class repeated next to itself counts once ("climb and maintain"), but the merge restarts at each capture, so the
     /// same class on either side of a value counts twice; knots is the exception, since "speed" and "knots" around one
@@ -168,16 +173,108 @@ public static class AviationFloor
     {
         ArgumentNullException.ThrowIfNull(canonicalPattern);
         ArgumentNullException.ThrowIfNull(variant);
-        (List<string> canonicalCaptures, List<ClassEntry> canonicalClasses, _) = ReadTemplate(canonicalPattern);
-        (List<string> variantCaptures, List<ClassEntry> variantClasses, bool variantSpeaksGroupForm) = ReadTemplate(
-            variant.Template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        );
-        if (variantSpeaksGroupForm && (band != FrequencyLoadBand.Busy))
+        string[] variantTokens = variant.Template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        (List<string> canonicalCaptures, List<ClassEntry> canonicalClasses, _, _) = ReadTemplate(canonicalPattern);
+        (List<string> variantCaptures, List<ClassEntry> variantClasses, bool variantSpeaksGroupForm, _) = ReadTemplate(variantTokens);
+        if (!RowShapeHolds(variant, variantTokens, variantSpeaksGroupForm, type, band))
         {
             return false;
         }
 
+        if (variant.IsBareWilco)
+        {
+            return BareWilcoHolds(canonicalCaptures, type, band);
+        }
+
         return canonicalCaptures.SequenceEqual(variantCaptures, StringComparer.Ordinal) && ClassesHold(canonicalClasses, variantClasses, type, band);
+    }
+
+    /// <summary>
+    /// The checks on a row's own shape, before it is compared with the canonical: a group-form capture only in the busy band,
+    /// the callsign placed at most once with only a courtesy after it, and a speed-change row only as its tag allows.
+    /// </summary>
+    private static bool RowShapeHolds(
+        PilotVariant variant,
+        string[] rawTokens,
+        bool speaksGroupForm,
+        CanonicalCommandType type,
+        FrequencyLoadBand band
+    )
+    {
+        string[] tokens = [.. rawTokens.Select(NormalizeTemplateToken).Where(token => token.Length > 0)];
+        return (!speaksGroupForm || (band == FrequencyLoadBand.Busy))
+            && CallsignPlacementHolds(tokens)
+            && SpeedChangeTagsHold(variant, tokens, type, band);
+    }
+
+    /// <summary>
+    /// The instructions a busy pilot may read back with a bare "wilco": no number to verify (7110.65 2-4-3 NOTE 1.a). Delete
+    /// speed restrictions is not one: it keeps its words (7110.65 5-7-4.a NOTE against 5-7-4.d).
+    /// </summary>
+    private static readonly HashSet<CanonicalCommandType> WilcoTypes =
+    [
+        CanonicalCommandType.ResumeNormalSpeed,
+        CanonicalCommandType.ReduceToFinalApproachSpeed,
+    ];
+
+    /// <summary>Whether a bare "wilco" row may stand for the canonical: busy band, a wilco instruction, no value to read back.</summary>
+    private static bool BareWilcoHolds(List<string> canonicalCaptures, CanonicalCommandType type, FrequencyLoadBand band) =>
+        (band == FrequencyLoadBand.Busy) && WilcoTypes.Contains(type) && (canonicalCaptures.Count == 0);
+
+    /// <summary>
+    /// Whether the row places the callsign at most once, and speaks no capture and no keyword-class word after it: what follows
+    /// the callsign is a courtesy ("thanks", "good day"), never part of the readback the controller checks.
+    /// </summary>
+    private static bool CallsignPlacementHolds(string[] tokens)
+    {
+        int callsignAt = Array.IndexOf(tokens, PilotVariant.CallsignPlaceholder);
+        if (callsignAt < 0)
+        {
+            return true;
+        }
+
+        string[] after = tokens[(callsignAt + 1)..];
+        (List<string> captures, List<ClassEntry> classes, _, int callsigns) = ReadTemplate(after);
+        return (callsigns == 0) && (captures.Count == 0) && (classes.Count == 0);
+    }
+
+    /// <summary>
+    /// Whether the row's speed-change wording matches its tag (<see cref="PilotVariant.SpeedChangeTags"/>). An untagged row
+    /// never says "slowing" or "speeding". A tagged row sits on the speed rule only, never in the busy band, says its own verb
+    /// ("slowing", "speeding up", "maintaining") and not the others, and says "knots" right after the speed.
+    /// </summary>
+    private static bool SpeedChangeTagsHold(PilotVariant variant, string[] tokens, CanonicalCommandType type, FrequencyLoadBand band)
+    {
+        bool slowing = tokens.Contains("slowing");
+        bool speeding = tokens.Contains("speeding");
+        PilotVariantTags tags = variant.Tags & PilotVariant.SpeedChangeTags;
+        if (tags == PilotVariantTags.None)
+        {
+            return !slowing && !speeding;
+        }
+
+        return (type == CanonicalCommandType.Speed)
+            && (band != FrequencyLoadBand.Busy)
+            && SpeedChangeVerbMatches(tags, tokens, slowing, speeding)
+            && KnotsFollowSpeed(tokens);
+    }
+
+    private static bool SpeedChangeVerbMatches(PilotVariantTags tags, string[] tokens, bool slowing, bool speeding) =>
+        tags switch
+        {
+            PilotVariantTags.SlowingOnly => slowing && !speeding,
+            PilotVariantTags.SpeedingOnly => !slowing && ContainsWordPair(tokens, "speeding", "up"),
+            PilotVariantTags.MaintainingOnly => !slowing && !speeding && tokens.Contains("maintaining"),
+            _ => false,
+        };
+
+    private static bool ContainsWordPair(string[] tokens, string first, string second) =>
+        Enumerable.Range(0, Math.Max(0, tokens.Length - 1)).Any(i => (tokens[i] == first) && (tokens[i + 1] == second));
+
+    private static bool KnotsFollowSpeed(string[] tokens)
+    {
+        int speedAt = Array.IndexOf(tokens, "{spd}");
+        return (speedAt >= 0) && (speedAt + 1 < tokens.Length) && (tokens[speedAt + 1] == "knots");
     }
 
     /// <summary>A keyword class and the number of captures read before it.</summary>
@@ -234,50 +331,78 @@ public static class AviationFloor
         (previous.Class == next.Class) && ((previous.Segment == next.Segment) || (next.Class == Knots));
 
     /// <summary>
-    /// Reads a template's captures and keyword classes in order, and whether any capture carries the group-form modifier
-    /// (<see cref="PilotVariant.GroupFormSuffix"/>), which is read as its plain capture.
+    /// Reads a template's captures and keyword classes in order, whether any capture carries the group-form modifier
+    /// (<see cref="PilotVariant.GroupFormSuffix"/>), which is read as its plain capture, and how many times it places the
+    /// callsign (<see cref="PilotVariant.CallsignPlaceholder"/>), which is not a capture of the canonical.
     /// </summary>
-    private static (List<string> Captures, List<ClassEntry> Classes, bool SpeaksGroupForm) ReadTemplate(IReadOnlyList<string> rawTokens)
+    private static (List<string> Captures, List<ClassEntry> Classes, bool SpeaksGroupForm, int Callsigns) ReadTemplate(
+        IReadOnlyList<string> rawTokens
+    )
     {
         string[] tokens = [.. rawTokens.Select(NormalizeTemplateToken).Where(token => token.Length > 0)];
         var captures = new List<string>();
         var classes = new List<ClassEntry>();
         bool speaksGroupForm = false;
+        int callsigns = 0;
         for (int i = 0; i < tokens.Length; i++)
         {
             string token = tokens[i];
-            string? wordClass;
-            if (token.StartsWith('{') && token.EndsWith('}'))
+            if (token == PilotVariant.CallsignPlaceholder)
             {
-                string name = token[1..^1];
-                name = name.EndsWith("...", StringComparison.Ordinal) ? name[..^3] : name;
-                if (name.EndsWith(PilotVariant.GroupFormSuffix, StringComparison.Ordinal))
-                {
-                    speaksGroupForm = true;
-                    name = name[..^PilotVariant.GroupFormSuffix.Length];
-                }
-
-                captures.Add(name);
+                callsigns++;
                 continue;
             }
 
-            if (TryMatchPhrase(tokens, i, out string? phraseClass, out int phraseLength))
+            if (ReadCapture(token, ref speaksGroupForm) is { } capture)
             {
-                wordClass = phraseClass;
-                i += phraseLength - 1;
-            }
-            else
-            {
-                wordClass = TemplateWordClasses.GetValueOrDefault(token);
+                captures.Add(capture);
+                continue;
             }
 
-            var entry = new ClassEntry(wordClass ?? string.Empty, captures.Count);
-            if ((wordClass is not null) && ((classes.Count == 0) || !Merges(classes[^1], entry)))
+            string? wordClass = ReadWordClass(tokens, ref i);
+            if ((wordClass is not null) && ((classes.Count == 0) || !Merges(classes[^1], new ClassEntry(wordClass, captures.Count))))
             {
-                classes.Add(entry);
+                classes.Add(new ClassEntry(wordClass, captures.Count));
             }
         }
-        return (captures, classes, speaksGroupForm);
+        return (captures, classes, speaksGroupForm, callsigns);
+    }
+
+    /// <summary>
+    /// The capture name of a <c>{capture}</c> token (a repeat suffix <c>...</c> dropped, the group-form modifier read as its
+    /// plain capture and noted in <paramref name="speaksGroupForm"/>); null for any other token.
+    /// </summary>
+    private static string? ReadCapture(string token, ref bool speaksGroupForm)
+    {
+        if (!token.StartsWith('{') || !token.EndsWith('}'))
+        {
+            return null;
+        }
+
+        string name = token[1..^1];
+        name = name.EndsWith("...", StringComparison.Ordinal) ? name[..^3] : name;
+        if (name.EndsWith(PilotVariant.GroupFormSuffix, StringComparison.Ordinal))
+        {
+            speaksGroupForm = true;
+            name = name[..^PilotVariant.GroupFormSuffix.Length];
+        }
+
+        return name;
+    }
+
+    /// <summary>
+    /// The keyword class of the phrase or word at <paramref name="index"/>, moving <paramref name="index"/> to the phrase's last
+    /// word; null for a word or phrase that carries no class.
+    /// </summary>
+    private static string? ReadWordClass(string[] tokens, ref int index)
+    {
+        if (TryMatchPhrase(tokens, index, out string? phraseClass, out int phraseLength))
+        {
+            index += phraseLength - 1;
+            return phraseClass;
+        }
+
+        return TemplateWordClasses.GetValueOrDefault(tokens[index]);
     }
 
     private static string NormalizeTemplateToken(string rawToken)

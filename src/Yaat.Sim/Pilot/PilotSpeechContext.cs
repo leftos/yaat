@@ -15,7 +15,22 @@ public readonly record struct PilotSpeechContext(PilotPersonality Personality, F
     /// </summary>
     public required bool GroupContactFrequency { get; init; }
 
-    /// <summary>The verbatim context at normal load, seed 0, second 0, full callsign and digit frequency: the canonical readback.</summary>
+    /// <summary>
+    /// The reading-back aircraft's indicated airspeed in knots as the readback is built, which decides whether a speed readback
+    /// may say it is slowing, speeding up or maintaining (<see cref="Yaat.Sim.Speech.PilotVariant.SpeedChangeTags"/>); null when
+    /// the caller has no aircraft state to read it from, and then no such row is spoken.
+    /// </summary>
+    public required double? CurrentIndicatedAirspeed { get; init; }
+
+    /// <summary>
+    /// The verbatim context at normal load, seed 0, second 0, full callsign, digit frequency and no current speed: the
+    /// canonical readback.
+    /// </summary>
     public static PilotSpeechContext Canonical =>
-        new(PilotPersonality.Verbatim, FrequencyLoadBand.Normal, 0, 0) { ShortenCallsign = false, GroupContactFrequency = false };
+        new(PilotPersonality.Verbatim, FrequencyLoadBand.Normal, 0, 0)
+        {
+            ShortenCallsign = false,
+            GroupContactFrequency = false,
+            CurrentIndicatedAirspeed = null,
+        };
 }

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -32,6 +33,8 @@ namespace Yaat.Sim.Pilot;
 /// </summary>
 public static partial class PilotResponder
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PilotResponder");
+
     public const string SourceResponse = "Response";
     public const string SourceSayReadback = "SayReadback";
 
@@ -185,63 +188,159 @@ public static partial class PilotResponder
         // sequential and parallel clauses identically. The terminal (compact), spoken (TTS) and
         // RPO (terminal + diagnostic) bodies are assembled in lock-step from each clause's
         // independently-built forms.
-        var blockTermTexts = new List<string>();
-        var blockTtsTexts = new List<string>();
-        var blockRpoTexts = new List<string>();
-        foreach (ParsedBlock block in compound.Blocks)
+        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound));
+        var blocks = new List<BlockClauses>();
+        for (int blockIndex = 0; blockIndex < compound.Blocks.Count; blockIndex++)
         {
-            var termClauses = new List<string>();
-            var ttsClauses = new List<string>();
-            var rpoClauses = new List<string>();
-            string? termLead = FormatConditionTerminal(block.Condition);
-            string? ttsLead = FormatCondition(block.Condition);
-            string? rpoLead = FormatConditionForRpo(block.Condition);
-            foreach (ParsedCommand cmd in block.Commands)
+            PilotSpeechContext blockContext = SpeedChangeIsNow(compound, blockIndex)
+                ? speechContext
+                : speechContext with
+                {
+                    CurrentIndicatedAirspeed = null,
+                };
+            if (BuildBlockClauses(compound.Blocks[blockIndex], blockContext, assembly) is { } built)
             {
-                PilotSpeechText? clause;
-                if ((handlerReadback is not null) && IsCommandOfType(cmd, handlerReadback.Command))
-                {
-                    // The handler's readback is the dispatched command's; a later one of its type in the compound is its own.
-                    clause = handlerReadback.Speech;
-                    handlerReadback = null;
-                }
-                else
-                {
-                    clause = VerbalizeForReadback(cmd, aircraft, speechContext);
-                }
-                if (clause is null || string.IsNullOrEmpty(clause.Tts))
-                {
-                    continue;
-                }
-
-                termClauses.Add(termLead is null ? clause.Terminal : termLead + " " + clause.Terminal);
-                ttsClauses.Add(ttsLead is null ? clause.Tts : ttsLead + " " + clause.Tts);
-                // The RPO body mirrors the terminal body, clause for clause, but takes each clause's
-                // diagnostic form (TerminalForRpo) where it has one — the lead/target callsign in
-                // traffic & follow calls, which the solo student must not see.
-                rpoClauses.Add(rpoLead is null ? clause.TerminalForRpo : rpoLead + " " + clause.TerminalForRpo);
-                termLead = null; // condition is stated once per block
-                ttsLead = null;
-                rpoLead = null;
-            }
-
-            if (ttsClauses.Count > 0)
-            {
-                blockTermTexts.Add(string.Join(", ", termClauses));
-                blockTtsTexts.Add(string.Join(", ", ttsClauses));
-                blockRpoTexts.Add(string.Join(", ", rpoClauses));
+                blocks.Add(built);
             }
         }
 
-        if (blockTtsTexts.Count == 0)
+        if (blocks.Count == 0)
         {
             return null;
         }
 
-        string termBody = string.Join(", then ", blockTermTexts);
-        string ttsBody = ApplyQuietFlavor(aircraft.Callsign, string.Join(", then ", blockTtsTexts), termBody, compound, speechContext);
-        string rpoBody = string.Join(", then ", blockRpoTexts);
+        string termBody = string.Join(", then ", blocks.Select(block => block.Terminal));
+        string spokenBody = string.Join(", then ", blocks.Select(block => block.Tts));
+        // A Quiet pick that offered rows beside the canonical takes its quiet courtesy from them, so the readback skips the flavour.
+        string ttsBody = assembly.OfferedQuietRows ? spokenBody : ApplyQuietFlavor(aircraft.Callsign, spokenBody, termBody, compound, speechContext);
+        string rpoBody = string.Join(", then ", blocks.Select(block => block.Rpo));
         return FrameReadback(aircraft, speechContext, termBody, ttsBody, rpoBody);
+    }
+
+    /// <summary>
+    /// The readback being assembled: the aircraft, the handler's readback until a clause takes it, whether the readback is one
+    /// unconditioned command, and whether any clause's Quiet pick offered rows beside the canonical.
+    /// </summary>
+    private sealed class ReadbackAssembly(AircraftState aircraft, HandlerReadback? handlerReadback, bool wholeReadback)
+    {
+        public AircraftState Aircraft { get; } = aircraft;
+
+        public HandlerReadback? HandlerReadback { get; set; } = handlerReadback;
+
+        public bool WholeReadback { get; } = wholeReadback;
+
+        public bool OfferedQuietRows { get; set; }
+    }
+
+    /// <summary>One block's clauses, joined with ", ", in the terminal, spoken and RPO forms.</summary>
+    private readonly record struct BlockClauses(string Terminal, string Tts, string Rpo);
+
+    /// <summary>
+    /// The clauses of <paramref name="block"/>, its condition stated once before the first; null when no command of the block
+    /// has a readback.
+    /// </summary>
+    private static BlockClauses? BuildBlockClauses(ParsedBlock block, PilotSpeechContext blockContext, ReadbackAssembly assembly)
+    {
+        var termClauses = new List<string>();
+        var ttsClauses = new List<string>();
+        var rpoClauses = new List<string>();
+        string? termLead = FormatConditionTerminal(block.Condition);
+        string? ttsLead = FormatCondition(block.Condition);
+        string? rpoLead = FormatConditionForRpo(block.Condition);
+        foreach (ParsedCommand cmd in block.Commands)
+        {
+            PilotSpeechText? clause = BuildClause(cmd, blockContext, assembly);
+            if (clause is null || string.IsNullOrEmpty(clause.Tts))
+            {
+                continue;
+            }
+
+            clause = WithoutStrayCallsignPlaceholder(cmd, clause, assembly.WholeReadback);
+            termClauses.Add(termLead is null ? clause.Terminal : termLead + " " + clause.Terminal);
+            ttsClauses.Add(ttsLead is null ? clause.Tts : ttsLead + " " + clause.Tts);
+            // The RPO body mirrors the terminal body, clause for clause, but takes each clause's
+            // diagnostic form (TerminalForRpo) where it has one — the lead/target callsign in
+            // traffic & follow calls, which the solo student must not see.
+            rpoClauses.Add(rpoLead is null ? clause.TerminalForRpo : rpoLead + " " + clause.TerminalForRpo);
+            termLead = null; // condition is stated once per block
+            ttsLead = null;
+            rpoLead = null;
+        }
+
+        return (ttsClauses.Count == 0)
+            ? null
+            : new BlockClauses(string.Join(", ", termClauses), string.Join(", ", ttsClauses), string.Join(", ", rpoClauses));
+    }
+
+    /// <summary>
+    /// One command's clause: the handler's readback for the dispatched command (a later one of its type in the compound is its
+    /// own), else the clause the readback builders or the verbalizer speak.
+    /// </summary>
+    private static PilotSpeechText? BuildClause(ParsedCommand cmd, PilotSpeechContext blockContext, ReadbackAssembly assembly)
+    {
+        if ((assembly.HandlerReadback is { } handler) && IsCommandOfType(cmd, handler.Command))
+        {
+            assembly.HandlerReadback = null;
+            return handler.Speech;
+        }
+
+        var trace = new ClauseTrace(assembly.WholeReadback);
+        PilotSpeechText? clause = VerbalizeForReadback(cmd, assembly.Aircraft, blockContext, trace);
+        assembly.OfferedQuietRows |= trace.OfferedQuietRows;
+        return clause;
+    }
+
+    /// <summary>
+    /// What a readback tells the clause it builds, whether the clause is the whole readback, and what the clause reports back,
+    /// whether its Quiet pick offered rows beside the canonical.
+    /// </summary>
+    private sealed class ClauseTrace(bool wholeReadback)
+    {
+        public bool WholeReadback { get; } = wholeReadback;
+
+        public bool OfferedQuietRows { get; set; }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="compound"/> is one command with no condition: the only readback in which a variant row may place
+    /// the callsign itself (<see cref="PilotVariant.CallsignPlaceholder"/>) or be a bare "wilco".
+    /// </summary>
+    private static bool IsSingleUnconditionedCommand(CompoundCommand compound) => compound.Blocks is [{ Condition: null, Commands.Count: 1 }];
+
+    /// <summary>
+    /// <paramref name="clause"/> with no callsign placeholder left where it cannot be filled. The verbalizer offers rows that
+    /// place the callsign only for a whole readback, so this guards a builder that would carry one into a longer readback:
+    /// the placeholder is logged and dropped, never spoken.
+    /// </summary>
+    private static PilotSpeechText WithoutStrayCallsignPlaceholder(ParsedCommand cmd, PilotSpeechText clause, bool wholeReadback)
+    {
+        if (wholeReadback || !clause.Tts.Contains(PilotVariant.CallsignPlaceholder, StringComparison.Ordinal))
+        {
+            return clause;
+        }
+
+        Log.LogWarning("Readback clause for {Command} placed the callsign inside a longer readback: \"{Tts}\"", cmd, clause.Tts);
+        string tts = clause.Tts.Replace(", " + PilotVariant.CallsignPlaceholder, string.Empty, StringComparison.Ordinal);
+        return clause with { Tts = tts.Replace(PilotVariant.CallsignPlaceholder, string.Empty, StringComparison.Ordinal).Trim() };
+    }
+
+    /// <summary>
+    /// Whether a speed in block <paramref name="blockIndex"/> takes effect now and holds with no "until", so its readback may
+    /// say it is slowing, speeding up or maintaining against the current speed: it is the first block (a later block's speed
+    /// is assigned after the instructions before it), the block has no condition (a conditioned speed is a later change), and
+    /// the next block is not a conditioned speed change or resume, the form <see cref="CommandSchemeParser.ExpandSpeedUntil"/>
+    /// writes "SPD x UNTIL y" in.
+    /// </summary>
+    private static bool SpeedChangeIsNow(CompoundCommand compound, int blockIndex)
+    {
+        if ((blockIndex != 0) || (compound.Blocks[blockIndex].Condition is not null))
+        {
+            return false;
+        }
+
+        return (compound.Blocks.Count == 1)
+            || (compound.Blocks[1] is not { Condition: not null } next)
+            || !next.Commands.Any(cmd => cmd is SpeedCommand or ResumeNormalSpeedCommand);
     }
 
     /// <summary>
@@ -259,7 +358,10 @@ public static partial class PilotResponder
     )
     {
         string spoken = SpokenReadbackCallsign(aircraft, speechContext);
-        return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."))
+        string tts = ttsBody.Contains(PilotVariant.CallsignPlaceholder, StringComparison.Ordinal)
+            ? $"{ttsBody.Replace(PilotVariant.CallsignPlaceholder, spoken, StringComparison.Ordinal)}."
+            : $"{ttsBody}, {spoken}.";
+        return new PilotSpeechText(terminalBody, NormalizeForTts(tts))
         {
             RpoTerminal = string.Equals(rpoBody, terminalBody, StringComparison.Ordinal) ? null : rpoBody,
         };
@@ -364,13 +466,18 @@ public static partial class PilotResponder
     private static PilotSpeechText? Dual(string? terminal, string? tts) =>
         string.IsNullOrEmpty(tts) ? null : new PilotSpeechText(string.IsNullOrEmpty(terminal) ? tts : terminal, tts);
 
-    private static PilotSpeechText? VerbalizeForReadback(ParsedCommand cmd, AircraftState aircraft, PilotSpeechContext speechContext) =>
+    private static PilotSpeechText? VerbalizeForReadback(
+        ParsedCommand cmd,
+        AircraftState aircraft,
+        PilotSpeechContext speechContext,
+        ClauseTrace trace
+    ) =>
         cmd switch
         {
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
                 BuildAltitudeRestrictionClause(aircraft, cm),
             LineUpAndWaitCommand luaw => AppendWithoutDelayClause(BuildRunwayInstructionClause(aircraft, "line up and wait"), luaw.WithoutDelay)
-                ?? VerbalizeDual(luaw, aircraft.Callsign, speechContext),
+                ?? VerbalizeDual(luaw, aircraft.Callsign, speechContext, trace),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
                 aircraft,
                 cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
@@ -403,31 +510,31 @@ public static partial class PilotResponder
                 PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: false),
                 PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: true)
             ),
-            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, aircraft.Callsign, speechContext),
+            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, aircraft.Callsign, speechContext, trace),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
-                    ?? VerbalizeDual(tg, aircraft.Callsign, speechContext),
+                    ?? VerbalizeDual(tg, aircraft.Callsign, speechContext, trace),
                 tg.TrafficPattern,
                 tg.PatternRunwayId
             ),
             StopAndGoCommand sg => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, aircraft.Callsign, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared stop and go") ?? VerbalizeDual(sg, aircraft.Callsign, speechContext, trace),
                 sg.TrafficPattern,
                 sg.PatternRunwayId
             ),
             LowApproachCommand la => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, aircraft.Callsign, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, aircraft.Callsign, speechContext, trace),
                 la.TrafficPattern,
                 la.PatternRunwayId
             ),
             ClearedForOptionCommand option => AppendTrafficPatternClause(
-                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, aircraft.Callsign, speechContext),
+                BuildRunwayInstructionClause(aircraft, "cleared for the option") ?? VerbalizeDual(option, aircraft.Callsign, speechContext, trace),
                 option.TrafficPattern,
                 option.PatternRunwayId
             ),
             ExpediteCommand exp => BuildExpediteClause(aircraft, exp),
-            ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext),
+            ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext, trace),
             ReportCommand report => BuildReportWilcoClause(report),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
             MaintainMilitaryRouteAltitudesCommand => BuildMaintainRouteAltitudesClause(aircraft),
@@ -444,7 +551,7 @@ public static partial class PilotResponder
             FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
-            _ => VerbalizeDual(cmd, aircraft.Callsign, speechContext),
+            _ => VerbalizeDual(cmd, aircraft.Callsign, speechContext, trace),
         };
 
     /// <summary>
@@ -719,10 +826,15 @@ public static partial class PilotResponder
     /// Default rule-driven clause for commands without a dedicated readback builder: the compact
     /// terminal form and the spoken form, both produced from the canonical command by the verbalizer.
     /// Only the spoken form varies with the speech context and the callsign that seeds its variant pick; the terminal form is
-    /// always the canonical text.
+    /// always the canonical text. The spoken pick knows from <paramref name="trace"/> whether the clause is the whole readback,
+    /// and reports into it whether its Quiet pick offered rows beside the canonical.
     /// </summary>
-    private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, string callsign, PilotSpeechContext speechContext) =>
-        Dual(PhraseologyVerbalizer.VerbalizeTerminal(cmd), PhraseologyVerbalizer.Verbalize(cmd, callsign, speechContext));
+    private static PilotSpeechText? VerbalizeDual(ParsedCommand cmd, string callsign, PilotSpeechContext speechContext, ClauseTrace trace)
+    {
+        ClauseVerbalization spoken = PhraseologyVerbalizer.VerbalizeClause(cmd, callsign, speechContext, trace.WholeReadback);
+        trace.OfferedQuietRows |= spoken.OfferedQuietRows;
+        return Dual(PhraseologyVerbalizer.VerbalizeTerminal(cmd), spoken.Text);
+    }
 
     /// <summary>
     /// Builds the EXT readback dynamically from the aircraft's current pattern phase
@@ -731,12 +843,12 @@ public static partial class PilotResponder
     /// it). Includes the runway when one is assigned so the readback matches the
     /// pattern-entry conventions used by ERD/ELD/MLT/MRT.
     /// </summary>
-    private static PilotSpeechText? BuildExtendPatternClause(AircraftState aircraft, ExtendPatternCommand ext)
+    private static PilotSpeechText? BuildExtendPatternClause(AircraftState aircraft, ExtendPatternCommand ext, ClauseTrace trace)
     {
         PatternEntryLeg? leg = ext.Leg ?? CurrentPatternLeg(aircraft.Phases?.CurrentPhase);
         if (leg is not { } resolved)
         {
-            return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical);
+            return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical, trace);
         }
 
         string? legWord = resolved switch
@@ -748,7 +860,7 @@ public static partial class PilotResponder
         };
         if (legWord is null)
         {
-            return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical);
+            return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical, trace);
         }
 
         string? runway = aircraft.Procedure.DestinationRunway;
@@ -777,7 +889,9 @@ public static partial class PilotResponder
     /// flavour does not change with the band's wording. "alright, " never leads a runway clearance, a safety-critical verb,
     /// a turn or a runway spoken with its side, and ", thanks" never follows a go-around, a cancellation, a hold position or
     /// a LAHSO clearance (F8, F12);
-    /// a pick that lands on an excluded flavour leaves the readback unflavoured.
+    /// a pick that lands on an excluded flavour leaves the readback unflavoured. A readback with a clause whose Quiet pick
+    /// offered rows beside the canonical (<see cref="ClauseVerbalization.OfferedQuietRows"/>) is not flavoured:
+    /// its rows carry the courtesy.
     /// </summary>
     public static string ApplyQuietFlavor(
         string callsign,
@@ -802,7 +916,8 @@ public static partial class PilotResponder
         };
     }
 
-    private static readonly string[][] NoAlrightTerms =
+    /// <summary>The word sequences of a canonical body that "alright, " never leads (F8, F12); public for the row guard test.</summary>
+    public static readonly string[][] NoAlrightTerms =
     [
         ["left"],
         ["right"],
@@ -825,7 +940,8 @@ public static partial class PilotResponder
         ["crossing"],
     ];
 
-    private static readonly string[][] NoThanksTerms =
+    /// <summary>The word sequences of a canonical body that ", thanks" never follows (F8, F12); public for the row guard test.</summary>
+    public static readonly string[][] NoThanksTerms =
     [
         ["go", "around"],
         ["cancel"],
@@ -2179,15 +2295,33 @@ public static partial class PilotResponder
     {
         string clause = $", cleared {BravoPreposition(wording)} the bravo";
         string callsignTail = NormalizeForTts($", {SpokenReadbackCallsign(aircraft, speechContext)}.");
-        string tts = readback.Tts.EndsWith(callsignTail, StringComparison.Ordinal)
-            ? readback.Tts[..^callsignTail.Length] + clause + callsignTail
-            : readback.Tts.TrimEnd('.') + clause + ".";
+        string tts = WithClauseBeforeCallsign(readback.Tts, clause, callsignTail);
         return readback with
         {
             Terminal = readback.Terminal + clause,
             Tts = tts,
             RpoTerminal = readback.RpoTerminal is null ? null : readback.RpoTerminal + clause,
         };
+    }
+
+    /// <summary>
+    /// <paramref name="tts"/> with <paramref name="clause"/> spoken right before its last callsign. When only a closing
+    /// courtesy (", thanks") follows that callsign, the courtesy gives way and the readback closes with the callsign, so the
+    /// airspace clearance is read back last (F12); any other words after the callsign are kept after it. With no callsign
+    /// found, the clause closes the readback.
+    /// </summary>
+    private static string WithClauseBeforeCallsign(string tts, string clause, string callsignTail)
+    {
+        string callsign = callsignTail[..^1];
+        int callsignAt = tts.LastIndexOf(callsign, StringComparison.Ordinal);
+        if (callsignAt < 0)
+        {
+            return tts.TrimEnd('.') + clause + ".";
+        }
+
+        string remainder = tts[(callsignAt + callsign.Length)..];
+        bool courtesyOnly = remainder is "." or "" or ", thanks." or ", thanks";
+        return tts[..callsignAt] + clause + (courtesyOnly ? callsignTail : callsign + remainder);
     }
 
     /// <summary>

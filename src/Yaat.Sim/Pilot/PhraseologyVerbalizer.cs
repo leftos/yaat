@@ -110,21 +110,31 @@ public static class PhraseologyVerbalizer
     /// <summary>The canonical spoken readback of <paramref name="cmd"/>: the rule pattern's own wording, never a variant.</summary>
     /// <param name="cmd">The command to read back.</param>
     /// <returns>The spoken clause, or null when no rule speaks the command.</returns>
-    public static string? Verbalize(ParsedCommand cmd) => VerbalizeCore(cmd, string.Empty, PilotSpeechContext.Canonical, Spoken);
+    public static string? Verbalize(ParsedCommand cmd) =>
+        VerbalizeCore(cmd, new VariantRequest(string.Empty, PilotSpeechContext.Canonical, WholeReadback: true), Spoken, out _);
 
     /// <summary>
-    /// The spoken readback of <paramref name="cmd"/> as this pilot says it now. A <see cref="PilotPersonality.Varied"/> pilot
-    /// whose rule has <see cref="PhraseologyRule.PilotVariants"/> speaks one row of the context's load band (Normal: the
-    /// canonical pattern or a Normal row), chosen by a seeded, uniform pick over the callsign, the canonical clause, the whole
-    /// second and the scenario seed, so a replay speaks the same row; rows that leave a placeholder unresolved, or are tagged
-    /// flight-level-only for an altitude below FL180, are never candidates, and with no candidate left the canonical is spoken.
-    /// A <see cref="PilotPersonality.Verbatim"/> pilot always speaks the canonical.
+    /// One clause of a readback as this pilot says it now. A <see cref="PilotPersonality.Varied"/> pilot whose rule has
+    /// <see cref="PhraseologyRule.PilotVariants"/> speaks one row of the context's load band (Quiet and Normal: the canonical
+    /// pattern or one of the band's rows), chosen by a seeded, uniform pick over the callsign, the canonical clause, the whole
+    /// second and the scenario seed, so a replay speaks the same row; rows that leave a placeholder unresolved, or whose tag
+    /// fails (flight-level-only below FL180, a speed change the current speed does not show), are never candidates, and with
+    /// no candidate left the canonical is spoken. When the clause is not the whole readback (<paramref name="wholeReadback"/>
+    /// false: other clauses, or a condition, share the transmission), no row that is a bare "wilco" or that places the
+    /// callsign is a candidate, since either stands only for a whole readback. A row that places the callsign keeps
+    /// <see cref="PilotVariant.CallsignPlaceholder"/> in the text for the readback to fill. A
+    /// <see cref="PilotPersonality.Verbatim"/> pilot always speaks the canonical.
     /// </summary>
     /// <param name="cmd">The command to read back.</param>
     /// <param name="callsign">The reading-back aircraft's callsign, which seeds the pick.</param>
     /// <param name="context">The pilot's personality, the trait-shifted load band, the scenario seed and the elapsed second.</param>
-    /// <returns>The spoken clause, or null when no rule speaks the command.</returns>
-    public static string? Verbalize(ParsedCommand cmd, string callsign, PilotSpeechContext context) => VerbalizeCore(cmd, callsign, context, Spoken);
+    /// <param name="wholeReadback">Whether this clause is the readback's only clause, with no condition.</param>
+    /// <returns>The spoken clause (null when no rule speaks the command) and whether the Quiet band offered a row.</returns>
+    public static ClauseVerbalization VerbalizeClause(ParsedCommand cmd, string callsign, PilotSpeechContext context, bool wholeReadback)
+    {
+        string? text = VerbalizeCore(cmd, new VariantRequest(callsign, context, wholeReadback), Spoken, out bool offeredQuietRows);
+        return new ClauseVerbalization(text, offeredQuietRows);
+    }
 
     /// <summary>
     /// Compact controller-readable form of the same readback — runway/taxiway identifiers
@@ -133,15 +143,18 @@ public static class PhraseologyVerbalizer
     /// the per-capture token formatting differs. Used for the terminal <c>SAY</c> echo, which is
     /// built independently from the canonical command — never by stripping the spoken string.
     /// </summary>
-    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeCore(cmd, string.Empty, PilotSpeechContext.Canonical, Terminal);
+    public static string? VerbalizeTerminal(ParsedCommand cmd) =>
+        VerbalizeCore(cmd, new VariantRequest(string.Empty, PilotSpeechContext.Canonical, WholeReadback: true), Terminal, out _);
 
     /// <summary>
     /// Renders <paramref name="cmd"/> with <paramref name="fmt"/>: a direct-rendered shape when the command needs one, else
     /// the preferred rule's pattern, replaced by a seeded pick among the rule's variant rows when the context is varied
-    /// (<see cref="Verbalize(ParsedCommand, string, PilotSpeechContext)"/>).
+    /// (<see cref="VerbalizeClause"/>). <paramref name="offeredQuietRows"/> is whether the pick ran in the Quiet band with at
+    /// least one row beside the canonical left after filtering.
     /// </summary>
-    private static string? VerbalizeCore(ParsedCommand cmd, string callsign, PilotSpeechContext context, CaptureFormatter fmt)
+    private static string? VerbalizeCore(ParsedCommand cmd, VariantRequest request, CaptureFormatter fmt, out bool offeredQuietRows)
     {
+        offeredQuietRows = false;
         // UnsupportedCommand and similar non-canonical placeholders shouldn't crash the
         // verbalizer — they just have no pilot speech to render.
         if (cmd is UnsupportedCommand)
@@ -259,48 +272,64 @@ public static class PhraseologyVerbalizer
         }
 
         string canonical = RenderPattern(rule.Pattern, args);
-        if ((context.Personality != PilotPersonality.Varied) || (rule.PilotVariants is not { } variants))
+        if ((request.Context.Personality != PilotPersonality.Varied) || (rule.PilotVariants is not { } variants))
         {
             return canonical;
         }
 
-        return PickVariant(cmd, variants, canonical, args, callsign, context);
+        ClauseVerbalization picked = PickVariant(cmd, variants, canonical, args, request);
+        offeredQuietRows = picked.OfferedQuietRows;
+        return picked.Text;
     }
 
+    /// <summary>Who reads back, in what context, and whether the clause is the whole readback.</summary>
+    private readonly record struct VariantRequest(string Callsign, PilotSpeechContext Context, bool WholeReadback);
+
+    /// <summary>The conditions a band's rows are filtered by before the pick.</summary>
+    private readonly record struct CandidateFilter(FrequencyLoadBand Band, double? CurrentIndicatedAirspeed, bool WholeReadback);
+
     /// <summary>
-    /// One seeded, uniform pick among the band's speakable rows (Normal: the canonical first, then the Normal rows). A row is
-    /// speakable when every placeholder resolves and, if tagged <see cref="PilotVariantTags.FlightLevelOnly"/>, the command's
-    /// altitude is a flight level, or if tagged <see cref="PilotVariantTags.GroupFormRange"/>, it is from 10,000 to 17,999 ft.
-    /// The pick salts the canonical with its own prefix, which keeps it apart from other
-    /// <see cref="VariantPick"/> draws on the same callsign, second and seed; with no speakable row it is the canonical.
+    /// One seeded, uniform pick among the band's speakable rows (Quiet and Normal: the canonical first, then the band's rows).
+    /// A row is speakable when every placeholder but the callsign (<see cref="PilotVariant.CallsignPlaceholder"/>) resolves
+    /// and, if tagged <see cref="PilotVariantTags.FlightLevelOnly"/>, the command's altitude is a flight level, or if tagged
+    /// <see cref="PilotVariantTags.GroupFormRange"/>, it is from 10,000 to 17,999 ft, or if tagged with a speed-change
+    /// condition (<see cref="PilotVariant.SpeedChangeTags"/>), the command is a speed with no modifier and the context's
+    /// current speed meets the condition; a bare "wilco" row and a row that places the callsign are speakable only when the
+    /// clause is the whole readback. The pick salts the canonical with its own prefix, which keeps it apart from other
+    /// <see cref="VariantPick"/> draws on the same callsign, second and seed (the quiet flavour's included); with no
+    /// speakable row it is the canonical. It reports Quiet rows offered when the band is Quiet and a row beside the canonical
+    /// survived the filter.
     /// </summary>
-    private static string PickVariant(
+    private static ClauseVerbalization PickVariant(
         ParsedCommand cmd,
         PilotVariantSet variants,
         string canonical,
         IReadOnlyDictionary<string, string> args,
-        string callsign,
-        PilotSpeechContext context
+        VariantRequest request
     )
     {
-        List<string> candidates = Candidates(cmd, variants, canonical, args, context.Band);
+        PilotSpeechContext context = request.Context;
+        var filter = new CandidateFilter(context.Band, context.CurrentIndicatedAirspeed, request.WholeReadback);
+        List<string> candidates = Candidates(cmd, variants, canonical, args, filter);
         if (candidates.Count == 0)
         {
-            return canonical;
+            return new ClauseVerbalization(canonical, OfferedQuietRows: false);
         }
 
-        int index = VariantPick.Index(callsign, "readback-variant:" + canonical, context.ElapsedSecond, context.RngSeed, candidates.Count);
-        return candidates[index];
+        int index = VariantPick.Index(request.Callsign, "readback-variant:" + canonical, context.ElapsedSecond, context.RngSeed, candidates.Count);
+        return new ClauseVerbalization(candidates[index], OfferedQuietRows: (context.Band == FrequencyLoadBand.Quiet) && (candidates.Count > 1));
     }
 
     /// <summary>
-    /// The spoken texts a <see cref="PilotPersonality.Varied"/> pilot picks among for <paramref name="cmd"/> in
-    /// <paramref name="band"/>, in pick order: the band's speakable rows (Normal: the canonical first).
+    /// The spoken texts a <see cref="PilotPersonality.Varied"/> pilot picks among for <paramref name="cmd"/> read back alone in
+    /// <paramref name="band"/>, in pick order: the band's speakable rows (Quiet and Normal: the canonical first). A row that
+    /// places the callsign keeps <see cref="PilotVariant.CallsignPlaceholder"/> in its text.
     /// </summary>
     /// <param name="cmd">The command to read back.</param>
     /// <param name="band">The frequency load band.</param>
+    /// <param name="currentIndicatedAirspeed">The aircraft's indicated airspeed now, or null when unknown.</param>
     /// <returns>The candidates; empty when no rule speaks the command, the rule has no variants, or no row is speakable.</returns>
-    public static IReadOnlyList<string> SpokenCandidates(ParsedCommand cmd, FrequencyLoadBand band)
+    public static IReadOnlyList<string> SpokenCandidates(ParsedCommand cmd, FrequencyLoadBand band, double? currentIndicatedAirspeed)
     {
         if (!RulesByType.TryGetValue(CommandDescriber.ToCanonicalType(cmd), out PhraseologyRule[]? rules))
         {
@@ -313,7 +342,8 @@ public static class PhraseologyVerbalizer
             return [];
         }
 
-        return Candidates(cmd, variants, RenderPattern(rule.Pattern, args), args, band);
+        var filter = new CandidateFilter(band, currentIndicatedAirspeed, WholeReadback: true);
+        return Candidates(cmd, variants, RenderPattern(rule.Pattern, args), args, filter);
     }
 
     private static List<string> Candidates(
@@ -321,23 +351,12 @@ public static class PhraseologyVerbalizer
         PilotVariantSet variants,
         string canonical,
         IReadOnlyDictionary<string, string> args,
-        FrequencyLoadBand band
+        CandidateFilter filter
     )
     {
-        List<string> candidates = (band == FrequencyLoadBand.Normal) ? [canonical] : [];
-        int? altitude = AssignedAltitude(cmd);
-        bool flightLevel = (altitude is int fl) && AtcNumberParser.IsFlightLevel(fl);
-        bool groupFormRange = (altitude is int feet) && IsGroupFormRange(feet);
-        foreach (PilotVariant variant in BandRows(variants, band))
+        List<string> candidates = (filter.Band is FrequencyLoadBand.Quiet or FrequencyLoadBand.Normal) ? [canonical] : [];
+        foreach (PilotVariant variant in BandRows(variants, filter.Band).Where(row => RowSpeakable(row, cmd, filter)))
         {
-            if (
-                (variant.Tags.HasFlag(PilotVariantTags.FlightLevelOnly) && !flightLevel)
-                || (variant.Tags.HasFlag(PilotVariantTags.GroupFormRange) && !groupFormRange)
-            )
-            {
-                continue;
-            }
-
             string rendered = RenderVariantTemplate(variant.Template, args);
             if (!string.IsNullOrWhiteSpace(rendered) && !ContainsUnresolvedPlaceholder(rendered))
             {
@@ -347,6 +366,20 @@ public static class PhraseologyVerbalizer
 
         return candidates;
     }
+
+    /// <summary>Whether a row's tags and shape let it be spoken for <paramref name="cmd"/> under <paramref name="filter"/>.</summary>
+    private static bool RowSpeakable(PilotVariant variant, ParsedCommand cmd, CandidateFilter filter) =>
+        AltitudeConditionHolds(variant.Tags, AssignedAltitude(cmd))
+        && SpeedChangeConditionHolds(variant.Tags, cmd, filter.CurrentIndicatedAirspeed)
+        && (filter.WholeReadback || (!variant.IsBareWilco && !variant.PlacesCallsign));
+
+    /// <summary>
+    /// Whether the altitude tags hold: <see cref="PilotVariantTags.FlightLevelOnly"/> needs a flight level,
+    /// <see cref="PilotVariantTags.GroupFormRange"/> an altitude from 10,000 to 17,999 ft.
+    /// </summary>
+    private static bool AltitudeConditionHolds(PilotVariantTags tags, int? altitude) =>
+        (!tags.HasFlag(PilotVariantTags.FlightLevelOnly) || ((altitude is int fl) && AtcNumberParser.IsFlightLevel(fl)))
+        && (!tags.HasFlag(PilotVariantTags.GroupFormRange) || ((altitude is int feet) && IsGroupFormRange(feet)));
 
     /// <summary>
     /// The altitude a climb or descent assigns, read from the command, never from the rendered text, so the altitude tags
@@ -358,6 +391,36 @@ public static class PhraseologyVerbalizer
             ClimbMaintainCommand climb => climb.Altitude,
             DescendMaintainCommand descend => descend.Altitude,
             _ => null,
+        };
+
+    /// <summary>
+    /// Whether a row tagged <paramref name="tags"/> may be spoken against the aircraft's current speed: an untagged row always
+    /// may; a speed-change row only for a speed with no modifier and a known current speed, slowing when it is more than
+    /// <see cref="PilotVariant.SpeedChangeThresholdKnots"/> above the assigned speed, speeding up when more than that below,
+    /// maintaining when within it (AIM 4-4-12.c).
+    /// </summary>
+    private static bool SpeedChangeConditionHolds(PilotVariantTags tags, ParsedCommand cmd, double? currentIndicatedAirspeed)
+    {
+        PilotVariantTags speedTags = tags & PilotVariant.SpeedChangeTags;
+        if (speedTags == PilotVariantTags.None)
+        {
+            return true;
+        }
+
+        return (CurrentSpeedAboveAssigned(cmd, currentIndicatedAirspeed) is double fasterBy) && SpeedChangeShows(speedTags, fasterBy);
+    }
+
+    /// <summary>How many knots the current speed is above a plain speed assignment's; null for any other command or no current speed.</summary>
+    private static double? CurrentSpeedAboveAssigned(ParsedCommand cmd, double? currentIndicatedAirspeed) =>
+        ((cmd is SpeedCommand { Modifier: SpeedModifier.None } speed) && (currentIndicatedAirspeed is double current)) ? current - speed.Speed : null;
+
+    private static bool SpeedChangeShows(PilotVariantTags speedTag, double fasterBy) =>
+        speedTag switch
+        {
+            PilotVariantTags.SlowingOnly => fasterBy > PilotVariant.SpeedChangeThresholdKnots,
+            PilotVariantTags.SpeedingOnly => fasterBy < -PilotVariant.SpeedChangeThresholdKnots,
+            PilotVariantTags.MaintainingOnly => Math.Abs(fasterBy) <= PilotVariant.SpeedChangeThresholdKnots,
+            _ => false,
         };
 
     /// <summary>Whether <paramref name="feet"/> lies from 10,000 to 17,999 ft, where the group form differs from the digit form.</summary>
@@ -385,10 +448,29 @@ public static class PhraseologyVerbalizer
     /// <returns>The rendered text; an unresolved placeholder stays in braces.</returns>
     public static string RenderSpokenVariant(ParsedCommand cmd, string template) => RenderVariantTemplate(template, ExtractArgs(cmd, Spoken));
 
-    private static string RenderVariantTemplate(string template, IReadOnlyDictionary<string, string> args) =>
-        RenderPattern(template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), args);
+    /// <summary>
+    /// Renders a variant row token by token, as <see cref="RenderPattern"/> does, except that a token may carry trailing
+    /// punctuation ("{hdg}," or "alright,"), kept after its rendered value; the callsign placeholder stays as it is, for the
+    /// readback to fill.
+    /// </summary>
+    private static string RenderVariantTemplate(string template, IReadOnlyDictionary<string, string> args)
+    {
+        var sb = new StringBuilder();
+        foreach (string token in template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string core = token.TrimEnd(',', '.');
+            string rendered = RenderPattern([core], args);
+            Append(sb, (rendered.Length == 0) ? rendered : rendered + token[core.Length..]);
+        }
 
-    private static bool ContainsUnresolvedPlaceholder(string text) => text.Contains('{') || text.Contains('}');
+        return sb.ToString();
+    }
+
+    private static bool ContainsUnresolvedPlaceholder(string text)
+    {
+        string withoutCallsign = text.Replace(PilotVariant.CallsignPlaceholder, string.Empty, StringComparison.Ordinal);
+        return withoutCallsign.Contains('{') || withoutCallsign.Contains('}');
+    }
 
     /// <summary>
     /// Per-subtype extractor: pulls the command's parsed args into a capture-name → spoken-string

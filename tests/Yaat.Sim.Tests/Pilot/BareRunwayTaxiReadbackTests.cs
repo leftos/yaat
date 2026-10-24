@@ -34,11 +34,19 @@ public class BareRunwayTaxiReadbackTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         var taxi = new TaxiCommand([], [], Expedite: false, "1L");
 
-        string? spoken = PhraseologyVerbalizer.Verbalize(
-            taxi,
-            "N123AB",
-            new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0) { ShortenCallsign = false, GroupContactFrequency = false }
-        );
+        string? spoken = PhraseologyVerbalizer
+            .VerbalizeClause(
+                taxi,
+                "N123AB",
+                new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+                {
+                    ShortenCallsign = false,
+                    GroupContactFrequency = false,
+                    CurrentIndicatedAirspeed = null,
+                },
+                wholeReadback: true
+            )
+            .Text;
 
         Assert.Equal("taxi runway one left", spoken);
     }

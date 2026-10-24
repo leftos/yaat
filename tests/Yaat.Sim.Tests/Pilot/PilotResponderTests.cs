@@ -8,6 +8,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -95,6 +96,7 @@ public class PilotResponderTests
                 {
                     ShortenCallsign = false,
                     GroupContactFrequency = false,
+                    CurrentIndicatedAirspeed = null,
                 }
             )
             ?.Tts;
@@ -117,6 +119,7 @@ public class PilotResponderTests
                 {
                     ShortenCallsign = false,
                     GroupContactFrequency = false,
+                    CurrentIndicatedAirspeed = null,
                 }
             )
             ?.Tts;
@@ -134,7 +137,12 @@ public class PilotResponderTests
         PilotSpeechText? varied = PilotResponder.BuildReadback(
             compound,
             ac,
-            new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0) { ShortenCallsign = false, GroupContactFrequency = false }
+            new PilotSpeechContext(PilotPersonality.Varied, FrequencyLoadBand.Busy, 1, 0)
+            {
+                ShortenCallsign = false,
+                GroupContactFrequency = false,
+                CurrentIndicatedAirspeed = null,
+            }
         );
 
         Assert.NotNull(canonical);
@@ -204,7 +212,7 @@ public class PilotResponderTests
         for (int i = 0; i < 1000; i++)
         {
             AircraftState ac = MakeAircraft($"N{i:D3}AB");
-            CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
+            CompoundCommand compound = Compound(new SquawkCommand(4521));
 
             string? first = PilotResponder
                 .BuildReadback(
@@ -214,6 +222,7 @@ public class PilotResponderTests
                     {
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
+                        CurrentIndicatedAirspeed = null,
                     }
                 )
                 ?.Tts;
@@ -225,6 +234,7 @@ public class PilotResponderTests
                     {
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
+                        CurrentIndicatedAirspeed = null,
                     }
                 )
                 ?.Tts;
@@ -244,7 +254,7 @@ public class PilotResponderTests
     public void BuildReadback_VariedQuietFlavor_PicksFromTheCanonicalBody()
     {
         AircraftState ac = MakeAircraft("N004AB");
-        CompoundCommand compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
+        CompoundCommand compound = Compound(new SquawkCommand(4521));
         PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
         Assert.NotNull(canonical);
 
@@ -259,6 +269,7 @@ public class PilotResponderTests
                     {
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
+                        CurrentIndicatedAirspeed = null,
                     }
                 )
                 ?.Tts;
@@ -275,8 +286,8 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildReadback_VariedQuietFlavor_PlainDescentTakesBothFlavors() =>
-        AssertQuietFlavors(MakeAircraft("N004AB"), Compound(new DescendMaintainCommand(5000)), alrightAllowed: true, thanksAllowed: true);
+    public void BuildReadback_VariedQuietFlavor_RuleWithoutQuietRowsTakesBothFlavors() =>
+        AssertQuietFlavors(MakeAircraft("N004AB"), Compound(new SquawkCommand(4521)), alrightAllowed: true, thanksAllowed: true);
 
     [Fact]
     public void BuildReadback_VariedQuietFlavor_NoAlrightOnLandingClearance() =>
@@ -288,13 +299,8 @@ public class PilotResponderTests
         );
 
     [Fact]
-    public void BuildReadback_VariedQuietFlavor_NoAlrightOnTurn() =>
-        AssertQuietFlavors(
-            MakeAircraft("N004AB"),
-            Compound(new TurnRightCommand(new MagneticHeading(270))),
-            alrightAllowed: false,
-            thanksAllowed: true
-        );
+    public void BuildReadback_VariedQuietFlavor_NoAlrightOnLeftOrRight() =>
+        AssertQuietFlavors(MakeAircraft("N004AB"), Compound(new EnterLeftDownwindCommand()), alrightAllowed: false, thanksAllowed: true);
 
     [Fact]
     public void BuildReadback_VariedQuietFlavor_NoFlavorOnGoAround() =>
@@ -346,6 +352,7 @@ public class PilotResponderTests
             {
                 ShortenCallsign = false,
                 GroupContactFrequency = false,
+                CurrentIndicatedAirspeed = null,
             };
             string spoken = PilotResponder.ApplyQuietFlavor(callsign, body, canonicalBody, compound, context);
             int pick = VariantPick.Index(callsign, canonicalBody, second, 1, 100);
@@ -380,6 +387,7 @@ public class PilotResponderTests
                     {
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
+                        CurrentIndicatedAirspeed = null,
                     }
                 )
                 ?.Tts;
@@ -410,6 +418,7 @@ public class PilotResponderTests
                 {
                     ShortenCallsign = false,
                     GroupContactFrequency = false,
+                    CurrentIndicatedAirspeed = null,
                 }
             )
             ?.Tts;
@@ -418,6 +427,302 @@ public class PilotResponderTests
         Assert.DoesNotContain("alright", result);
         Assert.DoesNotContain("thanks", result);
     }
+
+    private static readonly string[] SpeedChangeWords = ["slowing to", "speeding up to", "maintaining"];
+
+    private static PilotSpeechContext VariedWithSpeed(FrequencyLoadBand band, int seed, int second, double? indicatedAirspeed) =>
+        new(PilotPersonality.Varied, band, seed, second)
+        {
+            ShortenCallsign = false,
+            GroupContactFrequency = false,
+            CurrentIndicatedAirspeed = indicatedAirspeed,
+        };
+
+    /// <summary>The spoken readbacks of <paramref name="compound"/> over seeds 0..<paramref name="seeds"/>-1 and seconds 0..199.</summary>
+    private static List<string> SpokenReadbacks(CompoundCommand compound, FrequencyLoadBand band, double? indicatedAirspeed, int seeds)
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        ac.IndicatedAirspeed = indicatedAirspeed ?? 0;
+        return
+        [
+            .. Enumerable
+                .Range(0, seeds)
+                .SelectMany(seed =>
+                    Enumerable
+                        .Range(0, 200)
+                        .Select(second => PilotResponder.BuildReadback(compound, ac, VariedWithSpeed(band, seed, second, indicatedAirspeed))!.Tts)
+                ),
+        ];
+    }
+
+    [Theory]
+    [InlineData(FrequencyLoadBand.Quiet)]
+    [InlineData(FrequencyLoadBand.Normal)]
+    public void BuildReadback_VariedSpeed_FasterThanAssigned_MaySaySlowingNeverSpeedingUp(FrequencyLoadBand band)
+    {
+        List<string> spoken = SpokenReadbacks(Compound(new SpeedCommand(210)), band, 250, 1);
+
+        Assert.Contains(spoken, tts => tts.StartsWith("slowing to two one zero knots, ", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            spoken,
+            tts => tts.Contains("speeding up", StringComparison.Ordinal) || tts.Contains("maintaining", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietSpeed_FasterThanAssigned_SlowingRowIsPinned()
+    {
+        List<string> spoken = SpokenReadbacks(Compound(new SpeedCommand(210)), FrequencyLoadBand.Quiet, 250, 1);
+
+        // Seed 1: the first second in 0-199 whose pick is the slowing row.
+        int first = spoken.FindIndex(tts => tts.StartsWith("slowing to", StringComparison.Ordinal));
+        Assert.Equal(4, first);
+        Assert.Equal("slowing to two one zero knots, november one two three alpha bravo.", spoken[first]);
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietSpeed_WithinTenKnots_SaysMaintainingNeverSlowingOrSpeedingUp()
+    {
+        List<string> spoken = SpokenReadbacks(Compound(new SpeedCommand(210)), FrequencyLoadBand.Quiet, 205, 1);
+
+        Assert.Contains(spoken, tts => tts.StartsWith("maintaining two one zero knots, ", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            spoken,
+            tts => tts.Contains("slowing", StringComparison.Ordinal) || tts.Contains("speeding up", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietSpeed_SlowerThanAssigned_MaySaySpeedingUpNeverSlowing()
+    {
+        List<string> spoken = SpokenReadbacks(Compound(new SpeedCommand(210)), FrequencyLoadBand.Quiet, 180, 1);
+
+        Assert.Contains(spoken, tts => tts.StartsWith("speeding up to two one zero knots, ", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            spoken,
+            tts => tts.Contains("slowing", StringComparison.Ordinal) || tts.Contains("maintaining", StringComparison.Ordinal)
+        );
+    }
+
+    [Theory]
+    [InlineData(FrequencyLoadBand.Quiet)]
+    [InlineData(FrequencyLoadBand.Normal)]
+    public void BuildReadback_VariedSpeed_NoCurrentSpeed_NeverSpeaksASpeedChangeRow(FrequencyLoadBand band)
+    {
+        List<string> spoken = SpokenReadbacks(Compound(new SpeedCommand(210)), band, null, 10);
+
+        Assert.DoesNotContain(spoken, tts => SpeedChangeWords.Any(words => tts.Contains(words, StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void BuildReadback_VariedQuietSpeed_ModifierOrUntil_NeverSpeaksASpeedChangeRow()
+    {
+        // "SPD 210 UNTIL SUNOL" reaches the readback as CommandSchemeParser.ExpandSpeedUntil writes it: "SPD 210; AT SUNOL RNS".
+        var until = new CompoundCommand([
+            new ParsedBlock(null, [new SpeedCommand(210)]),
+            new ParsedBlock(AtFixCondition.FromName("SUNOL"), [new ResumeNormalSpeedCommand()]),
+        ]);
+        List<string> spoken =
+        [
+            .. SpokenReadbacks(Compound(new SpeedCommand(210, SpeedModifier.Floor)), FrequencyLoadBand.Quiet, 250, 5),
+            .. SpokenReadbacks(Compound(new SpeedCommand(210, SpeedModifier.Ceiling)), FrequencyLoadBand.Quiet, 180, 5),
+            .. SpokenReadbacks(until, FrequencyLoadBand.Quiet, 250, 5),
+        ];
+
+        Assert.DoesNotContain(spoken, tts => SpeedChangeWords.Any(words => tts.Contains(words, StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// A quiet readback from a rule with Quiet rows is exactly one of the rule's candidates framed with the callsign: the
+    /// canonical or a row, never the quiet flavour's "alright, " or ", thanks" on top. A row that places the callsign speaks
+    /// it there, in the closing callsign's spoken form.
+    /// </summary>
+    [Theory]
+    [InlineData("FH")]
+    [InlineData("DM")]
+    [InlineData("DCT")]
+    public void BuildReadback_VariedQuiet_RuleWithQuietRows_SpeaksOnlyItsRowsWithoutTheFlavor(string rule)
+    {
+        ParsedCommand command = rule switch
+        {
+            "FH" => new FlyHeadingCommand(new MagneticHeading(270)),
+            "DM" => new DescendMaintainCommand(5000),
+            "DCT" => new DirectToCommand([new ResolvedFix("SUNOL", 37.6, -121.9)], []),
+            _ => throw new ArgumentOutOfRangeException(nameof(rule), rule, "No representative command for this rule."),
+        };
+        const string spokenCallsign = "november one two three alpha bravo";
+        string[] allowed =
+        [
+            .. PhraseologyVerbalizer
+                .SpokenCandidates(command, FrequencyLoadBand.Quiet, null)
+                .Select(candidate =>
+                    candidate.Contains("{cs}", StringComparison.Ordinal)
+                        ? candidate.Replace("{cs}", spokenCallsign, StringComparison.Ordinal) + "."
+                        : $"{candidate}, {spokenCallsign}."
+                ),
+        ];
+
+        List<string> spoken = SpokenReadbacks(Compound(command), FrequencyLoadBand.Quiet, null, 5);
+
+        Assert.All(spoken, tts => Assert.Contains(tts, allowed));
+        Assert.Contains(spoken, tts => tts.Contains($", {spokenCallsign}, thanks.", StringComparison.Ordinal));
+        Assert.Contains(spoken, tts => tts == allowed[0]);
+    }
+
+    /// <summary>
+    /// FH's only Quiet row places the callsign, which a two-command readback never offers, so the pick has only the canonical
+    /// and the readback takes the quiet flavour like any rule without Quiet rows.
+    /// </summary>
+    [Fact]
+    public void BuildReadback_VariedQuiet_CompoundWhoseQuietRowsAreAllFiltered_TakesTheFlavor()
+    {
+        List<string> spoken = SpokenReadbacks(
+            Compound(new FlyHeadingCommand(new MagneticHeading(270)), new SquawkCommand(4521)),
+            FrequencyLoadBand.Quiet,
+            null,
+            1
+        );
+
+        // Seed 1: the first second in 0-199 whose quiet flavour pick lands on a flavour.
+        int first = spoken.FindIndex(tts =>
+            tts.StartsWith("alright, ", StringComparison.Ordinal) || tts.Contains(", thanks", StringComparison.Ordinal)
+        );
+        Assert.Equal(12, first);
+        Assert.Equal("fly heading two seven zero, squawk four five two one, thanks, november one two three alpha bravo.", spoken[first]);
+    }
+
+    [Theory]
+    [InlineData("SPD 210 UNTIL SUNOL")]
+    [InlineData("SPD 210 UNTIL 5")]
+    [InlineData("FH 270, RNS")]
+    public void BuildReadback_VariedBusy_WilcoNeverSitsInsideACompound(string command)
+    {
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
+        Assert.True(parsed.IsSuccess, $"'{command}' was refused: {parsed.Reason}");
+
+        List<string> spoken = SpokenReadbacks(parsed.Value!, FrequencyLoadBand.Busy, null, 5);
+
+        Assert.DoesNotContain(spoken, tts => tts.Contains("wilco", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildReadback_VariedBusy_LoneResumeNormalSpeed_MaySayWilco()
+    {
+        List<string> spoken = SpokenReadbacks(Compound(new ResumeNormalSpeedCommand()), FrequencyLoadBand.Busy, null, 1);
+
+        Assert.Contains("wilco, november one two three alpha bravo.", spoken);
+    }
+
+    [Theory]
+    [InlineData(FrequencyLoadBand.Quiet)]
+    [InlineData(FrequencyLoadBand.Normal)]
+    public void BuildReadback_VariedSpeed_InALaterBlock_NeverSaysSlowingOrSpeedingUp(FrequencyLoadBand band)
+    {
+        // "CM 100; SPD 250": the speed is assigned after the climb, so the current speed says nothing about that change.
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new ClimbMaintainCommand(10000)]),
+            new ParsedBlock(null, [new SpeedCommand(250)]),
+        ]);
+
+        List<string> spoken = SpokenReadbacks(compound, band, 280, 5);
+
+        Assert.DoesNotContain(
+            spoken,
+            tts => tts.Contains("slowing", StringComparison.Ordinal) || tts.Contains("speeding up", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// A readback of more than one clause, or with a condition, closes with the callsign and never speaks a row that places
+    /// it elsewhere: no placeholder leaks, and the callsign is spoken once, last.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BuildReadback_VariedQuiet_MultiClauseOrConditioned_ClosesWithTheCallsignOnly(bool conditioned)
+    {
+        const string spokenCallsign = "november one two three alpha bravo";
+        CompoundCommand compound = conditioned
+            ? CompoundWithCondition(AtFixCondition.FromName("SUNOL"), new FlyHeadingCommand(new MagneticHeading(270)))
+            : Compound(new FlyHeadingCommand(new MagneticHeading(270)), new DescendMaintainCommand(5000));
+
+        List<string> spoken = SpokenReadbacks(compound, FrequencyLoadBand.Quiet, null, 5);
+
+        Assert.All(
+            spoken,
+            tts =>
+            {
+                Assert.DoesNotContain("{cs}", tts, StringComparison.Ordinal);
+                Assert.Equal(tts.Length - spokenCallsign.Length - 1, tts.IndexOf(spokenCallsign, StringComparison.Ordinal));
+            }
+        );
+    }
+
+    [Theory]
+    [InlineData("N123AB", "C172", true, "november three alpha bravo")]
+    [InlineData("UAL25", "B744", false, "united twenty five heavy")]
+    public void WithBravoClearance_RowPlacedCallsignWithThanks_ClearanceComesLastBeforeTheCallsign(
+        string callsign,
+        string aircraftType,
+        bool shortenCallsign,
+        string spokenCallsign
+    )
+    {
+        AircraftState ac = MakeAircraft(callsign);
+        ac.AircraftType = aircraftType;
+        PilotSpeechContext context = VariedWithSpeed(FrequencyLoadBand.Quiet, 1, 0, null) with { ShortenCallsign = shortenCallsign };
+        Assert.Equal(spokenCallsign, PilotResponder.SpokenReadbackCallsign(ac, context));
+        var readback = new PilotSpeechText("fly heading 270", $"fly heading two seven zero, {spokenCallsign}, thanks.");
+
+        PilotSpeechText result = PilotResponder.WithBravoClearance(ac, readback, BravoClearanceWording.Into, context);
+
+        Assert.Equal($"fly heading two seven zero, cleared into the bravo, {spokenCallsign}.", result.Tts);
+    }
+
+    [Fact]
+    public void WithBravoClearance_UnknownSuffixAfterTheCallsign_IsKept()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechContext context = VariedWithSpeed(FrequencyLoadBand.Quiet, 1, 0, null);
+        var readback = new PilotSpeechText("fly heading 270", "fly heading two seven zero, november one two three alpha bravo, good day.");
+
+        PilotSpeechText result = PilotResponder.WithBravoClearance(ac, readback, BravoClearanceWording.Into, context);
+
+        Assert.Equal("fly heading two seven zero, cleared into the bravo, november one two three alpha bravo, good day.", result.Tts);
+    }
+
+    /// <summary>
+    /// The Quiet rows keep the quiet flavour's exclusions: no "alright" row on a rule whose canonical holds a word that
+    /// "alright, " never leads, and no ", thanks" row on a rule whose canonical holds a word ", thanks" never follows.
+    /// </summary>
+    [Fact]
+    public void PhraseologyRules_QuietCourtesyRows_KeepTheFlavorExclusions()
+    {
+        var misplaced = new List<string>();
+        foreach (PhraseologyRule rule in PhraseologyRules.All.Where(rule => rule.PilotVariants is not null))
+        {
+            string[] words = [.. rule.Pattern.Select(token => token.TrimEnd('?')).Where(token => !token.StartsWith('{'))];
+            foreach (PilotVariant row in rule.PilotVariants!.Quiet)
+            {
+                if (row.Template.StartsWith("alright", StringComparison.Ordinal) && ContainsTerm(words, PilotResponder.NoAlrightTerms))
+                {
+                    misplaced.Add($"{rule.OutputTemplate}: \"{row.Template}\" (alright)");
+                }
+
+                if (row.Template.EndsWith(", thanks", StringComparison.Ordinal) && ContainsTerm(words, PilotResponder.NoThanksTerms))
+                {
+                    misplaced.Add($"{rule.OutputTemplate}: \"{row.Template}\" (thanks)");
+                }
+            }
+        }
+
+        Assert.True(misplaced.Count == 0, $"Quiet rows that break a flavour exclusion: {string.Join(", ", misplaced)}");
+    }
+
+    private static bool ContainsTerm(string[] words, string[][] terms) =>
+        terms.Any(term =>
+            Enumerable.Range(0, Math.Max(0, words.Length - term.Length + 1)).Any(i => words.AsSpan(i, term.Length).SequenceEqual(term))
+        );
 
     [Fact]
     public void BuildReadback_AtFixCondition_PrependsLeadingClause()
@@ -1583,6 +1888,7 @@ public class PilotResponderTests
         {
             ShortenCallsign = false,
             GroupContactFrequency = true,
+            CurrentIndicatedAirspeed = null,
         };
 
         PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35, busy);
@@ -1599,6 +1905,7 @@ public class PilotResponderTests
         {
             ShortenCallsign = false,
             GroupContactFrequency = false,
+            CurrentIndicatedAirspeed = null,
         };
 
         PilotSpeechText result = PilotResponder.BuildContactReadback(ac, "Approach", 125.35, busy);

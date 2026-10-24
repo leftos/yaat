@@ -253,8 +253,9 @@ public sealed partial class SimulationEngine
     /// answering, else the varied personality at the band the pilot's trait shifts the frequency's activity to (the raw
     /// band stamped on the transmission for the speech rate never reads the trait), the scenario seed, the whole second,
     /// whether the pilot abbreviates its N-number (<see cref="SpokenFormDraws.CanShortenCallsign"/> against the other
-    /// aircraft on the frequency, then <see cref="SpokenFormDraws.DrawShortCallsign"/>) and whether a contact read-back
-    /// groups its frequency (<see cref="SpokenFormDraws.DrawGroupedContactFrequency"/>).
+    /// aircraft on the frequency, then <see cref="SpokenFormDraws.DrawShortCallsign"/>), whether a contact read-back
+    /// groups its frequency (<see cref="SpokenFormDraws.DrawGroupedContactFrequency"/>) and the aircraft's indicated airspeed
+    /// now, against which a speed read-back says it is slowing, speeding up or maintaining.
     /// </summary>
     /// <param name="aircraft">The aircraft reading back.</param>
     /// <param name="acknowledgedBefore">Whether the controller had acknowledged the pilot's contact before this command.</param>
@@ -282,6 +283,7 @@ public sealed partial class SimulationEngine
         {
             ShortenCallsign = shortenCallsign,
             GroupContactFrequency = SpokenFormDraws.DrawGroupedContactFrequency(aircraft.Callsign, band, scenario.RngSeed, second),
+            CurrentIndicatedAirspeed = aircraft.IndicatedAirspeed,
         };
     }
 
