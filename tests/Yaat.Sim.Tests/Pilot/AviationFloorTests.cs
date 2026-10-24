@@ -268,6 +268,44 @@ public class AviationFloorTests
     [InlineData("maintain VFR at or below {alt}", CanonicalCommandType.ClimbMaintain, "VFR at or below {alt:group}", FrequencyLoadBand.Busy)]
     [InlineData("cross {fix} at or above {alt}", CanonicalCommandType.CrossFix, "we'll cross {fix} at or above {alt}", FrequencyLoadBand.Quiet)]
     [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "cross {fix} at {alt:group}", FrequencyLoadBand.Busy)]
+    // An approach clearance is a runway clearance: a busy pilot may drop the word runway, never the type or straight in.
+    [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared {app} {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared {app} runway {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData(
+        "cleared {app} runway {rwy} approach",
+        CanonicalCommandType.ClearedApproach,
+        "cleared {app} runway {rwy} approach, {cs}, thanks",
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData("cleared approach", CanonicalCommandType.ClearedApproach, "cleared approach, {cs}, thanks", FrequencyLoadBand.Quiet)]
+    [InlineData(
+        "cleared straight in {app} runway {rwy} approach",
+        CanonicalCommandType.ClearedApproachStraightIn,
+        "cleared straight in {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData("join the {app} runway {rwy} approach", CanonicalCommandType.JoinApproach, "join the {app} runway {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData(
+        "join the straight in {app} runway {rwy} approach",
+        CanonicalCommandType.JoinApproachStraightIn,
+        "join the straight in {app} runway {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        "expect {app} runway {rwy} approach",
+        CanonicalCommandType.ExpectApproach,
+        "we'll expect the {app} runway {rwy}",
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData("expect {app} runway {rwy} approach", CanonicalCommandType.ExpectApproach, "expect {app} runway {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("follow the traffic", CanonicalCommandType.Follow, "following the traffic", FrequencyLoadBand.Busy)]
+    // "cleared to land runway" keeps the busy runway drop that "landing runway" does not have.
+    [InlineData(
+        "number two, cleared to land runway {rwy}",
+        CanonicalCommandType.ClearedToLand,
+        "number two, cleared to land {rwy}",
+        FrequencyLoadBand.Busy
+    )]
     public void HoldsTemplate_ClauseBuilderRowKeepsTheFloor_Accepts(
         string canonicalPattern,
         CanonicalCommandType type,
@@ -313,6 +351,34 @@ public class AviationFloorTests
         FrequencyLoadBand.Quiet
     )]
     [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "we'll cross {fix} at {alt:group}", FrequencyLoadBand.Quiet)]
+    // An approach readback keeps the word runway outside the busy band, and always on a join or an expect.
+    [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared {app} {rwy}", FrequencyLoadBand.Quiet)]
+    [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared {app} {rwy}", FrequencyLoadBand.Normal)]
+    [InlineData("join the {app} runway {rwy} approach", CanonicalCommandType.JoinApproach, "join the {app} {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("expect {app} runway {rwy} approach", CanonicalCommandType.ExpectApproach, "expect {app} {rwy}", FrequencyLoadBand.Busy)]
+    // It never drops "straight in", "join", the approach or the runway.
+    [InlineData(
+        "cleared straight in {app} runway {rwy} approach",
+        CanonicalCommandType.ClearedApproachStraightIn,
+        "cleared {app} runway {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        "join the straight in {app} runway {rwy} approach",
+        CanonicalCommandType.JoinApproachStraightIn,
+        "join the {app} runway {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData("join the {app} runway {rwy} approach", CanonicalCommandType.JoinApproach, "the {app} runway {rwy}", FrequencyLoadBand.Busy)]
+    [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared approach", FrequencyLoadBand.Busy)]
+    [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared {app}", FrequencyLoadBand.Busy)]
+    // The runway after "landing" is the one the pilot lands on, and stays even on a busy visual clearance.
+    [InlineData(
+        "cleared visual approach to {apt}, landing runway {rwy}",
+        CanonicalCommandType.ClearedVisualApproach,
+        "cleared visual approach to {apt}, landing {rwy}",
+        FrequencyLoadBand.Busy
+    )]
     public void HoldsTemplate_ClauseBuilderRowBreaksTheFloor_Rejects(
         string canonicalPattern,
         CanonicalCommandType type,

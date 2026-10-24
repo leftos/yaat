@@ -2,7 +2,7 @@
 
 What this is: the catalogue of spoken readback bodies a solo pilot picks from in each load band, family by family, for part G of YAAT-849 (design: [pilot-phraseology-variation.md](../pilot-phraseology-variation.md)).
 Status: reviewed by the owner (2026-10-23); rulings applied.
-Build status: the family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. The direct clause builders speak their §2 rows too: the altitude restriction (VFR forms included), the expedite with and without an altitude, the ground expedite, and the cross-fix restriction at, at or above and at or below.
+Build status: section 5's C1, C2, C5 and C6 are built (C3, C4, C8 and C7 are not; C7's rows await the PTAC re-rule). The family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. The direct clause builders speak their §2 rows too: the altitude restriction (VFR forms included), the expedite with and without an altitude, the ground expedite, and the cross-fix restriction at, at or above and at or below.
 How to mark it up: strike a variant (`~~text~~`), add a row under its canonical with your band, or change the Band cell; write a ruling you disagree with as `owner: …` in its Basis cell.
 
 ## Reading the tables
@@ -10,7 +10,7 @@ How to mark it up: strike a variant (`~~text~~`), add a row under its canonical 
 - **Canonical** is today's spoken body, quoted from the code (path:line under `src/Yaat.Sim/`). Each family's first table lists them as C1, C2, …; the variant table refers to them.
 - **Every variant ends ", {cs}"** unless the row shows `{cs}` somewhere else.
 
-  A row places `{cs}` mid-row only in a single unconditioned readback, at most once, with only a courtesy after it, and a multi-clause readback closes with the callsign once. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
+  A row never opens with `{cs}` (pilots never say their callsign first, that is the controller's); it places `{cs}` mid-row only in a single unconditioned readback, at most once, with only a courtesy after it, and a multi-clause readback closes with the callsign once. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
 - **Owner ruling 1, 2, 3** in a Basis cell name the owner's YAAT-1082 rulings listed in the next section.
 - **Bands**: Q quiet, N normal, B busy. The pilot's trait shifts the band first; then a seeded pick chooses one row of that band per transmission. N always holds the canonical, marked `= C`.
 - **Ruling**: `OK` (obeys the floor), `No: F4` (breaks that floor rule, kept to show the boundary), `No: J` (breaks no F-rule, rejected on judgement, reason in Basis).
@@ -98,7 +98,6 @@ My judgement on scope, for the owner to overrule:
 | C1 | Q | alright, we'll climb and maintain one one thousand, {cs}, thanks | OK | owner's verbose form |
 | C1 | Q | climbing to one one thousand | No: J | owner ruling 3 (to/two trap below FL180; readbacks only); today's shortcut, restrict it to FLs |
 | C1 | N | climb and maintain one one thousand | OK | = C |
-| C1 | N | {cs}, roger, climb and maintain one one thousand | OK | AIM 4-4-7.b.1 (ID first + roger) |
 | C1 | B | one one thousand | OK | US; owner's "4,500" example; keyword kept (F3) |
 | C1 | B | climbing one one thousand | OK | US |
 | C1 | B | up to one one thousand / up to eleven thousand | No: J | owner ruling 3; today's shortcut, restrict to FLs |
@@ -235,21 +234,20 @@ Join airway / radial: when a readback is added, I suggest canonical "join victor
 
 | Ref | Canonical | Source |
 |---|---|---|
-| C1 | cleared ILS runway two eight right approach | PhraseologyRules.cs:318 (CAPP; RNAV, LOC, VOR, LDA alike) |
-| C2 | cleared straight in ILS runway two eight right approach | PhraseologyRules.cs:333 |
+| C1 | cleared ILS runway two eight right approach | ApproachCommandHandler.ClearedApproachReadback (CAPP; RNAV, LOC, VOR, LDA alike) |
+| C2 | cleared straight in ILS runway two eight right approach | ApproachCommandHandler.JoinApproachReadback / ClearedApproachReadback (CAPPSI) |
 | C3 | cleared visual approach runway two eight right (+ ", left traffic", ", follow the traffic") | Commands/ApproachCommandHandler.cs:987, :1129 (handler readback) |
 | C4 | cleared visual approach to Petaluma, landing runway two nine | ApproachCommandHandler (airport-level CVA) |
-| C5 | expect ILS runway two eight right approach / expect visual approach runway two eight right | PhraseologyRules.cs:346; PhraseologyVerbalizer.cs:176 |
-| C6 | join the ILS runway two eight right approach | PhraseologyRules.cs:343 |
-| C7 | turn left heading two four zero descend and maintain three thousand cleared ILS runway two eight right approach | PhraseologyRules.cs:452 (PTAC, rule path) |
-| C8 | follow the traffic | PilotResponder.cs:481 (airborne FOLLOW) |
+| C5 | expect ILS runway two eight right approach / expect visual approach runway two eight right | PhraseologyVerbalizer.RenderExpectApproach |
+| C6 | join the ILS runway two eight right approach | ApproachCommandHandler.JoinApproachReadback (JAPP, JAPPSI) |
+| C7 | turn left heading two four zero descend and maintain three thousand cleared ILS runway two eight right approach | ApproachCommandHandler.PtacReadback (PTAC; rows await its re-rule) |
+| C8 | follow the traffic | PilotResponder.BuildFollowAirborneClause (airborne FOLLOW) |
 
 | Ref | Band | Variant | Ruling | Basis |
 |---|---|---|---|---|
 | C1 | Q | cleared ILS runway two eight right approach, {cs}, thanks | OK | US |
 | C1 | Q | alright, cleared ILS runway two eight right approach | No: J | courtesy rule ("right" in the body) |
 | C1 | N | cleared ILS runway two eight right approach | OK | = C |
-| C1 | N | {cs}, cleared ILS runway two eight right approach | OK | AIM 4-4-7.b.1 (ID first) |
 | C1 | B | cleared ILS runway two eight right | OK | US; type and runway kept |
 | C1 | B | cleared ILS two eight right | OK | owner ruling 1 (busy may drop "runway" on a runway clearance; number and L/R/C kept); J: an approach clearance counts as one |
 | C1 | Q, N | cleared ILS two eight right | No: F5 | "runway" kept outside busy (owner ruling 1) |
@@ -283,10 +281,10 @@ Join airway / radial: when a readback is added, I suggest canonical "join victor
 | C7 | B | left two four zero, three thousand, cleared ILS | No: F4, F5 | |
 | C8 | Q | we'll follow the traffic | OK | J |
 | C8 | N | follow the traffic | OK | = C |
-| C8 | B | following the traffic | OK | US |
+| C8 | B | following the traffic, {cs} | OK | US; the callsign stays on a follow readback (7110.65 7-2-1, AIM 5-5-12) |
 | C8 | B | following | No: F12 | keep "the traffic" |
 
-Pre-existing note on C7: the PTAC readback has no "until established" (7110.65 5-9-4 example: "Turn right heading three four zero. Maintain two thousand until established on the localizer. Cleared I-L-S runway three six approach."), because the rule pattern lacks it. Not a variant question; worth an **add**.
+Pre-existing note on C7: the PTAC readback, built by `PtacReadback`, has no "until established" (7110.65 5-9-4 example: "Turn right heading three four zero. Maintain two thousand until established on the localizer. Cleared I-L-S runway three six approach."). Not a variant question; worth an **add**.
 
 ## 6. Takeoff and landing
 
@@ -327,7 +325,6 @@ Pre-existing note on C7: the PTAC readback has no "until established" (7110.65 5
 | C3 | B | cleared for takeoff two eight right, right heading three one zero, three thousand | OK | owner ruling 1 |
 | C4 | Q | cleared to land runway two eight right, {cs}, thanks | OK | US |
 | C4 | N | cleared to land runway two eight right | OK | = C |
-| C4 | N | {cs}, roger, cleared to land runway two eight right | OK | AIM 4-4-7.b.1 example, verbatim |
 | C4 | N | runway two eight right, cleared to land | OK | US |
 | C4 | B | runway two eight right, cleared to land | OK | US |
 | C4 | B | cleared to land two eight right / two eight right, cleared to land | OK | owner ruling 1 (the owner's example) |
@@ -537,7 +534,7 @@ Variation covers every readback, so these need rulings too; drafted briefly.
 - **Your rulings as applied**: busy drops "runway" on runway clearances only (§5 C1 to C3 and C7, §6 C1 to C4 and C8), and keeps it on the taxi destination, "expect", "join", pattern entries, the pattern clause of a touch and go and the airport-level visual's "landing runway" (my reading of "runway clearance"; F5 as restated above).
 
   Busy group-form altitudes are added where a family's example is 10,000 ft or more (§2 C1, C4, C9) and allowed by F3 everywhere else in busy; never on flight levels, speeds, or the families held canonical-only. Readbacks still take no "to" before an altitude below FL180.
-- **Held canonical-only** (body never varies, number form included; only the callsign position): military routes (§10); LAHSO (§6 C5, "wilco, " prefix only); the Class B clearance (§4 C5); cancel takeoff / landing clearance (§6 C7, an acknowledgement word only); hold position (§8 C7); "exit / taxi without delay" (§6 C10, §8 C11).
+- **Held canonical-only** (body never varies, number form included; only the callsign position): military routes (§10); LAHSO (§6 C5, "wilco, " prefix only); the Class B clearance (§4 C5); cancel takeoff / landing clearance (§6 C7, an acknowledgement word only); hold position (§8 C7).
 
   Also: the change-of-runway landing clearance (§6 C4); the armed follow with hold-short (§8 C10); merge-hold, unable-hold-short and taxi-as-applied readbacks (§8 C12); the crossing restriction with speed (§2 C7). Each because the whole body is the safety item.
 - **Changes to today's canonical or shortcuts this catalogue asks for**: LAHSO gains "of" (F8); the relative-turn shortcut keeps "degrees"; the route-less TAXI shortcut keeps "taxi"; "climbing to / up to / down to" only for flight levels; PTAC lacks "until established" (pre-existing).

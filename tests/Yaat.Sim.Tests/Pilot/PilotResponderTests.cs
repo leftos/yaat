@@ -571,11 +571,11 @@ public class PilotResponderTests
     }
 
     /// <summary>
-    /// FH's only Quiet row places the callsign, which a two-command readback never offers, so the pick has only the canonical
-    /// and the readback takes the quiet flavour like any rule without Quiet rows.
+    /// A two-command readback is chained, and a chained readback is never chatty: it speaks the normal rows and takes no quiet
+    /// flavour, so FH and squawk on a quiet frequency never gain "alright" or ", thanks".
     /// </summary>
     [Fact]
-    public void BuildReadback_VariedQuiet_CompoundWhoseQuietRowsAreAllFiltered_TakesTheFlavor()
+    public void BuildReadback_VariedQuiet_ChainedCompound_TakesNoFlavor()
     {
         List<string> spoken = SpokenReadbacks(
             Compound(new FlyHeadingCommand(new MagneticHeading(270)), new SquawkCommand(4521)),
@@ -584,12 +584,10 @@ public class PilotResponderTests
             1
         );
 
-        // Seed 1: the first second in 0-199 whose quiet flavour pick lands on a flavour.
-        int first = spoken.FindIndex(tts =>
-            tts.StartsWith("alright, ", StringComparison.Ordinal) || tts.Contains(", thanks", StringComparison.Ordinal)
+        Assert.DoesNotContain(
+            spoken,
+            tts => tts.StartsWith("alright, ", StringComparison.Ordinal) || tts.Contains(", thanks", StringComparison.Ordinal)
         );
-        Assert.Equal(12, first);
-        Assert.Equal("fly heading two seven zero, squawk four five two one, thanks, november one two three alpha bravo.", spoken[first]);
     }
 
     [Theory]
@@ -710,6 +708,12 @@ public class PilotResponderTests
     [InlineData("expedite descent")]
     [InlineData("expedite taxi")]
     [InlineData("expedite exit")]
+    [InlineData("cleared approach")]
+    [InlineData("cleared approach naming no type")]
+    [InlineData("cleared straight in approach")]
+    [InlineData("join approach")]
+    [InlineData("join straight in approach")]
+    [InlineData("expect approach")]
     public void BuilderVariantSet_Pattern_SpeaksTheBuildersCanonical(string setName)
     {
         BuilderVariantSet set = PhraseologyRules.BuilderVariantSets.Single(candidate => candidate.Name == setName);
@@ -717,9 +721,19 @@ public class PilotResponderTests
 
         string canonical = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
         string body = canonical[..canonical.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
+        string pattern = string.Join(' ', set.Pattern);
+        string rendered = BuilderCaptures(command, ac) is { } captures
+            ? PhraseologyVerbalizer.RenderSpokenVariant(pattern, captures)
+            : PhraseologyVerbalizer.RenderSpokenVariant(command, pattern);
 
-        Assert.Equal(WordsOnly(PhraseologyVerbalizer.RenderSpokenVariant(command, string.Join(' ', set.Pattern))), WordsOnly(body));
+        Assert.Equal(WordsOnly(rendered), WordsOnly(body));
     }
+
+    /// <summary>The captures a builder supplies for its set's rows (an approach readback's); null when the command's own fill them.</summary>
+    private static IReadOnlyDictionary<string, string>? BuilderCaptures(ParsedCommand command, AircraftState ac) =>
+        command is ExpectApproachCommand expect
+            ? PhraseologyVerbalizer.ExpectApproachVariants(expect)?.Captures
+            : PilotResponder.VariedBuilderClause(command, ac)?.Captures;
 
     /// <summary>A command and an aircraft whose readback the builder renders from the variant set named <paramref name="setName"/>.</summary>
     private static (ParsedCommand Command, AircraftState Aircraft) BuilderShape(string setName)
@@ -737,6 +751,12 @@ public class PilotResponderTests
             "cross fix at or above" => new CrossFixCommand("SUNOL", 37.6, -121.9, 11000, CrossFixAltitudeType.AtOrAbove, null),
             "cross fix at or below" => new CrossFixCommand("SUNOL", 37.6, -121.9, 11000, CrossFixAltitudeType.AtOrBelow, null),
             "expedite climb" or "expedite descent" or "expedite taxi" or "expedite exit" => new ExpediteCommand(),
+            "cleared approach" => new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null),
+            "cleared approach naming no type" => new ClearedApproachCommand("Z28R", null, false, null, null, null, null, null, null, null, null),
+            "cleared straight in approach" => new ClearedApproachStraightInCommand("ILS28R", null),
+            "join approach" => new JoinApproachCommand("ILS28R", null, false),
+            "join straight in approach" => new JoinApproachStraightInCommand("ILS28R", null),
+            "expect approach" => new ExpectApproachCommand("RNAV28RZ", null),
             _ => throw new ArgumentOutOfRangeException(nameof(setName), setName, "No builder shape for this set."),
         };
         if (setName is "expedite taxi" or "expedite exit")
@@ -819,9 +839,15 @@ public class PilotResponderTests
             Assert.Same(set, SelectedBuilderSet(command, ac));
             foreach (FrequencyLoadBand band in bands)
             {
-                HashSet<string> allowed = [.. PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null).Select(FramedWithN123AB)];
+                IReadOnlyList<string> candidates = PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null);
+                HashSet<string> allowed = [.. candidates.Select(FramedWithN123AB)];
+                // A set with no Quiet rows leaves the quiet frequency to the readback's flavour, a layer outside the candidates.
+                HashSet<string> flavoured =
+                    (band == FrequencyLoadBand.Quiet) && (set.Variants.Quiet.Count == 0)
+                        ? [.. candidates.Select(candidate => $"{candidate}, thanks, {SpokenN123AB}.")]
+                        : [];
                 HashSet<string> spoken = [.. Enumerable.Range(0, 5).SelectMany(seed => SpokenOverSeconds(ac, command, band, seed))];
-                failures.AddRange(spoken.Except(allowed).Select(tts => $"{set.Name} {band}: spoken, not a candidate: \"{tts}\""));
+                failures.AddRange(spoken.Except(allowed).Except(flavoured).Select(tts => $"{set.Name} {band}: spoken, not a candidate: \"{tts}\""));
                 failures.AddRange(allowed.Except(spoken).Select(tts => $"{set.Name} {band}: a candidate never spoken: \"{tts}\""));
             }
         }
@@ -834,9 +860,12 @@ public class PilotResponderTests
 
     /// <summary>The variant set the readback picks for <paramref name="command"/> by <paramref name="ac"/>.</summary>
     private static BuilderVariantSet SelectedBuilderSet(ParsedCommand command, AircraftState ac) =>
-        command is CrossFixCommand crossFix
-            ? PhraseologyVerbalizer.CrossFixVariantSet(crossFix)
-            : PilotResponder.VariedBuilderClause(command, ac)!.Value.Variants;
+        command switch
+        {
+            CrossFixCommand crossFix => PhraseologyVerbalizer.CrossFixVariantSet(crossFix),
+            ExpectApproachCommand expect => PhraseologyVerbalizer.ExpectApproachVariants(expect)!.Value.Set,
+            _ => PilotResponder.VariedBuilderClause(command, ac)!.Value.Variants,
+        };
 
     /// <summary>A candidate as N123AB's whole readback speaks it: the callsign in its row's place, or closing the clause.</summary>
     private static string FramedWithN123AB(string candidate) =>
@@ -1064,6 +1093,23 @@ public class PilotResponderTests
                 if (row.Template.EndsWith(", thanks", StringComparison.Ordinal) && ContainsTerm(words, PilotResponder.NoThanksTerms))
                 {
                     misplaced.Add($"{rule.OutputTemplate}: \"{row.Template}\" (thanks)");
+                }
+            }
+        }
+
+        foreach (BuilderVariantSet set in PhraseologyRules.BuilderVariantSets)
+        {
+            string[] words = [.. set.Pattern.Select(token => token.TrimEnd('?')).Where(token => !token.StartsWith('{'))];
+            foreach (PilotVariant row in set.Variants.Quiet)
+            {
+                if (row.Template.StartsWith("alright", StringComparison.Ordinal) && ContainsTerm(words, PilotResponder.NoAlrightTerms))
+                {
+                    misplaced.Add($"{set.Name}: \"{row.Template}\" (alright)");
+                }
+
+                if (row.Template.EndsWith(", thanks", StringComparison.Ordinal) && ContainsTerm(words, PilotResponder.NoThanksTerms))
+                {
+                    misplaced.Add($"{set.Name}: \"{row.Template}\" (thanks)");
                 }
             }
         }

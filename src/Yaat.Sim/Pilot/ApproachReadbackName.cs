@@ -80,6 +80,45 @@ public static class ApproachReadbackName
             : null;
     }
 
+    /// <summary>
+    /// The spoken type-and-variant words ("ILS", "RNAV Zulu", "localizer back course") and the spoken runway ("two eight
+    /// right") of a resolved approach, apart; the runway is null for a circling approach. Null for a type no readback names.
+    /// </summary>
+    /// <param name="procedure">The resolved CIFP approach procedure.</param>
+    /// <returns>The spoken approach words and runway, or null.</returns>
+    public static (string Approach, string? Runway)? SpokenParts(CifpApproachProcedure procedure)
+    {
+        if (string.IsNullOrWhiteSpace(procedure.Runway))
+        {
+            return ForProcedure(procedure) is { } circling ? (circling.Tts, null) : null;
+        }
+
+        string? variant = NavigationDatabase.ParseShorthand(procedure.ApproachId)?.Variant;
+        return WithVariant(procedure.TypeCode, VariantLetter(variant)) is { } words
+            ? (words.Tts, PhraseologyVerbalizer.SpellRunway(RunwayIdentifier.ToDisplayDesignator(procedure.Runway)))
+            : null;
+    }
+
+    /// <summary>
+    /// The spoken type-and-variant words and the spoken runway of a typed or CIFP approach id, apart; null when the id names
+    /// no runway or no known type.
+    /// </summary>
+    /// <param name="approachId">The approach id.</param>
+    /// <returns>The spoken approach words and runway, or null.</returns>
+    public static (string Approach, string Runway)? SpokenParts(string? approachId) =>
+        TypeAndRunway(approachId) is { } named ? (named.Spoken, PhraseologyVerbalizer.SpellRunway(named.Runway)) : null;
+
+    /// <summary>
+    /// Whether an approach id names a runway but no approach type a readback names ("28R", "Z28R"), so the clearance reads
+    /// "cleared approach"; false for an id that names a type, and for one that names no runway (a circling "VOR-A").
+    /// </summary>
+    /// <param name="approachId">The approach id.</param>
+    /// <returns>True when the id names a runway and no known type.</returns>
+    public static bool NamesRunwayButNoType(string? approachId) =>
+        !string.IsNullOrWhiteSpace(approachId)
+        && (NavigationDatabase.ParseShorthand(approachId.Trim()) is { Runway: not null })
+        && (TypeAndRunway(approachId) is null);
+
     private static PilotSpeechText WithRunway(PilotSpeechText type, string runway) =>
         new(
             $"{type.Terminal} runway {PhraseologyVerbalizer.CompactRunway(runway)}",

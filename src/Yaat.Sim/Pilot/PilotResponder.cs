@@ -188,13 +188,14 @@ public static partial class PilotResponder
         // sequential and parallel clauses identically. The terminal (compact), spoken (TTS) and
         // RPO (terminal + diagnostic) bodies are assembled in lock-step from each clause's
         // independently-built forms.
-        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound));
+        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound)) { Chained = IsChained(compound) };
+        PilotSpeechContext clauseContext = assembly.Chained ? ChainedClauseContext(speechContext) : speechContext;
         var blocks = new List<BlockClauses>();
         for (int blockIndex = 0; blockIndex < compound.Blocks.Count; blockIndex++)
         {
             PilotSpeechContext blockContext = SpeedChangeIsNow(compound, blockIndex)
-                ? speechContext
-                : speechContext with
+                ? clauseContext
+                : clauseContext with
                 {
                     CurrentIndicatedAirspeed = null,
                 };
@@ -211,18 +212,47 @@ public static partial class PilotResponder
 
         string termBody = string.Join(", then ", blocks.Select(block => block.Terminal));
         string spokenBody = string.Join(", then ", blocks.Select(block => block.Tts));
-        // A Quiet pick that offered rows beside the canonical takes its quiet courtesy from them, so the readback skips the flavour.
-        string ttsBody = assembly.OfferedQuietRows ? spokenBody : ApplyQuietFlavor(aircraft.Callsign, spokenBody, termBody, compound, speechContext);
+        // A Quiet pick that offered rows beside the canonical takes its quiet courtesy from them, and a chained readback is
+        // never chatty, so either skips the flavour.
+        string ttsBody =
+            (assembly.OfferedQuietRows || assembly.Chained)
+                ? spokenBody
+                : ApplyQuietFlavor(aircraft.Callsign, spokenBody, termBody, compound, speechContext);
         string rpoBody = string.Join(", then ", blocks.Select(block => block.Rpo));
         return FrameReadback(aircraft, speechContext, termBody, ttsBody, rpoBody);
     }
 
     /// <summary>
+    /// Whether <paramref name="compound"/> chains things the pilot reads back together: two or more commands that produce a
+    /// readback clause (<see cref="HasNoReadbackClause"/>), in one block or several. A single command, conditioned or not, is
+    /// one clause.
+    /// </summary>
+    private static bool IsChained(CompoundCommand compound) =>
+        compound.Blocks.Sum(block => block.Commands.Count(cmd => !HasNoReadbackClause(cmd))) > 1;
+
+    /// <summary>
+    /// Whether <paramref name="cmd"/> is read back with no clause at all (acknowledging a pilot's contact, a say-exit-fix
+    /// estimate, which the pilot answers with a report of its own), so it chains nothing.
+    /// </summary>
+    private static bool HasNoReadbackClause(ParsedCommand cmd) => cmd is AcknowledgePilotContactCommand or SayExitFixEstimateCommand;
+
+    /// <summary>
+    /// The context a clause of a chained readback picks its variant in: a chained readback is never chatty, so a quiet
+    /// frequency speaks the normal rows; a busy one keeps its terse rows on every clause.
+    /// </summary>
+    private static PilotSpeechContext ChainedClauseContext(PilotSpeechContext speechContext) =>
+        (speechContext.Band == FrequencyLoadBand.Quiet) ? speechContext with { Band = FrequencyLoadBand.Normal } : speechContext;
+
+    /// <summary>
     /// The readback being assembled: the aircraft, the handler's readback until a clause takes it, whether the readback is one
-    /// unconditioned command, and whether any clause's Quiet pick offered rows beside the canonical.
+    /// unconditioned command, whether any clause's Quiet pick offered rows beside the canonical, and whether the readback
+    /// chains clauses (<see cref="IsChained"/>, or a clause that varies only its last part after a route), and the approach
+    /// the last expect-approach before the clause being built names.
     /// </summary>
     private sealed class ReadbackAssembly(AircraftState aircraft, HandlerReadback? handlerReadback, bool wholeReadback)
     {
+        public string? ExpectedApproachId { get; set; }
+
         public AircraftState Aircraft { get; } = aircraft;
 
         public HandlerReadback? HandlerReadback { get; set; } = handlerReadback;
@@ -230,6 +260,8 @@ public static partial class PilotResponder
         public bool WholeReadback { get; } = wholeReadback;
 
         public bool OfferedQuietRows { get; set; }
+
+        public bool Chained { get; set; }
     }
 
     /// <summary>One block's clauses, joined with ", ", in the terminal, spoken and RPO forms.</summary>
@@ -276,29 +308,63 @@ public static partial class PilotResponder
     /// One command's clause: the handler's readback for the dispatched command (a later one of its type in the compound is its
     /// own), else the clause the readback builders or the verbalizer speak.
     /// </summary>
-    private static PilotSpeechText? BuildClause(ParsedCommand cmd, PilotSpeechContext blockContext, ReadbackAssembly assembly)
+    private static PilotSpeechText? BuildClause(ParsedCommand issued, PilotSpeechContext blockContext, ReadbackAssembly assembly)
     {
-        if ((assembly.HandlerReadback is { } handler) && IsCommandOfType(cmd, handler.Command))
+        ParsedCommand cmd = AsItFires(issued, assembly);
+        if (cmd is ExpectApproachCommand expect)
         {
-            assembly.HandlerReadback = null;
-            return handler.Speech;
+            assembly.ExpectedApproachId = expect.ApproachId;
         }
 
         var trace = new ClauseTrace(assembly.WholeReadback);
-        PilotSpeechText? clause = VerbalizeForReadback(cmd, assembly.Aircraft, blockContext, trace);
+        PilotSpeechText? clause;
+        if ((assembly.HandlerReadback is { } handler) && IsCommandOfType(cmd, handler.Command))
+        {
+            assembly.HandlerReadback = null;
+            clause =
+                ((handler.Variants is { } set) && (handler.Captures is { } captures))
+                    ? VaryBuilderClause(
+                        cmd,
+                        new BuilderClause(handler.Speech, set) { Captures = captures },
+                        assembly.Aircraft.Callsign,
+                        blockContext,
+                        trace
+                    )
+                    : handler.Speech;
+        }
+        else
+        {
+            clause = VerbalizeForReadback(cmd, assembly.Aircraft, blockContext, trace);
+        }
+
         assembly.OfferedQuietRows |= trace.OfferedQuietRows;
+        assembly.Chained |= trace.Chained;
         return clause;
     }
 
     /// <summary>
+    /// <paramref name="cmd"/> as it will fly: a bare CAPP clears the approach expected when it fires, so an expect-approach
+    /// before it in the compound names it ahead of the one expected now; any other command is itself.
+    /// </summary>
+    private static ParsedCommand AsItFires(ParsedCommand cmd, ReadbackAssembly assembly) =>
+        ((cmd is ClearedApproachCommand { ApproachId: null } capp) && (assembly.ExpectedApproachId is { } expected))
+            ? capp with
+            {
+                ApproachId = expected,
+            }
+            : cmd;
+
+    /// <summary>
     /// What a readback tells the clause it builds, whether the clause is the whole readback, and what the clause reports back,
-    /// whether its Quiet pick offered rows beside the canonical.
+    /// whether its Quiet pick offered rows beside the canonical and whether it chained a varied part after canonical ones.
     /// </summary>
     private sealed class ClauseTrace(bool wholeReadback)
     {
         public bool WholeReadback { get; } = wholeReadback;
 
         public bool OfferedQuietRows { get; set; }
+
+        public bool Chained { get; set; }
     }
 
     /// <summary>
@@ -491,7 +557,7 @@ public static partial class PilotResponder
                 ctopp.AssignedAltitude,
                 includeRunway: false
             ),
-            AcknowledgePilotContactCommand => null,
+            _ when HasNoReadbackClause(cmd) => null,
             HoldShortCommand hsc when IsUnmakeableHoldShort(aircraft, hsc) => BuildUnableHoldShortClause(hsc),
             HoldShortCommand hsc when ArmedHoldShort(aircraft, hsc.Target) is { MergeHold: { } merge } => new PilotSpeechText(
                 PhraseologyVerbalizer.RenderMergeHoldShort(hsc.Target, merge, spoken: false),
@@ -538,7 +604,6 @@ public static partial class PilotResponder
             MaintainMilitaryRouteAltitudesCommand => BuildMaintainRouteAltitudesClause(aircraft),
             ClearedOutOfMilitaryRouteCommand xmtr => BuildClearedOutOfMilitaryRouteClause(aircraft, xmtr),
             ClearedToConductRefuelingCommand car => BuildClearedToConductRefuelingClause(car),
-            SayExitFixEstimateCommand => null,
             PushbackCommand push => PushReadbackPhrases.FromCommand(push).ToSpeech(),
             PushbackMultiCommand move => PushReadbackPhrases.FromCommand(move).ToSpeech(),
             FollowGroundCommand follow when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft) is { } armedHold => BuildArmedFollowClause(
@@ -566,7 +631,10 @@ public static partial class PilotResponder
     private static PilotSpeechText? BuildApproachClause(ParsedCommand cmd, AircraftState aircraft) =>
         cmd switch
         {
-            ClearedApproachCommand capp => ApproachCommandHandler.ClearedApproachReadback(capp, ApproachReadbackName.ForShorthand(capp.ApproachId)),
+            ClearedApproachCommand capp => ApproachCommandHandler.ClearedApproachReadback(
+                capp,
+                ApproachReadbackName.ForShorthand(ClearedApproachId(capp, aircraft))
+            ),
             JoinApproachCommand japp => BuildJoinApproachClause(japp, japp.ApproachId),
             ClearedApproachStraightInCommand cappsi => BuildJoinApproachClause(cappsi, cappsi.ApproachId),
             JoinApproachStraightInCommand jappsi => BuildJoinApproachClause(jappsi, jappsi.ApproachId),
@@ -1062,12 +1130,21 @@ public static partial class PilotResponder
     }
 
     /// <summary>A clause a readback builder renders directly: its canonical text and the variant set of its shape.</summary>
-    internal readonly record struct BuilderClause(PilotSpeechText Canonical, BuilderVariantSet Variants);
+    internal readonly record struct BuilderClause(PilotSpeechText Canonical, BuilderVariantSet Variants)
+    {
+        /// <summary>
+        /// The spoken values of the set's captures when the builder supplies them (an approach clearance names the approach it
+        /// resolved); the set then varies only the canonical's final clause, the one its pattern renders. Null when the rows
+        /// are filled from the command's own captures and vary the whole clause.
+        /// </summary>
+        public IReadOnlyDictionary<string, string>? Captures { get; init; }
+    }
 
     /// <summary>
-    /// The clause the readback builds for <paramref name="cmd"/> from a variant set (an altitude restriction, an expedite),
-    /// chosen by <paramref name="aircraft"/>; null for any other command. The readback and
-    /// <see cref="PhraseologyVerbalizer.SpokenCandidates"/> both dispatch through it.
+    /// The clause the readback builds for <paramref name="cmd"/> from a variant set (an altitude restriction, an expedite, an
+    /// approach clearance or join), chosen by <paramref name="aircraft"/>; null for any other command, and for an approach
+    /// clearance read back canonical in every band (a circling approach, a bare CAPP with no expected approach). The readback
+    /// and <see cref="PhraseologyVerbalizer.SpokenCandidates"/> both dispatch through it.
     /// </summary>
     internal static BuilderClause? VariedBuilderClause(ParsedCommand cmd, AircraftState aircraft) =>
         cmd switch
@@ -1075,8 +1152,59 @@ public static partial class PilotResponder
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
                 BuildAltitudeRestrictionClause(aircraft, cm),
             ExpediteCommand exp => BuildExpediteClause(aircraft, exp),
+            ClearedApproachCommand capp => BuildVariedApproachClearanceClause(capp, aircraft),
+            JoinApproachCommand japp => BuildVariedJoinApproachClause(japp, japp.ApproachId),
+            ClearedApproachStraightInCommand cappsi => BuildVariedJoinApproachClause(cappsi, cappsi.ApproachId),
+            JoinApproachStraightInCommand jappsi => BuildVariedJoinApproachClause(jappsi, jappsi.ApproachId),
             _ => null,
         };
+
+    /// <summary>
+    /// The approach a CAPP with no handler readback names: its own id, else, for a bare CAPP, the expected approach it clears
+    /// when it fires.
+    /// </summary>
+    private static string? ClearedApproachId(ClearedApproachCommand capp, AircraftState aircraft) => capp.ApproachId ?? aircraft.Approach.Expected;
+
+    /// <summary>
+    /// A CAPP's readback with the variant set of its final clause: the typed approach's set, or the "cleared approach" set when
+    /// the id names a runway but no type; null when it is read back canonical in every band.
+    /// </summary>
+    private static BuilderClause? BuildVariedApproachClearanceClause(ClearedApproachCommand capp, AircraftState aircraft)
+    {
+        string? approachId = ClearedApproachId(capp, aircraft);
+        (BuilderVariantSet Set, IReadOnlyDictionary<string, string> Captures)? variants = ApproachReadbackName.SpokenParts(approachId) is { } parts
+            ? ApproachCommandHandler.ClauseVariants(CommandDescriber.ToCanonicalType(capp), parts.Approach, parts.Runway)
+            : null;
+        if ((variants is null) && ApproachReadbackName.NamesRunwayButNoType(approachId))
+        {
+            variants = ApproachCommandHandler.NamingNoTypeVariants;
+        }
+
+        if (variants is not { } chosen)
+        {
+            return null;
+        }
+
+        PilotSpeechText canonical = ApproachCommandHandler.ClearedApproachReadback(capp, ApproachReadbackName.ForShorthand(approachId));
+        return new BuilderClause(canonical, chosen.Set) { Captures = chosen.Captures };
+    }
+
+    /// <summary>A straight-in clearance's or a join's readback with its variant set; null when the id names no type and runway.</summary>
+    private static BuilderClause? BuildVariedJoinApproachClause(ParsedCommand cmd, string approachId)
+    {
+        CanonicalCommandType type = CommandDescriber.ToCanonicalType(cmd);
+        if (
+            (ApproachReadbackName.ForShorthand(approachId) is not { } name)
+            || (ApproachCommandHandler.JoinApproachReadback(type, name) is not { } canonical)
+            || (ApproachReadbackName.SpokenParts(approachId) is not { } parts)
+            || (ApproachCommandHandler.ClauseVariants(type, parts.Approach, parts.Runway) is not { } variants)
+        )
+        {
+            return null;
+        }
+
+        return new BuilderClause(canonical, variants.Set) { Captures = variants.Captures };
+    }
 
     /// <summary>
     /// The spoken clause of a builder-rendered command that has no variant set and is read back canonical in every band (a
@@ -1099,10 +1227,54 @@ public static partial class PilotResponder
         ClauseTrace trace
     )
     {
+        if (built.Captures is not null)
+        {
+            return VaryFinalClause(cmd, built, callsign, speechContext, trace);
+        }
+
         var request = new PhraseologyVerbalizer.VariantRequest(callsign, speechContext, trace.WholeReadback);
         ClauseVerbalization spoken = PhraseologyVerbalizer.VerbalizeBuilderClause(cmd, built.Variants, built.Canonical.Tts, request);
         trace.OfferedQuietRows |= spoken.OfferedQuietRows;
         return built.Canonical with { Tts = spoken.Text ?? built.Canonical.Tts };
+    }
+
+    /// <summary>
+    /// <paramref name="built"/>'s canonical with only its final clause, the one the set's pattern renders from its
+    /// <see cref="BuilderClause.Captures"/>, varied as <see cref="VaryBuilderClause"/> varies a whole clause; the route and
+    /// crossing clauses before it stay canonical, and a clause after them makes the readback chained, so it is never chatty
+    /// (<see cref="ChainedClauseContext"/>). A canonical that does not end with that clause is logged and read back canonical.
+    /// </summary>
+    private static PilotSpeechText VaryFinalClause(
+        ParsedCommand cmd,
+        BuilderClause built,
+        string callsign,
+        PilotSpeechContext speechContext,
+        ClauseTrace trace
+    )
+    {
+        PilotSpeechText canonical = built.Canonical;
+        IReadOnlyDictionary<string, string> captures = built.Captures ?? new Dictionary<string, string>();
+        string final = PhraseologyVerbalizer.RenderPattern(built.Variants.Pattern, captures);
+        if (!canonical.Tts.EndsWith(final, StringComparison.Ordinal))
+        {
+            Log.LogError(
+                "Readback of {Command} does not end with the canonical \"{Final}\" of its variant set \"{Set}\": \"{Tts}\"; read back canonical",
+                cmd,
+                final,
+                built.Variants.Name,
+                canonical.Tts
+            );
+            return canonical;
+        }
+
+        string prefix = canonical.Tts[..^final.Length];
+        bool chained = prefix.Length > 0;
+        trace.Chained |= chained;
+        PilotSpeechContext clauseContext = chained ? ChainedClauseContext(speechContext) : speechContext;
+        var request = new PhraseologyVerbalizer.VariantRequest(callsign, clauseContext, trace.WholeReadback);
+        ClauseVerbalization spoken = PhraseologyVerbalizer.VerbalizeBuilderClause(cmd, built.Variants, final, captures, request);
+        trace.OfferedQuietRows |= spoken.OfferedQuietRows;
+        return canonical with { Tts = prefix + (spoken.Text ?? final) };
     }
 
     private static PilotSpeechText BuildTakeoffClearanceClause(

@@ -9,6 +9,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Commands;
 
@@ -88,8 +89,60 @@ public static class ApproachCommandHandler
             return result;
         }
 
-        return build(approach) is { } readback ? result with { PilotReadback = new HandlerReadback(readbackType, readback) } : result;
+        if (build(approach) is not { } readback)
+        {
+            return result;
+        }
+
+        var handlerReadback = new HandlerReadback(readbackType, readback);
+        if (
+            (ApproachReadbackName.SpokenParts(procedure) is { Runway: { } runway } parts)
+            && (ClauseVariants(readbackType, parts.Approach, runway) is { } variants)
+        )
+        {
+            handlerReadback = handlerReadback with { Variants = variants.Set, Captures = variants.Captures };
+        }
+
+        return result with
+        {
+            PilotReadback = handlerReadback,
+        };
     }
+
+    /// <summary>
+    /// The variant set a varied pilot picks the final clearance clause of an approach readback from, and its captures:
+    /// <c>{app}</c> the spoken approach type and variant, <c>{rwy}</c> the spoken runway. Null for a command type with no set.
+    /// A circling approach (no runway) has none, so callers never ask for it.
+    /// </summary>
+    /// <param name="readbackType">The canonical type the readback is for; a forced twin shares its plain twin's set.</param>
+    /// <param name="approach">The spoken approach type and variant ("ILS", "RNAV Zulu").</param>
+    /// <param name="runway">The spoken runway ("two eight right").</param>
+    /// <returns>The set and its captures, or null.</returns>
+    public static (BuilderVariantSet Set, IReadOnlyDictionary<string, string> Captures)? ClauseVariants(
+        CanonicalCommandType readbackType,
+        string approach,
+        string runway
+    )
+    {
+        BuilderVariantSet? set = readbackType switch
+        {
+            CanonicalCommandType.ClearedApproach or CanonicalCommandType.ClearedApproachForce => PhraseologyRules.ApproachClearance,
+            CanonicalCommandType.ClearedApproachStraightIn => PhraseologyRules.StraightInApproachClearance,
+            CanonicalCommandType.JoinApproach or CanonicalCommandType.JoinApproachForce => PhraseologyRules.ApproachJoin,
+            CanonicalCommandType.JoinApproachStraightIn => PhraseologyRules.StraightInApproachJoin,
+            CanonicalCommandType.ExpectApproach => PhraseologyRules.ExpectedApproach,
+            _ => null,
+        };
+        return set is null ? null : (set, ApproachCaptures(approach, runway));
+    }
+
+    /// <summary>The captures of an approach readback's variant rows: <c>{app}</c> and <c>{rwy}</c>, spoken.</summary>
+    private static Dictionary<string, string> ApproachCaptures(string approach, string runway) =>
+        new(StringComparer.Ordinal) { ["app"] = approach, ["rwy"] = runway };
+
+    /// <summary>The variant set of a CAPP whose id names a runway and no approach type ("cleared approach"), which has no captures.</summary>
+    public static (BuilderVariantSet Set, IReadOnlyDictionary<string, string> Captures) NamingNoTypeVariants { get; } =
+        (PhraseologyRules.ApproachClearanceNamingNoType, new Dictionary<string, string>(StringComparer.Ordinal));
 
     /// <summary>
     /// The readback of a <c>CAPP</c> (7110.65 4-8-1, AIM 4-4-7.b): the route and crossing restriction it carries first, then the

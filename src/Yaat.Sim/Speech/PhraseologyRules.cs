@@ -1350,6 +1350,77 @@ public static class PhraseologyRules
             )
         );
 
+    /// <summary>
+    /// "cleared {app} runway {rwy} approach" (7110.65 4-8-1, AIM 4-4-7.b), also for CAPPF: a busy pilot drops "approach", then
+    /// the word runway, never the approach type, its variant or the runway; no "alright" before a clearance.
+    /// </summary>
+    public static BuilderVariantSet ApproachClearance { get; } =
+        new(
+            "cleared approach",
+            ["cleared", "{app}", "runway", "{rwy}", "approach"],
+            ClearedApproach,
+            new PilotVariantSet(
+                [new PilotVariant("cleared {app} runway {rwy} approach, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>"cleared approach", an approach clearance whose id names no approach type: only a quiet courtesy, never shorter.</summary>
+    public static BuilderVariantSet ApproachClearanceNamingNoType { get; } =
+        new(
+            "cleared approach naming no type",
+            ["cleared", "approach"],
+            ClearedApproach,
+            new PilotVariantSet([new PilotVariant("cleared approach, {cs}, thanks", PilotVariantTags.None)], [], [])
+        );
+
+    /// <summary>"cleared straight in {app} runway {rwy} approach" (7110.65 4-8-1.e): "straight in" is never dropped.</summary>
+    public static BuilderVariantSet StraightInApproachClearance { get; } =
+        new(
+            "cleared straight in approach",
+            ["cleared", "straight", "in", "{app}", "runway", "{rwy}", "approach"],
+            ClearedApproachStraightIn,
+            PilotVariantSet.BusyOnly(
+                new PilotVariant("cleared straight in {app} runway {rwy}", PilotVariantTags.None),
+                new PilotVariant("cleared straight in {app} {rwy}", PilotVariantTags.None)
+            )
+        );
+
+    /// <summary>"join the {app} runway {rwy} approach", also for JAPPF: a join is not the approach clearance, so the word runway stays.</summary>
+    public static BuilderVariantSet ApproachJoin { get; } =
+        new(
+            "join approach",
+            ["join", "the", "{app}", "runway", "{rwy}", "approach"],
+            JoinApproach,
+            PilotVariantSet.BusyOnly(new PilotVariant("join the {app} runway {rwy}", PilotVariantTags.None))
+        );
+
+    /// <summary>"join the straight in {app} runway {rwy} approach": "join" and "straight in" are never dropped.</summary>
+    public static BuilderVariantSet StraightInApproachJoin { get; } =
+        new(
+            "join straight in approach",
+            ["join", "the", "straight", "in", "{app}", "runway", "{rwy}", "approach"],
+            JoinApproachStraightIn,
+            PilotVariantSet.BusyOnly(new PilotVariant("join the straight in {app} runway {rwy}", PilotVariantTags.None))
+        );
+
+    /// <summary>"expect {app} runway {rwy} approach", an expected instrument approach (7110.65 4-7-10.a.1): the runway always stays.</summary>
+    public static BuilderVariantSet ExpectedApproach { get; } =
+        new(
+            "expect approach",
+            ["expect", "{app}", "runway", "{rwy}", "approach"],
+            ExpectApproach,
+            new PilotVariantSet(
+                [new PilotVariant("we'll expect the {app} runway {rwy}", PilotVariantTags.None)],
+                [new PilotVariant("expect the {app} runway {rwy}", PilotVariantTags.None)],
+                [new PilotVariant("expect {app} runway {rwy}", PilotVariantTags.None)]
+            )
+        );
+
     /// <summary>Every clause-builder variant set, for the aviation-floor test over all rows.</summary>
     public static IReadOnlyList<BuilderVariantSet> BuilderVariantSets { get; } =
     [
@@ -1366,5 +1437,11 @@ public static class PhraseologyRules
         CrossFixAt,
         CrossFixAtOrAbove,
         CrossFixAtOrBelow,
+        ApproachClearance,
+        ApproachClearanceNamingNoType,
+        StraightInApproachClearance,
+        ApproachJoin,
+        StraightInApproachJoin,
+        ExpectedApproach,
     ];
 }

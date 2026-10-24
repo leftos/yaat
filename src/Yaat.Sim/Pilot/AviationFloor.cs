@@ -16,12 +16,13 @@ namespace Yaat.Sim.Pilot;
 /// <see cref="HoldsTemplate"/> compares a rule's variant row with the rule's pattern by value: the same captures in the same
 /// order, and the same keyword classes in the same order. The classes are the type keywords (heading, degrees, knots or
 /// speed, mach, squawk, runway), the directions (left, right, climb, descend), the safety-critical verbs (hold short,
-/// cross, cleared, land, takeoff, line up and wait, go around, hold position, follow or behind), and the words that change
-/// a clause's meaning (expedite, expect, not, via, when able, immediately or without delay, at, the altitude qualifiers at
-/// or above, at or below, cruise, VFR, except maintain and until, and the speed qualifiers or less, or greater, between,
-/// maximum and minimum). Only a busy pilot may omit anything: the climb or descend verb, and the word runway on a runway
-/// clearance. An expedite is the exception: in any band its readback may speak "expediting" for "expedite climb" or
-/// "expedite descent", dropping the direction word after expedite, and in no band may it drop the verb before an altitude.
+/// cross, cleared, land, takeoff, line up and wait, go around, hold position, follow, following or behind, join), and the
+/// words that change a clause's meaning (expedite, expect, not, via, when able, immediately or without delay, straight in,
+/// at, the altitude qualifiers at or above, at or below, cruise, VFR, except maintain and until, and the speed qualifiers or
+/// less, or greater, between, maximum and minimum). Only a busy pilot may omit anything: the climb or descend verb, and the
+/// word runway on a runway clearance, unless it follows hold short, cross or "landing". An expedite is the exception: in
+/// any band its readback may speak "expediting" for "expedite climb" or "expedite descent", dropping the direction word
+/// after expedite, and in no band may it drop the verb before an altitude.
 /// </para>
 /// </summary>
 public static class AviationFloor
@@ -72,7 +73,9 @@ public static class AviationFloor
         ["landing"] = "LAND",
         ["takeoff"] = "TAKEOFF",
         ["follow"] = "FOLLOW",
+        ["following"] = "FOLLOW",
         ["behind"] = "FOLLOW",
+        ["join"] = "JOIN",
         ["expect"] = "EXPECT",
         ["not"] = "NOT",
         ["no"] = "NOT",
@@ -102,6 +105,7 @@ public static class AviationFloor
         (["go", "around"], "GOAROUND"),
         (["when", "able"], "WHENABLE"),
         (["without", "delay"], "IMMEDIATE"),
+        (["straight", "in"], "STRAIGHTIN"),
         (["or", "less"], "ORLESS"),
         (["or", "greater"], "ORGREATER"),
         (["or", "more"], "ORGREATER"),
@@ -153,7 +157,7 @@ public static class AviationFloor
     /// than by re-parsing rendered text. Both templates are read into their <c>{capture}</c> names in order and their keyword
     /// classes in order (the classes the class summary lists). The captures must be equal: none dropped, added or reordered.
     /// The classes must be equal, except that on a busy frequency the variant may omit the climb or descend verb, and on a
-    /// runway clearance (<paramref name="type"/>) the word runway unless it follows hold short or cross; on an expedite it may
+    /// runway clearance (<paramref name="type"/>) the word runway unless it follows hold short, cross or "landing"; on an expedite it may
     /// omit only the direction right after expedite ("expediting" for "expedite descent"), in any band, and never the verb
     /// before an altitude; it may never speak a class the canonical lacks, such as the other direction. A group-form
     /// placeholder (<c>{alt:group}</c>) counts as its capture (<c>alt</c>), since both are rendered from one value, and is
@@ -284,8 +288,8 @@ public static class AviationFloor
         return (speedAt >= 0) && (speedAt + 1 < tokens.Length) && (tokens[speedAt + 1] == "knots");
     }
 
-    /// <summary>A keyword class and the number of captures read before it.</summary>
-    private readonly record struct ClassEntry(string Class, int Segment);
+    /// <summary>A keyword class, the number of captures read before it, and the first word that spoke it.</summary>
+    private readonly record struct ClassEntry(string Class, int Segment, string Word);
 
     /// <summary>
     /// Whether <paramref name="variant"/> is <paramref name="canonical"/> with only omittable classes left out: every other
@@ -335,8 +339,15 @@ public static class AviationFloor
         }
         return (wordClass == "RUNWAY")
             && RunwayClearanceTypes.Contains(type)
-            && ((index == 0) || (canonical[index - 1].Class is not ("HOLDSHORT" or "CROSS")));
+            && ((index == 0) || ((canonical[index - 1].Class is not ("HOLDSHORT" or "CROSS")) && !FollowsLanding(canonical, index)));
     }
+
+    /// <summary>
+    /// Whether the class at <paramref name="index"/> comes straight after the word "landing" ("landing runway two nine"): the
+    /// runway the pilot lands on, which stays, unlike the runway of "cleared to land runway ..." that a busy pilot may drop.
+    /// </summary>
+    private static bool FollowsLanding(List<ClassEntry> canonical, int index) =>
+        (canonical[index - 1].Word == "landing") && (canonical[index - 1].Segment == canonical[index].Segment);
 
     /// <summary>
     /// Whether the class at <paramref name="index"/> is the direction word right after expedite ("expedite climb"), which
@@ -378,10 +389,17 @@ public static class AviationFloor
                 continue;
             }
 
+            string word = token;
             string? wordClass = ReadWordClass(tokens, ref i);
-            if ((wordClass is not null) && ((classes.Count == 0) || !Merges(classes[^1], new ClassEntry(wordClass, captures.Count))))
+            if (wordClass is null)
             {
-                classes.Add(new ClassEntry(wordClass, captures.Count));
+                continue;
+            }
+
+            var entry = new ClassEntry(wordClass, captures.Count, word);
+            if ((classes.Count == 0) || !Merges(classes[^1], entry))
+            {
+                classes.Add(entry);
             }
         }
         return (captures, classes, speaksGroupForm, callsigns);

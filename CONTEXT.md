@@ -504,11 +504,24 @@ Established on the final and no further out than a limit measured to the landing
 **Aviation floor**:
 The content a varied spoken clause may never drop, add or reorder against its canonical clause (headings, runways, altitudes with their unit words, speeds, squawks, hold-short and crossing), checked by `AviationFloor.HoldsTemplate` for rule variant rows (the **value floor**) and `AviationFloor.Holds` for clause builders that only produce strings; a clause that fails it is spoken canonical (docs/plans/pilot-phraseology-variation.md).
 
+**Builder variant set**:
+The variant rows of a clause a readback builder renders itself instead of reading a rule (an altitude restriction, an expedite, a cross-fix restriction, an approach clearance, join or expect), a `BuilderVariantSet` in `PhraseologyRules.BuilderVariantSets`; the builder returns its canonical with its set and `VerbalizeBuilderClause` picks among the canonical and the band's rows.
+_Avoid_: variant row (a rule's own `PilotVariantSet` row)
+
+**Chained readback**:
+A readback of two or more commands (a CAPP with a route or crossing before it included): it never takes a chatty row or the quiet "alright," / ", thanks" flavour, a quiet frequency speaks the normal-band words and a busy one keeps its terse rows on every clause. A single command, conditioned or not, is not chained.
+
 **Effective band**:
 The load band a pilot speaks at: the frequency's load band shifted by the pilot's trait, terse one step busier and chatty one quieter, clamped to quiet..busy (`PilotTraits.EffectiveBand`); the speech-rate nudge still uses the raw band (docs/solo-training-pilot-speech.md).
 
 **Group form**:
 A number said as grouped words ("eleven thousand", "two fifty") rather than as separate digits ("one one thousand", "two five zero"); a pilot readback speaks it only on a busy frequency, through a variant row's `{alt:group}` / `{spd:group}` capture, and never for a flight level (`PhraseologyVerbalizer.AltitudeGroupWords`, `SpeedGroupWords`, docs/solo-training-pilot-speech.md).
+
+**Handler readback**:
+A readback clause a command handler builds itself and returns on `CommandResult.PilotReadback` (`HandlerReadback`), because it names what the handler resolved (an approach clearance's approach); it may carry a builder variant set and the spoken captures (`Variants`, `Captures`) so a varied pilot picks its final clause from the band's rows.
+
+**Held canonical**:
+A clause spoken as its canonical text in every load band because it has no shorter form that keeps its meaning (a military route clearance, the Class B clearance, LAHSO, a cross-fix restriction with a speed, a circling approach clearance, CVA, airborne FOLLOW, PTAC); only the callsign position or an acknowledgement word may change.
 
 **Load band**:
 How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).

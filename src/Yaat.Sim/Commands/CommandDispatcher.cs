@@ -10,6 +10,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Commands;
 
@@ -60,7 +61,17 @@ public record CommandResult(
 /// </summary>
 /// <param name="Command">The canonical type of the command whose handler built the readback.</param>
 /// <param name="Speech">The clause the pilot reads back, without the callsign.</param>
-public sealed record HandlerReadback(CanonicalCommandType Command, PilotSpeechText Speech);
+public sealed record HandlerReadback(CanonicalCommandType Command, PilotSpeechText Speech)
+{
+    /// <summary>
+    /// The variant set a varied pilot picks the readback's final clause from (an approach clearance's), filled from
+    /// <see cref="Captures"/>; null when the readback is spoken as built in every band.
+    /// </summary>
+    public BuilderVariantSet? Variants { get; init; }
+
+    /// <summary>The values of <see cref="Variants"/>' captures, spoken; null when it has none.</summary>
+    public IReadOnlyDictionary<string, string>? Captures { get; init; }
+}
 
 public static class CommandDispatcher
 {

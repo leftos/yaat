@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -31,6 +32,8 @@ namespace Yaat.Sim.Pilot;
 /// </summary>
 public static class PhraseologyVerbalizer
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PhraseologyVerbalizer");
+
     /// <summary>
     /// Cached map: declaration-ordered <see cref="PhraseologyRule"/> candidates per
     /// <see cref="CanonicalCommandType"/>. Rule selection happens per-call in
@@ -206,7 +209,7 @@ public static class PhraseologyVerbalizer
         // approach"), which the rule path cannot: every ExpectApproach rule ties on one capture.
         if ((cmd is ExpectApproachCommand expected) && (ApproachReadbackName.ForShorthand(expected.ApproachId) is { } expectedName))
         {
-            return $"expect {fmt.Form(expectedName)} approach";
+            return RenderExpectApproach(expected, expectedName, request, fmt, out offeredQuietRows);
         }
 
         // A TAXI clearance naming a runway as a path segment (taxi ALONG it) needs per-segment
@@ -303,6 +306,25 @@ public static class PhraseologyVerbalizer
     /// <returns>The spoken clause and whether the Quiet band offered a row.</returns>
     internal static ClauseVerbalization VerbalizeBuilderClause(ParsedCommand cmd, BuilderVariantSet set, string canonical, VariantRequest request) =>
         VaryDirectClause(cmd, set.Variants, canonical, ExtractArgs(cmd, Spoken), request);
+
+    /// <summary>
+    /// <see cref="VerbalizeBuilderClause(ParsedCommand, BuilderVariantSet, string, VariantRequest)"/> with the rows filled from
+    /// <paramref name="captures"/>, for a builder whose captures the command does not carry (an approach clearance names the
+    /// approach it resolved).
+    /// </summary>
+    /// <param name="cmd">The command read back.</param>
+    /// <param name="set">The shape's variant set.</param>
+    /// <param name="canonical">The builder's canonical spoken clause.</param>
+    /// <param name="captures">The spoken values of the set's captures.</param>
+    /// <param name="request">Who reads back, in what context, and whether the clause is the whole readback.</param>
+    /// <returns>The spoken clause and whether the Quiet band offered a row.</returns>
+    internal static ClauseVerbalization VerbalizeBuilderClause(
+        ParsedCommand cmd,
+        BuilderVariantSet set,
+        string canonical,
+        IReadOnlyDictionary<string, string> captures,
+        VariantRequest request
+    ) => VaryDirectClause(cmd, set.Variants, canonical, captures, request);
 
     /// <summary>The conditions a band's rows are filtered by before the pick.</summary>
     private readonly record struct CandidateFilter(FrequencyLoadBand Band, double? CurrentIndicatedAirspeed, bool WholeReadback);
@@ -403,12 +425,79 @@ public static class PhraseologyVerbalizer
                 : [canonical];
         }
 
+        if ((cmd is ExpectApproachCommand expected) && (ExpectApproachVariants(expected) is { } expect))
+        {
+            string canonical = RenderPattern(expect.Set.Pattern, expect.Captures);
+            return SetCandidates(expected, expect.Set.Variants, canonical, expect.Captures, filter);
+        }
+
         if (PilotResponder.VariedBuilderClause(cmd, aircraft) is { } clause)
         {
-            return SetCandidates(cmd, clause.Variants.Variants, clause.Canonical.Tts, ExtractArgs(cmd, Spoken), filter);
+            return (clause.Captures is not null)
+                ? FinalClauseCandidates(cmd, clause, filter)
+                : SetCandidates(cmd, clause.Variants.Variants, clause.Canonical.Tts, ExtractArgs(cmd, Spoken), filter);
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The candidates of a builder clause whose set varies only its final clause (an approach clearance after its route and
+    /// crossing): the canonical text before that clause, then each of the clause's candidates, picked from the normal rows on
+    /// a quiet frequency when a route or crossing comes first, as the readback picks them.
+    /// </summary>
+    private static List<string> FinalClauseCandidates(ParsedCommand cmd, PilotResponder.BuilderClause clause, CandidateFilter filter)
+    {
+        IReadOnlyDictionary<string, string> captures = clause.Captures ?? new Dictionary<string, string>();
+        string final = RenderPattern(clause.Variants.Pattern, captures);
+        string tts = clause.Canonical.Tts;
+        if (!tts.EndsWith(final, StringComparison.Ordinal))
+        {
+            Log.LogError(
+                "Candidates of {Command}: canonical does not end with \"{Final}\" of variant set \"{Set}\": \"{Tts}\"; offering canonical",
+                cmd,
+                final,
+                clause.Variants.Name,
+                tts
+            );
+            return [tts];
+        }
+
+        // A clause after the route and crossing chains the readback, which is never chatty: quiet speaks the normal rows.
+        string prefix = tts[..^final.Length];
+        CandidateFilter clauseFilter =
+            ((prefix.Length > 0) && (filter.Band == FrequencyLoadBand.Quiet)) ? filter with { Band = FrequencyLoadBand.Normal } : filter;
+        return [.. SetCandidates(cmd, clause.Variants.Variants, final, captures, clauseFilter).Select(candidate => prefix + candidate)];
+    }
+
+    /// <summary>The variant set and captures of an expected instrument approach; null when the id names no type and runway.</summary>
+    internal static (BuilderVariantSet Set, IReadOnlyDictionary<string, string> Captures)? ExpectApproachVariants(ExpectApproachCommand cmd) =>
+        ApproachReadbackName.SpokenParts(cmd.ApproachId) is { } parts
+            ? ApproachCommandHandler.ClauseVariants(CanonicalCommandType.ExpectApproach, parts.Approach, parts.Runway)
+            : null;
+
+    /// <summary>
+    /// An expected instrument approach, "expect ILS runway two eight right approach", which names its own type and variant (the
+    /// rule path cannot: every ExpectApproach rule ties on one capture); a varied pilot picks among it and its set's rows.
+    /// </summary>
+    private static string RenderExpectApproach(
+        ExpectApproachCommand cmd,
+        PilotSpeechText name,
+        VariantRequest request,
+        CaptureFormatter fmt,
+        out bool offeredQuietRows
+    )
+    {
+        offeredQuietRows = false;
+        string canonical = $"expect {fmt.Form(name)} approach";
+        if (ExpectApproachVariants(cmd) is not { } expect)
+        {
+            return canonical;
+        }
+
+        ClauseVerbalization picked = VaryDirectClause(cmd, expect.Set.Variants, canonical, expect.Captures, request);
+        offeredQuietRows = picked.OfferedQuietRows;
+        return picked.Text ?? canonical;
     }
 
     /// <summary>A builder set's candidates, or its canonical alone when no row is speakable, as <see cref="PickVariant"/> speaks it.</summary>
@@ -527,6 +616,13 @@ public static class PhraseologyVerbalizer
     /// <param name="template">A variant row's template, e.g. <c>"{alt:group}"</c>.</param>
     /// <returns>The rendered text; an unresolved placeholder stays in braces.</returns>
     public static string RenderSpokenVariant(ParsedCommand cmd, string template) => RenderVariantTemplate(template, ExtractArgs(cmd, Spoken));
+
+    /// <summary>The spoken render of one variant <paramref name="template"/> over <paramref name="captures"/>, a builder's own captures.</summary>
+    /// <param name="template">A variant row's or a set pattern's template.</param>
+    /// <param name="captures">The spoken capture values.</param>
+    /// <returns>The rendered text; an unresolved placeholder stays in braces.</returns>
+    public static string RenderSpokenVariant(string template, IReadOnlyDictionary<string, string> captures) =>
+        RenderVariantTemplate(template, captures);
 
     /// <summary>
     /// Renders a variant row token by token, as <see cref="RenderPattern"/> does, except that a token may carry trailing
