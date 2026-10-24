@@ -212,6 +212,10 @@
       "repo": "aaed42e7a76b1af6",
       "user": "abda32b30dc2e4b1"
     },
+    "ui-post-with-request-token": {
+      "repo": "195d21ee44510b31",
+      "user": "d6b8e2f928716062"
+    },
     "unified-log-tail": {
       "repo": "e5a7c17df7f888dc",
       "user": "c3f49d783eac66ac"
@@ -241,5 +245,5 @@
       "user": "81e92891fb8fe24c"
     }
   },
-  "user_revision": 12
+  "user_revision": 13
 }
