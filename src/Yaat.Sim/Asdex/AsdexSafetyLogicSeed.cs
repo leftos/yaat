@@ -70,7 +70,7 @@ public static class AsdexSafetyLogicSeed
     }
 
     /// <summary>The facility's navdata runways, under its FAA id or, failing that, the ICAO "K" form.</summary>
-    private static IReadOnlyList<RunwayInfo> FacilityRunways(string facilityId, NavigationDatabase navDb)
+    internal static IReadOnlyList<RunwayInfo> FacilityRunways(string facilityId, NavigationDatabase navDb)
     {
         IReadOnlyList<RunwayInfo> runways = navDb.GetRunways(facilityId);
         return (runways.Count > 0) || (facilityId.Length != 3) ? runways : navDb.GetRunways("K" + facilityId);

@@ -60,6 +60,7 @@
 - Changing a pilot's voice type updates CRC's ASDE-X, SAID, ground and parked STARS displays at once, even for an aircraft standing still.
 - CRC's ASDE-X safety logic works from scenario load: every ASDE-X facility's runways load with the scenario, with no display push needed.
 - ASDE-X safety alerts reach only their own facility's displays and name the runway end the arrival or departure is using.
+- CRC's ASDE-X display shows the green hold bars at the loaded airport, lit while an arrival inside 1 NM or a rolling departure uses the runway.
 - Warp… no longer sends an aircraft at 800 ft to 80,000 ft.
 - Solo pilots read back approach clearances with their approach and runway, such as `cleared ILS runway two eight right approach`, for CAPP, CAPPSI, JAPP, PTAC and EAPP.
 

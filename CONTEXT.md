@@ -346,12 +346,18 @@ _Avoid_: lined-up jet (neither the heading nor the category decides it)
 **Fouler / fouling**:
 An aircraft on the ground off a runway's pavement with a body part past that runway's hold line, so the runway is not clear for a departure's roll or an arrival's threshold crossing (`RunwayUseKind.Fouling`, docs/conflict-and-visual-detection.md). An approaching aircraft fouls with its nose more than 5 ft past the line; a leaving one fouls only when stopped or restricted with its tail still inside. A fouler is not on the runway: it draws an advisory, and makes an arrival go around only close to the centreline. The solo scorer counts it as a runway user at a takeoff's roll start or a landing's threshold crossing.
 
+**Hold bar** (ASDE-X):
+A safety-logic line CRC draws at a runway's edge across a taxiway entrance or a crossing runway, lit (Active) while the runway is in use and hidden (Suppressed) otherwise (`AsdexHoldBar`, docs/crc-display-state.md). Not the painted hold-short node of the ground layout: see *Hold-short node*.
+
 **Hold line**:
 The runway holding position marking (AIM 2-3-5.a.1). The code's "bar" is its graph node, a `RunwayHoldShort` node (`RunwayHoldBars`).
 
 **Hold-line footprint**:
 The body an aircraft carries past a runway's hold line for the turn-about check: nose and tail half its length ahead of and behind the main-gear position, both wingtips half its span abeam (`AircraftBody`, `HoldLineFootprint`). A part is past a line on the runway's pavement, or nearer its centreline than the runway's bars within 200 ft along the runway of one of them.
 A turn about, from rest or rolling, that would carry any part past a line is not flown: the aircraft holds short and says "unable, no room to turn around on C, holding short of runway 28R" (docs/ground/navigator.md).
+
+**Hold-short node** (also *hold-short bar*):
+The ground layout's node at a runway's painted hold line (`RunwayHoldShort`, `RunwayHoldBars`), where a taxiing aircraft stops short. It is layout geometry, always there; the ASDE-X *Hold bar* is a separate synthesised line, one per such node, that lights only while the runway is in use.
 
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.

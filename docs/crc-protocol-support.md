@@ -181,7 +181,8 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] `ReceiveAsdexTracks(Topic, List<AsdexTrackDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteAsdexTracks(Topic, List<string>)` — aircraft removal
 - [x] `ReceiveAsdexSafetyLogicConfiguration(Topic, AsdexSafetyLogicConfigurationDto)` — one DTO (not a list, as CRC binds it) for the subscribing facility, sent before the ack on subscribe, on a display's push echo and on every scenario load for each seeded ASDE-X facility (`AsdexSafetyLogicSeed.Build`); runway ids are the facility's own pair ids (`28R-10L`), all open, no runway configuration id (`CrcBroadcastService.cs`, `CrcClientState.Asdex.cs`, `ScenarioLifecycleService.cs`)
-- [x] `ReceiveAsdexHoldBars(Topic, List<AsdexHoldBarDto>)` — empty-list initial broadcast on subscribe; no geometry source yet (hold-bar polylines live in ASDEX video maps, not config)
+- [x] `ReceiveAsdexHoldBars(Topic, List<AsdexHoldBarDto>)` — per facility, on that facility's `AsdexHoldBars` topic only. A subscribe gets the whole set with each bar's status when the facility is the loaded layout's airport (the empty list otherwise); later changes and a rewind, restart, recording load or unload resync go out as upserts of whole bars.
+  CRC draws only the Active bars from the DTO's `Points`, upserts by id and never deletes a bar, so a bar once sent is only ever set Suppressed. The bars are synthesised from the ground layout, not read from a video map (see [crc-display-state.md](crc-display-state.md), safety-logic section)
 - [x] `ReceiveAsdexAlerts(Topic, List<AsdexAlertDto>)` — per facility, on the raising facility's `AsdexAlerts` topic only; `RunwayIds` are single ends, and the aural sequence and `MessageLines[0]` name the end the claimant is using, the claimant ranked by role: a low arrival (airborne within 300 ft of the field), then a departure lined up or rolling, then any other aircraft, alignment breaking ties (the pair id when no claimant is held)
 - [x] `DeleteAsdexAlerts(Topic, List<string>)` — paired with the detector, same per-facility topic
 - [x] `ReceiveAsdexTempDatas(Topic, List<AsdexTempDataDto>)` — initial + event-driven (`CrcClientState.Asdex.cs`)
@@ -260,7 +261,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 
 - [x] `ReceiveNexradData` — empty-sentinel broadcast on subscribe
 - [x] `ReceiveStarsReadoutArea` — direct-push send helper
-- [x] `ReceiveAsdexHoldBars` — empty-list broadcast on subscribe
+- [x] `ReceiveAsdexHoldBars` — the facility's whole set with Active / Suppressed status on subscribe, then upserts of the bars whose status changed
 
 ### Bucket D — ERAM milestone MVP (done)
 
@@ -292,7 +293,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)
 - [x] ERAM short-term conflict detection + broadcast (`EramConflictDetector`; see [conflict-and-visual-detection.md](./conflict-and-visual-detection.md))
 - [x] ERAM target history UDP stream (`EramTargetHistoryEntryDto`, union tag 13); `DeleteEramTargetHistoryEntries` is still open (above)
-- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — needs hold-bar geometry synthesis + aviation review. It is not the only ASDE-X parity gap: runway-configuration gating, use of the positions and the arrival-alert inhibit, and the converging-runway alerts are also missing (see [plans/asdex-safety-logic-parity.md](plans/asdex-safety-logic-parity.md))
+- [ ] ASDE-X safety-logic parity beyond the hold bars: runway-configuration gating, use of the positions and the arrival-alert inhibit, and the converging-runway alerts are missing (see [plans/asdex-safety-logic-parity.md](plans/asdex-safety-logic-parity.md))
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
 
 ---
@@ -317,6 +318,6 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 
 **Client→Server:** 2 remaining stubs are ERAM CRR group-color + CRR delete, blocked on the unresolved CRR creation path (no creation hub method; requires a live CRC wire trace).
 
-**Server→Client broadcasts remaining:** ERAM CRR groups Receive/Delete (2), ERAM target history UDP Delete (1), plus detector work to populate the ASDEX safety-logic dynamic hold-bar status. ASDE-X Safety Logic alerts now ship (`ReceiveAsdexAlerts`/`DeleteAsdexAlerts`); the remaining items are upstream-blocked or, for hold-bar status, need geometry synthesis.
+**Server→Client broadcasts remaining:** ERAM CRR groups Receive/Delete (2), ERAM target history UDP Delete (1). ASDE-X Safety Logic alerts (`ReceiveAsdexAlerts`/`DeleteAsdexAlerts`) and hold bars (`ReceiveAsdexHoldBars`) ship; the remaining items are upstream-blocked.
 
 **ProcessStarsCommand detail:** IC, TC, Handoff, Implied (9 sub-ops), MultiFunc (CON/DECON), Coordination (stub)

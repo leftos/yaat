@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Asdex;
@@ -232,6 +233,256 @@ public sealed partial class SimulationEngine
             ApplyAsdexDetection(scenario, facilityId, AsdexSafetyLogicDetector.Detect(runways, taxiways, aircraft, fieldElevationFt), host);
         }
     }
+
+    /// <summary>
+    /// One facility's hold bars: the layout and safety-logic runways they were built from (with the footprints the
+    /// configuration last carried), each runway's axis, the fixed set itself and its ids, and the bars last reported Active to
+    /// the host. Immutable, so a reader off the tick thread takes the reference once.
+    /// </summary>
+    private sealed record AsdexHoldBarFacility(
+        AirportGroundLayout Layout,
+        IReadOnlyList<AsdexHoldBarRunway> Runways,
+        IReadOnlyList<AsdexRunwayAxis> Axes,
+        IReadOnlyList<AsdexHoldBar> Bars,
+        FrozenSet<string> BarIds,
+        ImmutableSortedDictionary<string, AsdexHoldBar> ReportedActive
+    );
+
+    private static readonly ImmutableSortedDictionary<string, AsdexHoldBar> NoActiveHoldBars = ImmutableSortedDictionary.Create<string, AsdexHoldBar>(
+        StringComparer.Ordinal
+    );
+
+    /// <summary>
+    /// Each facility's hold-bar set and the statuses last reported for it. Transient engine state, never snapshotted: the
+    /// statuses are derived from the aircraft every tick, and what was last reported is what the displays show, so it
+    /// survives a snapshot restore (the next tick diffs against it) and a scenario load (the bars a load's world no longer
+    /// lights are reported Suppressed).
+    /// </summary>
+    private ImmutableSortedDictionary<string, AsdexHoldBarFacility> _asdexHoldBars = ImmutableSortedDictionary.Create<string, AsdexHoldBarFacility>(
+        StringComparer.Ordinal
+    );
+
+    /// <summary>
+    /// The post-physics hold-bar pass, run on every run kind beside <see cref="TickAsdexAlerts"/>. Bars exist only at the
+    /// facility whose airport is the loaded ground layout; the set is built once per facility and layout. Each tick the
+    /// stateless <see cref="AsdexHoldBarStatusEvaluator"/> decides which bars are Active, and only the bars whose status
+    /// differs from the one last reported reach the host. A facility that no longer has bars (another layout, no scenario)
+    /// reports every bar it held Active as Suppressed and is dropped. With no navigation data nothing changes.
+    /// </summary>
+    public void TickAsdexHoldBars(IHostConsumers host)
+    {
+        if (NavigationDatabase.InstanceOrNull is not { } navDb)
+        {
+            return;
+        }
+
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs = Scenario?.AsdexSafetyLogicConfigs ?? AsdexSafetyLogicSeed.Empty;
+        foreach (string facilityId in _asdexHoldBars.Keys.Where(id => !configs.ContainsKey(id) || !IsLayoutAirport(World.GroundLayout, id)).ToList())
+        {
+            AsdexHoldBarFacility retired = _asdexHoldBars[facilityId];
+            _asdexHoldBars = _asdexHoldBars.Remove(facilityId);
+            ReportHoldBars(host, facilityId, [.. retired.ReportedActive.Values.Select(bar => new AsdexHoldBarState(bar, IsActive: false))]);
+        }
+
+        List<AircraftState>? aircraft = null;
+        foreach ((string facilityId, AsdexSafetyLogicConfig config) in configs)
+        {
+            if ((World.GroundLayout is not { } layout) || !IsLayoutAirport(layout, facilityId))
+            {
+                continue;
+            }
+
+            AsdexHoldBarFacility facility = WithCurrentAreas(facilityId, CurrentHoldBarFacility(facilityId, config, layout, navDb), config);
+            aircraft ??= World.GetSnapshot();
+            IReadOnlySet<string> active = AsdexHoldBarStatusEvaluator.ActiveBarIds(
+                facility.Runways,
+                facility.Axes,
+                facility.Bars,
+                aircraft,
+                FacilityFieldElevation(facilityId, navDb)
+            );
+            ApplyHoldBarStatuses(host, facilityId, facility, active);
+        }
+    }
+
+    /// <summary>
+    /// The facility's set for <paramref name="layout"/>: the one already held, or a fresh build that keeps the statuses
+    /// last reported, so bars a rebuilt set no longer lights are still reported Suppressed.
+    /// </summary>
+    private AsdexHoldBarFacility CurrentHoldBarFacility(
+        string facilityId,
+        AsdexSafetyLogicConfig config,
+        AirportGroundLayout layout,
+        NavigationDatabase navDb
+    )
+    {
+        AsdexHoldBarFacility? held = _asdexHoldBars.GetValueOrDefault(facilityId);
+        if ((held is not null) && ReferenceEquals(held.Layout, layout))
+        {
+            return held;
+        }
+
+        AsdexHoldBarFacility built = BuildHoldBarFacility(facilityId, config, layout, navDb) with
+        {
+            ReportedActive = held?.ReportedActive ?? NoActiveHoldBars,
+        };
+        _asdexHoldBars = _asdexHoldBars.SetItem(facilityId, built);
+        _logger.LogDebug(
+            "ASDE-X hold bars for {FacilityId}: {Count} built from the {Airport} layout",
+            facilityId,
+            built.Bars.Count,
+            layout.AirportId
+        );
+        return built;
+    }
+
+    private static AsdexHoldBarFacility BuildHoldBarFacility(
+        string facilityId,
+        AsdexSafetyLogicConfig config,
+        AirportGroundLayout layout,
+        NavigationDatabase navDb
+    )
+    {
+        IReadOnlyList<AsdexHoldBarRunway> runways = AsdexHoldBarBuilder.ResolveRunways(facilityId, config.Runways, navDb);
+        IReadOnlyList<AsdexHoldBar> bars = AsdexHoldBarBuilder.Build(runways, layout);
+        return new AsdexHoldBarFacility(
+            layout,
+            runways,
+            [.. runways.Select(runway => new AsdexRunwayAxis(runway.Runway))],
+            bars,
+            bars.Select(bar => bar.Id).ToFrozenSet(StringComparer.Ordinal),
+            NoActiveHoldBars
+        );
+    }
+
+    /// <summary>
+    /// The facility with the footprints its configuration carries now (a display may have pushed a new one), kept for the
+    /// next tick; the same facility when no footprint changed.
+    /// </summary>
+    private AsdexHoldBarFacility WithCurrentAreas(string facilityId, AsdexHoldBarFacility facility, AsdexSafetyLogicConfig config)
+    {
+        List<AsdexHoldBarRunway>? updated = null;
+        for (int i = 0; i < facility.Runways.Count; i++)
+        {
+            AsdexHoldBarRunway runway = facility.Runways[i];
+            IReadOnlyList<LatLon> area = ConfiguredArea(config, runway.Id);
+            if (!ReferenceEquals(area, runway.Area))
+            {
+                updated ??= [.. facility.Runways];
+                updated[i] = runway with { Area = area };
+            }
+        }
+
+        if (updated is null)
+        {
+            return facility;
+        }
+
+        AsdexHoldBarFacility refreshed = facility with { Runways = updated };
+        _asdexHoldBars = _asdexHoldBars.SetItem(facilityId, refreshed);
+        return refreshed;
+    }
+
+    /// <summary>The footprint the configuration carries for <paramref name="runwayId"/>, its first entry's; empty when it has none.</summary>
+    private static IReadOnlyList<LatLon> ConfiguredArea(AsdexSafetyLogicConfig config, string runwayId)
+    {
+        foreach (AsdexRunwayConfig runway in config.Runways)
+        {
+            if (string.Equals(runway.Id, runwayId, StringComparison.Ordinal))
+            {
+                return runway.AreaPoints;
+            }
+        }
+
+        return [];
+    }
+
+    /// <summary>Reports the bars whose status differs from the last report, and records what was reported.</summary>
+    private void ApplyHoldBarStatuses(IHostConsumers host, string facilityId, AsdexHoldBarFacility facility, IReadOnlySet<string> active)
+    {
+        List<AsdexHoldBarState>? changed = null;
+        foreach (AsdexHoldBar bar in facility.Bars)
+        {
+            bool isActive = active.Contains(bar.Id);
+            if (isActive != facility.ReportedActive.ContainsKey(bar.Id))
+            {
+                (changed ??= []).Add(new AsdexHoldBarState(bar, isActive));
+            }
+        }
+
+        // Bars an earlier set reported Active that this set no longer has.
+        foreach (AsdexHoldBar bar in facility.ReportedActive.Values)
+        {
+            if (!facility.BarIds.Contains(bar.Id))
+            {
+                (changed ??= []).Add(new AsdexHoldBarState(bar, IsActive: false));
+            }
+        }
+
+        if (changed is null)
+        {
+            return;
+        }
+
+        var reported = facility.ReportedActive.ToBuilder();
+        foreach (AsdexHoldBarState state in changed)
+        {
+            if (state.IsActive)
+            {
+                reported[state.Bar.Id] = state.Bar;
+            }
+            else
+            {
+                reported.Remove(state.Bar.Id);
+            }
+        }
+
+        _asdexHoldBars = _asdexHoldBars.SetItem(facilityId, facility with { ReportedActive = reported.ToImmutable() });
+        ReportHoldBars(host, facilityId, changed);
+    }
+
+    private static void ReportHoldBars(IHostConsumers host, string facilityId, IReadOnlyList<AsdexHoldBarState> changed)
+    {
+        if (changed.Count > 0)
+        {
+            host.OnAsdexHoldBarsChanged(facilityId, changed);
+        }
+    }
+
+    /// <summary>
+    /// The facility's whole hold-bar set with the status last reported for each bar: what a display subscribing now must get.
+    /// Before the first tick has built the set, it is built here (without being kept) and every bar is Suppressed; a facility
+    /// with no bars (not the layout's airport, no configuration) gives an empty list. It reads engine state the tick writes, so
+    /// a caller holds the room's tick gate, as every server caller does.
+    /// </summary>
+    public IReadOnlyList<AsdexHoldBarState> AsdexHoldBarStates(string facilityId)
+    {
+        if (_asdexHoldBars.GetValueOrDefault(facilityId) is { } held)
+        {
+            return [.. held.Bars.Select(bar => new AsdexHoldBarState(bar, held.ReportedActive.ContainsKey(bar.Id)))];
+        }
+
+        if (
+            (Scenario?.AsdexSafetyLogicConfigs.GetValueOrDefault(facilityId) is { } config)
+            && (World.GroundLayout is { } layout)
+            && IsLayoutAirport(layout, facilityId)
+            && (NavigationDatabase.InstanceOrNull is { } navDb)
+        )
+        {
+            return [.. BuildHoldBarFacility(facilityId, config, layout, navDb).Bars.Select(bar => new AsdexHoldBarState(bar, IsActive: false))];
+        }
+
+        return [];
+    }
+
+    /// <summary>The facilities holding a hold-bar set, in ordinal order.</summary>
+    public IReadOnlyList<string> AsdexHoldBarFacilityIds => [.. _asdexHoldBars.Keys];
+
+    /// <summary>The bars last reported Active, by facility; facilities with none are left out.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<AsdexHoldBar>> ReportedActiveAsdexHoldBars =>
+        _asdexHoldBars
+            .Where(entry => entry.Value.ReportedActive.Count > 0)
+            .ToDictionary(entry => entry.Key, entry => (IReadOnlyList<AsdexHoldBar>)[.. entry.Value.ReportedActive.Values], StringComparer.Ordinal);
 
     /// <summary>The facility's field elevation from navdata, under its FAA id or the ICAO "K" form; 0 when navdata has neither.</summary>
     private static double FacilityFieldElevation(string facilityId, NavigationDatabase navDb) => navDb.GetAirportElevation(facilityId) ?? 0;

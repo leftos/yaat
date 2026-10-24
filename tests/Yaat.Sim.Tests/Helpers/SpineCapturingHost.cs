@@ -96,6 +96,15 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
         _inner.OnAsdexAlertsChanged(facilityId, newAlerts, clearedAlertIds);
     }
 
+    /// <summary>Every ASDE-X hold-bar change set the post-physics step handed over, with its facility, in order.</summary>
+    public List<(string FacilityId, IReadOnlyList<AsdexHoldBarState> Changed)> AsdexHoldBarChanges { get; } = [];
+
+    public void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed)
+    {
+        AsdexHoldBarChanges.Add((facilityId, changed));
+        _inner.OnAsdexHoldBarsChanged(facilityId, changed);
+    }
+
     /// <summary>Every batch of disconnect-coast facets the post-physics expiry step retired, in order.</summary>
     public List<IReadOnlyList<ExpiredDisconnectCoastFacet>> DisconnectCoastExpiries { get; } = [];
 

@@ -37,6 +37,7 @@ public enum StepId
     EramConflictAlerts,
     SurfaceMembership,
     AsdexAlerts,
+    AsdexHoldBars,
     SoloTrainingEvaluation,
     PilotProactive,
     Situation,

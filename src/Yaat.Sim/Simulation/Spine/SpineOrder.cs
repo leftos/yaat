@@ -71,6 +71,9 @@ public static class SpineOrder
         // The detector runs on every path, like the other two: an alert set a snapshot restore repopulated is
         // re-examined rather than pinned, and only a broadcasting host does anything with the returned diff.
         SpineStep.Sim(StepId.AsdexAlerts, static (engine, host) => engine.TickAsdexAlerts(host)),
+        // The hold bars follow the alerts as their own step, traced and timed apart: both are the safety-logic picture of this
+        // second's world, and on every path for the same reason.
+        SpineStep.Sim(StepId.AsdexHoldBars, static (engine, host) => engine.TickAsdexHoldBars(host)),
         // Runs on every path (ADR 0002 membership: live wins): an empty list outside solo mode, and the evaluator's
         // own record of what it has scored is engine state a replay must rebuild like any other.
         SpineStep.Sim(StepId.SoloTrainingEvaluation, static (engine, host) => host.OnSoloTrainingEvents(engine.TickSoloTrainingEvaluation())),

@@ -797,7 +797,7 @@ Before this carry-over existed, a **Scenario → Restart** silently reset every 
 flyout went on showing the controller's choices — arrivals then went around at 200 ft AGL because auto cleared-to-land had
 reverted to `false` (issue #313).
 
-`ExecuteUnloadScenario` is the teardown: it drops the room's resource pin, disposes any held recording archive, clears **all four queues** plus the handoff queue, then runs the room half (`ClearRoomScenarioState`, shared with a recording load that failed after clearing the room): clears the world, broadcasts deletes, resets the engine's evaluators and wipes the room-level CRC state.
+`ExecuteUnloadScenario` is the teardown: it drops the room's resource pin, disposes any held recording archive, clears **all four queues** plus the handoff queue, then runs the room half (`ClearRoomScenarioState`, shared with a recording load that failed after clearing the room): clears the world, broadcasts deletes, sends the ASDE-X hold bars the displays show lit as Suppressed, resets the engine's evaluators and wipes the room-level CRC state.
 
 ## Snapshot / replay survival of the queues
 

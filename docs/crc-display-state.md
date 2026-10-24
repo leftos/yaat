@@ -99,6 +99,8 @@ They also re-broadcast `BroadcastOpenPositionsAsync` + `BroadcastStarsConsolidat
 
 The conflict-alert topics are additive and event-diff only, so a reconstruction resyncs them too: `RecordingManager.ResyncEngineStateAsync` takes the alert ids the engine held before the teardown (`PriorEngineView.ConflictIds` / `EramConflictIds`), deletes them, then republishes every alert the rebuilt engine holds that no `CASUP` / `CO` suppressed (`ResyncConflictAlertsAsync` for `StarsShortTermConflicts`, `ResyncEramConflictsAsync` for `EramShortTermConflicts` through the §377 facility gate).
 
+The ASDE-X hold-bar topic is upsert-only too, so the same resync re-sends every facility's whole bar set and sets Suppressed the bars the abandoned run had lit (`ResyncAsdexHoldBarsAsync`, from `PriorEngineView.LitHoldBars`); see "Hold bars" in the safety-logic section.
+
 A `CASUP` or `CAINH` before the target time therefore holds, and one after it is undone (pins: `StarsConflictAlertPlaybackTests`, `EramConformanceCoTests`).
 
 What each ERAM session is shown also follows the room's conflict-alert settings (`CA`, read back with `RK`): `EramRoomSettings` in the Sim holds each facility's CA and MCI function and the sectors whose CA or MCI display is off.
@@ -354,6 +356,19 @@ A push with no scenario loaded is refused by `ApplyAndRecord` (`No scenario load
 A rewind to before the push drops the configuration, a rewind to after it rebuilds it from the record, and a prepared restart restores it with the snapshot. **Accepted gap:** the `AsdexSafetyLogicConfiguration` topic builder returns nothing for a null configuration and the topic has no clear, so a configuration dropped by a rewind (or a scenario unload) is not withdrawn from displays already showing it — the server stops alerting on it, the display keeps drawing it until a display pushes again. The standing alert set has the same gap: a scenario unload or a rewind empties it with the engine (or replaces it by the restore) and no `DeleteAsdexAlerts` follows, and `RecordingManager.ResyncEngineStateAsync` re-pushes no alert set when a rewind lands.
 
 Pushing an empty configuration in its place is deliberately not done: it is unverified whether CRC would read it as "no closed runways" or overwrite its own console configuration with it.
+
+**Hold bars.** The `AsdexHoldBars` topic carries the facility's whole hold-bar set, each bar an `AsdexHoldBarDto` of id, two `Points` and Active / Suppressed. CRC draws only the Active bars from the DTO's own points, keys its list by id and never deletes a bar, so a bar once sent is only ever set Suppressed.
+
+- A subscribe gets `SimulationEngine.AsdexHoldBarStates(facilityId)`: the bars with the statuses last reported (all Suppressed before the first tick), or the empty list for a facility that is not the loaded layout's airport. Later changes go out as upserts of the changed bars (`ICrcBroadcast.BroadcastAsdexHoldBarsAsync`, from `RoomHost.OnAsdexHoldBarsChanged`, to that facility's subscribers only), converted by `DtoConverter.ToAsdexHoldBar`.
+- The set is one bar per taxiway hold-short node of a safety-logic runway, drawn at the runway edge (half the navdata runway width from the centreline) parallel to the runway, 190 ft divided by the sine of the taxiway's angle to the runway (angle floored at 30°) long.
+
+  Same-side bars of one runway merge when their spans overlap or are 60 ft apart or less. At each runway crossing there is a bar across each runway on both sides of the other; a runway that only meets another gets one, on its own side. Ids are `{protected runway}|{surface}|{L/R}` with a `|n` suffix to tell apart, deterministic from the layout. SFO has 92 bars.
+- A bar is Active when a runway user of its runway has it ahead, recomputed every tick with no memory. A runway user is aligned with the runway by true track (within 35°) and is either an arrival airborne within 6,000 ft of the landing threshold along the extended centreline, within 1,000 ft laterally (the runway with the smallest offset) and below 1,500 ft above field, or an aircraft inside the runway footprint at 50 kt or more that is on the ground or below 200 ft above the runway.
+
+  So an arrival lights its runway's bars inside 6,000 ft and they clear as it passes them, all bars clear below 50 kt, on climbing through 200 ft, or on crossing the threshold high; a departure lights the bars ahead of it from 50 kt, and taxiing, crossing and line-up-and-wait aircraft light nothing.
+
+  The runway configuration never gates a bar and an individually alert-inhibited target still counts. The 1,000 ft and 1,500 ft limits are judgement calls. Aircraft more than 3 NM from the facility's runways are skipped.
+- A rewind, restart or recording load re-sends each facility's whole set with the rebuilt engine's statuses and sets Suppressed every bar the abandoned run had lit (`RecordingManager.ResyncAsdexHoldBarsAsync`, from `PriorEngineView.LitHoldBars`); a scenario unload sends the lit bars Suppressed (`ScenarioLifecycleService.ClearRoomScenarioState`). Unlike the configuration and alerts above, nothing is left lit.
 
 The `AsdexAlerts` topic has two sources, both over the same scenario state. The standing set is `SimScenarioState.ActiveAsdexAlerts` (keyed by facility id, then alert id), maintained by `SimulationEngine.TickAsdexAlerts` per facility and carried by the Sim snapshot (`ScenarioSnapshotDto.ActiveAsdexAlerts`, each entry with its `FacilityId`), so a rewind and a prepared restart land on the alerts the target second held.
 

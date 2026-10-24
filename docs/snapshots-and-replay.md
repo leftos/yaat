@@ -151,6 +151,8 @@ Some state is intentionally runtime-only:
 
   The next tick re-raises what a standing configuration still warrants.
 
+  **The hold-bar statuses are transient engine state and are not snapshotted.** They are derived from the aircraft each tick (`SimulationEngine.TickAsdexHoldBars`), so a restore needs nothing stored: the next tick recomputes them and diffs against the statuses last reported, which the engine keeps across the restore. A rewind, restart or recording load rebuilds the engine with its changes suppressed, so the room re-sends the whole set and turns off every bar the abandoned run had lit (`RecordingManager.ResyncEngineStateAsync`).
+
   `ActiveAsdexAlerts` is a nullable list of `AsdexSafetyAlertDto`, ordinal-sorted by facility then id, absent ⇒ empty, and a restore replaces the set rather than merging into it, so the first tick after a restore diffs against what the displays were already told and does not re-announce it. The live-traffic `DEL` set is scenario state too, `SimScenarioState.SuppressedLiveTraffic` (`ScenarioSnapshotDto.SuppressedLiveTraffic`, ordinal-sorted callsigns, absent ⇒ empty, replaced on restore).
 
   So are the disconnect coasts, `SimScenarioState.DisconnectCoasts` (`ScenarioSnapshotDto.DisconnectCoasts`: a nullable list of `DisconnectCoastDto` in ordinal callsign order, each with its facets in registration order, absent ⇒ empty); a restore replaces the set and empties the pending cleared-callsign list, so a rewind drops a coast registered in the undone future. A facet carries `EramAnchor` (`EramSweepSampleDto`, the coverage coast an ERAM facet carries on) only when set.

@@ -167,7 +167,9 @@ The two archive kinds bundle the pin's airports through one writer path, `Record
 
 `ReloadRecording` is handed the tape, so the scenario starts on the tape's t≤0 session settings before any preset dispatches.
 
-A commit that throws after the clear leaves the room empty the way an unload does (`ClearRoomScenarioState`, then `ResyncEngineStateAsync`), and the hub sends `ScenarioUnloaded`. The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's freshly fetched resources, never the calling room's pin.
+A commit that throws after the clear leaves the room empty the way an unload does (`ClearRoomScenarioState`, then `ResyncEngineStateAsync`), and the hub sends `ScenarioUnloaded`.
+
+`ResyncEngineStateAsync` re-pushes what a reconstruction's suppressed broadcasts left stale, among it the ASDE-X hold bars (`ResyncAsdexHoldBarsAsync`: every facility's whole set with the rebuilt statuses, the abandoned run's lit bars set Suppressed), and `ClearRoomScenarioState` sends the engine's lit hold bars Suppressed before it drops the engine. The v1 recording migration (`RecordingManager.MigrateToV2Async`, run by `tools/Yaat.RecordingUpgrader`) replays a v1 recording on its own scenario's freshly fetched resources, never the calling room's pin.
 
 An archive load (`LoadRecordingArchiveGuardedAsync`, and the unguarded `LoadRecordingArchiveAsync`) reads the archive's bundled layouts first, before the prepare and off the gate (`BundledAirportLayouts.FromRecording`, each airport by the manifest's own ID spelling), and hands them to `PrepareResourcesAsync`.
 
@@ -268,7 +270,7 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
 - **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`).
 
-  It runs the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, with no `TickProcessor` body) and `ProcessSoloTrainingEvaluation`.
+  It runs the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, and the changed hold bars through `RoomHost.OnAsdexHoldBarsChanged` → `ICrcBroadcast.BroadcastAsdexHoldBarsAsync`, with no `TickProcessor` body) and `ProcessSoloTrainingEvaluation`.
 
   Then come the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` / `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`), `HandleAutoDeleted` (reached through `RoomHost.OnAutoDeleted` with the aircraft `SimulationEngine.TickAutoDelete` removed; it tears down each callsign's assignment and change-tracker entry, then broadcasts the delete), and the rundown / live-traffic-status / timers "broadcast if changed" tail.
 

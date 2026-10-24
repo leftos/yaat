@@ -62,6 +62,7 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 40-step order
                ├─ sim TickVisualDetection, TickConflictAlerts → host, TickEramConflictAlerts → host
                ├─ sim TickSurfaceMembership                          ASDE-X / SAID hysteresis membership per aircraft (`AircraftStarsState.VisibleAsdexAirports` / `VisibleSaidAirports`, snapshotted), from the scenario's ARTCC config; an airport no longer configured drops out; the only place hysteresis lives (the server's `CrcVisibilityTracker` diffs these sets)
                ├─ sim TickAsdexAlerts → host                          the ASDE-X Safety Logic detector over the scenario's standing alert set; hands over only the diff (new alerts, cleared ids), and only when something changed
+               ├─ sim TickAsdexHoldBars → host                        the ASDE-X hold bars (`StepId.AsdexHoldBars`): the statuses derived afresh from the aircraft, handing over only the bars whose Active / Suppressed status changed
                ├─ sim TickSoloTrainingEvaluation → host                empty outside solo mode
                ├─ sim TickPilotProactive                              after the detectors, before the drains
                ├─ sim TickSituation                                   stamps each aircraft's liftoff time, then classifies it into `AircraftSituationState.Current` with the stored value as the previous one (the hysteresis bands); snapshotted, so it runs on every run kind
@@ -143,6 +144,14 @@ If the body is still the server's, add the member to `IHostSteps` and let the co
   What leaves the engine is `IStateChangeConsumer.OnAsdexAlertsChanged(newAlerts, clearedAlertIds)` — a diff, because CRC's alert topic is additive with an explicit delete, never called with both sides empty. `RoomHost` sends it as `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` unless `Room.IsBroadcastSuppressed`; `BareHost` discards it and `ReplayHost` delegates to `BareHost`.
 
   The standing set is an ordinal `ImmutableSortedDictionary` swapped by reference: it is written only on the tick thread, and the CRC initial-data build reads it from a connection's thread, off the tick gate — take the reference once per body.
+
+- **ASDE-X hold bars are a sim step right after the alerts; the host only broadcasts the changed bars.**
+
+  `SimulationEngine.TickAsdexHoldBars` (`SimulationEngine.Asdex.cs`, `StepId.AsdexHoldBars`) runs on every run kind. At the facility whose airport is the loaded ground layout it builds the fixed bar set once per layout (`AsdexHoldBarBuilder`) and asks `AsdexHoldBarStatusEvaluator.ActiveBarIds` which bars are Active this second; the evaluator is stateless, so a status is always a function of the aircraft now, never of an earlier tick.
+
+  What leaves the engine is `IStateChangeConsumer.OnAsdexHoldBarsChanged(facilityId, changed)`: each changed bar whole with its new status, never called empty, because CRC's hold-bar topic upserts by id and never removes a bar. A facility that stops having bars (another layout, no scenario) reports the bars it held Active as Suppressed. `RoomHost` sends it as `ReceiveAsdexHoldBars` unless `Room.IsBroadcastSuppressed`; `BareHost` discards it and `ReplayHost` delegates to `BareHost`.
+
+  The statuses last reported are transient engine state, not snapshotted, and survive a snapshot restore or a scenario load so the next tick diffs against what the displays show. A subscriber gets the whole set from `AsdexHoldBarStates(facilityId)`.
 
 ## `FlightPhysics.Update` — 8 steps in order
 

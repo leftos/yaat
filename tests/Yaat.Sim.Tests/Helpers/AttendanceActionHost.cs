@@ -99,6 +99,8 @@ public sealed class AttendanceActionHost : IActionHost
     public void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
         AsdexAlertChanges.Add((newAlerts, clearedAlertIds));
 
+    public void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed) { }
+
     /// <summary>Every batch of disconnect-coast facets a drain handed over as expired, in order.</summary>
     public List<IReadOnlyList<ExpiredDisconnectCoastFacet>> DisconnectCoastExpiries { get; } = [];
 

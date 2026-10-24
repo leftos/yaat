@@ -87,6 +87,14 @@ public interface IStateChangeConsumer
     void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds);
 
     /// <summary>
+    /// The ASDE-X hold bars at one facility whose status changed this second, each with its new status: Active (drawn) or
+    /// Suppressed (hidden). CRC's hold-bar topic is an upsert by id that never removes a bar, so a change is the whole bar with
+    /// its new status, and a bar leaving the set (a scenario load replacing it) is reported Suppressed. Called once per
+    /// facility that changed, never empty. Same suppression rule as <see cref="OnStripsChanged"/>.
+    /// </summary>
+    void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed);
+
+    /// <summary>
     /// The disconnect-coast facets the post-physics expiry step retired this second, ordered by callsign then facet
     /// order. Never called empty. The facets are already gone from <see cref="SimScenarioState.DisconnectCoasts"/>.
     /// </summary>
