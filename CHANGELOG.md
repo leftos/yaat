@@ -18,7 +18,7 @@
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The active-runways prompt offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
 - Join STAR opens a flyout with a tab per STAR, and the menus' "(other)" list items are gone.
-- Cleared visual, offered to IFR aircraft only, lists only visual approaches: landing runways first, the others under Non-arrival runways….
+- Cleared visual, offered to IFR aircraft only, lists only visual approaches: the aircraft's own runway first, then landing runways, the others under Non-arrival runways….
 - Pattern entries open a runway flyout on the assigned runway, and Cleared for takeoff ends in a Custom box.
 - Squawk opens a flyout led by a code box that refuses an invalid code, and Ask pilot to say… ends in a Custom box.
 - Scratchpad… opens a flyout led by a box holding the present scratchpad, held to the facility's length, then Clear Scratchpad 1 and 2.

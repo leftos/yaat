@@ -25,8 +25,10 @@ namespace Yaat.Client.ContextMenus;
 /// filters the tab's rows by id; Enter sends its command. A row sends and closes the flyout and the menu; Cancel IFR… opens
 /// an inline strip whose Confirm sends <c>CIFR</c> and whose Back folds it. Force approach re-renders the rows in place and
 /// is off at every open. The visual list (Cleared visual approach) has no tabs and no box: under its title line the room's
-/// landing runways' visual rows, then the <see cref="ApproachFlyoutModel.OtherRunwaysLabel"/> row, whose click unfolds the
-/// other runway ends below it in place and folds them again; it focuses the opening landing row when live, else nothing.
+/// default runway's visual row whether or not the room lands on it, then the other landing runways' visual rows, then the
+/// <see cref="ApproachFlyoutModel.OtherRunwaysLabel"/> row, whose click unfolds the other runway ends below it in place and
+/// folds them again. It focuses its first row (the default runway's, else the first landing runway's) when live, and nothing
+/// while it waits for the field in sight; with neither a default runway nor a landing row, the live airport-level visual row.
 /// </summary>
 public static class ApproachFlyout
 {
@@ -260,7 +262,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
     public IReadOnlyList<Button> PinnedRows => [.. _pinned.Select(pinned => pinned.Button)];
 
     /// <summary>
-    /// The selected tab's rows, in order, those the box's text filters out included; in the visual list, the landing rows then
+    /// The selected tab's rows, in order, those the box's text filters out included; in the visual list, the head rows then
     /// the other rows, folded ones included.
     /// </summary>
     public IReadOnlyList<Button> Rows => _tabRows;
@@ -337,24 +339,24 @@ public sealed class ApproachFlyoutPanel : StackPanel
 
     /// <summary>
     /// What the flyout focuses as it opens: the live default row, else the selected tab's first live row, else the first
-    /// focusable control. The visual list focuses its opening landing row (<see cref="ApproachFlyoutModel.OpeningLandingIndex"/>)
-    /// when live; with no such row and no default runway, the live airport-level visual row; otherwise nothing, so Enter never
-    /// clears a visual to a runway the aircraft does not expect.
+    /// focusable control. The visual list focuses its first row (<see cref="ApproachFlyoutModel.OpeningHeadIndex"/>: the
+    /// default runway's, else the first landing runway's) when live, and nothing while it waits for the field in sight; with
+    /// neither a default runway nor a landing row, the live airport-level visual row.
     /// </summary>
     public Control? OpeningFocus
     {
         get
         {
             IEnumerable<Button> pinned = _pinned.Select(pinned => pinned.Button).Where(button => button.IsEnabled);
-            if (_model.IsVisualList && (_model.OpeningLandingIndex >= 0))
+            if (_model.IsVisualList && (_model.OpeningHeadIndex >= 0))
             {
-                Button opening = _tabRows[_model.OpeningLandingIndex];
+                Button opening = _tabRows[_model.OpeningHeadIndex];
                 return opening.IsEnabled ? opening : null;
             }
 
             if (_model.IsVisualList)
             {
-                return _model.HasDefaultRunway ? null : pinned.FirstOrDefault(button => IsKind(button, ApproachRowKind.Airport));
+                return pinned.FirstOrDefault(button => IsKind(button, ApproachRowKind.Airport));
             }
 
             return pinned.FirstOrDefault(IsDefault) ?? LiveRows().FirstOrDefault() ?? Focusables().FirstOrDefault();
@@ -470,13 +472,16 @@ public sealed class ApproachFlyoutPanel : StackPanel
         ShowTab();
     }
 
-    /// <summary>The visual list in the scroller: the landing rows, then the fold row over the other rows, folded.</summary>
+    /// <summary>
+    /// The visual list in the scroller: the default runway's row and the landing rows, then the fold row over the other rows,
+    /// folded.
+    /// </summary>
     private void AddVisualList()
     {
-        List<Button> landing = [.. _model.LandingRows(force: false).Select(PresentedRow)];
+        List<Button> head = [.. _model.HeadRows(force: false).Select(PresentedRow)];
         _otherRows = [.. _model.OtherRows(force: false).Select(PresentedRow)];
-        _tabRows = [.. landing, .. _otherRows];
-        _rows.Children.AddRange(landing);
+        _tabRows = [.. head, .. _otherRows];
+        _rows.Children.AddRange(head);
         if (_otherRows.Count > 0)
         {
             OtherRunwaysRow = FoldRow(_otherRows.Count);
@@ -588,7 +593,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
 
     /// <summary>The rows <see cref="Rows"/> holds, as they show with Force approach on or off.</summary>
     private IReadOnlyList<ApproachRow> ShownRows(bool force) =>
-        _model.IsVisualList ? [.. _model.LandingRows(force), .. _model.OtherRows(force)]
+        _model.IsVisualList ? [.. _model.HeadRows(force), .. _model.OtherRows(force)]
         : (SelectedTab >= 0) ? _model.Rows(SelectedTab, force)
         : [];
 
@@ -798,7 +803,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
 
     /// <summary>
     /// Every control the arrow keys walk, in order: the live pinned rows, Cancel IFR and its strip, the live tab rows (the
-    /// scroller when the tab has none), the box. In the visual list the scroller's part is its live landing rows, the
+    /// scroller when the tab has none), the box. In the visual list the scroller's part is its live head rows, the
     /// "Non-arrival runways…" fold row, then the live unfolded rows below it.
     /// </summary>
     private List<Control> Focusables()

@@ -812,7 +812,7 @@ public static class MenuCatalog
 
         if (assigned is not null)
         {
-            QuickCommandStrip.FollowInFlyout(flyout, new AssignedRunwayFocus(assigned));
+            QuickCommandStrip.FollowInFlyout(flyout, new AssignedRunwayFocus((MenuItem)assigned));
             flyout.SubmenuOpened += (_, _) =>
                 Dispatcher.UIThread.Post(
                     () =>
@@ -1650,11 +1650,11 @@ public static class MenuCatalog
 
     /// <summary>
     /// The Cleared visual approach entry: the visual list (<see cref="ClearedVisualSpec"/>), one visual row per runway end, the
-    /// room's landing ends first and the rest folded, opened on the default runway's (<see cref="SmartVisualRunway"/>) row when
-    /// the room lands on it, on no row when it does not, and on the first landing end's row without a default runway. Disabled
-    /// with the reason beside its label,
-    /// its strip button inert, when there is no runway to clear a visual approach to: no destination, or a destination without
-    /// runway data. Offered to IFR aircraft only (the sim clears only an IFR one for a visual).
+    /// default runway's (<see cref="SmartVisualRunway"/>) row first whether or not the room lands on it, then the room's other
+    /// landing ends, the rest folded; it opens focused on that first row once the field is reported in sight, and without a
+    /// default runway on the first landing end's row. Disabled with the reason beside its label, its strip button inert, when
+    /// there is no runway to clear a visual approach to: no destination, or a destination without runway data. Offered to IFR
+    /// aircraft only (the sim clears only an IFR one for a visual).
     /// </summary>
     private static MenuItem BuildClearedVisual(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {

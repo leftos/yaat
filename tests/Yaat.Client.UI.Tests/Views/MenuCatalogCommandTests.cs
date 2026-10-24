@@ -1487,12 +1487,12 @@ public class MenuCatalogCommandTests
     }
 
     /// <summary>
-    /// A scenario's expected approach in shorthand (R28L for KOAK's R28LY) gives the visual approach its runway, but 28L is not
-    /// a landing runway in the room, so its row is under the fold: no row has the focus and Enter sends nothing, never a visual
-    /// to a runway the aircraft does not expect.
+    /// A scenario's expected approach in shorthand (R28L for KOAK's R28LY) gives the visual approach its runway; though the room
+    /// does not land on 28L, its row is the list's first, above the landing runways 30 and 28R and the fold row, and has the
+    /// focus, so Enter sends <c>CVA 28L</c>. Unfolded, the other runways do not repeat 28L.
     /// </summary>
     [AvaloniaFact]
-    public void ClearedVisual_ExpectedApproachOnANonArrivalRunway_FocusesNoRow_AndEnterSendsNothing()
+    public void ClearedVisual_ExpectedApproachOnANonArrivalRunway_IsTheFirstRow_FocusedForEnter()
     {
         TestVnasData.EnsureInitialized();
         RecordingMenuHost host = KoakLandingHost();
@@ -1513,13 +1513,67 @@ public class MenuCatalogCommandTests
             Assert.IsType<ApproachFlyoutHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header).Child
         );
 
-        Assert.Null(panel.OpeningFocus);
-        Assert.Same(panel.Scroll, window.FocusManager?.GetFocusedElement());
+        Assert.Equal(
+            [
+                "Visual approach to KOAK · pilot picks the runway — CVA KOAK",
+                "---",
+                "Visual RWY 28L — CVA 28L",
+                "Visual RWY 30 — CVA 30",
+                "Visual RWY 28R — CVA 28R",
+                "Non-arrival runways… · 5",
+            ],
+            panel.Lines.Skip(1).Take(6)
+        );
+        Assert.Same(panel.Rows[0], panel.OpeningFocus);
+        Assert.Same(panel.Rows[0], window.FocusManager?.GetFocusedElement());
         Avalonia.Headless.HeadlessWindowExtensions.KeyPressQwerty(window, PhysicalKey.Enter, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Empty(host.Sent);
+        Assert.Equal([(Callsign, "CVA 28L", Initials)], host.Sent);
+        Assert.IsType<Button>(panel.OtherRunwaysRow).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        List<string> unfolded = VisibleRowNames(panel);
+        Assert.Equal(8, unfolded.Count);
+        Assert.Single(unfolded, name => name == "Visual RWY 28L");
     }
+
+    /// <summary>
+    /// An aircraft assigned 28R, a landing runway, opens on 28R as the first row, focused, then 30; 28R is not repeated in the
+    /// landing group or under the fold.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_AssignedLandingRunway_IsTheFirstRow_NotRepeated()
+    {
+        TestVnasData.EnsureInitialized();
+        RecordingMenuHost host = KoakLandingHost();
+        FakeMenuAircraft aircraft = VisualArrival() with { AssignedRunway = "28R" };
+
+        ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host));
+
+        Assert.Equal(["Visual RWY 28R", "Visual RWY 30"], VisibleRowNames(panel));
+        Assert.Same(panel.Rows[0], panel.OpeningFocus);
+        Assert.IsType<Button>(panel.OtherRunwaysRow).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        List<string> unfolded = VisibleRowNames(panel);
+        Assert.Equal(8, unfolded.Count);
+        Assert.Single(unfolded, name => name == "Visual RWY 28R");
+    }
+
+    /// <summary>Before the field is reported in sight the default runway's first row waits greyed, and no row has the focus.</summary>
+    [AvaloniaFact]
+    public void ClearedVisual_DefaultRunwayRow_IsNotFocusedBeforeTheFieldIsReported()
+    {
+        TestVnasData.EnsureInitialized();
+        RecordingMenuHost host = KoakLandingHost();
+        FakeMenuAircraft aircraft = VisualArrival() with { ExpectedApproach = "R28L", SituationFlags = SituationFlags.None };
+
+        ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host));
+
+        Assert.Equal("Visual RWY 28L", Assert.IsType<ApproachRow>(panel.Rows[0].Content).Name);
+        Assert.False(panel.Rows[0].IsEnabled);
+        Assert.Null(panel.OpeningFocus);
+    }
+
+    private static List<string> VisibleRowNames(ApproachFlyoutPanel panel) =>
+        [.. panel.Rows.Where(button => button.IsVisible).Select(button => Assert.IsType<ApproachRow>(button.Content).Name)];
 
     /// <summary>An expected visual approach (<c>EAPP VIS28R</c>) names no procedure; the visual approach defaults to its runway.</summary>
     [AvaloniaFact]

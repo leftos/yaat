@@ -52,7 +52,7 @@ public sealed record ApproachVerbSpec
 
     /// <summary>
     /// Whether the flyout is the visual-only list (Cleared visual approach): one visual row per runway end and no tabs,
-    /// instrument rows, pinned default row or Approach box; the room's landing ends first, the rest behind the
+    /// instrument rows, pinned default row or Approach box; the default runway's end, then the room's landing ends, the rest behind the
     /// <see cref="ApproachFlyoutModel.OtherRunwaysLabel"/> row.
     /// </summary>
     public required bool IsVisualList { get; init; }
@@ -196,7 +196,8 @@ public sealed record ApproachRow
 /// rows are always forced. At an untowered field Cleared approach pins the airport-level visual row; with no instrument
 /// approach there it is the only row. Cleared approach and Expect approach offer Cancel IFR to an IFR aircraft airborne below
 /// FL180. Cleared visual approach (<see cref="ApproachVerbSpec.IsVisualList"/>) is Cleared approach's visual rows alone, as
-/// one list: the room's landing ends (<see cref="LandingRows"/>), then the other ends behind a fold (<see cref="OtherRows"/>).
+/// one list: the default runway's end (<see cref="MenuCatalog.SmartVisualRunway"/>) first whether or not the room lands on it,
+/// then the room's other landing ends (<see cref="HeadRows"/>), then the remaining ends behind a fold (<see cref="OtherRows"/>).
 /// </summary>
 public sealed class ApproachFlyoutModel
 {
@@ -222,7 +223,7 @@ public sealed class ApproachFlyoutModel
 
     private readonly List<RowSource> _pinned;
     private readonly List<List<RowSource>> _tabRows;
-    private readonly List<RowSource> _landing;
+    private readonly List<RowSource> _head;
     private readonly List<RowSource> _others;
     private readonly SituationFlags _flags;
 
@@ -244,27 +245,20 @@ public sealed class ApproachFlyoutModel
         HasBox = options.HasBox;
         CancelIfr = options.CancelIfr;
         // A tabbed flyout has no list rows.
-        _landing = options.VisualList?.Landing ?? [];
+        _head = options.VisualList?.Head ?? [];
         _others = options.VisualList?.Others ?? [];
-        OpeningLandingIndex = options.VisualList?.OpeningLandingIndex ?? -1;
-        HasDefaultRunway = options.VisualList?.HasDefaultRunway ?? false;
+        OpeningHeadIndex = options.VisualList?.OpeningHeadIndex ?? -1;
     }
 
     /// <summary>Whether the flyout is the visual-only list (<see cref="ApproachVerbSpec.IsVisualList"/>).</summary>
     public bool IsVisualList => Spec.IsVisualList;
 
     /// <summary>
-    /// The index in <see cref="LandingRows"/> of the row the visual list focuses on open: the default runway's
-    /// (<see cref="MenuCatalog.SmartVisualRunway"/>) row; -1 when the room does not land on that runway. Without a default
-    /// runway the first row; -1 without landing rows.
+    /// The index in <see cref="HeadRows"/> of the row the visual list focuses on open: the first, which is the default
+    /// runway's (<see cref="MenuCatalog.SmartVisualRunway"/>) row when the aircraft has one, else the first landing runway's;
+    /// -1 when the list has no such row.
     /// </summary>
-    public int OpeningLandingIndex { get; }
-
-    /// <summary>
-    /// Whether the visual list's aircraft has a default runway (<see cref="MenuCatalog.SmartVisualRunway"/>); with one the list
-    /// never opens on the airport-level row.
-    /// </summary>
-    public bool HasDefaultRunway { get; }
+    public int OpeningHeadIndex { get; }
 
     /// <summary>The flyout's verb.</summary>
     public ApproachVerbSpec Spec { get; }
@@ -333,9 +327,10 @@ public sealed class ApproachFlyoutModel
     }
 
     /// <summary>
-    /// The visual list's model: a visual row per runway end of <see cref="RunwaysFor"/> to an IFR aircraft, the room's landing
-    /// ends apart from the rest, the airport-level visual row pinned at an untowered field, the Force toggle and Cancel IFR as
-    /// Cleared approach offers them; no tabs, no default row, no Approach box.
+    /// The visual list's model: a visual row per runway end of <see cref="RunwaysFor"/> to an IFR aircraft, the default
+    /// runway's (<see cref="MenuCatalog.SmartVisualRunway"/>) row first whether or not the room lands on it, then the room's
+    /// other landing ends, apart from the rest; the airport-level visual row pinned at an untowered field, the Force toggle and
+    /// Cancel IFR as Cleared approach offers them; no tabs, no pinned default row, no Approach box.
     /// </summary>
     private static ApproachFlyoutModel BuildVisualList(ApproachVerbSpec spec, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -350,31 +345,36 @@ public sealed class ApproachFlyoutModel
                     .Select(end => (VisualRow(spec, end.Runway, end.IsShort, VisualBadge(end.Runway, expectedVisual)), end.IsLanding)),
             ]
             : [];
-        List<RowSource> landing = [.. rows.Where(row => row.IsLanding).Select(row => row.Row)];
-        List<RowSource> others = [.. rows.Where(row => !row.IsLanding).Select(row => row.Row)];
-        string? smart = MenuCatalog.SmartVisualRunway(aircraft);
+        RowSource? defaultRow = DefaultRunwayRow(MenuCatalog.SmartVisualRunway(aircraft), rows);
+        List<RowSource> head =
+        [
+            .. new[] { defaultRow }.OfType<RowSource>(),
+            .. rows.Where(row => row.IsLanding && (row.Row != defaultRow)).Select(row => row.Row),
+        ];
+        List<RowSource> others = [.. rows.Where(row => !row.IsLanding && (row.Row != defaultRow)).Select(row => row.Row)];
 
         var options = new Options(
             OffersForce: (spec.ForceToggleVerb is not null) && !context.SoloTrainingMode,
             HasBox: false,
             CancelIfr: spec.OffersCancelIfr ? CancelIfrFor(aircraft, context, (approaches.Count == 0) && (airport is null)) : null,
             SelectedTab: -1,
-            VisualList: new VisualListSource(landing, others, OpeningLandingIndexOf(smart, landing), smart is not null)
+            VisualList: new VisualListSource(head, others, (head.Count > 0) ? 0 : -1)
         );
         List<RowSource> pinned = (airport is null) ? [] : [airport];
         return new ApproachFlyoutModel(spec, aircraft?.SituationFlags ?? SituationFlags.None, pinned, [], options);
     }
 
     /// <summary>
-    /// The index among <paramref name="landing"/> of the default runway's (<paramref name="smart"/>) row; -1 when the room does
-    /// not land on that runway, so no row is offered for Enter; without a default runway the first row's (-1 when there is none).
+    /// The visual row of the default runway (<paramref name="smart"/>, <see cref="MenuCatalog.SmartVisualRunway"/>) among
+    /// <paramref name="rows"/>, landing or not; null without a default runway or a row for it.
     /// </summary>
-    private static int OpeningLandingIndexOf(string? smart, List<RowSource> landing) =>
+    private static RowSource? DefaultRunwayRow(string? smart, List<(RowSource Row, bool IsLanding)> rows) =>
         (smart is null)
-            ? ((landing.Count > 0) ? 0 : -1)
-            : landing.FindIndex(row =>
-                ApproachChoices.SameRunway(RunwayIdentifier.NormalizeDesignator(row.Target), RunwayIdentifier.NormalizeDesignator(smart))
-            );
+            ? null
+            : rows.Select(row => row.Row)
+                .FirstOrDefault(row =>
+                    ApproachChoices.SameRunway(RunwayIdentifier.NormalizeDesignator(row.Target), RunwayIdentifier.NormalizeDesignator(smart))
+                );
 
     /// <summary>The <c>expected</c> badge for <paramref name="runway"/>'s visual row when the expected approach is its visual.</summary>
     private static string? VisualBadge(string runway, string? expectedVisual) =>
@@ -388,8 +388,11 @@ public sealed class ApproachFlyoutModel
     /// <summary>The rows of the tab at <paramref name="tab"/>, as they show with Force approach on or off.</summary>
     public IReadOnlyList<ApproachRow> Rows(int tab, bool force) => [.. _tabRows[tab].Select(source => Render(source, force))];
 
-    /// <summary>The visual list's rows for the room's landing ends, in the room's order; empty in a tabbed flyout.</summary>
-    public IReadOnlyList<ApproachRow> LandingRows(bool force) => [.. _landing.Select(source => Render(source, force))];
+    /// <summary>
+    /// The visual list's rows above the fold: the default runway's end, then the room's other landing ends in the room's order;
+    /// empty in a tabbed flyout.
+    /// </summary>
+    public IReadOnlyList<ApproachRow> HeadRows(bool force) => [.. _head.Select(source => Render(source, force))];
 
     /// <summary>
     /// The visual list's rows for the other runway ends, behind the <see cref="OtherRunwaysLabel"/> row: landable, then short,
@@ -691,10 +694,10 @@ public sealed class ApproachFlyoutModel
     private sealed record Options(bool OffersForce, bool HasBox, ApproachCancelIfr? CancelIfr, int SelectedTab, VisualListSource? VisualList);
 
     /// <summary>
-    /// The visual list's landing rows, its other rows, the landing row it opens on (-1 without one), and whether the aircraft
-    /// has a default runway.
+    /// The visual list's head rows (the default runway's row, then the landing rows), its other rows, and the head row it opens
+    /// on (-1 without one).
     /// </summary>
-    private sealed record VisualListSource(List<RowSource> Landing, List<RowSource> Others, int OpeningLandingIndex, bool HasDefaultRunway);
+    private sealed record VisualListSource(List<RowSource> Head, List<RowSource> Others, int OpeningHeadIndex);
 
     /// <summary>A row before Force approach is applied.</summary>
     private sealed record RowSource

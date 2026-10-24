@@ -970,6 +970,42 @@ public class ApproachFlyoutTests
     }
 
     /// <summary>
+    /// At an untowered KOAK with no landing runway set, an aircraft expecting R28L opens on 28L's row, the list's only row above
+    /// the fold, not on the pinned airport row; the fold holds the other seven ends.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_Untowered_DefaultRunwayRowWinsTheFocusOverTheAirportRow()
+    {
+        TestVnasData.EnsureInitialized();
+        FakeMenuAircraft aircraft = Arrival("KOAK") with { ExpectedApproach = "R28L", SituationFlags = SituationFlags.HasReportedFieldInSight };
+
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, aircraft, new RecordingMenuHost(""));
+
+        Assert.Equal(
+            ["Visual approach to KOAK · pilot picks the runway — CVA KOAK", "---", "Visual RWY 28L — CVA 28L", "Non-arrival runways… · 7"],
+            panel.Lines.Skip(1).Take(4)
+        );
+        Assert.Same(panel.Rows[0], panel.OpeningFocus);
+        Assert.NotSame(panel.PinnedRows[0], panel.OpeningFocus);
+    }
+
+    /// <summary>A default runway with no row at the destination (assigned 99 at KOAK) opens the list as with no default runway: on 30.</summary>
+    [AvaloniaFact]
+    public void ClearedVisual_DefaultRunwayWithoutARow_OpensLikeNoDefault()
+    {
+        TestVnasData.EnsureInitialized();
+        FakeMenuAircraft aircraft = Arrival("KOAK") with { AssignedRunway = "99", SituationFlags = SituationFlags.HasReportedFieldInSight };
+
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, aircraft, KoakHost("OAK"));
+
+        Assert.Equal(
+            ["Visual RWY 30", "Visual RWY 28R"],
+            panel.Rows.Where(button => button.IsVisible).Select(button => Assert.IsType<ApproachRow>(button.Content).Name)
+        );
+        Assert.Same(panel.Rows[0], panel.OpeningFocus);
+    }
+
+    /// <summary>
     /// With Force approach ticked every row, folded or not, sends <c>CVAF {rwy}</c> and goes live without the field reported.
     /// </summary>
     [AvaloniaFact]
