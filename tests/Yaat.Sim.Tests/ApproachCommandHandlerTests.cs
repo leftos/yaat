@@ -522,7 +522,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: false);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -537,7 +537,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases);
@@ -554,7 +554,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Null(aircraft.Targets.TargetSpeed);
@@ -567,7 +567,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -583,7 +583,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(null, 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(null, null, 2500, "ILS28R", Forced: false);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -597,7 +597,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), null, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), null, null, "ILS28R", Forced: false);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -612,7 +612,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), 2500, null, Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), null, 2500, null, Forced: false);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -628,7 +628,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(null, null, null, Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(null, null, null, null, Forced: false);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -644,7 +644,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: false);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -659,7 +659,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: false);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: false);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -698,7 +698,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: true);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: true);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -713,7 +713,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: true);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: true);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         InterceptCoursePhase intercept = aircraft.Phases!.Phases.OfType<InterceptCoursePhase>().Single();
@@ -727,7 +727,7 @@ public class ApproachCommandHandlerTests
         NavigationDatabase navDb = MakeNavDbRunwayAndApproachOnly();
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R", Forced: true);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), null, 2500, "ILS28R", Forced: true);
         CommandResult result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);

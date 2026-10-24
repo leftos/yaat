@@ -2683,14 +2683,28 @@ public static class CommandDescriber
     private static string FormatPtacCanonical(PositionTurnAltitudeClearanceCommand cmd)
     {
         string verb = cmd.Forced ? "PTACF" : "PTAC";
-        string headingStr = cmd.MagneticHeading is { } h ? $"{h.Degrees:000}" : "PH";
+        string turnPrefix = cmd.Direction switch
+        {
+            TurnDirection.Left => "L",
+            TurnDirection.Right => "R",
+            _ => "",
+        };
+        string headingStr = cmd.MagneticHeading is { } h ? $"{turnPrefix}{h.ToDisplayInt():000}" : "PH";
         string altStr = cmd.Altitude is { } a ? $"{a:000}" : "PA";
         return cmd.ApproachId is not null ? $"{verb} {headingStr} {altStr} {cmd.ApproachId}" : $"{verb} {headingStr} {altStr}";
     }
 
     private static string FormatPtacNatural(PositionTurnAltitudeClearanceCommand cmd)
     {
-        string headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Keep the assigned heading, else present heading";
+        string headingVerb = cmd.Direction switch
+        {
+            TurnDirection.Left => "Turn left",
+            TurnDirection.Right => "Turn right",
+            _ => "Fly",
+        };
+        string headingPart = cmd.MagneticHeading is { } h
+            ? $"{headingVerb} heading {h.ToDisplayInt():000}"
+            : "Keep the assigned heading, else present heading";
         string altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
         string clearedVerb = cmd.Forced ? "forced cleared" : "cleared";
         string approachPart = cmd.ApproachId is not null ? $", {clearedVerb} {cmd.ApproachId} approach" : $", {clearedVerb} approach";

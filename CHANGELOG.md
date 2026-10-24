@@ -12,6 +12,7 @@
 - `REPORT MIDFIELD` has a pattern aircraft report midfield downwind on every circuit until cancelled with `REPORT OFF MIDFIELD`.
 - Bug report bundles record which YAAT server the session ran on, so a report can be traced to that server's logs.
 - `REPORT OFF 5 FINAL` and `REPORT OFF SUNOL` cancel just the mile-final or fix report, and `REPORT` accepts long reporting-point names such as `OAK30NUM`.
+- `PTAC L240 030 ILS28R` and `PTACF R180 …` force the turn direction, and the pilot reads back "turn left heading two four zero".
 
 ### Changed
 

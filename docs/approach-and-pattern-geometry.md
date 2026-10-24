@@ -1307,7 +1307,7 @@ Which command handler builds which phase (parsing/dispatch live in
 | **CAPP** (cleared approach) — implied PTAC (on vectors, no nav route) | `ApproachCommandHandler.TryClearedApproach` (`:143`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Force`) → `FinalApproachPhase` → landing |
 | **CAPP** — published procedure | `ApproachCommandHandler.TryClearedApproach` (`:189`+) | optional `ProcedureTurnPhase` / hold-in-lieu `HoldingPatternPhase` → `ApproachNavigationPhase` → `FinalApproachPhase` → landing |
 | **JAPP** (join approach) | `ApproachCommandHandler.TryJoinApproach` (`:330`) | `ApproachNavigationPhase` (+ HILPT hold) → `FinalApproachPhase` → landing |
-| **PTAC** (present-heading intercept) | `ApproachCommandHandler.TryPtac` (`:432`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Forced`) → `FinalApproachPhase` → landing |
+| **PTAC** (present-heading intercept) | `ApproachCommandHandler.TryPtac` (an optional `L`/`R` on the heading sets `PreferredTurnDirection`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Forced`) → `FinalApproachPhase` → landing |
 | Missed-approach hold | `ApproachCommandHandler` (`:1053`) | `ApproachNavigationPhase` → `HoldingPatternPhase` |
 | **Pattern** (TPAT / pattern legs, SA/MNA/TB/EXT/OFL/OFR) | `PatternCommandHandler` (`TryEnterPattern`) | `PatternEntryPhase` / `MidfieldCrossingPhase` / `TeardropReentryPhase` + circuit legs |
 | **EF** (enter final) — parallel sidestep | `PatternCommandHandler.TryEnterPattern` → `ApplySidestep` | none — retargets the **active** `FinalApproachPhase` in place (`RetargetRunway`); only when the target is a parallel of the runway the aircraft is on final for, ≥ `MinSidestepAglFt` |

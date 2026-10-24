@@ -289,6 +289,79 @@ public class PtacPresentHeadingTests
         Assert.StartsWith("Turn heading 280", ptac.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A PTAC heading with a turn direction (7110.65 5-6-2.a.1) is flown that way even when it is the long way round: from
+    /// 270, "turn right heading 240" turns through north rather than 30 degrees left.
+    /// </summary>
+    [Fact]
+    public void Ptac_WithRightTurn_TurnsTheLongWayRight()
+    {
+        if (BuildHarness(magneticHeading: 270) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        CommandResult ptac = Send(harness, "PTAC R240 030 ILS28R");
+        _output.WriteLine($"PTAC R240 -> {ptac.Message}");
+        Assert.True(ptac.Success, ptac.Message);
+
+        Assert.Equal(TurnDirection.Right, harness.Aircraft.Targets.PreferredTurnDirection);
+        Assert.Equal(240.0, AssignedMagneticHeading(harness));
+        Assert.StartsWith("Turn right heading 240", ptac.Message, StringComparison.Ordinal);
+
+        double beforeTick = harness.Aircraft.MagneticHeading.Degrees;
+        for (int t = 0; t < 5; t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        double afterTick = harness.Aircraft.MagneticHeading.Degrees;
+        double turned = WrappedDelta(afterTick - beforeTick);
+        _output.WriteLine($"After PTAC R240: {beforeTick:F1} -> {afterTick:F1} ({turned:+0.0;-0.0}°)");
+        Assert.True(turned > 0, $"PTAC R240 must turn right through north; it moved {turned:F1}° from {beforeTick:F1} to {afterTick:F1}");
+        Assert.InRange(afterTick, 270.5, 360);
+    }
+
+    [Fact]
+    public void Ptac_WithLeftTurn_SetsLeftAndSaysTurnLeft()
+    {
+        if (BuildHarness(magneticHeading: 270) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        CommandResult ptac = Send(harness, "PTAC L240 030 ILS28R");
+        _output.WriteLine($"PTAC L240 -> {ptac.Message}");
+        Assert.True(ptac.Success, ptac.Message);
+
+        Assert.Equal(TurnDirection.Left, harness.Aircraft.Targets.PreferredTurnDirection);
+        Assert.StartsWith("Turn left heading 240", ptac.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A PTAC heading with no direction is flown the shorter way: it clears a turn direction an earlier vector gave.</summary>
+    [Fact]
+    public void Ptac_WithoutTurn_ClearsTheEarlierTurnDirection()
+    {
+        if (BuildHarness(magneticHeading: 270) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        CommandResult tr = Send(harness, "TR 200");
+        Assert.True(tr.Success, tr.Message);
+        Assert.Equal(TurnDirection.Right, harness.Aircraft.Targets.PreferredTurnDirection);
+
+        CommandResult ptac = Send(harness, "PTAC 240 030 ILS28R");
+        _output.WriteLine($"PTAC 240 -> {ptac.Message}");
+        Assert.True(ptac.Success, ptac.Message);
+
+        Assert.Null(harness.Aircraft.Targets.PreferredTurnDirection);
+        Assert.StartsWith("Turn heading 240", ptac.Message, StringComparison.Ordinal);
+    }
+
     private static double AssignedMagneticHeading(Harness harness)
     {
         MagneticHeading assigned = Assert.NotNull(harness.Aircraft.Targets.AssignedMagneticHeading);

@@ -335,6 +335,25 @@ public class ApproachClearanceReadbackTests
             "fly heading two four zero, maintain three thousand, cleared ILS runway two eight right approach"
         );
 
+    /// <summary>A PTAC given with a turn direction reads it back as given (7110.65 5-6-2.a.1, AIM 4-4-7.b.2).</summary>
+    [Fact]
+    public void Ptac_WithLeftTurn_ReadsBackTurnLeftHeading() =>
+        AssertReadback(
+            Dispatch("PTAC L240 030 ILS28R", MakeArrival(altitude: 5000)),
+            CanonicalCommandType.PositionTurnAltitudeClearance,
+            "turn left heading 240, descend and maintain 3000, cleared ILS runway 28R approach",
+            "turn left heading two four zero, descend and maintain three thousand, cleared ILS runway two eight right approach"
+        );
+
+    [Fact]
+    public void Ptacf_WithRightTurn_ReadsBackTurnRightHeading() =>
+        AssertReadback(
+            Dispatch("PTACF R240 030 ILS28R", MakeArrival(altitude: 5000)),
+            CanonicalCommandType.PositionTurnAltitudeClearanceForce,
+            "turn right heading 240, descend and maintain 3000, cleared ILS runway 28R approach",
+            "turn right heading two four zero, descend and maintain three thousand, cleared ILS runway two eight right approach"
+        );
+
     // --- Later blocks: no handler readback, the parsed command speaks ---
 
     private static PilotSpeechText LaterBlockReadback(string compound)
@@ -357,6 +376,18 @@ public class ApproachClearanceReadbackTests
         Assert.Contains("then fly heading 240, descend and maintain 3000, cleared ILS runway 28R approach", readback.Terminal);
         Assert.Contains(
             "then fly heading two four zero, descend and maintain three thousand, cleared ILS runway two eight right approach",
+            readback.Tts
+        );
+    }
+
+    [Fact]
+    public void Ptac_WithTurnInALaterBlock_ReadsBackTheTurn()
+    {
+        PilotSpeechText readback = LaterBlockReadback("DM 30; PTAC R240 030 ILS28R");
+
+        Assert.Contains("then turn right heading 240, descend and maintain 3000, cleared ILS runway 28R approach", readback.Terminal);
+        Assert.Contains(
+            "then turn right heading two four zero, descend and maintain three thousand, cleared ILS runway two eight right approach",
             readback.Tts
         );
     }

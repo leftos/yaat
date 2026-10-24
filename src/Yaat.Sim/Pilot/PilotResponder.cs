@@ -639,6 +639,7 @@ public static partial class PilotResponder
             JoinApproachStraightInCommand jappsi => BuildJoinApproachClause(jappsi, jappsi.ApproachId),
             PositionTurnAltitudeClearanceCommand ptac => ApproachCommandHandler.PtacReadback(
                 ptac.MagneticHeading,
+                ptac.Direction,
                 ptac.Altitude is { } altitude ? new ApproachCommandHandler.PtacAltitude(altitude, aircraft.Altitude) : null,
                 ApproachReadbackName.ForShorthand(ptac.ApproachId)
             ),

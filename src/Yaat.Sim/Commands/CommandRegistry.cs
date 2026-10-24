@@ -2182,10 +2182,18 @@ public static class CommandRegistry
                 ["PTAC"],
                 [
                     O(null, [], "Present heading, present altitude, auto approach"),
-                    O(null, [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA")], "Heading + altitude, auto approach"),
                     O(
                         null,
-                        [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA"), R("approach", "approach ID")],
+                        [R("heading", "1-360 (L or R prefix forces the turn: L240) or PH"), R("altitude", "hundreds or PA")],
+                        "Heading + altitude, auto approach"
+                    ),
+                    O(
+                        null,
+                        [
+                            R("heading", "1-360 (L or R prefix forces the turn: L240) or PH"),
+                            R("altitude", "hundreds or PA"),
+                            R("approach", "approach ID"),
+                        ],
                         "Position turn altitude clearance"
                     ),
                 ]
@@ -2199,10 +2207,18 @@ public static class CommandRegistry
                 ["PTACF"],
                 [
                     O(null, [], "Forced: present heading, present altitude, auto approach"),
-                    O(null, [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA")], "Forced heading + altitude, auto approach"),
                     O(
                         null,
-                        [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA"), R("approach", "approach ID")],
+                        [R("heading", "1-360 (L or R prefix forces the turn: L240) or PH"), R("altitude", "hundreds or PA")],
+                        "Forced heading + altitude, auto approach"
+                    ),
+                    O(
+                        null,
+                        [
+                            R("heading", "1-360 (L or R prefix forces the turn: L240) or PH"),
+                            R("altitude", "hundreds or PA"),
+                            R("approach", "approach ID"),
+                        ],
                         "Forced position turn altitude clearance (bypasses 30\u00b0 intercept gate)"
                     ),
                 ]

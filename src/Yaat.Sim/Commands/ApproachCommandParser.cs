@@ -416,7 +416,8 @@ internal static partial class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses PTAC/PTACF [heading|PH] [altitude|PA] [approachId].
+    /// Parses PTAC/PTACF [[L|R]heading|PH] [altitude|PA] [approachId]. An L or R glued before the heading forces the turn
+    /// direction ("PTAC L240 030 ILS28R"); it is refused with PH, which issues no new vector.
     /// Supports flexible token counts with PH (present heading) and PA (present altitude). PH keeps
     /// the last assigned heading while the aircraft is on no navigation route and still steering to
     /// it, even mid-turn; otherwise it takes the present heading.
@@ -429,29 +430,33 @@ internal static partial class ApproachCommandParser
 
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Ok(new PositionTurnAltitudeClearanceCommand(null, null, null, forced));
+            return PR.Ok(new PositionTurnAltitudeClearanceCommand(null, null, null, null, forced));
         }
 
         string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (tokens.Length < 2 || tokens.Length > 3)
         {
-            return PR.Fail($"{verb} requires [heading|PH] [altitude|PA] [approachId]");
+            return PR.Fail($"{verb} requires [[L|R]heading|PH] [altitude|PA] [approachId]");
         }
 
-        // Token 0: heading — integer 1-360 or PH
-        MagneticHeading? heading;
-        if (tokens[0].Equals("PH", StringComparison.OrdinalIgnoreCase))
+        // Token 0: heading — integer 1-360, L or R glued before one (the turn direction), or PH
+        MagneticHeading? heading = null;
+        TurnDirection? direction = null;
+        if (!tokens[0].Equals("PH", StringComparison.OrdinalIgnoreCase))
         {
-            heading = null;
-        }
-        else if (int.TryParse(tokens[0], out int h) && h >= 1 && h <= 360)
-        {
+            (direction, string headingText) = SplitPtacTurnDirection(tokens[0]);
+            if ((direction is not null) && headingText.Equals("PH", StringComparison.OrdinalIgnoreCase))
+            {
+                return PR.Fail($"{verb} turn direction needs a heading, not PH");
+            }
+
+            if (!int.TryParse(headingText, NumberStyles.None, CultureInfo.InvariantCulture, out int h) || (h < 1) || (h > 360))
+            {
+                return PR.Fail($"invalid {verb} heading '{tokens[0]}' (expected 1-360, L or R plus 1-360, or PH)");
+            }
+
             heading = new MagneticHeading(h);
-        }
-        else
-        {
-            return PR.Fail($"invalid {verb} heading '{tokens[0]}' (expected 1-360 or PH)");
         }
 
         // Token 1: altitude — hundreds or PA
@@ -472,8 +477,20 @@ internal static partial class ApproachCommandParser
         // Token 2: approachId (optional)
         string? approachId = tokens.Length == 3 ? tokens[2].ToUpperInvariant() : null;
 
-        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, altitude, approachId, forced));
+        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, direction, altitude, approachId, forced));
     }
+
+    /// <summary>
+    /// Splits a PTAC heading token's leading <c>L</c> or <c>R</c> (any case) off as the turn direction; a token without one
+    /// has no direction and is returned whole.
+    /// </summary>
+    private static (TurnDirection? Direction, string Heading) SplitPtacTurnDirection(string token) =>
+        char.ToUpperInvariant(token[0]) switch
+        {
+            'L' => (TurnDirection.Left, token[1..]),
+            'R' => (TurnDirection.Right, token[1..]),
+            _ => (null, token),
+        };
 
     /// <summary>
     /// Parses CVIA [altitudeHundreds].

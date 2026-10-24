@@ -618,9 +618,11 @@ public static class PhraseologyRules
     // altitude, and approach together so the aircraft turns onto the vector, descends, and
     // intercepts without any gap).
     //
-    // 7110.65 5-9-1 "Vectors to Final Approach Course" describes this canonical form:
+    // 7110.65 5-6-2.a.1 gives the vector phraseology (TURN LEFT/RIGHT HEADING (degrees), FLY HEADING
+    // (degrees)) and 5-9-4 the approach clearance that follows it:
     //   TURN LEFT/RIGHT HEADING (degrees), MAINTAIN (altitude) UNTIL ESTABLISHED...,
     //   CLEARED (type) APPROACH RUNWAY (number).
+    // A spoken turn direction is carried into the canonical (PTAC L270 ...); "fly heading" carries none.
     //
     // These rules must come BEFORE the individual TL/FH/DM/CAPP rules in <see cref="Build"/> so
     // the longer PTAC match wins when the full phrase is spoken. (Longest-match selection inside
@@ -631,12 +633,12 @@ public static class PhraseologyRules
             // ILS, descend intercept (typical — above glideslope capture alt)
             new(
                 ["turn", "left", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} ILS{rwy}",
+                "PTAC L{hdg} {alt} ILS{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
                 ["turn", "right", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} ILS{rwy}",
+                "PTAC R{hdg} {alt} ILS{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
@@ -647,12 +649,12 @@ public static class PhraseologyRules
             // ILS, climb intercept (below glideslope capture alt — less common but valid)
             new(
                 ["turn", "left", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} ILS{rwy}",
+                "PTAC L{hdg} {alt} ILS{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
                 ["turn", "right", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "ils", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} ILS{rwy}",
+                "PTAC R{hdg} {alt} ILS{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
@@ -663,12 +665,12 @@ public static class PhraseologyRules
             // RNAV, descend intercept
             new(
                 ["turn", "left", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} RNAV{rwy}",
+                "PTAC L{hdg} {alt} RNAV{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
                 ["turn", "right", "heading", "{hdg}", "descend", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} RNAV{rwy}",
+                "PTAC R{hdg} {alt} RNAV{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
@@ -679,12 +681,12 @@ public static class PhraseologyRules
             // RNAV, climb intercept
             new(
                 ["turn", "left", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} RNAV{rwy}",
+                "PTAC L{hdg} {alt} RNAV{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(
                 ["turn", "right", "heading", "{hdg}", "climb", "and?", "maintain", "{alt}", "cleared", "rnav", "runway?", "{rwy}", "approach"],
-                "PTAC {hdg} {alt} RNAV{rwy}",
+                "PTAC R{hdg} {alt} RNAV{rwy}",
                 PositionTurnAltitudeClearance
             ),
             new(

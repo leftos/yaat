@@ -133,13 +133,13 @@ public static partial class SynthTemplates
             "ptac-tl-ils",
             "PtacRules",
             "turn left heading {hdg} descend and maintain {alt} cleared ils runway {rwy} approach",
-            "PTAC {hdg} {alt} ILS{rwy}"
+            "PTAC L{hdg} {alt} ILS{rwy}"
         ),
         new(
             "ptac-tr-ils",
             "PtacRules",
             "turn right heading {hdg} climb and maintain {alt} cleared ils runway {rwy} approach",
-            "PTAC {hdg} {alt} ILS{rwy}"
+            "PTAC R{hdg} {alt} ILS{rwy}"
         ),
         new(
             "ptac-fh-rnav",

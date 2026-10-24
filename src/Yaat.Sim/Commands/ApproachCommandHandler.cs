@@ -240,25 +240,19 @@ public static class ApproachCommandHandler
     }
 
     /// <summary>
-    /// The readback of a PTAC (7110.65 5-9-4.b.2, 5-6-2.a): "fly heading two four zero" ("fly present heading" when
-    /// <paramref name="heading"/> is null), then the altitude when one is read back, then the clearance ("cleared approach"
-    /// when <paramref name="approach"/> is null).
+    /// The readback of a PTAC (7110.65 5-6-2.a.1, 5-9-4.b, 5-9-4.c.2): "turn left heading two four zero" when the heading was given
+    /// with a turn direction, else "fly heading two four zero" ("fly present heading" when <paramref name="heading"/> is
+    /// null), then the altitude when one is read back, then the clearance ("cleared approach" when
+    /// <paramref name="approach"/> is null).
     /// </summary>
     /// <param name="heading">The heading to fly, or null for the present heading.</param>
+    /// <param name="direction">The turn direction the heading was given with, or null when none was.</param>
     /// <param name="altitude">The altitude to maintain and how it is said, or null when none is read back.</param>
     /// <param name="approach">The approach's readback name, or null when nothing names it.</param>
     /// <returns>The terminal and spoken readback.</returns>
-    public static PilotSpeechText PtacReadback(MagneticHeading? heading, PtacAltitude? altitude, PilotSpeechText? approach)
+    public static PilotSpeechText PtacReadback(MagneticHeading? heading, TurnDirection? direction, PtacAltitude? altitude, PilotSpeechText? approach)
     {
-        var clauses = new List<PilotSpeechText>
-        {
-            heading is { } flyHeading
-                ? new PilotSpeechText(
-                    $"fly heading {PhraseologyVerbalizer.HeadingNumber(flyHeading)}",
-                    $"fly heading {PhraseologyVerbalizer.HeadingDigits(flyHeading)}"
-                )
-                : new PilotSpeechText("fly present heading", "fly present heading"),
-        };
+        var clauses = new List<PilotSpeechText> { PtacHeadingClause(heading, direction) };
         if (altitude is { } maintain)
         {
             string verb = maintain.Verb();
@@ -272,6 +266,20 @@ public static class ApproachCommandHandler
 
         clauses.Add(ClearanceClause(approach));
         return JoinClauses(clauses);
+    }
+
+    private static PilotSpeechText PtacHeadingClause(MagneticHeading? heading, TurnDirection? direction)
+    {
+        if (heading is not { } flyHeading)
+        {
+            return new PilotSpeechText("fly present heading", "fly present heading");
+        }
+
+        string lead = direction is { } turn ? $"turn {TurnWord(turn)}" : "fly";
+        return new PilotSpeechText(
+            $"{lead} heading {PhraseologyVerbalizer.HeadingNumber(flyHeading)}",
+            $"{lead} heading {PhraseologyVerbalizer.HeadingDigits(flyHeading)}"
+        );
     }
 
     /// <summary>
@@ -704,6 +712,7 @@ public static class ApproachCommandHandler
         PilotSpeechText? readback = ApproachReadbackName.ForProcedure(procedure) is { } approach
             ? PtacReadback(
                 resolvedHeading.FromPh ? null : new MagneticHeading(heading),
+                resolvedHeading.Direction,
                 new PtacAltitude(altitude, cmd.Altitude is null ? null : aircraft.Altitude),
                 approach
             )
@@ -754,13 +763,14 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        string ptacPrefix = (cmd.Forced, resolvedHeading.FromPh) switch
+        string ptacVerb = (cmd.Forced, resolvedHeading.FromPh) switch
         {
             (true, true) => "Force: fly",
             (true, false) => "Force: turn",
             (false, true) => "Fly",
             (false, false) => "Turn",
         };
+        string ptacPrefix = resolvedHeading.Direction is { } direction ? $"{ptacVerb} {TurnWord(direction)}" : ptacVerb;
         string ptacRunway = RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "");
         return new CommandResult(
             true,
@@ -773,7 +783,8 @@ public static class ApproachCommandHandler
 
     /// <summary>
     /// A PTAC's heading, altitude and speed targets: the speed restriction cancelled (7110.65 §5-7-1.d), the heading set at
-    /// once, and the altitude made the new assigned altitude, cancelling the earlier vertical clearance as CM/DM do.
+    /// once and turned the way the controller said when a direction was given, and the altitude made the new assigned
+    /// altitude, cancelling the earlier vertical clearance as CM/DM do.
     /// </summary>
     private static void ApplyPtacTargets(AircraftState aircraft, PtacHeading resolvedHeading, int altitude)
     {
@@ -783,7 +794,11 @@ public static class ApproachCommandHandler
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = new MagneticHeading(resolvedHeading.Heading).ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(resolvedHeading.Heading);
-        if (!resolvedHeading.KeepTurnDirection)
+        if (resolvedHeading.Direction is { } direction)
+        {
+            aircraft.Targets.PreferredTurnDirection = direction;
+        }
+        else if (!resolvedHeading.KeepTurnDirection)
         {
             aircraft.Targets.PreferredTurnDirection = null;
         }
@@ -809,15 +824,15 @@ public static class ApproachCommandHandler
     {
         if (cmd.MagneticHeading is { } explicitHeading)
         {
-            return new PtacHeading((int)Math.Round(explicitHeading.Degrees), FromPh: false, KeepTurnDirection: false);
+            return new PtacHeading((int)Math.Round(explicitHeading.Degrees), cmd.Direction, FromPh: false, KeepTurnDirection: false);
         }
 
         if (SteeringAssignedHeading(aircraft) is { } steeringHeading)
         {
-            return new PtacHeading((int)Math.Round(steeringHeading.Degrees), FromPh: true, KeepTurnDirection: true);
+            return new PtacHeading((int)Math.Round(steeringHeading.Degrees), Direction: null, FromPh: true, KeepTurnDirection: true);
         }
 
-        return new PtacHeading((int)Math.Round(aircraft.MagneticHeading.Degrees), FromPh: true, KeepTurnDirection: false);
+        return new PtacHeading((int)Math.Round(aircraft.MagneticHeading.Degrees), Direction: null, FromPh: true, KeepTurnDirection: false);
     }
 
     /// <summary>
@@ -901,9 +916,13 @@ public static class ApproachCommandHandler
 
     /// <summary>
     /// <see cref="TryPtac"/>'s heading decision. <paramref name="FromPh"/> is true whenever the
-    /// heading came from PH rather than an explicit argument, which drives the "Fly heading" wording.
+    /// heading came from PH rather than an explicit argument, which drives the "Fly heading" wording. <paramref name="Direction"/>
+    /// is the turn direction an explicit heading was given with, or null to fly it the shorter way.
     /// </summary>
-    private readonly record struct PtacHeading(int Heading, bool FromPh, bool KeepTurnDirection);
+    private readonly record struct PtacHeading(int Heading, TurnDirection? Direction, bool FromPh, bool KeepTurnDirection);
+
+    /// <summary>The word a turn direction is said and written with: "left" or "right".</summary>
+    private static string TurnWord(TurnDirection direction) => direction == TurnDirection.Left ? "left" : "right";
 
     public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {

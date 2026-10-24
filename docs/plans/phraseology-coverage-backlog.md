@@ -1378,7 +1378,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 ##### Covered
 - **Phrasing:** "Turn (left/right) heading (degrees). Maintain (altitude) until established on the localizer. Cleared ILS runway (rwy) approach."
   **Canonical:** `PositionTurnAltitudeClearance`
-  **Notes:** `PhraseologyRules.cs:250-280` PTAC composite.
+  **Notes:** `PhraseologyRules.PtacRules` PTAC composite.
 - **Phrasing:** "Cleared ILS runway (rwy) approach." / "Cleared RNAV runway (rwy) approach."
   **Canonical:** `ClearedApproach`
   **Notes:** `PhraseologyRules.cs:197-200, 208-209`.

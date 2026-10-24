@@ -240,7 +240,7 @@ Join airway / radial: when a readback is added, I suggest canonical "join victor
 | C4 | cleared visual approach to Petaluma, landing runway two nine | ApproachCommandHandler.AirportLevelVisualCleared (airport-level CVA); PhraseologyRules.AirportVisualApproachClearance |
 | C5 | expect ILS runway two eight right approach / expect visual approach runway two eight right | PhraseologyVerbalizer.RenderExpectApproach |
 | C6 | join the ILS runway two eight right approach | ApproachCommandHandler.JoinApproachReadback (JAPP, JAPPSI) |
-| C7 | turn left heading two four zero descend and maintain three thousand cleared ILS runway two eight right approach | ApproachCommandHandler.PtacReadback (PTAC; rows await its re-rule) |
+| C7 | turn left heading two four zero descend and maintain three thousand cleared ILS runway two eight right approach | ApproachCommandHandler.PtacReadback (PTAC; rows await its re-rule); STT rule `PhraseologyRules.PtacRules` |
 | C8 | follow the traffic | PilotResponder.BuildFollowAirborneClause (airborne FOLLOW); PhraseologyRules.FollowTrafficAirborne |
 
 | Ref | Band | Variant | Ruling | Basis |
