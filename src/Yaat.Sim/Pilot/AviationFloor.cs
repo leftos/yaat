@@ -128,6 +128,8 @@ public static class AviationFloor
         CanonicalCommandType.ClearedApproachForce,
         CanonicalCommandType.ClearedVisualApproach,
         CanonicalCommandType.ClearedVisualApproachForce,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        CanonicalCommandType.PositionTurnAltitudeClearanceForce,
     ];
 
     /// <summary>

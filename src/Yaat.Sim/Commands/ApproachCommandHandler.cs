@@ -53,10 +53,191 @@ public static class ApproachCommandHandler
     /// <summary>The vertical speed that counts as climbing or descending for <c>PTAC PA</c>'s rounding when no target decides it.</summary>
     private const double PtacVerticalSpeedDirectionMinFpm = 100.0;
 
+    /// <summary>
+    /// How close the PTAC altitude must be to the present altitude for the readback to say "maintain" rather than climb or
+    /// descend.
+    /// </summary>
+    private const double PtacLevelToleranceFt = 10.0;
+
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
         ResolvedApproach resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
-        return AttachProcedureSourceAdvisory(TryClearedApproachCore(cmd, aircraft, resolved), resolved);
+        CommandResult cleared = WithApproachReadback(
+            TryClearedApproachCore(cmd, aircraft, resolved),
+            CommandDescriber.ToCanonicalType(cmd),
+            resolved,
+            approach => ClearedApproachReadback(cmd, approach)
+        );
+        return AttachProcedureSourceAdvisory(cleared, resolved);
+    }
+
+    /// <summary>
+    /// <paramref name="result"/> carrying the pilot's readback of the approach clearance it reports, built by
+    /// <paramref name="build"/> from the resolved approach's name (<see cref="ApproachReadbackName.ForProcedure"/>); unchanged
+    /// when the clearance failed or names an approach type no readback names, which leaves the readback to the verbalizer.
+    /// </summary>
+    private static CommandResult WithApproachReadback(
+        CommandResult result,
+        CanonicalCommandType readbackType,
+        ResolvedApproach resolved,
+        Func<PilotSpeechText, PilotSpeechText?> build
+    )
+    {
+        if (!result.Success || (resolved.Procedure is not { } procedure) || (ApproachReadbackName.ForProcedure(procedure) is not { } approach))
+        {
+            return result;
+        }
+
+        return build(approach) is { } readback ? result with { PilotReadback = new HandlerReadback(readbackType, readback) } : result;
+    }
+
+    /// <summary>
+    /// The readback of a <c>CAPP</c> (7110.65 4-8-1, AIM 4-4-7.b): the route and crossing restriction it carries first, then the
+    /// clearance, "cleared direct SUNOL, cross SUNOL at or above three thousand four hundred, cleared ILS runway two eight right
+    /// approach", or "at SUNOL, cleared ..."; a crossing restriction at the AT fix names that fix itself, so it drops the "at"
+    /// lead (7110.65 4-8-1.a.4). "cleared approach" when <paramref name="approach"/> is null (nothing names it).
+    /// </summary>
+    /// <param name="cmd">The approach clearance.</param>
+    /// <param name="approach">The approach's readback name, or null when nothing names it.</param>
+    /// <returns>The terminal and spoken readback.</returns>
+    public static PilotSpeechText ClearedApproachReadback(ClearedApproachCommand cmd, PilotSpeechText? approach)
+    {
+        PilotSpeechText? crossing = CrossingClause(cmd);
+        var clauses = new List<PilotSpeechText>();
+        if (cmd.DctFix is { } dctFix)
+        {
+            clauses.Add(FixClause("cleared direct", dctFix));
+        }
+        else if ((cmd.AtFix is { } atFix) && (crossing is null))
+        {
+            clauses.Add(FixClause("at", atFix));
+        }
+
+        if (crossing is not null)
+        {
+            clauses.Add(crossing);
+        }
+
+        clauses.Add(ClearanceClause(approach));
+        return JoinClauses(clauses);
+    }
+
+    /// <summary>"{lead} SUNOL" / "{lead} sunol": a fix the clearance routes by, in the terminal and spoken forms.</summary>
+    private static PilotSpeechText FixClause(string lead, string fix) =>
+        new($"{lead} {PhraseologyVerbalizer.FixDisplayText(fix)}", $"{lead} {PhraseologyVerbalizer.SpellFix(fix)}");
+
+    /// <summary>
+    /// The crossing restriction a <c>CAPP</c> carries at its DCT (else AT) fix, in the cross-fix readback's canonical words
+    /// ("cross SUNOL at or above 3400"); null when it carries none.
+    /// </summary>
+    private static PilotSpeechText? CrossingClause(ClearedApproachCommand cmd)
+    {
+        if ((cmd.CrossFixAltitude is not { } altitude) || (altitude <= 0) || (CrossingFix(cmd) is not { } fix))
+        {
+            return null;
+        }
+
+        CrossFixAltitudeType altType = cmd.CrossFixAltType ?? CrossFixAltitudeType.At;
+        return PhraseologyVerbalizer.CrossFixReadback(new CrossFixCommand(fix.Fix, fix.Lat, fix.Lon, altitude, altType, Speed: null));
+    }
+
+    /// <summary>The fix a <c>CAPP</c>'s crossing restriction is at, with its position: the DCT fix, else the AT fix; null with neither.</summary>
+    private static (string Fix, double Lat, double Lon)? CrossingFix(ClearedApproachCommand cmd)
+    {
+        if (cmd.DctFix is { } dctFix)
+        {
+            return (dctFix, cmd.DctFixLat ?? 0, cmd.DctFixLon ?? 0);
+        }
+
+        return cmd.AtFix is { } atFix ? (atFix, cmd.AtFixLat ?? 0, cmd.AtFixLon ?? 0) : null;
+    }
+
+    /// <summary>
+    /// "cleared ILS runway 28R approach" / "cleared ILS runway two eight right approach"; "cleared approach" when nothing
+    /// names it.
+    /// </summary>
+    private static PilotSpeechText ClearanceClause(PilotSpeechText? approach) =>
+        approach is null
+            ? new PilotSpeechText("cleared approach", "cleared approach")
+            : new PilotSpeechText($"cleared {approach.Terminal} approach", $"cleared {approach.Tts} approach");
+
+    private static PilotSpeechText JoinClauses(IReadOnlyCollection<PilotSpeechText> clauses) =>
+        new(string.Join(", ", clauses.Select(clause => clause.Terminal)), string.Join(", ", clauses.Select(clause => clause.Tts)));
+
+    /// <summary>
+    /// The readback of a straight-in clearance or a join (7110.65 4-8-1, 5-9-4): "cleared straight in ILS runway two eight
+    /// right approach", "join the ILS runway two eight right approach", "join the straight in ..."; the terminal writes
+    /// "straight-in". Null for any other command type.
+    /// </summary>
+    /// <param name="readbackType">The command's canonical type (a forced join reads back as the join).</param>
+    /// <param name="approach">The approach's readback name.</param>
+    /// <returns>The terminal and spoken readback, or null.</returns>
+    public static PilotSpeechText? JoinApproachReadback(CanonicalCommandType readbackType, PilotSpeechText approach)
+    {
+        (string Terminal, string Spoken)? lead = readbackType switch
+        {
+            CanonicalCommandType.ClearedApproachStraightIn => ("cleared straight-in", "cleared straight in"),
+            CanonicalCommandType.JoinApproach or CanonicalCommandType.JoinApproachForce => ("join the", "join the"),
+            CanonicalCommandType.JoinApproachStraightIn => ("join the straight-in", "join the straight in"),
+            _ => null,
+        };
+        return lead is { } words
+            ? new PilotSpeechText($"{words.Terminal} {approach.Terminal} approach", $"{words.Spoken} {approach.Tts} approach")
+            : null;
+    }
+
+    /// <summary>
+    /// The readback of a PTAC (7110.65 5-9-4.b.2, 5-6-2.a): "fly heading two four zero" ("fly present heading" when
+    /// <paramref name="heading"/> is null), then the altitude when one is read back, then the clearance ("cleared approach"
+    /// when <paramref name="approach"/> is null).
+    /// </summary>
+    /// <param name="heading">The heading to fly, or null for the present heading.</param>
+    /// <param name="altitude">The altitude to maintain and how it is said, or null when none is read back.</param>
+    /// <param name="approach">The approach's readback name, or null when nothing names it.</param>
+    /// <returns>The terminal and spoken readback.</returns>
+    public static PilotSpeechText PtacReadback(MagneticHeading? heading, PtacAltitude? altitude, PilotSpeechText? approach)
+    {
+        var clauses = new List<PilotSpeechText>
+        {
+            heading is { } flyHeading
+                ? new PilotSpeechText(
+                    $"fly heading {PhraseologyVerbalizer.HeadingNumber(flyHeading)}",
+                    $"fly heading {PhraseologyVerbalizer.HeadingDigits(flyHeading)}"
+                )
+                : new PilotSpeechText("fly present heading", "fly present heading"),
+        };
+        if (altitude is { } maintain)
+        {
+            string verb = maintain.Verb();
+            clauses.Add(
+                new PilotSpeechText(
+                    $"{verb} {PhraseologyVerbalizer.CompactAltitude(maintain.Altitude)}",
+                    $"{verb} {PhraseologyVerbalizer.AltitudeWords(maintain.Altitude)}"
+                )
+            );
+        }
+
+        clauses.Add(ClearanceClause(approach));
+        return JoinClauses(clauses);
+    }
+
+    /// <summary>
+    /// The altitude a PTAC readback says and what it is said against: climb or descend from <paramref name="PresentAltitude"/>
+    /// (within <see cref="PtacLevelToleranceFt"/>, "maintain"); a null <paramref name="PresentAltitude"/> is an altitude the
+    /// aircraft keeps (<c>PA</c>), always "maintain" whatever its rounding.
+    /// </summary>
+    /// <param name="Altitude">The altitude to maintain.</param>
+    /// <param name="PresentAltitude">The aircraft's present altitude, or null when the altitude is the one it keeps.</param>
+    public readonly record struct PtacAltitude(int Altitude, double? PresentAltitude)
+    {
+        /// <summary>"climb and maintain", "descend and maintain" or "maintain".</summary>
+        public string Verb() =>
+            (Altitude - PresentAltitude) switch
+            {
+                > PtacLevelToleranceFt => "climb and maintain",
+                < -PtacLevelToleranceFt => "descend and maintain",
+                _ => "maintain",
+            };
     }
 
     /// <summary>Instructor advisory when the cleared/joined approach's coded data did not come from the
@@ -306,10 +487,28 @@ public static class ApproachCommandHandler
         );
     }
 
-    public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
+    /// <summary>
+    /// <c>JAPP</c>/<c>JAPPF</c>, <c>CAPPSI</c> or <c>JAPPSI</c>, read back as that command's canonical type
+    /// (<see cref="CommandDescriber.ToCanonicalType"/>).
+    /// </summary>
+    public static CommandResult TryJoinApproach(ParsedCommand cmd, AircraftState aircraft)
     {
+        (string approachId, string? airportCode, bool force, bool straightIn) = cmd switch
+        {
+            JoinApproachCommand japp => (japp.ApproachId, japp.AirportCode, japp.Force, false),
+            ClearedApproachStraightInCommand cappsi => (cappsi.ApproachId, cappsi.AirportCode, false, true),
+            JoinApproachStraightInCommand jappsi => (jappsi.ApproachId, jappsi.AirportCode, false, true),
+            _ => throw new ArgumentException($"Not a join or straight-in approach clearance: {cmd}", nameof(cmd)),
+        };
+        CanonicalCommandType readbackType = CommandDescriber.ToCanonicalType(cmd);
         ResolvedApproach resolved = ResolveApproach(approachId, airportCode, aircraft);
-        return AttachProcedureSourceAdvisory(TryJoinApproachCore(force, straightIn, aircraft, resolved), resolved);
+        CommandResult joined = WithApproachReadback(
+            TryJoinApproachCore(force, straightIn, aircraft, resolved),
+            readbackType,
+            resolved,
+            approach => JoinApproachReadback(readbackType, approach)
+        );
+        return AttachProcedureSourceAdvisory(joined, resolved);
     }
 
     private static CommandResult TryJoinApproachCore(bool force, bool straightIn, AircraftState aircraft, ResolvedApproach resolved)
@@ -447,27 +646,17 @@ public static class ApproachCommandHandler
         int heading = resolvedHeading.Heading;
         // Resolve altitude before anything clears the via state it reads
         int altitude = ResolvePtacAltitude(cmd, aircraft);
+        // Read back against the altitude the aircraft is at before the clearance changes its targets; a PA altitude is the
+        // one it keeps, so it is always "maintain"
+        PilotSpeechText? readback = ApproachReadbackName.ForProcedure(procedure) is { } approach
+            ? PtacReadback(
+                resolvedHeading.FromPh ? null : new MagneticHeading(heading),
+                new PtacAltitude(altitude, cmd.Altitude is null ? null : aircraft.Altitude),
+                approach
+            )
+            : null;
 
-        // Cancel existing speed restrictions per 7110.65 §5-7-1.d
-        aircraft.Targets.TargetSpeed = null;
-        RestateStandingInTrailReduction(aircraft);
-
-        // Set heading and altitude immediately
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetTrueHeading = new MagneticHeading(heading).ToTrue(aircraft.Declination);
-        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(heading);
-        if (!resolvedHeading.KeepTurnDirection)
-        {
-            aircraft.Targets.PreferredTurnDirection = null;
-        }
-
-        // The PTAC altitude is the new assigned altitude and cancels the earlier vertical clearance, as CM/DM do
-        aircraft.Targets.TargetAltitude = altitude;
-        aircraft.Targets.AssignedAltitude = altitude;
-        aircraft.Targets.AltitudeFloor = null;
-        aircraft.Targets.AltitudeCeiling = null;
-        FlightCommandHandler.CancelViaClearances(aircraft);
-        aircraft.Procedure.IsExpediting = false;
+        ApplyPtacTargets(aircraft, resolvedHeading, altitude);
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -523,7 +712,35 @@ public static class ApproachCommandHandler
         return new CommandResult(
             true,
             $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {ptacRunway}"
-        );
+        )
+        {
+            PilotReadback = readback is null ? null : new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback),
+        };
+    }
+
+    /// <summary>
+    /// A PTAC's heading, altitude and speed targets: the speed restriction cancelled (7110.65 §5-7-1.d), the heading set at
+    /// once, and the altitude made the new assigned altitude, cancelling the earlier vertical clearance as CM/DM do.
+    /// </summary>
+    private static void ApplyPtacTargets(AircraftState aircraft, PtacHeading resolvedHeading, int altitude)
+    {
+        aircraft.Targets.TargetSpeed = null;
+        RestateStandingInTrailReduction(aircraft);
+
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.TargetTrueHeading = new MagneticHeading(resolvedHeading.Heading).ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(resolvedHeading.Heading);
+        if (!resolvedHeading.KeepTurnDirection)
+        {
+            aircraft.Targets.PreferredTurnDirection = null;
+        }
+
+        aircraft.Targets.TargetAltitude = altitude;
+        aircraft.Targets.AssignedAltitude = altitude;
+        aircraft.Targets.AltitudeFloor = null;
+        aircraft.Targets.AltitudeCeiling = null;
+        FlightCommandHandler.CancelViaClearances(aircraft);
+        aircraft.Procedure.IsExpediting = false;
     }
 
     /// <summary>

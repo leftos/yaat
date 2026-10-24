@@ -141,7 +141,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         AircraftState aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
         aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CCR", Position = new LatLon(ccrLat, ccrLon) });
 
-        CommandResult result = ApproachCommandHandler.TryJoinApproach("S19R", "KCCR", force: false, straightIn: false, aircraft);
+        CommandResult result = ApproachCommandHandler.TryJoinApproach(new JoinApproachCommand("S19R", "KCCR", false), aircraft);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
@@ -187,7 +187,7 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         // Heading 041° vs FAC ~178° true → ~137° intercept, well above 90°.
         AircraftState aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
 
-        CommandResult result = ApproachCommandHandler.TryJoinApproach("S19R", "KCCR", force: false, straightIn: true, aircraft);
+        CommandResult result = ApproachCommandHandler.TryJoinApproach(new ClearedApproachStraightInCommand("S19R", "KCCR"), aircraft);
 
         output.WriteLine($"CAPPSI result: {result.Success} — {result.Message}");
         Assert.False(result.Success);

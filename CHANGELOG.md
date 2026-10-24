@@ -59,6 +59,7 @@
 - CRC's ASDE-X safety logic works from scenario load: every ASDE-X facility's runways load with the scenario, with no display push needed.
 - ASDE-X safety alerts reach only their own facility's displays and name the runway end the arrival or departure is using.
 - Warp… no longer sends an aircraft at 800 ft to 80,000 ft.
+- Solo pilots read back approach clearances with their approach and runway, such as `cleared ILS runway two eight right approach`, for CAPP, CAPPSI, JAPP, PTAC and EAPP.
 
 ## v0.17.0-beta [2026/10/22]
 

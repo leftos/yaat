@@ -54,6 +54,13 @@ public class AviationFloorTests
     // The verb drop: a busy pilot may drop climb or descend, keeping any qualifier.
     [InlineData("descend and? maintain {alt}", CanonicalCommandType.DescendMaintain, "{alt}", FrequencyLoadBand.Busy)]
     [InlineData("climb and? maintain at or above {alt}", CanonicalCommandType.ClimbMaintain, "at or above {alt}", FrequencyLoadBand.Busy)]
+    // A PTAC clears the aircraft for an approach to a runway, so a busy pilot may drop the word runway as for CAPP.
+    [InlineData(
+        "fly heading {hdg} descend and maintain {alt} cleared ils runway {rwy} approach",
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "fly heading {hdg} descend and maintain {alt} cleared ils {rwy} approach",
+        FrequencyLoadBand.Busy
+    )]
     public void HoldsTemplate_VariantKeepsTheFloor_Accepts(
         string canonicalPattern,
         CanonicalCommandType type,

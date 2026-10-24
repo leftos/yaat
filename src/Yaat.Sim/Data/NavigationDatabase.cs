@@ -3222,7 +3222,12 @@ public sealed class NavigationDatabase
         return code.Value + RunwayIdentifier.NormalizeDesignator(remainder);
     }
 
-    private static (char? TypeCode, string? Runway, string? Variant)? ParseShorthand(string s)
+    /// <summary>
+    /// Splits an approach id, typed shorthand ("ILS28R", "RNAV28RZ") or CIFP ("I28R", "H12-Z"), into its type code, its
+    /// normalized runway and the text after the runway designator ("Z", "-Z"); a bare runway ("28R") has no type code. Null
+    /// when the id names no runway.
+    /// </summary>
+    public static (char? TypeCode, string? Runway, string? Variant)? ParseShorthand(string s)
     {
         (char? typeCode, string? rest) = TryStripTypePrefix(s);
 

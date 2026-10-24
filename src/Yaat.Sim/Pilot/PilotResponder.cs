@@ -549,8 +549,39 @@ public static partial class PilotResponder
             FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
+            ClearedApproachCommand
+            or JoinApproachCommand
+            or ClearedApproachStraightInCommand
+            or JoinApproachStraightInCommand
+            or PositionTurnAltitudeClearanceCommand => BuildApproachClause(cmd, aircraft)
+                ?? VerbalizeDual(cmd, aircraft.Callsign, speechContext, trace),
             _ => VerbalizeDual(cmd, aircraft.Callsign, speechContext, trace),
         };
+
+    /// <summary>
+    /// An approach clearance with no handler readback (a later block, a condition), the approach named from the command's id:
+    /// a CAPP or PTAC whose id names nothing reads "cleared approach"; a PTAC's altitude, when it gives one, is climb or descend
+    /// against the present altitude. Null for a join or straight-in whose id names no approach type, or any other command.
+    /// </summary>
+    private static PilotSpeechText? BuildApproachClause(ParsedCommand cmd, AircraftState aircraft) =>
+        cmd switch
+        {
+            ClearedApproachCommand capp => ApproachCommandHandler.ClearedApproachReadback(capp, ApproachReadbackName.ForShorthand(capp.ApproachId)),
+            JoinApproachCommand japp => BuildJoinApproachClause(japp, japp.ApproachId),
+            ClearedApproachStraightInCommand cappsi => BuildJoinApproachClause(cappsi, cappsi.ApproachId),
+            JoinApproachStraightInCommand jappsi => BuildJoinApproachClause(jappsi, jappsi.ApproachId),
+            PositionTurnAltitudeClearanceCommand ptac => ApproachCommandHandler.PtacReadback(
+                ptac.MagneticHeading,
+                ptac.Altitude is { } altitude ? new ApproachCommandHandler.PtacAltitude(altitude, aircraft.Altitude) : null,
+                ApproachReadbackName.ForShorthand(ptac.ApproachId)
+            ),
+            _ => null,
+        };
+
+    private static PilotSpeechText? BuildJoinApproachClause(ParsedCommand cmd, string approachId) =>
+        ApproachReadbackName.ForShorthand(approachId) is { } approach
+            ? ApproachCommandHandler.JoinApproachReadback(CommandDescriber.ToCanonicalType(cmd), approach)
+            : null;
 
     /// <summary>
     /// The runway end a HOLD given now stops the aircraft on, from the crossing it is in or the taxi in the stretch before a
@@ -3153,21 +3184,27 @@ public static partial class PilotResponder
 
     /// <summary>
     /// CIFP-style approach id ("I28R", "R28R-Y", "VIS28R") to ATC-spoken form
-    /// ("ILS two eight right", "RNAV two eight right yankee", "visual approach runway two eight right").
+    /// ("ILS two eight right", "RNAV Yankee two eight right", "visual approach runway two eight right"): the type and its
+    /// variant before the runway, as 7110.65 4-8-1 names the approach (<see cref="ApproachReadbackName"/>).
     /// Falls back to NATO-spelled prefix + spoken runway if the prefix isn't recognized.
     /// </summary>
     internal static string SpokenApproachName(string approachId, string runwayId) =>
-        ApproachName(approachId, PhraseologyVerbalizer.SpellRunway(runwayId), spelledSuffix: true);
+        ApproachName(approachId, PhraseologyVerbalizer.SpellRunway(runwayId), spoken: true);
 
-    /// <summary>Compact terminal approach name: "ILS 28R", "RNAV 28R Y" (digit runway, raw suffix letter).</summary>
+    /// <summary>Compact terminal approach name: "ILS 28R", "RNAV Y 28R" (raw variant letter, digit runway).</summary>
     internal static string CompactApproachName(string approachId, string runwayId) =>
-        ApproachName(approachId, PhraseologyVerbalizer.CompactRunway(runwayId), spelledSuffix: false);
+        ApproachName(approachId, PhraseologyVerbalizer.CompactRunway(runwayId), spoken: false);
 
-    private static string ApproachName(string approachId, string runwayText, bool spelledSuffix)
+    private static string ApproachName(string approachId, string runwayText, bool spoken)
     {
         if (string.IsNullOrEmpty(approachId))
         {
             return string.Empty;
+        }
+
+        if (ApproachReadbackName.TypeAndRunway(approachId) is { } named)
+        {
+            return $"{(spoken ? named.Spoken : named.Terminal)} {runwayText}";
         }
 
         int dashIdx = approachId.IndexOf('-');
@@ -3185,20 +3222,14 @@ public static partial class PilotResponder
         string prefixSpoken = ExpandApproachPrefix(prefix);
         string suffixText = suffix is null
             ? string.Empty
-            : " " + (spelledSuffix ? string.Join(' ', suffix.Select(c => NatoPhoneticAlphabet.SpellChar(c))) : suffix.ToUpperInvariant());
+            : " " + (spoken ? string.Join(' ', suffix.Select(c => NatoPhoneticAlphabet.SpellChar(c))) : suffix.ToUpperInvariant());
         return $"{prefixSpoken} {runwayText}{suffixText}";
     }
 
+    /// <summary>The spoken prefix of an approach id <see cref="ApproachReadbackName"/> cannot name: the visual, or the prefix spelled.</summary>
     private static string ExpandApproachPrefix(string prefix) =>
         prefix.ToUpperInvariant() switch
         {
-            "I" => "ILS",
-            "R" => "RNAV",
-            "L" => "localizer",
-            "V" => "VOR",
-            "N" => "NDB",
-            "D" => "VOR DME",
-            "B" => "localizer back course",
             "VIS" => "visual approach runway",
             "" => string.Empty,
             _ => string.Join(' ', prefix.Select(c => NatoPhoneticAlphabet.SpellChar(c))),

@@ -202,6 +202,13 @@ public static class PhraseologyVerbalizer
             return $"expect visual approach runway {fmt.Runway(visualRunway)}";
         }
 
+        // An expected instrument approach names its own type and variant ("expect localizer runway two eight right
+        // approach"), which the rule path cannot: every ExpectApproach rule ties on one capture.
+        if ((cmd is ExpectApproachCommand expected) && (ApproachReadbackName.ForShorthand(expected.ApproachId) is { } expectedName))
+        {
+            return $"expect {fmt.Form(expectedName)} approach";
+        }
+
         // A TAXI clearance naming a runway as a path segment (taxi ALONG it) needs per-segment
         // connectors — "via" for the taxiway route, "on" for the runway (7110.65 §3-7-2.a separates
         // "VIA (route)" from "ON (runway)") — which the flat "taxi via {path}" rule template can't
@@ -1038,6 +1045,11 @@ public static class PhraseologyVerbalizer
 
     /// <summary>The variant set a varied pilot picks a cross-fix restriction's readback from; null when it is held canonical (a speed).</summary>
     private static BuilderVariantSet? VariedCrossFixSet(CrossFixCommand cf) => (cf.Speed is null) ? CrossFixVariantSet(cf) : null;
+
+    /// <summary>The canonical cross-fix readback ("cross SUNOL at or above 3400") in its terminal and spoken forms.</summary>
+    /// <param name="cf">The crossing restriction.</param>
+    /// <returns>The terminal and spoken readback.</returns>
+    public static PilotSpeechText CrossFixReadback(CrossFixCommand cf) => new(CrossFixCanonical(cf, Terminal), CrossFixCanonical(cf, Spoken));
 
     /// <summary>The canonical cross-fix readback: its shape's pattern, then "at {speed} knots" when it carries a speed.</summary>
     private static string CrossFixCanonical(CrossFixCommand cf, CaptureFormatter fmt)
@@ -1901,6 +1913,9 @@ public static class PhraseologyVerbalizer
     {
         public abstract string Runway(string id);
         public abstract string Approach(string id);
+
+        /// <summary>This formatter's form of a text built in both forms: the spoken or the terminal one.</summary>
+        public abstract string Form(PilotSpeechText text);
         public abstract string Heading(MagneticHeading h);
         public abstract string Degrees(int degrees);
         public abstract string Altitude(int feet);
@@ -1934,6 +1949,8 @@ public static class PhraseologyVerbalizer
         public override string Runway(string id) => SpellRunway(id);
 
         public override string Approach(string id) => SpellApproach(id);
+
+        public override string Form(PilotSpeechText text) => text.Tts;
 
         public override string Heading(MagneticHeading h) => HeadingDigits(h);
 
@@ -1983,6 +2000,8 @@ public static class PhraseologyVerbalizer
         public override string Runway(string id) => CompactRunway(id);
 
         public override string Approach(string id) => id.Trim().ToUpperInvariant();
+
+        public override string Form(PilotSpeechText text) => text.Terminal;
 
         public override string Heading(MagneticHeading h) => HeadingNumber(h);
 

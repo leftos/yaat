@@ -1482,6 +1482,8 @@ When the simulated approach controller is holding the arrival to an in-trail spe
 
 Nothing is restated when no reduction is in force, or when the standing instruction is the simulated tower's "reduce to final approach speed".
 
+**Approach readbacks:** the pilot reads back the approach with its type and variant before the runway (7110.65 §4-8-1): `CAPP ILS28R` is *"cleared ILS runway two eight right approach"*, `CAPP RNAV28RZ` *"cleared RNAV Zulu runway two eight right approach"*. `CAPPSI` reads *"cleared straight in ILS …"*, `JAPP` *"join the ILS …"*, `JAPPSI` *"join the straight in ILS …"*. A `DCT` or `AT` fix and a `CFIX` crossing are read first (*"cleared direct sunol, cross sunol at or above three thousand four hundred, cleared ILS …"*). `PTAC` reads *"fly heading two four zero, descend and maintain three thousand, cleared ILS …"* (*"fly present heading"* for `PH`, "maintain" for `PA`), never a turn direction. `EAPP` reads *"expect localizer runway two eight right approach"* for every type. A circling approach (no runway) is not cleared by `CAPP`.
+
 **Intercept angle validation:** Approach clearances validate the intercept angle per 7110.65 §5-9-2 — max 20° within 2nm of the approach gate, max 30° beyond. Use force variants (`CAPPF`/`JAPPF`) to override.
 
 **Localizer bust-through detection:** When an aircraft on a heading intercept crosses the final approach course but its heading is too far off to capture (>30°), the approach is cancelled automatically. The aircraft continues on its current heading and a terminal broadcast notifies the RPO.

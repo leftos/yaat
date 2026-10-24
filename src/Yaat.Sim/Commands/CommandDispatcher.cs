@@ -1328,12 +1328,8 @@ public static class CommandDispatcher
             }
             case ClearedApproachCommand cmd:
                 return ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
-            case JoinApproachCommand cmd:
-                return ApproachCommandHandler.TryJoinApproach(cmd.ApproachId, cmd.AirportCode, cmd.Force, straightIn: false, aircraft);
-            case ClearedApproachStraightInCommand cmd:
-                return ApproachCommandHandler.TryJoinApproach(cmd.ApproachId, cmd.AirportCode, force: false, straightIn: true, aircraft);
-            case JoinApproachStraightInCommand cmd:
-                return ApproachCommandHandler.TryJoinApproach(cmd.ApproachId, cmd.AirportCode, force: false, straightIn: true, aircraft);
+            case JoinApproachCommand or ClearedApproachStraightInCommand or JoinApproachStraightInCommand:
+                return ApproachCommandHandler.TryJoinApproach(command, aircraft);
             case PositionTurnAltitudeClearanceCommand cmd:
                 return ApproachCommandHandler.TryPtac(cmd, aircraft);
             case ClearedVisualApproachCommand cmd:

@@ -2089,7 +2089,25 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         PilotSpeechText result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "R28R-Y", distanceMilesForVfr: 0);
 
-        Assert.Equal("tower, american one twenty three, RNAV two eight right yankee.", result.Tts);
+        Assert.Equal("tower, american one twenty three, RNAV Yankee two eight right.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildOnFinal_IfrWithGpsApproach_NamesGps()
+    {
+        AircraftState ac = MakeAircraft("AAL123");
+        PilotSpeechText result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "P28R", distanceMilesForVfr: 0);
+
+        Assert.Equal("tower, american one twenty three, GPS two eight right.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildOnFinal_IfrWithLocalizerApproach_TerminalSaysLoc()
+    {
+        AircraftState ac = MakeAircraft("AAL123");
+        PilotSpeechText result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "L28R", distanceMilesForVfr: 0);
+
+        Assert.Equal("tower, LOC 28R.", result.Terminal);
     }
 
     [Fact]
