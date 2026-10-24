@@ -12,6 +12,12 @@ public enum PilotVariantTags
     /// Readbacks never put "to" before an altitude below FL180.
     /// </summary>
     FlightLevelOnly = 1,
+
+    /// <summary>
+    /// The row may be spoken only when the command's altitude is from 10,000 to 17,999 ft, the only range where the busy
+    /// group form (<c>{alt:group}</c>) says different words from the digit form.
+    /// </summary>
+    GroupFormRange = 2,
 }
 
 /// <summary>
@@ -20,7 +26,14 @@ public enum PilotVariantTags
 /// </summary>
 /// <param name="Template">Space-separated literal words and <c>{capture}</c> placeholders, e.g. <c>"left heading {hdg}"</c>.</param>
 /// <param name="Tags">The conditions under which the row may be spoken.</param>
-public sealed record PilotVariant(string Template, PilotVariantTags Tags);
+public sealed record PilotVariant(string Template, PilotVariantTags Tags)
+{
+    /// <summary>
+    /// The capture modifier that speaks a value in its busy group form: <c>{alt:group}</c> is capture <c>alt</c>, rendered
+    /// from the same value as the digit form.
+    /// </summary>
+    public const string GroupFormSuffix = ":group";
+}
 
 /// <summary>
 /// The spoken variants of one rule's readback, per frequency load band. The canonical pattern is always a Normal-band candidate
@@ -36,4 +49,9 @@ public sealed record PilotVariantSet(IReadOnlyList<PilotVariant> Quiet, IReadOnl
     /// <param name="busy">The busy-band rows.</param>
     /// <returns>The variant set.</returns>
     public static PilotVariantSet BusyOnly(params PilotVariant[] busy) => new([], [], busy);
+
+    /// <summary>A set whose rows a pilot may speak at normal load (beside the canonical) and on a busy frequency alike.</summary>
+    /// <param name="rows">The rows of both bands.</param>
+    /// <returns>The variant set.</returns>
+    public static PilotVariantSet NormalAndBusy(params PilotVariant[] rows) => new([], rows, rows);
 }

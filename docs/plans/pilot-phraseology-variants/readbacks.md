@@ -35,7 +35,7 @@ My judgement on scope, for the owner to overrule:
 - **Which readbacks count as a "runway clearance" (ruling 1)**: the F12 clearance verbs that carry a runway, plus line up and wait and approach clearances, because each puts the aircraft on or toward that runway and its readback is the runway check. Not the taxi destination ("runway three zero via sierra one, echo": with "taxi" already dropped in busy, a bare "three zero via …" loses the cue), not "expect" (no clearance yet), not a pattern entry (an instruction, not a clearance).
 - **Group form never applies to flight levels**: 7110.65 2-4-17.b.1 NOTE allows group form for altitudes only, and 2-4-17.b.2 gives flight levels as separate digits with no such note; AIM 4-2-9.b agrees. I found no basis to extend ruling 2 above FL180.
 - **Group form stays out of the families held canonical-only** (military routes, the crossing restriction with speed, LAHSO and the rest in the summary): those keep the canonical exactly, number form included.
-- **Speeds follow altitudes**: Q and N speak separate digits plus 'knots' (AIM 4-2-11; 7110.65 2-4-17.l.1; group form is ATC's 'by N knots' form, 5-7-2.a.4); B may say 'two fifty knots' / 'speed two fifty'. Today's `SpeedWords` speaks group form in every band; Q and N must move to digits (owner ruling).
+- **Speeds follow altitudes**: Q and N speak separate digits plus 'knots' (AIM 4-2-11; 7110.65 2-4-17.l.1; group form is ATC's 'by N knots' form, 5-7-2.a.4); B may say 'two fifty knots' / 'speed two fifty'. `SpeedWords` speaks separate digits in every band and in the canonical; the group form is `SpeedGroupWords`, reached only by the busy `{spd:group}` rows (owner ruling).
 - The variant tables show group form only where a family's example altitude is 10,000 ft or more; in every other busy row, an altitude from 10,000 to 17,900 ft may take group form under F3 as restated.
 
 ## 1. Heading and turns
@@ -108,6 +108,7 @@ My judgement on scope, for the owner to overrule:
 | C2 | N | descending to flight level one niner zero | OK | US |
 | C2 | B | down to flight level one niner zero | OK | owner ruling (FL only) |
 | C2 | B | flight level one niner zero | OK | US |
+| C2 | B | descending flight level one niner zero | OK | US |
 | C2 | B | down to one niner zero | No: F3 | bare FL digits (AIM 4-2-9.b) |
 | C2 | B | flight level one ninety | No: F3 | group form is for altitudes below FL180 only (7110.65 2-4-17.b.2; owner ruling 2 does not reach FLs) |
 | C3 | Q | maintaining at or above four thousand, {cs}, thanks | OK | J; verb kept outside B; "VFR" kept when canonical has it |
@@ -147,7 +148,7 @@ My judgement on scope, for the owner to overrule:
 
 | Ref | Canonical | Source |
 |---|---|---|
-| C1 | maintain two five zero knots | PhraseologyRules.cs:97 (code speaks 'two fifty knots', `PhraseologyVerbalizer.SpeedWords`) |
+| C1 | maintain two five zero knots | PhraseologyRules.cs:97 (`PhraseologyVerbalizer.SpeedWords` speaks the digits) |
 | C2 | maintain two five zero knots until sunol | PhraseologyRules.cs:117 |
 | C3 | maintain mach point seven eight | PhraseologyRules.cs:111 |
 | C4 | resume normal speed / no speed restrictions / reduce to final approach speed | PhraseologyRules.cs:103-109 |

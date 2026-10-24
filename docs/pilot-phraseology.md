@@ -38,7 +38,7 @@ follow"), and the lead/target callsign survives only in `RpoTerminal` as an inst
 
 `PhraseologyVerbalizer` produces the `Terminal`/`Tts` pair for **rule-backed readbacks** from one
 switch: `Verbalize(cmd)` (spoken) and `VerbalizeTerminal(cmd)` (compact) share the `PhraseologyRule`
-patterns + `PickPreferredRule`; only a per-capture formatter strategy differs. Only the spoken form takes load-band variant rows (a seeded pick among the band's `PilotVariants`, each row held to the value floor `AviationFloor.HoldsTemplate` at test time) and the quiet flavour; `VerbalizeTerminal(cmd)` has no personality or band, so the Terminal and RPO text are always canonical. Pilot-only utterances
+patterns + `PickPreferredRule`; only a per-capture formatter strategy differs. Only the spoken form takes load-band variant rows (a seeded pick among the band's `PilotVariants`, each row held to the value floor `AviationFloor.HoldsTemplate` at test time) and the quiet flavour; speeds are separate digits everywhere (`SpeedWords`), and the group form (`SpeedGroupWords`, `AltitudeGroupWords`) only through a busy row's `{spd:group}` / `{alt:group}`; `VerbalizeTerminal(cmd)` has no personality or band, so the Terminal and RPO text are always canonical. Pilot-only utterances
 that have no controller-side rule (check-ins, "going around", in-sight/follow calls) are built
 directly in `PilotResponder`.
 

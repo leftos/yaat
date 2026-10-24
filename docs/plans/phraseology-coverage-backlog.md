@@ -1303,7 +1303,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** `PhraseologyRules.cs:99-100`.
 - **Phrasing:** "Cross (fix) at and maintain (altitude) at (speed) knots." (combined fix+alt+speed crossing)
   **Canonical:** `CrossFix`
-  **Notes:** `PhraseologyRules.cs:135`. Verbalized as "cross … at and maintain … at … knots" with `SpeedWords` colloquial form.
+  **Notes:** `PhraseologyRules.cs:135`. Verbalized as "cross … at and maintain … at … knots" with `SpeedWords` (separate digits).
 - **Phrasing:** "Maintain (speed) until (fix), then (additional instructions)."
   **Canonical:** `Speed` (compound via `CommandSchemeParser.ExpandSpeedUntil`)
   **Notes:** `PhraseologyRules.cs:109`. Emits the literal `SPD {spd} UNTIL {fix}` which the dispatcher expands to `SPD {spd}; AT {fix} RNS`. Validation uses `CommandParser.ParseCompound` so compound outputs pass the rule mapper.

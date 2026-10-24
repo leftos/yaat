@@ -56,13 +56,22 @@ public class PhraseologyVerbalizerTests
     [Theory]
     [InlineData(FrequencyActivityLevel.Busy)]
     [InlineData(FrequencyActivityLevel.Saturated)]
-    public void Verbalize_VariedBusy_AltitudeShortcutIsFlightLevelOnly(FrequencyActivityLevel activityLevel)
+    public void Verbalize_VariedBusy_ToRowsAreFlightLevelOnly(FrequencyActivityLevel activityLevel)
     {
         string? belowFl180 = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(5000), Callsign, Varied(activityLevel.ToLoadBand(), 1, 0));
         string? flightLevel = PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(19000), Callsign, Varied(activityLevel.ToLoadBand(), 1, 0));
 
-        Assert.Equal("climb and maintain five thousand", belowFl180);
-        Assert.Contains(flightLevel, (string[])["climbing to flight level one nine zero", "up to flight level one nine zero"]);
+        Assert.Contains(belowFl180, (string[])["five thousand", "climbing five thousand"]);
+        Assert.Contains(
+            flightLevel,
+            (string[])
+                [
+                    "climbing to flight level one nine zero",
+                    "up to flight level one nine zero",
+                    "flight level one nine zero",
+                    "climbing flight level one nine zero",
+                ]
+        );
     }
 
     // --- Heading ---
@@ -126,9 +135,17 @@ public class PhraseologyVerbalizerTests
     [InlineData("RELL", "thirty degrees left")]
     [InlineData("RELR", "thirty degrees right")]
     [InlineData("FH", "heading two seven zero")]
-    [InlineData("CM", "climbing to flight level one nine zero|up to flight level one nine zero")]
-    [InlineData("DM", "descending to flight level two four zero|down to flight level two four zero")]
-    [InlineData("SPD", "two fifty knots|speed two fifty knots")]
+    [InlineData("FPH", "present heading")]
+    [InlineData(
+        "CM",
+        "climbing to flight level one nine zero|up to flight level one nine zero|flight level one nine zero|climbing flight level one nine zero"
+    )]
+    [InlineData(
+        "DM",
+        "descending to flight level two four zero|down to flight level two four zero|flight level two four zero|descending flight level two four zero"
+    )]
+    [InlineData("SPD", "two five zero knots|speed two five zero|two fifty knots|speed two fifty")]
+    [InlineData("MACH", "mach point seven eight")]
     [InlineData("DCT", "direct {fix}")]
     [InlineData("TLDCT", "left direct {fix}")]
     [InlineData("TRDCT", "right direct {fix}")]
@@ -144,6 +161,8 @@ public class PhraseologyVerbalizerTests
             "RELL" => new LeftTurnCommand(30),
             "RELR" => new RightTurnCommand(30),
             "FH" => new FlyHeadingCommand(new MagneticHeading(270)),
+            "FPH" => new FlyPresentHeadingCommand(),
+            "MACH" => new MachCommand(0.78),
             "CM" => new ClimbMaintainCommand(19000),
             "DM" => new DescendMaintainCommand(24000),
             "SPD" => new SpeedCommand(250),
@@ -171,8 +190,8 @@ public class PhraseologyVerbalizerTests
         );
 
         Assert.True(
-            shortcutRules == 13,
-            $"PhraseologyRules has {shortcutRules} rules with PilotVariants rows, the wiring theory covers 13: add a row to "
+            shortcutRules == 15,
+            $"PhraseologyRules has {shortcutRules} rules with PilotVariants rows, the wiring theory covers 15: add a row to "
                 + $"{nameof(Verbalize_VariedBusy_EveryShortcutRuleSpeaksABusyRow)} for each new rule and update this count."
         );
     }
@@ -232,7 +251,7 @@ public class PhraseologyVerbalizerTests
             .Count();
 
         Assert.True(distinctSpeedRows >= 2, $"SPD 250 at Busy spoke {distinctSpeedRows} distinct row(s) over seconds 0-199.");
-        Assert.Equal("speed two fifty knots", PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), Callsign, Varied(FrequencyLoadBand.Busy, 7, 0)));
+        Assert.Equal("speed two fifty", PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), Callsign, Varied(FrequencyLoadBand.Busy, 7, 0)));
     }
 
     [Fact]
@@ -278,6 +297,62 @@ public class PhraseologyVerbalizerTests
         );
     }
 
+    [Theory]
+    [InlineData(4000)]
+    [InlineData(19000)]
+    public void SpokenCandidates_VariedBusy_GroupRowsNeverRepeatTheDigitWording(int feet)
+    {
+        IReadOnlyList<string> candidates = PhraseologyVerbalizer.SpokenCandidates(new ClimbMaintainCommand(feet), FrequencyLoadBand.Busy);
+
+        Assert.NotEmpty(candidates);
+        Assert.Equal(candidates.Count, candidates.Distinct().Count());
+    }
+
+    [Fact]
+    public void SpokenCandidates_VariedBusy_GroupFormRangeOffersTheGroupForm() =>
+        Assert.Contains("eleven thousand", PhraseologyVerbalizer.SpokenCandidates(new ClimbMaintainCommand(11000), FrequencyLoadBand.Busy));
+
+    [Fact]
+    public void PhraseologyRules_GroupForm_SitsOnBusyRowsOnly()
+    {
+        string[] misplaced =
+        [
+            .. PhraseologyRules
+                .All.Where(rule => rule.PilotVariants is not null)
+                .SelectMany(rule =>
+                    rule.PilotVariants!.Quiet.Concat(rule.PilotVariants.Normal)
+                        .Where(variant => variant.Template.Contains(PilotVariant.GroupFormSuffix, StringComparison.Ordinal))
+                        .Select(variant => $"{rule.OutputTemplate}: \"{variant.Template}\"")
+                ),
+        ];
+
+        Assert.True(misplaced.Length == 0, $"Group-form rows outside the busy band: {string.Join(", ", misplaced)}");
+    }
+
+    [Fact]
+    public void PhraseologyRules_BusySpeedRows_KeepKnotsOrSpeed()
+    {
+        string[] bare =
+        [
+            .. PhraseologyRules
+                .All.Where(rule => (rule.PilotVariants is not null) && rule.Pattern.Contains("{spd}"))
+                .SelectMany(rule =>
+                    rule.PilotVariants!.Busy.Where(variant => !variant.Template.Split(' ').Any(word => word is "knots" or "speed"))
+                        .Select(variant => $"{rule.OutputTemplate}: \"{variant.Template}\"")
+                ),
+        ];
+
+        Assert.True(bare.Length == 0, $"Busy speed rows with neither \"knots\" nor \"speed\": {string.Join(", ", bare)}");
+    }
+
+    [Fact]
+    public void Verbalize_VariedBusy_ClimbBelowFl180_MaySpeakTheGroupForm() =>
+        // Second 3 at seed 7 is the first second in 0-199 that picks the bare group-form row.
+        Assert.Equal(
+            "eleven thousand",
+            PhraseologyVerbalizer.Verbalize(new ClimbMaintainCommand(11000), Callsign, Varied(FrequencyLoadBand.Busy, 7, 3))
+        );
+
     [Fact]
     public void Verbalize_RelativeRight_TensWordsForm()
     {
@@ -294,13 +369,47 @@ public class PhraseologyVerbalizerTests
     // --- Speed ---
 
     [Fact]
+    public void SpeedWords_SpeaksSeparateDigits() => Assert.Equal("two five zero", PhraseologyVerbalizer.SpeedWords(250));
+
+    [Theory]
+    [InlineData(250, "two fifty")]
+    [InlineData(200, "two hundred")]
+    [InlineData(213, "two one three")]
+    public void SpeedGroupWords_RoundTensUseTheGroupForm(int knots, string expected) =>
+        Assert.Equal(expected, PhraseologyVerbalizer.SpeedGroupWords(knots));
+
+    [Theory]
+    [InlineData(4500, "four thousand five hundred")]
+    [InlineData(10000, "ten thousand")]
+    [InlineData(11000, "eleven thousand")]
+    [InlineData(17900, "seventeen thousand nine hundred")]
+    public void AltitudeGroupWords_SaysTheThousandsAsOneNumber(int feet, string expected) =>
+        Assert.Equal(expected, PhraseologyVerbalizer.AltitudeGroupWords(feet));
+
+    [Fact]
+    public void RenderSpokenVariant_GroupPlaceholders_SpeakTheGroupFormOfTheSameValue()
+    {
+        Assert.Equal("eleven thousand", PhraseologyVerbalizer.RenderSpokenVariant(new ClimbMaintainCommand(11000), "{alt:group}"));
+        Assert.Equal(
+            PhraseologyVerbalizer.AltitudeWords(19000),
+            PhraseologyVerbalizer.RenderSpokenVariant(new ClimbMaintainCommand(19000), "{alt:group}")
+        );
+        Assert.Equal("speed two fifty", PhraseologyVerbalizer.RenderSpokenVariant(new SpeedCommand(250), "speed {spd:group}"));
+    }
+
+    [Theory]
+    [InlineData(18000)]
+    [InlineData(33000)]
+    public void AltitudeGroupWords_FlightLevel_IsTheDigitForm(int feet) =>
+        Assert.Equal(PhraseologyVerbalizer.AltitudeWords(feet), PhraseologyVerbalizer.AltitudeGroupWords(feet));
+
+    [Fact]
     public void Verbalize_Speed_SpellsKnotsLiteral()
     {
-        // Rule pattern is ["maintain", "{spd}", "knots"] (first declared in AltitudeSpeedRules).
-        // SpeedCommand uses the SpeedWords colloquial form for round knots — "two fifty" not
-        // "two five zero" — so Whisper handles the readback far better. See SpeedWords doc.
+        // Rule pattern is ["maintain", "{spd}", "knots"] (first declared in AltitudeSpeedRules); the canonical speaks the
+        // speed in separate digits (AIM 4-2-11).
         string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250));
-        Assert.Equal("maintain two fifty knots", result);
+        Assert.Equal("maintain two five zero knots", result);
     }
 
     [Fact]
@@ -308,7 +417,7 @@ public class PhraseologyVerbalizerTests
     {
         string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(250), Callsign, Varied(FrequencyLoadBand.Busy, 1, 0));
 
-        Assert.Contains(result, (string[])["two fifty knots", "speed two fifty knots"]);
+        Assert.Contains(result, (string[])["two five zero knots", "speed two five zero", "two fifty knots", "speed two fifty"]);
     }
 
     // --- Transponder ---
@@ -560,23 +669,21 @@ public class PhraseologyVerbalizerTests
         // 119.6 represented as 119.60000000000001 (binary-fp drift) must not produce extra digits.
         Assert.Equal("one one nine point six", PhraseologyVerbalizer.FrequencyToWords(119.60000000000001));
 
-    // --- Speed: round-knot pilot colloquial forms ---
+    // --- Speed: round knots in separate digits ---
 
     [Theory]
-    [InlineData(100, "maintain one hundred knots")]
-    [InlineData(150, "maintain one fifty knots")]
-    [InlineData(180, "maintain one eighty knots")]
-    [InlineData(200, "maintain two hundred knots")]
-    [InlineData(220, "maintain two twenty knots")]
-    [InlineData(250, "maintain two fifty knots")]
-    [InlineData(280, "maintain two eighty knots")]
-    [InlineData(310, "maintain three ten knots")]
-    [InlineData(350, "maintain three fifty knots")]
-    public void Verbalize_Speed_RoundKnots_UsesColloquialForm(int speed, string expected)
+    [InlineData(100, "maintain one zero zero knots")]
+    [InlineData(150, "maintain one five zero knots")]
+    [InlineData(180, "maintain one eight zero knots")]
+    [InlineData(200, "maintain two zero zero knots")]
+    [InlineData(220, "maintain two two zero knots")]
+    [InlineData(250, "maintain two five zero knots")]
+    [InlineData(280, "maintain two eight zero knots")]
+    [InlineData(310, "maintain three one zero knots")]
+    [InlineData(350, "maintain three five zero knots")]
+    public void Verbalize_Speed_RoundKnots_SpeaksSeparateDigits(int speed, string expected)
     {
-        // Pilot readbacks favor "two fifty" over the 7110.65 controller form "two five zero".
-        // Whisper handles the colloquial form far better than the digit-by-digit form (the
-        // ouroboros harness consistently mistranscribed "two zero zero knots" as "18.20").
+        // The canonical speed readback is separate digits plus "knots" (AIM 4-2-11; 7110.65 2-4-17.l.1).
         string? result = PhraseologyVerbalizer.Verbalize(new SpeedCommand(speed));
         Assert.Equal(expected, result);
     }
@@ -701,7 +808,7 @@ public class PhraseologyVerbalizerTests
     {
         var cmd = new CrossFixCommand("CEPIN", 0, 0, 5000, CrossFixAltitudeType.At, 250);
         string? result = PhraseologyVerbalizer.Verbalize(cmd);
-        Assert.Equal("cross seppin at and maintain five thousand at two fifty knots", result);
+        Assert.Equal("cross seppin at and maintain five thousand at two five zero knots", result);
     }
 
     // --- ClimbVia ---

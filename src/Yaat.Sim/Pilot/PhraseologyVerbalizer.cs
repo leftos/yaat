@@ -270,7 +270,8 @@ public static class PhraseologyVerbalizer
     /// <summary>
     /// One seeded, uniform pick among the band's speakable rows (Normal: the canonical first, then the Normal rows). A row is
     /// speakable when every placeholder resolves and, if tagged <see cref="PilotVariantTags.FlightLevelOnly"/>, the command's
-    /// altitude is a flight level. The pick salts the canonical with its own prefix, which keeps it apart from other
+    /// altitude is a flight level, or if tagged <see cref="PilotVariantTags.GroupFormRange"/>, it is from 10,000 to 17,999 ft.
+    /// The pick salts the canonical with its own prefix, which keeps it apart from other
     /// <see cref="VariantPick"/> draws on the same callsign, second and seed; with no speakable row it is the canonical.
     /// </summary>
     private static string PickVariant(
@@ -282,11 +283,57 @@ public static class PhraseologyVerbalizer
         PilotSpeechContext context
     )
     {
-        List<string> candidates = (context.Band == FrequencyLoadBand.Normal) ? [canonical] : [];
-        bool flightLevel = IsFlightLevel(cmd);
-        foreach (PilotVariant variant in BandRows(variants, context.Band))
+        List<string> candidates = Candidates(cmd, variants, canonical, args, context.Band);
+        if (candidates.Count == 0)
         {
-            if (variant.Tags.HasFlag(PilotVariantTags.FlightLevelOnly) && !flightLevel)
+            return canonical;
+        }
+
+        int index = VariantPick.Index(callsign, "readback-variant:" + canonical, context.ElapsedSecond, context.RngSeed, candidates.Count);
+        return candidates[index];
+    }
+
+    /// <summary>
+    /// The spoken texts a <see cref="PilotPersonality.Varied"/> pilot picks among for <paramref name="cmd"/> in
+    /// <paramref name="band"/>, in pick order: the band's speakable rows (Normal: the canonical first).
+    /// </summary>
+    /// <param name="cmd">The command to read back.</param>
+    /// <param name="band">The frequency load band.</param>
+    /// <returns>The candidates; empty when no rule speaks the command, the rule has no variants, or no row is speakable.</returns>
+    public static IReadOnlyList<string> SpokenCandidates(ParsedCommand cmd, FrequencyLoadBand band)
+    {
+        if (!RulesByType.TryGetValue(CommandDescriber.ToCanonicalType(cmd), out PhraseologyRule[]? rules))
+        {
+            return [];
+        }
+
+        IReadOnlyDictionary<string, string> args = ExtractArgs(cmd, Spoken);
+        if (PickPreferredRule(rules, args) is not { PilotVariants: { } variants } rule)
+        {
+            return [];
+        }
+
+        return Candidates(cmd, variants, RenderPattern(rule.Pattern, args), args, band);
+    }
+
+    private static List<string> Candidates(
+        ParsedCommand cmd,
+        PilotVariantSet variants,
+        string canonical,
+        IReadOnlyDictionary<string, string> args,
+        FrequencyLoadBand band
+    )
+    {
+        List<string> candidates = (band == FrequencyLoadBand.Normal) ? [canonical] : [];
+        int? altitude = AssignedAltitude(cmd);
+        bool flightLevel = (altitude is int fl) && AtcNumberParser.IsFlightLevel(fl);
+        bool groupFormRange = (altitude is int feet) && IsGroupFormRange(feet);
+        foreach (PilotVariant variant in BandRows(variants, band))
+        {
+            if (
+                (variant.Tags.HasFlag(PilotVariantTags.FlightLevelOnly) && !flightLevel)
+                || (variant.Tags.HasFlag(PilotVariantTags.GroupFormRange) && !groupFormRange)
+            )
             {
                 continue;
             }
@@ -298,29 +345,23 @@ public static class PhraseologyVerbalizer
             }
         }
 
-        if (candidates.Count == 0)
-        {
-            return canonical;
-        }
-
-        int index = VariantPick.Index(callsign, "readback-variant:" + canonical, context.ElapsedSecond, context.RngSeed, candidates.Count);
-        return candidates[index];
+        return candidates;
     }
 
     /// <summary>
-    /// Whether the command's assigned altitude is a flight level (<see cref="AtcNumberParser.IsFlightLevel"/>), read from the
-    /// command, never from the rendered text; a command with no altitude is not a flight level.
+    /// The altitude a climb or descent assigns, read from the command, never from the rendered text, so the altitude tags
+    /// test the value itself; null for a command with no assigned altitude.
     /// </summary>
-    private static bool IsFlightLevel(ParsedCommand cmd)
-    {
-        int? feet = cmd switch
+    private static int? AssignedAltitude(ParsedCommand cmd) =>
+        cmd switch
         {
             ClimbMaintainCommand climb => climb.Altitude,
             DescendMaintainCommand descend => descend.Altitude,
             _ => null,
         };
-        return (feet is int altitude) && AtcNumberParser.IsFlightLevel(altitude);
-    }
+
+    /// <summary>Whether <paramref name="feet"/> lies from 10,000 to 17,999 ft, where the group form differs from the digit form.</summary>
+    private static bool IsGroupFormRange(int feet) => feet is >= 10000 and < 18000;
 
     /// <summary>The listed rows of <paramref name="band"/>, without the canonical pattern the Normal band also speaks.</summary>
     /// <param name="variants">The rule's variant set.</param>
@@ -334,6 +375,15 @@ public static class PhraseologyVerbalizer
             FrequencyLoadBand.Busy => variants.Busy,
             _ => throw new ArgumentOutOfRangeException(nameof(band), band, "Unknown frequency load band."),
         };
+
+    /// <summary>
+    /// The spoken render of one variant <paramref name="template"/> over <paramref name="cmd"/>'s own captures. It applies no
+    /// band or tag filter: the seeded pick (<see cref="SpokenCandidates"/>) decides which rows are spoken.
+    /// </summary>
+    /// <param name="cmd">The command whose captures fill the template.</param>
+    /// <param name="template">A variant row's template, e.g. <c>"{alt:group}"</c>.</param>
+    /// <returns>The rendered text; an unresolved placeholder stays in braces.</returns>
+    public static string RenderSpokenVariant(ParsedCommand cmd, string template) => RenderVariantTemplate(template, ExtractArgs(cmd, Spoken));
 
     private static string RenderVariantTemplate(string template, IReadOnlyDictionary<string, string> args) =>
         RenderPattern(template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), args);
@@ -356,10 +406,10 @@ public static class PhraseologyVerbalizer
             RightTurnCommand r => Map("deg", fmt.Degrees(r.Degrees)),
 
             // Altitude / speed
-            ClimbMaintainCommand c => Map("alt", fmt.Altitude(c.Altitude)),
-            DescendMaintainCommand c => Map("alt", fmt.Altitude(c.Altitude)),
-            SpeedCommand s => Map("spd", fmt.Speed(s.Speed)),
-            ExpediteCommand e => e.Altitude is int alt ? Map("alt", fmt.Altitude(alt)) : Empty(),
+            ClimbMaintainCommand c => AltitudeArgs(c.Altitude, fmt),
+            DescendMaintainCommand c => AltitudeArgs(c.Altitude, fmt),
+            SpeedCommand s => SpeedArgs(s.Speed, fmt),
+            ExpediteCommand e => e.Altitude is int alt ? AltitudeArgs(alt, fmt) : Empty(),
             MachCommand m => Map("mach", fmt.Mach(m.MachNumber)),
 
             // Navigation
@@ -373,7 +423,7 @@ public static class PhraseologyVerbalizer
             ClearedVisualApproachCommand v when v.RunwayId is { } visualRunway => Map("rwy", fmt.Runway(visualRunway)),
             JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", fmt.Approach(id)),
             CrossFixCommand cf => CrossFixArgs(cf, fmt),
-            ClimbViaCommand cv when cv.Altitude is int alt => Map("alt", fmt.Altitude(alt)),
+            ClimbViaCommand cv when cv.Altitude is int alt => AltitudeArgs(alt, fmt),
 
             // The military route and aerial refueling clearances are absent on purpose: their rules
             // are SttOnly and PilotResponder.VerbalizeForReadback builds their readbacks, because
@@ -793,9 +843,25 @@ public static class PhraseologyVerbalizer
 
     private static IReadOnlyDictionary<string, string> Empty() => new Dictionary<string, string>(0);
 
+    /// <summary>The <c>{alt}</c> capture and its busy group form <c>{alt:group}</c>, both rendered from <paramref name="feet"/>.</summary>
+    private static IReadOnlyDictionary<string, string> AltitudeArgs(int feet, CaptureFormatter fmt) =>
+        new Dictionary<string, string> { ["alt"] = fmt.Altitude(feet), [AltGroup] = fmt.AltitudeGroup(feet) };
+
+    /// <summary>The <c>{spd}</c> capture and its busy group form <c>{spd:group}</c>, both rendered from <paramref name="knots"/>.</summary>
+    private static IReadOnlyDictionary<string, string> SpeedArgs(int knots, CaptureFormatter fmt) =>
+        new Dictionary<string, string> { ["spd"] = fmt.Speed(knots), [SpdGroup] = fmt.SpeedGroup(knots) };
+
+    private const string AltGroup = "alt" + PilotVariant.GroupFormSuffix;
+    private const string SpdGroup = "spd" + PilotVariant.GroupFormSuffix;
+
     private static IReadOnlyDictionary<string, string> CrossFixArgs(CrossFixCommand cf, CaptureFormatter fmt)
     {
-        var dict = new Dictionary<string, string> { ["fix"] = fmt.Fix(cf.FixName), ["alt"] = fmt.Altitude(cf.Altitude) };
+        var dict = new Dictionary<string, string>
+        {
+            ["fix"] = fmt.Fix(cf.FixName),
+            ["alt"] = fmt.Altitude(cf.Altitude),
+            [AltGroup] = fmt.AltitudeGroup(cf.Altitude),
+        };
         if (cf.Speed is int s)
         {
             dict["speed"] = fmt.Speed(s);
@@ -923,6 +989,23 @@ public static class PhraseologyVerbalizer
     /// <summary>Altitude → "five thousand" / "flight level three three zero" (delegates to <see cref="AtcNumberParser"/>).</summary>
     public static string AltitudeWords(int feet) => AtcNumberParser.AltitudeToWords(feet);
 
+    /// <summary>
+    /// Altitude → the group form a busy pilot may speak (7110.65 2-4-17.b.1 NOTE): from 10,000 to 17,999 ft the thousands
+    /// as one number and the hundreds as <see cref="AltitudeWords"/> speaks them ("eleven thousand", "seventeen thousand nine
+    /// hundred"). A flight level, or any other altitude, is exactly <see cref="AltitudeWords"/>.
+    /// </summary>
+    public static string AltitudeGroupWords(int feet)
+    {
+        if (!IsGroupFormRange(feet))
+        {
+            return AltitudeWords(feet);
+        }
+
+        string thousands = $"{TwoDigitWords(feet / 1000)} thousand";
+        string hundreds = AltitudeWords(feet % 1000);
+        return hundreds.Length == 0 ? thousands : $"{thousands} {hundreds}";
+    }
+
     /// <summary>Generic positive integer → digit-by-digit ("250" → "two five zero").</summary>
     public static string DigitsWords(int value, int minWidth = 0)
     {
@@ -936,22 +1019,19 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
-    /// Airspeed (knots) → spoken form pilots actually use on frequency. Round speeds get the
-    /// colloquial American form ("two hundred", "two fifty", "two twenty") rather than the
-    /// 7110.65 §2-4-15 controller-side digit-by-digit ("two zero zero", "two five zero").
-    ///
-    /// Rationale: this is *pilot* readback, not controller phraseology. Per project policy
-    /// (project memory <c>pilot_speech_uses_ga_colloquialisms</c>), pilot transmissions use GA
-    /// colloquial forms. Whisper also handles "two hundred knots" far better than "two zero zero
-    /// knots" — the ouroboros harness showed the digit-by-digit form consistently mishears as
-    /// "18.20" or similar.
-    ///
-    /// Non-round speeds (e.g. 213) fall back to digit-by-digit; speeds outside 100–399 fall back
-    /// too (real pilot speeds in that range are vanishingly rare so we don't try to be clever).
+    /// Airspeed (knots) → separate digits ("two five zero"), the form a speed readback takes in every band and in the
+    /// canonical readback (AIM 4-2-11; 7110.65 2-4-17.l.1). Only a busy pilot may speak the group form
+    /// (<see cref="SpeedGroupWords"/>), and always with "knots" or "speed".
     /// </summary>
-    public static string SpeedWords(int speedKnots)
+    public static string SpeedWords(int speedKnots) => DigitsWords(speedKnots);
+
+    /// <summary>
+    /// Airspeed (knots) → the group form a busy pilot may speak: round tens from 100 to 999 as "two hundred" / "two fifty",
+    /// any other speed as separate digits.
+    /// </summary>
+    public static string SpeedGroupWords(int speedKnots)
     {
-        if (speedKnots is < 100 or >= 1000 || speedKnots % 10 != 0)
+        if ((speedKnots is < 100 or >= 1000) || (speedKnots % 10 != 0))
         {
             return DigitsWords(speedKnots);
         }
@@ -1607,7 +1687,13 @@ public static class PhraseologyVerbalizer
         public abstract string Heading(MagneticHeading h);
         public abstract string Degrees(int degrees);
         public abstract string Altitude(int feet);
+
+        /// <summary>The busy group form of an altitude, from the same value as <see cref="Altitude"/>.</summary>
+        public abstract string AltitudeGroup(int feet);
         public abstract string Speed(int knots);
+
+        /// <summary>The busy group form of a speed, from the same value as <see cref="Speed"/>.</summary>
+        public abstract string SpeedGroup(int knots);
         public abstract string Mach(double mach);
         public abstract string Fix(string fix);
         public abstract string FixSequence(IEnumerable<ResolvedFix> fixes);
@@ -1638,7 +1724,11 @@ public static class PhraseologyVerbalizer
 
         public override string Altitude(int feet) => AltitudeWords(feet);
 
+        public override string AltitudeGroup(int feet) => AltitudeGroupWords(feet);
+
         public override string Speed(int knots) => SpeedWords(knots);
+
+        public override string SpeedGroup(int knots) => SpeedGroupWords(knots);
 
         public override string Mach(double mach) => MachWords(mach);
 
@@ -1683,7 +1773,11 @@ public static class PhraseologyVerbalizer
 
         public override string Altitude(int feet) => CompactAltitude(feet);
 
+        public override string AltitudeGroup(int feet) => CompactAltitude(feet);
+
         public override string Speed(int knots) => knots.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        public override string SpeedGroup(int knots) => Speed(knots);
 
         public override string Mach(double mach) => mach.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 

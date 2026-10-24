@@ -59,35 +59,40 @@ public static class PhraseologyRules
                 ["turn", "left", "heading", "{hdg}"],
                 "TL {hdg}",
                 TurnLeft,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("left heading {hdg}", PilotVariantTags.None))
+                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("left heading {hdg}", PilotVariantTags.None))
             ),
             new(
                 ["turn", "right", "heading", "{hdg}"],
                 "TR {hdg}",
                 TurnRight,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("right heading {hdg}", PilotVariantTags.None))
+                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("right heading {hdg}", PilotVariantTags.None))
             ),
             // Relative turns — canonical 7110.65 5-6-2 form is "TURN (N) DEGREES LEFT/RIGHT".
             new(
                 ["turn", "{deg}", "degrees", "left"],
                 "RELL {deg}",
                 RelativeLeft,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("{deg} degrees left", PilotVariantTags.None))
+                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("{deg} degrees left", PilotVariantTags.None))
             ),
             new(
                 ["turn", "{deg}", "degrees", "right"],
                 "RELR {deg}",
                 RelativeRight,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("{deg} degrees right", PilotVariantTags.None))
+                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("{deg} degrees right", PilotVariantTags.None))
             ),
             new(
                 ["fly", "heading", "{hdg}"],
                 "FH {hdg}",
                 FlyHeading,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("heading {hdg}", PilotVariantTags.None))
+                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("heading {hdg}", PilotVariantTags.None))
             ),
             new(["heading", "{hdg}"], "FH {hdg}", FlyHeading),
-            new(["fly", "present", "heading"], "FPH", FlyPresentHeading),
+            new(
+                ["fly", "present", "heading"],
+                "FPH",
+                FlyPresentHeading,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("present heading", PilotVariantTags.None))
+            ),
             new(["maintain", "present", "heading"], "FPH", FlyPresentHeading),
         ];
 
@@ -100,9 +105,17 @@ public static class PhraseologyRules
                 ["climb", "and?", "maintain", "{alt}"],
                 "CM {alt}",
                 ClimbMaintain,
-                PilotVariants: PilotVariantSet.BusyOnly(
-                    new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly),
-                    new PilotVariant("up to {alt}", PilotVariantTags.FlightLevelOnly)
+                PilotVariants: new PilotVariantSet(
+                    [],
+                    [new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly)],
+                    [
+                        new PilotVariant("climbing to {alt}", PilotVariantTags.FlightLevelOnly),
+                        new PilotVariant("up to {alt}", PilotVariantTags.FlightLevelOnly),
+                        new PilotVariant("{alt}", PilotVariantTags.None),
+                        new PilotVariant("climbing {alt}", PilotVariantTags.None),
+                        new PilotVariant("{alt:group}", PilotVariantTags.GroupFormRange),
+                        new PilotVariant("climbing {alt:group}", PilotVariantTags.GroupFormRange),
+                    ]
                 )
             ),
             new(["climb", "to?", "{alt}"], "CM {alt}", ClimbMaintain),
@@ -113,9 +126,17 @@ public static class PhraseologyRules
                 ["descend", "and?", "maintain", "{alt}"],
                 "DM {alt}",
                 DescendMaintain,
-                PilotVariants: PilotVariantSet.BusyOnly(
-                    new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly),
-                    new PilotVariant("down to {alt}", PilotVariantTags.FlightLevelOnly)
+                PilotVariants: new PilotVariantSet(
+                    [],
+                    [new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly)],
+                    [
+                        new PilotVariant("descending to {alt}", PilotVariantTags.FlightLevelOnly),
+                        new PilotVariant("down to {alt}", PilotVariantTags.FlightLevelOnly),
+                        new PilotVariant("{alt}", PilotVariantTags.None),
+                        new PilotVariant("descending {alt}", PilotVariantTags.None),
+                        new PilotVariant("{alt:group}", PilotVariantTags.GroupFormRange),
+                        new PilotVariant("descending {alt:group}", PilotVariantTags.GroupFormRange),
+                    ]
                 )
             ),
             new(["descend", "to?", "{alt}"], "DM {alt}", DescendMaintain),
@@ -139,9 +160,15 @@ public static class PhraseologyRules
                 ["maintain", "{spd}", "knots"],
                 "SPD {spd}",
                 Speed,
-                PilotVariants: PilotVariantSet.BusyOnly(
-                    new PilotVariant("{spd} knots", PilotVariantTags.None),
-                    new PilotVariant("speed {spd} knots", PilotVariantTags.None)
+                PilotVariants: new PilotVariantSet(
+                    [],
+                    [new PilotVariant("{spd} knots", PilotVariantTags.None)],
+                    [
+                        new PilotVariant("{spd} knots", PilotVariantTags.None),
+                        new PilotVariant("speed {spd}", PilotVariantTags.None),
+                        new PilotVariant("{spd:group} knots", PilotVariantTags.None),
+                        new PilotVariant("speed {spd:group}", PilotVariantTags.None),
+                    ]
                 )
             ),
             new(["reduce", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
@@ -157,7 +184,12 @@ public static class PhraseologyRules
             new(["reduce", "to", "final", "approach", "speed"], "RFAS", ReduceToFinalApproachSpeed),
             new(["reduce", "to", "final"], "RFAS", ReduceToFinalApproachSpeed),
             new(["normal", "rate"], "NORM", NormalRate),
-            new(["maintain", "mach", "{mach}"], "MACH {mach}", Mach),
+            new(
+                ["maintain", "mach", "{mach}"],
+                "MACH {mach}",
+                Mach,
+                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("mach {mach}", PilotVariantTags.None))
+            ),
             new(["mach", "{mach}"], "MACH {mach}", Mach),
             // FAA 7110.65 §5-7, AIM §4-4: "Maintain (speed) until (fix), then …". The canonical
             // form "SPD {spd} UNTIL {fix}" is rewritten by CommandSchemeParser.ExpandSpeedUntil
@@ -220,7 +252,7 @@ public static class PhraseologyRules
                 ["proceed", "direct", "to?", "{fix}"],
                 "DCT {fix}",
                 DirectTo,
-                PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("direct {fix}", PilotVariantTags.None))
+                PilotVariants: PilotVariantSet.NormalAndBusy(new PilotVariant("direct {fix}", PilotVariantTags.None))
             ),
             new(["direct", "to?", "{fix}"], "DCT {fix}", DirectTo),
             new(["fly", "direct", "{fix}"], "DCT {fix}", DirectTo),

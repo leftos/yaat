@@ -149,7 +149,8 @@ public static class AviationFloor
     /// classes in order (the classes the class summary lists). The captures must be equal: none dropped, added or reordered.
     /// The classes must be equal, except that on a busy frequency the variant may omit the climb or descend verb, and on a
     /// runway clearance (<paramref name="type"/>) the word runway unless it follows hold short or cross; it may never speak a
-    /// class the canonical lacks, such as the other direction.
+    /// class the canonical lacks, such as the other direction. A group-form placeholder (<c>{alt:group}</c>) counts as its
+    /// capture (<c>alt</c>), since both are rendered from one value, and is refused outside the busy band.
     /// <para>
     /// A class repeated next to itself counts once ("climb and maintain"), but the merge restarts at each capture, so the
     /// same class on either side of a value counts twice; knots is the exception, since "speed" and "knots" around one
@@ -167,10 +168,15 @@ public static class AviationFloor
     {
         ArgumentNullException.ThrowIfNull(canonicalPattern);
         ArgumentNullException.ThrowIfNull(variant);
-        (List<string> canonicalCaptures, List<ClassEntry> canonicalClasses) = ReadTemplate(canonicalPattern);
-        (List<string> variantCaptures, List<ClassEntry> variantClasses) = ReadTemplate(
+        (List<string> canonicalCaptures, List<ClassEntry> canonicalClasses, _) = ReadTemplate(canonicalPattern);
+        (List<string> variantCaptures, List<ClassEntry> variantClasses, bool variantSpeaksGroupForm) = ReadTemplate(
             variant.Template.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         );
+        if (variantSpeaksGroupForm && (band != FrequencyLoadBand.Busy))
+        {
+            return false;
+        }
+
         return canonicalCaptures.SequenceEqual(variantCaptures, StringComparer.Ordinal) && ClassesHold(canonicalClasses, variantClasses, type, band);
     }
 
@@ -227,11 +233,16 @@ public static class AviationFloor
     private static bool Merges(ClassEntry previous, ClassEntry next) =>
         (previous.Class == next.Class) && ((previous.Segment == next.Segment) || (next.Class == Knots));
 
-    private static (List<string> Captures, List<ClassEntry> Classes) ReadTemplate(IReadOnlyList<string> rawTokens)
+    /// <summary>
+    /// Reads a template's captures and keyword classes in order, and whether any capture carries the group-form modifier
+    /// (<see cref="PilotVariant.GroupFormSuffix"/>), which is read as its plain capture.
+    /// </summary>
+    private static (List<string> Captures, List<ClassEntry> Classes, bool SpeaksGroupForm) ReadTemplate(IReadOnlyList<string> rawTokens)
     {
         string[] tokens = [.. rawTokens.Select(NormalizeTemplateToken).Where(token => token.Length > 0)];
         var captures = new List<string>();
         var classes = new List<ClassEntry>();
+        bool speaksGroupForm = false;
         for (int i = 0; i < tokens.Length; i++)
         {
             string token = tokens[i];
@@ -239,7 +250,14 @@ public static class AviationFloor
             if (token.StartsWith('{') && token.EndsWith('}'))
             {
                 string name = token[1..^1];
-                captures.Add(name.EndsWith("...", StringComparison.Ordinal) ? name[..^3] : name);
+                name = name.EndsWith("...", StringComparison.Ordinal) ? name[..^3] : name;
+                if (name.EndsWith(PilotVariant.GroupFormSuffix, StringComparison.Ordinal))
+                {
+                    speaksGroupForm = true;
+                    name = name[..^PilotVariant.GroupFormSuffix.Length];
+                }
+
+                captures.Add(name);
                 continue;
             }
 
@@ -259,7 +277,7 @@ public static class AviationFloor
                 classes.Add(entry);
             }
         }
-        return (captures, classes);
+        return (captures, classes, speaksGroupForm);
     }
 
     private static string NormalizeTemplateToken(string rawToken)

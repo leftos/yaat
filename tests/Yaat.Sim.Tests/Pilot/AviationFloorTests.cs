@@ -50,6 +50,12 @@ public class AviationFloorTests
     [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "slowing down to {spd} knots", FrequencyLoadBand.Quiet)]
     // Repeats merge after omission: with the runway dropped, the two lefts read as one.
     [InlineData("left runway left {rwy}", CanonicalCommandType.ClearedToLand, "left left {rwy}", FrequencyLoadBand.Busy)]
+    // A group-form placeholder is its capture: the same value, spoken in the busy number form.
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "{alt:group}", FrequencyLoadBand.Busy)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "speed {spd:group}", FrequencyLoadBand.Busy)]
+    // The verb drop: a busy pilot may drop climb or descend, keeping any qualifier.
+    [InlineData("descend and? maintain {alt}", CanonicalCommandType.DescendMaintain, "{alt}", FrequencyLoadBand.Busy)]
+    [InlineData("climb and? maintain at or above {alt}", CanonicalCommandType.ClimbMaintain, "at or above {alt}", FrequencyLoadBand.Busy)]
     public void HoldsTemplate_VariantKeepsTheFloor_Accepts(
         string canonicalPattern,
         CanonicalCommandType type,
@@ -72,6 +78,21 @@ public class AviationFloorTests
     [InlineData("expect {app} approach", CanonicalCommandType.ExpectApproach, "{app} approach", FrequencyLoadBand.Busy)]
     [InlineData("when able direct to? {fix}", CanonicalCommandType.AppendDirectTo, "direct {fix}", FrequencyLoadBand.Busy)]
     [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "cross {fix} {alt}", FrequencyLoadBand.Busy)]
+    // The group form is busy only.
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "{alt:group}", FrequencyLoadBand.Normal)]
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "climb and maintain {alt:group}", FrequencyLoadBand.Quiet)]
+    [InlineData("maintain {spd} knots", CanonicalCommandType.Speed, "{spd:group} knots", FrequencyLoadBand.Normal)]
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "climb and maintain {alt:group...}", FrequencyLoadBand.Normal)]
+    // The verb drop: never in quiet or normal, never swapped for the other direction, never taking a qualifier, cruise,
+    // cross, except maintain or expedite with it.
+    [InlineData("climb and? maintain {alt}", CanonicalCommandType.ClimbMaintain, "{alt}", FrequencyLoadBand.Quiet)]
+    [InlineData("descend and? maintain {alt}", CanonicalCommandType.DescendMaintain, "climbing {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("climb and? maintain at or above {alt}", CanonicalCommandType.ClimbMaintain, "{alt}", FrequencyLoadBand.Busy)]
+    [InlineData("descend and? maintain at or below {alt}", CanonicalCommandType.DescendMaintain, "{alt}", FrequencyLoadBand.Busy)]
+    [InlineData("cruise {alt}", CanonicalCommandType.Cruise, "{alt}", FrequencyLoadBand.Busy)]
+    [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "{fix} at {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("climb via sid except maintain {alt}", CanonicalCommandType.ClimbVia, "climb via sid {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("expedite climb to? {alt}", CanonicalCommandType.Expedite, "{alt}", FrequencyLoadBand.Busy)]
     public void HoldsTemplate_VariantBreaksTheFloor_Rejects(
         string canonicalPattern,
         CanonicalCommandType type,

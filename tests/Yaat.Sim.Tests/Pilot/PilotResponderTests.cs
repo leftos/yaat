@@ -99,8 +99,8 @@ public class PilotResponderTests
             )
             ?.Tts;
 
-        // Below FL180 the descent has no busy row ("down to" is flight-level only), so it stays canonical; the turn shortens.
-        Assert.Equal("descend and maintain five thousand, right heading two seven zero, american one twenty three.", result);
+        // Below FL180 the descent drops its verb ("down to" is flight-level only); the turn shortens.
+        Assert.Equal("five thousand, right heading two seven zero, american one twenty three.", result);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class PilotResponderTests
         Assert.NotNull(varied);
         Assert.Equal(canonical.Terminal, varied.Terminal);
         Assert.Equal(canonical.TerminalForRpo, varied.TerminalForRpo);
-        Assert.StartsWith("descend and maintain five thousand, right heading two seven zero", varied.Tts);
+        Assert.StartsWith("five thousand, right heading two seven zero", varied.Tts);
     }
 
     [Fact]

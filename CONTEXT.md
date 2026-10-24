@@ -507,6 +507,9 @@ The content a varied spoken clause may never drop, add or reorder against its ca
 **Effective band**:
 The load band a pilot speaks at: the frequency's load band shifted by the pilot's trait, terse one step busier and chatty one quieter, clamped to quiet..busy (`PilotTraits.EffectiveBand`); the speech-rate nudge still uses the raw band (docs/solo-training-pilot-speech.md).
 
+**Group form**:
+A number said as grouped words ("eleven thousand", "two fifty") rather than as separate digits ("one one thousand", "two five zero"); a pilot readback speaks it only on a busy frequency, through a variant row's `{alt:group}` / `{spd:group}` capture, and never for a flight level (`PhraseologyVerbalizer.AltitudeGroupWords`, `SpeedGroupWords`, docs/solo-training-pilot-speech.md).
+
 **Load band**:
 How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
 _Avoid_: activity level (the meter's four-step reading)
