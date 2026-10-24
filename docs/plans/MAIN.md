@@ -101,7 +101,6 @@
 - [ ] YAAT-1025 Strip a mangled GA suffix token on the leading callsign path too
 - [ ] YAAT-1117 Add a SpeechSandbox WER test over UWB-ATCC, downloaded at run time
 - [ ] YAAT-1118 Evaluate STT on the ATCO2 1 h test set, local only
-- [ ] YAAT-1135 Benchmark small TTS models for the pilot voice and let users pick from a local benchmark
 
 ## Wave 1 — Ground realism and braking
 
@@ -751,6 +750,6 @@
 - [ ] YAAT-1137 Carry the PTAC turn direction and read it back (turn left/right heading) · release vNext
 - [ ] YAAT-1142 Name approaches in SAY replies with the shared approach-name helper
 - [ ] YAAT-1143 Read back a bare CAPPF after an expected visual as the visual clearance
-- [ ] YAAT-1144 Load Pocket TTS, Supertonic and Piper fp16 in the TTS benchmark and rerun them
 - [ ] YAAT-1145 Clear circling approaches (CAPP VOR-A) instead of refusing them
 - [ ] YAAT-1149 Decide whether the frequency-change sign-off says the callsign last (good day, {cs})
+- [ ] YAAT-1151 Remove the pause Piper speaks between the digits and letters of an N-number callsign
