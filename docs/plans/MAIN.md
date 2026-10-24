@@ -45,6 +45,7 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -58,7 +59,7 @@
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
-  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext+1
+  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
   - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext+1
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext+1
   - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext+1
