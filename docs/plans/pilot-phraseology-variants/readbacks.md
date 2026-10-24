@@ -2,7 +2,7 @@
 
 What this is: the catalogue of spoken readback bodies a solo pilot picks from in each load band, family by family, for part G of YAAT-849 (design: [pilot-phraseology-variation.md](../pilot-phraseology-variation.md)).
 Status: reviewed by the owner (2026-10-23); rulings applied.
-Build status: section 5's C1 to C6 and C8 are built (C7's rows await the PTAC re-rule). The family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. The direct clause builders speak their §2 rows too: the altitude restriction (VFR forms included), the expedite with and without an altitude, the ground expedite, and the cross-fix restriction at, at or above and at or below.
+Build status: section 5's C1 to C8 are built. The family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. The direct clause builders speak their §2 rows too: the altitude restriction (VFR forms included), the expedite with and without an altitude, the ground expedite, and the cross-fix restriction at, at or above and at or below.
 How to mark it up: strike a variant (`~~text~~`), add a row under its canonical with your band, or change the Band cell; write a ruling you disagree with as `owner: …` in its Basis cell.
 
 ## Reading the tables
@@ -240,7 +240,7 @@ Join airway / radial: when a readback is added, I suggest canonical "join victor
 | C4 | cleared visual approach to Petaluma, landing runway two nine | ApproachCommandHandler.AirportLevelVisualCleared (airport-level CVA); PhraseologyRules.AirportVisualApproachClearance |
 | C5 | expect ILS runway two eight right approach / expect visual approach runway two eight right | PhraseologyVerbalizer.RenderExpectApproach |
 | C6 | join the ILS runway two eight right approach | ApproachCommandHandler.JoinApproachReadback (JAPP, JAPPSI) |
-| C7 | turn left heading two four zero descend and maintain three thousand cleared ILS runway two eight right approach | ApproachCommandHandler.PtacReadback (PTAC; rows await its re-rule); STT rule `PhraseologyRules.PtacRules` |
+| C7 | turn left heading two four zero descend and maintain three thousand cleared ILS runway two eight right approach | ApproachCommandHandler.PtacReadback / PtacVariants (PTAC; sets `PhraseologyRules.PtacTurn*`, `PtacFlyHeading*`); STT rule `PhraseologyRules.PtacRules` |
 | C8 | follow the traffic | PilotResponder.BuildFollowAirborneClause (airborne FOLLOW); PhraseologyRules.FollowTrafficAirborne |
 
 | Ref | Band | Variant | Ruling | Basis |

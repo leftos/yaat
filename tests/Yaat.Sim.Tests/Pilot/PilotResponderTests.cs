@@ -716,6 +716,12 @@ public class PilotResponderTests
     [InlineData("expect approach")]
     [InlineData("cleared visual approach")]
     [InlineData("follow traffic airborne")]
+    [InlineData("PTAC turn heading climb")]
+    [InlineData("PTAC turn heading descend")]
+    [InlineData("PTAC turn heading maintain")]
+    [InlineData("PTAC fly heading climb")]
+    [InlineData("PTAC fly heading descend")]
+    [InlineData("PTAC fly heading maintain")]
     public void BuilderVariantSet_Pattern_SpeaksTheBuildersCanonical(string setName)
     {
         BuilderVariantSet set = PhraseologyRules.BuilderVariantSets.Single(candidate => candidate.Name == setName);
@@ -761,6 +767,30 @@ public class PilotResponderTests
             "expect approach" => new ExpectApproachCommand("RNAV28RZ", null),
             "cleared visual approach" => new ClearedVisualApproachCommand("28R", null, PatternDirection.Left, "N456CD", false),
             "follow traffic airborne" => new FollowCommand("N456CD", false),
+            "PTAC turn heading climb" => new PositionTurnAltitudeClearanceCommand(
+                new MagneticHeading(240),
+                TurnDirection.Left,
+                7000,
+                "ILS28R",
+                false
+            ),
+            "PTAC turn heading descend" => new PositionTurnAltitudeClearanceCommand(
+                new MagneticHeading(240),
+                TurnDirection.Left,
+                3000,
+                "ILS28R",
+                false
+            ),
+            "PTAC turn heading maintain" => new PositionTurnAltitudeClearanceCommand(
+                new MagneticHeading(240),
+                TurnDirection.Right,
+                5000,
+                "ILS28R",
+                false
+            ),
+            "PTAC fly heading climb" => new PositionTurnAltitudeClearanceCommand(new MagneticHeading(240), null, 7000, "ILS28R", false),
+            "PTAC fly heading descend" => new PositionTurnAltitudeClearanceCommand(new MagneticHeading(240), null, 3000, "ILS28R", false),
+            "PTAC fly heading maintain" => new PositionTurnAltitudeClearanceCommand(new MagneticHeading(240), null, 5000, "ILS28R", false),
             _ => throw new ArgumentOutOfRangeException(nameof(setName), setName, "No builder shape for this set."),
         };
         if (setName is "expedite taxi" or "expedite exit")

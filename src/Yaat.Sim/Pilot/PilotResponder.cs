@@ -637,12 +637,7 @@ public static partial class PilotResponder
             JoinApproachCommand japp => BuildJoinApproachClause(japp, japp.ApproachId),
             ClearedApproachStraightInCommand cappsi => BuildJoinApproachClause(cappsi, cappsi.ApproachId),
             JoinApproachStraightInCommand jappsi => BuildJoinApproachClause(jappsi, jappsi.ApproachId),
-            PositionTurnAltitudeClearanceCommand ptac => ApproachCommandHandler.PtacReadback(
-                ptac.MagneticHeading,
-                ptac.Direction,
-                ptac.Altitude is { } altitude ? new ApproachCommandHandler.PtacAltitude(altitude, aircraft.Altitude) : null,
-                ApproachReadbackName.ForShorthand(ptac.ApproachId)
-            ),
+            PositionTurnAltitudeClearanceCommand ptac => BuildPtacClause(ptac, aircraft),
             _ => null,
         };
 
@@ -1142,9 +1137,10 @@ public static partial class PilotResponder
 
     /// <summary>
     /// The clause the readback builds for <paramref name="cmd"/> from a variant set (an altitude restriction, an expedite, an
-    /// approach clearance or join, a visual clearance naming its runway, an airborne follow), chosen by
+    /// approach clearance or join, a PTAC, a visual clearance naming its runway, an airborne follow), chosen by
     /// <paramref name="aircraft"/>; null for any other command (an airport-level visual among them), and for an approach
-    /// clearance read back canonical in every band (a circling approach, a bare CAPP with no expected approach). The readback
+    /// clearance read back canonical in every band (a circling approach, a bare CAPP with no expected approach, a PTAC on the
+    /// present heading, with no altitude, or whose id names no approach type and runway). The readback
     /// and <see cref="PhraseologyVerbalizer.SpokenCandidates"/> both dispatch through it.
     /// </summary>
     internal static BuilderClause? VariedBuilderClause(ParsedCommand cmd, AircraftState aircraft) =>
@@ -1159,8 +1155,48 @@ public static partial class PilotResponder
             JoinApproachStraightInCommand jappsi => BuildVariedJoinApproachClause(jappsi, jappsi.ApproachId),
             ClearedVisualApproachCommand { RunwayId: { } runwayId } cva => BuildVariedRunwayVisualClause(cva, runwayId),
             FollowCommand follow => new BuilderClause(BuildFollowAirborneClause(follow), PhraseologyRules.FollowTrafficAirborne),
+            PositionTurnAltitudeClearanceCommand ptac => BuildVariedPtacClause(ptac, aircraft),
             _ => null,
         };
+
+    /// <summary>
+    /// A PTAC's readback with the variant set of its heading kind and vertical verb, the altitude climb or descend against the
+    /// present altitude; null when it is read back canonical in every band (the present heading, no altitude, an approach id
+    /// naming no type and runway).
+    /// </summary>
+    private static BuilderClause? BuildVariedPtacClause(PositionTurnAltitudeClearanceCommand ptac, AircraftState aircraft)
+    {
+        if (
+            ApproachCommandHandler.PtacVariants(
+                ptac.Direction,
+                ptac.MagneticHeading,
+                LaterPtacAltitude(ptac, aircraft),
+                ApproachReadbackName.SpokenParts(ptac.ApproachId)
+            )
+            is not { } variants
+        )
+        {
+            return null;
+        }
+
+        return new BuilderClause(BuildPtacClause(ptac, aircraft), variants.Set) { Captures = variants.Captures };
+    }
+
+    /// <summary>
+    /// A PTAC's canonical readback with no handler readback, the approach named from the command's id ("cleared approach" when
+    /// it names nothing) and the altitude climb or descend against the present altitude.
+    /// </summary>
+    private static PilotSpeechText BuildPtacClause(PositionTurnAltitudeClearanceCommand ptac, AircraftState aircraft) =>
+        ApproachCommandHandler.PtacReadback(
+            ptac.MagneticHeading,
+            ptac.Direction,
+            LaterPtacAltitude(ptac, aircraft),
+            ApproachReadbackName.ForShorthand(ptac.ApproachId)
+        );
+
+    /// <summary>The altitude a PTAC with no handler readback says, against the present altitude; null when it gives none.</summary>
+    private static ApproachCommandHandler.PtacAltitude? LaterPtacAltitude(PositionTurnAltitudeClearanceCommand ptac, AircraftState aircraft) =>
+        ptac.Altitude is { } feet ? new ApproachCommandHandler.PtacAltitude(feet, aircraft.Altitude) : null;
 
     /// <summary>A visual clearance to a runway the command names, with its variant set and the captures of its tail.</summary>
     private static BuilderClause BuildVariedRunwayVisualClause(ClearedVisualApproachCommand cva, string runwayId)

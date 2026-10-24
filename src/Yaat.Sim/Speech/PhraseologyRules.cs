@@ -1467,6 +1467,151 @@ public static class PhraseologyRules
             )
         );
 
+    /// <summary>
+    /// "turn {dir} heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach", a PTAC with a turn direction
+    /// (7110.65 5-6-2.a.1, 5-9-4, AIM 4-4-7.b): the direction, heading, altitude, type and runway always stay.
+    /// </summary>
+    public static BuilderVariantSet PtacTurnClimb { get; } =
+        new(
+            "PTAC turn heading climb",
+            ["turn", "{dir}", "heading", "{hdg},", "climb", "and", "maintain", "{alt},", "cleared", "{app}", "runway", "{rwy}", "approach"],
+            PositionTurnAltitudeClearance,
+            new PilotVariantSet(
+                [
+                    new PilotVariant(
+                        "turn {dir} heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+                        PilotVariantTags.None
+                    ),
+                ],
+                [new PilotVariant("{dir} heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach", PilotVariantTags.None)],
+                [
+                    new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                    new PilotVariant("{dir} heading {hdg}, climbing {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "turn {dir} heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach", a PTAC with a turn direction
+    /// (7110.65 5-6-2.a.1, 5-9-4, AIM 4-4-7.b): the direction, heading, altitude, type and runway always stay.
+    /// </summary>
+    public static BuilderVariantSet PtacTurnDescend { get; } =
+        new(
+            "PTAC turn heading descend",
+            ["turn", "{dir}", "heading", "{hdg},", "descend", "and", "maintain", "{alt},", "cleared", "{app}", "runway", "{rwy}", "approach"],
+            PositionTurnAltitudeClearance,
+            new PilotVariantSet(
+                [
+                    new PilotVariant(
+                        "turn {dir} heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+                        PilotVariantTags.None
+                    ),
+                ],
+                [new PilotVariant("{dir} heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach", PilotVariantTags.None)],
+                [
+                    new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                    new PilotVariant("{dir} heading {hdg}, descending {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "turn {dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy} approach", a PTAC with a turn direction at its own
+    /// altitude (7110.65 5-6-2.a.1, 5-9-4, AIM 4-4-7.b): no progressive row; the direction, heading, altitude, type and runway
+    /// always stay.
+    /// </summary>
+    public static BuilderVariantSet PtacTurnMaintain { get; } =
+        new(
+            "PTAC turn heading maintain",
+            ["turn", "{dir}", "heading", "{hdg},", "maintain", "{alt},", "cleared", "{app}", "runway", "{rwy}", "approach"],
+            PositionTurnAltitudeClearance,
+            new PilotVariantSet(
+                [
+                    new PilotVariant(
+                        "turn {dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+                        PilotVariantTags.None
+                    ),
+                ],
+                [new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy} approach", PilotVariantTags.None)],
+                [
+                    new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("{dir} heading {hdg}, maintain {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "fly heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach", a PTAC with no turn direction
+    /// (7110.65 5-6-2.a.1, 5-9-4, AIM 4-4-7.b): the word heading, the heading, altitude, type and runway always stay.
+    /// </summary>
+    public static BuilderVariantSet PtacFlyHeadingClimb { get; } =
+        new(
+            "PTAC fly heading climb",
+            ["fly", "heading", "{hdg},", "climb", "and", "maintain", "{alt},", "cleared", "{app}", "runway", "{rwy}", "approach"],
+            PositionTurnAltitudeClearance,
+            new PilotVariantSet(
+                [
+                    new PilotVariant(
+                        "fly heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+                        PilotVariantTags.None
+                    ),
+                ],
+                [new PilotVariant("heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach", PilotVariantTags.None)],
+                [
+                    new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                    new PilotVariant("heading {hdg}, climbing {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "fly heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach", a PTAC with no turn direction
+    /// (7110.65 5-6-2.a.1, 5-9-4, AIM 4-4-7.b): the word heading, the heading, altitude, type and runway always stay.
+    /// </summary>
+    public static BuilderVariantSet PtacFlyHeadingDescend { get; } =
+        new(
+            "PTAC fly heading descend",
+            ["fly", "heading", "{hdg},", "descend", "and", "maintain", "{alt},", "cleared", "{app}", "runway", "{rwy}", "approach"],
+            PositionTurnAltitudeClearance,
+            new PilotVariantSet(
+                [
+                    new PilotVariant(
+                        "fly heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+                        PilotVariantTags.None
+                    ),
+                ],
+                [new PilotVariant("heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach", PilotVariantTags.None)],
+                [
+                    new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                    new PilotVariant("heading {hdg}, descending {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "fly heading {hdg}, maintain {alt}, cleared {app} runway {rwy} approach", a PTAC with no turn direction at its own
+    /// altitude (7110.65 5-6-2.a.1, 5-9-4, AIM 4-4-7.b): no progressive row; the word heading, the heading, altitude, type and
+    /// runway always stay.
+    /// </summary>
+    public static BuilderVariantSet PtacFlyHeadingMaintain { get; } =
+        new(
+            "PTAC fly heading maintain",
+            ["fly", "heading", "{hdg},", "maintain", "{alt},", "cleared", "{app}", "runway", "{rwy}", "approach"],
+            PositionTurnAltitudeClearance,
+            new PilotVariantSet(
+                [new PilotVariant("fly heading {hdg}, maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks", PilotVariantTags.None)],
+                [new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} runway {rwy} approach", PilotVariantTags.None)],
+                [
+                    new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} runway {rwy}", PilotVariantTags.None),
+                    new PilotVariant("heading {hdg}, maintain {alt}, cleared {app} {rwy}", PilotVariantTags.None),
+                ]
+            )
+        );
+
     /// <summary>Every clause-builder variant set, for the aviation-floor test over all rows.</summary>
     public static IReadOnlyList<BuilderVariantSet> BuilderVariantSets { get; } =
     [
@@ -1492,5 +1637,11 @@ public static class PhraseologyRules
         VisualApproachClearance,
         AirportVisualApproachClearance,
         FollowTrafficAirborne,
+        PtacTurnClimb,
+        PtacTurnDescend,
+        PtacTurnMaintain,
+        PtacFlyHeadingClimb,
+        PtacFlyHeadingDescend,
+        PtacFlyHeadingMaintain,
     ];
 }

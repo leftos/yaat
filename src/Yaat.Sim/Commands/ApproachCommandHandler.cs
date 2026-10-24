@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
@@ -243,7 +244,8 @@ public static class ApproachCommandHandler
     /// The readback of a PTAC (7110.65 5-6-2.a.1, 5-9-4.b, 5-9-4.c.2): "turn left heading two four zero" when the heading was given
     /// with a turn direction, else "fly heading two four zero" ("fly present heading" when <paramref name="heading"/> is
     /// null), then the altitude when one is read back, then the clearance ("cleared approach" when
-    /// <paramref name="approach"/> is null).
+    /// <paramref name="approach"/> is null); a varied pilot picks among it and the rows of the set <see cref="PtacVariants"/>
+    /// pairs it with (the six <c>PhraseologyRules.Ptac*</c> sets).
     /// </summary>
     /// <param name="heading">The heading to fly, or null for the present heading.</param>
     /// <param name="direction">The turn direction the heading was given with, or null when none was.</param>
@@ -266,6 +268,51 @@ public static class ApproachCommandHandler
 
         clauses.Add(ClearanceClause(approach));
         return JoinClauses(clauses);
+    }
+
+    /// <summary>
+    /// The variant set a varied pilot picks a PTAC readback from, by its heading kind (a turn direction or none) and its
+    /// vertical verb, and its captures: <c>{dir}</c> "left"/"right", <c>{hdg}</c> and <c>{alt}</c> spoken, <c>{app}</c> and
+    /// <c>{rwy}</c> the spoken approach and runway. Null, so the readback stays canonical in every band, for the present heading,
+    /// no altitude, an approach no readback names, or one with no runway.
+    /// </summary>
+    /// <param name="direction">The turn direction the heading was given with, or null when none was.</param>
+    /// <param name="heading">The heading to fly, or null for the present heading.</param>
+    /// <param name="altitude">The altitude read back, or null when none is.</param>
+    /// <param name="parts">The spoken approach words and runway, or null when nothing names them.</param>
+    /// <returns>The set and its captures, or null.</returns>
+    public static (BuilderVariantSet Set, IReadOnlyDictionary<string, string> Captures)? PtacVariants(
+        TurnDirection? direction,
+        MagneticHeading? heading,
+        PtacAltitude? altitude,
+        (string Approach, string? Runway)? parts
+    )
+    {
+        if ((heading is not { } flyHeading) || (altitude is not { } maintain) || (parts is not { Runway: { } runway } named))
+        {
+            return null;
+        }
+
+        PtacVertical vertical = maintain.Vertical();
+        BuilderVariantSet set = (direction is not null, vertical) switch
+        {
+            (true, PtacVertical.Climb) => PhraseologyRules.PtacTurnClimb,
+            (true, PtacVertical.Descend) => PhraseologyRules.PtacTurnDescend,
+            (true, PtacVertical.Maintain) => PhraseologyRules.PtacTurnMaintain,
+            (false, PtacVertical.Climb) => PhraseologyRules.PtacFlyHeadingClimb,
+            (false, PtacVertical.Descend) => PhraseologyRules.PtacFlyHeadingDescend,
+            (false, PtacVertical.Maintain) => PhraseologyRules.PtacFlyHeadingMaintain,
+            _ => throw new UnreachableException($"No PTAC variant set for {vertical}"),
+        };
+        Dictionary<string, string> captures = ApproachCaptures(named.Approach, runway);
+        captures["hdg"] = PhraseologyVerbalizer.HeadingDigits(flyHeading);
+        captures["alt"] = PhraseologyVerbalizer.AltitudeWords(maintain.Altitude);
+        if (direction is { } turn)
+        {
+            captures["dir"] = TurnWord(turn);
+        }
+
+        return (set, captures);
     }
 
     private static PilotSpeechText PtacHeadingClause(MagneticHeading? heading, TurnDirection? direction)
@@ -291,14 +338,32 @@ public static class ApproachCommandHandler
     /// <param name="PresentAltitude">The aircraft's present altitude, or null when the altitude is the one it keeps.</param>
     public readonly record struct PtacAltitude(int Altitude, double? PresentAltitude)
     {
-        /// <summary>"climb and maintain", "descend and maintain" or "maintain".</summary>
-        public string Verb() =>
+        /// <summary>Whether the aircraft climbs to, descends to or keeps <see cref="Altitude"/>.</summary>
+        public PtacVertical Vertical() =>
             (Altitude - PresentAltitude) switch
             {
-                > PtacLevelToleranceFt => "climb and maintain",
-                < -PtacLevelToleranceFt => "descend and maintain",
-                _ => "maintain",
+                > PtacLevelToleranceFt => PtacVertical.Climb,
+                < -PtacLevelToleranceFt => PtacVertical.Descend,
+                _ => PtacVertical.Maintain,
             };
+
+        /// <summary>"climb and maintain", "descend and maintain" or "maintain".</summary>
+        public string Verb() =>
+            Vertical() switch
+            {
+                PtacVertical.Climb => "climb and maintain",
+                PtacVertical.Descend => "descend and maintain",
+                PtacVertical.Maintain => "maintain",
+                _ => throw new UnreachableException($"No PTAC verb for {Vertical()}"),
+            };
+    }
+
+    /// <summary>The vertical part of a PTAC: a climb, a descent, or the altitude the aircraft is at.</summary>
+    public enum PtacVertical
+    {
+        Climb,
+        Descend,
+        Maintain,
     }
 
     /// <summary>Instructor advisory when the cleared/joined approach's coded data did not come from the
@@ -689,6 +754,36 @@ public static class ApproachCommandHandler
         );
     }
 
+    /// <summary>
+    /// The pilot's readback of a PTAC the handler clears, with the variant set and captures of its shape when it has one; null
+    /// when the resolved approach is of a type no readback names, which leaves the readback to the verbalizer.
+    /// </summary>
+    private static HandlerReadback? PtacHandlerReadback(
+        PositionTurnAltitudeClearanceCommand cmd,
+        CifpApproachProcedure procedure,
+        PtacHeading resolvedHeading,
+        PtacAltitude readbackAltitude
+    )
+    {
+        if (ApproachReadbackName.ForProcedure(procedure) is not { } approach)
+        {
+            return null;
+        }
+
+        MagneticHeading? heading = resolvedHeading.FromPh ? null : new MagneticHeading(resolvedHeading.Heading);
+        var readback = new HandlerReadback(
+            CommandDescriber.ToCanonicalType(cmd),
+            PtacReadback(heading, resolvedHeading.Direction, readbackAltitude, approach)
+        );
+        return PtacVariants(resolvedHeading.Direction, heading, readbackAltitude, ApproachReadbackName.SpokenParts(procedure)) is { } variants
+            ? readback with
+            {
+                Variants = variants.Set,
+                Captures = variants.Captures,
+            }
+            : readback;
+    }
+
     public static CommandResult TryPtac(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft)
     {
         ResolvedApproach resolved = ResolveApproach(cmd.ApproachId, null, aircraft);
@@ -709,14 +804,12 @@ public static class ApproachCommandHandler
         int altitude = ResolvePtacAltitude(cmd, aircraft);
         // Read back against the altitude the aircraft is at before the clearance changes its targets; a PA altitude is the
         // one it keeps, so it is always "maintain"
-        PilotSpeechText? readback = ApproachReadbackName.ForProcedure(procedure) is { } approach
-            ? PtacReadback(
-                resolvedHeading.FromPh ? null : new MagneticHeading(heading),
-                resolvedHeading.Direction,
-                new PtacAltitude(altitude, cmd.Altitude is null ? null : aircraft.Altitude),
-                approach
-            )
-            : null;
+        HandlerReadback? readback = PtacHandlerReadback(
+            cmd,
+            procedure,
+            resolvedHeading,
+            new PtacAltitude(altitude, cmd.Altitude is null ? null : aircraft.Altitude)
+        );
 
         ApplyPtacTargets(aircraft, resolvedHeading, altitude);
 
@@ -777,7 +870,7 @@ public static class ApproachCommandHandler
             $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {ptacRunway}"
         )
         {
-            PilotReadback = readback is null ? null : new HandlerReadback(CommandDescriber.ToCanonicalType(cmd), readback),
+            PilotReadback = readback,
         };
     }
 

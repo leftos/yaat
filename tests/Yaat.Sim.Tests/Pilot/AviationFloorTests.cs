@@ -11,6 +11,18 @@ namespace Yaat.Sim.Tests.Pilot;
 /// </summary>
 public class AviationFloorTests
 {
+    private const string PtacTurnDescend = "turn {dir} heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach";
+
+    private const string PtacFlyHeadingClimb = "fly heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach";
+
+    /// <summary>The PTAC cases below test the sets' own patterns, copied as constants so they can be theory data.</summary>
+    [Fact]
+    public void PtacPatternConstants_AreTheSetsPatterns()
+    {
+        Assert.Equal(PtacTurnDescend, string.Join(' ', PhraseologyRules.PtacTurnDescend.Pattern));
+        Assert.Equal(PtacFlyHeadingClimb, string.Join(' ', PhraseologyRules.PtacFlyHeadingClimb.Pattern));
+    }
+
     [Theory]
     [InlineData("descend and maintain five thousand", "down to five thousand")]
     [InlineData("climb and maintain flight level two three zero", "climbing to flight level two three zero")]
@@ -312,6 +324,68 @@ public class AviationFloorTests
     )]
     [InlineData("expect {app} runway {rwy} approach", CanonicalCommandType.ExpectApproach, "expect {app} runway {rwy}", FrequencyLoadBand.Busy)]
     [InlineData("follow the traffic", CanonicalCommandType.Follow, "following the traffic", FrequencyLoadBand.Busy)]
+    // A PTAC: a quiet courtesy; "turn" or "fly" dropped on a normal frequency; on a busy one the verb as "maintain" or the
+    // progressive, and "runway" or "approach" dropped, never the direction, the word heading, or a value.
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "turn {dir} heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{dir} heading {hdg}, descend and maintain {alt}, cleared {app} runway {rwy} approach",
+        FrequencyLoadBand.Normal
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{dir} heading {hdg}, maintain {alt}, cleared {app} runway {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{dir} heading {hdg}, maintain {alt}, cleared {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{dir} heading {hdg}, descending {alt}, cleared {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "fly heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach, {cs}, thanks",
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "heading {hdg}, climb and maintain {alt}, cleared {app} runway {rwy} approach",
+        FrequencyLoadBand.Normal
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "heading {hdg}, maintain {alt}, cleared {app} runway {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "heading {hdg}, maintain {alt}, cleared {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "heading {hdg}, climbing {alt}, cleared {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
     // "cleared to land runway" keeps the busy runway drop that "landing runway" does not have.
     [InlineData(
         "number two, cleared to land runway {rwy}",
@@ -385,6 +459,44 @@ public class AviationFloorTests
     [InlineData("join the {app} runway {rwy} approach", CanonicalCommandType.JoinApproach, "the {app} runway {rwy}", FrequencyLoadBand.Busy)]
     [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared approach", FrequencyLoadBand.Busy)]
     [InlineData("cleared {app} runway {rwy} approach", CanonicalCommandType.ClearedApproach, "cleared {app}", FrequencyLoadBand.Busy)]
+    // A PTAC never drops the word heading (F4), the turn direction given (F4), or the runway (F5); outside the busy band it
+    // keeps the word runway.
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{dir} {hdg}, maintain {alt}, cleared {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{hdg}, maintain {alt}, cleared {app} {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "heading {hdg}, maintain {alt}, cleared {app} runway {rwy}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "{dir} heading {hdg}, maintain {alt}, cleared {app}",
+        FrequencyLoadBand.Busy
+    )]
+    [InlineData(
+        PtacTurnDescend,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "turn {dir} heading {hdg}, descend and maintain {alt}, cleared {app} {rwy} approach, {cs}, thanks",
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData(
+        PtacFlyHeadingClimb,
+        CanonicalCommandType.PositionTurnAltitudeClearance,
+        "heading {hdg}, climb and maintain {alt}, cleared {app} {rwy} approach",
+        FrequencyLoadBand.Normal
+    )]
     // The runway after "landing" is the one the pilot lands on, and stays even on a busy visual clearance.
     [InlineData(
         "cleared visual approach to {apt}, landing runway {rwy}",
