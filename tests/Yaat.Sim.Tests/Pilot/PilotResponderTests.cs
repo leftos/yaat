@@ -307,7 +307,7 @@ public class PilotResponderTests
     public void BuildReadback_VariedQuietFlavor_NoFlavorOnGoAround() =>
         AssertQuietFlavors(
             MakeAircraftWithAssignedRunway("N004AB", "28R"),
-            Compound(new GoAroundCommand(null, null, null)),
+            Compound(new GoAroundCommand(null, null, null, RunwayHeading: false)),
             alrightAllowed: false,
             thanksAllowed: false
         );
