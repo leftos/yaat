@@ -299,7 +299,8 @@ public class GiveWayFlyoutTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundGiveWay, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
         host.GroundTraffic.AddRange(traffic);

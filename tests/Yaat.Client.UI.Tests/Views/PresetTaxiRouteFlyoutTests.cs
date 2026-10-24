@@ -434,7 +434,8 @@ public class PresetTaxiRouteFlyoutTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
         host.PresetTaxiChoices.AddRange(presets);

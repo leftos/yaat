@@ -427,7 +427,8 @@ public class AirborneTrafficFlyoutTests
                     ],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
         host.AirborneTraffic.AddRange(traffic);

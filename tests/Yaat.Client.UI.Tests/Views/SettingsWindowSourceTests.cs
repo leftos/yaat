@@ -73,6 +73,7 @@ public partial class SettingsWindowSourceTests
         "IsChecked={Binding FlashNoLandingClearance}",
         "IsChecked={Binding ShowConflictAlerts}",
         "IsChecked={Binding ShowTypeMismatchHints}",
+        "IsChecked={Binding ShowQuickCommandIcons}",
         "IsChecked={Binding ShowAtpa}",
         "IsChecked={Binding SyncStudentDatablockColors}",
         "IsChecked={Binding MarkStudentLimitedDatablocks}",

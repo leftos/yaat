@@ -32,7 +32,8 @@ public class RelativeTrafficTests
                 QuickCommandDefaults.For,
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             )
         );
 

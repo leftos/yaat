@@ -98,22 +98,11 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
-        AssertSequence(
-            menu,
-            "AAL123 · B738",
-            "Departure",
-            "---",
-            "Command…",
-            "Note…",
-            "All Commands",
-            "Favorite Commands",
-            "---",
-            "Display",
-            "Draw route",
-            "---",
-            "Delete"
+        AssertSequence(menu, "AAL123 · B738", "Departure", "---", "Command…", "Note…", "All Commands", "Favorite Commands", "---", "Delete");
+        Assert.Equal(
+            ["Vectors", "Approach", "Pilot reports", "Track and coordination", "---", "Warp…", "---", "Display", "Draw route"],
+            AllCommandsSequence(menu)
         );
-        Assert.Equal(["Vectors", "Approach", "Pilot reports", "Track and coordination", "---", "Warp…"], AllCommandsSequence(menu));
     }
 
     [AvaloniaFact]
@@ -127,22 +116,8 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
-        AssertSequence(
-            menu,
-            "SWA9 · B738",
-            "Departure",
-            "---",
-            "Command…",
-            "Note…",
-            "---",
-            "Display",
-            "---",
-            "Favorite Commands",
-            "All Commands",
-            "---",
-            "Delete"
-        );
-        Assert.Equal(["Track and coordination"], AllCommandsSequence(menu));
+        AssertSequence(menu, "SWA9 · B738", "Departure", "---", "Command…", "Note…", "---", "Favorite Commands", "All Commands", "---", "Delete");
+        Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(menu));
         // A surface shadow is not assumable, so it gets neither the assume items nor any relative-traffic block.
         Assert.DoesNotContain(Sequence(menu), item => item.EndsWith(" (selected)", StringComparison.Ordinal));
     }
@@ -187,8 +162,8 @@ public class ContextMenuBuilderSeamTests
         return sequence[(sequence.IndexOf("Note…") + 2)..];
     }
 
-    /// <summary>The top-level Display submenu of a menu that offers one.</summary>
-    private static MenuItem DisplayOf(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Display");
+    /// <summary>The Display submenu, last in All Commands, of a menu that offers one.</summary>
+    private static MenuItem DisplayOf(ContextMenu menu) => AllCommands(menu).Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Display");
 
     /// <summary>A canvas click on the shadow <c>SWA9</c>, the way a view builds it.</summary>
     private static MenuContext Context() => TestMenuContext.Create("SWA9", "AB", null, false, VfrCommandsForIfr.None);
@@ -217,17 +192,19 @@ public class ContextMenuBuilderSeamTests
         }
     }
 
-    // Every view gives a surface shadow the same read-only tree: track / data block, then the view's section (Display on
-    // the canvases, nothing on the list), Favorites, All Commands holding Coordination, then the foot.
+    // Every view gives a surface shadow the same read-only tree: Favorites, All Commands holding Track and coordination
+    // then the view's section (Display on the canvases, nothing on the list), then the foot.
     [AvaloniaFact]
     public void SurfaceShadow_OffersTheSameGroupsOnEveryView()
     {
         AircraftModel shadow = SurfaceShadow("SWA9");
 
-        string[] canvas = ["Display", "---", "Favorite Commands", "All Commands", "---", "Delete"];
-        Assert.Equal(canvas, AfterHeader(RadarSurfaceShadowMenu(shadow)));
-        Assert.Equal(canvas, AfterHeader(GroundSurfaceShadowMenu(shadow)));
-        Assert.Equal(["Favorite Commands", "All Commands", "---", "Delete"], AfterHeader(ListSurfaceShadowMenu(shadow)));
+        string[] root = ["Favorite Commands", "All Commands", "---", "Delete"];
+        Assert.Equal(root, AfterHeader(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal(root, AfterHeader(GroundSurfaceShadowMenu(shadow)));
+        Assert.Equal(root, AfterHeader(ListSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Track and coordination", "---", "Display"], AllCommandsSequence(GroundSurfaceShadowMenu(shadow)));
         Assert.Equal(["Track and coordination"], AllCommandsSequence(ListSurfaceShadowMenu(shadow)));
     }
 
@@ -261,21 +238,8 @@ public class ContextMenuBuilderSeamTests
 
         ContextMenu menu = view.BuildAircraftContextMenu(ground, ac, prevSelected: null, ac.Callsign);
 
-        AssertSequence(
-            menu,
-            "UAL100 · B738",
-            "At parking",
-            "---",
-            "Command…",
-            "Note…",
-            "All Commands",
-            "Favorite Commands",
-            "---",
-            "Display",
-            "---",
-            "Delete"
-        );
-        Assert.Equal(["Taxi", "Pilot reports", "Track and coordination"], AllCommandsSequence(menu));
+        AssertSequence(menu, "UAL100 · B738", "At parking", "---", "Command…", "Note…", "All Commands", "Favorite Commands", "---", "Delete");
+        Assert.Equal(["Taxi", "Pilot reports", "Track and coordination", "---", "Display"], AllCommandsSequence(menu));
         Assert.Equal(
             [
                 "Push back",

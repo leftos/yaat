@@ -89,6 +89,12 @@ public class SettingsSearchTests
     }
 
     [Theory]
+    [InlineData("quick command icons")]
+    [InlineData("icons")]
+    public void ShowQuickCommandIcons_IsFoundByItsWords(string query) =>
+        Assert.Contains(Entry(SettingsSectionId.QuickCommands, "ShowQuickCommandIcons"), Search(query).Matches);
+
+    [Theory]
     [InlineData("clear")]
     [InlineData("console")]
     [InlineData("history")]

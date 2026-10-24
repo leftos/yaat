@@ -1,0 +1,25 @@
+# radar point, icons off
+AAL202 · B738 → this point [disabled]
+OAK106035 · 8 nm, bearing 129 from the aircraft [disabled]
+---
+Fly heading 130 alias:FH
+FH 130 · right turn, 23° [disabled]
+Direct to OAK106035 alias:DCT
+Hold at OAK106035 (left) alias:HFIXL
+Hold at OAK106035 (right) alias:HFIXR
+---
+Warp here (OAK106035) alias:WARP
+  Warp · AAL202 · now 107° · 33,000 ft · 280 kt [disabled]
+  Fix or FRD · the clicked point — OAK106035
+  Heading (magnetic) — —
+  Altitude (hundreds, feet or FL) — —
+  Speed (knots IAS) — —
+  ---
+  Enter in any box sends — WARP OAK106035
+---
+Copy FRD
+Pin marker here
+---
+Measure from here
+---
+MVA 5,600 ft (sector SCK_J) [disabled]

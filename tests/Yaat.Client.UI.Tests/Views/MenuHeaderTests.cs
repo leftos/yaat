@@ -404,6 +404,20 @@ public class MenuHeaderTests
     }
 
     /// <summary>
+    /// With the quick command icons off the header is followed by the text quick commands under their category label, no
+    /// strip, then the same Command…, Note…, All Commands and Favorites block as with the icons on.
+    /// </summary>
+    [AvaloniaFact]
+    public void GroundMenu_IconsOff_StartsWithTheHeaderThenTheLabelledTextRows_AllCommandsBeforeFavorites()
+    {
+        List<string> items = TopLevel(MenuView.Ground, "at-parking-icons-off", out ContextMenu _);
+
+        Assert.Equal(["SWA101 · B738", "At parking · 25", "---", MenuCategories.Label(MenuCategory.Taxi)], items[..4]);
+        Assert.DoesNotContain(StripRow, items);
+        AssertCommandNoteAllCommandsFavorites(items);
+    }
+
+    /// <summary>
     /// Command… and Note… sit once at the top level, under the quick commands' separator, followed by All Commands,
     /// Favorites and a separator.
     /// </summary>
@@ -593,9 +607,11 @@ public class MenuHeaderTests
         main.DisplayFavorites.Clear();
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
-        AircraftModel ac = MenuGoldenFixtures.For(view).Single(f => f.Name == fixtureName).Aircraft;
+        MenuFixture fixture = MenuGoldenFixtures.For(view).Single(f => f.Name == fixtureName);
+        AircraftModel ac = fixture.Aircraft;
         setUp(ac);
         main.Aircraft.Add(ac);
+        main.Preferences.SetShowQuickCommandIcons(fixture.ShowQuickCommandIcons);
 
         menu = view switch
         {

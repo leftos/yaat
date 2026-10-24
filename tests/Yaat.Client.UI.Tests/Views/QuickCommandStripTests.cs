@@ -127,7 +127,8 @@ public class QuickCommandStripTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiPreset, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
         host.PresetTaxiChoices.Add(RecordingMenuHost.PresetRow("TERMINAL to 30", "TAXI T U W RWY 30"));
@@ -237,7 +238,8 @@ public class QuickCommandStripTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundTaxiToRunway, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
             TaxiToRunway = new TaxiToRunwayMenu(new TaxiToRunwayEndList(ends, search)),
         };

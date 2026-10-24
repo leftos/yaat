@@ -4,6 +4,7 @@
 
 ### Added
 
+- Turning off Show quick command icons (Settings › Input › Quick commands) lists the right-click menu's quick commands as text rows under category labels.
 - Quick commands offer Squawk normal to an aircraft on standby on the ground, and Squawk assigned code to one squawking the wrong code.
 - The quick-command strip holds up to fifteen icons, in three rows of five.
 - `SPD RFAS` reduces to final approach speed as `RFAS` does, and `SPDN RFAS` sets that speed at once.
@@ -24,7 +25,7 @@
 - Warp… opens a flyout of fix, heading, altitude and speed boxes, where heading, altitude and speed are optional; it is offered to airborne aircraft only.
 - Report when… opens one flyout: Stop rows for armed reports, turn reports, mile-final chips, a fix box, and nearby reporting points (VFR) or route fixes (IFR).
 - One Report when… quick command replaces At N-mile final… and At fix… in the default lists, with a dot while a report is armed.
-- All Commands groups commands by task (Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination); Track, Data Block and Squawk move into it.
+- All Commands groups commands by task, such as Runway, Taxi and Vectors; Track, Data Block, Squawk, Display and Draw route move into it.
 - Every right-click menu command row shows the command you would type, in your command scheme's own alias.
 
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.

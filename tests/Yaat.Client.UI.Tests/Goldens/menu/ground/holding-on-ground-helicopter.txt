@@ -56,15 +56,15 @@ All Commands
     Acknowledge release alias:RDACK
     ---
     Edit flight plan
+  ---
+  Display
+    Taxi route
+      Always show
+      Always hide
+      Follow “Show all” setting [checked]
+    Hide datablock
+    Measure from N812HM
 Favorite Commands
   (no items) [disabled]
----
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from N812HM
 ---
 Delete alias:DEL

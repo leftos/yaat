@@ -6,6 +6,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -19,7 +20,7 @@ public class MenuGoldenTests
     private const int DiffLines = 8;
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    /// <summary>The top-level labels that open a view's own section: the canvases' Display submenu and the radar's Draw route.</summary>
+    /// <summary>The labels that open a view's own section: the canvases' Display submenu and the radar's Draw route.</summary>
     private static readonly string[] ViewSectionHeads = ["Display", "Draw route"];
 
     private readonly NavigationDatabase _navDb;
@@ -62,6 +63,30 @@ public class MenuGoldenTests
             "ground-at-parking-taxi-to-runway",
             $"# ground at-parking, Taxi to runway opened\n{MenuTreeSnapshot.Render(taxiToRunway)}"
         );
+    }
+
+    /// <summary>
+    /// The radar point menu with the quick command icons off, for the airborne ifr-enroute fixture selected and a map point
+    /// south-east of it: no icon strip, every strip item a text row (Fly heading with its turn row, Direct to, Append direct
+    /// to, the two holds, then Warp here), then the radar's point section at the root.
+    /// </summary>
+    [AvaloniaFact]
+    public void RadarPointMenu_IconsOff_MatchesGolden()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.DisplayFavorites.Clear();
+        MenuFixture fixture = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "ifr-enroute");
+        main.Aircraft.Clear();
+        main.Aircraft.Add(fixture.Aircraft);
+        main.Preferences.SetShowQuickCommandIcons(false);
+        // A fix to name the point by, so Direct to, Append direct to and the holds have their FRD.
+        main.Radar.SetFixes([("OAK", 37.7213, -122.2208)]);
+        LatLon point = new(fixture.Aircraft.Position.Lat - 0.1, fixture.Aircraft.Position.Lon + 0.1);
+
+        ContextMenu menu = MenuHostHarness.BuildRadarPointMenu(main, fixture.Aircraft, point);
+
+        AssertGolden("filled", "radar-point-icons-off", $"# radar point, icons off\n{MenuTreeSnapshot.Render(menu)}");
     }
 
     /// <summary>
@@ -143,30 +168,37 @@ public class MenuGoldenTests
     }
 
     /// <summary>
-    /// <paramref name="golden"/> without its title line and without the view's section: each top-level block a
-    /// <see cref="ViewSectionHeads"/> label opens, its indented children, and the separator straight before the section.
+    /// <paramref name="golden"/> without its title line and without the view's section: each block a
+    /// <see cref="ViewSectionHeads"/> label opens one level down (last in All Commands), its deeper children, and the
+    /// separator at its level straight before the section.
     /// </summary>
     private static string WithoutViewSection(string golden)
     {
         var kept = new List<string>();
-        bool inSection = false;
+        int? sectionIndent = null;
         foreach (string line in golden.Split('\n').Skip(1))
         {
-            if (!line.StartsWith(' '))
+            string text = line.TrimStart(' ');
+            int indent = line.Length - text.Length;
+            bool head = (indent == 2) && ViewSectionHeads.Contains(text);
+            if ((sectionIndent is { } section) && ((indent > section) || (head && (indent == section))))
             {
-                bool head = ViewSectionHeads.Contains(line);
-                if (head && !inSection && (kept.Count > 0) && (kept[^1] == "---"))
-                {
-                    kept.RemoveAt(kept.Count - 1);
-                }
-
-                inSection = head;
+                continue;
             }
 
-            if (!inSection)
+            sectionIndent = null;
+            if (!head)
             {
                 kept.Add(line);
+                continue;
             }
+
+            if ((kept.Count > 0) && (kept[^1] == new string(' ', indent) + "---"))
+            {
+                kept.RemoveAt(kept.Count - 1);
+            }
+
+            sectionIndent = indent;
         }
 
         return string.Join('\n', kept);
@@ -257,6 +289,7 @@ public class MenuGoldenTests
                 main.Aircraft.Add(selected);
             }
 
+            main.Preferences.SetShowQuickCommandIcons(fixture.ShowQuickCommandIcons);
             ContextMenu menu = view switch
             {
                 MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected),

@@ -246,6 +246,7 @@ public static class SettingsSearchCatalog
     // The situation list and the section's own buttons; its templated situation and entry rows are not searched one by one.
     private static IEnumerable<SettingsSearchEntry> QuickCommands() =>
         [
+            Setting(SettingsSectionId.QuickCommands, "ShowQuickCommandIcons", "Show quick command icons", QuickCommand),
             Setting(SettingsSectionId.QuickCommands, "SelectedQuickCommandSituation", "Situations", QuickCommand),
             Setting(SettingsSectionId.QuickCommands, "AddQuickCommandButton", "Add command…", QuickCommand),
             Setting(SettingsSectionId.QuickCommands, "AddQuickCommandCustomEntryCommand", "Add custom", QuickCommand),

@@ -4,39 +4,6 @@ UAL402 · B738 [disabled]
 Command…
 Note…
 ---
-Display
-  Mini datablock
-  Show nav route
-  Measure from UAL402
-  ---
-  Leader direction
-    1
-    2
-    3
-    4
-    5 (default)
-    6
-    7
-    8
-    9
-  J-ring
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  Cone
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  ---
-  Blank target
-  Unblank target
----
 Favorite Commands
   (no items) [disabled]
 All Commands
@@ -56,5 +23,38 @@ All Commands
     Hold alias:RDH
     Recall alias:RDR
     Acknowledge release alias:RDACK
+  ---
+  Display
+    Mini datablock
+    Show nav route
+    Measure from UAL402
+    ---
+    Leader direction
+      1
+      2
+      3
+      4
+      5 (default)
+      6
+      7
+      8
+      9
+    J-ring
+      Clear
+      1 nm
+      2 nm
+      3 nm
+      5 nm
+      10 nm
+    Cone
+      Clear
+      1 nm
+      2 nm
+      3 nm
+      5 nm
+      10 nm
+    ---
+    Blank target
+    Unblank target
 ---
 Delete alias:DEL

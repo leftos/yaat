@@ -1,0 +1,167 @@
+# ground ifr-enroute-icons-off
+AAL202 · B738 [disabled]
+33,000 ft · 280 kt [disabled]
+---
+Vectors [disabled]
+Fly heading alias:FH
+  heading flyout
+Maintain altitude alias:CM / DM
+  maintain altitude flyout
+Direct to… alias:DCT
+  direct to flyout
+Assign speed alias:SPD …
+  speed flyout
+Cross fix… alias:CFIX
+  cross fix flyout
+Approach [disabled]
+Hold at fix… alias:HOLDP
+  hold at fix flyout
+---
+Command…
+Note…
+All Commands
+  Vectors
+    Heading [disabled]
+    Present heading alias:FPH
+    Fly heading alias:FH
+      heading flyout
+    Turn left alias:TL
+      heading flyout
+    Turn right alias:TR
+      heading flyout
+    Turn left (degrees) alias:RELL
+      heading flyout
+    Turn right (degrees) alias:RELR
+      heading flyout
+    Altitude [disabled]
+    Maintain altitude alias:CM / DM
+      maintain altitude flyout
+    Speed [disabled]
+    Assign speed alias:SPD …
+      speed flyout
+    Speed… alias:SPD …
+      speed flyout
+    Resume normal speed alias:RNS
+    Reduce to final approach speed alias:RFAS
+    Route [disabled]
+    Direct to… alias:DCT
+      direct to flyout
+    Proceed on course alias:OC
+    Cross fix… alias:CFIX
+      cross fix flyout
+    Depart fix… alias:DEPART
+      depart fix flyout
+    Join airway… alias:JAWY
+      join airway flyout
+    Join radial outbound… alias:JRADO
+      join radial flyout
+    Join radial inbound… alias:JRADI
+      join radial flyout
+    Climb via SID alias:CVIA
+  Approach
+    Cleared approach alias:CAPP …
+      approach flyout, built when it opens
+    Join approach alias:JAPP
+      approach flyout, built when it opens
+    Cleared straight-in alias:CAPPSI
+      approach flyout, built when it opens
+    Join straight-in alias:JAPPSI
+      approach flyout, built when it opens
+    Cleared approach (force) alias:CAPPF
+      approach flyout, built when it opens
+    Join approach (force) alias:JAPPF
+      approach flyout, built when it opens
+    Join final approach course alias:JFAC
+      approach flyout, built when it opens
+    Expect approach alias:EAPP
+      approach flyout, built when it opens
+    Cleared visual approach alias:CVA …
+      approach flyout, built when it opens
+    ---
+    Join STAR alias:JARR / DVIA
+      join STAR flyout
+    PTAC… alias:PTAC / PTACF
+      ptac flyout
+    ---
+    Hold at fix… alias:HOLDP
+      hold at fix flyout
+    Hold present position (left) alias:HPPL
+    Hold present position (right) alias:HPPR
+  Pattern
+    Make straight-in alias:EF
+      Runway 6L — EF 6L
+      Runway 6R — EF 6R
+      Runway 7L — EF 7L
+      Runway 7R — EF 7R
+      Runway 24L — EF 24L
+      Runway 24R — EF 24R
+      Runway 25L — EF 25L
+      Runway 25R — EF 25R
+  Pilot reports
+    Report field in sight… alias:RFIS
+      report field in sight flyout
+    Report traffic in sight… · no other aircraft airborne [disabled]
+    ---
+    Report when… alias:REPORT
+      Report when… · AAL202 [disabled]
+      Passing a fix — ···
+    ---
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+  ---
+  Warp… alias:WARP
+    Warp · AAL202 · now 107° · 33,000 ft · 280 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
+  ---
+  Display
+    Taxi route
+      Always show
+      Always hide
+      Follow “Show all” setting [checked]
+    Hide datablock
+    Measure from AAL202
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL

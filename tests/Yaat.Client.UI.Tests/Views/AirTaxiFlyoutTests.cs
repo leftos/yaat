@@ -722,7 +722,8 @@ public class AirTaxiFlyoutTests
                 _ => [new CatalogQuickCommandEntry(id, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
             AirTaxi = menu,
         };

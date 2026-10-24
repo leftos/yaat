@@ -53,15 +53,15 @@ All Commands
     Acknowledge release alias:RDACK
     ---
     Edit flight plan
+  ---
+  Display
+    Taxi route
+      Always show
+      Always hide
+      Follow “Show all” setting [checked]
+    Hide datablock
+    Measure from SWA102
 Favorite Commands
   (no items) [disabled]
----
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from SWA102
 ---
 Delete alias:DEL

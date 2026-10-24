@@ -24,7 +24,8 @@ internal static class TestMenuContext
                 QuickCommandDefaults.For,
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             )
         );
 }

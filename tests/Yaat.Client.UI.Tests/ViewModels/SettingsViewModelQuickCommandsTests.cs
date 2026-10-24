@@ -467,6 +467,26 @@ public class SettingsViewModelQuickCommandsTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
+    public void ShowQuickCommandIcons_LoadsOn_AppliesOff_AndResetSectionTurnsItBackOn()
+    {
+        var vm = new SettingsViewModel();
+        Assert.True(vm.ShowQuickCommandIcons);
+
+        vm.ShowQuickCommandIcons = false;
+        Assert.True(new UserPreferences().ShowQuickCommandIcons);
+        vm.ApplyCommand.Execute(null);
+        Assert.False(new UserPreferences().ShowQuickCommandIcons);
+
+        var reopened = new SettingsViewModel();
+        Assert.False(reopened.ShowQuickCommandIcons);
+        reopened.SelectedSection = SettingsSectionId.QuickCommands;
+        reopened.ResetSectionCommand.Execute(null);
+        Assert.True(reopened.ShowQuickCommandIcons);
+        reopened.ApplyCommand.Execute(null);
+        Assert.True(new UserPreferences().ShowQuickCommandIcons);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
     public void Cancel_WithoutApply_WritesNothing()
     {
         var vm = new SettingsViewModel();

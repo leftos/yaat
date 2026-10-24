@@ -1,0 +1,228 @@
+# list pattern-vfr-icons-off
+N307AB · C172 [disabled]
+Downwind · 1,000 ft · 90 kt · KOAK rwy 28R [disabled]
+---
+Runway [disabled]
+Cleared to land 28R alias:CLAND
+Cleared for the option 28R alias:COPT
+Touch and go 28R alias:TG
+Go around 28R alias:GA
+Pattern [disabled]
+Follow traffic… · no other aircraft airborne [disabled]
+Extend pattern leg alias:EXT
+Make short approach alias:SA
+Make left 360 alias:L360
+Make right 360 alias:R360
+Turn base alias:TB
+---
+Command…
+Note…
+All Commands
+  Runway
+    Cleared to land 28R alias:CLAND
+    Force landing 28R alias:CLANDF
+    Cleared for the option 28R alias:COPT
+    Touch and go 28R alias:TG
+    Stop and go 28R alias:SG
+    Low approach 28R alias:LA
+    Go around 28R alias:GA
+  Vectors
+    Heading [disabled]
+    Present heading alias:FPH
+    Fly heading alias:FH
+      heading flyout
+    Turn left alias:TL
+      heading flyout
+    Turn right alias:TR
+      heading flyout
+    Turn left (degrees) alias:RELL
+      heading flyout
+    Turn right (degrees) alias:RELR
+      heading flyout
+    Altitude [disabled]
+    Maintain altitude alias:CM / DM
+      maintain altitude flyout
+    Speed [disabled]
+    Assign speed alias:SPD …
+      speed flyout
+    Speed… alias:SPD …
+      speed flyout
+    Resume normal speed alias:RNS
+    Reduce to final approach speed alias:RFAS
+    Route [disabled]
+    Direct to… alias:DCT
+      direct to flyout
+    Proceed on course alias:OC
+    Cross fix… alias:CFIX
+      cross fix flyout
+    Depart fix… alias:DEPART
+      depart fix flyout
+    Join airway… alias:JAWY
+      join airway flyout
+    Join radial outbound… alias:JRADO
+      join radial flyout
+    Join radial inbound… alias:JRADI
+      join radial flyout
+    Climb via SID alias:CVIA
+  Approach
+    Cleared approach alias:CAPP …
+      approach flyout, built when it opens
+    Join approach alias:JAPP
+      approach flyout, built when it opens
+    Cleared straight-in alias:CAPPSI
+      approach flyout, built when it opens
+    Join straight-in alias:JAPPSI
+      approach flyout, built when it opens
+    Cleared approach (force) alias:CAPPF
+      approach flyout, built when it opens
+    Join approach (force) alias:JAPPF
+      approach flyout, built when it opens
+    Join final approach course alias:JFAC
+      approach flyout, built when it opens
+    Expect approach alias:EAPP
+      approach flyout, built when it opens
+    ---
+    Join STAR alias:JARR / DVIA
+      join STAR flyout
+    PTAC… alias:PTAC / PTACF
+      ptac flyout
+    ---
+    Hold present position (left) alias:HPPL
+    Hold present position (right) alias:HPPR
+    Left 360s at fix… alias:HFIXL
+      360s at fix flyout
+    Right 360s at fix… alias:HFIXR
+      360s at fix flyout
+  Pattern
+    Enter left downwind alias:ELD
+      Runway 10L — ELD 10L
+      Runway 10R — ELD 10R
+      Runway 12 — ELD 12
+      Runway 15 — ELD 15
+      Runway 28L — ELD 28L
+      Runway 28R — ELD 28R
+      Runway 30 — ELD 30
+      Runway 33 — ELD 33
+    Enter right downwind alias:ERD
+      Runway 10L — ERD 10L
+      Runway 10R — ERD 10R
+      Runway 12 — ERD 12
+      Runway 15 — ERD 15
+      Runway 28L — ERD 28L
+      Runway 28R — ERD 28R
+      Runway 30 — ERD 30
+      Runway 33 — ERD 33
+    Enter left base alias:ELB
+      Runway 10L — ELB 10L
+      Runway 10R — ELB 10R
+      Runway 12 — ELB 12
+      Runway 15 — ELB 15
+      Runway 28L — ELB 28L
+      Runway 28R — ELB 28R
+      Runway 30 — ELB 30
+      Runway 33 — ELB 33
+    Enter right base alias:ERB
+      Runway 10L — ERB 10L
+      Runway 10R — ERB 10R
+      Runway 12 — ERB 12
+      Runway 15 — ERB 15
+      Runway 28L — ERB 28L
+      Runway 28R — ERB 28R
+      Runway 30 — ERB 30
+      Runway 33 — ERB 33
+    Make straight-in alias:EF
+      Runway 10L — EF 10L
+      Runway 10R — EF 10R
+      Runway 12 — EF 12
+      Runway 15 — EF 15
+      Runway 28L — EF 28L
+      Runway 28R — EF 28R
+      Runway 30 — EF 30
+      Runway 33 — EF 33
+    ---
+    Turn base alias:TB
+    ---
+    Extend pattern leg alias:EXT
+    Make short approach alias:SA
+    Make normal approach alias:MNA
+    ---
+    Make left 360 alias:L360
+    Make right 360 alias:R360
+    Make left 270 alias:L270
+    Make right 270 alias:R270
+    Plan 270 at next turn alias:P270
+    Cancel 270 alias:NO270
+    ---
+    Circle airport alias:CA
+    ---
+    Make left closed traffic alias:MLT
+    Make right closed traffic alias:MRT
+    Follow traffic… · no other aircraft airborne [disabled]
+  Pilot reports
+    Report field in sight… alias:RFIS
+      report field in sight flyout
+    Report traffic in sight… · no other aircraft airborne [disabled]
+    ---
+    Report when… alias:REPORT
+      Report when… · N307AB · RWY 28R [disabled]
+      Mile final — ···
+      Passing a fix — ···
+      Reporting points · nearest first [disabled]
+      VPBCQ · 0.4 NM · 125° — REPORT VPBCQ
+      OAK30NUM · 0.9 NM · 224° — REPORT OAK30NUM
+      VPCOL · 2.5 NM · 350° — REPORT VPCOL
+      VPBCR · 2.7 NM · 159° — REPORT VPBCR
+      VPBEH · 2.9 NM · 205° — REPORT VPBEH
+      VPBCN · 3.3 NM · 297° — REPORT VPBCN
+    ---
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+  ---
+  Warp… alias:WARP
+    Warp · N307AB · now 267° · 1,000 ft · 90 kt [disabled]
+    Fix or FRD — ···
+    Heading (magnetic) — —
+    Altitude (hundreds, feet or FL) — —
+    Speed (knots IAS) — —
+    ---
+    Enter in any box sends — can't send
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL

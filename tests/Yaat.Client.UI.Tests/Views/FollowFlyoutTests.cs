@@ -351,7 +351,8 @@ public class FollowFlyoutTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.GroundFollow, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
         host.GroundTraffic.AddRange(traffic);

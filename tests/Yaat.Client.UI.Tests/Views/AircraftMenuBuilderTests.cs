@@ -20,15 +20,16 @@ public class AircraftMenuBuilderTests
     private const string StripRow = "[strip]";
 
     /// <summary>
-    /// The main menu runs: the header, the strip, Command… and Note…, All Commands, Favorites, then Track, Data Block,
-    /// Squawk, the view section and Delete.
+    /// The main menu runs: the header, the strip, Command… and Note…, All Commands (ending with the view section),
+    /// Favorites, then Delete.
     /// </summary>
     [AvaloniaFact]
     public void MainMenu_TopLevelRunsHeaderStripCommandNoteAllCommandsFavoritesThenTheFixedGroups()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
 
-        List<string> items = Sequence(Build(Fixture("final-ifr"), new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]));
+        ContextMenu menu = Build(Fixture("final-ifr"), new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]);
+        List<string> items = Sequence(menu);
 
         Assert.Equal(
             [
@@ -42,12 +43,11 @@ public class AircraftMenuBuilderTests
                 AllCommands,
                 Label(MenuIds.FavoritesMenu),
                 "---",
-                ViewItem,
-                "---",
                 Label(MenuIds.SimControlDelete),
             ],
             items
         );
+        Assert.Equal(["---", ViewItem], Sequence(AllCommandsItem(menu))[^2..]);
     }
 
     /// <summary>A held departure's Release (HFR) and a call-for-release window's Check release window lead the strip and leave the header.</summary>
@@ -122,7 +122,8 @@ public class AircraftMenuBuilderTests
                     ],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
 
@@ -130,6 +131,88 @@ public class AircraftMenuBuilderTests
 
         Assert.Equal([MenuIds.CoordinationCheckReleaseWindow, MenuIds.GroundPushback], StripTags(menu));
         Assert.DoesNotContain(Label(MenuIds.CoordinationCheckReleaseWindow), Sequence(menu));
+    }
+
+    /// <summary>
+    /// With the icons off the release row leads the text quick commands unlabelled, the catalog entries follow under their
+    /// category label, and a custom entry comes last, after a separator and unlabelled.
+    /// </summary>
+    [AvaloniaFact]
+    public void IconsOff_ReleaseLeads_CategoriesLabelled_CustomEntryLastUnlabelled()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("at-parking");
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        var host = new RecordingMenuHost("")
+        {
+            Session = new MenuSession(
+                "AB",
+                false,
+                VfrCommandsForIfr.None,
+                _ =>
+                    [
+                        new CustomQuickCommandEntry("Say altitude", "SALT", null, MenuFlightRules.Both),
+                        new CatalogQuickCommandEntry(MenuIds.GroundPushback, null),
+                        new CatalogQuickCommandEntry(MenuIds.CoordinationCheckReleaseWindow, null),
+                    ],
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: false
+            ),
+        };
+
+        ContextMenu menu = Build(ac, host, _ => []);
+        List<string> items = Sequence(menu);
+
+        int command = items.IndexOf(Label(MenuIds.AircraftCommand));
+        Assert.Equal(
+            [
+                "---",
+                Label(MenuIds.CoordinationCheckReleaseWindow),
+                MenuCategories.Label(MenuCategory.Taxi),
+                Label(MenuIds.GroundPushback),
+                "---",
+                "Say altitude",
+                "---",
+            ],
+            items[(command - 7)..command]
+        );
+        Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+        MenuItem custom = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == "Say altitude");
+        Assert.True(custom.IsEnabled);
+    }
+
+    /// <summary>
+    /// A custom quick entry's row builds, icons on or off, and shows as its alias the verb its click would send for the
+    /// aircraft as the menu is built: the ground text on the ground, the air text in the air.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("at-parking", true, "TAXI")]
+    [InlineData("at-parking", false, "TAXI")]
+    [InlineData("ifr-enroute", true, "SALT")]
+    [InlineData("ifr-enroute", false, "SALT")]
+    public void CustomQuickEntry_Builds_AndShowsTheVerbItWouldSend(string fixture, bool showIcons, string verb)
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("")
+        {
+            Session = new MenuSession(
+                "AB",
+                false,
+                VfrCommandsForIfr.None,
+                _ => [new CustomQuickCommandEntry("Mine", "SALT", "TAXI A", MenuFlightRules.Both)],
+                SoloAdvisoryPrefill.TrueValues,
+                false,
+                CommandScheme.Default(),
+                showIcons
+            ),
+        };
+
+        ContextMenu menu = Build(Fixture(fixture), host, _ => []);
+
+        MenuItem custom = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == "Mine");
+        Assert.Equal(MenuAliases.Display([verb], CommandScheme.Default()), MenuAlias.GetText(custom));
     }
 
     [AvaloniaFact]
@@ -194,7 +277,8 @@ public class AircraftMenuBuilderTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "live-traffic-surface").Aircraft;
 
-        List<string> items = Sequence(Build(ac, new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]));
+        ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]);
+        List<string> items = Sequence(menu);
 
         Assert.Equal(
             [
@@ -203,8 +287,6 @@ public class AircraftMenuBuilderTests
                 Label(MenuIds.AircraftCommand),
                 Label(MenuIds.AircraftNote),
                 "---",
-                ViewItem,
-                "---",
                 Label(MenuIds.FavoritesMenu),
                 AllCommands,
                 "---",
@@ -212,6 +294,7 @@ public class AircraftMenuBuilderTests
             ],
             items
         );
+        Assert.Equal(["---", ViewItem], Sequence(AllCommandsItem(menu))[^2..]);
     }
 
     [AvaloniaFact]
@@ -354,18 +437,19 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void ViewSection_SitsAfterFavoritesBeforeTheFoot()
+    public void ViewSection_SitsLastInAllCommands_FavoritesThenTheFoot()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
 
         AircraftModel ac = Fixture("ifr-enroute");
 
-        List<string> items = Sequence(Build(ac, host, _ => [new MenuItem { Header = ViewItem }]));
+        ContextMenu menu = Build(ac, host, _ => [new MenuItem { Header = ViewItem }]);
+        List<string> items = Sequence(menu);
 
-        int view = items.IndexOf(ViewItem);
-        Assert.Equal([Label(MenuIds.FavoritesMenu), "---", ViewItem, "---"], items[(view - 2)..(view + 2)]);
-        Assert.Equal(Label(MenuIds.SimControlDelete), items[^1]);
+        Assert.DoesNotContain(ViewItem, items);
+        Assert.Equal(["Warp…", "---", ViewItem], Sequence(AllCommandsItem(menu))[^3..]);
+        Assert.Equal([AllCommands, Label(MenuIds.FavoritesMenu), "---", Label(MenuIds.SimControlDelete)], items[^4..]);
         Assert.Equal([ac.Callsign], Assert.Single(host.RpoRequests));
     }
 
@@ -664,7 +748,8 @@ public class AircraftMenuBuilderTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.ApproachJoin, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
 }

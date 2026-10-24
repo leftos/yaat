@@ -145,15 +145,15 @@ All Commands
     Speed (knots IAS) — —
     ---
     Enter in any box sends — can't send
+  ---
+  Display
+    Taxi route
+      Always show
+      Always hide
+      Follow “Show all” setting [checked]
+    Hide datablock
+    Measure from AAL207
 Favorite Commands
   (no items) [disabled]
----
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from AAL207
 ---
 Delete alias:DEL

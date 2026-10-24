@@ -1,0 +1,69 @@
+# list at-parking-icons-off
+SWA101 · B738 [disabled]
+At parking · 25 [disabled]
+---
+Taxi [disabled]
+Push back alias:PUSH
+Preset taxi route alias:TAXI
+  TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
+Draw taxi route…
+Push back to… alias:PUSH
+  Computing targets… [disabled]
+---
+Command…
+Note…
+All Commands
+  Taxi
+    Push back alias:PUSH
+    Push back to… alias:PUSH
+      Computing targets… [disabled]
+    Push route…
+    Taxi to runway alias:TAXI
+      Finding runway entries…
+    Preset taxi route alias:TAXI
+      TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
+    Follow… · no other aircraft on the ground [disabled]
+    Draw taxi route…
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL

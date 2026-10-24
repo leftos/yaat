@@ -21,7 +21,11 @@ internal enum MenuView
 /// One golden fixture: the right-clicked aircraft and, for a relative selection, the aircraft selected before the
 /// right-click. <see cref="Name"/> is the golden file's name.
 /// </summary>
-internal sealed record MenuFixture(string Name, AircraftModel Aircraft, AircraftModel? Selected);
+internal sealed record MenuFixture(string Name, AircraftModel Aircraft, AircraftModel? Selected)
+{
+    /// <summary>The controller's "Show quick command icons" setting the menu is built under; on unless the fixture turns it off.</summary>
+    public bool ShowQuickCommandIcons { get; init; } = true;
+}
 
 /// <summary>
 /// The fixed aircraft the menu goldens right-click, with the committed NavData, CIFP and KOAK layout they are built
@@ -69,19 +73,23 @@ internal static class MenuGoldenFixtures
     /// <summary>The KOAK layout <see cref="OakLayoutForClient"/> is sent from, as the simulation parses it.</summary>
     public static AirportGroundLayout OakLayoutForSim => OakLayout.Value;
 
+    /// <summary>
+    /// The fixtures rendered a second time with the quick command icons off, each as <c>{name}-icons-off</c>: an airborne
+    /// IFR aircraft, a ground aircraft at parking, a ground departure held for release (its release rows lead the
+    /// quick commands), a VFR aircraft in the pattern and a delayed spawn held for release.
+    /// </summary>
+    private static readonly string[] IconsOffNames = ["ifr-enroute", "at-parking", "held-for-release", "pattern-vfr", "delayed-spawn-held"];
+
     /// <summary>The fixtures one view's goldens cover, in golden-file order.</summary>
     public static IReadOnlyList<MenuFixture> For(MenuView view)
     {
         AirportGroundLayout layout = OakLayout.Value;
         List<MenuFixture> fixtures =
         [
-            .. GroundFixtures(layout),
-            .. AirborneIfrFixtures(),
-            .. TrackStateFixtures(),
-            .. AirborneVfrFixtures(),
-            .. LiveTrafficFixtures(layout),
-            DelayedSpawn(),
-            DelayedSpawnHeld(),
+            .. SharedFixtures(layout),
+            .. SharedFixtures(layout)
+                .Where(fixture => IconsOffNames.Contains(fixture.Name))
+                .Select(fixture => fixture with { Name = fixture.Name + "-icons-off", ShowQuickCommandIcons = false }),
         ];
         switch (view)
         {
@@ -96,6 +104,18 @@ internal static class MenuGoldenFixtures
 
         return fixtures;
     }
+
+    /// <summary>The fixtures every view renders, built fresh at each call.</summary>
+    private static List<MenuFixture> SharedFixtures(AirportGroundLayout layout) =>
+        [
+            .. GroundFixtures(layout),
+            .. AirborneIfrFixtures(),
+            .. TrackStateFixtures(),
+            .. AirborneVfrFixtures(),
+            .. LiveTrafficFixtures(layout),
+            DelayedSpawn(),
+            DelayedSpawnHeld(),
+        ];
 
     private static AirportGroundLayout ParseOakLayout()
     {

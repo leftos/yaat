@@ -31,6 +31,9 @@ public sealed record MenuContext(MenuClick Click, MenuSession Session)
     /// <summary>The controller's command scheme, whose primary verbs the rows' command aliases show.</summary>
     public CommandScheme Scheme => Session.Scheme;
 
+    /// <summary>Whether the menu draws its quick commands as icon strips (<see cref="MenuSession.ShowQuickCommandIcons"/>).</summary>
+    public bool ShowQuickCommandIcons => Session.ShowQuickCommandIcons;
+
     /// <summary>The effective quick-command list for <paramref name="situation"/>: the controller's stored list, else the default.</summary>
     public IReadOnlyList<QuickCommandEntry> QuickCommandListFor(AircraftSituation situation) => Session.QuickCommandLists(situation);
 }

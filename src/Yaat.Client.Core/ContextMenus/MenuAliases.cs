@@ -187,12 +187,14 @@ public static class MenuAliases
 
     /// <summary>
     /// The alias <paramref name="id"/>'s row shows under <paramref name="scheme"/>: its <see cref="CanonicalVerbs"/> entry
-    /// as <see cref="Display(IReadOnlyList{string}, CommandScheme)"/> writes it; null for an id in <see cref="NoVerb"/>.
+    /// as <see cref="Display(IReadOnlyList{string}, CommandScheme)"/> writes it; null for an id in <see cref="NoVerb"/>, and
+    /// for a custom quick entry (<see cref="CustomQuickCommandEntry.MenuId"/>), whose builder records the alias of the
+    /// command it sends itself and leaves an empty command with none.
     /// </summary>
     /// <exception cref="KeyNotFoundException">When <paramref name="id"/> is in neither table.</exception>
     public static string? Display(string id, CommandScheme scheme)
     {
-        if (NoVerb.Contains(id))
+        if (NoVerb.Contains(id) || (id == CustomQuickCommandEntry.MenuId))
         {
             return null;
         }

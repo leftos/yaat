@@ -167,24 +167,31 @@ public class GroundMovementMenuTests
         Assert.All(["Track", "Data block", "Squawk"], header => Assert.Contains(header, headers));
     }
 
-    // The ground's canvas items live in its view section: one Display submenu after Favorites, and none of
-    // them flat at the top level or in the command tree.
+    // The ground's canvas items live in its view section: one Display submenu last in All Commands after a separator,
+    // and none of them flat at the top level or in the command tree.
     [AvaloniaFact]
     public void GroundMenu_DisplayIsASubmenuInTheViewSection()
     {
         ContextMenu menu = BuildWholeGroundMenu(GroundAircraft("UAL100", "Taxiing", held: false));
-        List<object?> items = [.. menu.Items];
+        MenuItem all = AllCommands(menu);
+        List<object?> items = [.. all.Items];
 
-        MenuItem display = Assert.Single(menu.Items.OfType<MenuItem>(), m => (m.Header as string) == "Display");
+        MenuItem display = Assert.Single(all.Items.OfType<MenuItem>(), m => (m.Header as string) == "Display");
         List<string> displayHeaders = [.. display.Items.OfType<MenuItem>().Select(m => m.Header as string ?? "")];
         Assert.Equal(["Taxi route", "Hide datablock", "Measure from UAL100"], displayHeaders);
 
         int displayIndex = items.IndexOf(display);
         Assert.IsType<Separator>(items[displayIndex - 1]);
-        Assert.IsType<Separator>(items[displayIndex + 1]);
+        Assert.Equal(items.Count - 1, displayIndex);
         Assert.Contains("Edit flight plan", Headers(menu));
+        Assert.DoesNotContain("Display", TopHeaders(menu));
 
-        foreach (List<string> headers in (List<string>[])[Headers(menu), TopHeaders(menu)])
+        List<string> commandTree =
+        [
+            .. HeadersIn(all.Items),
+            .. all.Items.OfType<MenuItem>().Where(group => group != display).SelectMany(group => HeadersIn(group.Items)),
+        ];
+        foreach (List<string> headers in (List<string>[])[commandTree, TopHeaders(menu)])
         {
             Assert.DoesNotContain("Taxi route", headers);
             Assert.DoesNotContain("Hide datablock", headers);

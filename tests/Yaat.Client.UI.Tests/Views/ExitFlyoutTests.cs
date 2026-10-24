@@ -619,7 +619,8 @@ public class ExitFlyoutTests
                 _ => [new CatalogQuickCommandEntry(MenuIds.TowerExitLeft, null), new CatalogQuickCommandEntry(MenuIds.TowerExitRight, null)],
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             ),
         };
 

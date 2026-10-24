@@ -1,0 +1,74 @@
+# list held-for-release-icons-off
+SWA108 · B738 [disabled]
+Taxiing [disabled]
+---
+Release (HFR) alias:REL
+Taxi [disabled]
+Hold position alias:HOLD
+Follow… · no other aircraft on the ground [disabled]
+Ignore ground conflicts (15 s) alias:BREAK
+---
+Command…
+Note…
+All Commands
+  Runway
+    Line up and wait 30 alias:LUAW
+    Cleared for takeoff 30 alias:CTO
+      Cleared for takeoff — CTO
+      Fly heading — CTO ···
+      Fly runway heading — CTO RH
+      ---
+      Custom — CTO
+  Taxi
+    Hold position alias:HOLD
+    Taxi to runway alias:TAXI
+      Finding runway entries…
+    Preset taxi route alias:TAXI
+      30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
+    Follow… · no other aircraft on the ground [disabled]
+    Give way to… · no other aircraft on the ground [disabled]
+    Ignore ground conflicts (15 s) alias:BREAK
+    Draw taxi route…
+  Pilot reports
+    Ask pilot to say…
+      Altitude
+      Heading
+      Speed
+      Mach
+      Position
+      Expected approach
+      ---
+      Custom — SAY ···
+  Track and coordination
+    Track [disabled]
+    Initiate Track alias:TRACK
+    Data block [disabled]
+    Scratchpad… alias:SP1 / SP2
+      Scratchpad — SP ···
+    Temporary altitude… alias:TEMPALT
+      temporary altitude flyout
+    Cruise… alias:CRUISE
+      cruise flyout
+    Annotate alias:ANNOTATE
+    Squawk [disabled]
+    Squawk
+      Code — SQ ···
+      ---
+      Squawk assigned code
+      Squawk random
+      Squawk VFR
+      Squawk normal
+      Squawk standby
+      ---
+      Ident
+    Coordination [disabled]
+    Release alias:RD
+    Hold alias:RDH
+    Recall alias:RDR
+    Acknowledge release alias:RDACK
+    ---
+    Edit flight plan
+Favorite Commands
+  (no items) [disabled]
+---
+Delete alias:DEL

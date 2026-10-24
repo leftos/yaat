@@ -81,6 +81,29 @@ public class SettingsBundlePreferencesTests
     }
 
     [Fact]
+    public void ShowQuickCommandIcons_DefaultsOn_AndRoundTripsThroughTheBundle()
+    {
+        var preferences = new UserPreferences();
+        Assert.True(preferences.ShowQuickCommandIcons);
+        Assert.Contains("showQuickCommandIcons", UserPreferences.BundledPreferenceKeys);
+        Assert.True(preferences.ExportBundlePreferences()["showQuickCommandIcons"]!.GetValue<bool>());
+
+        try
+        {
+            PreferencesImportResult result = preferences.ImportBundlePreferences(new JsonObject { ["showQuickCommandIcons"] = false });
+
+            Assert.Equal(["showQuickCommandIcons"], result.AppliedKeys);
+            Assert.False(preferences.ShowQuickCommandIcons);
+            Assert.False(preferences.ExportBundlePreferences()["showQuickCommandIcons"]!.GetValue<bool>());
+            Assert.False(new UserPreferences().ShowQuickCommandIcons);
+        }
+        finally
+        {
+            preferences.SetShowQuickCommandIcons(true);
+        }
+    }
+
+    [Fact]
     public void PreferencesImport_AppliesAllowlistedKeys_AndIgnoresEverythingElse()
     {
         var preferences = new UserPreferences();

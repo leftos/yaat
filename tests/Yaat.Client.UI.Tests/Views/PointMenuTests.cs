@@ -559,6 +559,21 @@ public class PointMenuTests
         Assert.Equal([(Callsign, "TAXI B", "AB")], host.Sent);
     }
 
+    // With the quick command icons off the ground point menu drops its strip; its text rows already carry every strip item.
+    [AvaloniaFact]
+    public void GroundPoint_IconsOff_DropsTheStrip_KeepsTheTextRows()
+    {
+        var host = new RecordingMenuHost("");
+        host = new RecordingMenuHost("") { Session = host.Session with { ShowQuickCommandIcons = false } };
+        host.TaxiChoices.Add(new MenuCommandChoice("Taxi via A", "TAXI A", null, []));
+        host.TaxiChoices.Add(new MenuCommandChoice("Taxi via B", "TAXI B", null, []));
+
+        ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
+
+        Assert.Equal(["Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(Body(menu)));
+        Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+    }
+
     [AvaloniaFact]
     public void TaxiHere_SeveralChoices_WrapUnderTaxiHere()
     {

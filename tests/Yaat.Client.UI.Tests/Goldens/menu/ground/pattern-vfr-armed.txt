@@ -223,15 +223,15 @@ All Commands
     Speed (knots IAS) — —
     ---
     Enter in any box sends — can't send
+  ---
+  Display
+    Taxi route
+      Always show
+      Always hide
+      Follow “Show all” setting [checked]
+    Hide datablock
+    Measure from N310AB
 Favorite Commands
   (no items) [disabled]
----
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from N310AB
 ---
 Delete alias:DEL

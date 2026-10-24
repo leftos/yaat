@@ -34,6 +34,7 @@ public sealed partial class UserPreferences
         ("validateDctFixes", Flag),
         ("euroScopeMode", Flag),
         ("vfrCommandsForIfr", EnumName<VfrCommandsForIfr>()),
+        ("showQuickCommandIcons", Flag),
         ("soloTrainingMode", Flag),
         ("soloParkingInitialCallupRatePercent", IntRange(0, 200)),
         ("soloArrivalGeneratorRatePercent", IntRange(0, 100)),

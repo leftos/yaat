@@ -1,8 +1,10 @@
+using Avalonia;
 using Avalonia.Controls;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -23,6 +25,23 @@ internal static class MenuHostHarness
         {
             main.Radar.SelectedAircraft = selected ?? ac;
             return view.BuildAircraftContextMenu(main.Radar, ac, selected, ac.Callsign);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>The radar's point menu for a right-click on empty map at <paramref name="position"/> with <paramref name="selected"/> selected.</summary>
+    public static ContextMenu BuildRadarPointMenu(MainViewModel main, AircraftModel selected, LatLon position)
+    {
+        var view = new RadarView { DataContext = main.Radar };
+        var window = new Window { DataContext = main, Content = view };
+        window.Show();
+        try
+        {
+            main.Radar.SelectedAircraft = selected;
+            return view.BuildMapPointMenu(main.Radar, position, new Point(10, 10));
         }
         finally
         {

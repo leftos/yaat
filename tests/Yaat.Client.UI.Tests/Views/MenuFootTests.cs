@@ -27,8 +27,8 @@ public class MenuFootTests
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Draw route", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
-        Assert.Equal(["---", "Warp…", "Release to live feed"], commands[^3..]);
+        Assert.Equal(["Favorite Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
+        Assert.Equal(["---", "Warp…", "Release to live feed", "---", "Display", "Draw route"], commands[^6..]);
     }
 
     [AvaloniaFact]
@@ -59,8 +59,8 @@ public class MenuFootTests
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Favorite Commands", "---", "Display", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
-        Assert.Equal(["Track and coordination", "---", "Release to live feed"], commands[^3..]);
+        Assert.Equal(["Note…", "All Commands", "Favorite Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Track and coordination", "---", "Release to live feed", "---", "Display"], commands[^5..]);
     }
 
     // The list's view section is empty, so the foot follows Favorites; Edit flight plan stays in the command tree, before

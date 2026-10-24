@@ -340,6 +340,13 @@ public sealed partial class UserPreferences
     /// of this flag; hide it through the column chooser like any other column.
     /// </summary>
     public bool ShowTypeMismatchHints => _data.ShowTypeMismatchHints;
+
+    /// <summary>
+    /// Whether the context menus draw their quick commands as icon strips (the aircraft menu's, the radar point menu's and
+    /// a delayed spawn's release strip). Off lists them as text rows instead. Default on.
+    /// </summary>
+    public bool ShowQuickCommandIcons => _data.ShowQuickCommandIcons;
+
     public bool ShowAtpa => _data.ShowAtpa;
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
@@ -975,6 +982,12 @@ public sealed partial class UserPreferences
     public void SetShowTypeMismatchHints(bool enabled)
     {
         _data.ShowTypeMismatchHints = enabled;
+        Save();
+    }
+
+    public void SetShowQuickCommandIcons(bool enabled)
+    {
+        _data.ShowQuickCommandIcons = enabled;
         Save();
     }
 
@@ -2119,6 +2132,7 @@ public sealed partial class UserPreferences
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", false),
             ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
+            ShowQuickCommandIcons = GetFieldOr(obj, "showQuickCommandIcons", true),
             ShowAtpa = GetFieldOr(obj, "showAtpa", false),
             SyncStudentDatablockColors = GetFieldOr(obj, "syncStudentDatablockColors", true),
             MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
@@ -2525,6 +2539,7 @@ public sealed partial class UserPreferences
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; }
         public bool ShowTypeMismatchHints { get; set; } = true;
+        public bool ShowQuickCommandIcons { get; set; } = true;
         public bool ShowAtpa { get; set; }
         public bool ShowSpeechBubbles { get; set; }
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;

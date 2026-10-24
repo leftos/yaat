@@ -555,7 +555,8 @@ public class AircraftCommandApplicabilityTests
                 QuickCommandDefaults.For,
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             )
         );
 
@@ -919,7 +920,8 @@ public class AircraftCommandApplicabilityTests
                 QuickCommandDefaults.For,
                 SoloAdvisoryPrefill.TrueValues,
                 false,
-                CommandScheme.Default()
+                CommandScheme.Default(),
+                ShowQuickCommandIcons: true
             )
         );
 

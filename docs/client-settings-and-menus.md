@@ -50,6 +50,10 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **One hub, opened from every old entry point.** One window (`Views/ImportExportWindow`, `ViewModels/ImportExportViewModel.cs`) exports and imports every item type: preferences, macros, command verbs, favorites, the aircraft-list grid layout and layouts. The per-feature buttons (Settings › Macros and Command verbs, the favorites panel header, the column chooser) open it with their item ticked; Tools › Import / Export… and Settings › General open it with nothing ticked.
 
+**Show quick command icons** (Input › Quick commands, default on) is the `showQuickCommandIcons` preference (`UserPreferences.ShowQuickCommandIcons`, `SettingsViewModel.ShowQuickCommandIcons`). It follows OK/Apply/Cancel, travels in the settings bundle as a flag, is found by Settings search, and the section's Reset turns it back on along with the quick-command lists.
+
+`ClientMenuHost` hands it to the menus as `MenuSession.ShowQuickCommandIcons`; what it changes is in [client-context-menus.md](client-context-menus.md) (Icons off).
+
 **The bundle is a zip of the single-item files.** A `.yaat-settings.zip` holds a `manifest.json` and one file per item, each in its single-item format. A single-item export keeps that item's own extension (`.yaat-macros.json`, `.yaat-verbs.json`, `.yaat-favset.zip` / `.yaat-favlibrary.zip`, `.yaat-grid-layout.json`), so files exported before the hub still import. Preferences and layouts have no single-item file and always travel in a bundle.
 
 **Merge or Replace per item, then a clash list.** Merge is offered for macros, favorites and layouts; preferences, verbs and the grid layout import by Replace only (`SettingsBundleFormats.SupportsMerge`). Each row says what its mode will do. Under Merge, an incoming named entry that matches an existing one (an import clash) is listed with Skip, Overwrite or Rename, as the macro import did before the hub.

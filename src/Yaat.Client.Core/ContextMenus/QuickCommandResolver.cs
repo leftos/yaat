@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Avalonia.Controls;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Situation;
 
@@ -164,8 +165,25 @@ public static class QuickCommandResolver
             entry.Label,
             entry.FlightRules,
             (_, _) => true,
-            (_, menuContext, host) => MenuCatalog.BuildGatedSend(entry.Label, () => entry.CommandFor(aircraft), menuContext, host)
+            (_, menuContext, host) => BuildCustom(entry, aircraft, menuContext, host)
         );
+    }
+
+    /// <summary>
+    /// A custom entry's row, carrying as its alias the first verb of the command its click would send for
+    /// <paramref name="aircraft"/> as the menu is built (<see cref="CustomQuickCommandEntry.CommandFor"/>: the ground text
+    /// on the ground), in the scheme's spelling; no alias for an empty command.
+    /// </summary>
+    private static MenuItem BuildCustom(CustomQuickCommandEntry entry, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        MenuItem item = MenuCatalog.BuildGatedSend(entry.Label, () => entry.CommandFor(aircraft), context, host);
+        string[] words = entry.CommandFor(aircraft).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 0)
+        {
+            MenuAlias.SetText(item, MenuAliases.Display([words[0]], context.Scheme));
+        }
+
+        return item;
     }
 
     private static bool WidensLegEntry(IMenuAircraft aircraft, MenuContext context, bool takenInClimbOut) =>

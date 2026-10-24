@@ -23,6 +23,10 @@ namespace Yaat.Client.ContextMenus;
 /// <param name="Scheme">
 /// The controller's command scheme, whose primary verbs the rows' command aliases show (<see cref="MenuAliases.Display"/>).
 /// </param>
+/// <param name="ShowQuickCommandIcons">
+/// The controller's "Show quick command icons" setting: whether the menus draw their quick commands as icon strips, or as
+/// text rows with the icons off.
+/// </param>
 public sealed record MenuSession(
     string Initials,
     bool SoloTrainingMode,
@@ -30,5 +34,6 @@ public sealed record MenuSession(
     Func<AircraftSituation, IReadOnlyList<QuickCommandEntry>> QuickCommandLists,
     SoloAdvisoryPrefill SoloAdvisoryPrefill,
     bool SoloAdvisoryLiveCheck,
-    CommandScheme Scheme
+    CommandScheme Scheme,
+    bool ShowQuickCommandIcons
 );

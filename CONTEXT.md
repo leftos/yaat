@@ -596,7 +596,7 @@ The aircraft menu's submenu holding every command for the aircraft, grouped by t
 One of the seven groups All Commands sorts its commands into, in this order: Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination (`MenuCategory`; `MenuCategories.Of` gives a catalog id's category, `Label` the group's header). An id in none (Favorites, Command…, Note…, Delete, Warp, the live-traffic, release, spawn, point-menu and For-section items) is in `MenuCategories.Uncategorized`.
 
 **Icon strip**:
-The up to fifteen glyph buttons (three rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply.
+The up to fifteen glyph buttons (three rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply. The Show quick command icons setting turns every strip off and lists those commands as text rows instead.
 
 **State line**:
 The dimmed, disabled row under an aircraft menu's title that says what the aircraft is doing now, as segments joined with ` · ` (`Approach · 3,000 ft · 180 kt · KOAK rwy 30`, `Taxiing · C · KOAK`, `Landing · runway 28R · 62 kt`); a segment with no value is left out, and with none left there is no row (`SharedMenuGroups.StateLineItem`, phase names from `PhaseDisplayNames`).
@@ -668,7 +668,7 @@ The flyout a quick-command strip button opens, holding the items moved out of th
 The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping; Taxi to runway has one tab per runway end.
 
 **View section**:
-The few canvas-only items a view adds to the shared aircraft menu, which the builder places after Squawk and before Favorite Commands (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
+The few canvas-only items a view adds to the shared aircraft menu, which the builder places last in All Commands after a separator, or at the root of the point menu (the radar's Display and Draw route, the ground's Display; the aircraft list has none); they have no catalog entry and never sit on a quick-command list.
 
 **Menu session**:
 The session settings an aircraft menu's predicates read (`MenuSession`): the user's initials, solo training mode and the VFR-commands-for-IFR mode.

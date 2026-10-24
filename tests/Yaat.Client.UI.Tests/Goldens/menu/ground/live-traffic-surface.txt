@@ -4,14 +4,6 @@ UAL402 · B738 [disabled]
 Command…
 Note…
 ---
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from UAL402
----
 Favorite Commands
   (no items) [disabled]
 All Commands
@@ -31,5 +23,13 @@ All Commands
     Hold alias:RDH
     Recall alias:RDR
     Acknowledge release alias:RDACK
+  ---
+  Display
+    Taxi route
+      Always show
+      Always hide
+      Follow “Show all” setting [checked]
+    Hide datablock
+    Measure from UAL402
 ---
 Delete alias:DEL

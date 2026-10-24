@@ -355,6 +355,89 @@ public class QuickCommandsSectionTests
         );
     }
 
+    [AvaloniaFact(Timeout = 60_000)]
+    public void QuickCommandsSection_Preview_FollowsTheShowIconsCheckbox()
+    {
+        string[] ids =
+        [
+            MenuIds.TrackTrack,
+            MenuIds.HeadingFly,
+            MenuIds.CoordinationReleaseHeld,
+            MenuIds.SimControlWarp,
+            MenuIds.TowerClearedToLand,
+            MenuIds.AltitudeMaintain,
+        ];
+        Store(AircraftSituation.Taxiing, ids);
+
+        Run(
+            (window, section) =>
+            {
+                SelectSituation(window, section, AircraftSituation.Taxiing);
+                Border strip = section.FindControl<Border>("PreviewStripHost")!;
+                Panel text = section.FindControl<Panel>("PreviewTextEntries")!;
+                CheckBox showIcons = section.FindControl<CheckBox>("ShowQuickCommandIconsCheckBox")!;
+                // A category label line reads as [label].
+                List<string?> Text() =>
+                    [.. text.Children.OfType<TextBlock>().Select(t => t.Classes.Contains("preview-category") ? $"[{t.Text}]" : t.Text)];
+                string Label(string id) => MenuCatalog.Get(id).Label;
+                Assert.True(showIcons.IsChecked);
+                Assert.True(strip.IsVisible);
+                Assert.DoesNotContain(Label(MenuIds.HeadingFly), Text());
+
+                showIcons.IsChecked = false;
+                Settle(window);
+
+                // As the menu draws them: the release row first, each category's rows under its label in category order,
+                // then the uncategorised rows after a gap.
+                Assert.False(strip.IsVisible);
+                Assert.Null(strip.Child);
+                Assert.Equal(
+                    [
+                        Label(MenuIds.CoordinationReleaseHeld),
+                        $"[{MenuCategories.Label(MenuCategory.Runway)}]",
+                        Label(MenuIds.TowerClearedToLand),
+                        $"[{MenuCategories.Label(MenuCategory.Vectors)}]",
+                        Label(MenuIds.HeadingFly),
+                        Label(MenuIds.AltitudeMaintain),
+                        $"[{MenuCategories.Label(MenuCategory.TrackAndCoordination)}]",
+                        Label(MenuIds.TrackTrack),
+                        Label(MenuIds.SimControlWarp),
+                    ],
+                    Text()
+                );
+                TextBlock warp = text.Children.OfType<TextBlock>().Single(t => t.Text == Label(MenuIds.SimControlWarp));
+                TextBlock track = text.Children.OfType<TextBlock>().Single(t => t.Text == Label(MenuIds.TrackTrack));
+                Assert.True(warp.Margin.Top > track.Margin.Top);
+
+                showIcons.IsChecked = true;
+                Settle(window);
+
+                Assert.True(strip.IsVisible);
+                Assert.DoesNotContain(Label(MenuIds.HeadingFly), Text());
+                Assert.DoesNotContain(text.Children.OfType<TextBlock>(), t => t.Classes.Contains("preview-category"));
+            }
+        );
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void QuickCommandsSection_StripDivider_HiddenWithTheIconsOff()
+    {
+        Store(AircraftSituation.Taxiing, GlyphIds);
+
+        Run(
+            (window, section) =>
+            {
+                SelectSituation(window, section, AircraftSituation.Taxiing);
+                Assert.Single(Entries(section).Items.OfType<QuickCommandStripDivider>());
+
+                section.FindControl<CheckBox>("ShowQuickCommandIconsCheckBox")!.IsChecked = false;
+                Settle(window);
+
+                Assert.Empty(Entries(section).Items.OfType<QuickCommandStripDivider>());
+            }
+        );
+    }
+
     private static void Run(Action<SettingsWindow, QuickCommandsSection> test)
     {
         var window = new SettingsWindow();

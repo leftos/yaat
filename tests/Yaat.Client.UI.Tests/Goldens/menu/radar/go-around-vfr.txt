@@ -149,41 +149,41 @@ All Commands
     Speed (knots IAS) — —
     ---
     Enter in any box sends — can't send
+  ---
+  Display
+    Mini datablock
+    Show nav route
+    Measure from N309AB
+    ---
+    Leader direction
+      1
+      2
+      3
+      4
+      5 (default)
+      6
+      7
+      8
+      9
+    J-ring
+      Clear
+      1 nm
+      2 nm
+      3 nm
+      5 nm
+      10 nm
+    Cone
+      Clear
+      1 nm
+      2 nm
+      3 nm
+      5 nm
+      10 nm
+    ---
+    Blank target
+    Unblank target
+  Draw route
 Favorite Commands
   (no items) [disabled]
----
-Display
-  Mini datablock
-  Show nav route
-  Measure from N309AB
-  ---
-  Leader direction
-    1
-    2
-    3
-    4
-    5 (default)
-    6
-    7
-    8
-    9
-  J-ring
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  Cone
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  ---
-  Blank target
-  Unblank target
-Draw route
 ---
 Delete alias:DEL

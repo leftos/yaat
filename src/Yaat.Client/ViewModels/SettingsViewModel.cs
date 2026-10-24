@@ -267,6 +267,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _showTypeMismatchHints;
 
     [ObservableProperty]
+    private bool _showQuickCommandIcons;
+
+    [ObservableProperty]
     private bool _showAtpa;
 
     [ObservableProperty]
@@ -807,6 +810,7 @@ public partial class SettingsViewModel : ObservableObject
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
         _showConflictAlerts = _preferences.ShowConflictAlerts;
         _showTypeMismatchHints = _preferences.ShowTypeMismatchHints;
+        _showQuickCommandIcons = _preferences.ShowQuickCommandIcons;
         _showAtpa = _preferences.ShowAtpa;
         _showSpeechBubbles = _preferences.ShowSpeechBubbles;
         _mvaHintDefaultApp = _preferences.MvaHintDefaultApp;
@@ -1062,6 +1066,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);
         _preferences.SetShowTypeMismatchHints(ShowTypeMismatchHints);
+        _preferences.SetShowQuickCommandIcons(ShowQuickCommandIcons);
         _preferences.SetShowAtpa(ShowAtpa);
         _preferences.SetShowSpeechBubbles(ShowSpeechBubbles);
         _preferences.SetMvaHintDefaults(MvaHintDefaultApp, MvaHintDefaultCtr, MvaHintDefaultGnd, MvaHintDefaultTwr);
@@ -1897,7 +1902,11 @@ public partial class SettingsViewModel : ObservableObject
         [SettingsSectionId.CommandInput] = static (vm, defaults) => vm.ResetCommandInput(defaults),
         [SettingsSectionId.CommandVerbs] = static (vm, defaults) => vm.ResetCommandVerbs(defaults),
         [SettingsSectionId.Macros] = static (vm, defaults) => vm.ResetMacros(defaults),
-        [SettingsSectionId.QuickCommands] = static (vm, _) => vm.ResetAllQuickCommandSituations(),
+        [SettingsSectionId.QuickCommands] = static (vm, defaults) =>
+        {
+            vm.ShowQuickCommandIcons = defaults.ShowQuickCommandIcons;
+            vm.ResetAllQuickCommandSituations();
+        },
         [SettingsSectionId.Keys] = static (vm, defaults) => vm.ResetKeys(defaults),
         [SettingsSectionId.Speech] = static (vm, defaults) => vm.ResetSpeech(defaults),
         [SettingsSectionId.AudioDevices] = static (vm, defaults) => vm.ResetAudioDevices(defaults),
@@ -1910,7 +1919,8 @@ public partial class SettingsViewModel : ObservableObject
         [SettingsSectionId.General] = "Puts Discord and the window settings back to their defaults. Initials are kept." + ResetPendingNote,
         [SettingsSectionId.CommandVerbs] = "Puts every command verb back to its default." + ResetPendingNote,
         [SettingsSectionId.Macros] = "Clears all macros and sets the CRC aliases folder back to auto-detect." + ResetPendingNote,
-        [SettingsSectionId.QuickCommands] = "Puts every situation's quick commands back to their defaults." + ResetPendingNote,
+        [SettingsSectionId.QuickCommands] =
+            "Turns the quick command icons back on and puts every situation's quick commands back to their defaults." + ResetPendingNote,
         [SettingsSectionId.Speech] =
             "Puts the speech settings back to their defaults. Downloaded models, the CUDA backend, the Piper voice pack and saved samples are kept."
             + ResetPendingNote,

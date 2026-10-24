@@ -228,6 +228,7 @@ public partial class SettingsViewModel
                 vm => ((VfrCommandsForIfr)vm.SelectedVfrCommandsForIfrIndex).ToString(),
                 (vm, v) => vm.SelectedVfrCommandsForIfrIndex = (int)Enum.Parse<VfrCommandsForIfr>(v)
             ),
+            Field("showQuickCommandIcons", vm => vm.ShowQuickCommandIcons, (vm, v) => vm.ShowQuickCommandIcons = v),
             Field("soloTrainingMode", vm => vm.SoloTrainingMode, (vm, v) => vm.SoloTrainingMode = v),
             Field(
                 "soloParkingInitialCallupRatePercent",
