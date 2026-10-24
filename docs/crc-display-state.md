@@ -195,7 +195,7 @@ Wire encoding is MessagePack with `[Key(N)]`-attributed records; payloads are wr
 
 A client that opens the socket with the SignalR JSON protocol (the vEDST web client) gets the same traffic translated at the socket edge: `CrcJsonTranscoder` turns its JSON invocations into the MessagePack invocations the handlers read and the outbound MessagePack frames into camelCase JSON, for a fixed list of methods and callbacks (anything else is refused inbound and dropped outbound).
 
-Every JSON frame is a WebSocket Text message; MessagePack traffic is unchanged. Both protocols reassemble a message until its end, cap it at 1 MiB (close 1009), serialize every send through one lock, and answer an invocation whose handler throws with an error completion. `Unsubscribe` completes with a nil ack.
+Every JSON frame is a WebSocket Text message; MessagePack traffic is unchanged. Both protocols reassemble a message until its end, cap it at 1 MiB (close 1009), send through the connection's `CrcSendQueue` (below), and answer an invocation whose handler throws with an error completion. `Unsubscribe` completes with a nil ack.
 
 vEDST attaches to a CRC controller's session rather than starting its own: it opens the socket **directly** (no negotiate `?id=`, authenticated by `?access_token=`), lists the controller's sessions with `GetSessions`, and calls `JoinSession` on one.
 
@@ -212,6 +212,22 @@ When the session ends the joiners get `HandleSessionEnded` and are detached: `Se
 The list is copied and cleared in one lock and a joiner is told only when its link to this primary is the one cleared, so a join racing the end is never detached untold; a join that found the primary just before its `EndSession` is refused (`No session {id} to join`) because `LinkToPrimary` also checks, inside the same lock, that the primary still holds a registered position.
 
 Every send to a joiner is fire-and-forget with its fault logged (pins: `CrcJoinSessionTests`, `CrcJoinFanOutTests`, `CrcEramSectorMessageTests`).
+
+An accepted vEDST `JoinSession` answer is queued, not returned, under the primary's join lock, which the primary's `SetSessionActive` pushes hold too, so the joiner hears the answer and a racing active-state push in the order the state changed.
+
+### The send queue — `CrcSendQueue.cs`
+
+Each connection owns one bounded `CrcSendQueue`, the socket's only writer. The tick loop, a gated dispatch, a hub call and every fan-out (`CrcClientManager.BroadcastAsync`, which skips a client whose queue is closed before building its payload) only enqueue and never wait on a socket; one drain per client sends in enqueue order. The returned task is always complete.
+
+A client is dropped (queue discarded, later enqueues ignored, socket `Abort()` once so the read loop ends and the release runs) when its oldest unsent message is 10 s old, its queue would pass 32 MiB, or one send runs past 30 s. A once-a-second watchdog enforces the send deadline; sends carry no cancellation token, which keeps ManagedWebSocket's uncancellable fast path.
+
+The handshake reply is always the first frame: the queue is held from accept (`HoldSendsUntilHandshake`) and a server message asked for before the handshake holds it too, until the reply goes to the head. Time held does not count toward the 10 s limit.
+
+A reply built under the room gate is queued inside it (`HandleInvocation`), returning null to the read loop, so it goes out after the state it reports and before any later tick's delta; the initial data of `SendInitialDataForSubscriptionsAsync` is queued inside the per-topic gate the same way.
+
+Replies that must be ordered are one write: `StartSession` answers with the InvocationResponse, `HandleFsdConnectionStateChanged(true)` and `HandleSessionStarted`; `EndSession` with a nil ack then `HandleSessionEnded`. A close is a terminal item queued behind earlier messages and waits at most 5 s before aborting.
+
+The accept also sets a per-connection WebSocket keep-alive (15 s interval, 15 s timeout, `CrcWebSocketHandler.CrcAcceptContext`) so a peer whose network vanished is aborted and released about 30 s after its last frame. `ReleaseClient` runs once per connection and closes the queue first, so the dying connection is sent nothing more (pins: `CrcSendQueueTests`, `CrcSendQueueDropTests`, `CrcStalledSocketTickLoopTests`).
 
 ## WebSocket lifecycle — `CrcWebSocketHandler.cs`
 
