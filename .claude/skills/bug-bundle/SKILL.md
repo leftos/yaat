@@ -186,7 +186,8 @@ python tools/bug_bundle.py validate <bundle.zip>
 
 ### Tips
 
-- `info` is the first thing to run; it tells you duration, aircraft involved, ARTCC, and whether logs are included.
+- `info` is the first thing to run; it tells you duration, aircraft involved, ARTCC, and whether logs are included. Its `Server:` line is the manifest's `ServerName`, else the host of the bundle's `server.json` URL, else `(unknown)` (`(unreadable server.json)` when malformed).
+- The bundle's `yaat-server.log` is only the room-scoped slice: a tick-loop or connection problem needs the full server log from the host `Server:` names (targets in `deploy-targets.ps1`). Actions sharing one `t` across unpaused wall-clock seconds mean the tick loop stopped.
 - For single-aircraft triage, `history --callsign X` is the second thing to run. It collapses 5+ targeted `snapshot --at` calls into one chronological view.
 - **A bundle's snapshots are reconstructions, not live captures — the embedded `yaat-server.log` is the live truth.** Export regenerates every snapshot by replaying the action log from t=0 through a temp room.
 

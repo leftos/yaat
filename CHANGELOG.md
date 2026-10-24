@@ -9,6 +9,7 @@
 - `SPD RFAS` reduces to final approach speed as `RFAS` does, and `SPDN RFAS` sets that speed at once.
 - Auto cross-runway has a third choice, Inactive runways only, which pre-clears crossings of runways not in use and holds aircraft short of active ones.
 - `REPORT MIDFIELD` has a pattern aircraft report midfield downwind on every circuit until cancelled with `REPORT OFF MIDFIELD`.
+- Bug report bundles record which YAAT server the session ran on, so a report can be traced to that server's logs.
 
 ### Changed
 

@@ -43,7 +43,9 @@ V4 bundle layout (ZIP at root):
     artcc-config.json.br        Brotli-compressed ARTCC config (optional; HasArtccConfig in manifest)
     yaat-client.log             plain text (bug bundles only)
     yaat-client.N.log           plain text, the client's previous sessions (N=1 newest; bug bundles only)
-    yaat-server.log             plain text (bug bundles only, local server)
+    yaat-server.log             plain text (bug bundles only, whenever the client was in a room, local or remote server)
+    server.json                 {"url": ...}, the server URL the client dialled; a host other than the official
+                                server's or loopback is written as {server} (bug bundles only, when connected)
 
 Legacy bug bundles contain a nested `recording.yaat-recording.zip` with the same
 inner layout and logs at the outer root; this script handles both.
@@ -61,6 +63,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 import zipfile
 from collections.abc import Iterator
@@ -160,6 +163,20 @@ class BundleReader:
     @property
     def log_entries(self) -> list[str]:
         return [n for n in self._log_source.namelist() if n.endswith(".log")]
+
+    def server_url(self) -> str | None:
+        """The URL in the client-written `server.json` at the bundle's outer root, or None when the bundle has none.
+
+        Raises:
+            ValueError: `server.json` is not valid UTF-8 JSON, or not a JSON object.
+        """
+        if "server.json" not in self._log_source.namelist():
+            return None
+        parsed = json.loads(self._log_source.read("server.json").decode("utf-8"))
+        if not isinstance(parsed, dict):
+            raise ValueError("server.json is not a JSON object")
+        url = parsed.get("url")
+        return url if isinstance(url, str) and url else None
 
     def read_plain(self, name: str, *, from_logs: bool = False) -> bytes:
         src = self._log_source if from_logs else self._archive
@@ -288,6 +305,21 @@ def _aircraft_callsigns_at_t0(reader: BundleReader) -> list[str]:
     return [ac.get("Callsign") for ac in aircraft if ac.get("Callsign")]
 
 
+def _server_label(reader: BundleReader) -> str:
+    """The exporting server: the manifest's ServerName, else the host of server.json's URL (the URL itself when it has
+    no scheme), else (unknown)."""
+    name = reader.manifest.get("ServerName")
+    if name:
+        return str(name)
+    try:
+        url = reader.server_url()
+    except ValueError:
+        return "(unreadable server.json)"
+    if not url:
+        return "(unknown)"
+    return urllib.parse.urlsplit(url).hostname or url
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     with BundleReader(args.bundle) as reader:
         m = reader.manifest
@@ -322,6 +354,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  ClientVersion:       {m.get('ClientVersion')}")
         lines.append(f"  ClientBuildKind:     {m.get('ClientBuildKind')}")
         lines.append(f"  ServerVersion:       {m.get('ServerVersion')}  (Yaat.Sim — code that ran the sim)")
+        lines.append(f"  Server:              {_server_label(reader)}")
         lines.append(f"  RngSeed:             {m.get('RngSeed')}")
         lines.append(f"  Duration:            {m.get('TotalElapsedSeconds')} s")
         lines.append(f"  Snapshots:           {len(m.get('Snapshots') or [])}")

@@ -93,6 +93,14 @@ public sealed class RecordingManifest
     /// </summary>
     public string? ServerVersion { get; init; }
 
+    /// <summary>
+    /// The deployment name of the yaat-server that exported this recording (its <c>Yaat:ServerName</c> setting, e.g.
+    /// "yaat1.leftos.dev"), so triage knows whose server log to read. Null when the server has no name configured, and
+    /// then left out of the JSON; archives written before it was recorded read null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServerName { get; init; }
+
     public required List<SnapshotIndexEntry> Snapshots { get; init; }
 
     /// <summary>
@@ -163,4 +171,7 @@ public sealed record RecordingMetadata
     public string? ClientVersion { get; init; }
     public string? ClientBuildKind { get; init; }
     public string? ServerVersion { get; init; }
+
+    /// <summary>The exporting server's deployment name (<see cref="RecordingManifest.ServerName"/>); null when it has none.</summary>
+    public string? ServerName { get; init; }
 }

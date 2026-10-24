@@ -235,7 +235,7 @@ A recording is a ZIP with this layout:
 ```
 manifest.json                # Version, RngSeed, SessionStartUtc, InitialActiveRunways, ActionCount, HasWeather,
                              # HasArtccConfig, HasToweredAirports, HasTerminalLog, ArtccId, ScenarioId/Name,
-                             # ClientVersion, ClientBuildKind, ServerVersion,
+                             # ClientVersion, ClientBuildKind, ServerVersion, ServerName (optional),
                              # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[],
                              # LayoutFormatVersion, MissingLayoutAirportIds[],
                              # WindGridHashes[] (omitted when the recording flies no GFS grid)
@@ -282,6 +282,8 @@ Each arc's construction angles (`GroundArc.EdgeBearingAtNode0Deg` / `EdgeBearing
 **Version fields** (`ClientVersion`, `ClientBuildKind`, `ServerVersion`) are stamped at export time for bug-report triage. `ClientVersion`/`ClientBuildKind` are sent by the exporting client (`BuildInfo.Version` / `BuildInfo.BuildKind`) and describe the user's build; `ServerVersion` is `SimBuildInfo.Version` — the Yaat.Sim assembly that actually ran the session on the server (Yaat.Server carries no independent version).
 
 Since the hosted server and a user's client can be on different builds, the two answer different questions: was the *user's* client behind a fix, vs. was the *sim code that ran* behind a fix. All three are null for recordings exported before this was added or migrated from legacy formats.
+
+`ServerName` is the deployment's name (`Yaat:ServerName`, e.g. `yaat1.leftos.dev`; in the docker-compose deployment `YAAT_SERVER_NAME`, defaulting to `YAAT_DOMAIN`), stamped by the server's `RecordingManager` at export, trimmed and left out when the server has none. It names which host's full server log to read. Adding it did not change the manifest `Version`, which stays 4.
 
 **`bookmarks.json`** persists the room's shared timeline bookmarks (GitHub issue #288). Bookmarks are server-authoritative per-room state (`SimScenarioState.Bookmarks`), synced to every RPO via the `BookmarksChanged` broadcast and the `RoomStateDto.Bookmarks` join seed.
 
@@ -382,6 +384,10 @@ It filters by `--callsign` / `--kind` / `--from` / `--to`, dumps the filtered en
 An archive with no terminal log (`HasTerminalLog` false, or the entry absent) prints `no terminal log in <path> (recorded before the feature)` and exits 1.
 
 For single-aircraft triage, `history --callsign X` is one chronological view that replaces 5+ targeted `snapshot --at` calls. See `.claude/skills/bug-bundle/SKILL.md` for the full reference and CLAUDE.md for examples.
+
+A bug bundle's outer root also carries `server.json`, `{"url": ...}`: the scheme, host and port the client dialled (`MainViewModel.Timeline.cs`, `WriteBugReportBundleAsync`), with a host other than the official server or loopback written as `{server}`. It is absent when the client was not connected. `bug_bundle.py info` prints `Server:` from the manifest's `ServerName`, else the host of `server.json`'s URL, else `(unknown)` (`(unreadable server.json)` when malformed).
+
+The bundle's `yaat-server.log` is only the room-scoped slice (below), so a tick-loop or connection problem needs the full server log from the host the manifest's `ServerName` names (targets in `deploy-targets.ps1`). Actions stamped with the same `t` across unpaused wall-clock seconds mean the tick loop stopped.
 
 Bundles embed a room-scoped, anonymized `yaat-server.log`, including for **remote** servers (not just a local disk read). Server-side: `RoomLogStore` (Simulation) is a per-room bounded ring buffer (50k-line cap, marks earlier lines dropped) that `FileLogger` mirrors lines into only while inside `BeginRoomScope` (tick loop, `SendCommand`, CRC dispatch) — unscoped lines are file-only and never exported.
 

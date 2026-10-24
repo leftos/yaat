@@ -274,6 +274,47 @@ public class RecordingArchiveTests
     }
 
     [Fact]
+    public void Finish_WithServerName_RoundTripsThroughTheManifest()
+    {
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ServerName = "yaat1.leftos.dev",
+                }
+            );
+        }
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+        Assert.Equal("yaat1.leftos.dev", archive.Manifest.ServerName);
+    }
+
+    [Fact]
+    public void OldBundleManifest_WithoutServerName_DeserializesAsNull()
+    {
+        string oldStyleManifest = """
+            {
+              "Version": 4,
+              "RngSeed": 42,
+              "TotalElapsedSeconds": 0,
+              "ActionCount": 0,
+              "HasWeather": false,
+              "Snapshots": []
+            }
+            """;
+        RecordingManifest? manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        Assert.NotNull(manifest);
+        Assert.Null(manifest!.ServerName);
+    }
+
+    [Fact]
     public void WriteMissingLayoutAirportIds_RoundTripsThroughTheManifest()
     {
         using var ms = new MemoryStream();

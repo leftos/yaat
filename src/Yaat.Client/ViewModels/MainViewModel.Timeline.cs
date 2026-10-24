@@ -1,5 +1,7 @@
 using System.IO;
 using System.IO.Compression;
+using System.Text;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -332,7 +334,9 @@ public partial class MainViewModel
     /// leftovers and the bookmarks' creators are scrubbed with the server log's participant list, so a person carries
     /// the same pseudonym in all of them; the log files on disk are left as they are. In a room whose list the server
     /// could not give, everything is scrubbed with the client's own list and the bundle carries
-    /// <see cref="AnonymizationNoteEntry"/> saying the pseudonyms may not line up across files.
+    /// <see cref="AnonymizationNoteEntry"/> saying the pseudonyms may not line up across files. When connected, the bundle
+    /// also carries <see cref="ServerEntry"/> with the dialled server's scheme, host and port, a host other than the
+    /// official server's or loopback written as <c>{server}</c>, as the logs write it.
     /// </summary>
     public async Task WriteBugReportBundleAsync(string path, byte[]? recordingBytes)
     {
@@ -388,6 +392,11 @@ public partial class MainViewModel
             AddLogToArchive(archive, log);
         }
 
+        if (!string.IsNullOrWhiteSpace(ConnectedServerUrl))
+        {
+            AddTextToArchive(archive, ServerEntry, ServerEntryJson(ClientLogScrubber.Scrub(ServerAuthority(ConnectedServerUrl), scrubContext)));
+        }
+
         // Anonymized on the server already; the client's fail-closed passes catch anyone the server's list does not hold.
         if (!string.IsNullOrEmpty(serverLog?.Text))
         {
@@ -401,6 +410,32 @@ public partial class MainViewModel
     }
 
     private const string AnonymizationNoteEntry = "ANONYMIZATION-NOTE.txt";
+
+    /// <summary>The bundle entry naming the server the client dialled: <c>{"url": ...}</c>, its host scrubbed as the logs' are.</summary>
+    private const string ServerEntry = "server.json";
+
+    /// <summary>The scheme, host and port of <paramref name="url"/>, dropping any credentials, path and query; the trimmed text when it does not parse.</summary>
+    private static string ServerAuthority(string url)
+    {
+        string trimmed = url.Trim();
+        // SchemeAndServer, not GetLeftPart(UriPartial.Authority): the authority part keeps any user:password@.
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri)
+            ? uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped)
+            : trimmed;
+    }
+
+    private static string ServerEntryJson(string url)
+    {
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("url", url);
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray());
+    }
 
     private const string AnonymizationNote =
         "Pseudonyms in this report may not match across files: the server's participant list was unavailable when the report was built.";

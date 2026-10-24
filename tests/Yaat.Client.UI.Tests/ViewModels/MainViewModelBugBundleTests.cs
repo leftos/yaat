@@ -130,6 +130,40 @@ public class MainViewModelBugBundleTests
         }
     }
 
+    // The official server's host is public, so server.json names it as dialled.
+    [AvaloniaFact]
+    public async Task BugBundle_ConnectedToTheOfficialServer_ServerJsonCarriesItsUrl() =>
+        Assert.Equal($$"""{"url":"{{UserPreferences.OfficialServerUrl}}"}""", await ServerJsonFor(UserPreferences.OfficialServerUrl));
+
+    // A self-hosted server's host is private, so server.json carries the log scrubber's placeholder in its place.
+    [AvaloniaFact]
+    public async Task BugBundle_ConnectedToASelfHostedServer_ServerJsonHidesItsHost() =>
+        Assert.Equal("""{"url":"https://{server}:5443"}""", await ServerJsonFor("https://atc.example.org:5443/"));
+
+    // Only scheme, host and port are kept: a path, a query and credentials in the URL never reach the bundle.
+    [AvaloniaFact]
+    public async Task BugBundle_ServerJson_DropsUserInfoPathAndQuery() =>
+        Assert.Equal("""{"url":"https://{server}:5443"}""", await ServerJsonFor("https://bob:pw@atc.example.org:5443/x?foo=bar"));
+
+    [AvaloniaFact]
+    public async Task BugBundle_NotConnected_HasNoServerJson() => Assert.Null(await ServerJsonFor(""));
+
+    private static async Task<string?> ServerJsonFor(string connectedServerUrl)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"yaat-bundle-test-{Guid.NewGuid():N}.zip");
+        var vm = new MainViewModel(new FakeFilePickerService()) { ConnectedServerUrl = connectedServerUrl };
+
+        try
+        {
+            await vm.WriteBugReportBundleAsync(path, recordingBytes: null);
+            return ReadText(path, "server.json");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [AvaloniaFact]
     public void LocalFallbackList_IncludesABareCrcRealName()
     {

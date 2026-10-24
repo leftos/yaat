@@ -851,6 +851,9 @@ The `LogParticipant` list, one per person in the identity ledger's first-seen or
 **Pseudonym**:
 The stand-in for a person in a bug report bundle, `A0`, `A1`, … by the person's index in the participant list (`SessionLogAnonymizer.Pseudonym`); a person the list does not hold becomes `??`, never a pseudonym-shaped guess.
 
+**Server name**:
+The deployment name a server stamps into the recordings it exports (`Yaat:ServerName`, e.g. `yaat1.leftos.dev`), so a bug report bundle says whose server log to read; not the **Host** above, which is the simulation host.
+
 ## Weather
 
 **Wind grid**:
