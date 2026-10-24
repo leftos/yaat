@@ -240,6 +240,8 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
 The default list of each situation, most frequent first (`QuickCommandDefaults`); *(IFR)* and *(VFR)* mark a per-entry flight-rules override and *(helicopter)* an entry only a helicopter is offered (see [When a quick command shows](#when-a-quick-command-shows)). An aircraft whose situation is Unknown shows no quick commands and no strip. A list names catalog actions only, never a view's display item.
 
+**A context-critical command gets a quick-command icon.** A command that is critical in a given situation, one the menu would otherwise raise above the strip as a special row or one a controller reaches for first there, is a glyph-bearing entry in that situation's list rather than a row of its own.
+
 | Situation | Default quick commands |
 |---|---|
 | At parking | Air taxi ▸ *(helicopter)*, Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window |
