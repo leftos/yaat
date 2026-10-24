@@ -555,7 +555,7 @@ public class PilotResponderTests
         string[] allowed =
         [
             .. PhraseologyVerbalizer
-                .SpokenCandidates(command, FrequencyLoadBand.Quiet, null)
+                .SpokenCandidates(command, MakeAircraft("N123AB"), FrequencyLoadBand.Quiet, null)
                 .Select(candidate =>
                     candidate.Contains("{cs}", StringComparison.Ordinal)
                         ? candidate.Replace("{cs}", spokenCallsign, StringComparison.Ordinal) + "."
@@ -713,6 +713,17 @@ public class PilotResponderTests
     public void BuilderVariantSet_Pattern_SpeaksTheBuildersCanonical(string setName)
     {
         BuilderVariantSet set = PhraseologyRules.BuilderVariantSets.Single(candidate => candidate.Name == setName);
+        (ParsedCommand command, AircraftState ac) = BuilderShape(setName);
+
+        string canonical = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
+        string body = canonical[..canonical.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
+
+        Assert.Equal(WordsOnly(PhraseologyVerbalizer.RenderSpokenVariant(command, string.Join(' ', set.Pattern))), WordsOnly(body));
+    }
+
+    /// <summary>A command and an aircraft whose readback the builder renders from the variant set named <paramref name="setName"/>.</summary>
+    private static (ParsedCommand Command, AircraftState Aircraft) BuilderShape(string setName)
+    {
         AircraftState ac = MakeAircraft("N123AB", isVfr: setName.Contains("VFR", StringComparison.Ordinal));
         ac.Altitude = 5000;
         ac.Targets.TargetAltitude = setName == "expedite climb" ? 9000 : 2000;
@@ -722,7 +733,11 @@ public class PilotResponderTests
             "restriction at or below" or "restriction VFR at or below" => new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrBelow),
             "expedite climb with altitude" => new ExpediteCommand(11000),
             "expedite descent with altitude" => new ExpediteCommand(3000),
-            _ => new ExpediteCommand(),
+            "cross fix at" => new CrossFixCommand("SUNOL", 37.6, -121.9, 11000, CrossFixAltitudeType.At, null),
+            "cross fix at or above" => new CrossFixCommand("SUNOL", 37.6, -121.9, 11000, CrossFixAltitudeType.AtOrAbove, null),
+            "cross fix at or below" => new CrossFixCommand("SUNOL", 37.6, -121.9, 11000, CrossFixAltitudeType.AtOrBelow, null),
+            "expedite climb" or "expedite descent" or "expedite taxi" or "expedite exit" => new ExpediteCommand(),
+            _ => throw new ArgumentOutOfRangeException(nameof(setName), setName, "No builder shape for this set."),
         };
         if (setName is "expedite taxi" or "expedite exit")
         {
@@ -736,10 +751,120 @@ public class PilotResponderTests
             ac.Phases.Add(new LandingPhase { Status = PhaseStatus.Active });
         }
 
+        return (command, ac);
+    }
+
+    /// <summary>The first command of <paramref name="text"/> as the parser reads it.</summary>
+    private static ParsedCommand ParseOne(string text)
+    {
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess, $"'{text}' was refused: {parsed.Reason}");
+        return parsed.Value!.Blocks[0].Commands[0];
+    }
+
+    [Fact]
+    public void SpokenCandidates_QuietCrossFixAtOrAbove_OffersWellCross() =>
+        Assert.Contains(
+            "we'll cross sunol at or above four thousand nine hundred",
+            PhraseologyVerbalizer.SpokenCandidates(ParseOne("CFIX SUNOL A049"), MakeAircraft("N123AB"), FrequencyLoadBand.Quiet, null)
+        );
+
+    [Theory]
+    [InlineData(false, "maintaining at or above four thousand, {cs}, thanks", "at or above four thousand")]
+    [InlineData(true, "maintaining VFR at or above four thousand, {cs}, thanks", "VFR at or above four thousand")]
+    public void SpokenCandidates_AltitudeRestriction_OffersTheRestrictionRows(bool isVfr, string quietRow, string busyRow)
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: isVfr);
+        var command = new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrAbove);
+
+        Assert.Contains(quietRow, PhraseologyVerbalizer.SpokenCandidates(command, ac, FrequencyLoadBand.Quiet, null));
+        Assert.Contains(busyRow, PhraseologyVerbalizer.SpokenCandidates(command, ac, FrequencyLoadBand.Busy, null));
+    }
+
+    [Fact]
+    public void SpokenCandidates_BusyBareExpediteDescending_IsExpeditingNeverWilco()
+    {
+        (ParsedCommand command, AircraftState ac) = BuilderShape("expedite descent");
+
+        IReadOnlyList<string> busy = PhraseologyVerbalizer.SpokenCandidates(command, ac, FrequencyLoadBand.Busy, null);
+
+        Assert.Equal(["expediting"], busy);
+        Assert.Equal(["expedite descent", "expediting"], PhraseologyVerbalizer.SpokenCandidates(command, ac, FrequencyLoadBand.Normal, null));
+        Assert.DoesNotContain(busy, candidate => candidate.Contains("wilco", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(FrequencyLoadBand.Quiet)]
+    [InlineData(FrequencyLoadBand.Normal)]
+    [InlineData(FrequencyLoadBand.Busy)]
+    public void SpokenCandidates_CrossFixWithSpeed_IsTheCanonicalOnly(FrequencyLoadBand band) =>
+        Assert.Equal(
+            ["cross sunol at or above four thousand nine hundred at two five zero knots"],
+            PhraseologyVerbalizer.SpokenCandidates(ParseOne("CFIX SUNOL A049 250"), MakeAircraft("N123AB"), band, null)
+        );
+
+    /// <summary>
+    /// For every builder set and band, the texts a varied pilot speaks for the builder-rendered readback over a sweep of seeds
+    /// and seconds are exactly <see cref="PhraseologyVerbalizer.SpokenCandidates"/> framed with the callsign: none spoken
+    /// outside it, none of it never spoken.
+    /// </summary>
+    [Fact]
+    public void SpokenCandidates_EveryBuilderSetAndBand_EqualsEveryTextTheReadbackSpeaks()
+    {
+        FrequencyLoadBand[] bands = [FrequencyLoadBand.Quiet, FrequencyLoadBand.Normal, FrequencyLoadBand.Busy];
+        List<string> failures = [];
+        foreach (BuilderVariantSet set in PhraseologyRules.BuilderVariantSets)
+        {
+            (ParsedCommand command, AircraftState ac) = BuilderShape(set.Name);
+            Assert.Same(set, SelectedBuilderSet(command, ac));
+            foreach (FrequencyLoadBand band in bands)
+            {
+                HashSet<string> allowed = [.. PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null).Select(FramedWithN123AB)];
+                HashSet<string> spoken = [.. Enumerable.Range(0, 5).SelectMany(seed => SpokenOverSeconds(ac, command, band, seed))];
+                failures.AddRange(spoken.Except(allowed).Select(tts => $"{set.Name} {band}: spoken, not a candidate: \"{tts}\""));
+                failures.AddRange(allowed.Except(spoken).Select(tts => $"{set.Name} {band}: a candidate never spoken: \"{tts}\""));
+            }
+        }
+
+        Assert.True(
+            failures.Count == 0,
+            $"SpokenCandidates differs from the spoken readbacks:{Environment.NewLine}{string.Join(Environment.NewLine, failures)}"
+        );
+    }
+
+    /// <summary>The variant set the readback picks for <paramref name="command"/> by <paramref name="ac"/>.</summary>
+    private static BuilderVariantSet SelectedBuilderSet(ParsedCommand command, AircraftState ac) =>
+        command is CrossFixCommand crossFix
+            ? PhraseologyVerbalizer.CrossFixVariantSet(crossFix)
+            : PilotResponder.VariedBuilderClause(command, ac)!.Value.Variants;
+
+    /// <summary>A candidate as N123AB's whole readback speaks it: the callsign in its row's place, or closing the clause.</summary>
+    private static string FramedWithN123AB(string candidate) =>
+        candidate.Contains("{cs}", StringComparison.Ordinal)
+            ? candidate.Replace("{cs}", SpokenN123AB, StringComparison.Ordinal) + "."
+            : $"{candidate}, {SpokenN123AB}.";
+
+    /// <summary>
+    /// A military route clearance is read back canonical in every band, so its only candidate is the readback's own clause.
+    /// Candidates are clause text before the readback's text-to-speech fixups ("i-r" → "i r"), as every candidate is.
+    /// </summary>
+    [Theory]
+    [InlineData("CMTR IR149 B50", FrequencyLoadBand.Quiet)]
+    [InlineData("CMTR IR149 B50", FrequencyLoadBand.Normal)]
+    [InlineData("CMTR IR149 B50", FrequencyLoadBand.Busy)]
+    [InlineData("CMTR IR149", FrequencyLoadBand.Quiet)]
+    [InlineData("CMTR IR149", FrequencyLoadBand.Normal)]
+    [InlineData("CMTR IR149", FrequencyLoadBand.Busy)]
+    public void SpokenCandidates_MilitaryRouteClearance_IsTheReadbacksCanonicalOnly(string text, FrequencyLoadBand band)
+    {
+        ParsedCommand command = ParseOne(text);
+        AircraftState ac = MakeAircraft("N123AB");
         string canonical = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
         string body = canonical[..canonical.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
 
-        Assert.Equal(WordsOnly(PhraseologyVerbalizer.RenderSpokenVariant(command, string.Join(' ', set.Pattern))), WordsOnly(body));
+        IReadOnlyList<string> candidates = PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null);
+
+        Assert.Equal([body], candidates.Select(candidate => PilotResponder.PrepareForTts(ac, candidate)));
     }
 
     private static string WordsOnly(string text) =>

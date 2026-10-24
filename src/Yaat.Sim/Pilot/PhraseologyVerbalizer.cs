@@ -189,7 +189,7 @@ public static class PhraseologyVerbalizer
         // always pick the first 2-capture rule (the bare "at" form), which doesn't carry the modifier in its template. The
         // bare "at" with no speed renders here too, to pick among its variant set; "at" with a speed falls through to the
         // rule-driven "at and maintain … at … knots" path below.
-        if ((cmd is CrossFixCommand crossFix) && ((crossFix.AltType != CrossFixAltitudeType.At) || (crossFix.Speed is null)))
+        if ((cmd is CrossFixCommand crossFix) && RendersAsCrossFixBuilder(crossFix))
         {
             return RenderCrossFix(crossFix, request, fmt, out offeredQuietRows);
         }
@@ -335,14 +335,34 @@ public static class PhraseologyVerbalizer
     /// <summary>
     /// The spoken texts a <see cref="PilotPersonality.Varied"/> pilot picks among for <paramref name="cmd"/> read back alone in
     /// <paramref name="band"/>, in pick order: the band's speakable rows (Quiet and Normal: the canonical first). A row that
-    /// places the callsign keeps <see cref="PilotVariant.CallsignPlaceholder"/> in its text.
+    /// places the callsign keeps <see cref="PilotVariant.CallsignPlaceholder"/> in its text. A clause the readback builds from
+    /// a variant set (an altitude restriction, an expedite, a cross-fix restriction with no speed) offers that set's rows,
+    /// chosen by <paramref name="aircraft"/> as the readback chooses them, or its canonical when no row is speakable; a
+    /// builder-rendered clause read back canonical in every band (an at-or-above or at-or-below cross-fix restriction with a
+    /// speed, a military route clearance) offers its canonical only.
     /// </summary>
     /// <param name="cmd">The command to read back.</param>
+    /// <param name="aircraft">The aircraft reading back, whose flight rules and vertical goal pick a builder's variant set.</param>
     /// <param name="band">The frequency load band.</param>
     /// <param name="currentIndicatedAirspeed">The aircraft's indicated airspeed now, or null when unknown.</param>
-    /// <returns>The candidates; empty when no rule speaks the command, the rule has no variants, or no row is speakable.</returns>
-    public static IReadOnlyList<string> SpokenCandidates(ParsedCommand cmd, FrequencyLoadBand band, double? currentIndicatedAirspeed)
+    /// <returns>
+    /// The candidates. A builder-rendered clause returns at least its canonical. A rule-read command returns empty when no rule
+    /// speaks it, the rule has no variants, or no row is speakable.
+    /// </returns>
+    public static IReadOnlyList<string> SpokenCandidates(
+        ParsedCommand cmd,
+        AircraftState aircraft,
+        FrequencyLoadBand band,
+        double? currentIndicatedAirspeed
+    )
     {
+        ArgumentNullException.ThrowIfNull(aircraft);
+        var filter = new CandidateFilter(band, currentIndicatedAirspeed, WholeReadback: true);
+        if (BuilderCandidates(cmd, aircraft, filter) is { } built)
+        {
+            return built;
+        }
+
         if (!RulesByType.TryGetValue(CommandDescriber.ToCanonicalType(cmd), out PhraseologyRule[]? rules))
         {
             return [];
@@ -354,8 +374,47 @@ public static class PhraseologyVerbalizer
             return [];
         }
 
-        var filter = new CandidateFilter(band, currentIndicatedAirspeed, WholeReadback: true);
         return Candidates(cmd, variants, RenderPattern(rule.Pattern, args), args, filter);
+    }
+
+    /// <summary>
+    /// The candidates of a clause a readback builder renders directly, as <see cref="SpokenCandidates"/> describes; null when
+    /// <paramref name="cmd"/> is read back from a rule.
+    /// </summary>
+    private static IReadOnlyList<string>? BuilderCandidates(ParsedCommand cmd, AircraftState aircraft, CandidateFilter filter)
+    {
+        if (PilotResponder.HeldCanonicalClause(cmd) is { } held)
+        {
+            return [held];
+        }
+
+        if ((cmd is CrossFixCommand crossFix) && RendersAsCrossFixBuilder(crossFix))
+        {
+            string canonical = CrossFixCanonical(crossFix, Spoken);
+            return (VariedCrossFixSet(crossFix) is { } set)
+                ? SetCandidates(crossFix, set.Variants, canonical, CrossFixArgs(crossFix, Spoken), filter)
+                : [canonical];
+        }
+
+        if (PilotResponder.VariedBuilderClause(cmd, aircraft) is { } clause)
+        {
+            return SetCandidates(cmd, clause.Variants.Variants, clause.Canonical.Tts, ExtractArgs(cmd, Spoken), filter);
+        }
+
+        return null;
+    }
+
+    /// <summary>A builder set's candidates, or its canonical alone when no row is speakable, as <see cref="PickVariant"/> speaks it.</summary>
+    private static List<string> SetCandidates(
+        ParsedCommand cmd,
+        PilotVariantSet variants,
+        string canonical,
+        IReadOnlyDictionary<string, string> args,
+        CandidateFilter filter
+    )
+    {
+        List<string> candidates = Candidates(cmd, variants, canonical, args, filter);
+        return (candidates.Count == 0) ? [canonical] : candidates;
     }
 
     private static List<string> Candidates(
@@ -960,24 +1019,42 @@ public static class PhraseologyVerbalizer
     private static string RenderCrossFix(CrossFixCommand cf, VariantRequest request, CaptureFormatter fmt, out bool offeredQuietRows)
     {
         offeredQuietRows = false;
-        BuilderVariantSet set = cf.AltType switch
+        string canonical = CrossFixCanonical(cf, fmt);
+        if (VariedCrossFixSet(cf) is not { } set)
+        {
+            return canonical;
+        }
+
+        ClauseVerbalization picked = VaryDirectClause(cf, set.Variants, canonical, CrossFixArgs(cf, fmt), request);
+        offeredQuietRows = picked.OfferedQuietRows;
+        return picked.Text ?? canonical;
+    }
+
+    /// <summary>
+    /// Whether a cross-fix restriction is rendered by <see cref="RenderCrossFix"/>: every at-or-above or at-or-below
+    /// restriction, and an "at" restriction with no speed; an "at" restriction with a speed reads back from its rule.
+    /// </summary>
+    private static bool RendersAsCrossFixBuilder(CrossFixCommand cf) => (cf.AltType != CrossFixAltitudeType.At) || (cf.Speed is null);
+
+    /// <summary>The variant set a varied pilot picks a cross-fix restriction's readback from; null when it is held canonical (a speed).</summary>
+    private static BuilderVariantSet? VariedCrossFixSet(CrossFixCommand cf) => (cf.Speed is null) ? CrossFixVariantSet(cf) : null;
+
+    /// <summary>The canonical cross-fix readback: its shape's pattern, then "at {speed} knots" when it carries a speed.</summary>
+    private static string CrossFixCanonical(CrossFixCommand cf, CaptureFormatter fmt)
+    {
+        string canonical = RenderPattern(CrossFixVariantSet(cf).Pattern, CrossFixArgs(cf, fmt));
+        return (cf.Speed is int knots) ? $"{canonical} at {fmt.Speed(knots)} knots" : canonical;
+    }
+
+    /// <summary>The variant set of a cross-fix restriction's shape, by its altitude type.</summary>
+    internal static BuilderVariantSet CrossFixVariantSet(CrossFixCommand cf) =>
+        cf.AltType switch
         {
             CrossFixAltitudeType.AtOrAbove => PhraseologyRules.CrossFixAtOrAbove,
             CrossFixAltitudeType.AtOrBelow => PhraseologyRules.CrossFixAtOrBelow,
             CrossFixAltitudeType.At => PhraseologyRules.CrossFixAt,
             _ => throw new ArgumentOutOfRangeException(nameof(cf), cf.AltType, "Unknown cross-fix altitude type."),
         };
-        IReadOnlyDictionary<string, string> args = CrossFixArgs(cf, fmt);
-        string canonical = RenderPattern(set.Pattern, args);
-        if (cf.Speed is int knots)
-        {
-            return $"{canonical} at {fmt.Speed(knots)} knots";
-        }
-
-        ClauseVerbalization picked = VaryDirectClause(cf, set.Variants, canonical, args, request);
-        offeredQuietRows = picked.OfferedQuietRows;
-        return picked.Text ?? canonical;
-    }
 
     /// <summary>
     /// <paramref name="canonical"/>, or for a <see cref="PilotPersonality.Varied"/> pilot one seeded pick among it and

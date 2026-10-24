@@ -341,7 +341,12 @@ public class PhraseologyVerbalizerTests
     [InlineData(19000)]
     public void SpokenCandidates_VariedBusy_GroupRowsNeverRepeatTheDigitWording(int feet)
     {
-        IReadOnlyList<string> candidates = PhraseologyVerbalizer.SpokenCandidates(new ClimbMaintainCommand(feet), FrequencyLoadBand.Busy, null);
+        IReadOnlyList<string> candidates = PhraseologyVerbalizer.SpokenCandidates(
+            new ClimbMaintainCommand(feet),
+            Aircraft(),
+            FrequencyLoadBand.Busy,
+            null
+        );
 
         Assert.NotEmpty(candidates);
         Assert.Equal(candidates.Count, candidates.Distinct().Count());
@@ -349,7 +354,12 @@ public class PhraseologyVerbalizerTests
 
     [Fact]
     public void SpokenCandidates_VariedBusy_GroupFormRangeOffersTheGroupForm() =>
-        Assert.Contains("eleven thousand", PhraseologyVerbalizer.SpokenCandidates(new ClimbMaintainCommand(11000), FrequencyLoadBand.Busy, null));
+        Assert.Contains(
+            "eleven thousand",
+            PhraseologyVerbalizer.SpokenCandidates(new ClimbMaintainCommand(11000), Aircraft(), FrequencyLoadBand.Busy, null)
+        );
+
+    private static AircraftState Aircraft() => new() { Callsign = "N123AB", AircraftType = "B738" };
 
     [Fact]
     public void PhraseologyRules_GroupForm_SitsOnBusyRowsOnly()

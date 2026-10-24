@@ -474,13 +474,7 @@ public static partial class PilotResponder
     ) =>
         cmd switch
         {
-            ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm => VaryBuilderClause(
-                cm,
-                BuildAltitudeRestrictionClause(aircraft, cm),
-                aircraft.Callsign,
-                speechContext,
-                trace
-            ),
+            _ when VariedBuilderClause(cmd, aircraft) is { } built => VaryBuilderClause(cmd, built, aircraft.Callsign, speechContext, trace),
             LineUpAndWaitCommand luaw => AppendWithoutDelayClause(BuildRunwayInstructionClause(aircraft, "line up and wait"), luaw.WithoutDelay)
                 ?? VerbalizeDual(luaw, aircraft.Callsign, speechContext, trace),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
@@ -538,7 +532,6 @@ public static partial class PilotResponder
                 option.TrafficPattern,
                 option.PatternRunwayId
             ),
-            ExpediteCommand exp => VaryBuilderClause(exp, BuildExpediteClause(aircraft, exp), aircraft.Callsign, speechContext, trace),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext, trace),
             ReportCommand report => BuildReportWilcoClause(report),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
@@ -1038,7 +1031,28 @@ public static partial class PilotResponder
     }
 
     /// <summary>A clause a readback builder renders directly: its canonical text and the variant set of its shape.</summary>
-    private readonly record struct BuilderClause(PilotSpeechText Canonical, BuilderVariantSet Variants);
+    internal readonly record struct BuilderClause(PilotSpeechText Canonical, BuilderVariantSet Variants);
+
+    /// <summary>
+    /// The clause the readback builds for <paramref name="cmd"/> from a variant set (an altitude restriction, an expedite),
+    /// chosen by <paramref name="aircraft"/>; null for any other command. The readback and
+    /// <see cref="PhraseologyVerbalizer.SpokenCandidates"/> both dispatch through it.
+    /// </summary>
+    internal static BuilderClause? VariedBuilderClause(ParsedCommand cmd, AircraftState aircraft) =>
+        cmd switch
+        {
+            ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
+                BuildAltitudeRestrictionClause(aircraft, cm),
+            ExpediteCommand exp => BuildExpediteClause(aircraft, exp),
+            _ => null,
+        };
+
+    /// <summary>
+    /// The spoken clause of a builder-rendered command that has no variant set and is read back canonical in every band (a
+    /// military route clearance, with or without an altitude); null for any other command.
+    /// </summary>
+    internal static string? HeldCanonicalClause(ParsedCommand cmd) =>
+        cmd is ClearedIntoMilitaryRouteCommand cmtr ? BuildClearedIntoMilitaryRouteClause(cmtr).Tts : null;
 
     /// <summary>
     /// The builder's clause as this pilot says it now: the Terminal text is always the canonical; the spoken text is the
