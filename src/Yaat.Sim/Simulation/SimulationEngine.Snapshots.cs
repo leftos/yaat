@@ -186,6 +186,8 @@ public sealed partial class SimulationEngine
             Scenario.PresetQueue.Clear();
             Scenario.DelayedHandoffQueue.Clear();
             Scenario.Generators.Clear();
+            Scenario.VfrArrivalGenerators.Clear();
+            Scenario.OverflightGenerators.Clear();
             Scenario.HeldDepartureAirports.Clear();
             Scenario.ReleaseQueue.Clear();
             Scenario.ActiveTimers.Clear();
