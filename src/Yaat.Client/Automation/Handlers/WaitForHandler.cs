@@ -106,7 +106,7 @@ public sealed class WaitForHandler(SelectorEngine engine) : IRequestHandler
         try
         {
             return await Dispatcher
-                .UIThread.InvokeAsync(() => Evaluate(parameters))
+                .UIThread.InvokeAsync(() => Evaluate(parameters), DispatcherPriority.Default, cancellationToken)
                 .GetTask()
                 .WaitAsync(remaining, cancellationToken)
                 .ConfigureAwait(false);

@@ -17,7 +17,7 @@ namespace Yaat.Client.UI.Tests.Automation;
 public sealed class AutomationWaitForTests : AutomationHostFixture
 {
     private static readonly TimeSpan ChangeDelay = TimeSpan.FromMilliseconds(300);
-    private static readonly TimeSpan PollDeadline = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PollDeadline = TimeSpan.FromMinutes(2);
 
     /// <summary>A border whose <see cref="Probe"/> getter counts its reads, so a test sees each UI-thread poll of <c>[Probe=...]</c>.</summary>
     private sealed class ProbeBorder : Border
@@ -268,6 +268,35 @@ public sealed class AutomationWaitForTests : AutomationHostFixture
         Assert.Equal(0, error.GetProperty("details").GetProperty("matchCount").GetInt32());
     }
 
+    /// <summary>A hang guard on holding the UI thread for the next poll; a passing run ends the hold after one poll interval.</summary>
+    private static readonly TimeSpan QueueHangGuard = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Holds the UI thread, as a loaded machine does, until wait_for's next poll is queued behind it. The jobs already
+    /// queued (a shown window's Loaded work) run first, so the job that ends the hold is the poll.
+    /// </summary>
+    private static void UntilNextPollQueued()
+    {
+        Dispatcher.UIThread.RunJobs();
+        var stopwatch = Stopwatch.StartNew();
+        while (!Dispatcher.UIThread.HasJobsWithPriority(DispatcherPriority.Default))
+        {
+            Assert.True(stopwatch.Elapsed < QueueHangGuard, "wait_for never queued its next poll.");
+            Thread.Sleep(5);
+        }
+    }
+
+    /// <summary>Holds the UI thread until the host withdraws the queued poll: the moment it has seen the client go.</summary>
+    private static void UntilQueuedPollWithdrawn()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (Dispatcher.UIThread.HasJobsWithPriority(DispatcherPriority.Default))
+        {
+            Assert.True(stopwatch.Elapsed < QueueHangGuard, "The host never withdrew the poll queued before the client went.");
+            Thread.Sleep(5);
+        }
+    }
+
     [AvaloniaFact]
     public async Task WaitFor_HostDisposedMidWait_StopsPolling()
     {
@@ -277,14 +306,15 @@ public sealed class AutomationWaitForTests : AutomationHostFixture
         await using AutomationPipeTestClient client = await Connect();
         await client.WriteLineAsync(NeverMetRequest());
         await UntilPolled(probe);
+        UntilNextPollQueued();
+        int readsAtDispose = probe.Reads;
 
         host.Dispose();
 
-        // The connection closes, unanswered, only once the request has unwound, so no poll can be queued after it.
         Assert.Null(await client.ReadLineAsync());
-        int readsAtClose = probe.Reads;
-        await Task.Delay(400);
-        Assert.Equal(readsAtClose, probe.Reads);
+        // Every poll queued before the host stopped runs now; none may read the probe after the stop.
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(readsAtDispose, probe.Reads);
     }
 
     [AvaloniaFact]
@@ -296,14 +326,16 @@ public sealed class AutomationWaitForTests : AutomationHostFixture
         AutomationPipeTestClient client = await Connect();
         await client.WriteLineAsync(NeverMetRequest());
         await UntilPolled(probe);
+        UntilNextPollQueued();
+        int readsAtDisconnect = probe.Reads;
 
-        await client.DisposeAsync();
+        // Started without yielding the UI thread, so the queued poll cannot run before the host has seen the client go.
+        ValueTask disconnecting = client.DisposeAsync();
+        UntilQueuedPollWithdrawn();
+        await disconnecting;
 
-        // The host sees the end of the stream at once; a live poll would read the probe about every 100 ms.
-        await Task.Delay(300);
-        int readsAfterDisconnect = probe.Reads;
-        await Task.Delay(400);
-        Assert.Equal(readsAfterDisconnect, probe.Reads);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(readsAtDisconnect, probe.Reads);
     }
 
     [AvaloniaTheory]

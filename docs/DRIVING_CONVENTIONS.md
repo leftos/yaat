@@ -292,6 +292,12 @@ Source: D:\yaat\tools\Yaat.ClientDriver.Mcp\Yaat.ClientDriver.Mcp.csproj:77; D:\
 Keep the pipe's whole surface one typed protocol: its methods (`ProtocolMethods`) and their request and result types live in one folder, checked by the compiler on both sides and documented in one place. Through it, hand over the client's live state itself, a get and a set of named view-model values, plus a few task helpers, rather than wrapping each value in a method or an app tool of its own, so a value no tool reads yet is one call away instead of a missing feature.
 Source: towercab-3d's hook type file. Seen: 0 here (seeded from towercab-3d).
 
+### Post every handler's UI work with its request's cancellation token
+<!-- rule: ui-post-with-request-token -->
+
+A handler that runs work on the UI thread posts it through the dispatcher overload that takes the request's cancellation token (Avalonia: `Dispatcher.UIThread.InvokeAsync(callback, priority, cancellationToken)`), which withdraws a queued operation when the request is cancelled and refuses to queue once it is. The token-free overload only lets the caller stop waiting: the queued work still runs, after the host has stopped or the client has gone, and reads or changes the UI behind a closed pipe. A test of that race freezes it on the dispatcher queue (drain it, wait until the next post is queued, act, drain again, assert) rather than watching a time window, which passes vacuously or fails spuriously under load.
+Source: D:\yaat\src\Yaat.Client\Automation\Handlers\WaitForHandler.cs (EvaluateWithin); D:\yaat\tests\Yaat.Client.UI.Tests\Automation\AutomationWaitForTests.cs (UntilNextPollQueued, UntilQueuedPollWithdrawn); D:\yaat\docs\client-driver-mcp.md "A handler posts to the UI thread with its request's token". Seen: 1 here (YAAT-1131).
+
 ### Name each feature's app tools in its design
 <!-- rule: design-names-hook-surface -->
 
