@@ -59,15 +59,15 @@
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
-  - [!] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
+  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
   - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext+1
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext+1
   - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext+1
   - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext+1
-  - [/] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext
+  - [/] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext+1
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext+1
   - [ ] YAAT-1070 Re-send the ASDE-X safety-logic configuration to subscribed CRC displays after a rewind or session restore
-- [/] YAAT-1155 Build a CRC probe hook (startup-hook assembly) that logs ASDE-X state without heap dumps · release vNext
+- [ ] YAAT-1156 Log every DTO the vNAS server sends CRC from the CRC probe hook · release vNext+1
 
 ## Say again
 
