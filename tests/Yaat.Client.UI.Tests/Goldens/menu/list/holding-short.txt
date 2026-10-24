@@ -2,7 +2,7 @@
 SWA105 · B738 [disabled]
 Holding short 30/12 [disabled]
 ---
-strip: [ground.cross-runway]
+strip row 1: Taxi: ground.cross-runway
 ---
 Command…
 Note…

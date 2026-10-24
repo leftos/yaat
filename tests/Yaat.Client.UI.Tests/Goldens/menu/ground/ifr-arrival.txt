@@ -2,7 +2,8 @@
 AAL203 · B738 [disabled]
 16,000 ft · 280 kt [disabled]
 ---
-strip: [procedures.descend-via-star, altitude.maintain, speed.assign, heading.fly, navigation.direct-to, approach.expect, hold.pattern]
+strip row 1: Approach: procedures.descend-via-star approach.expect hold.pattern
+strip row 2: Vectors: altitude.maintain speed.assign heading.fly navigation.direct-to
 ---
 Command…
 Note…

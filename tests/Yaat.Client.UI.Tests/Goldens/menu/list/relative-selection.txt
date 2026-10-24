@@ -8,7 +8,7 @@ Follow SWA601 alias:FOLLOWG
 Give way to SWA601 alias:GIVEWAY
 ---
 For SWA601 [disabled]
-strip: [ground.cross-runway]
+strip row 1: Taxi: ground.cross-runway
 ---
 Command…
 Note…

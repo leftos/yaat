@@ -2,7 +2,7 @@
 SWA106 · B738 [disabled]
 Line up and wait [disabled]
 ---
-strip: [tower.cto, ground.draw-taxi-route]
+strip row 1: Runway: tower.cto | Taxi: ground.draw-taxi-route
 ---
 Command…
 Note…

@@ -81,12 +81,14 @@ public class QuickCommandDefaultsTests
 
     [Theory]
     [MemberData(nameof(ClassifiedSituations))]
-    public void DefaultList_FitsItsIconsOnTheStrip(AircraftSituation situation) =>
-        Assert.InRange(
-            QuickCommandDefaults.For(situation).Count(entry => QuickCommandGlyphs.For(CatalogId(entry)) is not null),
-            0,
-            QuickCommandGlyphs.StripCapacity
-        );
+    public void DefaultList_PutsEveryIconOnTheStrip(AircraftSituation situation)
+    {
+        List<string> ids = [.. QuickCommandDefaults.For(situation).Select(CatalogId)];
+
+        QuickCommandResolution split = QuickCommandGlyphs.Split([.. ids.Select(MenuCatalog.Get)]);
+
+        Assert.Equal([.. ids.Where(id => QuickCommandGlyphs.For(id) is not null)], split.Strip.Select(item => item.Entry.Id));
+    }
 
     private static string CatalogId(QuickCommandEntry entry) => Assert.IsType<CatalogQuickCommandEntry>(entry).CatalogId;
 

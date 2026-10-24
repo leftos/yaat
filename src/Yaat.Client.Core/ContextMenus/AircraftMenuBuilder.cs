@@ -311,7 +311,7 @@ public static class AircraftMenuBuilder
             built.AddRange(items.Select(menuItem => (item, menuItem)));
         }
 
-        if (QuickCommandStrip.FromBuilt(menu, built) is { } strip)
+        if (QuickCommandStrip.FlatFromBuilt(menu, built) is { } strip)
         {
             menu.Items.Add(strip);
             menu.Items.Add(new Separator());
@@ -355,11 +355,11 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The aircraft's quick commands, each built through its catalog entry's own builder so its pickers, prompts and
-    /// runway defaults match All Commands: the icon strip when the resolution has strip items, then the text entries; with
-    /// the icons off (<see cref="MenuContext.ShowQuickCommandIcons"/>) every entry as a text row (<see cref="AddQuickCommandRows"/>).
-    /// The release items that apply lead the strip whatever the situation's list (<see cref="LeadWithRelease"/>), and with
-    /// the icons off they lead the text rows, unlabelled, ahead of the category blocks. An aircraft whose situation is
-    /// unknown gets only the release items, or nothing.
+    /// runway defaults match All Commands: the icon strip, grouped by category (<see cref="QuickCommandStrip.FromBuilt"/>),
+    /// when the resolution has strip items, then the text entries; with the icons off
+    /// (<see cref="MenuContext.ShowQuickCommandIcons"/>) every entry as a text row (<see cref="AddQuickCommandRows"/>). The
+    /// release items that apply show whatever the situation's list (<see cref="WithRelease"/>), in Track and coordination
+    /// like the list's own entries of it. An aircraft whose situation is unknown gets only the release items, or nothing.
     /// </summary>
     private static void AddQuickCommands(ContextMenu menu, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -368,9 +368,9 @@ public static class AircraftMenuBuilder
             return;
         }
 
-        // An entry that builds no item is dropped before the strip is capped; the strip and the text list build it again.
+        // An entry that builds no item is dropped before the split; the strip and the text list build it again.
         bool BuildsAnItem(MenuCatalogEntry entry) => entry.Build(aircraft, context, host) is not null;
-        QuickCommandResolution resolution = LeadWithRelease(
+        QuickCommandResolution resolution = WithRelease(
             QuickCommandResolver.Resolve(aircraft, context, BuildsAnItem),
             aircraft,
             context,
@@ -391,11 +391,10 @@ public static class AircraftMenuBuilder
     }
 
     /// <summary>
-    /// The quick commands as text rows, with the icons off (<see cref="MenuContext.ShowQuickCommandIcons"/>): the release
-    /// items (<see cref="ReleaseIds"/>) first and unlabelled, as they lead the strip with the icons on; then the entries of
+    /// The quick commands as text rows, with the icons off (<see cref="MenuContext.ShowQuickCommandIcons"/>): the entries of
     /// each task category under its label (<see cref="MenuCategories.Label"/>), in <see cref="MenuCategory"/> order and in
-    /// <paramref name="entries"/>' order within a category; then the other entries in no category (custom entries)
-    /// unlabelled, after a separator when rows precede them.
+    /// <paramref name="entries"/>' order within a category, the release items among Track and coordination's; then the
+    /// other entries in no category (custom entries) unlabelled, after a separator when rows precede them.
     /// </summary>
     private static void AddQuickCommandRows(
         ItemCollection items,
@@ -405,9 +404,7 @@ public static class AircraftMenuBuilder
         IMenuHost host
     )
     {
-        List<MenuItem> release = TextRows(entries.Where(entry => ReleaseIds.Contains(entry.Id)), aircraft, context, host);
-        SharedMenuGroups.AddRange(items, release);
-        bool rowsBefore = release.Count > 0;
+        bool rowsBefore = false;
         foreach (MenuCategory category in Enum.GetValues<MenuCategory>())
         {
             List<MenuItem> rows = TextRows(entries.Where(entry => MenuCategories.Of(entry.Id) == category), aircraft, context, host);
@@ -421,12 +418,7 @@ public static class AircraftMenuBuilder
             rowsBefore = true;
         }
 
-        List<MenuItem> rest = TextRows(
-            entries.Where(entry => (MenuCategories.Of(entry.Id) is null) && !ReleaseIds.Contains(entry.Id)),
-            aircraft,
-            context,
-            host
-        );
+        List<MenuItem> rest = TextRows(entries.Where(entry => MenuCategories.Of(entry.Id) is null), aircraft, context, host);
         if (rowsBefore && (rest.Count > 0))
         {
             items.Add(new Separator());
@@ -456,16 +448,17 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// A delayed spawn's strip, which has no quick commands: after a separator, just the release icons that apply, in
-    /// <see cref="ReleaseIds"/> order, built and labelled as the aircraft menu's strip is; with the icons off
+    /// <see cref="ReleaseIds"/> order, built and labelled as the aircraft menu's strip is but in one flat row with no
+    /// category label (<see cref="QuickCommandStrip.BuildFlat"/>); with the icons off
     /// (<see cref="MenuContext.ShowQuickCommandIcons"/>) the same items as text rows. Nothing when neither applies.
     /// </summary>
     private static void AddReleaseStrip(ContextMenu menu, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
     {
         bool BuildsAnItem(MenuCatalogEntry entry) => entry.Build(aircraft, context, host) is not null;
-        QuickCommandResolution release = LeadWithRelease(new QuickCommandResolution([], []), aircraft, context, BuildsAnItem);
+        List<QuickCommandStripItem> release = ApplicableRelease(aircraft, context, BuildsAnItem);
         if (!context.ShowQuickCommandIcons)
         {
-            List<MenuItem> rows = TextRows(release.Strip.Select(item => item.Entry), aircraft, context, host);
+            List<MenuItem> rows = TextRows(release.Select(item => item.Entry), aircraft, context, host);
             if (rows.Count > 0)
             {
                 menu.Items.Add(new Separator());
@@ -475,29 +468,44 @@ public static class AircraftMenuBuilder
             return;
         }
 
-        if (QuickCommandStrip.Build(menu, release.Strip, aircraft, context, host) is { } strip)
+        if (QuickCommandStrip.BuildFlat(menu, release, aircraft, context, host) is { } strip)
         {
             menu.Items.Add(new Separator());
             menu.Items.Add(strip);
         }
     }
 
-    /// <summary>The release items the strip leads with, in order; with the icons off they lead the text rows.</summary>
+    /// <summary>The release items an aircraft's quick commands always offer when they apply, in order.</summary>
     public static IReadOnlyList<string> ReleaseIds { get; } = [MenuIds.CoordinationReleaseHeld, MenuIds.CoordinationCheckReleaseWindow];
 
     /// <summary>
-    /// <paramref name="resolution"/> with the release icons that apply and build an item first in the strip, ahead of the
-    /// situation's own icons, and taken out of wherever the situation's list placed them. The strip stays within
-    /// <see cref="QuickCommandGlyphs.StripCapacity"/>: an icon pushed past it becomes the first text entry.
+    /// <paramref name="resolution"/> with each release item that applies and builds an item, and that the situation's list
+    /// does not already show, added after the list's own strip entries in <see cref="ReleaseIds"/> order; one the list
+    /// shows keeps its place. The strip then groups them in Track and coordination with the list's other entries of it.
     /// </summary>
-    private static QuickCommandResolution LeadWithRelease(
+    private static QuickCommandResolution WithRelease(
         QuickCommandResolution resolution,
         IMenuAircraft aircraft,
         MenuContext context,
         Func<MenuCatalogEntry, bool> buildsAnItem
     )
     {
-        List<QuickCommandStripItem> release =
+        List<QuickCommandStripItem> added =
+        [
+            .. ApplicableRelease(aircraft, context, buildsAnItem).Where(item => !resolution.Strip.Any(shown => shown.Entry.Id == item.Entry.Id)),
+        ];
+        return (added.Count == 0) ? resolution : resolution with { Strip = [.. resolution.Strip, .. added] };
+    }
+
+    /// <summary>
+    /// The release items (<see cref="ReleaseIds"/>) that apply to <paramref name="aircraft"/> and build an item, in order,
+    /// each with its glyph.
+    /// </summary>
+    private static List<QuickCommandStripItem> ApplicableRelease(
+        IMenuAircraft aircraft,
+        MenuContext context,
+        Func<MenuCatalogEntry, bool> buildsAnItem
+    ) =>
         [
             .. ReleaseIds
                 .Select(MenuCatalog.Get)
@@ -507,19 +515,6 @@ public static class AircraftMenuBuilder
                     QuickCommandGlyphs.For(entry.Id) ?? throw new InvalidOperationException($"The release item '{entry.Id}' has no strip glyph.")
                 )),
         ];
-        if (release.Count == 0)
-        {
-            return resolution;
-        }
-
-        List<QuickCommandStripItem> strip = [.. release, .. resolution.Strip.Where(item => !ReleaseIds.Contains(item.Entry.Id))];
-        List<MenuCatalogEntry> text =
-        [
-            .. strip.Skip(QuickCommandGlyphs.StripCapacity).Select(item => item.Entry),
-            .. resolution.Text.Where(entry => !ReleaseIds.Contains(entry.Id)),
-        ];
-        return new QuickCommandResolution([.. strip.Take(QuickCommandGlyphs.StripCapacity)], text);
-    }
 
     /// <summary>
     /// The top-level groups below the quick commands, after a separator: Command…, Note…, All Commands (ending with the

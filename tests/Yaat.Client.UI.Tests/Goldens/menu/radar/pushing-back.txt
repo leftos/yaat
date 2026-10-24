@@ -2,7 +2,7 @@
 SWA102 · B738 [disabled]
 Pushback [disabled]
 ---
-strip: [ground.hold-position, ground.push-route]
+strip row 1: Taxi: ground.hold-position ground.push-route
 ---
 Command…
 Note…

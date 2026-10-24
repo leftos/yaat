@@ -39,9 +39,8 @@ public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily 
 
 /// <summary>
 /// The icon each glyph-bearing catalog action shows in a quick-command menu's strip, from the approved icon set, and the
-/// rule that splits a resolved quick-command list into the strip and the text entries below it: the first
-/// <see cref="StripCapacity"/> glyph-bearing entries in list order form the strip (three rows of five), and every other
-/// entry, a glyph-bearing one past the fifteenth included, is a text entry. Every default quick command has a glyph. An action
+/// rule that splits a resolved quick-command list into the strip and the text entries below it: every glyph-bearing entry
+/// is on the strip, in list order, and every other entry is a text entry. Every default quick command has a glyph. An action
 /// pair the icon set draws as one glyph (left and right 360, left and right closed traffic, Cleared and Join straight-in)
 /// shares it, and so do Cancel landing clearance and Cancel takeoff, which no situation offers together; the forced approach
 /// verbs draw their base verb's glyph with the force mark (<see cref="QuickCommandGlyph.HasForceMark"/>). A pattern entry
@@ -53,9 +52,6 @@ public sealed record QuickCommandGlyph(string PathData, QuickCommandGlyphFamily 
 /// </summary>
 public static class QuickCommandGlyphs
 {
-    /// <summary>The most entries the strip shows: three rows of five.</summary>
-    public const int StripCapacity = 15;
-
     private const string CancelPath = "M2 20h20 M8 5l8 8 M16 5l-8 8";
 
     /// <summary>The helicopter the Air taxi and Land glyphs share: rotor, mast, body and skids; each adds its own arrow.</summary>
@@ -230,9 +226,8 @@ public static class QuickCommandGlyphs
             : throw new ArgumentException($"'{pointId}' is not a point item with a strip glyph.", nameof(pointId));
 
     /// <summary>
-    /// Splits <paramref name="entries"/>, a resolved quick-command list in order, into the strip (the first
-    /// <see cref="StripCapacity"/> glyph-bearing entries) and the text entries (every other one, in order). With no
-    /// glyph-bearing entry the strip is empty.
+    /// Splits <paramref name="entries"/>, a resolved quick-command list in order, into the strip (every glyph-bearing
+    /// entry, in order) and the text entries (every other one, in order). With no glyph-bearing entry the strip is empty.
     /// </summary>
     public static QuickCommandResolution Split(IReadOnlyList<MenuCatalogEntry> entries)
     {
@@ -240,7 +235,7 @@ public static class QuickCommandGlyphs
         List<MenuCatalogEntry> text = [];
         foreach (MenuCatalogEntry entry in entries)
         {
-            if ((strip.Count < StripCapacity) && (For(entry.Id) is { } glyph))
+            if (For(entry.Id) is { } glyph)
             {
                 strip.Add(new QuickCommandStripItem(entry, glyph));
             }

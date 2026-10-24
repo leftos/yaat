@@ -58,7 +58,7 @@ internal static class MenuTreeSnapshot
                 text.Append("---\n");
                 break;
             case MenuItem strip when QuickCommandStrip.IsStrip(strip):
-                text.Append("strip: [").AppendJoin(", ", QuickCommandStrip.Buttons(strip).Select(button => button.Tag as string)).Append("]\n");
+                AppendStrip(text, strip, depth);
                 break;
             case MenuItem { Header: TaxiToRunwayPanel panel }:
                 AppendPanel(text, panel, depth);
@@ -71,6 +71,39 @@ internal static class MenuTreeSnapshot
                 text.Append('<').Append(item?.GetType().Name ?? "null").Append(">\n");
                 break;
         }
+    }
+
+    /// <summary>
+    /// The strip, its first line already indented: one line per row, <c>strip row n: segment | segment</c>, each segment
+    /// its label and its buttons' tags (<c>Taxi: a b</c>), <c>(cont)</c> for a wrapped category's unlabelled continuation
+    /// and <c>-</c> for the uncategorised group or a flat strip.
+    /// </summary>
+    private static void AppendStrip(StringBuilder text, MenuItem strip, int depth)
+    {
+        IReadOnlyList<QuickCommandStripRow<Button>> rows = QuickCommandStrip.Layout(strip);
+        for (int r = 0; r < rows.Count; r++)
+        {
+            if (r > 0)
+            {
+                for (int i = 0; i < depth; i++)
+                {
+                    text.Append(Indent);
+                }
+            }
+
+            text.Append("strip row ").Append(r + 1).Append(": ").AppendJoin(" | ", rows[r].Segments.Select(DescribeSegment)).Append('\n');
+        }
+    }
+
+    private static string DescribeSegment(QuickCommandStripSegment<Button> segment)
+    {
+        string head = segment switch
+        {
+            { Category: null } => "-",
+            { ShowsLabel: true, Category: { } category } => MenuCategories.Label(category),
+            _ => "(cont)",
+        };
+        return $"{head}: {string.Join(' ', segment.Items.Select(button => button.Tag as string))}";
     }
 
     /// <summary>

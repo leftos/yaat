@@ -2,7 +2,7 @@
 SWA109 · B738 [disabled]
 Taxiing [disabled]
 ---
-strip: [coordination.check-release-window, ground.hold-position, ground.follow, ground.break-conflict]
+strip row 1: Taxi: ground.hold-position ground.follow ground.break-conflict | Track and coordination: coordination.check-release-window
 ---
 Command…
 Note…

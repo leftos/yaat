@@ -91,17 +91,13 @@ public partial class QuickCommandsSection : UserControl
 
     private void OnRowChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(QuickCommandEntryRow.IsInStrip))
-        {
-            ScheduleRefresh();
-        }
-        else if (e.PropertyName == nameof(QuickCommandEntryRow.Label))
+        if (e.PropertyName == nameof(QuickCommandEntryRow.Label))
         {
             RefreshPreview(Rows());
         }
     }
 
-    // A reset or a move changes the list and every row's strip flag in one burst; the list and preview rebuild once after it.
+    // A reset or a move changes the list in one burst; the list and preview rebuild once after it.
     private void ScheduleRefresh()
     {
         if (_refreshPending)
@@ -117,26 +113,15 @@ public partial class QuickCommandsSection : UserControl
         });
     }
 
-    // The rows in order, with the divider after the fifteenth glyph entry when any row follows it and the icons are on.
+    // The rows in order, one flat list: the order sets the strip's group order and the order within each group.
     private void RefreshEntries()
     {
         IReadOnlyList<QuickCommandEntryRow> rows = Rows();
-        bool showIcons = ShowsIcons();
         WatchRows(rows);
         _entryItems.Clear();
-        int stripRows = 0;
-        for (int i = 0; i < rows.Count; i++)
+        foreach (QuickCommandEntryRow row in rows)
         {
-            _entryItems.Add(rows[i]);
-            if (rows[i].IsInStrip)
-            {
-                stripRows++;
-            }
-
-            if (showIcons && rows[i].IsInStrip && (stripRows == QuickCommandGlyphs.StripCapacity) && (i < rows.Count - 1))
-            {
-                _entryItems.Add(QuickCommandStripDivider.Instance);
-            }
+            _entryItems.Add(row);
         }
 
         RefreshPreview(rows);
@@ -160,17 +145,17 @@ public partial class QuickCommandsSection : UserControl
     // The section's "Show quick command icons" checkbox, as staged; on while there is no view model.
     private bool ShowsIcons() => _vm?.ShowQuickCommandIcons ?? true;
 
-    // The strip as the menu lays it out, through the menu's own factory, then every other entry as text in list order;
-    // with the icons off, no strip and the text rows as the menu groups them (PreviewTextRows).
+    // The strip as the menu lays it out, grouped by category through the menu's own factory, then every entry with no
+    // glyph as text in list order; with the icons off, no strip and the text rows as the menu groups them (PreviewTextRows).
     private void RefreshPreview(IReadOnlyList<QuickCommandEntryRow> rows)
     {
         bool showIcons = ShowsIcons();
-        List<Control> cells = [];
+        List<(Control Cell, MenuCategory? Category)> cells = [];
         foreach (QuickCommandEntryRow row in rows)
         {
-            if (showIcons && row.IsInStrip && (row.Glyph is { } glyph))
+            if (showIcons && (row.Glyph is { } glyph))
             {
-                cells.Add(PreviewCell(row, glyph));
+                cells.Add((PreviewCell(row, glyph), CategoryOf(row)));
             }
         }
 
@@ -181,7 +166,7 @@ public partial class QuickCommandsSection : UserControl
         PreviewTextEntries.Orientation = showIcons ? Orientation.Horizontal : Orientation.Vertical;
         if (showIcons)
         {
-            foreach (QuickCommandEntryRow row in rows.Where(r => !r.IsInStrip))
+            foreach (QuickCommandEntryRow row in rows.Where(r => r.Glyph is null))
             {
                 PreviewTextEntries.Children.Add(PreviewText(row, 0));
             }
@@ -192,18 +177,12 @@ public partial class QuickCommandsSection : UserControl
         AddPreviewTextRows(rows);
     }
 
-    // The icons-off text rows as the aircraft menu draws them: the release rows first, each category's rows under its
-    // label line in category order, then the custom and uncategorised rows after a gap.
+    private static MenuCategory? CategoryOf(QuickCommandEntryRow row) => (row.CatalogId is { } id) ? MenuCategories.Of(id) : null;
+
+    // The icons-off text rows as the aircraft menu draws them: each category's rows under its label line in category
+    // order, then the custom and uncategorised rows after a gap.
     private void AddPreviewTextRows(IReadOnlyList<QuickCommandEntryRow> rows)
     {
-        static bool IsRelease(QuickCommandEntryRow row) => (row.CatalogId is { } id) && AircraftMenuBuilder.ReleaseIds.Contains(id);
-        static MenuCategory? CategoryOf(QuickCommandEntryRow row) => (row.CatalogId is { } id) ? MenuCategories.Of(id) : null;
-
-        foreach (QuickCommandEntryRow row in rows.Where(IsRelease))
-        {
-            PreviewTextEntries.Children.Add(PreviewText(row, 0));
-        }
-
         foreach (MenuCategory category in Enum.GetValues<MenuCategory>())
         {
             List<QuickCommandEntryRow> inCategory = [.. rows.Where(row => CategoryOf(row) == category)];
@@ -224,7 +203,7 @@ public partial class QuickCommandsSection : UserControl
         }
 
         double gap = (PreviewTextEntries.Children.Count > 0) ? 10 : 0;
-        foreach (QuickCommandEntryRow row in rows.Where(row => !IsRelease(row) && (CategoryOf(row) is null)))
+        foreach (QuickCommandEntryRow row in rows.Where(row => CategoryOf(row) is null))
         {
             PreviewTextEntries.Children.Add(PreviewText(row, gap));
             gap = 0;
@@ -408,12 +387,4 @@ public partial class QuickCommandsSection : UserControl
             add.Execute(null);
         }
     }
-}
-
-/// <summary>The entry list's marker after the tenth glyph entry, where the icon strip ends and text entries begin.</summary>
-public sealed class QuickCommandStripDivider
-{
-    public static QuickCommandStripDivider Instance { get; } = new();
-
-    private QuickCommandStripDivider() { }
 }

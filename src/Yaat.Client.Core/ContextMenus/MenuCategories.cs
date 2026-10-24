@@ -3,11 +3,14 @@ using System.Collections.Frozen;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The task categories the aircraft menu's commands fall into, in the order All Commands lists its groups; each
-/// category's label heads its group.
+/// The task categories the aircraft menu's commands fall into, in the order All Commands lists them: the live-traffic
+/// assume items first, the seven task groups, then the sim-control items. Each task group's label heads its All Commands
+/// group; the live-traffic and sim-control items have no group header there, and their labels name them in the quick
+/// commands only.
 /// </summary>
 public enum MenuCategory
 {
+    LiveTraffic,
     Runway,
     Taxi,
     Vectors,
@@ -15,21 +18,26 @@ public enum MenuCategory
     Pattern,
     PilotReports,
     TrackAndCoordination,
+    Sim,
 }
 
 /// <summary>
-/// The category map: which task category (<see cref="MenuCategory"/>) each <see cref="MenuCatalog"/> id belongs to, the
-/// label each category shows, and the ids that belong to none (the root's items, sim control, spawn, point-menu and
-/// For-section items). Every catalog id is in exactly one of the two.
+/// The category map: which category (<see cref="MenuCategory"/>) each <see cref="MenuCatalog"/> id belongs to, the
+/// label each category shows, and the ids that belong to none (the root's items, spawn, point-menu and For-section
+/// items). Every catalog id is in exactly one of the two.
 /// </summary>
 public static class MenuCategories
 {
-    /// <summary>The header of the category's All Commands group.</summary>
+    /// <summary>The category's label: its All Commands group's header for a task group, and the quick commands' label.</summary>
     /// <param name="category">The category to name.</param>
-    /// <returns>"Runway", "Taxi", "Vectors", "Approach", "Pattern", "Pilot reports" or "Track and coordination".</returns>
+    /// <returns>
+    /// "Live traffic", "Runway", "Taxi", "Vectors", "Approach", "Pattern", "Pilot reports", "Track and coordination" or "Sim".
+    /// </returns>
     public static string Label(MenuCategory category) =>
         category switch
         {
+            MenuCategory.LiveTraffic => "Live traffic",
+            MenuCategory.Sim => "Sim",
             MenuCategory.Runway => "Runway",
             MenuCategory.Taxi => "Taxi",
             MenuCategory.Vectors => "Vectors",
@@ -46,9 +54,8 @@ public static class MenuCategories
     public static MenuCategory? Of(string menuId) => Categories.TryGetValue(menuId, out MenuCategory category) ? category : null;
 
     /// <summary>
-    /// The catalog ids in no category, listed explicitly: the root's items (Favorites, Command…, Note…, Delete), the
-    /// live-traffic and sim-control items, the release icons the strip leads with, the delayed-spawn items, and the
-    /// point-menu and For-section items.
+    /// The catalog ids in no category, listed explicitly: the root's items (Favorites, Command…, Note…), the delayed-spawn
+    /// items, and the point-menu and For-section items.
     /// </summary>
     public static IReadOnlySet<string> Uncategorized { get; } =
         new[]
@@ -56,14 +63,6 @@ public static class MenuCategories
             MenuIds.FavoritesMenu,
             MenuIds.AircraftCommand,
             MenuIds.AircraftNote,
-            MenuIds.SimControlDelete,
-            MenuIds.SimControlWarp,
-            MenuIds.LiveTrafficAssume,
-            MenuIds.LiveTrafficAssumeAndTrack,
-            MenuIds.LiveTrafficAssumeSelected,
-            MenuIds.LiveTrafficUnassume,
-            MenuIds.CoordinationReleaseHeld,
-            MenuIds.CoordinationCheckReleaseWindow,
             MenuIds.SpawnNow,
             MenuIds.SpawnDelay,
             MenuIds.PointFlyHeading,
@@ -82,9 +81,17 @@ public static class MenuCategories
             MenuIds.GroundRelativeGiveWay,
         }.ToFrozenSet(StringComparer.Ordinal);
 
-    /// <summary>Each category's ids, in the order its All Commands group lists them.</summary>
+    /// <summary>
+    /// Each category's ids: a task group's in the order its All Commands group lists them, Live traffic's and Sim's in
+    /// the order All Commands lists those items.
+    /// </summary>
     private static readonly (MenuCategory Category, string[] Ids)[] Groups =
     [
+        (
+            MenuCategory.LiveTraffic,
+            [MenuIds.LiveTrafficAssume, MenuIds.LiveTrafficAssumeAndTrack, MenuIds.LiveTrafficAssumeSelected, MenuIds.LiveTrafficUnassume]
+        ),
+        (MenuCategory.Sim, [MenuIds.SimControlWarp, MenuIds.SimControlDelete]),
         (
             MenuCategory.Runway,
             [
@@ -234,6 +241,8 @@ public static class MenuCategories
                 MenuIds.CoordinationHold,
                 MenuIds.CoordinationRecall,
                 MenuIds.CoordinationAcknowledge,
+                MenuIds.CoordinationReleaseHeld,
+                MenuIds.CoordinationCheckReleaseWindow,
                 MenuIds.AircraftEditFlightPlan,
             ]
         ),

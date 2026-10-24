@@ -2,7 +2,7 @@
 SWA103 · B738 [disabled]
 Holding in position [disabled]
 ---
-strip: [ground.draw-taxi-route, ground.follow]
+strip row 1: Taxi: ground.draw-taxi-route ground.follow
 ---
 Command…
 Note…

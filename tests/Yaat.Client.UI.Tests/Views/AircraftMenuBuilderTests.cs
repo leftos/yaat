@@ -50,12 +50,15 @@ public class AircraftMenuBuilderTests
         Assert.Equal(["---", ViewItem], Sequence(AllCommandsItem(menu))[^2..]);
     }
 
-    /// <summary>A held departure's Release (HFR) and a call-for-release window's Check release window lead the strip and leave the header.</summary>
+    /// <summary>
+    /// A held departure's Release (HFR) and a call-for-release window's Check release window show in the strip, after the
+    /// situation's own icons as the list names neither, and leave the header.
+    /// </summary>
     [AvaloniaTheory]
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public void ReleaseItems_LeadTheStrip_NotTheHeader(bool held, bool hasWindow)
+    public void ReleaseItems_FollowTheListsIcons_NotTheHeader(bool held, bool hasWindow)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = Fixture("taxiing");
@@ -68,10 +71,8 @@ public class AircraftMenuBuilderTests
 
         ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
 
-        List<string> tags = StripTags(menu);
-        Assert.Equal(release, tags[..release.Count]);
         // With no other ground traffic, Follow stays in the strip, faded.
-        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundFollow, MenuIds.GroundBreakConflict], tags[release.Count..]);
+        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundFollow, MenuIds.GroundBreakConflict, .. release], StripTags(menu));
         Assert.Equal(["SWA104 · B738", "Taxiing", "---", StripRow], Sequence(menu)[..4]);
         Assert.DoesNotContain(Label(MenuIds.CoordinationReleaseHeld), Sequence(menu));
         Assert.DoesNotContain(Label(MenuIds.CoordinationCheckReleaseWindow), Sequence(menu));
@@ -102,9 +103,9 @@ public class AircraftMenuBuilderTests
         Assert.Equal([MenuIds.CoordinationReleaseHeld], StripTags(menu));
     }
 
-    /// <summary>Check release window in the situation's own list shows once, first in the strip.</summary>
+    /// <summary>Check release window in the situation's own list shows once, at its place in the list.</summary>
     [AvaloniaFact]
-    public void ReleaseItems_InTheSituationsListShowOnceFirst()
+    public void ReleaseItems_InTheSituationsListShowOnceInTheirListPlace()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = Fixture("at-parking");
@@ -129,16 +130,16 @@ public class AircraftMenuBuilderTests
 
         ContextMenu menu = Build(ac, host, _ => []);
 
-        Assert.Equal([MenuIds.CoordinationCheckReleaseWindow, MenuIds.GroundPushback], StripTags(menu));
+        Assert.Equal([MenuIds.GroundPushback, MenuIds.CoordinationCheckReleaseWindow], StripTags(menu));
         Assert.DoesNotContain(Label(MenuIds.CoordinationCheckReleaseWindow), Sequence(menu));
     }
 
     /// <summary>
-    /// With the icons off the release row leads the text quick commands unlabelled, the catalog entries follow under their
-    /// category label, and a custom entry comes last, after a separator and unlabelled.
+    /// With the icons off the catalog entries list under their category label, the release row under Track and
+    /// coordination's, and a custom entry comes last, after a separator and unlabelled.
     /// </summary>
     [AvaloniaFact]
-    public void IconsOff_ReleaseLeads_CategoriesLabelled_CustomEntryLastUnlabelled()
+    public void IconsOff_ReleaseUnderTrackAndCoordination_CategoriesLabelled_CustomEntryLastUnlabelled()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = Fixture("at-parking");
@@ -169,14 +170,15 @@ public class AircraftMenuBuilderTests
         Assert.Equal(
             [
                 "---",
-                Label(MenuIds.CoordinationCheckReleaseWindow),
                 MenuCategories.Label(MenuCategory.Taxi),
                 Label(MenuIds.GroundPushback),
+                MenuCategories.Label(MenuCategory.TrackAndCoordination),
+                Label(MenuIds.CoordinationCheckReleaseWindow),
                 "---",
                 "Say altitude",
                 "---",
             ],
-            items[(command - 7)..command]
+            items[(command - 8)..command]
         );
         Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
         MenuItem custom = menu.Items.OfType<MenuItem>().Single(item => (item.Header as string) == "Say altitude");

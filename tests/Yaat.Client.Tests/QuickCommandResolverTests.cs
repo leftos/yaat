@@ -12,7 +12,7 @@ namespace Yaat.Client.Tests;
 
 /// <summary>
 /// Pins <see cref="QuickCommandResolver"/>: the flight-rules filter (entry override else catalog default), the
-/// applicability filter, the strip split (the first fifteen glyph-bearing entries, in order) and the empty result for an
+/// applicability filter, the strip split (every glyph-bearing entry, in order) and the empty result for an
 /// unclassified aircraft.
 /// </summary>
 public class QuickCommandResolverTests
@@ -200,7 +200,7 @@ public class QuickCommandResolverTests
     }
 
     [Fact]
-    public void Strip_TakesTheFirstFifteenGlyphEntriesInOrder_AndTheSixteenthGoesToText()
+    public void Strip_TakesEveryGlyphEntryInOrder_WithNoCap_AndTheRestGoToText()
     {
         List<QuickCommandEntry> entries = Entries([MenuIds.HeadingPresent, .. GlyphIds]);
 
@@ -211,8 +211,8 @@ public class QuickCommandResolverTests
             _ => true
         );
 
-        Assert.Equal(GlyphIds[..QuickCommandGlyphs.StripCapacity], StripIds(resolution));
-        Assert.Equal([MenuIds.HeadingPresent, GlyphIds[^1]], TextIds(resolution));
+        Assert.Equal(GlyphIds, StripIds(resolution));
+        Assert.Equal([MenuIds.HeadingPresent], TextIds(resolution));
     }
 
     [Fact]

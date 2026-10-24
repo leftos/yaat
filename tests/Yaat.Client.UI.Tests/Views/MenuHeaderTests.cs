@@ -23,7 +23,8 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>
 /// The header every aircraft menu opens with (<see cref="SharedMenuGroups.AddHeader"/>): the bold title naming the
 /// callsign and the filed type, the one-line state row under it, and the route summary and hold status rows below that;
-/// the release items (Release (HFR) and Check release window) lead the quick-command strip under it where they apply,
+/// the release items (Release (HFR) and Check release window) show in the quick-command strip under it, in its Track and
+/// coordination group, where they apply,
 /// and the free-text Command… and Note… (<see cref="SharedMenuGroups.AddCommandAndNote"/>), which ask the host to open
 /// its command and note flyouts, follow the strip.
 /// </summary>
@@ -454,17 +455,18 @@ public class MenuHeaderTests
         Assert.DoesNotContain(children, c => c.StartsWith("Note", StringComparison.Ordinal));
     }
 
-    // --- The release items, first in the strip on every view ------------------------------------
+    // --- The release items, in the strip's Track and coordination group on every view ----------------
 
     [AvaloniaFact]
-    public void HeldForRelease_ReleaseLeadsTheStrip_NotTheHeader_OnEveryView() =>
-        AssertReleaseLeadsTheStrip("held-for-release", "SWA108 · B738", MenuIds.CoordinationReleaseHeld, "Release (HFR)");
+    public void HeldForRelease_ReleaseJoinsTrackAndCoordinationInTheStrip_NotTheHeader_OnEveryView() =>
+        AssertReleaseInTrackAndCoordination("held-for-release", "SWA108 · B738", MenuIds.CoordinationReleaseHeld, "Release (HFR)");
 
     [AvaloniaFact]
-    public void CfrWindow_CheckReleaseWindowLeadsTheStrip_NotTheHeader_OnEveryView() =>
-        AssertReleaseLeadsTheStrip("cfr-window", "SWA109 · B738", MenuIds.CoordinationCheckReleaseWindow, "Check release window");
+    public void CfrWindow_CheckReleaseWindowJoinsTrackAndCoordinationInTheStrip_NotTheHeader_OnEveryView() =>
+        AssertReleaseInTrackAndCoordination("cfr-window", "SWA109 · B738", MenuIds.CoordinationCheckReleaseWindow, "Check release window");
 
-    private void AssertReleaseLeadsTheStrip(string fixture, string title, string releaseId, string releaseLabel)
+    // The taxiing list names no Track and coordination entry, so the release icon, added after the list, is the strip's last.
+    private void AssertReleaseInTrackAndCoordination(string fixture, string title, string releaseId, string releaseLabel)
     {
         foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
         {
@@ -472,12 +474,15 @@ public class MenuHeaderTests
 
             Assert.Equal([title, "Taxiing", "---", StripRow], items[..4]);
             Assert.DoesNotContain(releaseLabel, items);
-            List<string> tags =
-            [
-                .. QuickCommandStrip.Buttons(Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip)).Select(b => (string)b.Tag!),
-            ];
-            Assert.Equal(releaseId, tags[0]);
+            MenuItem strip = Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip);
+            List<string> tags = [.. QuickCommandStrip.Buttons(strip).Select(b => (string)b.Tag!)];
+            Assert.Equal(releaseId, tags[^1]);
             Assert.Single(tags, tag => tag == releaseId);
+            QuickCommandStripSegment<Button> segment = QuickCommandStrip
+                .Layout(strip)
+                .SelectMany(row => row.Segments)
+                .Single(s => s.Items.Any(b => (string)b.Tag! == releaseId));
+            Assert.Equal(MenuCategory.TrackAndCoordination, segment.Category);
         }
     }
 
@@ -523,9 +528,9 @@ public class MenuHeaderTests
         Assert.DoesNotContain("Check release window", items);
     }
 
-    // The hold status row ends the header; Release (HFR) is the first icon of the strip under it.
+    // The hold status row ends the header; Release (HFR), after the taxiing list's own icons, is the last icon of the strip under it.
     [AvaloniaFact]
-    public void Header_Radar_HoldRowEndsTheHeader_ReleaseLeadsTheStrip()
+    public void Header_Radar_HoldRowEndsTheHeader_ReleaseInTheStripUnderIt()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -540,7 +545,7 @@ public class MenuHeaderTests
         List<string> items = [.. menu.Items.Select(Describe)];
 
         Assert.Equal(["SWA108 · B738", "Taxiing", "Held: position", "---", StripRow], items[..5]);
-        Assert.Equal(MenuIds.CoordinationReleaseHeld, QuickCommandStrip.Buttons((MenuItem)menu.Items[4]!)[0].Tag);
+        Assert.Equal(MenuIds.CoordinationReleaseHeld, QuickCommandStrip.Buttons((MenuItem)menu.Items[4]!)[^1].Tag);
     }
 
     // --- The route summary and hold status rows, on every view ---------------------------------

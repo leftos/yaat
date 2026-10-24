@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -30,7 +31,7 @@ public class QuickCommandStripTests
     [AvaloniaTheory]
     [InlineData("taxiing")]
     [InlineData("final-ifr")]
-    public void Strip_ButtonsFollowTheResolvedStripInOrder(string fixture)
+    public void Strip_ButtonsFollowTheResolvedStrip_GroupedByCategory(string fixture)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         RecordingMenuHost host = Host();
@@ -41,7 +42,13 @@ public class QuickCommandStripTests
 
         MenuContext context = Context(ac, host);
         QuickCommandResolution resolution = QuickCommandResolver.Resolve(ac, context, entry => entry.Build(ac, context, host) is not null);
-        List<string> expected = [.. resolution.Strip.Select(item => item.Entry.Id)];
+        List<string> expected =
+        [
+            .. QuickCommandStripLayout
+                .Pack([.. resolution.Strip.Select(item => item.Entry.Id)], MenuCategories.Of)
+                .SelectMany(row => row.Segments)
+                .SelectMany(segment => segment.Items),
+        ];
         Assert.NotEmpty(expected);
         Assert.Equal(expected, QuickCommandStrip.Buttons(strip).Select(button => (string)button.Tag!));
     }
@@ -484,7 +491,7 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
-    public void FewerThanFiveButtons_HidesTheSecondRow()
+    public void Strip_DrawsOneRowPerPackedRow_EachOfAtMostSixButtons()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         RecordingMenuHost host = Host();
@@ -492,55 +499,128 @@ public class QuickCommandStripTests
         MenuItem strip = Strip(Build(Fixture("final-ifr"), host));
 
         var rows = (StackPanel)strip.Header!;
-        Assert.InRange(QuickCommandStrip.Buttons(strip).Count, 1, QuickCommandStrip.RowLength);
-        Assert.False(rows.Children[1].IsVisible);
+        IReadOnlyList<QuickCommandStripRow<Button>> layout = QuickCommandStrip.Layout(strip);
+        Assert.NotEmpty(layout);
+        Assert.Equal(layout.Count, rows.Children.Count);
+        Assert.All(layout, row => Assert.InRange(row.Segments.Sum(segment => segment.Items.Count), 1, QuickCommandStripLayout.RowLength));
     }
 
     [AvaloniaFact]
-    public void Rows_FifteenCells_LayThreeRowsOfFive()
+    public void Rows_SixteenCells_HaveNoCap_AndLaySixToARow()
     {
-        List<Control> cells = [.. Enumerable.Range(0, QuickCommandGlyphs.StripCapacity).Select(i => new Border { Tag = i })];
+        List<(Control Cell, MenuCategory? Category)> cells =
+        [
+            .. Enumerable.Range(0, 16).Select(i => ((Control)new Border { Tag = i }, (MenuCategory?)null)),
+        ];
 
         StackPanel rows = QuickCommandStrip.Rows(cells);
 
         Assert.Equal(3, rows.Children.Count);
-        for (int r = 0; r < 3; r++)
+        Assert.Equal([.. Enumerable.Range(0, 6)], TaggedCells(rows.Children[0]));
+        Assert.Equal([.. Enumerable.Range(6, 6)], TaggedCells(rows.Children[1]));
+        Assert.Equal([12, 13, 14, 15], TaggedCells(rows.Children[2]));
+        Assert.Empty(rows.GetLogicalDescendants().OfType<TextBlock>());
+    }
+
+    [AvaloniaFact]
+    public void Rows_TwoCategoriesSharingARow_EachKeepItsLabel_WithARuleBetween()
+    {
+        List<(Control Cell, MenuCategory? Category)> cells =
+        [
+            (new Border { Tag = 0 }, MenuCategory.Runway),
+            (new Border { Tag = 1 }, MenuCategory.Runway),
+            (new Border { Tag = 2 }, MenuCategory.Taxi),
+        ];
+
+        StackPanel rows = QuickCommandStrip.Rows(cells);
+
+        StackPanel row = Assert.IsType<StackPanel>(Assert.Single(rows.Children));
+        Assert.Equal(3, row.Children.Count);
+        Border rule = Assert.IsType<Border>(row.Children[1]);
+        Assert.Equal(1, rule.Width);
+        Assert.Equal([0, 1, 2], TaggedCells(row));
+        Assert.Equal(["RUNWAY", "TAXI"], row.GetLogicalDescendants().OfType<TextBlock>().Select(text => text.Text));
+        Assert.All(row.GetLogicalDescendants().OfType<TextBlock>(), text => Assert.Equal(TextTrimming.CharacterEllipsis, text.TextTrimming));
+    }
+
+    [AvaloniaFact]
+    public void Rows_AWrappedCategorysContinuation_ShowsNoLabelText()
+    {
+        List<(Control Cell, MenuCategory? Category)> cells =
+        [
+            .. Enumerable.Range(0, 8).Select(i => ((Control)new Border { Tag = i }, (MenuCategory?)MenuCategory.Taxi)),
+            (new Border { Tag = 8 }, MenuCategory.Runway),
+        ];
+
+        StackPanel rows = QuickCommandStrip.Rows(cells);
+
+        Assert.Equal(2, rows.Children.Count);
+        Assert.Equal(["TAXI"], rows.Children[0].GetLogicalDescendants().OfType<TextBlock>().Select(text => text.Text));
+        Assert.Equal(["RUNWAY"], rows.Children[1].GetLogicalDescendants().OfType<TextBlock>().Select(text => text.Text));
+        Assert.Equal([6, 7, 8], TaggedCells(rows.Children[1]));
+    }
+
+    [AvaloniaFact]
+    public void Rows_ALabelIsCutToItsSegmentsWidth_AndNeverWidensIt()
+    {
+        List<(Control Cell, MenuCategory? Category)> cells =
+        [
+            .. Enumerable.Range(0, 3).Select(i => (SizedCell(i), (MenuCategory?)MenuCategory.Runway)),
+            (SizedCell(3), MenuCategory.TrackAndCoordination),
+        ];
+
+        StackPanel rows = LaidOut(QuickCommandStrip.Rows(cells));
+
+        StackPanel row = Assert.IsType<StackPanel>(Assert.Single(rows.Children));
+        Control runway = row.Children[0];
+        Control track = row.Children[2];
+        Assert.Equal((3 * 40) + (2 * 6), runway.Bounds.Width);
+        Assert.Equal(40, track.Bounds.Width);
+        foreach (Control segment in new[] { runway, track })
         {
-            StackPanel row = Assert.IsType<StackPanel>(rows.Children[r]);
-            Assert.True(row.IsVisible, $"row {r} is hidden");
-            Assert.Equal(Enumerable.Range(r * QuickCommandStrip.RowLength, QuickCommandStrip.RowLength), row.Children.Select(c => (int)c.Tag!));
+            TextBlock label = Assert.Single(segment.GetLogicalDescendants().OfType<TextBlock>());
+            Assert.True(
+                label.Bounds.Width <= segment.Bounds.Width,
+                $"'{label.Text}' is {label.Bounds.Width} px in a {segment.Bounds.Width} px segment"
+            );
         }
     }
 
     [AvaloniaFact]
-    public void Rows_SixteenCells_OverflowIntoTheThirdRow()
+    public void Rows_AContinuationRowStandingAlone_HasNoLabelLine()
     {
-        List<Control> cells = [.. Enumerable.Range(0, QuickCommandGlyphs.StripCapacity + 1).Select(i => new Border { Tag = i })];
+        List<(Control Cell, MenuCategory? Category)> cells =
+        [
+            .. Enumerable.Range(0, 7).Select(i => (SizedCell(i), (MenuCategory?)MenuCategory.Taxi)),
+            .. Enumerable.Range(7, 6).Select(i => (SizedCell(i), (MenuCategory?)MenuCategory.Runway)),
+        ];
 
-        StackPanel rows = QuickCommandStrip.Rows(cells);
+        StackPanel rows = LaidOut(QuickCommandStrip.Rows(cells));
 
         Assert.Equal(3, rows.Children.Count);
-        StackPanel third = Assert.IsType<StackPanel>(rows.Children[2]);
-        Assert.Equal([10, 11, 12, 13, 14, 15], third.Children.Select(c => (int)c.Tag!));
+        Assert.Equal([6], TaggedCells(rows.Children[1]));
+        Assert.Equal(40, rows.Children[1].Bounds.Height);
+        Assert.True(rows.Children[0].Bounds.Height > 40);
+        Assert.Empty(rows.Children[1].GetLogicalDescendants().OfType<DockPanel>());
     }
 
-    [AvaloniaFact]
-    public void Rows_SixCells_HideTheThirdRow()
+    private static Border SizedCell(int tag) =>
+        new()
+        {
+            Tag = tag,
+            Width = 40,
+            Height = 40,
+        };
+
+    private static StackPanel LaidOut(StackPanel rows)
     {
-        List<Control> cells = [.. Enumerable.Range(0, 6).Select(i => new Border { Tag = i })];
-
-        StackPanel rows = QuickCommandStrip.Rows(cells);
-
-        Assert.Equal(3, rows.Children.Count);
-        StackPanel first = Assert.IsType<StackPanel>(rows.Children[0]);
-        StackPanel second = Assert.IsType<StackPanel>(rows.Children[1]);
-        StackPanel third = Assert.IsType<StackPanel>(rows.Children[2]);
-        Assert.Equal([0, 1, 2, 3, 4], first.Children.Select(c => (int)c.Tag!));
-        Assert.Equal([5], second.Children.Select(c => (int)c.Tag!));
-        Assert.True(second.IsVisible);
-        Assert.Empty(third.Children);
-        Assert.False(third.IsVisible);
+        rows.Measure(Size.Infinity);
+        rows.Arrange(new Rect(rows.DesiredSize));
+        return rows;
     }
+
+    private static List<int> TaggedCells(Control row) =>
+        [.. row.GetLogicalDescendants().OfType<Border>().Where(b => b.Tag is int).Select(b => (int)b.Tag!)];
 
     /// <summary>
     /// Pointing at an icon that sends a command puts its name and command in the header's state-line row, in place of the

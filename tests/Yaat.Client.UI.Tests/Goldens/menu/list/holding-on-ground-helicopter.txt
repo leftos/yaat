@@ -2,7 +2,7 @@
 N812HM · EC35 [disabled]
 Holding in position [disabled]
 ---
-strip: [ground.air-taxi, ground.draw-taxi-route, ground.follow]
+strip row 1: Taxi: ground.air-taxi ground.draw-taxi-route ground.follow
 ---
 Command…
 Note…

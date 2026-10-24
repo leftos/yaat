@@ -2,7 +2,7 @@
 AAL202 · B738 [disabled]
 33,000 ft · 280 kt [disabled]
 ---
-strip: [heading.fly, altitude.maintain, navigation.direct-to, speed.assign, hold.pattern, procedures.cross-fix]
+strip row 1: Vectors: heading.fly altitude.maintain navigation.direct-to speed.assign procedures.cross-fix | Approach: hold.pattern
 ---
 Command…
 Note…

@@ -2,7 +2,7 @@
 N302AB · C172 [disabled]
 5,500 ft · 110 kt [disabled]
 ---
-strip: [approach.report-traffic-in-sight, heading.fly, altitude.maintain, navigation.direct-to, approach.expect]
+strip row 1: Pilot reports: approach.report-traffic-in-sight | Vectors: heading.fly altitude.maintain navigation.direct-to | Approach: approach.expect
 ---
 Command…
 Note…

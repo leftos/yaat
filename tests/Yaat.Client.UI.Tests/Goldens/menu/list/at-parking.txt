@@ -2,7 +2,7 @@
 SWA101 · B738 [disabled]
 At parking · 25 [disabled]
 ---
-strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route, ground.pushback-to]
+strip row 1: Taxi: ground.pushback ground.taxi-preset ground.draw-taxi-route ground.pushback-to
 ---
 Command…
 Note…

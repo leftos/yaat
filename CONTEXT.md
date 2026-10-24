@@ -593,10 +593,10 @@ The command verb a menu row shows beside its label, right-aligned and dimmed, so
 The aircraft menu's submenu holding every command for the aircraft, grouped by task category in one fixed order, each shown by its catalog predicate alone; the quick commands are a filtered pick from it.
 
 **Task category**:
-One of the seven groups All Commands sorts its commands into, in this order: Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination (`MenuCategory`; `MenuCategories.Of` gives a catalog id's category, `Label` the group's header). An id in none (Favorites, Command…, Note…, Delete, Warp, the live-traffic, release, spawn, point-menu and For-section items) is in `MenuCategories.Uncategorized`.
+One of the seven groups All Commands sorts its commands into, in this order: Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination (`MenuCategory`; `MenuCategories.Of` gives a catalog id's category, `Label` the group's header). Live traffic (Assume items) and Sim (Warp, Delete) are categories too, for the quick commands only. An id in none (Favorites, Command…, Note…, the spawn, point-menu and For-section items) is in `MenuCategories.Uncategorized`.
 
 **Icon strip**:
-The up to fifteen glyph buttons (three rows of five) at the top of an aircraft menu: the glyph-bearing quick commands in list order; the rest show as text below it. A point menu opens with its own icon strip of the ground point items that apply. The Show quick command icons setting turns every strip off and lists those commands as text rows instead.
+The glyph buttons at the top of an aircraft menu, six to a row: every glyph-bearing quick command, grouped by task category (each group a strip segment under its category label); the rest show as text below it. A point menu opens with its own flat, unlabelled icon strip of the ground point items that apply. The Show quick command icons setting turns every strip off and lists those commands as text rows instead.
 
 **State line**:
 The dimmed, disabled row under an aircraft menu's title that says what the aircraft is doing now, as segments joined with ` · ` (`Approach · 3,000 ft · 180 kt · KOAK rwy 30`, `Taxiing · C · KOAK`, `Landing · runway 28R · 62 kt`); a segment with no value is left out, and with none left there is no row (`SharedMenuGroups.StateLineItem`, phase names from `PhaseDisplayNames`).
@@ -612,6 +612,9 @@ A rule that admits a quick command in a phase its catalog predicate leaves out, 
 
 **Catalog entry (menu catalog)**:
 One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, never reused), a label, a default flight-rules filter, an applicability predicate and a builder (`MenuCatalogEntry` in `Yaat.Client.Core/ContextMenus/`); quick commands are lists of these IDs.
+
+**Category label**:
+The small upper-case name (RUNWAY, TAXI, ..., LIVE TRAFFIC, SIM) with a tick and a trailing rule that heads a strip segment on the icon strip, ending in "…" when the segment is too narrow for it (`QuickCommandStrip`, text from `MenuCategories.Label`); a wrapped category's later rows and the uncategorised icons have none.
 
 **Menu host**:
 The surface that owns an aircraft menu (radar, ground, aircraft list) as a catalog entry's builder sees it (`IMenuHost`): sending the command text, and whatever popups or reads the entry needs.
@@ -663,6 +666,9 @@ A position in the room's controller list that has a controller signed on (a live
 
 **Strip flyout**:
 The flyout a quick-command strip button opens, holding the items moved out of that command's menu item (`QuickCommandStrip`); items that follow live data stay current in it through `IStripFlyoutContent`.
+
+**Strip segment**:
+A run of one task category's icons on one icon-strip row (`QuickCommandStripSegment`); a row holds one or more segments, neighbouring partial groups sharing a row with a thin rule between, and packing is `QuickCommandStripLayout.Pack`. Not the sim-second **Segment** above.
 
 **Tab strip**:
 The row of tabs at the top of a designed flyout, each a runway or group, with a state beside its label: nothing when its rows are known, a spinner while they are searched, a dimmed `none` when there are none (`FlyoutTabStrip`, `FlyoutTabState`); the arrow keys move between tabs without wrapping; Taxi to runway has one tab per runway end.

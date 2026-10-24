@@ -2,7 +2,8 @@
 N306AB · C172 [disabled]
 Holding · 4,000 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-strip: [navigation.direct-to, altitude.maintain, pattern.enter-left-downwind, pattern.enter-right-downwind, pattern.enter-left-base, pattern.enter-right-base, pattern.enter-final]
+strip row 1: Vectors: navigation.direct-to altitude.maintain
+strip row 2: Pattern: pattern.enter-left-downwind pattern.enter-right-downwind pattern.enter-left-base pattern.enter-right-base pattern.enter-final
 ---
 Command…
 Note…

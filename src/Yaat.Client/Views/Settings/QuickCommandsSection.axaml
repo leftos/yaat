@@ -30,7 +30,7 @@
       Foreground="{DynamicResource SubtleTextBrush}"
       FontSize="11"
       Margin="0,0,0,8"
-      Text="The commands an aircraft's right-click menu offers first, situation by situation. The first fifteen commands with an icon form the icon strip at the top of the menu; the rest list as text below it. Turn off Show quick command icons to list them as text rows instead. Drag a row by its handle to reorder it."
+      Text="The commands an aircraft's right-click menu offers first, situation by situation. Every command with an icon shows on the icon strip at the top of the menu, grouped by category in this list's order; the rest list as text below it. Turn off Show quick command icons to list them as text rows instead. Drag a row by its handle to reorder it."
     />
 
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
@@ -140,16 +140,6 @@
         <Panel>
           <ItemsControl x:Name="EntryList">
             <ItemsControl.DataTemplates>
-              <DataTemplate DataType="local:QuickCommandStripDivider">
-                <StackPanel Classes="strip-divider" Spacing="2" Margin="0,4">
-                  <Border Height="2" Background="{StaticResource QuickCommandWarningBrush}" />
-                  <TextBlock
-                    FontSize="11"
-                    Foreground="{DynamicResource SubtleTextBrush}"
-                    Text="The icon strip ends here; the entries below show as text."
-                  />
-                </StackPanel>
-              </DataTemplate>
               <DataTemplate DataType="vm:QuickCommandEntryRow">
                 <Border Padding="2,4" BorderBrush="{StaticResource QuickCommandRowBorderBrush}" BorderThickness="0,0,0,1">
                   <Grid ColumnDefinitions="Auto,30,*,170,Auto" RowDefinitions="Auto,Auto,Auto">

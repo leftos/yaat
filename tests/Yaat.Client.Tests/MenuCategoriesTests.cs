@@ -48,12 +48,15 @@ public class MenuCategoriesTests
     [InlineData(MenuCategory.Pattern, "Pattern")]
     [InlineData(MenuCategory.PilotReports, "Pilot reports")]
     [InlineData(MenuCategory.TrackAndCoordination, "Track and coordination")]
+    [InlineData(MenuCategory.LiveTraffic, "Live traffic")]
+    [InlineData(MenuCategory.Sim, "Sim")]
     public void Label_IsTheGroupHeader(MenuCategory category, string label) => Assert.Equal(label, MenuCategories.Label(category));
 
     [Fact]
     public void Categories_RunInAllCommandsOrder() =>
         Assert.Equal(
             [
+                MenuCategory.LiveTraffic,
                 MenuCategory.Runway,
                 MenuCategory.Taxi,
                 MenuCategory.Vectors,
@@ -61,6 +64,7 @@ public class MenuCategoriesTests
                 MenuCategory.Pattern,
                 MenuCategory.PilotReports,
                 MenuCategory.TrackAndCoordination,
+                MenuCategory.Sim,
             ],
             Enum.GetValues<MenuCategory>()
         );
@@ -76,5 +80,13 @@ public class MenuCategoriesTests
     [InlineData(MenuIds.GroundDrawTaxiRoute, MenuCategory.Taxi)]
     [InlineData(MenuIds.HoldPattern, MenuCategory.Approach)]
     [InlineData(MenuIds.AircraftEditFlightPlan, MenuCategory.TrackAndCoordination)]
+    [InlineData(MenuIds.CoordinationReleaseHeld, MenuCategory.TrackAndCoordination)]
+    [InlineData(MenuIds.CoordinationCheckReleaseWindow, MenuCategory.TrackAndCoordination)]
+    [InlineData(MenuIds.LiveTrafficAssume, MenuCategory.LiveTraffic)]
+    [InlineData(MenuIds.LiveTrafficAssumeAndTrack, MenuCategory.LiveTraffic)]
+    [InlineData(MenuIds.LiveTrafficAssumeSelected, MenuCategory.LiveTraffic)]
+    [InlineData(MenuIds.LiveTrafficUnassume, MenuCategory.LiveTraffic)]
+    [InlineData(MenuIds.SimControlWarp, MenuCategory.Sim)]
+    [InlineData(MenuIds.SimControlDelete, MenuCategory.Sim)]
     public void Of_PlacesTheFormerlyUngroupedAndMovedIds(string id, MenuCategory category) => Assert.Equal(category, MenuCategories.Of(id));
 }

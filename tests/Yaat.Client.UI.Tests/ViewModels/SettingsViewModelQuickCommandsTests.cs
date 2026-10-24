@@ -12,7 +12,7 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// <summary>
 /// The Settings window's Quick Commands editor: each situation's list is a staged copy that add, remove, move, the
 /// flight-rules choice and the resets edit without writing, Apply writes only the lists that differ from what the
-/// preferences hold, an invalid custom entry blocks Apply, and the strip flag marks the first fifteen glyph entries.
+/// preferences hold, and an invalid custom entry blocks Apply.
 /// </summary>
 public class SettingsViewModelQuickCommandsTests
 {
@@ -289,46 +289,6 @@ public class SettingsViewModelQuickCommandsTests
         Assert.Equal(MenuFlightRules.Both, custom.SelectedFlightRules.Rules);
         Assert.Equal("custom", custom.Family);
         Assert.Null(custom.Glyph);
-    }
-
-    [AvaloniaFact(Timeout = 60_000)]
-    public void StripFlag_MarksTheFirstFifteenGlyphEntries_InListOrder()
-    {
-        const int capacity = QuickCommandGlyphs.StripCapacity;
-        Store(AircraftSituation.IfrEnroute, GlyphIds[..(capacity - 1)]);
-        var vm = new SettingsViewModel();
-        Select(vm, AircraftSituation.IfrEnroute);
-        Assert.All(vm.QuickCommandEntries, r => Assert.NotNull(r.Glyph));
-        AddValidCustom(vm, "Custom");
-        Assert.True(vm.TryAddQuickCommandCatalogEntry(GlyphIds[capacity - 1]));
-        Assert.True(vm.TryAddQuickCommandCatalogEntry(GlyphIds[capacity]));
-
-        Assert.True(CatalogRow(vm, GlyphIds[capacity - 1]).IsInStrip);
-        Assert.False(CatalogRow(vm, GlyphIds[capacity]).IsInStrip);
-        Assert.False(vm.QuickCommandEntries.Single(r => r.IsCustom).IsInStrip);
-        Assert.Equal(QuickCommandGlyphs.StripCapacity, vm.QuickCommandEntries.Count(r => r.IsInStrip));
-
-        vm.MoveQuickCommandEntry(vm.QuickCommandEntries.Count - 1, 0);
-
-        Assert.True(CatalogRow(vm, GlyphIds[capacity]).IsInStrip);
-        Assert.False(CatalogRow(vm, GlyphIds[capacity - 1]).IsInStrip);
-    }
-
-    /// <summary>
-    /// A stored list may name an action twice; the strip flag goes by position, so the second copy, past the fifteenth glyph
-    /// row, is not in it.
-    /// </summary>
-    [AvaloniaFact(Timeout = 60_000)]
-    public void StripFlag_GoesByPosition_WhenAnIdIsDuplicated()
-    {
-        const int capacity = QuickCommandGlyphs.StripCapacity;
-        Store(AircraftSituation.IfrEnroute, [.. GlyphIds[..capacity], GlyphIds[0]]);
-        var vm = new SettingsViewModel();
-        Select(vm, AircraftSituation.IfrEnroute);
-        Assert.Equal(capacity + 1, vm.QuickCommandEntries.Count);
-        Assert.All(vm.QuickCommandEntries, r => Assert.NotNull(r.Glyph));
-
-        Assert.Equal([.. Enumerable.Repeat(true, capacity), false], vm.QuickCommandEntries.Select(r => r.IsInStrip));
     }
 
     [AvaloniaFact(Timeout = 60_000)]

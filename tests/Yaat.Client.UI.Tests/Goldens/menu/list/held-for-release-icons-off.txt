@@ -2,11 +2,12 @@
 SWA108 · B738 [disabled]
 Taxiing [disabled]
 ---
-Release (HFR) alias:REL
 Taxi [disabled]
 Hold position alias:HOLD
 Follow… · no other aircraft on the ground [disabled]
 Ignore ground conflicts (15 s) alias:BREAK
+Track and coordination [disabled]
+Release (HFR) alias:REL
 ---
 Command…
 Note…

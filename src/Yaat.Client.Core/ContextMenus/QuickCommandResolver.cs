@@ -11,7 +11,7 @@ namespace Yaat.Client.ContextMenus;
 public sealed record QuickCommandStripItem(MenuCatalogEntry Entry, QuickCommandGlyph Glyph);
 
 /// <summary>A resolved quick-command list: the strip entries and the text entries below it, each in list order.</summary>
-/// <param name="Strip">The glyph-bearing entries the strip shows, at most <see cref="QuickCommandGlyphs.StripCapacity"/>; empty for no strip.</param>
+/// <param name="Strip">The glyph-bearing entries the strip shows, in list order; empty for no strip.</param>
 /// <param name="Text">Every other shown entry, as text.</param>
 public sealed record QuickCommandResolution(IReadOnlyList<QuickCommandStripItem> Strip, IReadOnlyList<MenuCatalogEntry> Text)
 {
@@ -92,8 +92,7 @@ public static class QuickCommandResolver
     /// <param name="aircraft">The aircraft the menu commands.</param>
     /// <param name="context">The menu's click and session.</param>
     /// <param name="buildsAnItem">
-    /// Whether an entry builds a menu item for this aircraft; one that builds none is dropped before the strip is capped,
-    /// so it never takes a strip slot from the next glyph-bearing entry.
+    /// Whether an entry builds a menu item for this aircraft; one that builds none is dropped before the split.
     /// </param>
     public static QuickCommandResolution Resolve(IMenuAircraft aircraft, MenuContext context, Func<MenuCatalogEntry, bool> buildsAnItem) =>
         aircraft.Situation == AircraftSituation.Unknown

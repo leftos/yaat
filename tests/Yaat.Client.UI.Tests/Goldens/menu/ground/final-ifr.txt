@@ -2,7 +2,7 @@
 AAL207 · B738 [disabled]
 Final · 1,500 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
-strip: [tower.cleared-to-land, tower.go-around, speed.final-approach]
+strip row 1: Runway: tower.cleared-to-land tower.go-around | Vectors: speed.final-approach
 ---
 Command…
 Note…

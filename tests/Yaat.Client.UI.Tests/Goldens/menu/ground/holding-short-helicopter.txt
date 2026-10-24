@@ -2,7 +2,7 @@
 N812HN · EC35 [disabled]
 Holding short 30/12 [disabled]
 ---
-strip: [ground.cross-runway, ground.air-taxi]
+strip row 1: Taxi: ground.cross-runway ground.air-taxi
 ---
 Command…
 Note…

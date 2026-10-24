@@ -23,9 +23,8 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The Settings window's Quick Commands section as the instructor sees it: the situation list drives the entry list,
-/// the add-command flyout keeps its choice while its list refills, rows reorder by dragging their handle, a divider marks
-/// where the icon strip ends, catalog and custom rows show the controls each may edit, and the preview draws the strip the
-/// menu would.
+/// the add-command flyout keeps its choice while its list refills, rows reorder by dragging their handle, catalog and
+/// custom rows show the controls each may edit, and the preview draws the strip the menu would, grouped by category.
 /// </summary>
 public class QuickCommandsSectionTests
 {
@@ -196,55 +195,6 @@ public class QuickCommandsSectionTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_DividerFollowsFifteenthGlyphEntry()
-    {
-        // A text-only action third: the strip counts glyph entries, not positions, so the fifteenth glyph entry is at index 15.
-        const int capacity = QuickCommandGlyphs.StripCapacity;
-        string[] ids = [.. GlyphIds.Take(2), TextOnlyId, .. GlyphIds.Skip(2)];
-        Store(AircraftSituation.Taxiing, ids);
-
-        Run(
-            (window, section) =>
-            {
-                SelectSituation(window, section, AircraftSituation.Taxiing);
-                List<object> items = [.. Entries(section).Items.OfType<object>()];
-
-                int divider = Assert.Single(Enumerable.Range(0, items.Count), i => items[i] is QuickCommandStripDivider);
-                Assert.Equal(GlyphIds[capacity - 1], Assert.IsType<QuickCommandEntryRow>(items[divider - 1]).CatalogId);
-                Assert.Equal(GlyphIds[capacity], Assert.IsType<QuickCommandEntryRow>(items[divider + 1]).CatalogId);
-                Control shown = Entries(section).ContainerFromIndex(divider)!;
-                Assert.True(shown.IsEffectivelyVisible);
-                Assert.True(shown.Bounds.Height > 0);
-
-                // Taking a glyph entry out of the strip moves the divider down with it.
-                SettingsViewModel vm = window.ViewModel;
-                vm.RemoveQuickCommandEntry(vm.QuickCommandEntries[0]);
-                vm.AddQuickCommandCustomEntry();
-                Settle(window);
-                items = [.. Entries(section).Items.OfType<object>()];
-                divider = Assert.Single(Enumerable.Range(0, items.Count), i => items[i] is QuickCommandStripDivider);
-                Assert.Equal(GlyphIds[capacity], Assert.IsType<QuickCommandEntryRow>(items[divider - 1]).CatalogId);
-            }
-        );
-    }
-
-    [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_FifteenGlyphRowsWithNothingAfter_ShowNoDivider()
-    {
-        Store(AircraftSituation.Taxiing, [.. GlyphIds.Take(QuickCommandGlyphs.StripCapacity)]);
-
-        Run(
-            (window, section) =>
-            {
-                SelectSituation(window, section, AircraftSituation.Taxiing);
-
-                Assert.Equal(QuickCommandGlyphs.StripCapacity, Rows(section).Count(r => r.IsInStrip));
-                Assert.DoesNotContain(Entries(section).Items.OfType<object>(), item => item is QuickCommandStripDivider);
-            }
-        );
-    }
-
-    [AvaloniaFact(Timeout = 60_000)]
     public void QuickCommandsSection_CatalogRowDefaultCaption_NamesTheCatalogRule()
     {
         QuickCommandCatalogItem vfrOnly = QuickCommandCatalog.Eligible.First(item => item.DefaultFlightRules == MenuFlightRules.VfrOnly);
@@ -322,7 +272,7 @@ public class QuickCommandsSectionTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_Preview_DrawsFirstFifteenGlyphEntriesInOrder()
+    public void QuickCommandsSection_Preview_DrawsEveryGlyphEntry_GroupedByCategoryAsTheMenuDoes()
     {
         string[] ids = [.. GlyphIds.Take(2), TextOnlyId, .. GlyphIds.Skip(2)];
         Store(AircraftSituation.Taxiing, ids);
@@ -332,20 +282,27 @@ public class QuickCommandsSectionTests
             {
                 SelectSituation(window, section, AircraftSituation.Taxiing);
                 QuickCommandResolution split = QuickCommandGlyphs.Split([.. ids.Select(MenuCatalog.Get)]);
-                List<Border> cells =
-                [
-                    .. section
-                        .FindControl<Border>("PreviewStripHost")!
-                        .GetLogicalDescendants()
-                        .OfType<Border>()
-                        .Where(b => b.Classes.Contains("preview-cell")),
-                ];
+                IReadOnlyList<QuickCommandStripRow<string>> layout = QuickCommandStripLayout.Pack(
+                    [.. split.Strip.Select(item => item.Entry.Id)],
+                    MenuCategories.Of
+                );
+                Border host = section.FindControl<Border>("PreviewStripHost")!;
+                List<Border> cells = [.. host.GetLogicalDescendants().OfType<Border>().Where(b => b.Classes.Contains("preview-cell"))];
 
-                Assert.Equal(split.Strip.Select(item => item.Entry.Id), cells.Select(c => (string)c.Tag!));
-                for (int i = 0; i < cells.Count; i++)
+                Assert.Equal(layout.SelectMany(row => row.Segments).SelectMany(segment => segment.Items), cells.Select(c => (string)c.Tag!));
+                Assert.Equal(GlyphIds.Length, cells.Count);
+                Assert.Equal(layout.Count, Assert.IsType<StackPanel>(host.Child).Children.Count);
+                Assert.Equal(
+                    layout
+                        .SelectMany(row => row.Segments)
+                        .Where(segment => segment.ShowsLabel)
+                        .Select(segment => MenuCategories.Label(segment.Category!.Value).ToUpperInvariant()),
+                    host.GetLogicalDescendants().OfType<TextBlock>().Select(t => t.Text)
+                );
+                foreach (Border cell in cells)
                 {
-                    Path glyph = Assert.Single(cells[i].GetLogicalDescendants().OfType<Path>());
-                    Color expected = QuickCommandStrip.FamilyColor(split.Strip[i].Glyph.Family);
+                    Path glyph = Assert.Single(cell.GetLogicalDescendants().OfType<Path>());
+                    Color expected = QuickCommandStrip.FamilyColor(QuickCommandGlyphs.For((string)cell.Tag!)!.Family);
                     Assert.Equal(expected, Assert.IsType<SolidColorBrush>(glyph.Stroke).Color);
                 }
 
@@ -373,6 +330,8 @@ public class QuickCommandsSectionTests
             (window, section) =>
             {
                 SelectSituation(window, section, AircraftSituation.Taxiing);
+                window.ViewModel.AddQuickCommandCustomEntry();
+                Settle(window);
                 Border strip = section.FindControl<Border>("PreviewStripHost")!;
                 Panel text = section.FindControl<Panel>("PreviewTextEntries")!;
                 CheckBox showIcons = section.FindControl<CheckBox>("ShowQuickCommandIconsCheckBox")!;
@@ -387,13 +346,12 @@ public class QuickCommandsSectionTests
                 showIcons.IsChecked = false;
                 Settle(window);
 
-                // As the menu draws them: the release row first, each category's rows under its label in category order,
-                // then the uncategorised rows after a gap.
+                // As the menu draws them: each category's rows under its label in category order, the release row among
+                // Track and coordination's in list order, then the custom row, in no category, after a gap.
                 Assert.False(strip.IsVisible);
                 Assert.Null(strip.Child);
                 Assert.Equal(
                     [
-                        Label(MenuIds.CoordinationReleaseHeld),
                         $"[{MenuCategories.Label(MenuCategory.Runway)}]",
                         Label(MenuIds.TowerClearedToLand),
                         $"[{MenuCategories.Label(MenuCategory.Vectors)}]",
@@ -401,13 +359,15 @@ public class QuickCommandsSectionTests
                         Label(MenuIds.AltitudeMaintain),
                         $"[{MenuCategories.Label(MenuCategory.TrackAndCoordination)}]",
                         Label(MenuIds.TrackTrack),
+                        Label(MenuIds.CoordinationReleaseHeld),
+                        $"[{MenuCategories.Label(MenuCategory.Sim)}]",
                         Label(MenuIds.SimControlWarp),
+                        "(no label)",
                     ],
                     Text()
                 );
-                TextBlock warp = text.Children.OfType<TextBlock>().Single(t => t.Text == Label(MenuIds.SimControlWarp));
-                TextBlock track = text.Children.OfType<TextBlock>().Single(t => t.Text == Label(MenuIds.TrackTrack));
-                Assert.True(warp.Margin.Top > track.Margin.Top);
+                List<TextBlock> rows = [.. text.Children.OfType<TextBlock>()];
+                Assert.True(rows[^1].Margin.Top > rows[^2].Margin.Top);
 
                 showIcons.IsChecked = true;
                 Settle(window);
@@ -415,25 +375,6 @@ public class QuickCommandsSectionTests
                 Assert.True(strip.IsVisible);
                 Assert.DoesNotContain(Label(MenuIds.HeadingFly), Text());
                 Assert.DoesNotContain(text.Children.OfType<TextBlock>(), t => t.Classes.Contains("preview-category"));
-            }
-        );
-    }
-
-    [AvaloniaFact(Timeout = 60_000)]
-    public void QuickCommandsSection_StripDivider_HiddenWithTheIconsOff()
-    {
-        Store(AircraftSituation.Taxiing, GlyphIds);
-
-        Run(
-            (window, section) =>
-            {
-                SelectSituation(window, section, AircraftSituation.Taxiing);
-                Assert.Single(Entries(section).Items.OfType<QuickCommandStripDivider>());
-
-                section.FindControl<CheckBox>("ShowQuickCommandIconsCheckBox")!.IsChecked = false;
-                Settle(window);
-
-                Assert.Empty(Entries(section).Items.OfType<QuickCommandStripDivider>());
             }
         );
     }

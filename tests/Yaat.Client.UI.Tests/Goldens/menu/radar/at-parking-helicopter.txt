@@ -2,7 +2,7 @@
 N812HL · EC35 [disabled]
 At parking · HELI1 [disabled]
 ---
-strip: [ground.air-taxi, ground.taxi-preset, ground.draw-taxi-route]
+strip row 1: Taxi: ground.air-taxi ground.taxi-preset ground.draw-taxi-route
 ---
 Command…
 Note…

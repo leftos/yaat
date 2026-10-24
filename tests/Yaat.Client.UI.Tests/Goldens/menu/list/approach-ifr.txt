@@ -2,7 +2,7 @@
 AAL204 · B738 [disabled]
 Approach · 3,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
-strip: [approach.cleared, altitude.maintain, speed.assign, approach.report-field-in-sight, tower.cleared-to-land]
+strip row 1: Approach: approach.cleared | Vectors: altitude.maintain speed.assign | Pilot reports: approach.report-field-in-sight | Runway: tower.cleared-to-land
 ---
 Command…
 Note…

@@ -123,14 +123,6 @@ public sealed partial class QuickCommandEntryRow : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     private string? _validationMessage;
 
-    /// <summary>
-    /// True when the row lands in the icon strip of the unfiltered list: it is one of the list's first
-    /// <see cref="QuickCommandGlyphs.StripCapacity"/> glyph rows. On an aircraft's menu the flight-rules and applicability
-    /// filters drop entries first, so a later glyph row can move into the strip there.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isInStrip;
-
     public bool HasError => ValidationMessage is not null;
 
     /// <summary>A row for <paramref name="entry"/>, as a stored or default list holds it.</summary>
@@ -542,7 +534,6 @@ public partial class SettingsViewModel
     private void RefreshQuickCommandSituation(AircraftSituation situation)
     {
         ObservableCollection<QuickCommandEntryRow> rows = _quickCommandLists[situation];
-        MarkQuickCommandStrip(rows);
 
         QuickCommandSituationRow situationRow = QuickCommandSituations.Single(r => r.Situation == situation);
         situationRow.IsChanged = !QuickCommandDefaults.IsDefault(situation, [.. rows.Select(r => r.ToEntry())]);
@@ -567,21 +558,6 @@ public partial class SettingsViewModel
         }
 
         RefillQuickCommandCatalogOffer();
-    }
-
-    // The strip takes the first StripCapacity glyph rows in list order, as QuickCommandGlyphs.Split does at runtime; by
-    // position, since a stored list may name the same action twice.
-    private static void MarkQuickCommandStrip(IReadOnlyList<QuickCommandEntryRow> rows)
-    {
-        int stripRows = 0;
-        foreach (QuickCommandEntryRow row in rows)
-        {
-            row.IsInStrip = (row.Glyph is not null) && (stripRows < QuickCommandGlyphs.StripCapacity);
-            if (row.IsInStrip)
-            {
-                stripRows++;
-            }
-        }
     }
 
     private string? QuickCommandErrorSummary()

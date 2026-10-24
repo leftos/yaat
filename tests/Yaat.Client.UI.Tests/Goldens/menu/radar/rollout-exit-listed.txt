@@ -2,7 +2,7 @@
 SWA110 · B738 [disabled]
 Landing · runway 30 · 60 kt [disabled]
 ---
-strip: [tower.exit-left, tower.exit-right, ground.draw-taxi-route]
+strip row 1: Runway: tower.exit-left tower.exit-right | Taxi: ground.draw-taxi-route
 ---
 Command…
 Note…

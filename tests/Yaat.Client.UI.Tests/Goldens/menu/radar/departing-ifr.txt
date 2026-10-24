@@ -2,7 +2,7 @@
 AAL201 · B738 [disabled]
 Departure · 3,000 ft · 180 kt · KLAX rwy 30 [disabled]
 ---
-strip: [heading.fly, altitude.maintain, navigation.direct-to, speed.assign]
+strip row 1: Vectors: heading.fly altitude.maintain navigation.direct-to speed.assign
 ---
 Command…
 Note…

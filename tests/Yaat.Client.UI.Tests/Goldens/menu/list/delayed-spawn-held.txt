@@ -2,7 +2,7 @@
 AAL502 · B738 [disabled]
 16,000 ft [disabled]
 ---
-strip: [coordination.release-held]
+strip row 1: -: coordination.release-held
 ---
 Command…
 Note…

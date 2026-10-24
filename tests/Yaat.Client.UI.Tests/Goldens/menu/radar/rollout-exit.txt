@@ -2,7 +2,7 @@
 SWA107 · B738 [disabled]
 Landing · runway 30 · 60 kt [disabled]
 ---
-strip: [ground.draw-taxi-route]
+strip row 1: Taxi: ground.draw-taxi-route
 ---
 Command…
 Note…

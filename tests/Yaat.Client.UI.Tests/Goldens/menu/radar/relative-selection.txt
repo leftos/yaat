@@ -8,7 +8,7 @@ Report in sight alias:RTIS
 Follow alias:FOLLOW
 ---
 For AAL601 [disabled]
-strip: [tower.cleared-to-land, tower.go-around, speed.final-approach]
+strip row 1: Runway: tower.cleared-to-land tower.go-around | Vectors: speed.final-approach
 ---
 Command…
 Note…

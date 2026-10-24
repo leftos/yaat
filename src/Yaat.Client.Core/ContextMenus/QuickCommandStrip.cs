@@ -40,8 +40,10 @@ public interface IStripFlyoutContent
 }
 
 /// <summary>
-/// The quick-command icon strip at the top of an aircraft menu: one menu item whose header holds up to three rows of five
-/// glyph buttons, each row filled before the next and an empty row hidden. Each button stands for its catalog entry's
+/// The quick-command icon strip at the top of an aircraft menu: one menu item whose header holds rows of glyph buttons
+/// grouped by task category as <see cref="QuickCommandStripLayout"/> packs them, six to a row, each category's segment under
+/// a small label of its name, cut to the segment's width, and a thin rule between the segments a row shares; a wrapped
+/// category's continuation and the uncategorised icons show no label (<see cref="Rows"/>). Each button stands for its catalog entry's
 /// own menu item, built through the entry's builder: a sending or prompting item is clicked through that item's own Click
 /// handler, and a submenu opens its items as a flyout beside the menu (the button shows a corner notch), which stays open,
 /// its button latched, until that button is clicked again, another icon's flyout replaces it, another row's submenu opens,
@@ -62,9 +64,6 @@ public static class QuickCommandStrip
     /// <summary>The style class every strip button carries, which the strip's well styles select.</summary>
     private const string ButtonClass = "strip-button";
 
-    /// <summary>How many buttons a row holds.</summary>
-    public const int RowLength = 5;
-
     /// <summary>The resource key of the monospace font a command text is drawn in.</summary>
     internal const string MonoFontKey = "MonoFont";
 
@@ -74,6 +73,9 @@ public static class QuickCommandStrip
     private const double GlyphViewBox = 24;
     private const double GlyphStrokeThickness = 1.9;
     private const double Gap = 6;
+    private const double CategoryLabelFontSize = 9.5;
+    private const double CategoryLabelLetterSpacing = 0.08 * CategoryLabelFontSize;
+    private const double CategoryLabelHeight = 12;
     private const string NotchPath = "M6 0V6H0z";
     private const string ButtonPresenterPart = "PART_ContentPresenter";
     private static readonly Color NotchColor = Color.Parse("#9AA3AD");
@@ -85,12 +87,22 @@ public static class QuickCommandStrip
     /// <summary>The dark well a strip button's glyph sits in at rest; the Settings preview draws its cells on it too.</summary>
     public static IImmutableSolidColorBrush WellBrush { get; } = new ImmutableSolidColorBrush(WellBackground);
 
+    /// <summary>A category label's text and tick.</summary>
+    private static readonly IImmutableSolidColorBrush CategoryLabelBrush = new ImmutableSolidColorBrush(Color.Parse("#AEB6BF"));
+
+    /// <summary>The rule that follows a category label.</summary>
+    private static readonly IImmutableSolidColorBrush CategoryRuleBrush = new ImmutableSolidColorBrush(Color.Parse("#4C5158"));
+
+    /// <summary>The rule between two segments of a row.</summary>
+    private static readonly IImmutableSolidColorBrush SegmentSeparatorBrush = new ImmutableSolidColorBrush(Color.Parse("#6A7078"));
+
     /// <summary>The force mark's disc, the amber of the approach flyout's force badge outline.</summary>
     private static readonly IImmutableSolidColorBrush ForceMarkBrush = new ImmutableSolidColorBrush(Color.Parse("#FFB259"));
     private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
     private static readonly ConditionalWeakTable<MenuItem, IStripFlyoutContent> FlyoutContents = [];
     private static readonly ConditionalWeakTable<MenuItem, string> InertLabels = [];
     private static readonly ConditionalWeakTable<MenuItem, object> ArmedEntries = [];
+    private static readonly ConditionalWeakTable<MenuItem, IReadOnlyList<QuickCommandStripRow<Button>>> Layouts = [];
 
     /// <summary>The value <see cref="ArmedEntries"/> holds for a marked entry: only its presence is read.</summary>
     private static readonly object ArmedMarker = new();
@@ -113,6 +125,31 @@ public static class QuickCommandStrip
         IMenuAircraft aircraft,
         MenuContext context,
         IMenuHost host
+    ) => FromBuilt(menu, BuildItems(items, aircraft, context, host));
+
+    /// <summary>
+    /// The strip for <paramref name="items"/> as <see cref="Build"/> makes it but ungrouped (<see cref="FlatFromBuilt"/>):
+    /// its buttons in order, six to a row, with no category labels.
+    /// </summary>
+    /// <param name="menu">The menu the strip sits in, which a chosen command closes.</param>
+    /// <param name="items">The strip entries, in order.</param>
+    /// <param name="aircraft">The aircraft the menu commands.</param>
+    /// <param name="context">The menu's click and session.</param>
+    /// <param name="host">The send path, popups and choices the entries' items use.</param>
+    public static MenuItem? BuildFlat(
+        ContextMenu menu,
+        IReadOnlyList<QuickCommandStripItem> items,
+        IMenuAircraft aircraft,
+        MenuContext context,
+        IMenuHost host
+    ) => FlatFromBuilt(menu, BuildItems(items, aircraft, context, host));
+
+    /// <summary>Each of <paramref name="items"/> with the menu item its entry builds for the aircraft; one that builds none is left out.</summary>
+    private static List<(QuickCommandStripItem Item, MenuItem Built)> BuildItems(
+        IReadOnlyList<QuickCommandStripItem> items,
+        IMenuAircraft aircraft,
+        MenuContext context,
+        IMenuHost host
     )
     {
         List<(QuickCommandStripItem Item, MenuItem Built)> built = [];
@@ -124,20 +161,36 @@ public static class QuickCommandStrip
             }
         }
 
-        return FromBuilt(menu, built);
+        return built;
     }
 
     /// <summary>
     /// The strip over menu items already built, one button each, in order, or null when there are none. A button stands
     /// for its item exactly as in <see cref="Build"/>; its tag is the strip item's catalog entry id, so two items of one
-    /// entry (a Taxi to runway per runway end) share it. Each item must be in no other menu. The caller bounds the count:
-    /// nothing here holds it to <see cref="QuickCommandGlyphs.StripCapacity"/>. A button's label shows in the menu's
+    /// entry (a Taxi to runway per runway end) share it. Each item must be in no other menu. The buttons group by their
+    /// entries' categories (<see cref="MenuCategories.Of"/>, <see cref="Rows"/>). A button's label shows in the menu's
     /// header line (<see cref="QuickCommandLabelLine.Ensure"/>), which a menu without a state line gets, blank, under its
     /// title; a menu with no items, and so no title, shows no label.
     /// </summary>
     /// <param name="menu">The menu the strip sits in, which a chosen command closes.</param>
     /// <param name="built">Each button's entry and glyph, with the menu item it stands for.</param>
-    public static MenuItem? FromBuilt(ContextMenu menu, IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built)
+    public static MenuItem? FromBuilt(ContextMenu menu, IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built) =>
+        Create(menu, built, item => MenuCategories.Of(item.Entry.Id));
+
+    /// <summary>
+    /// The strip over menu items already built, as <see cref="FromBuilt"/> makes it but ungrouped: its buttons in order,
+    /// six to a row, with no category labels. The point menu's strip and a delayed spawn's release strip are flat.
+    /// </summary>
+    /// <param name="menu">The menu the strip sits in, which a chosen command closes.</param>
+    /// <param name="built">Each button's entry and glyph, with the menu item it stands for.</param>
+    public static MenuItem? FlatFromBuilt(ContextMenu menu, IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built) =>
+        Create(menu, built, _ => null);
+
+    private static MenuItem? Create(
+        ContextMenu menu,
+        IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built,
+        Func<QuickCommandStripItem, MenuCategory?> categoryOf
+    )
     {
         if (built.Count == 0)
         {
@@ -147,8 +200,16 @@ public static class QuickCommandStrip
         var tracker = new StripLabelTracker(QuickCommandLabelLine.Ensure(menu));
         var strip = new MenuItem { StaysOpenOnClick = true };
         var flyouts = new StripFlyouts(menu, strip);
-        List<Control> buttons = [.. built.Select(pair => BuildButton(menu, pair.Item, pair.Built, tracker, flyouts))];
-        strip.Header = Rows(buttons);
+        List<(Button Cell, MenuCategory? Category)> buttons =
+        [
+            .. built.Select(pair => (BuildButton(menu, pair.Item, pair.Built, tracker, flyouts), categoryOf(pair.Item))),
+        ];
+        IReadOnlyList<QuickCommandStripRow<(Button Cell, MenuCategory? Category)>> rows = QuickCommandStripLayout.Pack(
+            buttons,
+            cell => cell.Category
+        );
+        strip.Header = Draw(rows);
+        Layouts.AddOrUpdate(strip, [.. rows.Select(row => Cells(row, cell => cell.Cell))]);
         strip.Classes.Add(StripClass);
         strip.Styles.AddRange(ButtonStyles());
         strip.PointerExited += (_, _) => tracker.LeaveStrip();
@@ -174,31 +235,114 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// Lays <paramref name="cells"/> out as the strip does, in order: up to three rows of <see cref="RowLength"/>, each row
-    /// filled before the next and an empty row hidden; cells past the fifteenth join the last row. The menu's strip and
-    /// the Settings preview both lay out through it.
+    /// Lays <paramref name="cells"/> out as the strip does, each with its category, in list order: packed into rows by
+    /// <see cref="QuickCommandStripLayout.Pack{T}"/> and drawn as <see cref="Draw{T}"/> draws them. The menu's strip and the
+    /// Settings preview both lay out through it.
     /// </summary>
-    public static StackPanel Rows(IReadOnlyList<Control> cells)
-    {
-        StackPanel[] rows =
-        [
-            .. Enumerable
-                .Range(0, QuickCommandGlyphs.StripCapacity / RowLength)
-                .Select(_ => new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap }),
-        ];
-        for (int i = 0; i < cells.Count; i++)
-        {
-            rows[Math.Min(i / RowLength, rows.Length - 1)].Children.Add(cells[i]);
-        }
+    /// <param name="cells">Each cell and its category, or null for none.</param>
+    public static StackPanel Rows(IReadOnlyList<(Control Cell, MenuCategory? Category)> cells) =>
+        Draw(QuickCommandStripLayout.Pack(cells, cell => cell.Category));
 
+    /// <summary>
+    /// The strip's rows top to bottom, <see cref="Gap"/> apart: each row its segments left to right, a 1 px rule in the gap
+    /// between two segments. In a row where any segment shows its category label, every segment has a label line over its
+    /// cells: the label, upper-cased after a small tick and followed by a rule, cut with an ellipsis to the segment's width;
+    /// an unlabelled segment's line keeps the height and the rule but has no tick or text, so the row's cells align. A row
+    /// with no label has no label lines.
+    /// </summary>
+    private static StackPanel Draw<T>(IReadOnlyList<QuickCommandStripRow<(T Cell, MenuCategory? Category)>> rows)
+        where T : Control
+    {
         var strip = new StackPanel { Spacing = Gap };
-        foreach (StackPanel row in rows)
+        foreach (QuickCommandStripRow<(T Cell, MenuCategory? Category)> row in rows)
         {
-            row.IsVisible = row.Children.Count > 0;
-            strip.Children.Add(row);
+            bool labelled = row.Segments.Any(segment => segment.ShowsLabel);
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            foreach (QuickCommandStripSegment<(T Cell, MenuCategory? Category)> segment in row.Segments)
+            {
+                if (panel.Children.Count > 0)
+                {
+                    panel.Children.Add(SegmentSeparator());
+                }
+
+                var cells = new StackPanel { Orientation = Orientation.Horizontal, Spacing = Gap };
+                cells.Children.AddRange(segment.Items.Select(item => item.Cell));
+                Control? label = labelled ? CategoryLabelLine(segment.ShowsLabel ? segment.Category : null) : null;
+                panel.Children.Add(new StripSegmentPanel(label, cells));
+            }
+
+            strip.Children.Add(panel);
         }
 
         return strip;
+    }
+
+    private static QuickCommandStripRow<TOut> Cells<TIn, TOut>(QuickCommandStripRow<TIn> row, Func<TIn, TOut> cell) =>
+        new([
+            .. row.Segments.Select(segment => new QuickCommandStripSegment<TOut>(
+                segment.Category,
+                [.. segment.Items.Select(cell)],
+                segment.ShowsLabel
+            )),
+        ]);
+
+    /// <summary>The 1 px rule between two segments of a row, centred in the <see cref="Gap"/> that parts them.</summary>
+    private static Border SegmentSeparator() =>
+        new()
+        {
+            Width = 1,
+            Margin = new Thickness(Math.Floor((Gap - 1) / 2), 4, Math.Ceiling((Gap - 1) / 2), 4),
+            Background = SegmentSeparatorBrush,
+        };
+
+    /// <summary>
+    /// A segment's label line: for <paramref name="category"/>, a 3 px tick, the label upper-cased and a rule filling the
+    /// rest; for none, the rule alone at the same height.
+    /// </summary>
+    private static DockPanel CategoryLabelLine(MenuCategory? category)
+    {
+        var line = new DockPanel
+        {
+            Height = CategoryLabelHeight,
+            Margin = new Thickness(2, 0, 2, 4),
+            LastChildFill = true,
+        };
+        if (category is { } named)
+        {
+            var tick = new Border
+            {
+                Width = 3,
+                Height = 10,
+                CornerRadius = new CornerRadius(1),
+                Margin = new Thickness(0, 0, 6, 0),
+                Background = CategoryLabelBrush,
+            };
+            var text = new TextBlock
+            {
+                Text = MenuCategories.Label(named).ToUpperInvariant(),
+                FontSize = CategoryLabelFontSize,
+                FontWeight = FontWeight.SemiBold,
+                LetterSpacing = CategoryLabelLetterSpacing,
+                Foreground = CategoryLabelBrush,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0),
+            };
+            DockPanel.SetDock(tick, Dock.Left);
+            DockPanel.SetDock(text, Dock.Left);
+            line.Children.Add(tick);
+            line.Children.Add(text);
+        }
+
+        line.Children.Add(
+            new Border
+            {
+                Height = 1,
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = CategoryRuleBrush,
+            }
+        );
+        return line;
     }
 
     /// <summary>
@@ -323,9 +467,16 @@ public static class QuickCommandStrip
     /// <summary>Whether <paramref name="item"/> is a quick-command strip.</summary>
     public static bool IsStrip(MenuItem item) => item.Classes.Contains(StripClass);
 
-    /// <summary>The strip's buttons, row one then row two; each button's <see cref="Control.Tag"/> is its catalog entry's id.</summary>
+    /// <summary>
+    /// The strip's buttons, row by row and left to right within a row; each button's <see cref="Control.Tag"/> is its
+    /// catalog entry's id.
+    /// </summary>
     public static IReadOnlyList<Button> Buttons(MenuItem strip) =>
-        (strip.Header is StackPanel rows) ? [.. rows.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<Button>())] : [];
+        [.. Layout(strip).SelectMany(row => row.Segments).SelectMany(segment => segment.Items)];
+
+    /// <summary>The strip's rows as it was laid out (<see cref="Rows"/>), each segment's buttons in order; none for a non-strip.</summary>
+    public static IReadOnlyList<QuickCommandStripRow<Button>> Layout(MenuItem strip) =>
+        Layouts.TryGetValue(strip, out IReadOnlyList<QuickCommandStripRow<Button>>? rows) ? rows : [];
 
     /// <summary>The colour a glyph of <paramref name="family"/> is drawn in.</summary>
     public static Color FamilyColor(QuickCommandGlyphFamily family) =>
@@ -568,6 +719,54 @@ public static class QuickCommandStrip
     private static Selector StripButton(Selector? x) => x.OfType<Button>().Class(ButtonClass);
 
     private static Selector Presenter(Selector button) => button.Template().OfType<ContentPresenter>().Name(ButtonPresenterPart);
+
+    /// <summary>
+    /// One segment of a strip row: its label line, when the row has labels, over its cells. The segment is as wide as its
+    /// cells; the label line is measured and laid out to that width, so a long label is cut rather than widening the row.
+    /// </summary>
+    private sealed class StripSegmentPanel : Panel
+    {
+        private readonly Control? _label;
+        private readonly Control _cells;
+
+        public StripSegmentPanel(Control? label, Control cells)
+        {
+            _label = label;
+            _cells = cells;
+            if (label is not null)
+            {
+                Children.Add(label);
+            }
+
+            Children.Add(cells);
+        }
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            _cells.Measure(availableSize);
+            double width = _cells.DesiredSize.Width;
+            if (_label is null)
+            {
+                return _cells.DesiredSize;
+            }
+
+            _label.Measure(new Size(width, double.PositiveInfinity));
+            return new Size(width, _label.DesiredSize.Height + _cells.DesiredSize.Height);
+        }
+
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            double top = 0;
+            if (_label is not null)
+            {
+                _label.Arrange(new Rect(0, 0, _cells.DesiredSize.Width, _label.DesiredSize.Height));
+                top = _label.DesiredSize.Height;
+            }
+
+            _cells.Arrange(new Rect(0, top, _cells.DesiredSize.Width, _cells.DesiredSize.Height));
+            return finalSize;
+        }
+    }
 
     /// <summary>
     /// The strip's submenu flyouts, of which at most one is open. A click on a button opens its flyout beside the menu,

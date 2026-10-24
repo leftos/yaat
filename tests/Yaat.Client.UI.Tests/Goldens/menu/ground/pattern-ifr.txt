@@ -2,7 +2,7 @@
 AAL206 · B738 [disabled]
 Downwind · 1,500 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
-strip: [tower.cleared-to-land, tower.go-around]
+strip row 1: Runway: tower.cleared-to-land tower.go-around
 ---
 Command…
 Note…

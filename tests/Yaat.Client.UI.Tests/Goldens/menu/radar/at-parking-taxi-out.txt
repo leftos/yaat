@@ -2,7 +2,7 @@
 SWA110 · B738 [disabled]
 At parking · GA20 [disabled]
 ---
-strip: [ground.taxi-preset, ground.draw-taxi-route]
+strip row 1: Taxi: ground.taxi-preset ground.draw-taxi-route
 ---
 Command…
 Note…

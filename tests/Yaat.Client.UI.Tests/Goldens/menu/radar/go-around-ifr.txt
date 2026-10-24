@@ -2,7 +2,7 @@
 AAL208 · B738 [disabled]
 Go around · 1,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
-strip: [heading.fly, altitude.maintain, approach.report-field-in-sight]
+strip row 1: Vectors: heading.fly altitude.maintain | Pilot reports: approach.report-field-in-sight
 ---
 Command…
 Note…

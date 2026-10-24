@@ -2,7 +2,7 @@
 UAL401 · B738 [disabled]
 11,000 ft · 250 kt [disabled]
 ---
-strip: [livetraffic.assume, livetraffic.assume-and-track]
+strip row 1: Live traffic: livetraffic.assume livetraffic.assume-and-track
 ---
 Command…
 Note…
