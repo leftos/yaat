@@ -61,7 +61,6 @@ All Commands
     Squawk
       Code — SQ ···
       ---
-      Squawk assigned code
       Squawk random
       Squawk VFR
       Squawk normal

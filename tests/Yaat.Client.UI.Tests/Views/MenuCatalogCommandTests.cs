@@ -1643,6 +1643,40 @@ public class MenuCatalogCommandTests
         Assert.Empty(host.InputPlaceholders);
     }
 
+    /// <summary>
+    /// With no assigned code the Squawk flyout leaves out Squawk assigned code: the presets follow the code box's separator directly,
+    /// with no doubled separator.
+    /// </summary>
+    [AvaloniaFact]
+    public void Squawk_Flyout_NoAssignedCode_LeavesOutSquawkAssignedCode()
+    {
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { BeaconCode = 1200, AssignedBeaconCode = 0 };
+
+        MenuItem squawk = SharedMenuGroups.Squawk(aircraft, Context(), host);
+
+        Assert.Equal(
+            [$"Code — SQ {TakeoffFlyout.Unfilled}", "---", "Squawk random", "Squawk VFR", "Squawk normal", "Squawk standby", "---", "Ident"],
+            squawk.Items.Select(DescribeRow)
+        );
+    }
+
+    /// <summary>All Commands › Track and coordination's Squawk flyout leaves out Squawk assigned code for an aircraft with no assigned code.</summary>
+    [AvaloniaFact]
+    public void TrackAndCoordination_SquawkFlyout_NoAssignedCode_LeavesOutSquawkAssignedCode()
+    {
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { BeaconCode = 1200, AssignedBeaconCode = 0 };
+
+        MenuItem? track = SharedMenuGroups.TrackAndCoordination(aircraft, Context(), host, commandsTheAircraft: true);
+
+        Assert.NotNull(track);
+        MenuItem squawk = Assert.Single(track.Items.OfType<MenuItem>(), m => (m.Header as string == "Squawk") && (m.Items.Count > 0));
+        string[] rows = [.. squawk.Items.Select(DescribeRow)];
+        Assert.Contains("Squawk random", rows);
+        Assert.DoesNotContain("Squawk assigned code", rows);
+    }
+
     /// <summary>The Squawk flyout opens with the caret in its code box, its first row, so typed digits land there.</summary>
     [AvaloniaFact]
     public void Squawk_Flyout_OpensWithFocusInTheCodeBox()

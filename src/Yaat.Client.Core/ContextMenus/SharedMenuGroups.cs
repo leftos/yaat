@@ -55,7 +55,8 @@ public static class SharedMenuGroups
     /// <summary>
     /// The Squawk flyout headed <paramref name="header"/>, Track and coordination's Squawk block and the Squawk… entry alike: the code box
     /// row first, always open and holding the focus as the flyout opens (<see cref="MenuCatalog.SquawkCodeRow"/>), then
-    /// after a separator Squawk assigned code and the presets, then after another separator Ident.
+    /// after a separator Squawk assigned code (only when the aircraft has an assigned code) and the presets, then after another
+    /// separator Ident.
     /// </summary>
     public static MenuItem SquawkFlyout(string header, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -78,7 +79,7 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The Squawk flyout's preset rows, in order: Squawk assigned code, then the presets.</summary>
+    /// <summary>The Squawk flyout's preset rows, in order: Squawk assigned code where it applies, then the presets.</summary>
     private static readonly string[] SquawkPresetIds =
     [
         MenuIds.SquawkAssigned,
@@ -89,12 +90,13 @@ public static class SharedMenuGroups
     ];
 
     /// <summary>
-    /// The entry's item as a Squawk flyout row, where its predicate allows it: its label led by the glyph column (its quick-command
-    /// glyph, else a blank slot as wide), so its label starts where the code box does.
+    /// The entry's item as a Squawk flyout row, where its predicate allows it (null when the entry does not apply to the aircraft,
+    /// as Squawk assigned code with no assigned code): its label led by the glyph column (its quick-command glyph, else a blank
+    /// slot as wide), so its label starts where the code box does.
     /// </summary>
     private static MenuItem? SquawkRow(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (FlyoutRow(id, aircraft, context, host) is not { } item)
+        if (!IsApplicable(id, aircraft, context) || (FlyoutRow(id, aircraft, context, host) is not { } item))
         {
             return null;
         }

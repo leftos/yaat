@@ -74,7 +74,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views. Thi
 
   The Squawk flyout (`SharedMenuGroups.SquawkFlyout`, the Track and coordination group's Squawk block and the Squawk… entry alike) opens on the code box (`MenuCatalog.SquawkCodeRow`, verb `SQ`, box `SquawkCodeBox`), focused as it opens, from a submenu or from a quick-command strip button alike (`SharedMenuGroups.FocusTheBoxOnOpen`). Four octal digits send `SQ nnnn`; other text is refused with `InvalidSquawkCode` ("Not a valid squawk code (0000-7777)"); blank sends nothing, since bare `SQ` is Squawk assigned code.
 
-  After a separator come Squawk assigned code, random, VFR, normal and standby, then after another separator Ident; every row leads with a glyph column, blank where the entry has no glyph.
+  After a separator come Squawk assigned code (left out for an aircraft with no assigned code: `SquawkRow` returns null when the entry's `IsApplicable` fails), random, VFR, normal and standby, then after another separator Ident; every row leads with a glyph column, blank where the entry has no glyph.
 
   The Scratchpad flyout (`SharedMenuGroups.ScratchpadFlyout`, the Data block block's Scratchpad… entry) opens on the Scratchpad box (`MenuCatalog.ScratchpadRow`, verb `SP`, box `ScratchpadBox`, placeholder `up to {max} characters`), focused as it opens. The box opens holding the aircraft's present Scratchpad 1 (`IMenuAircraft.Scratchpad1`, never the destination the scope shows in its place), all selected, and selects it again each time it regains the focus while the text is still the seed (`InlineBoxSpec.Seed`).
 
