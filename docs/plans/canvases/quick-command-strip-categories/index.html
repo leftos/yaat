@@ -150,6 +150,18 @@
   .ehead small { font: 10.5px "Segoe UI", sans-serif; letter-spacing: 0; text-transform: none; color: #8a8a8a; }
   .divnote { font: 11px Consolas, monospace; color: #ffb259; padding: 4px 0; }
 
+  /* Round 2: several menus to a lane, each with a caption and its own readout. */
+  .stage.multi { display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-start; }
+  .mbox { flex: none; display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+  .mbox .mcap { font: 600 11px/1.3 Consolas, "IBM Plex Mono", monospace; letter-spacing: .04em; color: #c9d0d8; }
+  .mbox .readout { max-width: 300px; margin-top: 2px; }
+  .mrow.detail { height: 21px; font-size: 11.5px; color: #9a9a9a; }
+  .r2switch { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  .r2switch b { color: var(--ink); font-weight: 600; }
+  .r2switch label { display: inline-flex; gap: 4px; align-items: center; color: var(--ink); cursor: pointer; }
+  .r2head { font: 600 24px/1.2 var(--f-display); margin: 26px 0 6px; }
+  .round1 { font: 600 24px/1.2 var(--f-display); margin: 36px 0 6px; padding-top: 18px; border-top: 2px solid var(--line); }
+
   @media (max-width: 560px) {
     h1 { font-size: 24px; }
     .art { padding: 12px; }
@@ -161,30 +173,48 @@
 <div class="wrap">
   <div class="eyebrow">YAAT-1028 · context-menu quick commands · mock for the owner's decisions</div>
   <h1>Every quick-command icon, grouped by category</h1>
-  <p class="lede">Owner request: <b>“No limit on the amount of quick command icons that are shown in a context menu, but maybe they should be organized into categories with small separators?”</b> Today the strip holds the first ten glyph-bearing entries of the situation's list, two rows of five, and every glyph entry past the tenth drops to a text row. This page draws the strip with no cap, its icons grouped by category, four ways, against today's menu.</p>
+
+  <h2 class="r2head" id="r2">Open questions (YAAT-1028, round 2)</h2>
+  <section class="note-box ask" aria-labelledby="r2-h">
+    <h2 id="r2-h">Two questions the settled layout leaves open</h2>
+    <p style="margin:0 0 8px;color:var(--muted)">Every strip in this section is drawn as settled in round 1: lane C (each group under a tiny uppercase label), categories by task, six icons a row, neighbouring categories sharing a row when they fit with a 1 px vertical rule between them, and the release icons in Track and coordination. Where round 1's decisions 3, 4 and 8 to 11 are still open, the strips follow the page's switches (sticky bar further down; defaults 3a, 4a, 8a, 9a, 10a, 11a). Answer as “Q1 A, Q2 B”.</p>
+    <ol class="nl">
+      <li><b>Q1. Where do the glyph-bearing ids with no category go?</b> <code>MenuCategories.Uncategorized</code> (<code>MenuCategories.cs:53-83</code>) holds Warp… and Delete (sim control) and Assume control and Assume and track (live traffic, only ever on a live-traffic shadow's menu, whose default list holds just those two, <code>QuickCommandDefaults.cs:204</code>). The arrival is a rollout aircraft whose user added Warp… and Delete after the default Rollout list's runway and taxi entries.
+        <span class="opts"><i>A</i> a trailing group with no label, after every category, packed by the same rules (it may share the last category's row)</span>
+        <span class="opts"><i>B</i> new categories with their own labels: “Sim” for Warp… and Delete, “Live traffic” for the two Assume icons</span>
+        <span class="opts"><i>C</i> folded into Track and coordination, as the release icons were</span></li>
+      <li><b>Q2. Do the point menu's and the delayed spawn's strips group too?</b> Neither strip holds quick commands: the point menu's are point items (<code>AircraftMenuBuilder.cs:276-286</code>), the delayed spawn's only the release icons that apply (<code>:457-483</code>), so each holds five icons at most today.
+        <span class="opts"><i>A</i> left as one flat, unlabelled row, as built</span>
+        <span class="opts"><i>B</i> grouped and labelled like the aircraft menu, each point item under its aircraft-menu twin's category (Fly heading and Direct to: Vectors; the holds: Approach; the taxi items: Taxi; Warp here as Q1 decides)</span></li>
+    </ol>
+  </section>
+  <div id="r2arts"></div>
+
+  <h2 class="round1" id="round1">Round 1: the layout, and the decisions still open</h2>
+  <p class="lede">Owner request: <b>“No limit on the amount of quick command icons that are shown in a context menu, but maybe they should be organized into categories with small separators?”</b> When round 1 was drawn the strip held the first ten glyph-bearing entries of the situation's list, two rows of five, and every glyph entry past the tenth dropped to a text row (YAAT-762 has since raised the cap to fifteen, three rows of five; YAAT-1028 removes it). This page draws the strip with no cap, its icons grouped by category, four ways, against that ten-icon menu.</p>
   <p class="lede">Each artboard is one aircraft situation, its lanes side by side at the menu's real width: the title, the state line (point at an icon and it names the command there, as the built strip does), the strip, and the rows below it. The pointer arrow marks where the right-click landed: the menu opens with its top-left corner there. Under each menu a measured line gives the menu's height, the icon farthest from the pointer (dashed blue ring) and every one-icon group (amber underline). The switches above the artboards re-draw every lane for decisions 2 to 5 and 7; the Shared rows artboard draws the settled choices and follows only switches 3, 4 and 8 to 11.</p>
   <p class="lede">Glyphs, families, colours, sizes and the situations' lists are the built ones. <b>Every entry of a list is drawn, as Settings' preview draws it</b>: on a real aircraft the visibility rules hide some (Land on a fixed-wing, Cancel takeoff clearance with no clearance), so real menus are often shorter. Callsigns and state lines are illustrative.</p>
 
   <section class="note-box" aria-labelledby="today-h">
     <h2 id="today-h">The strip as built</h2>
     <ul class="nl">
-      <li><b>Cap and split.</b> <code>QuickCommandGlyphs.StripCapacity</code> is 10; <code>Split</code> puts the first ten glyph-bearing entries in list order in the strip and every other entry, a glyph-bearing one past the tenth included, in the text rows below it. <code>QuickCommandStrip.Rows</code> lays the cells out in two rows of <code>RowLength</code> = 5, an empty second row hidden; Settings' preview lays out through the same <code>Rows</code> and <code>GlyphCell</code>.</li>
+      <li><b>Cap and split, when round 1 was drawn.</b> <code>QuickCommandGlyphs.StripCapacity</code> was 10; <code>Split</code> put the first ten glyph-bearing entries in list order in the strip and every other entry, a glyph-bearing one past the tenth included, in the text rows below it. <code>QuickCommandStrip.Rows</code> laid the cells out in two rows of <code>RowLength</code> = 5; Settings' preview lays out through the same <code>Rows</code> and <code>GlyphCell</code>. The cap has since become 15 (three rows of five), and YAAT-1028 removes it.</li>
       <li><b>Cells.</b> A 40 px cell (42 px with the button's border), a 32 px glyph drawn on a 24 px view box at stroke 1.9 in its family's colour, 6 px apart, on a <code>#1F2226</code> well; a corner notch (<code>M6 0V6H0z</code>, <code>#9AA3AD</code>) on a button that opens a flyout.</li>
       <li><b>Families.</b> Five, in <code>QuickCommandGlyphFamily</code> order: Tower amber <code>#FFC062</code>, Ground teal <code>#6EE0CE</code>, Flight blue <code>#A8CAFF</code>, Pattern violet <code>#DDBDFF</code>, Scope and sim grey <code>#DCE2E8</code>.</li>
       <li><b>Header line.</b> The state line under the title names the icon under the pointer or focus (<code>QuickCommandLabelLine</code>): its name, then <code>— COMMAND</code> for one fixed command or <code>›</code> for a flyout.</li>
-      <li><b>Release icons lead.</b> Release (HFR) and Check release window, when they apply, go first in the strip whatever the list (<code>AircraftMenuBuilder.LeadWithRelease</code>), and an icon they push past the tenth becomes the first text row.</li>
+      <li><b>Release icons lead.</b> Release (HFR) and Check release window, when they apply, go first in the strip whatever the list (<code>AircraftMenuBuilder.LeadWithRelease</code>), and an icon they push past the cap becomes the first text row.</li>
     </ul>
   </section>
 
   <section class="note-box found" aria-labelledby="found-h">
     <h2 id="found-h">Found while drawing (static reads, not run)</h2>
     <ul class="nl">
-      <li><b>The cap is still ten.</b> YAAT-1028 says YAAT-762 raises it to 15; <code>QuickCommandGlyphs.cs:57</code> still reads <code>StripCapacity = 10</code> and <code>Rows</code> still builds two rows, so today's lanes are drawn at ten.</li>
+      <li><b>The cap was ten when round 1 was drawn.</b> YAAT-762 has since raised it to 15 (<code>QuickCommandGlyphs.cs:57</code>, three rows of five); the Today lanes keep the ten-icon strip round 1 was asked against, and YAAT-1028 removes the cap altogether.</li>
       <li><b>There is no coordination family.</b> The issue names six families (“… scope and sim, coordination”); the code has five, and Release (HFR) and Check release window are <code>ScopeAndSim</code> (<code>QuickCommandGlyphs.cs:188-189</code>).</li>
       <li><b>Family is not the same as job.</b> Cleared for the option is drawn violet in the Pattern family (<code>:179</code>), not amber with the other tower clearances; Report traffic in sight, Report field in sight, At N-mile final and At fix are amber Tower glyphs (<code>:116-119</code>). Grouping by family moves them with their colour.</li>
       <li><b>Two default lists already overflow.</b> Pattern (11) and Holding (11) hold more glyph entries than the strip shows, so a helicopter in the pattern gets Land as a text row today; a release-window aircraft in the Taxiing list (10) pushes Land out the same way.</li>
       <li><b>Six fits the menu as it is.</b> Six 42 px buttons 6 px apart are 282 px, exactly the 290 px menu less its 4 px strip padding each side, so a six-wide row would not widen today's menu (decision 5).</li>
-      <li><b>Settings draws a divider after the tenth row</b> (<code>docs/client-context-menus.md</code>, “Strip mark and preview”); with no cap it has nothing to mark.</li>
+      <li><b>Settings draws a divider after the strip's last row</b> (the tenth when drawn, the fifteenth since; <code>docs/client-context-menus.md</code>, “Strip mark and preview”); with no cap it has nothing to mark.</li>
     </ul>
   </section>
 
@@ -271,9 +301,12 @@
     ["CTL", "Cleared to land", "T", "RWY", "M2 20h20 M5 6l11 9 M10 15h6v-6", false, "CLAND"],
     ["GA", "Go around", "T", "RWY", "M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4", false, "GA"],
     ["TG", "Touch and go", "T", "RWY", "M2 20h20 M3 7c4 0 6 10 9 10s5-10 9-10", false, "TG"],
+    ["EL", "Exit left", "T", "RWY", "M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4", true, null],
+    ["ER", "Exit right", "T", "RWY", "M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4", true, null],
     ["RTIS", "Report traffic in sight…", "T", "REP", "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8", true, null],
     ["RFIS", "Report field in sight…", "T", "REP", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2", true, null],
     ["LAND", "Land", "G", "TAXI", HELI + " M19.5 8v10 M17 15.5l2.5 2.5 2.5-2.5", true, null],
+    ["DTR", "Draw taxi route…", "G", "TAXI", "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3", false, null],
     ["HOLDPOS", "Hold position", "G", "TAXI", "M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6", false, "HOLD"],
     ["RES", "Resume taxi", "G", "TAXI", "M7 4l13 8-13 8z", false, "RES"],
     ["HS", "Hold short of…", "G", "TAXI", "M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3", true, null],
@@ -304,8 +337,27 @@
     ["PO", "Point out…", "S", "TRK",
       "M5 11c0-2.2 1.8-4 4-4h10a1.5 1.5 0 0 1 0 3h-5a1.75 1.75 0 0 1 0 3.5a1.75 1.75 0 0 1 0 3.5H9c-2.2 0-4-1.8-4-4z M2 9v10", true, null],
     ["SQ", "Squawk…", "S", "TRK", "M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2", false, null],
+    /* Round 2: the live-traffic and sim-control icons are in no category (task X…), the release icons in Track and coordination. */
+    ["ASM", "Assume control", "S", "XLIVE", "M12 3v10 M8 9l4 4 4-4 M4 17v4h16v-4", false, "ASSUME"],
+    ["ASMT", "Assume and track", "S", "XLIVE", "M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 7v8 M9 12l3 3 3-3", false, null],
+    ["REL", "Release (HFR)", "S", "TRK", "M5 11h14v10H5z M8 11V7a4 4 0 0 1 7.6-1.8 M12 15v2", false, "REL"],
     ["CRW", "Check release window", "S", "TRK", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3", false, "CFR CHECK"],
+    ["WARP", "Warp…", "S", "XSIM", "M13 2L4 14h7l-1 8 9-12h-7z", false, null],
+    ["DEL", "Delete", "S", "XSIM", "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13", false, "DEL"],
   ];
+  /* The point menu's own glyphs (QuickCommandGlyphs.PointById), each under its aircraft-menu twin's task for Q2's lane B. */
+  const PT = {};
+  [
+    ["PTH", "Taxi here", "G", "TAXI", "M12 21s-6-5.5-6-10.5a6 6 0 0 1 12 0c0 5-6 10.5-6 10.5z M12 8a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5", true, null],
+    ["PTR", "Taxi to runway", "G", "TAXI", "M19 3v18 M3 12h12 M11 8l4 4-4 4", true, null],
+    ["PPU", "Push to", "G", "TAXI", "M12 3v12 M8 11l4 4 4-4 M6 20h12", false, null],
+    ["PCT", "Custom taxi…", "G", "TAXI", "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3", false, null],
+    ["PFH", "Fly heading", "F", "VEC", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z", false, "FH 105"],
+    ["PDCT", "Direct to", "F", "VEC", "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4", false, "DCT OAK105012"],
+    ["PHL", "Hold (left)", "F", "APP", RACE + " M14 3l-3 3 3 3", false, "HFIXL OAK105012"],
+    ["PHR", "Hold (right)", "F", "APP", RACE + " M10 3l3 3-3 3", false, "HFIXR OAK105012"],
+    ["PWH", "Warp here", "S", "XSIM", "M13 2L4 14h7l-1 8 9-12h-7z", false, null],
+  ].forEach(([id, label, fam, task, d, sub, cmd], rank) => { PT[id] = { id, label, fam, task, d, sub, cmd, rank: 100 + rank }; });
   const G = {};
   GL.forEach(([id, label, fam, task, d, sub, cmd], rank) => { G[id] = { id, label, fam, task, d, sub, cmd, rank }; });
 
@@ -336,7 +388,7 @@
 
   /* ---------- Lanes ---------- */
   const LANES = [
-    { key: "today", tag: "t", letter: "Today", name: "As built: ten icons, the rest as text" },
+    { key: "today", tag: "t", letter: "Today", name: "As built for round 1: ten icons, the rest as text" },
     { key: "A", tag: "a", letter: "A", name: "A row per category, separators" },
     { key: "B", tag: "b", letter: "B", name: "One flow, separators inside rows" },
     { key: "C", tag: "c", letter: "C", name: "As A, each group labelled" },
@@ -378,19 +430,25 @@
     rel.forEach((r, i) => { r.li = items.length + 1 + i; });
     return [...items, ...rel];
   }
-  const catKey = it => (it.rel && opt.rel === "lead") ? "REL" : (opt.cat === "fam" ? it.g.fam : it.g.task);
-  const catName = k => k === "REL" ? "Release" : (opt.cat === "fam" ? FAM[k].name : TASK[k]);
-  const catColor = k => k === "REL" ? FAM.S.color : (opt.cat === "fam" ? FAM[k].color : TASK_COLOR);
+  /* Round 2's keys for the ids in no category: NONE (Q1 lane A, unlabelled), SIM and LIVE (lane B); an entry's own cat wins. */
+  const EXTRA = { NONE: "", SIM: "Sim", LIVE: "Live traffic" };
+  const catKey = it => it.cat ?? ((it.rel && opt.rel === "lead") ? "REL" : (opt.cat === "fam" ? it.g.fam : it.g.task));
+  const catName = k => k in EXTRA ? EXTRA[k] : k === "REL" ? "Release" : (opt.cat === "fam" ? FAM[k].name : TASK[k]);
+  const catColor = k => k in EXTRA ? TASK_COLOR : k === "REL" ? FAM.S.color : (opt.cat === "fam" ? FAM[k].color : TASK_COLOR);
   function groupsOf(items) {
     const by = new Map();
     items.forEach(it => { const k = catKey(it); if (!by.has(k)) by.set(k, []); by.get(k).push(it); });
     const order = opt.cat === "fam" ? FAM_ORDER : TASK_ORDER;
     const gs = [...by.entries()].map(([k, list]) => ({ k, list, first: Math.min(...list.map(x => x.li)) }));
     gs.forEach(g => g.list.sort((a, b) => opt.inner === "list" ? a.li - b.li : (a.g.rank - b.g.rank) || (a.li - b.li)));
+    /* A key outside the category order (Sim, Live traffic) comes after it in the fixed order; the unlabelled group always trails. */
+    const rankOf = k => (order.indexOf(k) < 0 ? order.length : order.indexOf(k));
     gs.sort((a, b) => {
       if (a.k === "REL") return -1;
       if (b.k === "REL") return 1;
-      return opt.corder === "first" ? a.first - b.first : order.indexOf(a.k) - order.indexOf(b.k);
+      if (a.k === "NONE") return 1;
+      if (b.k === "NONE") return -1;
+      return opt.corder === "first" ? a.first - b.first : rankOf(a.k) - rankOf(b.k);
     });
     return gs;
   }
@@ -502,7 +560,7 @@
   const SET_TEXT = {
     a: {
       name: "Preview grouped, the list flat",
-      how: "The preview draws the strip exactly as the menu will, through the same factory; the entry list stays one list in the order the user dragged it, which decides the order within each group and, under decision 3a, the order of the groups. The divider after the tenth row goes.",
+      how: "The preview draws the strip exactly as the menu will, through the same factory; the entry list stays one list in the order the user dragged it, which decides the order within each group and, under decision 3a, the order of the groups. The divider after the strip's last row goes.",
       worst: "The list and the preview disagree on order: the list reads Cleared to land, Cleared for the option, Touch and go while the preview shows Cleared to land, Touch and go, Go around; and dragging Land to the top of the list moves the whole Ground group to the front of the strip.",
     },
     b: {
@@ -548,14 +606,14 @@
     const btns = s => `<div class="qseg">${s.items.map(it => btn(it, r.n === 1)).join("")}</div>`;
     if (!shared && r.segs[0].cont) return `<div class="prow cont">${btns(r.segs[0])}</div>`;
     if (lab === "own" || !shared) {
-      const segLab = s => s.cont ? `<div class="glab cont" style="--c:${TASK_COLOR}"><span></span></div>` : labH(s.k);
+      const segLab = s => (s.cont || s.k === "NONE") ? `<div class="glab cont" style="--c:${TASK_COLOR}"><span></span></div>` : labH(s.k);
       return `<div class="prow">${r.segs.map((s, i) => `<div class="pseg${i === r.segs.length - 1 ? " fill" : ""}">${segLab(s)}${btns(s)}</div>`).join(pdiv)}</div>`;
     }
     const icons = `<div class="picons">${r.segs.map(btns).join(pdiv)}</div>`;
     if (lab === "row") {
       const head = r.segs[0].cont ? r.segs[0] : null;
       const rest = head ? r.segs.slice(1) : r.segs;
-      const named = `<div class="glab" style="--c:${TASK_COLOR}"><span>${esc(rest.map(s => catName(s.k)).join(" · "))}</span></div>`;
+      const named = `<div class="glab" style="--c:${TASK_COLOR}"><span>${esc(rest.map(s => catName(s.k)).filter(Boolean).join(" · "))}</span></div>`;
       if (!head) return `<div class="prow col">${named}${icons}</div>`;
       return `<div class="prow"><div class="pseg"><div class="glab cont" style="--c:${TASK_COLOR}"><span></span></div>${btns(head)}</div>${pdiv}`
         + `<div class="pseg fill">${named}<div class="picons">${rest.map(btns).join(pdiv)}</div></div></div>`;
@@ -662,6 +720,114 @@
     put("sh.approach.settled", at("approach", { share: false }));
   }
 
+  /* ---------- Round 2: Q1 (ids in no category) and Q2 (the point and delayed-spawn strips) ---------- */
+  const R2 = { warp: "B" };
+  const Q1_MAP = { A: { XSIM: "NONE", XLIVE: "NONE" }, B: { XSIM: "SIM", XLIVE: "LIVE" }, C: { XSIM: "TRK", XLIVE: "TRK" } };
+  const Q1_LANES = [
+    { key: "A", tag: "a", name: "A trailing group, no label",
+      how: "Warp… and Delete trail every category, unlabelled; they share the last category's row when they fit, with the rule but no name. The shadow's two Assume icons are one unlabelled row, as built." },
+    { key: "B", tag: "b", name: "Their own categories: “Sim” and “Live traffic”",
+      how: "Warp… and Delete get a “Sim” label like any category, after the task categories in the fixed order; the shadow's two Assume icons sit under “Live traffic”." },
+    { key: "C", tag: "c", name: "Folded into Track and coordination",
+      how: "Warp… and Delete join Track and coordination (with any squawk or track icons the list holds), as the release icons did; the shadow's two Assume icons sit under “Track and coordination”." },
+  ];
+  const Q2_LANES = [
+    { key: "A", tag: "a", name: "A flat, unlabelled row, as built",
+      how: "Each strip stays one row in its own order, no labels or rules: the radar point's five icons, the taxi node's three, the delayed spawn's release icons." },
+    { key: "B", tag: "b", name: "Grouped and labelled like the aircraft menu",
+      how: "Each point item goes under its aircraft-menu twin's category and the strip packs as the aircraft menu does; Warp here follows the Q1 answer picked above the lanes. The delayed spawn's release icons sit under Track and coordination." },
+  ];
+  const ROLLOUT = { title: "SKW5821 · E175", state: "Rollout · 60 kt · KOAK rwy 30", list: ["EL", "ER", "CROSS", "DTR", "WARP", "DEL"] };
+  const SHADOW = { title: "AAL2231 · A321", state: "Live traffic · 8,500 ft · 250 kt", list: ["ASM", "ASMT"] };
+  const RADAR_PT = { title: "UAL1734 · B738 → OAK105012", detail: "12 nm, 105° from OAK", list: ["PFH", "PDCT", "PHL", "PHR", "PWH"] };
+  const NODE_PT = { title: "SWA1234 · B737 → Spot 5", list: ["PTH", "PPU", "PCT"] };
+  const SPAWN = { title: "SWA2210 · B737", state: "Delayed spawn · in 4:30 · KOAK", list: ["REL", "CRW"] };
+
+  const mrow = (label, right) => `<div class="mrow"><span>${esc(label)}</span><span class="chev">${right}</span></div>`;
+  const detailRow = text => `<div class="mrow detail"><span>${esc(text)}</span></div>`;
+  const ACFT_BELOW = () => msep + ROWS_BELOW.map(r => r ? mrow(r[0], r[1]) : msep).join("");
+  const r2Entries = (ids, map) => ids.map((id, i) => {
+    const g = G[id] || PT[id];
+    return { g, li: i + 1, rel: false, cat: map[g.task] };
+  });
+  function r2RowHtml(r, lab, idx) {
+    const s = r.segs[0];
+    if ((r.segs.length === 1) && (s.k === "NONE") && !s.cont) {
+      return `<div class="prow col bare">${idx > 0 ? sepH : ""}<div class="qseg">${s.items.map(it => btn(it, r.n === 1)).join("")}</div></div>`;
+    }
+    return sharedRowHtml(r, lab, idx);
+  }
+  function r2Grouped(ids, map) {
+    return withOpt(SETTLED, () => {
+      const rows = pack(groupsOf(r2Entries(ids, map)), { ...sh, share: true });
+      return {
+        html: rows.map((r, i) => r2RowHtml(r, sh.lab, i)).join(""),
+        desc: rows.map(r => r.segs.map(s => `${catName(s.k) || "(no label)"}${s.cont ? " (cont.)" : ""} ${s.items.length}`).join(" | ")).join(" / "),
+        rows: rows.length,
+      };
+    });
+  }
+  const r2Flat = ids => {
+    const list = r2Entries(ids, {});
+    return { html: `<div class="grp">${rowsHtml(list, SH_ROW, false)}</div>`, desc: `one flat row of ${list.length}`, rows: chunk(list, SH_ROW).length };
+  };
+  function r2Box(cap, m, strip, below) {
+    const st = m.state ? `<div class="st">${esc(m.state)}</div>` : `<div class="st"></div>`;
+    return `<div class="mbox" data-r2><div class="mcap">${esc(cap)}</div>
+      <div class="menu">${ptr}<div class="mrow title">${esc(m.title)}</div><div class="hline">${st}<div class="ql"></div></div>
+      ${m.detail ? detailRow(m.detail) : ""}${msep}<div class="strip">${strip.html}</div>${below}</div>
+      <div class="readout" data-desc="${esc(strip.desc)}" data-rows="${strip.rows}"></div></div>`;
+  }
+  const laneWrap = (id, L, prefix, boxes) => `<section class="lane" id="${id}">
+      <div class="lane-h"><span class="tag ${L.tag}">${prefix} ${L.key}</span><h3>${esc(L.name)}</h3></div>
+      <p style="margin:0;color:var(--muted);font-size:13px">${esc(L.how)}</p>
+      <div class="stage multi">${boxes}</div></section>`;
+
+  function r2Html() {
+    const q1 = Q1_LANES.map(L => laneWrap(`q1-${L.key}`, L, "Q1", [
+      r2Box("Arrival on rollout · a user's list", ROLLOUT, r2Grouped(ROLLOUT.list, Q1_MAP[L.key]), ACFT_BELOW()),
+      r2Box("Live-traffic shadow · default list", SHADOW, r2Grouped(SHADOW.list, Q1_MAP[L.key]), ACFT_BELOW()),
+    ].join(""))).join("");
+    const radarBelow = msep + mrow("Fly heading", "") + detailRow("FH 105 · right turn, 35°");
+    const nodeBelow = msep + mrow("Taxi here", "›") + mrow("Push to", "") + mrow("Custom taxi…", "") + msep + mrow("Warp here", "");
+    const spawnBelow = msep + mrow("Command…", "") + mrow("Note…", "") + msep + mrow("Favorite Commands", "›") + msep
+      + mrow("Spawn now", "") + mrow("Change spawn delay", "›") + mrow("Delete", "");
+    const q2 = Q2_LANES.map(L => {
+      const strip = ids => (L.key === "A" ? r2Flat(ids) : r2Grouped(ids, Q1_MAP[R2.warp]));
+      return laneWrap(`q2-${L.key}`, L, "Q2", [
+        r2Box("Radar point, airborne aircraft", RADAR_PT, strip(RADAR_PT.list), radarBelow),
+        r2Box("Taxi node, parked aircraft", NODE_PT, strip(NODE_PT.list), nodeBelow),
+        r2Box("Delayed spawn, both release icons", SPAWN, strip(SPAWN.list), spawnBelow),
+      ].join(""));
+    }).join("");
+    const warpSw = ["A", "B", "C"].map(k => `<label><input type="radio" name="r2warp" value="${k}"${R2.warp === k ? " checked" : ""}> Q1 ${k}</label>`).join("");
+    return `<section class="art" id="r2q1"><div class="art-meta"><h2>Q1 · Warp…, Delete and the Assume icons: no category in the code</h2>
+      <p>Left of each lane, an arrival on rollout whose list is the default Rollout list's runway and taxi entries (Exit left, Exit right, Cross 28L, Draw taxi route…; the transponder rows hidden, Air taxi hidden on a fixed-wing) with Warp… and Delete added by the user. Right, a live-traffic shadow, whose default list is only Assume control and Assume and track. <b>The rows under each strip are drawn as the aircraft menu builds them; the readout under each menu gives its height, strip rows and any label the width cuts.</b></p></div>
+      <div class="lanes">${q1}</div></section>
+      <section class="art" id="r2q2"><div class="art-meta"><h2>Q2 · The point menu's and the delayed spawn's strips</h2>
+      <p>What each strip holds as built: the radar point strip (an airborne aircraft, a radar point clicked) is Fly heading, Direct to, Hold (left), Hold (right) and Warp here, <code>RadarPointStripIds</code>, <code>AircraftMenuBuilder.cs:279-286</code>; the ground point strip is whichever of Taxi here, Taxi to runway, Push to and Custom taxi… apply at the click, <code>PointStripIds</code>, <code>:276</code> (a parked aircraft at a taxi-node spot shows Taxi here, Push to, Custom taxi…; a runway surface shows Taxi to runway); the delayed spawn's strip is Release (HFR) and Check release window, each only when it applies, <code>ReleaseIds</code>, <code>:486</code>, built by <code>AddReleaseStrip</code>, <code>:462-483</code>. Rows under the point strips are the point menu's text items; the view's own items after them are not drawn.</p></div>
+      <div class="r2switch" role="group" aria-label="Warp here in lane B"><b>Warp here in lane B follows</b>${warpSw}</div>
+      <div class="lanes">${q2}</div></section>`;
+  }
+  function measureR2(root) {
+    root.querySelectorAll("[data-r2]").forEach(el => {
+      const menu = el.querySelector(".menu");
+      const f = sharedFacts(menu);
+      if (!opt.marks) menu.querySelectorAll(".qbtn.lone").forEach(b => b.classList.remove("lone"));
+      const out = el.querySelector(".readout");
+      out.innerHTML = [
+        `<b>${f.h}</b> px tall, <b>${f.w}</b> px wide · <b>${out.dataset.rows}</b> strip row${out.dataset.rows === "1" ? "" : "s"}`,
+        `rows: ${esc(out.dataset.desc)}`,
+        f.cut.length ? `<span class="w">labels cut:</span> ${esc(f.cut.join(", "))}` : "no label cut",
+      ].join("<br>");
+    });
+  }
+  document.addEventListener("change", e => {
+    if (e.target.name !== "r2warp" || !e.target.checked) return;
+    R2.warp = e.target.value;
+    render();
+  });
+
   /* ---------- Page ---------- */
   function laneHtml(sit, lane) {
     const L = LANES.find(l => l.key === lane);
@@ -680,13 +846,16 @@
       const lanes = LANES.map(l => { const r = laneHtml(sit, l.key); infos.push([sit.id, l.key, r.info]); return r.html; }).join("");
       return `<section class="art" id="${sit.id}"><div class="art-meta"><h2>${esc(sit.title)}</h2><p>${sit.blurb}</p></div><div class="lanes">${lanes}</div></section>`;
     }).join("") + sharedArtHtml() + `<section class="art" id="settings"><div class="art-meta"><h2>5 · Settings › Quick commands, the Pattern list</h2>
-      <p>The editor's preview today draws the first ten glyph rows through <code>QuickCommandStrip.Rows</code> and <code>GlyphCell</code>, and the entry list marks a divider after the tenth. Both options below drop the divider and draw the preview in lane A's layout (it follows whichever lane decision 1 picks); they differ in the entry list. Decision 6.</p></div>
+      <p>The editor's preview drew the first ten glyph rows (fifteen since YAAT-762) through <code>QuickCommandStrip.Rows</code> and <code>GlyphCell</code>, and the entry list marks a divider after the last of them. Both options below drop the divider and draw the preview in lane A's layout (it follows whichever lane decision 1 picks); they differ in the entry list. Decision 6.</p></div>
       <div class="lanes wide">${["a", "b"].map(k => `<section class="lane"><div class="lane-h"><span class="tag ${k === "a" ? "a" : "b"}">6${k}</span><h3>${esc(SET_TEXT[k].name)}</h3></div>
         <div class="stage">${settingsHtml(k)}</div>
         <dl class="cap"><dt>How it works</dt><dd>${SET_TEXT[k].how}</dd><dt>Worst case</dt><dd class="worst">${SET_TEXT[k].worst}</dd></dl></section>`).join("")}</div></section>`;
     infos.forEach(([sid, lane, info]) => measure(arts.querySelector(`[data-lane-box="${sid}.${lane}"]`), sid, lane, info));
     M["approach.CA"] = M["approach.C.h"] - M["approach.A.h"];
     measureShared(arts);
+    const r2 = document.getElementById("r2arts");
+    r2.innerHTML = r2Html();
+    measureR2(r2);
     measureWorst();
     fillNumbers();
   }
@@ -732,7 +901,7 @@
         "Width changes with the situation: the approach menu's Flight group fills an eight-wide row, so that menu is 386 px wide, a third wider than today's over the scope, while its one- and three-icon groups leave most of their rows empty."],
     ] },
     { t: "6. Settings › Quick commands", o: [
-      ["a", SET_TEXT.a.name.toLowerCase() + " (the divider after the tenth goes)", SET_TEXT.a.worst],
+      ["a", SET_TEXT.a.name.toLowerCase() + " (the strip divider goes)", SET_TEXT.a.worst],
       ["b", SET_TEXT.b.name.toLowerCase() + ", a row dragging only within its heading", SET_TEXT.b.worst],
     ] },
     { t: "7. Release icons (Release (HFR), Check release window)", o: [
@@ -771,7 +940,7 @@
   document.getElementById("decisions").innerHTML = DEC.map(d =>
     `<li><b>${esc(d.t)}.</b>${d.o.map(([k, what, worst]) => `<span class="opts"><i>${k}</i> ${esc(what)}<span class="wl">worst: ${worst}</span></span>`).join("")}</li>`).join("");
 
-  document.getElementById("index").innerHTML = SITS.map(s => `<a href="#${s.id}">${esc(s.nav)}</a>`).join("") +
+  document.getElementById("index").innerHTML = `<a href="#r2q1">Q1 · No-category icons</a><a href="#r2q2">Q2 · Point and spawn strips</a>` + SITS.map(s => `<a href="#${s.id}">${esc(s.nav)}</a>`).join("") +
     `<a href="#shared">4 · Shared rows</a><a href="#settings">5 · Settings</a><a href="#questions">Open decisions</a>`;
 
   /* ---------- Live label line ---------- */
