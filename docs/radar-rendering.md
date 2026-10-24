@@ -503,7 +503,7 @@ The right-click aircraft menu is the one the ground view and the aircraft list s
 Each phase action exposes a **one-click top-level item** resolved from aircraft state, with the scrollable submenu as the
 *override* — not the default. Promoted here from the `feedback_smart_defaults_in_menus` memory:
 
-- "Cleared visual approach" (`approach.cleared-visual`, IFR aircraft only) resolves the runway via `MenuCatalog.SmartVisualRunway` (`Yaat.Client.Core/ContextMenus/`) — `AssignedRunway`, else the runway of `ActiveApproachId`, else `ExpectedApproach` — and opens the Cleared approach flyout on that runway's tab; the other runways are the flyout's other tabs.
+- "Cleared visual approach" (`approach.cleared-visual`, IFR aircraft only) resolves the runway via `MenuCatalog.SmartVisualRunway` (`Yaat.Client.Core/ContextMenus/`) — `AssignedRunway`, else the runway of `ActiveApproachId`, else `ExpectedApproach` — and opens the visual-only list (`ClearedVisualSpec`): one `Visual RWY n` row per runway end, the room's landing runways first, the others behind a `Non-arrival runways…` row; that runway's row takes the focus when the room lands on it.
 - "Join STAR" resolves the filed STAR via `MenuCatalog.FiledStar` by scanning the filed route for a STAR known at the destination; `JoinStarFlyout.Tabs` puts it first as the selected tab, the destination's other STARs following as tabs.
 - The runway and STAR pickers are flyouts with every choice in them, no "override" companion item; the airway and fix pickers are flyouts with a box (Join airway, Cross fix, Depart fix, Hold at fix: [client-context-menus.md](client-context-menus.md)).
 

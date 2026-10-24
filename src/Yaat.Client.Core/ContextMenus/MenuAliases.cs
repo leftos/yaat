@@ -89,7 +89,7 @@ public static class MenuAliases
             [MenuIds.ApproachJoinForce] = ["JAPPF"],
             [MenuIds.ApproachJoinFinalCourse] = ["JFAC"],
             [MenuIds.ApproachExpect] = ["EAPP"],
-            [MenuIds.ApproachClearedVisual] = ["CVA", "CVAF", "CAPP", "CAPPF"],
+            [MenuIds.ApproachClearedVisual] = ["CVA", "CVAF"],
             [MenuIds.ApproachReportFieldInSight] = ["RFIS"],
             [MenuIds.ApproachReportTrafficInSight] = ["RTIS"],
             [MenuIds.ApproachReportWhen] = ["REPORT"],

@@ -24,7 +24,9 @@ namespace Yaat.Client.ContextMenus;
 /// either end; Left/Right (outside the box) choose the previous or next tab and focus its first row. Typing in the box
 /// filters the tab's rows by id; Enter sends its command. A row sends and closes the flyout and the menu; Cancel IFR… opens
 /// an inline strip whose Confirm sends <c>CIFR</c> and whose Back folds it. Force approach re-renders the rows in place and
-/// is off at every open.
+/// is off at every open. The visual list (Cleared visual approach) has no tabs and no box: under its title line the room's
+/// landing runways' visual rows, then the <see cref="ApproachFlyoutModel.OtherRunwaysLabel"/> row, whose click unfolds the
+/// other runway ends below it in place and folds them again; it focuses the opening landing row when live, else nothing.
 /// </summary>
 public static class ApproachFlyout
 {
@@ -170,6 +172,8 @@ public sealed class ApproachFlyoutPanel : StackPanel
     private readonly TextBlock? _boxCommand;
     private readonly Grid? _boxRow;
     private List<Button> _tabRows = [];
+    private List<Button> _otherRows = [];
+    private TextBlock? _foldChevron;
     private CancelIfrControls? _cancelIfr;
 
     internal ApproachFlyoutPanel(ApproachFlyoutModel model, Func<string, Task> choose)
@@ -195,7 +199,15 @@ public sealed class ApproachFlyoutPanel : StackPanel
         Children.Add(_titleLine);
 
         AddPinned();
-        AddTabs();
+        if (model.IsVisualList)
+        {
+            AddVisualList();
+        }
+        else
+        {
+            AddTabs();
+        }
+
         if (model.HasBox)
         {
             Children.Add(FlyoutPanelParts.SeparatorLine());
@@ -247,8 +259,14 @@ public sealed class ApproachFlyoutPanel : StackPanel
     /// <summary>The pinned rows above the tabs, in order (the default row, the airport-level visual row).</summary>
     public IReadOnlyList<Button> PinnedRows => [.. _pinned.Select(pinned => pinned.Button)];
 
-    /// <summary>The selected tab's rows, in order, those the box's text filters out included.</summary>
+    /// <summary>
+    /// The selected tab's rows, in order, those the box's text filters out included; in the visual list, the landing rows then
+    /// the other rows, folded ones included.
+    /// </summary>
     public IReadOnlyList<Button> Rows => _tabRows;
+
+    /// <summary>The "Non-arrival runways…" row of the visual list, or null in a tabbed flyout.</summary>
+    public Button? OtherRunwaysRow { get; private set; }
 
     /// <summary>The Cancel IFR… row, or null when the flyout offers none.</summary>
     public Button? CancelIfrRow => _cancelIfr?.Row;
@@ -287,7 +305,10 @@ public sealed class ApproachFlyoutPanel : StackPanel
         }
     }
 
-    /// <summary>Puts the flyout back as it opens: Force approach off, the box empty, the opening tab selected, the Cancel IFR strip folded.</summary>
+    /// <summary>
+    /// Puts the flyout back as it opens: Force approach off, the box empty, the opening tab selected, the other runways and
+    /// the Cancel IFR strip folded.
+    /// </summary>
     internal void Reset()
     {
         ForceToggle?.IsChecked = false;
@@ -297,6 +318,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
             Strip.Select(_model.SelectedTab);
         }
 
+        SetFolded(true);
         _cancelIfr?.Strip.IsVisible = false;
     }
 
@@ -315,19 +337,24 @@ public sealed class ApproachFlyoutPanel : StackPanel
 
     /// <summary>
     /// What the flyout focuses as it opens: the live default row, else the selected tab's first live row, else the first
-    /// focusable control. A flyout that opens on its visual row (<see cref="ApproachVerbSpec.OpensOnVisual"/>) focuses the
-    /// selected tab's live visual row first, else the live airport-level visual row, and nothing when neither exists, so it
-    /// never falls through to an instrument row.
+    /// focusable control. The visual list focuses its opening landing row (<see cref="ApproachFlyoutModel.OpeningLandingIndex"/>)
+    /// when live; with no such row and no default runway, the live airport-level visual row; otherwise nothing, so Enter never
+    /// clears a visual to a runway the aircraft does not expect.
     /// </summary>
     public Control? OpeningFocus
     {
         get
         {
             IEnumerable<Button> pinned = _pinned.Select(pinned => pinned.Button).Where(button => button.IsEnabled);
-            if (_model.Spec.OpensOnVisual)
+            if (_model.IsVisualList && (_model.OpeningLandingIndex >= 0))
             {
-                return LiveRows().FirstOrDefault(button => IsKind(button, ApproachRowKind.Visual))
-                    ?? pinned.FirstOrDefault(button => IsKind(button, ApproachRowKind.Airport));
+                Button opening = _tabRows[_model.OpeningLandingIndex];
+                return opening.IsEnabled ? opening : null;
+            }
+
+            if (_model.IsVisualList)
+            {
+                return _model.HasDefaultRunway ? null : pinned.FirstOrDefault(button => IsKind(button, ApproachRowKind.Airport));
             }
 
             return pinned.FirstOrDefault(IsDefault) ?? LiveRows().FirstOrDefault() ?? Focusables().FirstOrDefault();
@@ -418,7 +445,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
         }
 
         bool anyPinned = (pinned.Count > 0) || (_model.CancelIfr?.Placement == CancelIfrPlacement.Top);
-        if (anyPinned && ((_model.Tabs.Count > 0) || _model.HasBox))
+        if (anyPinned && ((_model.Tabs.Count > 0) || _model.HasBox || _model.IsVisualList))
         {
             Children.Add(FlyoutPanelParts.SeparatorLine());
         }
@@ -441,6 +468,84 @@ public sealed class ApproachFlyoutPanel : StackPanel
         Children.Add(Strip);
         Children.Add(Scroll);
         ShowTab();
+    }
+
+    /// <summary>The visual list in the scroller: the landing rows, then the fold row over the other rows, folded.</summary>
+    private void AddVisualList()
+    {
+        List<Button> landing = [.. _model.LandingRows(force: false).Select(PresentedRow)];
+        _otherRows = [.. _model.OtherRows(force: false).Select(PresentedRow)];
+        _tabRows = [.. landing, .. _otherRows];
+        _rows.Children.AddRange(landing);
+        if (_otherRows.Count > 0)
+        {
+            OtherRunwaysRow = FoldRow(_otherRows.Count);
+            _rows.Children.Add(OtherRunwaysRow);
+            _rows.Children.AddRange(_otherRows);
+            SetFolded(true);
+        }
+
+        Children.Add(Scroll);
+    }
+
+    private Button PresentedRow(ApproachRow row)
+    {
+        Button button = RowButton();
+        Present(button, row);
+        return button;
+    }
+
+    /// <summary>The "Non-arrival runways…" row with how many it holds and its chevron; a click folds or unfolds them.</summary>
+    private Button FoldRow(int count)
+    {
+        string text = $"{ApproachFlyoutModel.OtherRunwaysLabel} · {count}";
+        _foldChevron = new TextBlock
+        {
+            Opacity = 0.7,
+            Margin = new Thickness(16, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        grid.Children.Add(
+            new Border
+            {
+                Width = 22,
+                Height = 22,
+                Margin = new Thickness(0, 0, 8, 0),
+            }
+        );
+        var label = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+        Grid.SetColumn(_foldChevron, 2);
+        grid.Children.Add(_foldChevron);
+        var row = new Button
+        {
+            Content = grid,
+            Padding = new Thickness(11, 5),
+            Background = Brushes.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(row, text);
+        row.Click += (_, e) =>
+        {
+            e.Handled = true;
+            SetFolded(_otherRows[0].IsVisible);
+        };
+        return row;
+    }
+
+    /// <summary>Hides (<paramref name="folded"/>) or shows the visual list's other rows; nothing in a tabbed flyout.</summary>
+    private void SetFolded(bool folded)
+    {
+        foreach (Button button in _otherRows)
+        {
+            button.IsVisible = !folded;
+        }
+
+        _foldChevron?.Text = folded ? "›" : "▾";
     }
 
     /// <summary>Shows the selected tab's rows, filtered by the box's text.</summary>
@@ -471,18 +576,21 @@ public sealed class ApproachFlyoutPanel : StackPanel
             Present(button, pinned[index]);
         }
 
-        if (SelectedTab >= 0)
+        IReadOnlyList<ApproachRow> rows = ShownRows(IsForced);
+        for (int index = 0; index < rows.Count; index++)
         {
-            IReadOnlyList<ApproachRow> rows = _model.Rows(SelectedTab, IsForced);
-            for (int index = 0; index < rows.Count; index++)
-            {
-                Present(_tabRows[index], rows[index]);
-            }
+            Present(_tabRows[index], rows[index]);
         }
 
         Filter();
         ShowBoxCommand();
     }
+
+    /// <summary>The rows <see cref="Rows"/> holds, as they show with Force approach on or off.</summary>
+    private IReadOnlyList<ApproachRow> ShownRows(bool force) =>
+        _model.IsVisualList ? [.. _model.LandingRows(force), .. _model.OtherRows(force)]
+        : (SelectedTab >= 0) ? _model.Rows(SelectedTab, force)
+        : [];
 
     private Button RowButton()
     {
@@ -517,10 +625,15 @@ public sealed class ApproachFlyoutPanel : StackPanel
         ToolTip.SetTip(button, row.Tooltip);
     }
 
-    /// <summary>Hides the tab rows whose id does not start with the box's text.</summary>
+    /// <summary>Hides the tab rows whose id does not start with the box's text; nothing without a box.</summary>
     private void Filter()
     {
-        string typed = Box?.Text?.Trim() ?? "";
+        if (Box is null)
+        {
+            return;
+        }
+
+        string typed = Box.Text?.Trim() ?? "";
         foreach (Button button in _tabRows)
         {
             button.IsVisible = (typed.Length == 0) || ((button.Content is ApproachRow row) && row.Matches(typed));
@@ -685,7 +798,8 @@ public sealed class ApproachFlyoutPanel : StackPanel
 
     /// <summary>
     /// Every control the arrow keys walk, in order: the live pinned rows, Cancel IFR and its strip, the live tab rows (the
-    /// scroller when the tab has none), the box.
+    /// scroller when the tab has none), the box. In the visual list the scroller's part is its live landing rows, the
+    /// "Non-arrival runways…" fold row, then the live unfolded rows below it.
     /// </summary>
     private List<Control> Focusables()
     {
@@ -695,7 +809,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
             if (ReferenceEquals(child, Scroll))
             {
                 // A tab with no live row keeps its place in the order through the scroller, so Down from it reaches the box.
-                List<Button> live = [.. LiveRows()];
+                List<Button> live = [.. _rows.Children.OfType<Button>().Where(button => button.IsVisible && button.IsEnabled)];
                 order.AddRange((live.Count > 0) ? live : [Scroll]);
             }
             else if ((child is Button { IsEnabled: true, IsVisible: true } button))
@@ -766,7 +880,7 @@ public sealed class ApproachFlyoutPanel : StackPanel
             Button when ReferenceEquals(child, _cancelIfr?.Row) => [$"{ApproachCancelIfr.Label} — {ApproachCancelIfr.Command}"],
             Border { Height: 1 } => ["---"],
             FlyoutTabStrip => [string.Join(" | ", _model.Tabs.Select((tab, index) => (index == Strip.SelectedIndex) ? $"[{tab.Label}]" : tab.Label))],
-            ScrollViewer => [.. _tabRows.Where(button => button.IsVisible).Select(button => RowLine((ApproachRow)button.Content!, button))],
+            ScrollViewer => [.. _rows.Children.OfType<Button>().Where(button => button.IsVisible).Select(ScrolledRowLine)],
             Border when ReferenceEquals(child, _cancelIfr?.Strip) => [$"Confirm: {_model.CancelIfr?.Question} [Confirm] [Back]"],
             Grid when ReferenceEquals(child, _boxRow) => [$"Approach — {_boxCommand?.Text}"],
             _ => [],
@@ -782,6 +896,10 @@ public sealed class ApproachFlyoutPanel : StackPanel
     }
 
     private static string RowLine(ApproachRow row, Button button) => button.IsEnabled ? row.ToString() : $"{row} [disabled]";
+
+    /// <summary>A row in the scroller as one line: an approach row's, or the fold row's text.</summary>
+    private string ScrolledRowLine(Button button) =>
+        (button.Content is ApproachRow row) ? RowLine(row, button) : $"{ApproachFlyoutModel.OtherRunwaysLabel} · {_otherRows.Count}";
 
     /// <summary>The Cancel IFR row, its confirmation strip and the strip's buttons.</summary>
     private sealed record CancelIfrControls(Button Row, Border Strip, Button Confirm, Button Back);

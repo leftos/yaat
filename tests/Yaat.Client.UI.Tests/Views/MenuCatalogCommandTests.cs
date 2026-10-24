@@ -1447,14 +1447,14 @@ public class MenuCatalogCommandTests
     }
 
     /// <summary>
-    /// Cleared visual approach opens the Cleared approach flyout (ruling 1, lane C) on the default runway's tab, focusing that
-    /// tab's visual row rather than the pinned default row Cleared approach itself focuses; the row sends <c>CVA</c>.
+    /// Cleared visual approach opens its own visual-only list, titled for it, focusing the default runway's visual row where
+    /// Cleared approach itself focuses its pinned default row; the row sends <c>CVA</c>.
     /// </summary>
     [AvaloniaFact]
-    public void ClearedVisual_OpensTheClearedApproachFlyoutOnTheDefaultRunwaysVisualRow()
+    public void ClearedVisual_OpensItsVisualListOnTheDefaultRunwaysVisualRow()
     {
         TestVnasData.EnsureInitialized();
-        var host = new RecordingMenuHost("");
+        RecordingMenuHost host = KoakLandingHost();
         FakeMenuAircraft aircraft = VisualArrival() with { AssignedRunway = "30" };
 
         MenuItem? entry = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
@@ -1462,43 +1462,63 @@ public class MenuCatalogCommandTests
         ApproachFlyoutPanel panel = OpenApproachFlyout(entry);
         ApproachFlyoutPanel cleared = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host));
 
-        Assert.StartsWith("Cleared approach", panel.Lines[0]);
-        Assert.StartsWith("30 ", panel.Strip.Tabs[panel.Strip.SelectedIndex].Label);
+        Assert.StartsWith("Cleared visual approach", panel.Lines[0]);
         Button opening = Assert.IsType<Button>(panel.OpeningFocus);
-        Assert.Equal(ApproachRowKind.Visual, Assert.IsType<ApproachRow>(opening.Content).Kind);
+        Assert.Equal("Visual RWY 30", Assert.IsType<ApproachRow>(opening.Content).Name);
         Assert.Equal(ApproachFlyoutModel.DefaultBadge, Assert.IsType<ApproachRow>(Assert.IsType<Button>(cleared.OpeningFocus).Content).Badge);
         opening.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         Assert.Equal([(Callsign, "CVA 30", Initials)], host.Sent);
     }
 
-    /// <summary>With no default runway, Cleared visual approach opens on the first tab's visual row.</summary>
+    /// <summary>With no default runway, Cleared visual approach opens on the first landing runway's visual row.</summary>
     [AvaloniaFact]
-    public void ClearedVisual_NoDefault_OpensOnTheFirstTabsVisualRow()
+    public void ClearedVisual_NoDefault_OpensOnTheFirstLandingRunwaysVisualRow()
     {
         TestVnasData.EnsureInitialized();
-        var host = new RecordingMenuHost("");
+        RecordingMenuHost host = KoakLandingHost();
 
         ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(VisualArrival(), Context(), host));
 
-        Assert.Equal(0, panel.Strip.SelectedIndex);
         Assert.Same(panel.Rows[0], panel.OpeningFocus);
-        Assert.Equal(ApproachRowKind.Visual, Assert.IsType<ApproachRow>(panel.Rows[0].Content).Kind);
+        ApproachRow first = Assert.IsType<ApproachRow>(panel.Rows[0].Content);
+        Assert.Equal(ApproachRowKind.Visual, first.Kind);
+        Assert.Equal("Visual RWY 30", first.Name);
     }
 
-    /// <summary>A scenario's expected approach in shorthand (R28L for KOAK's R28LY) still gives the visual approach its runway.</summary>
+    /// <summary>
+    /// A scenario's expected approach in shorthand (R28L for KOAK's R28LY) gives the visual approach its runway, but 28L is not
+    /// a landing runway in the room, so its row is under the fold: no row has the focus and Enter sends nothing, never a visual
+    /// to a runway the aircraft does not expect.
+    /// </summary>
     [AvaloniaFact]
-    public void ClearedVisual_ExpectedApproachInShorthand_DefaultsToItsRunway()
+    public void ClearedVisual_ExpectedApproachOnANonArrivalRunway_FocusesNoRow_AndEnterSendsNothing()
     {
         TestVnasData.EnsureInitialized();
-        var host = new RecordingMenuHost("");
+        RecordingMenuHost host = KoakLandingHost();
         FakeMenuAircraft aircraft = VisualArrival() with { ExpectedApproach = "R28L" };
 
         Assert.Equal("28L", MenuCatalog.SmartVisualRunway(aircraft));
-        ApproachFlyoutPanel panel = OpenApproachFlyout(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host));
-        Assert.IsType<Button>(panel.OpeningFocus).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuItem entry = Assert.IsType<MenuItem>(MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host));
+        var window = new Window { Width = 900, Height = 900 };
+        window.Show();
+        var menu = new ContextMenu { Items = { entry } };
+        menu.Open(window);
+        Dispatcher.UIThread.RunJobs();
+        entry.IsSubMenuOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        ApproachFlyoutPanel panel = Assert.IsType<ApproachFlyoutPanel>(
+            Assert.IsType<ApproachFlyoutHost>(Assert.Single(entry.Items.OfType<MenuItem>()).Header).Child
+        );
 
-        Assert.Equal([(Callsign, "CVA 28L", Initials)], host.Sent);
+        Assert.Null(panel.OpeningFocus);
+        Assert.Same(panel.Scroll, window.FocusManager?.GetFocusedElement());
+        Avalonia.Headless.HeadlessWindowExtensions.KeyPressQwerty(window, PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(host.Sent);
     }
 
     /// <summary>An expected visual approach (<c>EAPP VIS28R</c>) names no procedure; the visual approach defaults to its runway.</summary>
@@ -1506,7 +1526,7 @@ public class MenuCatalogCommandTests
     public void ClearedVisual_ExpectedVisualApproach_DefaultsToItsRunway()
     {
         TestVnasData.EnsureInitialized();
-        var host = new RecordingMenuHost("");
+        RecordingMenuHost host = KoakLandingHost();
         FakeMenuAircraft aircraft = VisualArrival() with { ExpectedApproach = "VIS28R" };
 
         Assert.Equal("28R", MenuCatalog.SmartVisualRunway(aircraft));
@@ -1544,6 +1564,10 @@ public class MenuCatalogCommandTests
             FlightRules = "IFR",
             SituationFlags = SituationFlags.HasReportedFieldInSight,
         };
+
+    /// <summary>A host whose room lands KOAK's 30 (both ways) and 28R (arrivals).</summary>
+    private static RecordingMenuHost KoakLandingHost() =>
+        new("") { RoomActiveRunways = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal) { ["OAK"] = ["30", "A28R"] } };
 
     /// <summary>Opens <paramref name="entry"/>'s approach flyout and returns its panel.</summary>
     private static ApproachFlyoutPanel OpenApproachFlyout(MenuItem? entry)

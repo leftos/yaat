@@ -63,7 +63,7 @@ All Commands
       approach flyout, built when it opens
     Expect approach alias:EAPP
       approach flyout, built when it opens
-    Cleared visual approach alias:CVA …
+    Cleared visual approach alias:CVA / CVAF
       approach flyout, built when it opens
     ---
     Join STAR alias:JARR / DVIA

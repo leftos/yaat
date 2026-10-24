@@ -803,6 +803,235 @@ public class ApproachFlyoutTests
         Assert.Empty(host.Sent);
     }
 
+    // --- Cleared visual approach: visual rows only -------------------------------------------------
+
+    /// <summary>
+    /// Cleared visual approach offers only visual approaches, as one flat list under its own title. For an A319 expecting the
+    /// ILS 30: the room's landing runways' rows (30, then 28R), then the "Non-arrival runways…" row with how many it holds; no
+    /// Approach box, no tabs, no pinned instrument default. Unfolded, the other ends follow it in place, 15 and 33 dimmed short
+    /// but clickable, and no row on any level sends anything but a visual clearance.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_ListsTheLandingRunwaysVisualRows_ThenTheFoldOfTheRest()
+    {
+        TestVnasData.EnsureInitialized();
+        FakeMenuAircraft aircraft = Arrival("KOAK") with
+        {
+            FiledAircraftType = "A319",
+            BaseAircraftType = "A319",
+            ExpectedApproach = "I30",
+            AssignedRunway = "30",
+            SituationFlags = SituationFlags.HasReportedFieldInSight,
+        };
+
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, aircraft, KoakHost("OAK"));
+
+        Assert.Equal(
+            [
+                "Cleared visual approach · Force",
+                "Visual RWY 30 — CVA 30",
+                "Visual RWY 28R — CVA 28R",
+                "Non-arrival runways… · 6",
+                "---",
+                "Cancel IFR… — CIFR",
+            ],
+            panel.Lines
+        );
+        Assert.Null(panel.Box);
+        Assert.Empty(panel.PinnedRows);
+
+        Assert.IsType<Button>(panel.OtherRunwaysRow).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal(
+            [
+                "Cleared visual approach · Force",
+                "Visual RWY 30 — CVA 30",
+                "Visual RWY 28R — CVA 28R",
+                "Non-arrival runways… · 6",
+                "Visual RWY 10L — CVA 10L",
+                "Visual RWY 10R — CVA 10R",
+                "Visual RWY 12 — CVA 12",
+                "Visual RWY 28L — CVA 28L",
+                "Visual RWY 15 · short — CVA 15",
+                "Visual RWY 33 · short — CVA 33",
+                "---",
+                "Cancel IFR… — CIFR",
+            ],
+            panel.Lines
+        );
+        List<ApproachRow> rows = [.. panel.Rows.Select(button => Assert.IsType<ApproachRow>(button.Content))];
+        Assert.All(rows, row => Assert.Equal(ApproachRowKind.Visual, row.Kind));
+        Assert.All(rows, row => Assert.StartsWith("CVA ", row.Command));
+        Assert.Equal(["15", "33"], rows.Where(row => row.IsDimmed).Select(row => row.Command["CVA ".Length..]));
+        Assert.All(panel.Rows, button => Assert.True(button.IsEnabled));
+    }
+
+    /// <summary>A click on "Non-arrival runways…" unfolds the other runways; a second click folds them away again.</summary>
+    [AvaloniaFact]
+    public void ClearedVisual_TheFoldRowUnfolds_ThenFoldsBack()
+    {
+        TestVnasData.EnsureInitialized();
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, Arrival("KOAK"), KoakHost("OAK"));
+        Button fold = Assert.IsType<Button>(panel.OtherRunwaysRow);
+
+        fold.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(8, panel.Rows.Count(button => button.IsVisible));
+        fold.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal(2, panel.Rows.Count(button => button.IsVisible));
+    }
+
+    /// <summary>
+    /// From the strip, with the field reported in sight: Down from the 28R row reaches the fold row; Enter on it unfolds the
+    /// other runways and keeps the focus on it; Down reaches the first unfolded row; Enter on the fold row sends nothing and
+    /// folds it again; reopening the flyout shows it folded.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_Keyboard_DownReachesTheFoldRow_EnterUnfoldsInPlace_ReopeningFolds()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "approach-ifr").Aircraft;
+        ac.SituationFlags = SituationFlags.HasReportedFieldInSight;
+        RecordingMenuHost host = KoakHost("OAK");
+        var window = new Window { Width = 900, Height = 900 };
+        window.Show();
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, null, []), host, _ => []);
+        menu.Open(window);
+        Dispatcher.UIThread.RunJobs();
+        menu.UpdateLayout();
+        Button button = QuickCommandStrip
+            .Buttons(Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip))
+            .Single(b => (string)b.Tag! == MenuIds.ApproachClearedVisual);
+        QuickCommandStrip.OpenSubmenu(button);
+        Dispatcher.UIThread.RunJobs();
+        MenuFlyout flyout = Assert.IsType<MenuFlyout>(FlyoutBase.GetAttachedFlyout(button));
+        Layout(flyout);
+        ApproachFlyoutPanel panel = Panel(flyout);
+        Button fold = Assert.IsType<Button>(panel.OtherRunwaysRow);
+
+        Assert.Same(panel.Rows[0], FocusedButton(flyout));
+        Press(flyout, Key.Down);
+        Assert.Equal("Visual RWY 28R", Assert.IsType<ApproachRow>(FocusedButton(flyout)?.Content).Name);
+        Press(flyout, Key.Down);
+        Assert.Same(fold, FocusedButton(flyout));
+
+        Press(flyout, Key.Enter);
+        Assert.Equal(8, panel.Rows.Count(row => row.IsVisible));
+        Assert.Same(fold, FocusedButton(flyout));
+        Press(flyout, Key.Down);
+        Assert.Same(panel.Rows[2], FocusedButton(flyout));
+        Press(flyout, Key.Up);
+        Press(flyout, Key.Enter);
+        Assert.Equal(2, panel.Rows.Count(row => row.IsVisible));
+        Assert.Empty(host.Sent);
+
+        Press(flyout, Key.Escape);
+        Assert.False(flyout.IsOpen);
+        QuickCommandStrip.OpenSubmenu(button);
+        Dispatcher.UIThread.RunJobs();
+        Layout(flyout);
+        Assert.Equal(2, panel.Rows.Count(row => row.IsVisible));
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>
+    /// At an untowered KOAK the airport-level row (<c>CVA KOAK</c>, the pilot picking the runway) is pinned above the list behind
+    /// its separator and sends <c>CVAF KOAK</c> with Force ticked; with no landing runway set and no default runway, the list
+    /// opens on that row.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_Untowered_PinsTheAirportRowAboveTheList()
+    {
+        TestVnasData.EnsureInitialized();
+        RecordingMenuHost host = KoakHost();
+        FakeMenuAircraft aircraft = Arrival("KOAK") with { SituationFlags = SituationFlags.HasReportedFieldInSight };
+
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, aircraft, host);
+
+        Assert.Equal(
+            [
+                "Cleared visual approach · Force",
+                "Visual approach to KOAK · pilot picks the runway — CVA KOAK",
+                "---",
+                "Visual RWY 30 — CVA 30",
+                "Visual RWY 28R — CVA 28R",
+                "Non-arrival runways… · 6",
+                "---",
+                "Cancel IFR… — CIFR",
+            ],
+            panel.Lines
+        );
+        Assert.IsType<CheckBox>(panel.ForceToggle).IsChecked = true;
+        panel.PinnedRows[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal([(Callsign, "CVAF KOAK", Initials)], host.Sent);
+
+        ApproachFlyoutPanel noLanding = OpenEntry(MenuIds.ApproachClearedVisual, aircraft, new RecordingMenuHost(""));
+        Assert.Same(noLanding.PinnedRows[0], noLanding.OpeningFocus);
+    }
+
+    /// <summary>
+    /// With Force approach ticked every row, folded or not, sends <c>CVAF {rwy}</c> and goes live without the field reported.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_ForceTicked_EveryRowSendsCvaf()
+    {
+        TestVnasData.EnsureInitialized();
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, Arrival("KOAK"), KoakHost("OAK"));
+
+        Assert.IsType<CheckBox>(panel.ForceToggle).IsChecked = true;
+        Assert.IsType<Button>(panel.OtherRunwaysRow).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal(8, panel.Rows.Count);
+        Assert.All(
+            panel.Rows,
+            button =>
+            {
+                ApproachRow row = Assert.IsType<ApproachRow>(button.Content);
+                Assert.Equal($"CVAF {row.Name["Visual RWY ".Length..]}", row.Command);
+                Assert.True(button.IsEnabled);
+            }
+        );
+    }
+
+    /// <summary>
+    /// A room with no landing runways set shows only the "Non-arrival runways…" row, which unfolds every runway end; with no
+    /// landing row nothing is focused on open.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClearedVisual_NoLandingRunwaysSet_OnlyTheFoldRow_UnfoldingEveryEnd()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("") { ToweredAirports = ["OAK"] };
+        FakeMenuAircraft aircraft = Arrival("KOAK") with { SituationFlags = SituationFlags.HasReportedFieldInSight };
+
+        ApproachFlyoutPanel panel = OpenEntry(MenuIds.ApproachClearedVisual, aircraft, host);
+
+        Assert.Equal(["Cleared visual approach · Force", "Non-arrival runways… · 8", "---", "Cancel IFR… — CIFR"], panel.Lines);
+        Assert.Null(panel.OpeningFocus);
+        Assert.IsType<Button>(panel.OtherRunwaysRow).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(
+            ["10L", "10R", "12", "15", "28L", "28R", "30", "33"],
+            panel
+                .Rows.Where(button => button.IsVisible)
+                .Select(button => Assert.IsType<ApproachRow>(button.Content).Name["Visual RWY ".Length..])
+                .Order()
+        );
+    }
+
+    /// <summary>With the field reported in sight the list opens on the first landing runway's row (30); without, on no row.</summary>
+    [AvaloniaFact]
+    public void ClearedVisual_OpeningFocus_IsTheFirstLandingRowOnlyWithTheFieldInSight()
+    {
+        TestVnasData.EnsureInitialized();
+        FakeMenuAircraft reported = Arrival("KOAK") with { SituationFlags = SituationFlags.HasReportedFieldInSight };
+
+        ApproachFlyoutPanel inSight = OpenEntry(MenuIds.ApproachClearedVisual, reported, KoakHost("OAK"));
+        ApproachFlyoutPanel notReported = OpenEntry(MenuIds.ApproachClearedVisual, Arrival("KOAK"), KoakHost("OAK"));
+
+        Assert.Equal("Visual RWY 30", Assert.IsType<ApproachRow>(Assert.IsType<Button>(inSight.OpeningFocus).Content).Name);
+        Assert.Null(notReported.OpeningFocus);
+    }
+
     private static void Layout(MenuFlyout flyout)
     {
         (flyout.Popup.Child as Control)?.UpdateLayout();

@@ -1565,10 +1565,15 @@ public static class MenuCatalog
         };
 
     /// <summary>
-    /// The Cleared visual approach entry's flyout: Cleared approach's own (its rows, field-in-sight greying, Force toggle and
-    /// Cancel IFR), opened on its visual row.
+    /// The Cleared visual approach entry's flyout: the visual list under its own title, Cleared approach's visual rows alone
+    /// with their field-in-sight greying, its Force toggle (<c>CVAF</c>) and its Cancel IFR.
     /// </summary>
-    internal static ApproachVerbSpec ClearedVisualSpec => ApproachSpec(MenuIds.ApproachCleared) with { OpensOnVisual = true };
+    internal static ApproachVerbSpec ClearedVisualSpec =>
+        ApproachSpec(MenuIds.ApproachCleared) with
+        {
+            Label = ClearedVisualLabel,
+            IsVisualList = true,
+        };
 
     /// <summary>
     /// An approach verb with no visual rows, no Force toggle, no Cancel IFR and unforced rows, its glyph the entry
@@ -1585,7 +1590,7 @@ public static class MenuCatalog
             OffersCancelIfr = false,
             GlyphId = id,
             DefaultLabel = defaultLabel,
-            OpensOnVisual = false,
+            IsVisualList = false,
         };
 
     /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
@@ -1644,8 +1649,10 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The Cleared visual approach entry: the Cleared approach flyout (<see cref="ClearedVisualSpec"/>) opened on the default
-    /// runway's tab (<see cref="SmartVisualRunway"/>) with its visual row focused. Disabled with the reason beside its label,
+    /// The Cleared visual approach entry: the visual list (<see cref="ClearedVisualSpec"/>), one visual row per runway end, the
+    /// room's landing ends first and the rest folded, opened on the default runway's (<see cref="SmartVisualRunway"/>) row when
+    /// the room lands on it, on no row when it does not, and on the first landing end's row without a default runway. Disabled
+    /// with the reason beside its label,
     /// its strip button inert, when there is no runway to clear a visual approach to: no destination, or a destination without
     /// runway data. Offered to IFR aircraft only (the sim clears only an IFR one for a visual).
     /// </summary>
