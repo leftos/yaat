@@ -45,7 +45,7 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
+- [!] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -59,12 +59,12 @@
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
-  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
+  - [!] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
   - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext+1
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext+1
   - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext+1
   - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext+1
-  - [ ] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext+1
+  - [/] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext+1
   - [ ] YAAT-1070 Re-send the ASDE-X safety-logic configuration to subscribed CRC displays after a rewind or session restore
 
@@ -503,7 +503,7 @@
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
 - [ ] YAAT-1047 Check where a 45-degree downwind entry joins the downwind (abeam the midpoint per AIM 4-3-3)
 - [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
-- [ ] YAAT-1138 Give approach clearance readbacks terse, normal and chatty variants (YAAT-1082 family 2) · release vNext
+- [/] YAAT-1138 Give approach clearance readbacks terse, normal and chatty variants (YAAT-1082 family 2) · release vNext
 - [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext+1
 - [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
 
@@ -748,9 +748,9 @@
 - [ ] YAAT-1128 Speak the distance condition in a SPD ... UNTIL n readback
 - [ ] YAAT-1129 Read back an expedite to the present altitude without a climb or descend verb
 - [ ] YAAT-1132 Pass the cancellation token to the client-driver one-shot handlers' dispatcher posts
-- [ ] YAAT-1137 Carry the PTAC turn direction and read it back (turn left/right heading) · release vNext
 - [ ] YAAT-1142 Name approaches in SAY replies with the shared approach-name helper
 - [ ] YAAT-1143 Read back a bare CAPPF after an expected visual as the visual clearance
 - [ ] YAAT-1145 Clear circling approaches (CAPP VOR-A) instead of refusing them
 - [ ] YAAT-1149 Decide whether the frequency-change sign-off says the callsign last (good day, {cs})
 - [ ] YAAT-1151 Remove the pause Piper speaks between the digits and letters of an N-number callsign
+- [ ] YAAT-1154 Show heading 360 as 360, not 000, in PTAC result and FH/TL/TR describer text
