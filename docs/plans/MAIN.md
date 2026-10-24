@@ -17,9 +17,7 @@
 ## Context-menu flyouts (feat/context-menu-flyouts)
 
 - [ ] YAAT-1034 Context-menu flyouts and All Commands (feat/context-menu-flyouts) · release vNext
-  - [ ] YAAT-1048 Decide the focus when a runway tab is switched in a Cleared approach flyout opened on the visual
   - [ ] YAAT-1052 Merge feat/context-menu-flyouts to main (#1341)
-  - [ ] YAAT-1067 Hide the Squawk assigned code row for an aircraft with no assigned code
 - [ ] YAAT-1102 Exact custom-fix read for nearby reporting points; isolate armed-report change-detection edges
 - [ ] YAAT-1104 Report when strip button: armed state in its label; chip keyboard reach; mock waiting text
 
@@ -108,6 +106,8 @@
 - [ ] YAAT-1025 Strip a mangled GA suffix token on the leading callsign path too
 - [ ] YAAT-1117 Add a SpeechSandbox WER test over UWB-ATCC, downloaded at run time
 - [ ] YAAT-1118 Evaluate STT on the ATCO2 1 h test set, local only
+- [ ] YAAT-1135 Benchmark small TTS models for the pilot voice and let users pick from a local benchmark
+  - [ ] YAAT-1136 Benchmark small TTS models: size, latency and a listening page of pilot readbacks · release vNext
 
 ## Wave 1 — Ground realism and braking
 
@@ -749,3 +749,6 @@
 - [ ] YAAT-1126 Send a Tower Cab viewer's active-state push through its session-push chain
 - [ ] YAAT-1127 Give CrcClientState an injected TimeProvider so the forced-disconnect test does not wait on the real close timeout
 - [ ] YAAT-1128 Speak the distance condition in a SPD ... UNTIL n readback
+- [ ] YAAT-1129 Read back an expedite to the present altitude without a climb or descend verb
+- [ ] YAAT-1132 Pass the cancellation token to the client-driver one-shot handlers' dispatcher posts
+- [ ] YAAT-1134 Read back approach clearances with their approach and runway (CAPP, CAPPSI, JAPP, PTAC, EAPP) · release vNext
