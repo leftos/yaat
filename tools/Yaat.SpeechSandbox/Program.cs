@@ -46,6 +46,10 @@ namespace Yaat.SpeechSandbox;
 ///     recovered canonical to the input. Writes a markdown report plus per-case WAV and
 ///     stage-by-stage text dumps to <c>.tmp/ouroboros-{timestamp}/</c>. Used to surface STT
 ///     coverage gaps deterministically against a curated corpus.</description></item>
+///   <item><description><c>--tts-bench [--models a,b] [--download-only] [--corpus &lt;json&gt;]</c> — small-TTS
+///     benchmark (<see cref="TtsBenchRunner"/>): renders committed pilot readbacks, times each model in
+///     <see cref="TtsBenchModels"/> (load, first audio, RTF) and writes the report, results and listening page. Each sherpa-onnx model runs in a
+///     child process (<c>--tts-bench-one &lt;job.json&gt;</c>, internal), so a native abort costs only that model.</description></item>
 ///   <item><description>(no args) — launches the GUI sandbox window (App.axaml / MainWindow.axaml).
 ///     Interactive mode for recording, replaying, and iterating on Whisper / LLM prompts.</description></item>
 /// </list>
@@ -90,6 +94,10 @@ public static class Program
                         return SynthCorpusGenerator.RunAsync(args[1..]).GetAwaiter().GetResult();
                     case "--atc-ouroboros":
                         return AtcOuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--tts-bench":
+                        return TtsBenchRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--tts-bench-one":
+                        return TtsBenchSynthesis.RunOneAsync(args[1..]).GetAwaiter().GetResult();
                 }
             }
             finally

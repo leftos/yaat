@@ -1,0 +1,3805 @@
+{
+  "runUtc": "2026-10-24T09:00:31.6369215Z",
+  "machine": {
+    "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor",
+    "logicalCores": 16,
+    "os": "Microsoft Windows 10.0.26200",
+    "gateSlot": "Gate slot: not recorded (the run cannot see it; docs/plans/canvases/tts-benchmark/RECIPE.md gives the alone invocation)"
+  },
+  "sherpaOnnxVersion": "1.13.8\u002Bdc5583f49917e4c95f6e7d862bb378e4ed5e9076",
+  "speed": 1.1,
+  "screenLines": [
+    "speed-210",
+    "cleared-for-takeoff",
+    "squawk-4521"
+  ],
+  "lines": [
+    {
+      "index": 1,
+      "name": "climb-11000",
+      "callsign": "AAL1234",
+      "commands": "CM 11000",
+      "text": "climb and maintain one one thousand, american twelve thirty four."
+    },
+    {
+      "index": 2,
+      "name": "fly-heading-270",
+      "callsign": "N512RK",
+      "commands": "FH 270",
+      "text": "fly heading two seven zero, november five one two romeo kilo."
+    },
+    {
+      "index": 3,
+      "name": "speed-210",
+      "callsign": "UAL889",
+      "commands": "SPD 210",
+      "text": "maintain two ten knots, united eight eighty nine."
+    },
+    {
+      "index": 4,
+      "name": "turn-descend-slow",
+      "callsign": "SWA2117",
+      "commands": "TL 240, DM 4000, SPD 190",
+      "text": "turn left heading two four zero, descend and maintain four thousand, maintain one ninety knots, southwest twenty one seventeen."
+    },
+    {
+      "index": 5,
+      "name": "taxi-hold-short-28r",
+      "callsign": "N738PJ",
+      "commands": "TAXI B A1 HS 28R",
+      "text": "taxi via bravo, alpha one, hold short of runway two eight right, november seven three eight papa juliett."
+    },
+    {
+      "index": 6,
+      "name": "taxi-hold-short-19l",
+      "callsign": "DAL455",
+      "commands": "TAXI F C HS 19L",
+      "text": "taxi via foxtrot, charlie, hold short of runway one nine left, delta four fifty five."
+    },
+    {
+      "index": 7,
+      "name": "taxi-cross-hold-short",
+      "callsign": "JBU612",
+      "commands": "TAXI A CROSS 28L HS 28R",
+      "text": "taxi via alpha, cross runway two eight left, hold short of runway two eight right, jetblue six twelve."
+    },
+    {
+      "index": 8,
+      "name": "cleared-for-takeoff",
+      "callsign": "SKW5432",
+      "commands": "CTO",
+      "text": "cleared for takeoff, skywest fifty four thirty two."
+    },
+    {
+      "index": 9,
+      "name": "cleared-to-land",
+      "callsign": "N4417Q",
+      "commands": "CLAND",
+      "text": "cleared to land, november four four one seven quebec."
+    },
+    {
+      "index": 10,
+      "name": "cleared-visual-28r",
+      "callsign": "ASA319",
+      "commands": "CVA 28R",
+      "text": "cleared visual approach runway two eight right, alaska three nineteen."
+    },
+    {
+      "index": 11,
+      "name": "cleared-ils-28l",
+      "callsign": "UAL1572",
+      "commands": "CAPP ILS28L",
+      "text": "cleared approach, united fifteen seventy two."
+    },
+    {
+      "index": 12,
+      "name": "contact-norcal",
+      "callsign": "FDX1408",
+      "commands": "CT",
+      "text": "NorCal Approach on one two five point three five, fedex fourteen zero eight, so long."
+    },
+    {
+      "index": 13,
+      "name": "frequency-change-approved",
+      "callsign": "N81TW",
+      "commands": "FCA",
+      "text": "november eight one tango whiskey, good day."
+    },
+    {
+      "index": 14,
+      "name": "squawk-4521",
+      "callsign": "N2093M",
+      "commands": "SQ 4521",
+      "text": "squawk four five two one, november two zero nine three mike."
+    },
+    {
+      "index": 15,
+      "name": "ident",
+      "callsign": "EJA622",
+      "commands": "IDENT",
+      "text": "squawk ident, execjet six twenty two."
+    },
+    {
+      "index": 16,
+      "name": "direct-sunol",
+      "callsign": "AAL2290",
+      "commands": "DCT SUNOL",
+      "text": "proceed direct to sunol, american twenty two ninety."
+    },
+    {
+      "index": 17,
+      "name": "hold-at-oak",
+      "callsign": "N9246C",
+      "commands": "HFIX OAK",
+      "text": "hold at Oakland VOR, november nine two four six charlie."
+    },
+    {
+      "index": 18,
+      "name": "heading-climb-speed",
+      "callsign": "DAL1938",
+      "commands": "FH 300, CM 7000, SPD 230",
+      "text": "fly heading three zero zero, climb and maintain seven thousand, maintain two thirty knots, delta nineteen thirty eight."
+    },
+    {
+      "index": 19,
+      "name": "direct-descend",
+      "callsign": "JBU1127",
+      "commands": "DCT MOD, DM 9000",
+      "text": "proceed direct to Modesto VOR, descend and maintain nine thousand, jetblue eleven twenty seven."
+    },
+    {
+      "index": 20,
+      "name": "squawk-climb",
+      "callsign": "N716SF",
+      "commands": "SQ 2671, CM 5000",
+      "text": "squawk two six seven one, climb and maintain five thousand, november seven one six sierra foxtrot."
+    }
+  ],
+  "models": [
+    {
+      "id": "piper-libritts-r-fp32",
+      "name": "Piper LibriTTS-R medium fp32",
+      "runtime": "Vits",
+      "license": "CC BY 4.0 (LibriTTS-R voices; Piper code MIT)",
+      "notRun": null,
+      "downloadBytes": 82038311,
+      "diskBytes": 96542847,
+      "threads": 2,
+      "loadSeconds": 0.730875,
+      "warmupMs": 97.554,
+      "sampleRate": 22050,
+      "voices": [
+        "speaker-10",
+        "speaker-300",
+        "speaker-600"
+      ],
+      "notes": null,
+      "clips": [
+        {
+          "voice": "speaker-10",
+          "line": 1,
+          "firstAudioMs": 148.0862,
+          "synthMs": 148.1093,
+          "audioSeconds": 3.3668934240362813,
+          "rtf": 0.043989898504849134
+        },
+        {
+          "voice": "speaker-10",
+          "line": 2,
+          "firstAudioMs": 139.3517,
+          "synthMs": 139.371,
+          "audioSeconds": 3.4017233560090703,
+          "rtf": 0.04097070379159557
+        },
+        {
+          "voice": "speaker-10",
+          "line": 3,
+          "firstAudioMs": 122.9462,
+          "synthMs": 122.9716,
+          "audioSeconds": 3.030204081632653,
+          "rtf": 0.040581953125
+        },
+        {
+          "voice": "speaker-10",
+          "line": 4,
+          "firstAudioMs": 304.633,
+          "synthMs": 304.6588,
+          "audioSeconds": 6.965986394557823,
+          "rtf": 0.043735198828125
+        },
+        {
+          "voice": "speaker-10",
+          "line": 5,
+          "firstAudioMs": 289.2774,
+          "synthMs": 289.3022,
+          "audioSeconds": 6.002358276643991,
+          "rtf": 0.048198089261968086
+        },
+        {
+          "voice": "speaker-10",
+          "line": 6,
+          "firstAudioMs": 267.4755,
+          "synthMs": 267.5218,
+          "audioSeconds": 4.922630385487528,
+          "rtf": 0.05434529490344929
+        },
+        {
+          "voice": "speaker-10",
+          "line": 7,
+          "firstAudioMs": 332.1014,
+          "synthMs": 332.1383,
+          "audioSeconds": 6.2693877551020405,
+          "rtf": 0.05297778873697917
+        },
+        {
+          "voice": "speaker-10",
+          "line": 8,
+          "firstAudioMs": 124.8483,
+          "synthMs": 124.8657,
+          "audioSeconds": 3.053424036281179,
+          "rtf": 0.04089366511703898
+        },
+        {
+          "voice": "speaker-10",
+          "line": 9,
+          "firstAudioMs": 121.6947,
+          "synthMs": 121.7122,
+          "audioSeconds": 2.693514739229025,
+          "rtf": 0.045187129748114216
+        },
+        {
+          "voice": "speaker-10",
+          "line": 10,
+          "firstAudioMs": 143.181,
+          "synthMs": 143.203,
+          "audioSeconds": 3.320453514739229,
+          "rtf": 0.04312754247705419
+        },
+        {
+          "voice": "speaker-10",
+          "line": 11,
+          "firstAudioMs": 111.2626,
+          "synthMs": 111.2809,
+          "audioSeconds": 2.403265306122449,
+          "rtf": 0.04630404296875
+        },
+        {
+          "voice": "speaker-10",
+          "line": 12,
+          "firstAudioMs": 189.6076,
+          "synthMs": 189.6267,
+          "audioSeconds": 4.295691609977324,
+          "rtf": 0.04414346215160473
+        },
+        {
+          "voice": "speaker-10",
+          "line": 13,
+          "firstAudioMs": 93.3118,
+          "synthMs": 93.3265,
+          "audioSeconds": 2.159455782312925,
+          "rtf": 0.0432176017515121
+        },
+        {
+          "voice": "speaker-10",
+          "line": 14,
+          "firstAudioMs": 141.1056,
+          "synthMs": 141.1241,
+          "audioSeconds": 3.4713832199546486,
+          "rtf": 0.04065356402853261
+        },
+        {
+          "voice": "speaker-10",
+          "line": 15,
+          "firstAudioMs": 103.36,
+          "synthMs": 103.3808,
+          "audioSeconds": 2.2987755102040817,
+          "rtf": 0.04497211647727273
+        },
+        {
+          "voice": "speaker-10",
+          "line": 16,
+          "firstAudioMs": 107.6258,
+          "synthMs": 107.6415,
+          "audioSeconds": 2.5309750566893423,
+          "rtf": 0.04252965659045298
+        },
+        {
+          "voice": "speaker-10",
+          "line": 17,
+          "firstAudioMs": 128.799,
+          "synthMs": 128.8143,
+          "audioSeconds": 2.8908843537414968,
+          "rtf": 0.04455878694465361
+        },
+        {
+          "voice": "speaker-10",
+          "line": 18,
+          "firstAudioMs": 276.4601,
+          "synthMs": 276.4945,
+          "audioSeconds": 6.559637188208617,
+          "rtf": 0.042150883054480094
+        },
+        {
+          "voice": "speaker-10",
+          "line": 19,
+          "firstAudioMs": 213.9621,
+          "synthMs": 214.0011,
+          "audioSeconds": 4.783310657596372,
+          "rtf": 0.044739118012363466
+        },
+        {
+          "voice": "speaker-10",
+          "line": 20,
+          "firstAudioMs": 269.3268,
+          "synthMs": 269.3483,
+          "audioSeconds": 6.002358276643991,
+          "rtf": 0.044873745882192936
+        },
+        {
+          "voice": "speaker-300",
+          "line": 1,
+          "firstAudioMs": 135.7494,
+          "synthMs": 135.7782,
+          "audioSeconds": 3.436553287981859,
+          "rtf": 0.03950999406144425
+        },
+        {
+          "voice": "speaker-300",
+          "line": 2,
+          "firstAudioMs": 166.4899,
+          "synthMs": 166.5521,
+          "audioSeconds": 3.9225850340136055,
+          "rtf": 0.042459780618084704
+        },
+        {
+          "voice": "speaker-300",
+          "line": 3,
+          "firstAudioMs": 106.8678,
+          "synthMs": 106.8826,
+          "audioSeconds": 2.589024943310658,
+          "rtf": 0.04128295491171524
+        },
+        {
+          "voice": "speaker-300",
+          "line": 4,
+          "firstAudioMs": 304.9709,
+          "synthMs": 304.9948,
+          "audioSeconds": 7.476825396825397,
+          "rtf": 0.04079201851222826
+        },
+        {
+          "voice": "speaker-300",
+          "line": 5,
+          "firstAudioMs": 259.4245,
+          "synthMs": 259.4496,
+          "audioSeconds": 6.141678004535147,
+          "rtf": 0.042244090264650286
+        },
+        {
+          "voice": "speaker-300",
+          "line": 6,
+          "firstAudioMs": 219.941,
+          "synthMs": 219.9616,
+          "audioSeconds": 5.2385034013605445,
+          "rtf": 0.041989397189829365
+        },
+        {
+          "voice": "speaker-300",
+          "line": 7,
+          "firstAudioMs": 231.5069,
+          "synthMs": 231.5312,
+          "audioSeconds": 5.717006802721088,
+          "rtf": 0.040498674916706334
+        },
+        {
+          "voice": "speaker-300",
+          "line": 8,
+          "firstAudioMs": 116.4357,
+          "synthMs": 116.4504,
+          "audioSeconds": 2.914104308390023,
+          "rtf": 0.03996095804282868
+        },
+        {
+          "voice": "speaker-300",
+          "line": 9,
+          "firstAudioMs": 123.9984,
+          "synthMs": 124.0468,
+          "audioSeconds": 2.9024943310657596,
+          "rtf": 0.0427379990625
+        },
+        {
+          "voice": "speaker-300",
+          "line": 10,
+          "firstAudioMs": 148.7031,
+          "synthMs": 148.7307,
+          "audioSeconds": 3.5798639455782313,
+          "rtf": 0.04154646720127699
+        },
+        {
+          "voice": "speaker-300",
+          "line": 11,
+          "firstAudioMs": 90.3937,
+          "synthMs": 90.4062,
+          "audioSeconds": 2.2058956916099772,
+          "rtf": 0.04098389617598684
+        },
+        {
+          "voice": "speaker-300",
+          "line": 12,
+          "firstAudioMs": 222.9203,
+          "synthMs": 222.9591,
+          "audioSeconds": 4.458231292517007,
+          "rtf": 0.050010662384033205
+        },
+        {
+          "voice": "speaker-300",
+          "line": 13,
+          "firstAudioMs": 101.7312,
+          "synthMs": 101.7438,
+          "audioSeconds": 2.380045351473923,
+          "rtf": 0.042748681211890245
+        },
+        {
+          "voice": "speaker-300",
+          "line": 14,
+          "firstAudioMs": 152.1738,
+          "synthMs": 152.1901,
+          "audioSeconds": 3.680362811791383,
+          "rtf": 0.04135192854150237
+        },
+        {
+          "voice": "speaker-300",
+          "line": 15,
+          "firstAudioMs": 101.5236,
+          "synthMs": 101.5422,
+          "audioSeconds": 2.354875283446712,
+          "rtf": 0.04311999056331247
+        },
+        {
+          "voice": "speaker-300",
+          "line": 16,
+          "firstAudioMs": 108.5705,
+          "synthMs": 108.5856,
+          "audioSeconds": 2.6586848072562357,
+          "rtf": 0.040841847707423586
+        },
+        {
+          "voice": "speaker-300",
+          "line": 17,
+          "firstAudioMs": 136.3481,
+          "synthMs": 136.3718,
+          "audioSeconds": 3.343718820861678,
+          "rtf": 0.04078447001858156
+        },
+        {
+          "voice": "speaker-300",
+          "line": 18,
+          "firstAudioMs": 262.4253,
+          "synthMs": 262.446,
+          "audioSeconds": 6.675736961451247,
+          "rtf": 0.03931341236413044
+        },
+        {
+          "voice": "speaker-300",
+          "line": 19,
+          "firstAudioMs": 193.6351,
+          "synthMs": 193.6522,
+          "audioSeconds": 4.771700680272109,
+          "rtf": 0.04058347599224452
+        },
+        {
+          "voice": "speaker-300",
+          "line": 20,
+          "firstAudioMs": 236.7969,
+          "synthMs": 236.8399,
+          "audioSeconds": 5.758548752834467,
+          "rtf": 0.04112840060326361
+        },
+        {
+          "voice": "speaker-600",
+          "line": 1,
+          "firstAudioMs": 138.2836,
+          "synthMs": 138.2984,
+          "audioSeconds": 3.436553287981859,
+          "rtf": 0.04024334512246622
+        },
+        {
+          "voice": "speaker-600",
+          "line": 2,
+          "firstAudioMs": 150.0242,
+          "synthMs": 150.0525,
+          "audioSeconds": 3.81968253968254,
+          "rtf": 0.039284023853058514
+        },
+        {
+          "voice": "speaker-600",
+          "line": 3,
+          "firstAudioMs": 102.2695,
+          "synthMs": 102.2904,
+          "audioSeconds": 2.5309750566893423,
+          "rtf": 0.04041541212729358
+        },
+        {
+          "voice": "speaker-600",
+          "line": 4,
+          "firstAudioMs": 265.1284,
+          "synthMs": 265.1686,
+          "audioSeconds": 6.989206349206349,
+          "rtf": 0.037939729742005816
+        },
+        {
+          "voice": "speaker-600",
+          "line": 5,
+          "firstAudioMs": 236.5329,
+          "synthMs": 236.5536,
+          "audioSeconds": 5.828208616780046,
+          "rtf": 0.040587702938247004
+        },
+        {
+          "voice": "speaker-600",
+          "line": 6,
+          "firstAudioMs": 222.8535,
+          "synthMs": 222.8726,
+          "audioSeconds": 5.270929705215419,
+          "rtf": 0.04228335653565529
+        },
+        {
+          "voice": "speaker-600",
+          "line": 7,
+          "firstAudioMs": 243.2348,
+          "synthMs": 243.255,
+          "audioSeconds": 5.762721088435375,
+          "rtf": 0.04221182949286996
+        },
+        {
+          "voice": "speaker-600",
+          "line": 8,
+          "firstAudioMs": 119.2357,
+          "synthMs": 119.2496,
+          "audioSeconds": 2.809614512471655,
+          "rtf": 0.04244340263429752
+        },
+        {
+          "voice": "speaker-600",
+          "line": 9,
+          "firstAudioMs": 122.5729,
+          "synthMs": 122.5897,
+          "audioSeconds": 2.7980045351473923,
+          "rtf": 0.043813259935814315
+        },
+        {
+          "voice": "speaker-600",
+          "line": 10,
+          "firstAudioMs": 155.9852,
+          "synthMs": 156.0387,
+          "audioSeconds": 3.622312925170068,
+          "rtf": 0.04307709003155048
+        },
+        {
+          "voice": "speaker-600",
+          "line": 11,
+          "firstAudioMs": 94.7038,
+          "synthMs": 94.7163,
+          "audioSeconds": 2.2175056689342405,
+          "rtf": 0.04271299114446989
+        },
+        {
+          "voice": "speaker-600",
+          "line": 12,
+          "firstAudioMs": 206.8167,
+          "synthMs": 206.838,
+          "audioSeconds": 4.597551020408163,
+          "rtf": 0.04498873401988636
+        },
+        {
+          "voice": "speaker-600",
+          "line": 13,
+          "firstAudioMs": 91.4564,
+          "synthMs": 91.4689,
+          "audioSeconds": 2.136235827664399,
+          "rtf": 0.04281779137652854
+        },
+        {
+          "voice": "speaker-600",
+          "line": 14,
+          "firstAudioMs": 135.7366,
+          "synthMs": 135.7528,
+          "audioSeconds": 3.2043537414965986,
+          "rtf": 0.04236511039402174
+        },
+        {
+          "voice": "speaker-600",
+          "line": 15,
+          "firstAudioMs": 86.4764,
+          "synthMs": 86.4889,
+          "audioSeconds": 1.9969160997732427,
+          "rtf": 0.04331123376180959
+        },
+        {
+          "voice": "speaker-600",
+          "line": 16,
+          "firstAudioMs": 111.0251,
+          "synthMs": 111.038,
+          "audioSeconds": 2.426485260770975,
+          "rtf": 0.04576083844198565
+        },
+        {
+          "voice": "speaker-600",
+          "line": 17,
+          "firstAudioMs": 139.3459,
+          "synthMs": 139.3657,
+          "audioSeconds": 3.1811337868480725,
+          "rtf": 0.04381007192347172
+        },
+        {
+          "voice": "speaker-600",
+          "line": 18,
+          "firstAudioMs": 265.6373,
+          "synthMs": 265.6583,
+          "audioSeconds": 6.489977324263038,
+          "rtf": 0.04093362530048077
+        },
+        {
+          "voice": "speaker-600",
+          "line": 19,
+          "firstAudioMs": 219.3584,
+          "synthMs": 219.3943,
+          "audioSeconds": 5.034920634920635,
+          "rtf": 0.043574529949558634
+        },
+        {
+          "voice": "speaker-600",
+          "line": 20,
+          "firstAudioMs": 290.749,
+          "synthMs": 290.7957,
+          "audioSeconds": 5.839818594104308,
+          "rtf": 0.049795331021682404
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 0.7252513,
+          "p50FirstAudioMs": 75.1527,
+          "p90FirstAudioMs": 83.4103,
+          "p50SynthMs": 75.1686,
+          "p90SynthMs": 83.4281,
+          "medianRtf": 0.026534766105276643,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 0.7230419,
+          "p50FirstAudioMs": 96.0135,
+          "p90FirstAudioMs": 116.8823,
+          "p50SynthMs": 96.0346,
+          "p90SynthMs": 116.9036,
+          "medianRtf": 0.026851295624999997,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 0.7149044,
+          "p50FirstAudioMs": 118.8013,
+          "p90FirstAudioMs": 145.3097,
+          "p50SynthMs": 118.8188,
+          "p90SynthMs": 145.3323,
+          "medianRtf": 0.04103996932119694,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        }
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "id": "piper-libritts-r-fp16",
+      "name": "Piper LibriTTS-R medium fp16",
+      "runtime": "Vits",
+      "license": "CC BY 4.0 (LibriTTS-R voices; Piper code MIT)",
+      "notRun": "not run: exit code -532462766, Unhandled exception. System.Runtime.InteropServices.SEHException (0x80004005): External component has thrown an exception.",
+      "downloadBytes": 43071574,
+      "diskBytes": 57554319,
+      "threads": null,
+      "loadSeconds": null,
+      "warmupMs": null,
+      "sampleRate": null,
+      "voices": [
+        "speaker-10",
+        "speaker-300",
+        "speaker-600"
+      ],
+      "notes": null,
+      "clips": [],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": null,
+          "p50FirstAudioMs": null,
+          "p90FirstAudioMs": null,
+          "p50SynthMs": null,
+          "p90SynthMs": null,
+          "medianRtf": null,
+          "outcome": "NotRun",
+          "verdict": "not run: exit code -532462766, Unhandled exception. System.Runtime.InteropServices.SEHException (0x80004005): External component has thrown an exception.",
+          "source": null
+        }
+      ],
+      "verdict": "NotRun"
+    },
+    {
+      "id": "piper-libritts-r-int8",
+      "name": "Piper LibriTTS-R medium int8",
+      "runtime": "Vits",
+      "license": "CC BY 4.0 (LibriTTS-R voices; Piper code MIT)",
+      "notRun": null,
+      "downloadBytes": 23398348,
+      "diskBytes": 40467049,
+      "threads": 2,
+      "loadSeconds": 1.5058717,
+      "warmupMs": 569.684,
+      "sampleRate": 22050,
+      "voices": [
+        "speaker-10",
+        "speaker-300",
+        "speaker-600"
+      ],
+      "notes": null,
+      "clips": [
+        {
+          "voice": "speaker-10",
+          "line": 1,
+          "firstAudioMs": 892.3286,
+          "synthMs": 892.3525,
+          "audioSeconds": 2.972154195011338,
+          "rtf": 0.3002376194000244
+        },
+        {
+          "voice": "speaker-10",
+          "line": 2,
+          "firstAudioMs": 838.4993,
+          "synthMs": 838.528,
+          "audioSeconds": 3.3436734693877552,
+          "rtf": 0.25078046875
+        },
+        {
+          "voice": "speaker-10",
+          "line": 3,
+          "firstAudioMs": 480.3182,
+          "synthMs": 480.3343,
+          "audioSeconds": 2.5309750566893423,
+          "rtf": 0.189782312840453
+        },
+        {
+          "voice": "speaker-10",
+          "line": 4,
+          "firstAudioMs": 1203.4173,
+          "synthMs": 1203.4411,
+          "audioSeconds": 6.640907029478458,
+          "rtf": 0.18121637521170236
+        },
+        {
+          "voice": "speaker-10",
+          "line": 5,
+          "firstAudioMs": 1633.5082,
+          "synthMs": 1633.5399,
+          "audioSeconds": 5.921088435374149,
+          "rtf": 0.2758850704273897
+        },
+        {
+          "voice": "speaker-10",
+          "line": 6,
+          "firstAudioMs": 1214.8844,
+          "synthMs": 1214.9038,
+          "audioSeconds": 4.864580498866213,
+          "rtf": 0.24974482389245228
+        },
+        {
+          "voice": "speaker-10",
+          "line": 7,
+          "firstAudioMs": 1365.6474,
+          "synthMs": 1365.6738,
+          "audioSeconds": 6.501587301587302,
+          "rtf": 0.21005236669921873
+        },
+        {
+          "voice": "speaker-10",
+          "line": 8,
+          "firstAudioMs": 487.0073,
+          "synthMs": 487.0232,
+          "audioSeconds": 2.670294784580499,
+          "rtf": 0.18238555638586956
+        },
+        {
+          "voice": "speaker-10",
+          "line": 9,
+          "firstAudioMs": 523.7101,
+          "synthMs": 523.725,
+          "audioSeconds": 2.670294784580499,
+          "rtf": 0.19613003141983695
+        },
+        {
+          "voice": "speaker-10",
+          "line": 10,
+          "firstAudioMs": 608.172,
+          "synthMs": 608.1913,
+          "audioSeconds": 3.3436734693877552,
+          "rtf": 0.18189315002441406
+        },
+        {
+          "voice": "speaker-10",
+          "line": 11,
+          "firstAudioMs": 524.0997,
+          "synthMs": 524.1161,
+          "audioSeconds": 2.461315192743764,
+          "rtf": 0.21294148004495872
+        },
+        {
+          "voice": "speaker-10",
+          "line": 12,
+          "firstAudioMs": 935.7956,
+          "synthMs": 935.8203,
+          "audioSeconds": 4.121541950113379,
+          "rtf": 0.22705587164392604
+        },
+        {
+          "voice": "speaker-10",
+          "line": 13,
+          "firstAudioMs": 614.2395,
+          "synthMs": 614.2569,
+          "audioSeconds": 1.9853061224489796,
+          "rtf": 0.30940160464638156
+        },
+        {
+          "voice": "speaker-10",
+          "line": 14,
+          "firstAudioMs": 822.2949,
+          "synthMs": 822.3282,
+          "audioSeconds": 3.575873015873016,
+          "rtf": 0.2299657164417614
+        },
+        {
+          "voice": "speaker-10",
+          "line": 15,
+          "firstAudioMs": 529.055,
+          "synthMs": 529.0783,
+          "audioSeconds": 2.1942857142857144,
+          "rtf": 0.24111641276041665
+        },
+        {
+          "voice": "speaker-10",
+          "line": 16,
+          "firstAudioMs": 605.9998,
+          "synthMs": 606.0184,
+          "audioSeconds": 2.75156462585034,
+          "rtf": 0.22024501780063294
+        },
+        {
+          "voice": "speaker-10",
+          "line": 17,
+          "firstAudioMs": 576.248,
+          "synthMs": 576.2627,
+          "audioSeconds": 3.215963718820862,
+          "rtf": 0.17918818443986914
+        },
+        {
+          "voice": "speaker-10",
+          "line": 18,
+          "firstAudioMs": 1079.4796,
+          "synthMs": 1079.501,
+          "audioSeconds": 6.466757369614513,
+          "rtf": 0.16693080292021992
+        },
+        {
+          "voice": "speaker-10",
+          "line": 19,
+          "firstAudioMs": 801.1352,
+          "synthMs": 801.1791,
+          "audioSeconds": 4.922630385487528,
+          "rtf": 0.1627542669792895
+        },
+        {
+          "voice": "speaker-10",
+          "line": 20,
+          "firstAudioMs": 1194.0558,
+          "synthMs": 1194.0777,
+          "audioSeconds": 6.002358276643991,
+          "rtf": 0.19893475946717842
+        },
+        {
+          "voice": "speaker-300",
+          "line": 1,
+          "firstAudioMs": 636.3868,
+          "synthMs": 636.4103,
+          "audioSeconds": 3.274013605442177,
+          "rtf": 0.19438230157081116
+        },
+        {
+          "voice": "speaker-300",
+          "line": 2,
+          "firstAudioMs": 729.7449,
+          "synthMs": 729.7626,
+          "audioSeconds": 3.7384126984126986,
+          "rtf": 0.1952065378736413
+        },
+        {
+          "voice": "speaker-300",
+          "line": 3,
+          "firstAudioMs": 479.2047,
+          "synthMs": 479.2287,
+          "audioSeconds": 2.449705215419501,
+          "rtf": 0.19562708891809835
+        },
+        {
+          "voice": "speaker-300",
+          "line": 4,
+          "firstAudioMs": 1285.0534,
+          "synthMs": 1285.0956,
+          "audioSeconds": 7.4071655328798185,
+          "rtf": 0.17349357109619906
+        },
+        {
+          "voice": "speaker-300",
+          "line": 5,
+          "firstAudioMs": 1061.9339,
+          "synthMs": 1061.957,
+          "audioSeconds": 5.804988662131519,
+          "rtf": 0.18293868632812502
+        },
+        {
+          "voice": "speaker-300",
+          "line": 6,
+          "firstAudioMs": 949.158,
+          "synthMs": 949.1803,
+          "audioSeconds": 4.725260770975057,
+          "rtf": 0.2008736334363483
+        },
+        {
+          "voice": "speaker-300",
+          "line": 7,
+          "firstAudioMs": 1032.5146,
+          "synthMs": 1032.536,
+          "audioSeconds": 5.932698412698413,
+          "rtf": 0.17404154537671235
+        },
+        {
+          "voice": "speaker-300",
+          "line": 8,
+          "firstAudioMs": 552.9876,
+          "synthMs": 553.0024,
+          "audioSeconds": 3.1835827664399092,
+          "rtf": 0.17370442063876465
+        },
+        {
+          "voice": "speaker-300",
+          "line": 9,
+          "firstAudioMs": 465.1356,
+          "synthMs": 465.1696,
+          "audioSeconds": 2.8908843537414968,
+          "rtf": 0.16090910015060242
+        },
+        {
+          "voice": "speaker-300",
+          "line": 10,
+          "firstAudioMs": 573.4097,
+          "synthMs": 573.4289,
+          "audioSeconds": 3.378503401360544,
+          "rtf": 0.16972867328447167
+        },
+        {
+          "voice": "speaker-300",
+          "line": 11,
+          "firstAudioMs": 389.3718,
+          "synthMs": 389.3928,
+          "audioSeconds": 2.2175056689342405,
+          "rtf": 0.17559946089659687
+        },
+        {
+          "voice": "speaker-300",
+          "line": 12,
+          "firstAudioMs": 768.4272,
+          "synthMs": 768.4501,
+          "audioSeconds": 4.342131519274377,
+          "rtf": 0.1769753165211397
+        },
+        {
+          "voice": "speaker-300",
+          "line": 13,
+          "firstAudioMs": 395.1731,
+          "synthMs": 395.1851,
+          "audioSeconds": 2.147845804988662,
+          "rtf": 0.18399137362753376
+        },
+        {
+          "voice": "speaker-300",
+          "line": 14,
+          "firstAudioMs": 629.0883,
+          "synthMs": 629.1044,
+          "audioSeconds": 3.5294331065759637,
+          "rtf": 0.17824516884251645
+        },
+        {
+          "voice": "speaker-300",
+          "line": 15,
+          "firstAudioMs": 407.8414,
+          "synthMs": 407.8544,
+          "audioSeconds": 2.3568253968253967,
+          "rtf": 0.17305244612068968
+        },
+        {
+          "voice": "speaker-300",
+          "line": 16,
+          "firstAudioMs": 476.9132,
+          "synthMs": 476.9288,
+          "audioSeconds": 2.5309750566893423,
+          "rtf": 0.18843678397362387
+        },
+        {
+          "voice": "speaker-300",
+          "line": 17,
+          "firstAudioMs": 559.7018,
+          "synthMs": 559.7599,
+          "audioSeconds": 3.274013605442177,
+          "rtf": 0.17097054791389626
+        },
+        {
+          "voice": "speaker-300",
+          "line": 18,
+          "firstAudioMs": 1207.2208,
+          "synthMs": 1207.2431,
+          "audioSeconds": 6.629297052154195,
+          "rtf": 0.18210725669740585
+        },
+        {
+          "voice": "speaker-300",
+          "line": 19,
+          "firstAudioMs": 913.2892,
+          "synthMs": 913.3201,
+          "audioSeconds": 5.030839002267574,
+          "rtf": 0.1815442910393942
+        },
+        {
+          "voice": "speaker-300",
+          "line": 20,
+          "firstAudioMs": 1193.6434,
+          "synthMs": 1193.6618,
+          "audioSeconds": 5.5495691609977325,
+          "rtf": 0.2150908954138337
+        },
+        {
+          "voice": "speaker-600",
+          "line": 1,
+          "firstAudioMs": 599.3036,
+          "synthMs": 599.3204,
+          "audioSeconds": 3.4481632653061225,
+          "rtf": 0.17380859138257576
+        },
+        {
+          "voice": "speaker-600",
+          "line": 2,
+          "firstAudioMs": 861.1819,
+          "synthMs": 861.2043,
+          "audioSeconds": 4.22843537414966,
+          "rtf": 0.20366973213423856
+        },
+        {
+          "voice": "speaker-600",
+          "line": 3,
+          "firstAudioMs": 487.8579,
+          "synthMs": 487.8716,
+          "audioSeconds": 2.2871655328798184,
+          "rtf": 0.21330839110088834
+        },
+        {
+          "voice": "speaker-600",
+          "line": 4,
+          "firstAudioMs": 1307.9504,
+          "synthMs": 1307.9771,
+          "audioSeconds": 7.1053061224489795,
+          "rtf": 0.18408455279181984
+        },
+        {
+          "voice": "speaker-600",
+          "line": 5,
+          "firstAudioMs": 1019.1725,
+          "synthMs": 1019.2002,
+          "audioSeconds": 5.805532879818594,
+          "rtf": 0.1755567010124051
+        },
+        {
+          "voice": "speaker-600",
+          "line": 6,
+          "firstAudioMs": 870.8828,
+          "synthMs": 870.9088,
+          "audioSeconds": 5.15297052154195,
+          "rtf": 0.16901101924786358
+        },
+        {
+          "voice": "speaker-600",
+          "line": 7,
+          "firstAudioMs": 1007.9441,
+          "synthMs": 1007.9666,
+          "audioSeconds": 5.61922902494331,
+          "rtf": 0.17937809538029445
+        },
+        {
+          "voice": "speaker-600",
+          "line": 8,
+          "firstAudioMs": 480.9688,
+          "synthMs": 480.9824,
+          "audioSeconds": 2.9024943310657596,
+          "rtf": 0.1657134675
+        },
+        {
+          "voice": "speaker-600",
+          "line": 9,
+          "firstAudioMs": 555.6419,
+          "synthMs": 555.6558,
+          "audioSeconds": 3.030204081632653,
+          "rtf": 0.18337240167025864
+        },
+        {
+          "voice": "speaker-600",
+          "line": 10,
+          "firstAudioMs": 565.7837,
+          "synthMs": 565.7988,
+          "audioSeconds": 3.308843537414966,
+          "rtf": 0.1709959366776316
+        },
+        {
+          "voice": "speaker-600",
+          "line": 11,
+          "firstAudioMs": 425.6203,
+          "synthMs": 425.6327,
+          "audioSeconds": 2.6122448979591835,
+          "rtf": 0.16293751796875
+        },
+        {
+          "voice": "speaker-600",
+          "line": 12,
+          "firstAudioMs": 791.3972,
+          "synthMs": 791.417,
+          "audioSeconds": 4.597551020408163,
+          "rtf": 0.172138818359375
+        },
+        {
+          "voice": "speaker-600",
+          "line": 13,
+          "firstAudioMs": 474.0804,
+          "synthMs": 474.0925,
+          "audioSeconds": 2.089795918367347,
+          "rtf": 0.22686066894531245
+        },
+        {
+          "voice": "speaker-600",
+          "line": 14,
+          "firstAudioMs": 634.0054,
+          "synthMs": 634.0266,
+          "audioSeconds": 3.7500226757369615,
+          "rtf": 0.16907273764028638
+        },
+        {
+          "voice": "speaker-600",
+          "line": 15,
+          "firstAudioMs": 405.4734,
+          "synthMs": 405.488,
+          "audioSeconds": 2.1710657596371883,
+          "rtf": 0.18676910093582888
+        },
+        {
+          "voice": "speaker-600",
+          "line": 16,
+          "firstAudioMs": 474.7197,
+          "synthMs": 474.7373,
+          "audioSeconds": 2.5155555555555558,
+          "rtf": 0.18872065812720848
+        },
+        {
+          "voice": "speaker-600",
+          "line": 17,
+          "firstAudioMs": 578.8588,
+          "synthMs": 578.877,
+          "audioSeconds": 3.053424036281179,
+          "rtf": 0.18958290532913497
+        },
+        {
+          "voice": "speaker-600",
+          "line": 18,
+          "firstAudioMs": 1115.6138,
+          "synthMs": 1115.6358,
+          "audioSeconds": 6.339047619047619,
+          "rtf": 0.17599422926682692
+        },
+        {
+          "voice": "speaker-600",
+          "line": 19,
+          "firstAudioMs": 820.6592,
+          "synthMs": 820.6873,
+          "audioSeconds": 5.073560090702948,
+          "rtf": 0.16175767810533467
+        },
+        {
+          "voice": "speaker-600",
+          "line": 20,
+          "firstAudioMs": 1279.6688,
+          "synthMs": 1279.692,
+          "audioSeconds": 5.561541950113378,
+          "rtf": 0.23009661915323898
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 1.7632978,
+          "p50FirstAudioMs": 615.5315,
+          "p90FirstAudioMs": 878.679,
+          "p50SynthMs": 615.55,
+          "p90SynthMs": 878.71,
+          "medianRtf": 0.21115791770241477,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 1.5931438,
+          "p50FirstAudioMs": 613.2791,
+          "p90FirstAudioMs": 693.6648,
+          "p50SynthMs": 613.2995,
+          "p90SynthMs": 693.6887,
+          "medianRtf": 0.17040390593497984,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 1.489363,
+          "p50FirstAudioMs": 537.7567,
+          "p90FirstAudioMs": 668.8865,
+          "p50SynthMs": 537.7779,
+          "p90SynthMs": 668.9036,
+          "medianRtf": 0.18525578250602892,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        }
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "id": "kitten-nano-0.8",
+      "name": "Kitten nano 0.8 fp32",
+      "runtime": "Kitten",
+      "license": "Apache-2.0 (LICENSE in the archive)",
+      "notRun": null,
+      "downloadBytes": 63815222,
+      "diskBytes": 78049671,
+      "threads": 2,
+      "loadSeconds": 0.8004547,
+      "warmupMs": 275.6449,
+      "sampleRate": 24000,
+      "voices": [
+        "expr-voice-2-m",
+        "expr-voice-3-m",
+        "expr-voice-4-m"
+      ],
+      "notes": null,
+      "clips": [
+        {
+          "voice": "expr-voice-2-m",
+          "line": 1,
+          "firstAudioMs": 419.3937,
+          "synthMs": 419.4353,
+          "audioSeconds": 4.352041666666667,
+          "rtf": 0.09637667378337754
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 2,
+          "firstAudioMs": 419.87,
+          "synthMs": 419.899,
+          "audioSeconds": 4.360625,
+          "rtf": 0.09629330657875879
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 3,
+          "firstAudioMs": 303.1168,
+          "synthMs": 303.1443,
+          "audioSeconds": 3.1388333333333334,
+          "rtf": 0.09657865448945999
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 4,
+          "firstAudioMs": 670.5601,
+          "synthMs": 670.5913,
+          "audioSeconds": 8.412958333333334,
+          "rtf": 0.07970933332012618
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 5,
+          "firstAudioMs": 545.9672,
+          "synthMs": 545.9934,
+          "audioSeconds": 6.6175,
+          "rtf": 0.08250750283339629
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 6,
+          "firstAudioMs": 484.6255,
+          "synthMs": 484.6501,
+          "audioSeconds": 6.462666666666666,
+          "rtf": 0.0749922787291108
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 7,
+          "firstAudioMs": 687.3825,
+          "synthMs": 687.4116,
+          "audioSeconds": 7.059333333333333,
+          "rtf": 0.09737627726886393
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 8,
+          "firstAudioMs": 362.6037,
+          "synthMs": 362.6223,
+          "audioSeconds": 3.3316666666666666,
+          "rtf": 0.10884111055527765
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 9,
+          "firstAudioMs": 420.685,
+          "synthMs": 420.7061,
+          "audioSeconds": 3.7057083333333334,
+          "rtf": 0.11352919932086757
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 10,
+          "firstAudioMs": 495.5028,
+          "synthMs": 495.5221,
+          "audioSeconds": 4.045541666666667,
+          "rtf": 0.12248597118226855
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 11,
+          "firstAudioMs": 359.1971,
+          "synthMs": 359.2162,
+          "audioSeconds": 3.0542083333333334,
+          "rtf": 0.11761352232575273
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 12,
+          "firstAudioMs": 579.2866,
+          "synthMs": 579.3138,
+          "audioSeconds": 5.170958333333333,
+          "rtf": 0.1120321926141995
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 13,
+          "firstAudioMs": 347.5538,
+          "synthMs": 347.5762,
+          "audioSeconds": 3.108375,
+          "rtf": 0.11181926247637429
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 14,
+          "firstAudioMs": 369.8823,
+          "synthMs": 369.9151,
+          "audioSeconds": 3.3957916666666668,
+          "rtf": 0.10893339059374961
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 15,
+          "firstAudioMs": 299.6754,
+          "synthMs": 299.6972,
+          "audioSeconds": 2.9455833333333334,
+          "rtf": 0.10174460067332447
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 16,
+          "firstAudioMs": 352.0151,
+          "synthMs": 352.0479,
+          "audioSeconds": 3.842375,
+          "rtf": 0.09162247307980091
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 17,
+          "firstAudioMs": 360.303,
+          "synthMs": 360.3222,
+          "audioSeconds": 3.8638333333333335,
+          "rtf": 0.09325510934736661
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 18,
+          "firstAudioMs": 599.3998,
+          "synthMs": 599.4257,
+          "audioSeconds": 7.675958333333333,
+          "rtf": 0.07809131758792334
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 19,
+          "firstAudioMs": 731.275,
+          "synthMs": 731.303,
+          "audioSeconds": 6.889,
+          "rtf": 0.1061551749165336
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 20,
+          "firstAudioMs": 936.2083,
+          "synthMs": 936.2392,
+          "audioSeconds": 7.043916666666667,
+          "rtf": 0.1329145764075384
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 1,
+          "firstAudioMs": 504.1181,
+          "synthMs": 504.2688,
+          "audioSeconds": 4.43975,
+          "rtf": 0.11358044934962554
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 2,
+          "firstAudioMs": 529.1925,
+          "synthMs": 529.2174,
+          "audioSeconds": 4.751291666666667,
+          "rtf": 0.1113839008690619
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 3,
+          "firstAudioMs": 363.8616,
+          "synthMs": 363.8854,
+          "audioSeconds": 3.231,
+          "rtf": 0.11262315072732901
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 4,
+          "firstAudioMs": 761.6028,
+          "synthMs": 761.6554,
+          "audioSeconds": 8.102666666666666,
+          "rtf": 0.09400058416982064
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 5,
+          "firstAudioMs": 621.2034,
+          "synthMs": 621.4029,
+          "audioSeconds": 7.499333333333333,
+          "rtf": 0.08286108542981599
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 6,
+          "firstAudioMs": 513.1791,
+          "synthMs": 513.2045,
+          "audioSeconds": 6.04775,
+          "rtf": 0.08485874912157415
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 7,
+          "firstAudioMs": 567.253,
+          "synthMs": 567.4103,
+          "audioSeconds": 6.911125,
+          "rtf": 0.08210100381631066
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 8,
+          "firstAudioMs": 298.7146,
+          "synthMs": 298.7304,
+          "audioSeconds": 3.522,
+          "rtf": 0.08481839863713798
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 9,
+          "firstAudioMs": 316.1583,
+          "synthMs": 316.2084,
+          "audioSeconds": 3.8575833333333334,
+          "rtf": 0.08197059471603552
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 10,
+          "firstAudioMs": 487.4599,
+          "synthMs": 487.4863,
+          "audioSeconds": 4.428375,
+          "rtf": 0.11008243430152145
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 11,
+          "firstAudioMs": 454.744,
+          "synthMs": 454.7634,
+          "audioSeconds": 3.286958333333333,
+          "rtf": 0.1383538681912102
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 12,
+          "firstAudioMs": 818.8619,
+          "synthMs": 818.8874,
+          "audioSeconds": 5.8213333333333335,
+          "rtf": 0.1406700755840586
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 13,
+          "firstAudioMs": 375.871,
+          "synthMs": 375.891,
+          "audioSeconds": 3.156041666666667,
+          "rtf": 0.11910203973859661
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 14,
+          "firstAudioMs": 412.8458,
+          "synthMs": 412.8656,
+          "audioSeconds": 3.8291666666666666,
+          "rtf": 0.10782126659412405
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 15,
+          "firstAudioMs": 315.9531,
+          "synthMs": 315.9683,
+          "audioSeconds": 2.9145,
+          "rtf": 0.10841252358895179
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 16,
+          "firstAudioMs": 328.986,
+          "synthMs": 329.0042,
+          "audioSeconds": 3.673875,
+          "rtf": 0.0895523663706577
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 17,
+          "firstAudioMs": 434.6775,
+          "synthMs": 434.6961,
+          "audioSeconds": 4.189375,
+          "rtf": 0.10376156347903923
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 18,
+          "firstAudioMs": 591.8112,
+          "synthMs": 591.8349,
+          "audioSeconds": 7.2795,
+          "rtf": 0.08130158664743457
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 19,
+          "firstAudioMs": 512.3606,
+          "synthMs": 512.3992,
+          "audioSeconds": 6.476125,
+          "rtf": 0.07912126464513887
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 20,
+          "firstAudioMs": 558.6419,
+          "synthMs": 558.8694,
+          "audioSeconds": 7.085416666666666,
+          "rtf": 0.07887601058512204
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 1,
+          "firstAudioMs": 502.8365,
+          "synthMs": 502.8548,
+          "audioSeconds": 4.106,
+          "rtf": 0.12246829030686801
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 2,
+          "firstAudioMs": 617.4593,
+          "synthMs": 617.481,
+          "audioSeconds": 4.201333333333333,
+          "rtf": 0.14697262773722627
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 3,
+          "firstAudioMs": 385.6754,
+          "synthMs": 385.7711,
+          "audioSeconds": 3.445125,
+          "rtf": 0.11197593701244511
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 4,
+          "firstAudioMs": 692.115,
+          "synthMs": 692.2941,
+          "audioSeconds": 7.126166666666666,
+          "rtf": 0.09714817690670532
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 5,
+          "firstAudioMs": 548.7688,
+          "synthMs": 548.791,
+          "audioSeconds": 6.089833333333333,
+          "rtf": 0.09011593092312324
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 6,
+          "firstAudioMs": 586.6045,
+          "synthMs": 586.6358,
+          "audioSeconds": 5.615,
+          "rtf": 0.10447654496883349
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 7,
+          "firstAudioMs": 494.1911,
+          "synthMs": 494.2122,
+          "audioSeconds": 6.280833333333334,
+          "rtf": 0.07868576887355712
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 8,
+          "firstAudioMs": 308.6119,
+          "synthMs": 308.6284,
+          "audioSeconds": 3.6626666666666665,
+          "rtf": 0.08426330542409903
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 9,
+          "firstAudioMs": 283.4409,
+          "synthMs": 283.4599,
+          "audioSeconds": 3.548958333333333,
+          "rtf": 0.07987129556794834
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 10,
+          "firstAudioMs": 316.6605,
+          "synthMs": 316.6805,
+          "audioSeconds": 3.814583333333333,
+          "rtf": 0.08301837247405788
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 11,
+          "firstAudioMs": 388.523,
+          "synthMs": 388.5385,
+          "audioSeconds": 2.969,
+          "rtf": 0.13086510609632873
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 12,
+          "firstAudioMs": 506.3063,
+          "synthMs": 506.3549,
+          "audioSeconds": 5.009666666666667,
+          "rtf": 0.10107556723667574
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 13,
+          "firstAudioMs": 280.2492,
+          "synthMs": 280.2628,
+          "audioSeconds": 2.66675,
+          "rtf": 0.1050952657729446
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 14,
+          "firstAudioMs": 334.1495,
+          "synthMs": 334.1634,
+          "audioSeconds": 3.25,
+          "rtf": 0.10281950769230769
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 15,
+          "firstAudioMs": 278.8499,
+          "synthMs": 278.8663,
+          "audioSeconds": 2.5871666666666666,
+          "rtf": 0.10778830123043227
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 16,
+          "firstAudioMs": 346.4488,
+          "synthMs": 346.4652,
+          "audioSeconds": 3.5963333333333334,
+          "rtf": 0.0963384558346464
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 17,
+          "firstAudioMs": 323.8594,
+          "synthMs": 323.8752,
+          "audioSeconds": 3.736291666666667,
+          "rtf": 0.08668359670350503
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 18,
+          "firstAudioMs": 490.9344,
+          "synthMs": 490.9553,
+          "audioSeconds": 6.429708333333333,
+          "rtf": 0.07635732051090965
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 19,
+          "firstAudioMs": 724.6409,
+          "synthMs": 724.691,
+          "audioSeconds": 6.403291666666667,
+          "rtf": 0.11317476037714978
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 20,
+          "firstAudioMs": 629.955,
+          "synthMs": 629.9932,
+          "audioSeconds": 6.554625,
+          "rtf": 0.09611430097068864
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 0.8187264,
+          "p50FirstAudioMs": 228.9147,
+          "p90FirstAudioMs": 247.251,
+          "p50SynthMs": 228.9355,
+          "p90SynthMs": 247.2744,
+          "medianRtf": 0.06886745296617074,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 0.7872671,
+          "p50FirstAudioMs": 237.3199,
+          "p90FirstAudioMs": 249.3639,
+          "p50SynthMs": 237.3393,
+          "p90SynthMs": 249.3823,
+          "medianRtf": 0.07244217065788774,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 0.6696833,
+          "p50FirstAudioMs": 312.4374,
+          "p90FirstAudioMs": 312.4634,
+          "p50SynthMs": 312.4562,
+          "p90SynthMs": 312.489,
+          "medianRtf": 0.09208909626719056,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        }
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "id": "kitten-micro-0.8",
+      "name": "Kitten micro 0.8",
+      "runtime": "Kitten",
+      "license": "Apache-2.0 (LICENSE in the archive)",
+      "notRun": null,
+      "downloadBytes": 44423643,
+      "diskBytes": 62667538,
+      "threads": 2,
+      "loadSeconds": 1.0671735,
+      "warmupMs": 752.2403,
+      "sampleRate": 24000,
+      "voices": [
+        "expr-voice-2-m",
+        "expr-voice-3-m",
+        "expr-voice-4-m"
+      ],
+      "notes": null,
+      "clips": [
+        {
+          "voice": "expr-voice-2-m",
+          "line": 1,
+          "firstAudioMs": 1052.9684,
+          "synthMs": 1052.9866,
+          "audioSeconds": 4.027125,
+          "rtf": 0.26147353260700873
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 2,
+          "firstAudioMs": 1175.9938,
+          "synthMs": 1176.033,
+          "audioSeconds": 4.078541666666666,
+          "rtf": 0.28834644736169995
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 3,
+          "firstAudioMs": 1132.6941,
+          "synthMs": 1132.7143,
+          "audioSeconds": 3.235333333333333,
+          "rtf": 0.35010744900061824
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 4,
+          "firstAudioMs": 2089.9882,
+          "synthMs": 2090.0257,
+          "audioSeconds": 8.48975,
+          "rtf": 0.24618224329338317
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 5,
+          "firstAudioMs": 1563.7011,
+          "synthMs": 1563.7294,
+          "audioSeconds": 6.6630416666666665,
+          "rtf": 0.23468702106770556
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 6,
+          "firstAudioMs": 1403.6476,
+          "synthMs": 1403.6718,
+          "audioSeconds": 6.099458333333334,
+          "rtf": 0.23013056623880537
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 7,
+          "firstAudioMs": 2109.2776,
+          "synthMs": 2109.3089,
+          "audioSeconds": 7.241916666666667,
+          "rtf": 0.2912639011311462
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 8,
+          "firstAudioMs": 1424.9893,
+          "synthMs": 1425.0151,
+          "audioSeconds": 3.352708333333333,
+          "rtf": 0.42503401976014415
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 9,
+          "firstAudioMs": 993.2731,
+          "synthMs": 993.2932,
+          "audioSeconds": 3.5502083333333334,
+          "rtf": 0.27978448213133034
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 10,
+          "firstAudioMs": 1185.8101,
+          "synthMs": 1185.8324,
+          "audioSeconds": 4.320791666666667,
+          "rtf": 0.27444794646042875
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 11,
+          "firstAudioMs": 887.7499,
+          "synthMs": 887.7685,
+          "audioSeconds": 2.9486666666666665,
+          "rtf": 0.30107455347049517
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 12,
+          "firstAudioMs": 1589.5691,
+          "synthMs": 1589.6017,
+          "audioSeconds": 5.30375,
+          "rtf": 0.29971278812161206
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 13,
+          "firstAudioMs": 777.3638,
+          "synthMs": 777.3892,
+          "audioSeconds": 3.126125,
+          "rtf": 0.2486750209924427
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 14,
+          "firstAudioMs": 977.5624,
+          "synthMs": 977.5968,
+          "audioSeconds": 3.631875,
+          "rtf": 0.2691713784202375
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 15,
+          "firstAudioMs": 909.3543,
+          "synthMs": 909.4064,
+          "audioSeconds": 2.87375,
+          "rtf": 0.3164528577642453
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 16,
+          "firstAudioMs": 971.9442,
+          "synthMs": 971.9648,
+          "audioSeconds": 3.693375,
+          "rtf": 0.2631643957085322
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 17,
+          "firstAudioMs": 1110.0205,
+          "synthMs": 1110.0401,
+          "audioSeconds": 3.8750833333333334,
+          "rtf": 0.2864558009505172
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 18,
+          "firstAudioMs": 1919.5319,
+          "synthMs": 1919.5614,
+          "audioSeconds": 7.490708333333333,
+          "rtf": 0.2562589964233467
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 19,
+          "firstAudioMs": 1628.9599,
+          "synthMs": 1628.9826,
+          "audioSeconds": 6.1117083333333335,
+          "rtf": 0.2665347413775472
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 20,
+          "firstAudioMs": 1705.5354,
+          "synthMs": 1705.5596,
+          "audioSeconds": 7.226166666666667,
+          "rtf": 0.23602549991927485
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 1,
+          "firstAudioMs": 1211.2367,
+          "synthMs": 1211.258,
+          "audioSeconds": 4.809458333333334,
+          "rtf": 0.2518491514117147
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 2,
+          "firstAudioMs": 1201.9406,
+          "synthMs": 1201.9667,
+          "audioSeconds": 4.881208333333333,
+          "rtf": 0.24624367941681108
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 3,
+          "firstAudioMs": 856.6588,
+          "synthMs": 856.6736,
+          "audioSeconds": 3.6257083333333333,
+          "rtf": 0.23627758254134248
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 4,
+          "firstAudioMs": 2176.8613,
+          "synthMs": 2176.8898,
+          "audioSeconds": 8.602208333333333,
+          "rtf": 0.25306173899144113
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 5,
+          "firstAudioMs": 2132.0364,
+          "synthMs": 2132.082,
+          "audioSeconds": 8.022625,
+          "rtf": 0.2657586513142519
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 6,
+          "firstAudioMs": 1845.2757,
+          "synthMs": 1845.3014,
+          "audioSeconds": 6.3341666666666665,
+          "rtf": 0.29132504670438103
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 7,
+          "firstAudioMs": 2206.5086,
+          "synthMs": 2206.5565,
+          "audioSeconds": 7.322333333333333,
+          "rtf": 0.3013460873127874
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 8,
+          "firstAudioMs": 1083.2646,
+          "synthMs": 1083.2838,
+          "audioSeconds": 3.7945,
+          "rtf": 0.2854878903676374
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 9,
+          "firstAudioMs": 964.0808,
+          "synthMs": 964.1506,
+          "audioSeconds": 3.7653333333333334,
+          "rtf": 0.2560598264872521
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 10,
+          "firstAudioMs": 1143.0466,
+          "synthMs": 1143.0719,
+          "audioSeconds": 4.530375,
+          "rtf": 0.2523128659327318
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 11,
+          "firstAudioMs": 832.2215,
+          "synthMs": 832.236,
+          "audioSeconds": 3.2760833333333332,
+          "rtf": 0.2540338310482538
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 12,
+          "firstAudioMs": 1579.2329,
+          "synthMs": 1579.2533,
+          "audioSeconds": 5.664291666666666,
+          "rtf": 0.27880861243315214
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 13,
+          "firstAudioMs": 1013.6314,
+          "synthMs": 1013.6501,
+          "audioSeconds": 3.120625,
+          "rtf": 0.32482278389745645
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 14,
+          "firstAudioMs": 1125.2316,
+          "synthMs": 1125.248,
+          "audioSeconds": 4.094166666666666,
+          "rtf": 0.2748417667412986
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 15,
+          "firstAudioMs": 816.8278,
+          "synthMs": 816.8476,
+          "audioSeconds": 3.060625,
+          "rtf": 0.26688914845823974
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 16,
+          "firstAudioMs": 1287.3191,
+          "synthMs": 1287.4157,
+          "audioSeconds": 3.910416666666667,
+          "rtf": 0.3292272434736281
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 17,
+          "firstAudioMs": 1059.89,
+          "synthMs": 1059.9113,
+          "audioSeconds": 4.0325,
+          "rtf": 0.26284223186608807
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 18,
+          "firstAudioMs": 1967.0387,
+          "synthMs": 1967.0623,
+          "audioSeconds": 8.026375,
+          "rtf": 0.24507480649732913
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 19,
+          "firstAudioMs": 1598.5643,
+          "synthMs": 1598.5857,
+          "audioSeconds": 6.72025,
+          "rtf": 0.2378759272348499
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 20,
+          "firstAudioMs": 1716.3682,
+          "synthMs": 1716.3905,
+          "audioSeconds": 7.197208333333333,
+          "rtf": 0.23848003566197543
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 1,
+          "firstAudioMs": 1038.7396,
+          "synthMs": 1038.7679,
+          "audioSeconds": 4.4679166666666665,
+          "rtf": 0.2324949137368274
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 2,
+          "firstAudioMs": 1086.4911,
+          "synthMs": 1086.5093,
+          "audioSeconds": 4.651583333333333,
+          "rtf": 0.233578380121464
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 3,
+          "firstAudioMs": 1125.9376,
+          "synthMs": 1125.9674,
+          "audioSeconds": 4.5665,
+          "rtf": 0.24657120332858865
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 4,
+          "firstAudioMs": 2609.8122,
+          "synthMs": 2609.8427,
+          "audioSeconds": 7.971666666666667,
+          "rtf": 0.32738984319464776
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 5,
+          "firstAudioMs": 2042.6567,
+          "synthMs": 2042.6796,
+          "audioSeconds": 7.022291666666667,
+          "rtf": 0.29088504108938795
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 6,
+          "firstAudioMs": 1831.2299,
+          "synthMs": 1831.2508,
+          "audioSeconds": 6.178875,
+          "rtf": 0.29637285104489086
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 7,
+          "firstAudioMs": 1777.9392,
+          "synthMs": 1777.9631,
+          "audioSeconds": 7.5557083333333335,
+          "rtf": 0.23531388740301207
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 8,
+          "firstAudioMs": 1154.0036,
+          "synthMs": 1154.0331,
+          "audioSeconds": 4.00875,
+          "rtf": 0.2878785406922358
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 9,
+          "firstAudioMs": 1157.8821,
+          "synthMs": 1157.8998,
+          "audioSeconds": 3.73775,
+          "rtf": 0.30978524513410466
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 10,
+          "firstAudioMs": 1157.7668,
+          "synthMs": 1157.9532,
+          "audioSeconds": 4.209041666666667,
+          "rtf": 0.27511089024619617
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 11,
+          "firstAudioMs": 835.9237,
+          "synthMs": 835.9416,
+          "audioSeconds": 3.1242083333333333,
+          "rtf": 0.26756909617103
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 12,
+          "firstAudioMs": 1642.6538,
+          "synthMs": 1642.6882,
+          "audioSeconds": 6.144666666666667,
+          "rtf": 0.2673356081154389
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 13,
+          "firstAudioMs": 859.5122,
+          "synthMs": 859.5267,
+          "audioSeconds": 3.1,
+          "rtf": 0.27726667741935485
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 14,
+          "firstAudioMs": 1056.2395,
+          "synthMs": 1056.2596,
+          "audioSeconds": 3.8125416666666667,
+          "rtf": 0.2770486705063333
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 15,
+          "firstAudioMs": 1043.6935,
+          "synthMs": 1043.7118,
+          "audioSeconds": 2.9702083333333333,
+          "rtf": 0.35139346566598867
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 16,
+          "firstAudioMs": 1091.9173,
+          "synthMs": 1091.936,
+          "audioSeconds": 3.9672916666666667,
+          "rtf": 0.27523461639447566
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 17,
+          "firstAudioMs": 1090.6265,
+          "synthMs": 1090.6474,
+          "audioSeconds": 3.849125,
+          "rtf": 0.28334943656025724
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 18,
+          "firstAudioMs": 1691.5029,
+          "synthMs": 1691.5429,
+          "audioSeconds": 7.397291666666667,
+          "rtf": 0.22867056974681046
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 19,
+          "firstAudioMs": 1627.0365,
+          "synthMs": 1627.0677,
+          "audioSeconds": 7.400333333333333,
+          "rtf": 0.21986410972478718
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 20,
+          "firstAudioMs": 1604.7702,
+          "synthMs": 1604.7942,
+          "audioSeconds": 7.385458333333333,
+          "rtf": 0.21729107762438576
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 0.8043444,
+          "p50FirstAudioMs": 1325.293,
+          "p90FirstAudioMs": 1469.5422,
+          "p50SynthMs": 1325.3174,
+          "p90SynthMs": 1469.5715,
+          "medianRtf": 0.3953024656989461,
+          "outcome": "Marginal",
+          "verdict": "marginal",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 1.3588704,
+          "p50FirstAudioMs": 970.857,
+          "p90FirstAudioMs": 1455.8533,
+          "p50SynthMs": 970.8826,
+          "p90SynthMs": 1455.8747,
+          "medianRtf": 0.2996782467783008,
+          "outcome": "Marginal",
+          "verdict": "marginal",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 0.998236,
+          "p50FirstAudioMs": 961.1239,
+          "p90FirstAudioMs": 1155.4452,
+          "p50SynthMs": 961.1405,
+          "p90SynthMs": 1155.472,
+          "medianRtf": 0.2866794094253331,
+          "outcome": "Marginal",
+          "verdict": "marginal",
+          "source": null
+        }
+      ],
+      "verdict": "Marginal"
+    },
+    {
+      "id": "kitten-mini-0.8",
+      "name": "Kitten mini 0.8",
+      "runtime": "Kitten",
+      "license": "Apache-2.0 (LICENSE in the archive)",
+      "notRun": null,
+      "downloadBytes": 67547594,
+      "diskBytes": 99550582,
+      "threads": 4,
+      "loadSeconds": 0.5559284,
+      "warmupMs": 975.7876,
+      "sampleRate": 24000,
+      "voices": [
+        "expr-voice-2-m",
+        "expr-voice-3-m",
+        "expr-voice-4-m"
+      ],
+      "notes": null,
+      "clips": [
+        {
+          "voice": "expr-voice-2-m",
+          "line": 1,
+          "firstAudioMs": 1555.4189,
+          "synthMs": 1555.4444,
+          "audioSeconds": 3.5985416666666667,
+          "rtf": 0.4322429873212528
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 2,
+          "firstAudioMs": 1851.3618,
+          "synthMs": 1851.3845,
+          "audioSeconds": 3.742541666666667,
+          "rtf": 0.49468640963694455
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 3,
+          "firstAudioMs": 1394.0942,
+          "synthMs": 1394.1224,
+          "audioSeconds": 2.767333333333333,
+          "rtf": 0.5037782702963142
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 4,
+          "firstAudioMs": 3350.8992,
+          "synthMs": 3350.9252,
+          "audioSeconds": 7.1905833333333335,
+          "rtf": 0.4660157659902419
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 5,
+          "firstAudioMs": 2688.4942,
+          "synthMs": 2688.5177,
+          "audioSeconds": 6.044958333333334,
+          "rtf": 0.4447537190082644
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 6,
+          "firstAudioMs": 2221.3642,
+          "synthMs": 2221.3856,
+          "audioSeconds": 5.459958333333334,
+          "rtf": 0.40685028426651604
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 7,
+          "firstAudioMs": 2604.6365,
+          "synthMs": 2604.6622,
+          "audioSeconds": 6.271333333333334,
+          "rtf": 0.41532829807590094
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 8,
+          "firstAudioMs": 1381.8359,
+          "synthMs": 1381.854,
+          "audioSeconds": 2.900541666666667,
+          "rtf": 0.47641239423670867
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 9,
+          "firstAudioMs": 1577.1703,
+          "synthMs": 1577.1964,
+          "audioSeconds": 3.3417916666666665,
+          "rtf": 0.4719613181551813
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 10,
+          "firstAudioMs": 1768.0241,
+          "synthMs": 1768.0458,
+          "audioSeconds": 3.859583333333333,
+          "rtf": 0.4580924020295801
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 11,
+          "firstAudioMs": 1375.0465,
+          "synthMs": 1375.0628,
+          "audioSeconds": 2.7030833333333333,
+          "rtf": 0.5087015938588649
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 12,
+          "firstAudioMs": 2179.6475,
+          "synthMs": 2179.6728,
+          "audioSeconds": 4.843333333333334,
+          "rtf": 0.4500356779077769
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 13,
+          "firstAudioMs": 1263.494,
+          "synthMs": 1263.5154,
+          "audioSeconds": 2.7555833333333335,
+          "rtf": 0.4585291922460459
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 14,
+          "firstAudioMs": 1425.7136,
+          "synthMs": 1425.7397,
+          "audioSeconds": 3.3144583333333335,
+          "rtf": 0.4301576778508303
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 15,
+          "firstAudioMs": 1191.3889,
+          "synthMs": 1191.4052,
+          "audioSeconds": 2.5805833333333332,
+          "rtf": 0.46168057609713564
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 16,
+          "firstAudioMs": 1450.4366,
+          "synthMs": 1450.4652,
+          "audioSeconds": 3.12625,
+          "rtf": 0.46396327868852455
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 17,
+          "firstAudioMs": 1536.9809,
+          "synthMs": 1536.9989,
+          "audioSeconds": 3.45275,
+          "rtf": 0.44515209615523854
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 18,
+          "firstAudioMs": 2755.7184,
+          "synthMs": 2755.7413,
+          "audioSeconds": 6.558833333333333,
+          "rtf": 0.4201572383299875
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 19,
+          "firstAudioMs": 2619.4607,
+          "synthMs": 2619.4842,
+          "audioSeconds": 5.834666666666666,
+          "rtf": 0.44895181672760515
+        },
+        {
+          "voice": "expr-voice-2-m",
+          "line": 20,
+          "firstAudioMs": 2606.8977,
+          "synthMs": 2606.9222,
+          "audioSeconds": 6.452625,
+          "rtf": 0.40400956199996124
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 1,
+          "firstAudioMs": 1699.1142,
+          "synthMs": 1699.1327,
+          "audioSeconds": 3.881625,
+          "rtf": 0.43773746819952986
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 2,
+          "firstAudioMs": 1798.9412,
+          "synthMs": 1798.9607,
+          "audioSeconds": 4.093541666666667,
+          "rtf": 0.43946314621609245
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 3,
+          "firstAudioMs": 1576.9062,
+          "synthMs": 1576.9213,
+          "audioSeconds": 3.1006666666666667,
+          "rtf": 0.508574919372178
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 4,
+          "firstAudioMs": 2816.8544,
+          "synthMs": 2816.8786,
+          "audioSeconds": 7.39475,
+          "rtf": 0.3809295243246898
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 5,
+          "firstAudioMs": 2602.2252,
+          "synthMs": 2602.2571,
+          "audioSeconds": 6.693666666666667,
+          "rtf": 0.3887640705144165
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 6,
+          "firstAudioMs": 2115.6109,
+          "synthMs": 2115.6322,
+          "audioSeconds": 5.316583333333333,
+          "rtf": 0.3979307888838383
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 7,
+          "firstAudioMs": 2553.5809,
+          "synthMs": 2553.604,
+          "audioSeconds": 6.634416666666667,
+          "rtf": 0.38490256616381746
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 8,
+          "firstAudioMs": 1393.974,
+          "synthMs": 1393.9918,
+          "audioSeconds": 3.2195416666666667,
+          "rtf": 0.43297833801395125
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 9,
+          "firstAudioMs": 1553.2928,
+          "synthMs": 1553.3394,
+          "audioSeconds": 3.433666666666667,
+          "rtf": 0.45238503057955537
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 10,
+          "firstAudioMs": 1826.1625,
+          "synthMs": 1826.1817,
+          "audioSeconds": 4.1545,
+          "rtf": 0.43956714406065717
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 11,
+          "firstAudioMs": 1402.8123,
+          "synthMs": 1402.8268,
+          "audioSeconds": 3.07025,
+          "rtf": 0.45690963276606145
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 12,
+          "firstAudioMs": 2153.591,
+          "synthMs": 2153.6181,
+          "audioSeconds": 5.31625,
+          "rtf": 0.40510098283564544
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 13,
+          "firstAudioMs": 1263.8797,
+          "synthMs": 1263.8985,
+          "audioSeconds": 2.861083333333333,
+          "rtf": 0.441755220924475
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 14,
+          "firstAudioMs": 1505.4694,
+          "synthMs": 1505.4924,
+          "audioSeconds": 3.5920833333333335,
+          "rtf": 0.41911399605614197
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 15,
+          "firstAudioMs": 1189.6806,
+          "synthMs": 1189.6954,
+          "audioSeconds": 2.7178333333333335,
+          "rtf": 0.4377367020298031
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 16,
+          "firstAudioMs": 1390.5965,
+          "synthMs": 1390.6115,
+          "audioSeconds": 3.4111666666666665,
+          "rtf": 0.40766448429178676
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 17,
+          "firstAudioMs": 1614.3037,
+          "synthMs": 1614.3295,
+          "audioSeconds": 3.847541666666667,
+          "rtf": 0.4195742736162701
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 18,
+          "firstAudioMs": 2548.2643,
+          "synthMs": 2548.286,
+          "audioSeconds": 6.6665,
+          "rtf": 0.3822524563114078
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 19,
+          "firstAudioMs": 2289.7997,
+          "synthMs": 2289.821,
+          "audioSeconds": 5.862375,
+          "rtf": 0.3905961321136911
+        },
+        {
+          "voice": "expr-voice-3-m",
+          "line": 20,
+          "firstAudioMs": 2504.2358,
+          "synthMs": 2504.2574,
+          "audioSeconds": 6.477666666666667,
+          "rtf": 0.3865986826532187
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 1,
+          "firstAudioMs": 1602.6521,
+          "synthMs": 1602.6682,
+          "audioSeconds": 3.781,
+          "rtf": 0.42387416027505953
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 2,
+          "firstAudioMs": 1646.2458,
+          "synthMs": 1646.2612,
+          "audioSeconds": 3.92775,
+          "rtf": 0.41913594296989365
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 3,
+          "firstAudioMs": 1476.4465,
+          "synthMs": 1476.4776,
+          "audioSeconds": 3.250375,
+          "rtf": 0.45424838672460865
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 4,
+          "firstAudioMs": 2657.9802,
+          "synthMs": 2658.0602,
+          "audioSeconds": 6.969916666666666,
+          "rtf": 0.38136183359437587
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 5,
+          "firstAudioMs": 2320.6478,
+          "synthMs": 2320.6685,
+          "audioSeconds": 6.002291666666666,
+          "rtf": 0.3866304119954184
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 6,
+          "firstAudioMs": 2113.8988,
+          "synthMs": 2113.9185,
+          "audioSeconds": 5.316708333333334,
+          "rtf": 0.3975991097248454
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 7,
+          "firstAudioMs": 2404.2372,
+          "synthMs": 2404.2797,
+          "audioSeconds": 6.110916666666666,
+          "rtf": 0.39344010582154887
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 8,
+          "firstAudioMs": 1462.1162,
+          "synthMs": 1462.1313,
+          "audioSeconds": 3.4455833333333334,
+          "rtf": 0.4243494231745955
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 9,
+          "firstAudioMs": 1415.7894,
+          "synthMs": 1415.8031,
+          "audioSeconds": 3.2788333333333335,
+          "rtf": 0.43180087429471864
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 10,
+          "firstAudioMs": 1589.3869,
+          "synthMs": 1589.4012,
+          "audioSeconds": 3.79475,
+          "rtf": 0.41884213716318597
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 11,
+          "firstAudioMs": 1237.438,
+          "synthMs": 1237.4546,
+          "audioSeconds": 2.7688333333333333,
+          "rtf": 0.44692274724613257
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 12,
+          "firstAudioMs": 2090.0483,
+          "synthMs": 2090.0734,
+          "audioSeconds": 5.2472916666666665,
+          "rtf": 0.3983146988525827
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 13,
+          "firstAudioMs": 1221.635,
+          "synthMs": 1221.6486,
+          "audioSeconds": 2.81875,
+          "rtf": 0.43340083370288246
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 14,
+          "firstAudioMs": 1428.391,
+          "synthMs": 1428.4049,
+          "audioSeconds": 3.3165416666666667,
+          "rtf": 0.4306910762968454
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 15,
+          "firstAudioMs": 1192.0849,
+          "synthMs": 1192.1412,
+          "audioSeconds": 2.613875,
+          "rtf": 0.45608194730046386
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 16,
+          "firstAudioMs": 1379.8444,
+          "synthMs": 1379.8608,
+          "audioSeconds": 3.1261666666666668,
+          "rtf": 0.4413906701498107
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 17,
+          "firstAudioMs": 1493.2744,
+          "synthMs": 1493.2902,
+          "audioSeconds": 3.428375,
+          "rtf": 0.43556792941262257
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 18,
+          "firstAudioMs": 2488.3911,
+          "synthMs": 2488.4112,
+          "audioSeconds": 6.256708333333333,
+          "rtf": 0.3977189070397773
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 19,
+          "firstAudioMs": 2385.8011,
+          "synthMs": 2385.834,
+          "audioSeconds": 6.02975,
+          "rtf": 0.39567710104067333
+        },
+        {
+          "voice": "expr-voice-4-m",
+          "line": 20,
+          "firstAudioMs": 2625.8973,
+          "synthMs": 2625.9213,
+          "audioSeconds": 6.277666666666667,
+          "rtf": 0.41829575213720593
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 0.74133,
+          "p50FirstAudioMs": 1458.2997,
+          "p90FirstAudioMs": 1554.6738,
+          "p50SynthMs": 1458.3163,
+          "p90SynthMs": 1554.6916,
+          "medianRtf": 0.5027593363499245,
+          "outcome": "ScreenedOut",
+          "verdict": "screened out: p90 first audio 1555 ms",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 0.5648203,
+          "p50FirstAudioMs": 1278.4298,
+          "p90FirstAudioMs": 1472.3674,
+          "p50SynthMs": 1278.4486,
+          "p90SynthMs": 1472.4043,
+          "medianRtf": 0.44447145714106034,
+          "outcome": "Marginal",
+          "verdict": "marginal",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 0.5593248,
+          "p50FirstAudioMs": 1422.5832,
+          "p90FirstAudioMs": 1624.0844,
+          "p50SynthMs": 1422.6028,
+          "p90SynthMs": 1624.1025,
+          "medianRtf": 0.4904610805453004,
+          "outcome": "ScreenedOut",
+          "verdict": "screened out: p90 first audio 1624 ms",
+          "source": null
+        }
+      ],
+      "verdict": "Marginal"
+    },
+    {
+      "id": "matcha-ljspeech",
+      "name": "Matcha (icefall LJSpeech) \u002B Vocos 22 kHz",
+      "runtime": "Matcha",
+      "license": "No licence file in the archive (LJSpeech is public domain)",
+      "notRun": null,
+      "downloadBytes": 130597582,
+      "diskBytes": 146034137,
+      "threads": 2,
+      "loadSeconds": 1.3768705,
+      "warmupMs": 116.4871,
+      "sampleRate": 22050,
+      "voices": [
+        "ljspeech"
+      ],
+      "notes": null,
+      "clips": [
+        {
+          "voice": "ljspeech",
+          "line": 1,
+          "firstAudioMs": 162.6503,
+          "synthMs": 162.6751,
+          "audioSeconds": 4.457913832199546,
+          "rtf": 0.036491306499689714
+        },
+        {
+          "voice": "ljspeech",
+          "line": 2,
+          "firstAudioMs": 161.8668,
+          "synthMs": 161.89,
+          "audioSeconds": 4.379229024943311,
+          "rtf": 0.03696769433110333
+        },
+        {
+          "voice": "ljspeech",
+          "line": 3,
+          "firstAudioMs": 125.2215,
+          "synthMs": 125.2667,
+          "audioSeconds": 3.4424489795918367,
+          "rtf": 0.036388832700972255
+        },
+        {
+          "voice": "ljspeech",
+          "line": 4,
+          "firstAudioMs": 310.9697,
+          "synthMs": 311.0018,
+          "audioSeconds": 8.187482993197278,
+          "rtf": 0.0379850315730001
+        },
+        {
+          "voice": "ljspeech",
+          "line": 5,
+          "firstAudioMs": 287.4565,
+          "synthMs": 287.4839,
+          "audioSeconds": 7.330657596371882,
+          "rtf": 0.039216659108765727
+        },
+        {
+          "voice": "ljspeech",
+          "line": 6,
+          "firstAudioMs": 246.1083,
+          "synthMs": 246.131,
+          "audioSeconds": 6.097233560090703,
+          "rtf": 0.040367651587277974
+        },
+        {
+          "voice": "ljspeech",
+          "line": 7,
+          "firstAudioMs": 268.7467,
+          "synthMs": 268.7758,
+          "audioSeconds": 7.072834467120181,
+          "rtf": 0.0380011438482649
+        },
+        {
+          "voice": "ljspeech",
+          "line": 8,
+          "firstAudioMs": 126.3836,
+          "synthMs": 126.4025,
+          "audioSeconds": 3.5294331065759637,
+          "rtf": 0.03581382510536595
+        },
+        {
+          "voice": "ljspeech",
+          "line": 9,
+          "firstAudioMs": 135.0365,
+          "synthMs": 135.0603,
+          "audioSeconds": 3.4825850340136055,
+          "rtf": 0.03878162304176271
+        },
+        {
+          "voice": "ljspeech",
+          "line": 10,
+          "firstAudioMs": 167.1305,
+          "synthMs": 167.1486,
+          "audioSeconds": 4.589614512471655,
+          "rtf": 0.036418875603996
+        },
+        {
+          "voice": "ljspeech",
+          "line": 11,
+          "firstAudioMs": 127.4206,
+          "synthMs": 127.4365,
+          "audioSeconds": 3.2258956916099772,
+          "rtf": 0.03950422213943288
+        },
+        {
+          "voice": "ljspeech",
+          "line": 12,
+          "firstAudioMs": 224.5655,
+          "synthMs": 224.5881,
+          "audioSeconds": 6.159909297052154,
+          "rtf": 0.03645964399304993
+        },
+        {
+          "voice": "ljspeech",
+          "line": 13,
+          "firstAudioMs": 110.4516,
+          "synthMs": 110.4703,
+          "audioSeconds": 3.006984126984127,
+          "rtf": 0.036737905933277026
+        },
+        {
+          "voice": "ljspeech",
+          "line": 14,
+          "firstAudioMs": 152.0351,
+          "synthMs": 152.0536,
+          "audioSeconds": 4.237641723356009,
+          "rtf": 0.035881655393835615
+        },
+        {
+          "voice": "ljspeech",
+          "line": 15,
+          "firstAudioMs": 107.0131,
+          "synthMs": 107.0287,
+          "audioSeconds": 2.8560544217687074,
+          "rtf": 0.03747432093178354
+        },
+        {
+          "voice": "ljspeech",
+          "line": 16,
+          "firstAudioMs": 131.0556,
+          "synthMs": 131.0831,
+          "audioSeconds": 3.466666666666667,
+          "rtf": 0.03781243269230769
+        },
+        {
+          "voice": "ljspeech",
+          "line": 17,
+          "firstAudioMs": 152.1091,
+          "synthMs": 152.1261,
+          "audioSeconds": 4.048798185941043,
+          "rtf": 0.037573149614678086
+        },
+        {
+          "voice": "ljspeech",
+          "line": 18,
+          "firstAudioMs": 292.0374,
+          "synthMs": 292.0628,
+          "audioSeconds": 7.768888888888889,
+          "rtf": 0.03759389588100686
+        },
+        {
+          "voice": "ljspeech",
+          "line": 19,
+          "firstAudioMs": 251.8621,
+          "synthMs": 251.8911,
+          "audioSeconds": 6.7661224489795915,
+          "rtf": 0.03722827984556916
+        },
+        {
+          "voice": "ljspeech",
+          "line": 20,
+          "firstAudioMs": 251.2131,
+          "synthMs": 251.2378,
+          "audioSeconds": 6.889160997732426,
+          "rtf": 0.03646856272958277
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 1.7088893,
+          "p50FirstAudioMs": 119.1653,
+          "p90FirstAudioMs": 126.1071,
+          "p50SynthMs": 119.1884,
+          "p90SynthMs": 126.1326,
+          "medianRtf": 0.0297648098244863,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 1.3704397,
+          "p50FirstAudioMs": 99.3015,
+          "p90FirstAudioMs": 105.3784,
+          "p50SynthMs": 99.3226,
+          "p90SynthMs": 105.402,
+          "medianRtf": 0.0278825151048454,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 1.3641316,
+          "p50FirstAudioMs": 129.4478,
+          "p90FirstAudioMs": 150.2257,
+          "p50SynthMs": 129.4716,
+          "p90SynthMs": 150.2478,
+          "medianRtf": 0.03564682944849918,
+          "outcome": "Pass",
+          "verdict": "pass",
+          "source": null
+        }
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "id": "pocket",
+      "name": "Pocket TTS fp32",
+      "runtime": "Pocket",
+      "license": "CC BY 4.0 (LICENSE in the archive)",
+      "notRun": "not run: exit code -532462766, D:\\a\\sherpa-onnx\\sherpa-onnx\\sherpa-onnx\\csrc\\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.",
+      "downloadBytes": 168148625,
+      "diskBytes": 477536824,
+      "threads": null,
+      "loadSeconds": null,
+      "warmupMs": null,
+      "sampleRate": null,
+      "voices": [
+        "clone-speaker-10",
+        "clone-speaker-300",
+        "clone-speaker-600"
+      ],
+      "notes": null,
+      "clips": [],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": null,
+          "p50FirstAudioMs": null,
+          "p90FirstAudioMs": null,
+          "p50SynthMs": null,
+          "p90SynthMs": null,
+          "medianRtf": null,
+          "outcome": "NotRun",
+          "verdict": "not run: exit code -532462766, D:\\a\\sherpa-onnx\\sherpa-onnx\\sherpa-onnx\\csrc\\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.",
+          "source": null
+        }
+      ],
+      "verdict": "NotRun"
+    },
+    {
+      "id": "pocket-int8",
+      "name": "Pocket TTS int8",
+      "runtime": "Pocket",
+      "license": "CC BY 4.0 (LICENSE in the archive)",
+      "notRun": "not run: exit code -532462766, D:\\a\\sherpa-onnx\\sherpa-onnx\\sherpa-onnx\\csrc\\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.",
+      "downloadBytes": 98336520,
+      "diskBytes": 203216103,
+      "threads": null,
+      "loadSeconds": null,
+      "warmupMs": null,
+      "sampleRate": null,
+      "voices": [
+        "clone-speaker-10",
+        "clone-speaker-300",
+        "clone-speaker-600"
+      ],
+      "notes": null,
+      "clips": [],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": null,
+          "p50FirstAudioMs": null,
+          "p90FirstAudioMs": null,
+          "p50SynthMs": null,
+          "p90SynthMs": null,
+          "medianRtf": null,
+          "outcome": "NotRun",
+          "verdict": "not run: exit code -532462766, D:\\a\\sherpa-onnx\\sherpa-onnx\\sherpa-onnx\\csrc\\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.",
+          "source": null
+        }
+      ],
+      "verdict": "NotRun"
+    },
+    {
+      "id": "zipvoice-int8",
+      "name": "ZipVoice distill int8 (zh-en Emilia) \u002B Vocos 24 kHz",
+      "runtime": "ZipVoice",
+      "license": "No licence file in the archive (trained on Emilia, CC BY-NC 4.0)",
+      "notRun": null,
+      "downloadBytes": 163320194,
+      "diskBytes": 205150124,
+      "threads": 4,
+      "loadSeconds": 1.2283762,
+      "warmupMs": 1064.0103,
+      "sampleRate": 24000,
+      "voices": [
+        "clone-speaker-10",
+        "clone-speaker-300",
+        "clone-speaker-600"
+      ],
+      "notes": "Voices cloned from Piper LibriTTS-R fp32 references (speakers 10, 300, 600) reading one fixed sentence.",
+      "clips": [
+        {
+          "voice": "clone-speaker-10",
+          "line": 1,
+          "firstAudioMs": 1452.3051,
+          "synthMs": 1452.4301,
+          "audioSeconds": 2.6453333333333333,
+          "rtf": 0.5490537172379032
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 2,
+          "firstAudioMs": 1384.1636,
+          "synthMs": 1384.3176,
+          "audioSeconds": 2.965333333333333,
+          "rtf": 0.4668337230215828
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 3,
+          "firstAudioMs": 1248.6029,
+          "synthMs": 1248.6915,
+          "audioSeconds": 1.9733333333333334,
+          "rtf": 0.6327828547297296
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 4,
+          "firstAudioMs": 1842.2606,
+          "synthMs": 1842.4983,
+          "audioSeconds": 5.8773333333333335,
+          "rtf": 0.31349222436479124
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 5,
+          "firstAudioMs": 1708.6306,
+          "synthMs": 1708.8526,
+          "audioSeconds": 4.981333333333334,
+          "rtf": 0.3430512446466809
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 6,
+          "firstAudioMs": 1479.4636,
+          "synthMs": 1479.7271,
+          "audioSeconds": 4.1706666666666665,
+          "rtf": 0.35479390185422
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 7,
+          "firstAudioMs": 1579.717,
+          "synthMs": 1579.9737,
+          "audioSeconds": 4.661333333333333,
+          "rtf": 0.3389531679061785
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 8,
+          "firstAudioMs": 1174.4332,
+          "synthMs": 1174.5443,
+          "audioSeconds": 1.9733333333333334,
+          "rtf": 0.5952082601351351
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 9,
+          "firstAudioMs": 1123.2595,
+          "synthMs": 1123.3846,
+          "audioSeconds": 2.1546666666666665,
+          "rtf": 0.5213728032178219
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 10,
+          "firstAudioMs": 1263.7171,
+          "synthMs": 1263.8477,
+          "audioSeconds": 2.784,
+          "rtf": 0.4539682830459771
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 11,
+          "firstAudioMs": 1144.8315,
+          "synthMs": 1145.137,
+          "audioSeconds": 1.7493333333333334,
+          "rtf": 0.6546133765243901
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 12,
+          "firstAudioMs": 1566.8158,
+          "synthMs": 1567.0015,
+          "audioSeconds": 4.042666666666666,
+          "rtf": 0.387615806398417
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 13,
+          "firstAudioMs": 1068.0611,
+          "synthMs": 1068.1564,
+          "audioSeconds": 1.5253333333333334,
+          "rtf": 0.7002773601398602
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 14,
+          "firstAudioMs": 1403.2343,
+          "synthMs": 1403.4052,
+          "audioSeconds": 2.688,
+          "rtf": 0.5221001488095237
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 15,
+          "firstAudioMs": 1215.4825,
+          "synthMs": 1215.5856,
+          "audioSeconds": 1.568,
+          "rtf": 0.7752459183673469
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 16,
+          "firstAudioMs": 1283.8393,
+          "synthMs": 1283.9629,
+          "audioSeconds": 2.1973333333333334,
+          "rtf": 0.584327776092233
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 17,
+          "firstAudioMs": 1292.754,
+          "synthMs": 1292.8803,
+          "audioSeconds": 2.517333333333333,
+          "rtf": 0.5135912208686441
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 18,
+          "firstAudioMs": 1905.0078,
+          "synthMs": 1905.2197,
+          "audioSeconds": 5.429333333333333,
+          "rtf": 0.35091227283889986
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 19,
+          "firstAudioMs": 1825.6702,
+          "synthMs": 1825.8949,
+          "audioSeconds": 4.394666666666667,
+          "rtf": 0.41547972542475725
+        },
+        {
+          "voice": "clone-speaker-10",
+          "line": 20,
+          "firstAudioMs": 1892.4698,
+          "synthMs": 1892.7201,
+          "audioSeconds": 4.714666666666667,
+          "rtf": 0.4014536411199095
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 1,
+          "firstAudioMs": 1350.036,
+          "synthMs": 1350.183,
+          "audioSeconds": 2.6026666666666665,
+          "rtf": 0.5187690829918032
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 2,
+          "firstAudioMs": 1354.4727,
+          "synthMs": 1354.5983,
+          "audioSeconds": 2.9013333333333335,
+          "rtf": 0.4668882008272059
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 3,
+          "firstAudioMs": 1250.3389,
+          "synthMs": 1250.4543,
+          "audioSeconds": 1.9413333333333334,
+          "rtf": 0.6441213770604396
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 4,
+          "firstAudioMs": 2021.9899,
+          "synthMs": 2022.2557,
+          "audioSeconds": 5.770666666666667,
+          "rtf": 0.3504371014325323
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 5,
+          "firstAudioMs": 1701.4723,
+          "synthMs": 1701.6765,
+          "audioSeconds": 4.8853333333333335,
+          "rtf": 0.34832351937772926
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 6,
+          "firstAudioMs": 1670.1144,
+          "synthMs": 1670.3026,
+          "audioSeconds": 4.096,
+          "rtf": 0.407788720703125
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 7,
+          "firstAudioMs": 1857.4389,
+          "synthMs": 1857.6845,
+          "audioSeconds": 4.576,
+          "rtf": 0.40596252185314685
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 8,
+          "firstAudioMs": 1693.7765,
+          "synthMs": 1693.881,
+          "audioSeconds": 1.9413333333333334,
+          "rtf": 0.8725348557692308
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 9,
+          "firstAudioMs": 1349.5746,
+          "synthMs": 1349.7259,
+          "audioSeconds": 2.112,
+          "rtf": 0.6390747632575757
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 10,
+          "firstAudioMs": 1774.7686,
+          "synthMs": 1774.94,
+          "audioSeconds": 2.7306666666666666,
+          "rtf": 0.65000244140625
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 11,
+          "firstAudioMs": 1274.7983,
+          "synthMs": 1274.9024,
+          "audioSeconds": 1.7173333333333334,
+          "rtf": 0.7423732919254659
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 12,
+          "firstAudioMs": 1583.7313,
+          "synthMs": 1583.9274,
+          "audioSeconds": 3.968,
+          "rtf": 0.3991752520161291
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 13,
+          "firstAudioMs": 1209.0093,
+          "synthMs": 1209.0877,
+          "audioSeconds": 1.4933333333333334,
+          "rtf": 0.8096569419642856
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 14,
+          "firstAudioMs": 1457.5574,
+          "synthMs": 1457.7022,
+          "audioSeconds": 2.6453333333333333,
+          "rtf": 0.5510466985887097
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 15,
+          "firstAudioMs": 1209.5833,
+          "synthMs": 1209.6874,
+          "audioSeconds": 1.536,
+          "rtf": 0.7875569010416666
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 16,
+          "firstAudioMs": 1305.224,
+          "synthMs": 1305.3242,
+          "audioSeconds": 2.1546666666666665,
+          "rtf": 0.6058125928217822
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 17,
+          "firstAudioMs": 1261.0397,
+          "synthMs": 1261.1871,
+          "audioSeconds": 2.464,
+          "rtf": 0.511845413961039
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 18,
+          "firstAudioMs": 1870.4745,
+          "synthMs": 1870.7684,
+          "audioSeconds": 5.333333333333333,
+          "rtf": 0.35076907500000004
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 19,
+          "firstAudioMs": 1606.228,
+          "synthMs": 1606.3988,
+          "audioSeconds": 4.32,
+          "rtf": 0.37185157407407404
+        },
+        {
+          "voice": "clone-speaker-300",
+          "line": 20,
+          "firstAudioMs": 1625.9367,
+          "synthMs": 1626.1805,
+          "audioSeconds": 4.629333333333333,
+          "rtf": 0.3512774697580645
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 1,
+          "firstAudioMs": 1239.6464,
+          "synthMs": 1239.7981,
+          "audioSeconds": 2.7093333333333334,
+          "rtf": 0.45760264517716537
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 2,
+          "firstAudioMs": 1340.9233,
+          "synthMs": 1341.0505,
+          "audioSeconds": 3.029333333333333,
+          "rtf": 0.4426883252640846
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 3,
+          "firstAudioMs": 1216.9019,
+          "synthMs": 1216.9819,
+          "audioSeconds": 2.016,
+          "rtf": 0.6036616567460317
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 4,
+          "firstAudioMs": 1839.585,
+          "synthMs": 1839.8252,
+          "audioSeconds": 6.005333333333334,
+          "rtf": 0.30636520870337475
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 5,
+          "firstAudioMs": 1609.559,
+          "synthMs": 1609.7606,
+          "audioSeconds": 5.088,
+          "rtf": 0.3163837657232704
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 6,
+          "firstAudioMs": 1467.5121,
+          "synthMs": 1467.6985,
+          "audioSeconds": 4.266666666666667,
+          "rtf": 0.3439918359375
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 7,
+          "firstAudioMs": 1618.0823,
+          "synthMs": 1618.2903,
+          "audioSeconds": 4.768,
+          "rtf": 0.33940652265100674
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 8,
+          "firstAudioMs": 1150.103,
+          "synthMs": 1150.2175,
+          "audioSeconds": 2.016,
+          "rtf": 0.5705443948412697
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 9,
+          "firstAudioMs": 1197.8343,
+          "synthMs": 1197.9699,
+          "audioSeconds": 2.1973333333333334,
+          "rtf": 0.5451926122572817
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 10,
+          "firstAudioMs": 1390.8777,
+          "synthMs": 1391.0327,
+          "audioSeconds": 2.8373333333333335,
+          "rtf": 0.490260585056391
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 11,
+          "firstAudioMs": 1207.6601,
+          "synthMs": 1207.752,
+          "audioSeconds": 1.792,
+          "rtf": 0.67396875
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 12,
+          "firstAudioMs": 1469.2364,
+          "synthMs": 1469.4238,
+          "audioSeconds": 4.128,
+          "rtf": 0.35596506782945736
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 13,
+          "firstAudioMs": 1071.5855,
+          "synthMs": 1071.6512,
+          "audioSeconds": 1.5573333333333332,
+          "rtf": 0.688132191780822
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 14,
+          "firstAudioMs": 1239.9538,
+          "synthMs": 1240.2009,
+          "audioSeconds": 2.752,
+          "rtf": 0.45065439680232566
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 15,
+          "firstAudioMs": 1118.9149,
+          "synthMs": 1118.9926,
+          "audioSeconds": 1.6,
+          "rtf": 0.699370375
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 16,
+          "firstAudioMs": 1169.5406,
+          "synthMs": 1169.6254,
+          "audioSeconds": 2.2506666666666666,
+          "rtf": 0.5196795319905213
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 17,
+          "firstAudioMs": 1217.893,
+          "synthMs": 1218.0089,
+          "audioSeconds": 2.570666666666667,
+          "rtf": 0.4738105160788382
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 18,
+          "firstAudioMs": 1869.2808,
+          "synthMs": 1869.5408,
+          "audioSeconds": 5.546666666666667,
+          "rtf": 0.3370566346153846
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 19,
+          "firstAudioMs": 1690.5254,
+          "synthMs": 1690.7078,
+          "audioSeconds": 4.490666666666667,
+          "rtf": 0.3764937203087886
+        },
+        {
+          "voice": "clone-speaker-600",
+          "line": 20,
+          "firstAudioMs": 1715.5045,
+          "synthMs": 1715.774,
+          "audioSeconds": 4.810666666666667,
+          "rtf": 0.3566603381374722
+        }
+      ],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 1.5052223,
+          "p50FirstAudioMs": 1094.3497,
+          "p90FirstAudioMs": 1149.4347,
+          "p50SynthMs": 1094.452,
+          "p90SynthMs": 1149.591,
+          "medianRtf": 0.5253254391891892,
+          "outcome": "Marginal",
+          "verdict": "marginal",
+          "source": null
+        },
+        {
+          "threads": 4,
+          "loadSeconds": 1.2019251,
+          "p50FirstAudioMs": 1285.8378,
+          "p90FirstAudioMs": 1361.2308,
+          "p50SynthMs": 1285.9487,
+          "p90SynthMs": 1361.3722,
+          "medianRtf": 0.6115067736486487,
+          "outcome": "Marginal",
+          "verdict": "marginal",
+          "source": null
+        },
+        {
+          "threads": 2,
+          "loadSeconds": 1.1960914,
+          "p50FirstAudioMs": 1702.0986,
+          "p90FirstAudioMs": 1852.2267,
+          "p50SynthMs": 1702.1912,
+          "p90SynthMs": 1852.355,
+          "medianRtf": 0.8405252533783784,
+          "outcome": "ScreenedOut",
+          "verdict": "screened out: p90 first audio 1852 ms",
+          "source": null
+        }
+      ],
+      "verdict": "Marginal"
+    },
+    {
+      "id": "supertonic-3-int8",
+      "name": "Supertonic 3 int8",
+      "runtime": "Supertonic",
+      "license": "MIT (LICENSE in the archive)",
+      "notRun": "not run: exit code -532462766, D:\\a\\sherpa-onnx\\sherpa-onnx\\sherpa-onnx\\csrc\\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.",
+      "downloadBytes": 128774318,
+      "diskBytes": 145316356,
+      "threads": null,
+      "loadSeconds": null,
+      "warmupMs": null,
+      "sampleRate": null,
+      "voices": [
+        "sid-0",
+        "sid-1",
+        "sid-2"
+      ],
+      "notes": null,
+      "clips": [],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": null,
+          "p50FirstAudioMs": null,
+          "p90FirstAudioMs": null,
+          "p50SynthMs": null,
+          "p90SynthMs": null,
+          "medianRtf": null,
+          "outcome": "NotRun",
+          "verdict": "not run: exit code -532462766, D:\\a\\sherpa-onnx\\sherpa-onnx\\sherpa-onnx\\csrc\\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.",
+          "source": null
+        }
+      ],
+      "verdict": "NotRun"
+    },
+    {
+      "id": "kitten-tts-2",
+      "name": "Kitten-TTS 2 (kitten_tts_cpp, student_w4 decoder)",
+      "runtime": "KittenTts2",
+      "license": "Stellon Labs Community License",
+      "notRun": "screened out at every thread count tried (8: screened out: p90 first audio 61730 ms, RTF 12.16; 2: screened out: first audio not measured, RTF 3.02)",
+      "downloadBytes": null,
+      "diskBytes": null,
+      "threads": null,
+      "loadSeconds": null,
+      "warmupMs": null,
+      "sampleRate": null,
+      "voices": [
+        "Bruno",
+        "Jasper",
+        "Hugo"
+      ],
+      "notes": null,
+      "clips": [],
+      "screen": [
+        {
+          "threads": 8,
+          "loadSeconds": 4.99,
+          "p50FirstAudioMs": 55760,
+          "p90FirstAudioMs": 61730,
+          "p50SynthMs": 55760,
+          "p90SynthMs": 61750,
+          "medianRtf": 12.161214953271026,
+          "outcome": "ScreenedOut",
+          "verdict": "screened out: p90 first audio 61730 ms, RTF 12.16",
+          "source": "recorded, not re-run: the screen run\u0027s timings.json, voice Bruno"
+        },
+        {
+          "threads": 2,
+          "loadSeconds": null,
+          "p50FirstAudioMs": null,
+          "p90FirstAudioMs": null,
+          "p50SynthMs": 13840,
+          "p90SynthMs": 16030.000000000002,
+          "medianRtf": 3.0245283018867926,
+          "outcome": "ScreenedOut",
+          "verdict": "screened out: first audio not measured, RTF 3.02",
+          "source": "recorded, not re-run: the stopped full smoke run, voice Bruno, first audio not logged; its llama.cpp log on the first load showed load 200.5 s (including the first-run weight download), prompt eval 9.4 tok/s, eval 5.7 tok/s, 223 s total for one line"
+        }
+      ],
+      "verdict": "ScreenedOut"
+    }
+  ]
+}

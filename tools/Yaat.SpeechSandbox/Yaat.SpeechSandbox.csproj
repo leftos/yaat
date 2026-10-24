@@ -30,11 +30,12 @@
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
   </ItemGroup>
 
-  <!-- M10.0 spike → durable: TTS sandbox tab uses sherpa-onnx for Piper/Kokoro VITS synthesis,
+  <!-- The TTS sandbox tab and the tts-bench mode use sherpa-onnx for synthesis (Piper VITS, Matcha, Kitten),
        NAudio.Core for the radio-FX BiQuadFilter chain. PortAudioSharp2 is already pulled in
        transitively via Yaat.Client reference (used for STT capture today, output here). -->
   <ItemGroup>
-    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.40" />
+    <!-- 1.13.8 here (the client stays on 1.12.40): the tts-bench mode needs Kitten v0.8 support. -->
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
   </ItemGroup>
 

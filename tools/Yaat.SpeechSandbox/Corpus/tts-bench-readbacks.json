@@ -1,0 +1,24 @@
+{
+  "cases": [
+    { "name": "climb-11000", "callsign": "AAL1234", "commands": "CM 11000" },
+    { "name": "fly-heading-270", "callsign": "N512RK", "commands": "FH 270" },
+    { "name": "speed-210", "callsign": "UAL889", "commands": "SPD 210" },
+    { "name": "turn-descend-slow", "callsign": "SWA2117", "commands": "TL 240, DM 4000, SPD 190" },
+    { "name": "taxi-hold-short-28r", "callsign": "N738PJ", "commands": "TAXI B A1 HS 28R" },
+    { "name": "taxi-hold-short-19l", "callsign": "DAL455", "commands": "TAXI F C HS 19L" },
+    { "name": "taxi-cross-hold-short", "callsign": "JBU612", "commands": "TAXI A CROSS 28L HS 28R" },
+    { "name": "cleared-for-takeoff", "callsign": "SKW5432", "commands": "CTO" },
+    { "name": "cleared-to-land", "callsign": "N4417Q", "commands": "CLAND" },
+    { "name": "cleared-visual-28r", "callsign": "ASA319", "commands": "CVA 28R" },
+    { "name": "cleared-ils-28l", "callsign": "UAL1572", "commands": "CAPP ILS28L" },
+    { "name": "contact-norcal", "callsign": "FDX1408", "commands": "CT", "facility": "NorCal Approach", "frequency": 125.35 },
+    { "name": "frequency-change-approved", "callsign": "N81TW", "commands": "FCA" },
+    { "name": "squawk-4521", "callsign": "N2093M", "commands": "SQ 4521" },
+    { "name": "ident", "callsign": "EJA622", "commands": "IDENT" },
+    { "name": "direct-sunol", "callsign": "AAL2290", "commands": "DCT SUNOL" },
+    { "name": "hold-at-oak", "callsign": "N9246C", "commands": "HFIX OAK" },
+    { "name": "heading-climb-speed", "callsign": "DAL1938", "commands": "FH 300, CM 7000, SPD 230" },
+    { "name": "direct-descend", "callsign": "JBU1127", "commands": "DCT MOD, DM 9000" },
+    { "name": "squawk-climb", "callsign": "N716SF", "commands": "SQ 2671, CM 5000" }
+  ]
+}

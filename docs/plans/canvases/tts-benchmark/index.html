@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>YAAT-1136 TTS benchmark</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:1.5rem;background:#16181c;color:#e4e6ea}
+table{border-collapse:collapse;margin-bottom:1rem}th,td{border:1px solid #3a3e46;padding:.25rem .5rem;font-size:.85rem}
+th{background:#23262c;text-align:left}td.num{text-align:right}
+.line{border-top:1px solid #3a3e46;padding:.75rem 0}.text{font-size:1rem;margin-bottom:.5rem}.cmd{color:#9aa0aa;font-size:.8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.25rem .75rem}
+.clip{font-size:.75rem;color:#b8bcc4}.clip audio{width:100%;height:28px}
+#mode{position:sticky;top:0;background:#16181c;padding:.5rem 0;z-index:1}
+</style></head><body>
+<h1>Small TTS model benchmark (YAAT-1136)</h1>
+<p>Run 2026-10-24 09:00 UTC on AMD Ryzen 7 7800X3D 8-Core Processor (16 logical cores), speed 1.1, each model at the thread count in the table. Clips are peak-normalised to -1 dBFS for listening; timings use the raw synthesis.</p>
+<table><tr><th>Model</th><th>Download MB</th><th>Disk MB</th><th>Threads</th><th>Load s</th><th>First audio median ms</th><th>First audio p90 ms</th><th>Median RTF</th><th>Result</th></tr>
+<tr><td>piper-libritts-r-fp32</td><td class="num">78.2</td><td class="num">92.1</td><td class="num">2</td><td class="num">0.73</td><td class="num">143</td><td class="num">269</td><td>0.042</td><td>pass, 60 clips</td></tr>
+<tr><td>piper-libritts-r-fp16</td><td class="num">41.1</td><td class="num">54.9</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td>n/a</td><td>not run: exit code -532462766, Unhandled exception. System.Runtime.InteropServices.SEHException (0x80004005): External component has thrown an exception.</td></tr>
+<tr><td>piper-libritts-r-int8</td><td class="num">22.3</td><td class="num">38.6</td><td class="num">2</td><td class="num">1.51</td><td class="num">634</td><td class="num">1207</td><td>0.183</td><td>pass, 60 clips</td></tr>
+<tr><td>kitten-nano-0.8</td><td class="num">60.9</td><td class="num">74.4</td><td class="num">2</td><td class="num">0.80</td><td class="num">455</td><td class="num">687</td><td>0.097</td><td>pass, 60 clips</td></tr>
+<tr><td>kitten-micro-0.8</td><td class="num">42.4</td><td class="num">59.8</td><td class="num">2</td><td class="num">1.07</td><td class="num">1158</td><td class="num">2043</td><td>0.267</td><td>marginal, 60 clips</td></tr>
+<tr><td>kitten-mini-0.8</td><td class="num">64.4</td><td class="num">94.9</td><td class="num">4</td><td class="num">0.56</td><td class="num">1614</td><td class="num">2619</td><td>0.432</td><td>marginal, 60 clips</td></tr>
+<tr><td>matcha-ljspeech</td><td class="num">124.5</td><td class="num">139.3</td><td class="num">2</td><td class="num">1.38</td><td class="num">162</td><td class="num">287</td><td>0.037</td><td>pass, 20 clips</td></tr>
+<tr><td>pocket</td><td class="num">160.4</td><td class="num">455.4</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td>n/a</td><td>not run: exit code -532462766, D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx\csrc\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.</td></tr>
+<tr><td>pocket-int8</td><td class="num">93.8</td><td class="num">193.8</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td>n/a</td><td>not run: exit code -532462766, D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx\csrc\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.</td></tr>
+<tr><td>zipvoice-int8</td><td class="num">155.8</td><td class="num">195.6</td><td class="num">4</td><td class="num">1.23</td><td class="num">1384</td><td class="num">1842</td><td>0.467</td><td>marginal, 60 clips</td></tr>
+<tr><td>supertonic-3-int8</td><td class="num">122.8</td><td class="num">138.6</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td>n/a</td><td>not run: exit code -532462766, D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx\csrc\offline-tts-model-config.cc:Validate:66 Please provide exactly one tts model.</td></tr>
+<tr><td>kitten-tts-2</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td><td>n/a</td><td>screened out at every thread count tried (8: screened out: p90 first audio 61730 ms, RTF 12.16; 2: screened out: first audio not measured, RTF 3.02)</td></tr>
+</table>
+<div id="mode"><label><input type="radio" name="fx" value="dry" checked> Dry</label> <label><input type="radio" name="fx" value="fx"> Radio FX</label></div>
+<div class="line">
+<div class="text">01. climb and maintain one one thousand, american twelve thirty four. <span class="cmd">CM 11000 · AAL1234</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/01" src="clips/piper-libritts-r-fp32/speaker-10/01-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/01" src="clips/piper-libritts-r-fp32/speaker-300/01-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/01" src="clips/piper-libritts-r-fp32/speaker-600/01-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.30<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/01" src="clips/piper-libritts-r-int8/speaker-10/01-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.19<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/01" src="clips/piper-libritts-r-int8/speaker-300/01-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/01" src="clips/piper-libritts-r-int8/speaker-600/01-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/01" src="clips/kitten-nano-0.8/expr-voice-2-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/01" src="clips/kitten-nano-0.8/expr-voice-3-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.12<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/01" src="clips/kitten-nano-0.8/expr-voice-4-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.26<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/01" src="clips/kitten-micro-0.8/expr-voice-2-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/01" src="clips/kitten-micro-0.8/expr-voice-3-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.23<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/01" src="clips/kitten-micro-0.8/expr-voice-4-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/01" src="clips/kitten-mini-0.8/expr-voice-2-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/01" src="clips/kitten-mini-0.8/expr-voice-3-m/01-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/01" src="clips/kitten-mini-0.8/expr-voice-4-m/01-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/01" src="clips/matcha-ljspeech/ljspeech/01-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.55<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/01" src="clips/zipvoice-int8/clone-speaker-10/01-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.52<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/01" src="clips/zipvoice-int8/clone-speaker-300/01-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.46<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/01" src="clips/zipvoice-int8/clone-speaker-600/01-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">02. fly heading two seven zero, november five one two romeo kilo. <span class="cmd">FH 270 · N512RK</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/02" src="clips/piper-libritts-r-fp32/speaker-10/02-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/02" src="clips/piper-libritts-r-fp32/speaker-300/02-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/02" src="clips/piper-libritts-r-fp32/speaker-600/02-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.25<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/02" src="clips/piper-libritts-r-int8/speaker-10/02-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.20<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/02" src="clips/piper-libritts-r-int8/speaker-300/02-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.20<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/02" src="clips/piper-libritts-r-int8/speaker-600/02-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/02" src="clips/kitten-nano-0.8/expr-voice-2-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/02" src="clips/kitten-nano-0.8/expr-voice-3-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.15<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/02" src="clips/kitten-nano-0.8/expr-voice-4-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/02" src="clips/kitten-micro-0.8/expr-voice-2-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/02" src="clips/kitten-micro-0.8/expr-voice-3-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.23<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/02" src="clips/kitten-micro-0.8/expr-voice-4-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.49<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/02" src="clips/kitten-mini-0.8/expr-voice-2-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/02" src="clips/kitten-mini-0.8/expr-voice-3-m/02-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/02" src="clips/kitten-mini-0.8/expr-voice-4-m/02-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/02" src="clips/matcha-ljspeech/ljspeech/02-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.47<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/02" src="clips/zipvoice-int8/clone-speaker-10/02-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.47<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/02" src="clips/zipvoice-int8/clone-speaker-300/02-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.44<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/02" src="clips/zipvoice-int8/clone-speaker-600/02-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">03. maintain two ten knots, united eight eighty nine. <span class="cmd">SPD 210 · UAL889</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/03" src="clips/piper-libritts-r-fp32/speaker-10/03-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/03" src="clips/piper-libritts-r-fp32/speaker-300/03-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/03" src="clips/piper-libritts-r-fp32/speaker-600/03-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.19<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/03" src="clips/piper-libritts-r-int8/speaker-10/03-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.20<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/03" src="clips/piper-libritts-r-int8/speaker-300/03-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.21<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/03" src="clips/piper-libritts-r-int8/speaker-600/03-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/03" src="clips/kitten-nano-0.8/expr-voice-2-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/03" src="clips/kitten-nano-0.8/expr-voice-3-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/03" src="clips/kitten-nano-0.8/expr-voice-4-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.35<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/03" src="clips/kitten-micro-0.8/expr-voice-2-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.24<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/03" src="clips/kitten-micro-0.8/expr-voice-3-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/03" src="clips/kitten-micro-0.8/expr-voice-4-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.50<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/03" src="clips/kitten-mini-0.8/expr-voice-2-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.51<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/03" src="clips/kitten-mini-0.8/expr-voice-3-m/03-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.45<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/03" src="clips/kitten-mini-0.8/expr-voice-4-m/03-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/03" src="clips/matcha-ljspeech/ljspeech/03-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.63<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/03" src="clips/zipvoice-int8/clone-speaker-10/03-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.64<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/03" src="clips/zipvoice-int8/clone-speaker-300/03-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.60<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/03" src="clips/zipvoice-int8/clone-speaker-600/03-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">04. turn left heading two four zero, descend and maintain four thousand, maintain one ninety knots, southwest twenty one seventeen. <span class="cmd">TL 240, DM 4000, SPD 190 · SWA2117</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/04" src="clips/piper-libritts-r-fp32/speaker-10/04-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/04" src="clips/piper-libritts-r-fp32/speaker-300/04-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/04" src="clips/piper-libritts-r-fp32/speaker-600/04-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/04" src="clips/piper-libritts-r-int8/speaker-10/04-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/04" src="clips/piper-libritts-r-int8/speaker-300/04-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/04" src="clips/piper-libritts-r-int8/speaker-600/04-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/04" src="clips/kitten-nano-0.8/expr-voice-2-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.09<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/04" src="clips/kitten-nano-0.8/expr-voice-3-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/04" src="clips/kitten-nano-0.8/expr-voice-4-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/04" src="clips/kitten-micro-0.8/expr-voice-2-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/04" src="clips/kitten-micro-0.8/expr-voice-3-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.33<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/04" src="clips/kitten-micro-0.8/expr-voice-4-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.47<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/04" src="clips/kitten-mini-0.8/expr-voice-2-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.38<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/04" src="clips/kitten-mini-0.8/expr-voice-3-m/04-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.38<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/04" src="clips/kitten-mini-0.8/expr-voice-4-m/04-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/04" src="clips/matcha-ljspeech/ljspeech/04-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.31<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/04" src="clips/zipvoice-int8/clone-speaker-10/04-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.35<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/04" src="clips/zipvoice-int8/clone-speaker-300/04-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.31<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/04" src="clips/zipvoice-int8/clone-speaker-600/04-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">05. taxi via bravo, alpha one, hold short of runway two eight right, november seven three eight papa juliett. <span class="cmd">TAXI B A1 HS 28R · N738PJ</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/05" src="clips/piper-libritts-r-fp32/speaker-10/05-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/05" src="clips/piper-libritts-r-fp32/speaker-300/05-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/05" src="clips/piper-libritts-r-fp32/speaker-600/05-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.28<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/05" src="clips/piper-libritts-r-int8/speaker-10/05-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/05" src="clips/piper-libritts-r-int8/speaker-300/05-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/05" src="clips/piper-libritts-r-int8/speaker-600/05-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/05" src="clips/kitten-nano-0.8/expr-voice-2-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/05" src="clips/kitten-nano-0.8/expr-voice-3-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.09<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/05" src="clips/kitten-nano-0.8/expr-voice-4-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.23<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/05" src="clips/kitten-micro-0.8/expr-voice-2-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/05" src="clips/kitten-micro-0.8/expr-voice-3-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/05" src="clips/kitten-micro-0.8/expr-voice-4-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/05" src="clips/kitten-mini-0.8/expr-voice-2-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.39<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/05" src="clips/kitten-mini-0.8/expr-voice-3-m/05-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.39<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/05" src="clips/kitten-mini-0.8/expr-voice-4-m/05-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/05" src="clips/matcha-ljspeech/ljspeech/05-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.34<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/05" src="clips/zipvoice-int8/clone-speaker-10/05-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.35<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/05" src="clips/zipvoice-int8/clone-speaker-300/05-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.32<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/05" src="clips/zipvoice-int8/clone-speaker-600/05-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">06. taxi via foxtrot, charlie, hold short of runway one nine left, delta four fifty five. <span class="cmd">TAXI F C HS 19L · DAL455</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/06" src="clips/piper-libritts-r-fp32/speaker-10/06-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/06" src="clips/piper-libritts-r-fp32/speaker-300/06-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/06" src="clips/piper-libritts-r-fp32/speaker-600/06-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.25<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/06" src="clips/piper-libritts-r-int8/speaker-10/06-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.20<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/06" src="clips/piper-libritts-r-int8/speaker-300/06-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/06" src="clips/piper-libritts-r-int8/speaker-600/06-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.07<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/06" src="clips/kitten-nano-0.8/expr-voice-2-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/06" src="clips/kitten-nano-0.8/expr-voice-3-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/06" src="clips/kitten-nano-0.8/expr-voice-4-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.23<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/06" src="clips/kitten-micro-0.8/expr-voice-2-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/06" src="clips/kitten-micro-0.8/expr-voice-3-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.30<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/06" src="clips/kitten-micro-0.8/expr-voice-4-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.41<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/06" src="clips/kitten-mini-0.8/expr-voice-2-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.40<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/06" src="clips/kitten-mini-0.8/expr-voice-3-m/06-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.40<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/06" src="clips/kitten-mini-0.8/expr-voice-4-m/06-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/06" src="clips/matcha-ljspeech/ljspeech/06-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.35<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/06" src="clips/zipvoice-int8/clone-speaker-10/06-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.41<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/06" src="clips/zipvoice-int8/clone-speaker-300/06-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.34<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/06" src="clips/zipvoice-int8/clone-speaker-600/06-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">07. taxi via alpha, cross runway two eight left, hold short of runway two eight right, jetblue six twelve. <span class="cmd">TAXI A CROSS 28L HS 28R · JBU612</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/07" src="clips/piper-libritts-r-fp32/speaker-10/07-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/07" src="clips/piper-libritts-r-fp32/speaker-300/07-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/07" src="clips/piper-libritts-r-fp32/speaker-600/07-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.21<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/07" src="clips/piper-libritts-r-int8/speaker-10/07-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/07" src="clips/piper-libritts-r-int8/speaker-300/07-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/07" src="clips/piper-libritts-r-int8/speaker-600/07-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/07" src="clips/kitten-nano-0.8/expr-voice-2-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/07" src="clips/kitten-nano-0.8/expr-voice-3-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/07" src="clips/kitten-nano-0.8/expr-voice-4-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/07" src="clips/kitten-micro-0.8/expr-voice-2-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.30<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/07" src="clips/kitten-micro-0.8/expr-voice-3-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.24<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/07" src="clips/kitten-micro-0.8/expr-voice-4-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/07" src="clips/kitten-mini-0.8/expr-voice-2-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.38<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/07" src="clips/kitten-mini-0.8/expr-voice-3-m/07-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.39<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/07" src="clips/kitten-mini-0.8/expr-voice-4-m/07-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/07" src="clips/matcha-ljspeech/ljspeech/07-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.34<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/07" src="clips/zipvoice-int8/clone-speaker-10/07-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.41<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/07" src="clips/zipvoice-int8/clone-speaker-300/07-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.34<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/07" src="clips/zipvoice-int8/clone-speaker-600/07-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">08. cleared for takeoff, skywest fifty four thirty two. <span class="cmd">CTO · SKW5432</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/08" src="clips/piper-libritts-r-fp32/speaker-10/08-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/08" src="clips/piper-libritts-r-fp32/speaker-300/08-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/08" src="clips/piper-libritts-r-fp32/speaker-600/08-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/08" src="clips/piper-libritts-r-int8/speaker-10/08-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/08" src="clips/piper-libritts-r-int8/speaker-300/08-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/08" src="clips/piper-libritts-r-int8/speaker-600/08-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/08" src="clips/kitten-nano-0.8/expr-voice-2-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/08" src="clips/kitten-nano-0.8/expr-voice-3-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/08" src="clips/kitten-nano-0.8/expr-voice-4-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/08" src="clips/kitten-micro-0.8/expr-voice-2-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/08" src="clips/kitten-micro-0.8/expr-voice-3-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/08" src="clips/kitten-micro-0.8/expr-voice-4-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.48<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/08" src="clips/kitten-mini-0.8/expr-voice-2-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/08" src="clips/kitten-mini-0.8/expr-voice-3-m/08-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/08" src="clips/kitten-mini-0.8/expr-voice-4-m/08-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/08" src="clips/matcha-ljspeech/ljspeech/08-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.60<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/08" src="clips/zipvoice-int8/clone-speaker-10/08-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.87<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/08" src="clips/zipvoice-int8/clone-speaker-300/08-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.57<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/08" src="clips/zipvoice-int8/clone-speaker-600/08-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">09. cleared to land, november four four one seven quebec. <span class="cmd">CLAND · N4417Q</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/09" src="clips/piper-libritts-r-fp32/speaker-10/09-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/09" src="clips/piper-libritts-r-fp32/speaker-300/09-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/09" src="clips/piper-libritts-r-fp32/speaker-600/09-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.20<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/09" src="clips/piper-libritts-r-int8/speaker-10/09-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.16<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/09" src="clips/piper-libritts-r-int8/speaker-300/09-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/09" src="clips/piper-libritts-r-int8/speaker-600/09-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/09" src="clips/kitten-nano-0.8/expr-voice-2-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/09" src="clips/kitten-nano-0.8/expr-voice-3-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/09" src="clips/kitten-nano-0.8/expr-voice-4-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/09" src="clips/kitten-micro-0.8/expr-voice-2-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.26<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/09" src="clips/kitten-micro-0.8/expr-voice-3-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.31<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/09" src="clips/kitten-micro-0.8/expr-voice-4-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.47<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/09" src="clips/kitten-mini-0.8/expr-voice-2-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.45<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/09" src="clips/kitten-mini-0.8/expr-voice-3-m/09-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/09" src="clips/kitten-mini-0.8/expr-voice-4-m/09-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/09" src="clips/matcha-ljspeech/ljspeech/09-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.52<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/09" src="clips/zipvoice-int8/clone-speaker-10/09-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.64<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/09" src="clips/zipvoice-int8/clone-speaker-300/09-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.55<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/09" src="clips/zipvoice-int8/clone-speaker-600/09-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">10. cleared visual approach runway two eight right, alaska three nineteen. <span class="cmd">CVA 28R · ASA319</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/10" src="clips/piper-libritts-r-fp32/speaker-10/10-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/10" src="clips/piper-libritts-r-fp32/speaker-300/10-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/10" src="clips/piper-libritts-r-fp32/speaker-600/10-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/10" src="clips/piper-libritts-r-int8/speaker-10/10-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/10" src="clips/piper-libritts-r-int8/speaker-300/10-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/10" src="clips/piper-libritts-r-int8/speaker-600/10-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.12<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/10" src="clips/kitten-nano-0.8/expr-voice-2-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/10" src="clips/kitten-nano-0.8/expr-voice-3-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/10" src="clips/kitten-nano-0.8/expr-voice-4-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/10" src="clips/kitten-micro-0.8/expr-voice-2-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/10" src="clips/kitten-micro-0.8/expr-voice-3-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/10" src="clips/kitten-micro-0.8/expr-voice-4-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.46<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/10" src="clips/kitten-mini-0.8/expr-voice-2-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/10" src="clips/kitten-mini-0.8/expr-voice-3-m/10-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/10" src="clips/kitten-mini-0.8/expr-voice-4-m/10-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/10" src="clips/matcha-ljspeech/ljspeech/10-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.45<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/10" src="clips/zipvoice-int8/clone-speaker-10/10-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.65<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/10" src="clips/zipvoice-int8/clone-speaker-300/10-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.49<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/10" src="clips/zipvoice-int8/clone-speaker-600/10-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">11. cleared approach, united fifteen seventy two. <span class="cmd">CAPP ILS28L · UAL1572</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/11" src="clips/piper-libritts-r-fp32/speaker-10/11-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/11" src="clips/piper-libritts-r-fp32/speaker-300/11-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/11" src="clips/piper-libritts-r-fp32/speaker-600/11-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.21<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/11" src="clips/piper-libritts-r-int8/speaker-10/11-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/11" src="clips/piper-libritts-r-int8/speaker-300/11-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.16<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/11" src="clips/piper-libritts-r-int8/speaker-600/11-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.12<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/11" src="clips/kitten-nano-0.8/expr-voice-2-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.14<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/11" src="clips/kitten-nano-0.8/expr-voice-3-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.13<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/11" src="clips/kitten-nano-0.8/expr-voice-4-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.30<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/11" src="clips/kitten-micro-0.8/expr-voice-2-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/11" src="clips/kitten-micro-0.8/expr-voice-3-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/11" src="clips/kitten-micro-0.8/expr-voice-4-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.51<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/11" src="clips/kitten-mini-0.8/expr-voice-2-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.46<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/11" src="clips/kitten-mini-0.8/expr-voice-3-m/11-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.45<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/11" src="clips/kitten-mini-0.8/expr-voice-4-m/11-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/11" src="clips/matcha-ljspeech/ljspeech/11-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.65<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/11" src="clips/zipvoice-int8/clone-speaker-10/11-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.74<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/11" src="clips/zipvoice-int8/clone-speaker-300/11-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.67<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/11" src="clips/zipvoice-int8/clone-speaker-600/11-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">12. NorCal Approach on one two five point three five, fedex fourteen zero eight, so long. <span class="cmd">CT · FDX1408</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/12" src="clips/piper-libritts-r-fp32/speaker-10/12-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/12" src="clips/piper-libritts-r-fp32/speaker-300/12-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/12" src="clips/piper-libritts-r-fp32/speaker-600/12-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.23<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/12" src="clips/piper-libritts-r-int8/speaker-10/12-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/12" src="clips/piper-libritts-r-int8/speaker-300/12-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/12" src="clips/piper-libritts-r-int8/speaker-600/12-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/12" src="clips/kitten-nano-0.8/expr-voice-2-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.14<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/12" src="clips/kitten-nano-0.8/expr-voice-3-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/12" src="clips/kitten-nano-0.8/expr-voice-4-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.30<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/12" src="clips/kitten-micro-0.8/expr-voice-2-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/12" src="clips/kitten-micro-0.8/expr-voice-3-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/12" src="clips/kitten-micro-0.8/expr-voice-4-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.45<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/12" src="clips/kitten-mini-0.8/expr-voice-2-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.41<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/12" src="clips/kitten-mini-0.8/expr-voice-3-m/12-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.40<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/12" src="clips/kitten-mini-0.8/expr-voice-4-m/12-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/12" src="clips/matcha-ljspeech/ljspeech/12-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.39<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/12" src="clips/zipvoice-int8/clone-speaker-10/12-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.40<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/12" src="clips/zipvoice-int8/clone-speaker-300/12-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.36<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/12" src="clips/zipvoice-int8/clone-speaker-600/12-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">13. november eight one tango whiskey, good day. <span class="cmd">FCA · N81TW</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/13" src="clips/piper-libritts-r-fp32/speaker-10/13-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/13" src="clips/piper-libritts-r-fp32/speaker-300/13-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/13" src="clips/piper-libritts-r-fp32/speaker-600/13-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.31<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/13" src="clips/piper-libritts-r-int8/speaker-10/13-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/13" src="clips/piper-libritts-r-int8/speaker-300/13-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.23<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/13" src="clips/piper-libritts-r-int8/speaker-600/13-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/13" src="clips/kitten-nano-0.8/expr-voice-2-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.12<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/13" src="clips/kitten-nano-0.8/expr-voice-3-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/13" src="clips/kitten-nano-0.8/expr-voice-4-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/13" src="clips/kitten-micro-0.8/expr-voice-2-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.32<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/13" src="clips/kitten-micro-0.8/expr-voice-3-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/13" src="clips/kitten-micro-0.8/expr-voice-4-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.46<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/13" src="clips/kitten-mini-0.8/expr-voice-2-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/13" src="clips/kitten-mini-0.8/expr-voice-3-m/13-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/13" src="clips/kitten-mini-0.8/expr-voice-4-m/13-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/13" src="clips/matcha-ljspeech/ljspeech/13-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.70<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/13" src="clips/zipvoice-int8/clone-speaker-10/13-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.81<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/13" src="clips/zipvoice-int8/clone-speaker-300/13-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.69<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/13" src="clips/zipvoice-int8/clone-speaker-600/13-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">14. squawk four five two one, november two zero nine three mike. <span class="cmd">SQ 4521 · N2093M</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/14" src="clips/piper-libritts-r-fp32/speaker-10/14-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/14" src="clips/piper-libritts-r-fp32/speaker-300/14-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/14" src="clips/piper-libritts-r-fp32/speaker-600/14-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.23<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/14" src="clips/piper-libritts-r-int8/speaker-10/14-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/14" src="clips/piper-libritts-r-int8/speaker-300/14-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/14" src="clips/piper-libritts-r-int8/speaker-600/14-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/14" src="clips/kitten-nano-0.8/expr-voice-2-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/14" src="clips/kitten-nano-0.8/expr-voice-3-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/14" src="clips/kitten-nano-0.8/expr-voice-4-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/14" src="clips/kitten-micro-0.8/expr-voice-2-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/14" src="clips/kitten-micro-0.8/expr-voice-3-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/14" src="clips/kitten-micro-0.8/expr-voice-4-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/14" src="clips/kitten-mini-0.8/expr-voice-2-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/14" src="clips/kitten-mini-0.8/expr-voice-3-m/14-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.43<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/14" src="clips/kitten-mini-0.8/expr-voice-4-m/14-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/14" src="clips/matcha-ljspeech/ljspeech/14-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.52<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/14" src="clips/zipvoice-int8/clone-speaker-10/14-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.55<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/14" src="clips/zipvoice-int8/clone-speaker-300/14-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.45<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/14" src="clips/zipvoice-int8/clone-speaker-600/14-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">15. squawk ident, execjet six twenty two. <span class="cmd">IDENT · EJA622</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/15" src="clips/piper-libritts-r-fp32/speaker-10/15-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/15" src="clips/piper-libritts-r-fp32/speaker-300/15-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/15" src="clips/piper-libritts-r-fp32/speaker-600/15-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.24<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/15" src="clips/piper-libritts-r-int8/speaker-10/15-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/15" src="clips/piper-libritts-r-int8/speaker-300/15-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.19<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/15" src="clips/piper-libritts-r-int8/speaker-600/15-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/15" src="clips/kitten-nano-0.8/expr-voice-2-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/15" src="clips/kitten-nano-0.8/expr-voice-3-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/15" src="clips/kitten-nano-0.8/expr-voice-4-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.32<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/15" src="clips/kitten-micro-0.8/expr-voice-2-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/15" src="clips/kitten-micro-0.8/expr-voice-3-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.35<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/15" src="clips/kitten-micro-0.8/expr-voice-4-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.46<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/15" src="clips/kitten-mini-0.8/expr-voice-2-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/15" src="clips/kitten-mini-0.8/expr-voice-3-m/15-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.46<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/15" src="clips/kitten-mini-0.8/expr-voice-4-m/15-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/15" src="clips/matcha-ljspeech/ljspeech/15-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.78<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/15" src="clips/zipvoice-int8/clone-speaker-10/15-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.79<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/15" src="clips/zipvoice-int8/clone-speaker-300/15-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.70<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/15" src="clips/zipvoice-int8/clone-speaker-600/15-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">16. proceed direct to sunol, american twenty two ninety. <span class="cmd">DCT SUNOL · AAL2290</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/16" src="clips/piper-libritts-r-fp32/speaker-10/16-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/16" src="clips/piper-libritts-r-fp32/speaker-300/16-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/16" src="clips/piper-libritts-r-fp32/speaker-600/16-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.22<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/16" src="clips/piper-libritts-r-int8/speaker-10/16-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.19<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/16" src="clips/piper-libritts-r-int8/speaker-300/16-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.19<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/16" src="clips/piper-libritts-r-int8/speaker-600/16-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.09<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/16" src="clips/kitten-nano-0.8/expr-voice-2-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.09<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/16" src="clips/kitten-nano-0.8/expr-voice-3-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/16" src="clips/kitten-nano-0.8/expr-voice-4-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.26<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/16" src="clips/kitten-micro-0.8/expr-voice-2-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.33<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/16" src="clips/kitten-micro-0.8/expr-voice-3-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/16" src="clips/kitten-micro-0.8/expr-voice-4-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.46<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/16" src="clips/kitten-mini-0.8/expr-voice-2-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.41<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/16" src="clips/kitten-mini-0.8/expr-voice-3-m/16-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/16" src="clips/kitten-mini-0.8/expr-voice-4-m/16-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/16" src="clips/matcha-ljspeech/ljspeech/16-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.58<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/16" src="clips/zipvoice-int8/clone-speaker-10/16-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.61<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/16" src="clips/zipvoice-int8/clone-speaker-300/16-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.52<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/16" src="clips/zipvoice-int8/clone-speaker-600/16-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">17. hold at Oakland VOR, november nine two four six charlie. <span class="cmd">HFIX OAK · N9246C</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/17" src="clips/piper-libritts-r-fp32/speaker-10/17-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/17" src="clips/piper-libritts-r-fp32/speaker-300/17-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/17" src="clips/piper-libritts-r-fp32/speaker-600/17-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/17" src="clips/piper-libritts-r-int8/speaker-10/17-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/17" src="clips/piper-libritts-r-int8/speaker-300/17-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.19<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/17" src="clips/piper-libritts-r-int8/speaker-600/17-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.09<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/17" src="clips/kitten-nano-0.8/expr-voice-2-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/17" src="clips/kitten-nano-0.8/expr-voice-3-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.09<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/17" src="clips/kitten-nano-0.8/expr-voice-4-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.29<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/17" src="clips/kitten-micro-0.8/expr-voice-2-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.26<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/17" src="clips/kitten-micro-0.8/expr-voice-3-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.28<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/17" src="clips/kitten-micro-0.8/expr-voice-4-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.45<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/17" src="clips/kitten-mini-0.8/expr-voice-2-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/17" src="clips/kitten-mini-0.8/expr-voice-3-m/17-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.44<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/17" src="clips/kitten-mini-0.8/expr-voice-4-m/17-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/17" src="clips/matcha-ljspeech/ljspeech/17-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.51<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/17" src="clips/zipvoice-int8/clone-speaker-10/17-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.51<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/17" src="clips/zipvoice-int8/clone-speaker-300/17-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.47<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/17" src="clips/zipvoice-int8/clone-speaker-600/17-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">18. fly heading three zero zero, climb and maintain seven thousand, maintain two thirty knots, delta nineteen thirty eight. <span class="cmd">FH 300, CM 7000, SPD 230 · DAL1938</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/18" src="clips/piper-libritts-r-fp32/speaker-10/18-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/18" src="clips/piper-libritts-r-fp32/speaker-300/18-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/18" src="clips/piper-libritts-r-fp32/speaker-600/18-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.17<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/18" src="clips/piper-libritts-r-int8/speaker-10/18-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/18" src="clips/piper-libritts-r-int8/speaker-300/18-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/18" src="clips/piper-libritts-r-int8/speaker-600/18-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/18" src="clips/kitten-nano-0.8/expr-voice-2-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/18" src="clips/kitten-nano-0.8/expr-voice-3-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/18" src="clips/kitten-nano-0.8/expr-voice-4-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.26<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/18" src="clips/kitten-micro-0.8/expr-voice-2-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.25<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/18" src="clips/kitten-micro-0.8/expr-voice-3-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.23<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/18" src="clips/kitten-micro-0.8/expr-voice-4-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/18" src="clips/kitten-mini-0.8/expr-voice-2-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.38<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/18" src="clips/kitten-mini-0.8/expr-voice-3-m/18-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.40<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/18" src="clips/kitten-mini-0.8/expr-voice-4-m/18-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/18" src="clips/matcha-ljspeech/ljspeech/18-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.35<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/18" src="clips/zipvoice-int8/clone-speaker-10/18-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.35<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/18" src="clips/zipvoice-int8/clone-speaker-300/18-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.34<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/18" src="clips/zipvoice-int8/clone-speaker-600/18-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">19. proceed direct to Modesto VOR, descend and maintain nine thousand, jetblue eleven twenty seven. <span class="cmd">DCT MOD, DM 9000 · JBU1127</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/19" src="clips/piper-libritts-r-fp32/speaker-10/19-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/19" src="clips/piper-libritts-r-fp32/speaker-300/19-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/19" src="clips/piper-libritts-r-fp32/speaker-600/19-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.16<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/19" src="clips/piper-libritts-r-int8/speaker-10/19-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.18<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/19" src="clips/piper-libritts-r-int8/speaker-300/19-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.16<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/19" src="clips/piper-libritts-r-int8/speaker-600/19-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/19" src="clips/kitten-nano-0.8/expr-voice-2-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/19" src="clips/kitten-nano-0.8/expr-voice-3-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.11<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/19" src="clips/kitten-nano-0.8/expr-voice-4-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.27<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/19" src="clips/kitten-micro-0.8/expr-voice-2-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.24<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/19" src="clips/kitten-micro-0.8/expr-voice-3-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.22<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/19" src="clips/kitten-micro-0.8/expr-voice-4-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.45<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/19" src="clips/kitten-mini-0.8/expr-voice-2-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.39<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/19" src="clips/kitten-mini-0.8/expr-voice-3-m/19-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.40<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/19" src="clips/kitten-mini-0.8/expr-voice-4-m/19-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/19" src="clips/matcha-ljspeech/ljspeech/19-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.42<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/19" src="clips/zipvoice-int8/clone-speaker-10/19-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.37<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/19" src="clips/zipvoice-int8/clone-speaker-300/19-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.38<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/19" src="clips/zipvoice-int8/clone-speaker-600/19-dry.wav"></audio></div>
+</div></div>
+<div class="line">
+<div class="text">20. squawk two six seven one, climb and maintain five thousand, november seven one six sierra foxtrot. <span class="cmd">SQ 2671, CM 5000 · N716SF</span></div>
+<div class="grid">
+<div class="clip">piper-libritts-r-fp32 · speaker-10 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-10/20" src="clips/piper-libritts-r-fp32/speaker-10/20-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-300 · RTF 0.04<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-300/20" src="clips/piper-libritts-r-fp32/speaker-300/20-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-fp32 · speaker-600 · RTF 0.05<audio controls preload="none" data-base="clips/piper-libritts-r-fp32/speaker-600/20" src="clips/piper-libritts-r-fp32/speaker-600/20-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-10 · RTF 0.20<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-10/20" src="clips/piper-libritts-r-int8/speaker-10/20-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-300 · RTF 0.22<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-300/20" src="clips/piper-libritts-r-int8/speaker-300/20-dry.wav"></audio></div>
+<div class="clip">piper-libritts-r-int8 · speaker-600 · RTF 0.23<audio controls preload="none" data-base="clips/piper-libritts-r-int8/speaker-600/20" src="clips/piper-libritts-r-int8/speaker-600/20-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-2-m · RTF 0.13<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-2-m/20" src="clips/kitten-nano-0.8/expr-voice-2-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-3-m · RTF 0.08<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-3-m/20" src="clips/kitten-nano-0.8/expr-voice-3-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-nano-0.8 · expr-voice-4-m · RTF 0.10<audio controls preload="none" data-base="clips/kitten-nano-0.8/expr-voice-4-m/20" src="clips/kitten-nano-0.8/expr-voice-4-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-2-m · RTF 0.24<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-2-m/20" src="clips/kitten-micro-0.8/expr-voice-2-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-3-m · RTF 0.24<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-3-m/20" src="clips/kitten-micro-0.8/expr-voice-3-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-micro-0.8 · expr-voice-4-m · RTF 0.22<audio controls preload="none" data-base="clips/kitten-micro-0.8/expr-voice-4-m/20" src="clips/kitten-micro-0.8/expr-voice-4-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-2-m · RTF 0.40<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-2-m/20" src="clips/kitten-mini-0.8/expr-voice-2-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-3-m · RTF 0.39<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-3-m/20" src="clips/kitten-mini-0.8/expr-voice-3-m/20-dry.wav"></audio></div>
+<div class="clip">kitten-mini-0.8 · expr-voice-4-m · RTF 0.42<audio controls preload="none" data-base="clips/kitten-mini-0.8/expr-voice-4-m/20" src="clips/kitten-mini-0.8/expr-voice-4-m/20-dry.wav"></audio></div>
+<div class="clip">matcha-ljspeech · ljspeech · RTF 0.04<audio controls preload="none" data-base="clips/matcha-ljspeech/ljspeech/20" src="clips/matcha-ljspeech/ljspeech/20-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-10 · RTF 0.40<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-10/20" src="clips/zipvoice-int8/clone-speaker-10/20-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-300 · RTF 0.35<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-300/20" src="clips/zipvoice-int8/clone-speaker-300/20-dry.wav"></audio></div>
+<div class="clip">zipvoice-int8 · clone-speaker-600 · RTF 0.36<audio controls preload="none" data-base="clips/zipvoice-int8/clone-speaker-600/20" src="clips/zipvoice-int8/clone-speaker-600/20-dry.wav"></audio></div>
+</div></div>
+<script>
+document.querySelectorAll('input[name=fx]').forEach(r=>r.addEventListener('change',()=>{
+  const mode=document.querySelector('input[name=fx]:checked').value;
+  document.querySelectorAll('audio[data-base]').forEach(a=>{a.pause();a.src=a.dataset.base+'-'+mode+'.wav';});
+}));
+</script>
+</body></html>

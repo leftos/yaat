@@ -17,6 +17,8 @@ package-lock.json
 
 ## Temp
 .tmp/
+# Model caches a tool fetched into its working folder (Hugging Face and the like)
+.cache/
 # PrecomputeStore's write-then-move temp files, left behind only by a run that died mid-write
 src/Yaat.Sim/Data/PrecomputeCache/*.tmp
 

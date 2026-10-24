@@ -386,6 +386,12 @@ The pipeline is silent and harmless if Piper isn't installed — `IsAvailable` r
 
   The session flag resets on a scenario load (`ApplyScenarioResult`, `OnScenarioLoaded`), a recording load (`ApplyRecordingResult`) and a room change, not on a reconnect's `ApplyRoomState`.
 
+## Benchmarking TTS models
+
+`Yaat.SpeechSandbox --tts-bench` compares small TTS models (size, cold load, first-audio latency, real-time factor) on the pilot readbacks the solo pipeline speaks, and builds a listening page with each model's clips. Run it before swapping or adding a pilot voice model; the flags, screen thresholds and exit codes are in the Speech Sandbox Tool table of [speech-recognition-pipeline.md](speech-recognition-pipeline.md).
+
+The findings are in `docs/research/2026-10-24-tts-benchmark/report.md`, the listening page in `docs/plans/canvases/tts-benchmark/` (`README.md`), and `RECIPE.md` there rebuilds the clips and the review copy. The benchmark runs on the sandbox's sherpa-onnx 1.13.8 while the client ships 1.12.40, so adopting a model other than Piper LibriTTS-R means a client package bump.
+
 ## Pitfalls
 
 - **Don't push solo-mode pilot speech to `PendingNotifications`.** Use `QueueSoloPilotTransmission` / `QueueSoloPilotReadback`. Pre-queue paths bypass airtime serialization and can step on awaited readbacks.

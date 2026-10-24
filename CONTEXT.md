@@ -879,6 +879,12 @@ The pipe host's stable id for a window, popup or element, issued by its `NodeReg
 **Ouroboros**:
 A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).
 
+**RTF** (real-time factor):
+A TTS model's synthesis time divided by the duration of the audio it produced; below 1.0 it synthesises faster than the audio plays (`--tts-bench`, docs/speech-recognition-pipeline.md).
+
+**Screen** (TTS benchmark):
+The cheap first phase of `--tts-bench`: 3 readback lines, 1 voice, at 8, 4 and 2 threads, each count a cold load in its own process. A count passes at p90 first audio of 1.5 s or less and median RTF under 1.0; a model that passes or is marginal goes on to the full run (docs/speech-recognition-pipeline.md).
+
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
 

@@ -1,0 +1,24 @@
+[
+  {
+    "modelId": "kitten-tts-2",
+    "threads": 8,
+    "loadSeconds": 4.99,
+    "lines": [
+      { "firstAudioSeconds": 61.73, "synthSeconds": 61.75, "audioSeconds": 4.12 },
+      { "firstAudioSeconds": 52.04, "synthSeconds": 52.05, "audioSeconds": 4.28 },
+      { "firstAudioSeconds": 55.76, "synthSeconds": 55.76, "audioSeconds": 5.2 }
+    ],
+    "source": "recorded, not re-run: the screen run's timings.json, voice Bruno"
+  },
+  {
+    "modelId": "kitten-tts-2",
+    "threads": 2,
+    "loadSeconds": null,
+    "lines": [
+      { "firstAudioSeconds": null, "synthSeconds": 13.84, "audioSeconds": 4.58 },
+      { "firstAudioSeconds": null, "synthSeconds": 12.36, "audioSeconds": 4.06 },
+      { "firstAudioSeconds": null, "synthSeconds": 16.03, "audioSeconds": 5.3 }
+    ],
+    "source": "recorded, not re-run: the stopped full smoke run, voice Bruno, first audio not logged; its llama.cpp log on the first load showed load 200.5 s (including the first-run weight download), prompt eval 9.4 tok/s, eval 5.7 tok/s, 223 s total for one line"
+  }
+]
