@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
@@ -611,6 +612,232 @@ public class PilotResponderTests
         List<string> spoken = SpokenReadbacks(Compound(new ResumeNormalSpeedCommand()), FrequencyLoadBand.Busy, null, 1);
 
         Assert.Contains("wilco, november one two three alpha bravo.", spoken);
+    }
+
+    /// <summary>
+    /// A cross-fix restriction at or above / at or below with a speed reads the speed back after the altitude, as the plain
+    /// "at" form does (7110.65 5-7-2.d), in the Terminal text and in every band's spoken text.
+    /// </summary>
+    [Theory]
+    [InlineData("CFIX SUNOL A049 250", "at or above")]
+    [InlineData("CFIX SUNOL B049 250", "at or below")]
+    public void BuildReadback_CrossFixRestrictionWithSpeed_ReadsBackTheSpeedInEveryBand(string command, string qualifier)
+    {
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
+        Assert.True(parsed.IsSuccess, $"'{command}' was refused: {parsed.Reason}");
+        AircraftState ac = MakeAircraft("N123AB");
+        PilotSpeechContext[] contexts =
+        [
+            PilotSpeechContext.Canonical,
+            .. new[] { FrequencyLoadBand.Quiet, FrequencyLoadBand.Normal, FrequencyLoadBand.Busy }.SelectMany(band =>
+                Enumerable.Range(0, 20).Select(second => VariedWithSpeed(band, 1, second, null))
+            ),
+        ];
+
+        foreach (PilotSpeechContext context in contexts)
+        {
+            PilotSpeechText readback = PilotResponder.BuildReadback(parsed.Value!, ac, context)!;
+
+            Assert.Contains($"cross SUNOL {qualifier} 4900 at 250 knots", readback.Terminal, StringComparison.Ordinal);
+            Assert.Contains($"cross sunol {qualifier} four thousand nine hundred at two five zero knots", readback.Tts, StringComparison.Ordinal);
+        }
+    }
+
+    private const string SpokenN123AB = "november one two three alpha bravo";
+
+    /// <summary>The spoken readbacks of <paramref name="command"/> by <paramref name="ac"/> over seconds 0-199 at <paramref name="seed"/>.</summary>
+    private static List<string> SpokenOverSeconds(AircraftState ac, ParsedCommand command, FrequencyLoadBand band, int seed) =>
+        [
+            .. Enumerable
+                .Range(0, 200)
+                .Select(second => PilotResponder.BuildReadback(Compound(command), ac, VariedWithSpeed(band, seed, second, null))!.Tts),
+        ];
+
+    [Theory]
+    [InlineData(false, "maintaining at or above four thousand")]
+    [InlineData(true, "maintaining VFR at or above four thousand")]
+    public void BuildReadback_VariedQuietRestriction_MaySayMaintainingWithTheCourtesy(bool isVfr, string row)
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: isVfr);
+
+        var command = new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrAbove);
+        string[] allowed = [PilotResponder.BuildReadback(Compound(command), ac)!.Tts, $"{row}, {SpokenN123AB}, thanks."];
+
+        List<string> spoken = SpokenOverSeconds(ac, command, FrequencyLoadBand.Quiet, 1);
+
+        // Seed 1: the first second in 0-199 whose pick is the courtesy row.
+        Assert.Equal(isVfr ? 2 : 0, spoken.IndexOf(allowed[1]));
+        Assert.All(spoken, tts => Assert.Contains(tts, allowed));
+        Assert.All(spoken, tts => Assert.Equal(isVfr, tts.Contains("VFR", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// A busy altitude or cross-fix restriction from 10,000 to 17,999 ft may speak the group form, and never says "above"
+    /// without "at or".
+    /// </summary>
+    [Theory]
+    [InlineData("CM A110", "at or above eleven thousand")]
+    [InlineData("CFIX SUNOL A110", "cross sunol at or above eleven thousand")]
+    public void BuildReadback_VariedBusyRestriction_MaySpeakTheGroupFormAndKeepsTheQualifier(string shape, string groupRow)
+    {
+        ParsedCommand command =
+            shape == "CM A110"
+                ? new ClimbMaintainCommand(11000, AltitudeAssignmentModifier.AtOrAbove)
+                : new CrossFixCommand("SUNOL", 37.6, -121.9, 11000, CrossFixAltitudeType.AtOrAbove, null);
+        AircraftState ac = MakeAircraft("N123AB");
+
+        List<string> spoken = [.. Enumerable.Range(0, 5).SelectMany(seed => SpokenOverSeconds(ac, command, FrequencyLoadBand.Busy, seed))];
+
+        Assert.Contains($"{groupRow}, {SpokenN123AB}.", spoken);
+        Assert.DoesNotContain(
+            spoken,
+            tts => tts.Replace("at or above", string.Empty, StringComparison.Ordinal).Contains("above", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// Each restriction and expedite variant set's pattern is the builder's canonical text: filled with the command's own
+    /// captures, it speaks the same words as the canonical readback, punctuation and case aside.
+    /// </summary>
+    [Theory]
+    [InlineData("restriction at or above")]
+    [InlineData("restriction at or below")]
+    [InlineData("restriction VFR at or above")]
+    [InlineData("restriction VFR at or below")]
+    [InlineData("expedite climb with altitude")]
+    [InlineData("expedite descent with altitude")]
+    [InlineData("expedite climb")]
+    [InlineData("expedite descent")]
+    [InlineData("expedite taxi")]
+    [InlineData("expedite exit")]
+    public void BuilderVariantSet_Pattern_SpeaksTheBuildersCanonical(string setName)
+    {
+        BuilderVariantSet set = PhraseologyRules.BuilderVariantSets.Single(candidate => candidate.Name == setName);
+        AircraftState ac = MakeAircraft("N123AB", isVfr: setName.Contains("VFR", StringComparison.Ordinal));
+        ac.Altitude = 5000;
+        ac.Targets.TargetAltitude = setName == "expedite climb" ? 9000 : 2000;
+        ParsedCommand command = setName switch
+        {
+            "restriction at or above" or "restriction VFR at or above" => new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrAbove),
+            "restriction at or below" or "restriction VFR at or below" => new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrBelow),
+            "expedite climb with altitude" => new ExpediteCommand(11000),
+            "expedite descent with altitude" => new ExpediteCommand(3000),
+            _ => new ExpediteCommand(),
+        };
+        if (setName is "expedite taxi" or "expedite exit")
+        {
+            ac.Altitude = 13;
+            ac.IsOnGround = true;
+            ac.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+        }
+        if (setName == "expedite exit")
+        {
+            ac.Phases = new PhaseList();
+            ac.Phases.Add(new LandingPhase { Status = PhaseStatus.Active });
+        }
+
+        string canonical = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
+        string body = canonical[..canonical.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
+
+        Assert.Equal(WordsOnly(PhraseologyVerbalizer.RenderSpokenVariant(command, string.Join(' ', set.Pattern))), WordsOnly(body));
+    }
+
+    private static string WordsOnly(string text) =>
+        string.Join(' ', text.ToLowerInvariant().Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    [Fact]
+    public void BuildReadback_VariedQuietCrossFixAtOrAbove_MaySayWellCross()
+    {
+        var crossFix = new CrossFixCommand("SUNOL", 37.6, -121.9, 4900, CrossFixAltitudeType.AtOrAbove, null);
+
+        List<string> spoken = SpokenOverSeconds(MakeAircraft("N123AB"), crossFix, FrequencyLoadBand.Quiet, 1);
+
+        // Seed 1: the first second in 0-199 whose pick is the quiet row.
+        Assert.Equal(0, spoken.IndexOf($"we'll cross sunol at or above four thousand nine hundred, {SpokenN123AB}."));
+    }
+
+    [Fact]
+    public void VerbalizeClause_CrossFixRestrictionWithSpeed_IsCanonicalInEveryBand()
+    {
+        var crossFix = new CrossFixCommand("SUNOL", 37.6, -121.9, 4900, CrossFixAltitudeType.AtOrAbove, 250);
+        FrequencyLoadBand[] bands = [FrequencyLoadBand.Quiet, FrequencyLoadBand.Normal, FrequencyLoadBand.Busy];
+
+        IEnumerable<string?> spoken = bands.SelectMany(band =>
+            Enumerable
+                .Range(0, 5)
+                .SelectMany(seed =>
+                    Enumerable
+                        .Range(0, 200)
+                        .Select(second =>
+                            PhraseologyVerbalizer
+                                .VerbalizeClause(crossFix, "N123AB", VariedWithSpeed(band, seed, second, null), wholeReadback: true)
+                                .Text
+                        )
+                )
+        );
+
+        Assert.All(spoken, text => Assert.Equal("cross sunol at or above four thousand nine hundred at two five zero knots", text));
+    }
+
+    [Fact]
+    public void BuildReadback_MilitaryRouteAtOrBelow_IsCanonicalInEveryBand()
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        var command = new ClearedIntoMilitaryRouteCommand("IR111", 11000, AtOrBelow: true);
+        PilotSpeechText canonical = PilotResponder.BuildReadback(Compound(command), ac)!;
+        string canonicalBody = canonical.Tts[..canonical.Tts.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
+        Assert.Contains("maintain at or below one one thousand", canonicalBody, StringComparison.Ordinal);
+
+        foreach (FrequencyLoadBand band in new[] { FrequencyLoadBand.Quiet, FrequencyLoadBand.Normal, FrequencyLoadBand.Busy })
+        {
+            foreach (int seed in Enumerable.Range(0, 5))
+            {
+                Assert.All(SpokenOverSeconds(ac, command, band, seed), tts => Assert.StartsWith(canonicalBody + ", ", tts, StringComparison.Ordinal));
+            }
+        }
+    }
+
+    /// <summary>
+    /// A quiet readback from a clause builder with Quiet rows takes its courtesy from the rows: never the flavour's leading
+    /// "alright, ", and ", thanks" only where a row places the callsign before it.
+    /// </summary>
+    [Theory]
+    [InlineData("EXP 110")]
+    [InlineData("EXP descending")]
+    [InlineData("EXP taxiing")]
+    [InlineData("CM A040")]
+    [InlineData("CFIX A049")]
+    public void BuildReadback_VariedQuietClauseBuilder_NeverTakesTheFlavor(string shape)
+    {
+        AircraftState ac = MakeAircraft("N123AB");
+        ac.Altitude = 5000;
+        ParsedCommand command = shape switch
+        {
+            "EXP 110" => new ExpediteCommand(11000),
+            "EXP descending" or "EXP taxiing" => new ExpediteCommand(),
+            "CM A040" => new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrAbove),
+            "CFIX A049" => new CrossFixCommand("SUNOL", 37.6, -121.9, 4900, CrossFixAltitudeType.AtOrAbove, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, "No representative command for this shape."),
+        };
+        ac.Targets.TargetAltitude = 2000;
+        if (shape == "EXP taxiing")
+        {
+            ac.Altitude = 13;
+            ac.IsOnGround = true;
+            ac.Ground.AssignedTaxiRoute = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+        }
+
+        List<string> spoken = [.. Enumerable.Range(0, 5).SelectMany(seed => SpokenOverSeconds(ac, command, FrequencyLoadBand.Quiet, seed))];
+
+        Assert.DoesNotContain(spoken, tts => tts.StartsWith("alright, ", StringComparison.Ordinal));
+        Assert.All(
+            spoken,
+            tts =>
+                Assert.True(
+                    !tts.Contains("thanks", StringComparison.Ordinal) || tts.EndsWith($", {SpokenN123AB}, thanks.", StringComparison.Ordinal),
+                    $"\"{tts}\" carries the quiet flavour's \", thanks\"."
+                )
+        );
     }
 
     [Theory]

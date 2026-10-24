@@ -49,6 +49,7 @@
 - `SPDN` cancels an assigned Mach, so the aircraft keeps the forced speed instead of returning to the Mach.
 - A spoken "disregard" no longer drops the instruction after it when the retracted part had a misheard runway.
 - Speech recognizes a GA callsign said last whose final letter was misheard ("…, november 9225 lien" for N9225L), as it already did when said first.
+- A crossing restriction at or above or at or below with a speed, such as `CFIX SUNOL A049 250`, now reads back its speed.
 - A crossing restriction given with `DVIA` or `CVIA` keeps the altitude to resume after the fix when that via clearance is deleted or refused before it starts.
 - A crossing restriction no longer climbs or descends an aircraft back to an altitude it already left once it is past the fix.
 - An at-or-above or at-or-below crossing the assigned altitude already satisfies keeps that altitude: `DM 120; CFIX X A110` stays at 12,000.

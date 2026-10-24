@@ -356,10 +356,9 @@ public static class PhraseologyRules
             ),
             new(["after", "{current}", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo),
             // Cross-fix altitude restrictions. FAA 7110.65 §4-5-7, §5-7-2.d, AIM §4-4-10, §5-3-1.
-            // The bare "cross {fix} at {alt}" form is declared first so it wins the verbalizer's
-            // first-declared tiebreaker for AltType=At with no speed. AT-OR-ABOVE / AT-OR-BELOW
-            // are marked SttOnly because the verbalizer short-circuits those altType values
-            // before consulting these rules (PhraseologyVerbalizer.Verbalize). Flight-level
+            // The verbalizer reads back every cross-fix restriction without a speed, and the
+            // at-or-above / at-or-below ones with a speed, from the CrossFixAt* variant sets below
+            // rather than these rules, so AT-OR-ABOVE / AT-OR-BELOW are marked SttOnly. Flight-level
             // forms ("at flight level two five zero") are normalized to a single digit token by
             // AtcNumberParser so they match "{alt}" directly without a dedicated rule.
             new(["cross", "{fix}", "at", "{alt}"], "CFIX {fix} AT {alt}", CrossFix),
@@ -1148,4 +1147,224 @@ public static class PhraseologyRules
             new(["say", "exit", "fix", "estimate"], "SAYEXIT", SayExitFixEstimate, SttOnly: true),
             new(["report", "exit", "fix", "estimate"], "SAYEXIT", SayExitFixEstimate, SttOnly: true),
         ];
+
+    // --- Clause-builder variant sets ---
+    // The readbacks PilotResponder and PhraseologyVerbalizer build directly, not from a rule above: one set per shape, chosen
+    // by the builder from the same flag that picks its words (VFR or not, at or above or at or below, climb or descent, on the
+    // ground or leaving the runway). A shape the builder extends (a cross-fix restriction with a speed, a military route's
+    // at-or-below altitude) has no set and is read back canonical in every band. The group form is busy only and only from
+    // 10,000 to 17,999 ft (7110.65 2-4-17.b.1 NOTE), never at a flight level; quiet rows keep the verb, and courtesy rows
+    // place the callsign before ", thanks".
+
+    /// <summary>"maintain at or above {alt}": the qualifier is kept whole in every band, never "above" alone.</summary>
+    public static BuilderVariantSet RestrictionAtOrAbove { get; } =
+        new(
+            "restriction at or above",
+            ["maintain", "at", "or", "above", "{alt}"],
+            ClimbMaintain,
+            new PilotVariantSet(
+                [new PilotVariant("maintaining at or above {alt}, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("at or above {alt}", PilotVariantTags.None),
+                    new PilotVariant("at or above {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>"maintain at or below {alt}": the qualifier is kept whole in every band, never "below" alone.</summary>
+    public static BuilderVariantSet RestrictionAtOrBelow { get; } =
+        new(
+            "restriction at or below",
+            ["maintain", "at", "or", "below", "{alt}"],
+            ClimbMaintain,
+            new PilotVariantSet(
+                [new PilotVariant("maintaining at or below {alt}, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("at or below {alt}", PilotVariantTags.None),
+                    new PilotVariant("at or below {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>"maintain VFR at or above {alt}" for a VFR aircraft; "VFR" is kept in every band.</summary>
+    public static BuilderVariantSet RestrictionVfrAtOrAbove { get; } =
+        new(
+            "restriction VFR at or above",
+            ["maintain", "VFR", "at", "or", "above", "{alt}"],
+            ClimbMaintain,
+            new PilotVariantSet(
+                [new PilotVariant("maintaining VFR at or above {alt}, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("VFR at or above {alt}", PilotVariantTags.None),
+                    new PilotVariant("VFR at or above {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>"maintain VFR at or below {alt}" for a VFR aircraft; "VFR" is kept in every band.</summary>
+    public static BuilderVariantSet RestrictionVfrAtOrBelow { get; } =
+        new(
+            "restriction VFR at or below",
+            ["maintain", "VFR", "at", "or", "below", "{alt}"],
+            ClimbMaintain,
+            new PilotVariantSet(
+                [new PilotVariant("maintaining VFR at or below {alt}, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("VFR at or below {alt}", PilotVariantTags.None),
+                    new PilotVariant("VFR at or below {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "climb and maintain {alt}, expedite climb" (7110.65 2-1-5.b): the verb stays while the expedite
+    /// clause is spoken.
+    /// </summary>
+    public static BuilderVariantSet ExpediteClimbToAltitude { get; } =
+        new(
+            "expedite climb with altitude",
+            ["climb", "and", "maintain", "{alt},", "expedite", "climb"],
+            Expedite,
+            new PilotVariantSet(
+                [new PilotVariant("climb and maintain {alt}, expedite climb, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("climbing {alt}, expediting", PilotVariantTags.None),
+                    new PilotVariant("climbing {alt:group}, expediting", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>"descend and maintain {alt}, expedite descent" (7110.65 2-1-5.b): the verb stays while the expedite clause is spoken.</summary>
+    public static BuilderVariantSet ExpediteDescentToAltitude { get; } =
+        new(
+            "expedite descent with altitude",
+            ["descend", "and", "maintain", "{alt},", "expedite", "descent"],
+            Expedite,
+            new PilotVariantSet(
+                [new PilotVariant("descend and maintain {alt}, expedite descent, {cs}, thanks", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("descending {alt}, expediting", PilotVariantTags.None),
+                    new PilotVariant("descending {alt:group}, expediting", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>
+    /// "expedite climb". No bare "wilco": the controller needs to hear "expedite" confirmed (7110.65
+    /// 2-1-5.b, P/CG EXPEDITE).
+    /// </summary>
+    public static BuilderVariantSet ExpediteClimb { get; } =
+        new(
+            "expedite climb",
+            ["expedite", "climb"],
+            Expedite,
+            new PilotVariantSet(
+                [new PilotVariant("expediting climb", PilotVariantTags.None)],
+                [new PilotVariant("expediting", PilotVariantTags.None)],
+                [new PilotVariant("expediting", PilotVariantTags.None)]
+            )
+        );
+
+    /// <summary>"expedite descent". No bare "wilco" (7110.65 2-1-5.b, P/CG EXPEDITE).</summary>
+    public static BuilderVariantSet ExpediteDescent { get; } =
+        new(
+            "expedite descent",
+            ["expedite", "descent"],
+            Expedite,
+            new PilotVariantSet(
+                [new PilotVariant("expediting descent", PilotVariantTags.None)],
+                [new PilotVariant("expediting", PilotVariantTags.None)],
+                [new PilotVariant("expediting", PilotVariantTags.None)]
+            )
+        );
+
+    /// <summary>"taxi without delay" (7110.65 3-7-2.j): no shorter form and no "wilco".</summary>
+    public static BuilderVariantSet ExpediteTaxi { get; } =
+        new(
+            "expedite taxi",
+            ["taxi", "without", "delay"],
+            Expedite,
+            new PilotVariantSet([new PilotVariant("taxiing without delay", PilotVariantTags.None)], [], [])
+        );
+
+    /// <summary>"exit without delay" (7110.65 3-7-2.j): no shorter form and no "wilco".</summary>
+    public static BuilderVariantSet ExpediteExit { get; } =
+        new(
+            "expedite exit",
+            ["exit", "without", "delay"],
+            Expedite,
+            new PilotVariantSet([new PilotVariant("exiting without delay", PilotVariantTags.None)], [], [])
+        );
+
+    /// <summary>"cross {fix} at {alt}" with no speed: "cross" is never dropped.</summary>
+    public static BuilderVariantSet CrossFixAt { get; } =
+        new(
+            "cross fix at",
+            ["cross", "{fix}", "at", "{alt}"],
+            CrossFix,
+            new PilotVariantSet(
+                [new PilotVariant("we'll cross {fix} at {alt}", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("cross {fix} at {alt}", PilotVariantTags.None),
+                    new PilotVariant("cross {fix} at {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>"cross {fix} at or above {alt}" with no speed: "cross" and the qualifier are never dropped.</summary>
+    public static BuilderVariantSet CrossFixAtOrAbove { get; } =
+        new(
+            "cross fix at or above",
+            ["cross", "{fix}", "at", "or", "above", "{alt}"],
+            CrossFix,
+            new PilotVariantSet(
+                [new PilotVariant("we'll cross {fix} at or above {alt}", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("cross {fix} at or above {alt}", PilotVariantTags.None),
+                    new PilotVariant("cross {fix} at or above {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>"cross {fix} at or below {alt}" with no speed: "cross" and the qualifier are never dropped.</summary>
+    public static BuilderVariantSet CrossFixAtOrBelow { get; } =
+        new(
+            "cross fix at or below",
+            ["cross", "{fix}", "at", "or", "below", "{alt}"],
+            CrossFix,
+            new PilotVariantSet(
+                [new PilotVariant("we'll cross {fix} at or below {alt}", PilotVariantTags.None)],
+                [],
+                [
+                    new PilotVariant("cross {fix} at or below {alt}", PilotVariantTags.None),
+                    new PilotVariant("cross {fix} at or below {alt:group}", PilotVariantTags.GroupFormRange),
+                ]
+            )
+        );
+
+    /// <summary>Every clause-builder variant set, for the aviation-floor test over all rows.</summary>
+    public static IReadOnlyList<BuilderVariantSet> BuilderVariantSets { get; } =
+    [
+        RestrictionAtOrAbove,
+        RestrictionAtOrBelow,
+        RestrictionVfrAtOrAbove,
+        RestrictionVfrAtOrBelow,
+        ExpediteClimbToAltitude,
+        ExpediteDescentToAltitude,
+        ExpediteClimb,
+        ExpediteDescent,
+        ExpediteTaxi,
+        ExpediteExit,
+        CrossFixAt,
+        CrossFixAtOrAbove,
+        CrossFixAtOrBelow,
+    ];
 }

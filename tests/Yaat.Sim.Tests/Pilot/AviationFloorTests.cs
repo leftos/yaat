@@ -242,4 +242,74 @@ public class AviationFloorTests
         PilotVariantTags tags,
         FrequencyLoadBand band
     ) => Assert.False(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, tags), band));
+
+    [Theory]
+    // An expedite with an altitude: a busy pilot keeps the verb and says "expediting" for "expedite climb|descent".
+    [InlineData("climb and maintain {alt}, expedite climb", CanonicalCommandType.Expedite, "climbing {alt}, expediting", FrequencyLoadBand.Busy)]
+    [InlineData(
+        "descend and maintain {alt}, expedite descent",
+        CanonicalCommandType.Expedite,
+        "descending {alt:group}, expediting",
+        FrequencyLoadBand.Busy
+    )]
+    // A bare expedite: "expediting" stands for "expedite climb|descent" in normal and busy.
+    [InlineData("expedite climb", CanonicalCommandType.Expedite, "expediting", FrequencyLoadBand.Normal)]
+    [InlineData("expedite descent", CanonicalCommandType.Expedite, "expediting", FrequencyLoadBand.Busy)]
+    [InlineData("expedite descent", CanonicalCommandType.Expedite, "expediting descent", FrequencyLoadBand.Quiet)]
+    [InlineData("taxi without delay", CanonicalCommandType.Expedite, "taxiing without delay", FrequencyLoadBand.Quiet)]
+    // An altitude restriction and a cross-fix restriction keep their qualifier, and the crossing keeps "cross".
+    [InlineData("maintain VFR at or below {alt}", CanonicalCommandType.ClimbMaintain, "VFR at or below {alt:group}", FrequencyLoadBand.Busy)]
+    [InlineData("cross {fix} at or above {alt}", CanonicalCommandType.CrossFix, "we'll cross {fix} at or above {alt}", FrequencyLoadBand.Quiet)]
+    [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "cross {fix} at {alt:group}", FrequencyLoadBand.Busy)]
+    public void HoldsTemplate_ClauseBuilderRowKeepsTheFloor_Accepts(
+        string canonicalPattern,
+        CanonicalCommandType type,
+        string template,
+        FrequencyLoadBand band
+    ) => Assert.True(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, PilotVariantTags.None), band));
+
+    [Theory]
+    // No expedite is read back with a bare "wilco": the controller needs to hear "expedite" confirmed (7110.65 2-1-5.b).
+    [InlineData("climb and maintain {alt}, expedite climb", CanonicalCommandType.Expedite, "wilco", FrequencyLoadBand.Busy)]
+    [InlineData("descend and maintain {alt}, expedite descent", CanonicalCommandType.Expedite, "wilco", FrequencyLoadBand.Busy)]
+    [InlineData("expedite climb", CanonicalCommandType.Expedite, "wilco", FrequencyLoadBand.Busy)]
+    [InlineData("expedite descent", CanonicalCommandType.Expedite, "{cs}, wilco", FrequencyLoadBand.Busy)]
+    [InlineData("taxi without delay", CanonicalCommandType.Expedite, "wilco", FrequencyLoadBand.Busy)]
+    [InlineData("exit without delay", CanonicalCommandType.Expedite, "wilco", FrequencyLoadBand.Busy)]
+    // An expedite with an altitude never drops the verb, nor the expedite clause.
+    [InlineData("climb and maintain {alt}, expedite climb", CanonicalCommandType.Expedite, "{alt}, expediting", FrequencyLoadBand.Busy)]
+    [InlineData("descend and maintain {alt}, expedite descent", CanonicalCommandType.Expedite, "{alt:group}, expediting", FrequencyLoadBand.Busy)]
+    [InlineData("climb and maintain {alt}, expedite climb", CanonicalCommandType.Expedite, "climbing {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("descend and maintain {alt}, expedite descent", CanonicalCommandType.Expedite, "descending {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("expedite descent", CanonicalCommandType.Expedite, "expediting climb", FrequencyLoadBand.Quiet)]
+    // An altitude restriction keeps "at or above" / "at or below" whole (F3).
+    [InlineData("maintain at or above {alt}", CanonicalCommandType.ClimbMaintain, "above {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("maintain at or below {alt}", CanonicalCommandType.ClimbMaintain, "below {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("maintain VFR at or above {alt}", CanonicalCommandType.ClimbMaintain, "VFR above {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("maintain at or above {alt}", CanonicalCommandType.ClimbMaintain, "at or below {alt}", FrequencyLoadBand.Busy)]
+    // A VFR restriction keeps "VFR" in every band.
+    [InlineData("maintain VFR at or above {alt}", CanonicalCommandType.ClimbMaintain, "at or above {alt}", FrequencyLoadBand.Busy)]
+    // A cross-fix row keeps "cross".
+    [InlineData("cross {fix} at or above {alt}", CanonicalCommandType.CrossFix, "{fix} at or above {alt}", FrequencyLoadBand.Busy)]
+    [InlineData("cross {fix} at or below {alt}", CanonicalCommandType.CrossFix, "we'll be at {fix} at or below {alt}", FrequencyLoadBand.Quiet)]
+    // The group form is busy only.
+    [InlineData(
+        "climb and maintain {alt}, expedite climb",
+        CanonicalCommandType.Expedite,
+        "climbing {alt:group}, expediting",
+        FrequencyLoadBand.Normal
+    )]
+    [InlineData(
+        "maintain at or above {alt}",
+        CanonicalCommandType.ClimbMaintain,
+        "maintaining at or above {alt:group}, {cs}, thanks",
+        FrequencyLoadBand.Quiet
+    )]
+    [InlineData("cross {fix} at {alt}", CanonicalCommandType.CrossFix, "we'll cross {fix} at {alt:group}", FrequencyLoadBand.Quiet)]
+    public void HoldsTemplate_ClauseBuilderRowBreaksTheFloor_Rejects(
+        string canonicalPattern,
+        CanonicalCommandType type,
+        string template,
+        FrequencyLoadBand band
+    ) => Assert.False(AviationFloor.HoldsTemplate(canonicalPattern.Split(' '), type, new PilotVariant(template, PilotVariantTags.None), band));
 }

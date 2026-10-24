@@ -2,7 +2,7 @@
 
 What this is: the catalogue of spoken readback bodies a solo pilot picks from in each load band, family by family, for part G of YAAT-849 (design: [pilot-phraseology-variation.md](../pilot-phraseology-variation.md)).
 Status: reviewed by the owner (2026-10-23); rulings applied.
-Build status: the family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. Pending (part B2b): the direct clause builders (expedite, the altitude restriction "maintaining at or above …", cross-fix at-or-above/below) and the VFR altitude rows; their Quiet rows below are not yet spoken.
+Build status: the family-1 Quiet rows (heading and turns, climb / descend maintain, speed, resume normal speed, direct) are built, with the speed-change rows and the Busy bare "wilco" for resume normal speed and reduce to final approach speed. The direct clause builders speak their §2 rows too: the altitude restriction (VFR forms included), the expedite with and without an altitude, the ground expedite, and the cross-fix restriction at, at or above and at or below.
 How to mark it up: strike a variant (`~~text~~`), add a row under its canonical with your band, or change the Band cell; write a ruling you disagree with as `owner: …` in its Basis cell.
 
 ## Reading the tables
@@ -82,14 +82,15 @@ My judgement on scope, for the owner to overrule:
 |---|---|---|
 | C1 | climb and maintain one one thousand | PhraseologyRules.cs:74 (CM, below FL180; DM alike) |
 | C2 | descend and maintain flight level one niner zero | PhraseologyRules.cs:79 (DM, FL; CM alike) |
-| C3 | maintain at or above four thousand ("maintain VFR at or above …" when VFR) | Pilot/PilotResponder.cs:894; Pilot/PhraseologyVerbalizer.cs:149 |
-| C4 | climb and maintain one one thousand, expedite climb | PilotResponder.cs:866 (EXP with altitude) |
-| C5 | expedite descent | PilotResponder.cs:887 (bare EXP airborne) |
-| C6 | cross sunol at or above four thousand nine hundred | PhraseologyVerbalizer.cs:163 (CFIX A/B) |
+| C3 | maintain at or above four thousand ("maintain VFR at or above …" when VFR; at or below alike) | Pilot/PilotResponder.cs:1018; Pilot/PhraseologyVerbalizer.cs:178 |
+| C4 | climb and maintain one one thousand, expedite climb | PilotResponder.cs:992 (EXP with altitude) |
+| C5 | expedite descent | PilotResponder.cs:1011 (bare EXP airborne) |
+| C6 | cross sunol at or above four thousand nine hundred (at, at or below alike; with a speed, "… at two five zero knots" after the altitude) | PhraseologyVerbalizer.cs:960 (CFIX with no speed, CFIX A/B with a speed) |
 | C7 | cross sunol at and maintain one one thousand at two five zero knots | PhraseologyRules.cs:191 (CFIX alt + speed) |
 | C8 | climb via sid / climb via sid except maintain five thousand | PhraseologyRules.cs:128-129 (CVIA) |
 | C9 | cruise one one thousand | PhraseologyRules.cs:122 |
 | C10 | depart sunol heading two seven zero | PhraseologyRules.cs:198 |
+| C11 | taxi without delay / exit without delay | PilotResponder.cs:982 (bare EXP on the ground, leaving the runway) |
 
 | Ref | Band | Variant | Ruling | Basis |
 |---|---|---|---|---|
@@ -119,21 +120,34 @@ My judgement on scope, for the owner to overrule:
 | C3 | N | maintain at or above four thousand | OK | = C |
 | C3 | B | at or above four thousand | OK | J; qualifier and keyword kept |
 | C3 | B | above four thousand | No: F3 | qualifier changed |
+| C3 | Q | maintaining VFR at or above four thousand, {cs}, thanks | OK | aviation review: "VFR" kept in every band |
+| C3 | B | VFR at or above four thousand | OK | aviation review: "VFR" kept in every band |
+| C3 | B | at or above eleven thousand / VFR at or above eleven thousand | OK | owner ruling 2 (busy group form, 10,000-17,999 ft) |
+| C3 | Q, B | maintaining at or below four thousand, {cs}, thanks / at or below four thousand / at or below eleven thousand | OK | at or below alike, VFR forms included |
+| C3 | B | below four thousand | No: F3 | qualifier changed |
 | C4 | Q | climb and maintain one one thousand, expedite climb, {cs}, thanks | OK | J |
 | C4 | N | climb and maintain one one thousand, expedite climb | OK | = C |
 | C4 | B | climbing one one thousand, expediting | OK | J; clause order kept |
 | C4 | B | climbing eleven thousand, expediting | OK | owner ruling 2 |
 | C4 | B | climbing one one thousand | No: F10 | drops the expedite clause |
+| C4 | B | one one thousand, expediting | No: J | aviation review: the verb is never dropped while the expedite clause is spoken |
+| C4 | B | climbing flight level two four zero, expediting | OK | at a flight level, "flight level" plus digits, never group form (7110.65 2-4-17.b.2) |
+| C4 | Q, B | descend and maintain one one thousand, expedite descent, {cs}, thanks / descending one one thousand, expediting / descending eleven thousand, expediting | OK | descent alike |
 | C5 | Q | expediting descent | OK | US |
 | C5 | N | expedite descent | OK | = C |
 | C5 | N | expediting | OK | US |
 | C5 | B | expediting | OK | US |
-| C5 | B | wilco | OK | no number (AIM 4-2-3.c); J: low weight, the controller wants to hear "expedite"; not built (the floor allows a bare "wilco" only for resume normal speed and reduce to final approach speed) |
+| C5 | B | wilco | No: J | 7110.65 2-1-5.b, P/CG EXPEDITE: the controller needs to hear "expedite" confirmed |
 | C6 | Q | we'll cross sunol at or above four thousand nine hundred | OK | J |
 | C6 | N | cross sunol at or above four thousand nine hundred | OK | = C |
 | C6 | B | cross sunol at or above four thousand nine hundred | OK | no shorter form |
 | C6 | B | sunol at or above four thousand nine hundred | No: J | without "cross" it reads as a position report |
 | C6 | B | direct sunol at or above four point nine | No: F3 | owner's form; decimal altitude, verb changed |
+| C6 | B | cross sunol at or above eleven thousand | OK | owner ruling 2 (busy group form, 10,000-17,999 ft); at or below alike |
+| C6 | Q | we'll cross sunol at four thousand nine hundred | OK | aviation review: plain "at" |
+| C6 | N | cross sunol at four thousand nine hundred | OK | = C (plain "at", no speed; PhraseologyVerbalizer.cs:960) |
+| C6 | B | cross sunol at four thousand nine hundred / cross sunol at eleven thousand | OK | plain "at"; owner ruling 2 |
+| C6 | N | cross sunol at or above four thousand nine hundred at two five zero knots | OK | = C; with a speed, canonical only in every band, group form included (as C7) |
 | C7 | N | cross sunol at and maintain one one thousand at two five zero knots | OK | = C; no variant in any band, group form included (held canonical-only) |
 | C7 | B | cross sunol at one one thousand, two five zero knots | No: F3 | drops "and maintain", which says what to do after the fix |
 | C8 | Q | climb via the SID | OK | US |
@@ -147,8 +161,11 @@ My judgement on scope, for the owner to overrule:
 | C9 | B | cruise eleven thousand | OK | owner ruling 2; "cruise" kept |
 | C9 | B | one one thousand | No: J | "cruise" is the clearance (P/CG CRUISE: block from MEA up); dropping it turns it into a hard altitude |
 | C10 | N | depart sunol heading two seven zero | OK | = C; only courtesy varies (Q ", thanks") |
+| C11 | Q | taxiing without delay / exiting without delay | OK | aviation review |
+| C11 | N, B | taxi without delay / exit without delay | OK | = C; no shorter form (7110.65 3-7-2.j) |
+| C11 | B | wilco | No: J | aviation review: no "wilco" for a ground expedite |
 
-Pending (part B2b), rows not yet spoken: C3 (altitude restriction "maintaining at or above …", VFR forms included), C4 and C5 (expedite), C6 and C7 (cross-fix at-or-above/below), since their clause builders render directly and do not read the rule rows. Only C1 and C2 have built Q rows ("climbing / descending {alt}", the flight-level "to" form, the verbose form); C8 and C9 Q rows are not built either.
+C8 and C9 Q rows are not built.
 
 ## 3. Speed
 

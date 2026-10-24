@@ -320,6 +320,14 @@ public class PhraseologyVerbalizerTests
                             .Select(variant => $"{rule.OutputTemplate} {band}: \"{variant.Template}\" against \"{string.Join(' ', rule.Pattern)}\"")
                     )
                 ),
+            .. PhraseologyRules.BuilderVariantSets.SelectMany(set =>
+                bands.SelectMany(band =>
+                    PhraseologyVerbalizer
+                        .BandRows(set.Variants, band)
+                        .Where(variant => !AviationFloor.HoldsTemplate(set.Pattern, set.Type, variant, band))
+                        .Select(variant => $"{set.Name} {band}: \"{variant.Template}\" against \"{string.Join(' ', set.Pattern)}\"")
+                )
+            ),
         ];
 
         Assert.True(

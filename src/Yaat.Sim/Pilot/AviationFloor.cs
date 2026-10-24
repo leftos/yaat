@@ -18,9 +18,10 @@ namespace Yaat.Sim.Pilot;
 /// speed, mach, squawk, runway), the directions (left, right, climb, descend), the safety-critical verbs (hold short,
 /// cross, cleared, land, takeoff, line up and wait, go around, hold position, follow or behind), and the words that change
 /// a clause's meaning (expedite, expect, not, via, when able, immediately or without delay, at, the altitude qualifiers at
-/// or above, at or below, cruise, except maintain and until, and the speed qualifiers or less, or greater, between,
+/// or above, at or below, cruise, VFR, except maintain and until, and the speed qualifiers or less, or greater, between,
 /// maximum and minimum). Only a busy pilot may omit anything: the climb or descend verb, and the word runway on a runway
-/// clearance.
+/// clearance. An expedite is the exception: in any band its readback may speak "expediting" for "expedite climb" or
+/// "expedite descent", dropping the direction word after expedite, and in no band may it drop the verb before an altitude.
 /// </para>
 /// </summary>
 public static class AviationFloor
@@ -60,9 +61,11 @@ public static class AviationFloor
         ["mach"] = "MACH",
         ["squawk"] = "SQUAWK",
         ["runway"] = "RUNWAY",
+        ["descent"] = "DESCEND",
         ["expedite"] = "EXPEDITE",
         ["expediting"] = "EXPEDITE",
         ["cruise"] = "CRUISE",
+        ["vfr"] = "VFR",
         ["until"] = "UNTIL",
         ["cleared"] = "CLEARED",
         ["land"] = "LAND",
@@ -108,7 +111,7 @@ public static class AviationFloor
         (["down", "to"], "DESCEND"),
     ];
 
-    private static readonly HashSet<string> BusyOmittableDirections = ["CLIMB", "DESCEND"];
+    private static readonly HashSet<string> DirectionClasses = ["CLIMB", "DESCEND"];
 
     /// <summary>The runway clearances whose readback a busy pilot may speak without the word runway.</summary>
     private static readonly HashSet<CanonicalCommandType> RunwayClearanceTypes =
@@ -148,9 +151,11 @@ public static class AviationFloor
     /// than by re-parsing rendered text. Both templates are read into their <c>{capture}</c> names in order and their keyword
     /// classes in order (the classes the class summary lists). The captures must be equal: none dropped, added or reordered.
     /// The classes must be equal, except that on a busy frequency the variant may omit the climb or descend verb, and on a
-    /// runway clearance (<paramref name="type"/>) the word runway unless it follows hold short or cross; it may never speak a
-    /// class the canonical lacks, such as the other direction. A group-form placeholder (<c>{alt:group}</c>) counts as its
-    /// capture (<c>alt</c>), since both are rendered from one value, and is refused outside the busy band. The callsign
+    /// runway clearance (<paramref name="type"/>) the word runway unless it follows hold short or cross; on an expedite it may
+    /// omit only the direction right after expedite ("expediting" for "expedite descent"), in any band, and never the verb
+    /// before an altitude; it may never speak a class the canonical lacks, such as the other direction. A group-form
+    /// placeholder (<c>{alt:group}</c>) counts as its capture (<c>alt</c>), since both are rendered from one value, and is
+    /// refused outside the busy band. The callsign
     /// placeholder (<c>{cs}</c>) is not a capture, may appear once and is followed by no capture and no class word, only a
     /// courtesy. A row that is a bare "wilco" (with or without the callsign) holds only on a busy frequency for resume normal
     /// speed and reduce to final approach speed. A row tagged with a speed-change condition holds only on the speed rule,
@@ -312,12 +317,17 @@ public static class AviationFloor
 
     private static bool IsOmittable(List<ClassEntry> canonical, int index, CanonicalCommandType type, FrequencyLoadBand band)
     {
+        if (type == CanonicalCommandType.Expedite)
+        {
+            return IsExpeditedDirection(canonical, index);
+        }
+
         if (band != FrequencyLoadBand.Busy)
         {
             return false;
         }
         string wordClass = canonical[index].Class;
-        if (BusyOmittableDirections.Contains(wordClass))
+        if (DirectionClasses.Contains(wordClass))
         {
             return true;
         }
@@ -325,6 +335,13 @@ public static class AviationFloor
             && RunwayClearanceTypes.Contains(type)
             && ((index == 0) || (canonical[index - 1].Class is not ("HOLDSHORT" or "CROSS")));
     }
+
+    /// <summary>
+    /// Whether the class at <paramref name="index"/> is the direction word right after expedite ("expedite climb"), which
+    /// "expediting" carries; the verb before an altitude ("climb and maintain") is not.
+    /// </summary>
+    private static bool IsExpeditedDirection(List<ClassEntry> canonical, int index) =>
+        DirectionClasses.Contains(canonical[index].Class) && (index > 0) && (canonical[index - 1].Class == "EXPEDITE");
 
     /// <summary>Whether <paramref name="next"/> repeats <paramref name="previous"/> and so counts once with it.</summary>
     private static bool Merges(ClassEntry previous, ClassEntry next) =>

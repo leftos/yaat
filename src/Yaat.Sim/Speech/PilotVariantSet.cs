@@ -1,3 +1,5 @@
+using Yaat.Sim.Commands;
+
 namespace Yaat.Sim.Speech;
 
 /// <summary>Conditions under which a <see cref="PilotVariant"/> may be spoken.</summary>
@@ -106,3 +108,15 @@ public sealed record PilotVariantSet(IReadOnlyList<PilotVariant> Quiet, IReadOnl
     /// <returns>The variant set.</returns>
     public static PilotVariantSet BusyOnly(params PilotVariant[] busy) => new([], [], busy);
 }
+
+/// <summary>
+/// The spoken variants of one readback shape that a clause builder renders directly rather than from a rule (an expedite, an
+/// altitude restriction, a cross-fix restriction). The builder speaks its own canonical text and picks among
+/// <see cref="Variants"/> as the rule path does; <see cref="Pattern"/> is the canonical's template, which the aviation floor
+/// compares every row with.
+/// </summary>
+/// <param name="Name">The shape's name, for test messages.</param>
+/// <param name="Pattern">The canonical readback as a template over the shape's captures, e.g. <c>maintain at or above {alt}</c>.</param>
+/// <param name="Type">The command type the builder reads back.</param>
+/// <param name="Variants">The rows per frequency load band.</param>
+public sealed record BuilderVariantSet(string Name, string[] Pattern, CanonicalCommandType Type, PilotVariantSet Variants);

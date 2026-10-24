@@ -474,8 +474,13 @@ public static partial class PilotResponder
     ) =>
         cmd switch
         {
-            ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
+            ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm => VaryBuilderClause(
+                cm,
                 BuildAltitudeRestrictionClause(aircraft, cm),
+                aircraft.Callsign,
+                speechContext,
+                trace
+            ),
             LineUpAndWaitCommand luaw => AppendWithoutDelayClause(BuildRunwayInstructionClause(aircraft, "line up and wait"), luaw.WithoutDelay)
                 ?? VerbalizeDual(luaw, aircraft.Callsign, speechContext, trace),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
@@ -533,7 +538,7 @@ public static partial class PilotResponder
                 option.TrafficPattern,
                 option.PatternRunwayId
             ),
-            ExpediteCommand exp => BuildExpediteClause(aircraft, exp),
+            ExpediteCommand exp => VaryBuilderClause(exp, BuildExpediteClause(aircraft, exp), aircraft.Callsign, speechContext, trace),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext, trace),
             ReportCommand report => BuildReportWilcoClause(report),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
@@ -974,44 +979,85 @@ public static partial class PilotResponder
     /// per AIM §4-4-7.b. The two ground forms come from §3-7-2.j. Branching here matches
     /// <see cref="FlightCommandHandler.ApplyExpedite"/>'s own branch order.
     /// </summary>
-    private static PilotSpeechText BuildExpediteClause(AircraftState aircraft, ExpediteCommand cmd)
+    private static BuilderClause BuildExpediteClause(AircraftState aircraft, ExpediteCommand cmd)
     {
         if (cmd.Altitude is { } assigned)
         {
             bool climb = assigned > aircraft.Altitude;
             string verb = climb ? "climb" : "descend";
             string noun = climb ? "climb" : "descent";
-            return new PilotSpeechText(
-                $"{verb} and maintain {PhraseologyVerbalizer.CompactAltitude(assigned)}, expedite {noun}",
-                $"{verb} and maintain {PhraseologyVerbalizer.AltitudeWords(assigned)}, expedite {noun}"
+            return new BuilderClause(
+                new PilotSpeechText(
+                    $"{verb} and maintain {PhraseologyVerbalizer.CompactAltitude(assigned)}, expedite {noun}",
+                    $"{verb} and maintain {PhraseologyVerbalizer.AltitudeWords(assigned)}, expedite {noun}"
+                ),
+                climb ? PhraseologyRules.ExpediteClimbToAltitude : PhraseologyRules.ExpediteDescentToAltitude
             );
         }
 
         if (GroundCommandHandler.HasLandingOrExitPhase(aircraft, PhaseStatus.Active))
         {
-            return new PilotSpeechText("exit without delay", "exit without delay");
+            return new BuilderClause(new PilotSpeechText("exit without delay", "exit without delay"), PhraseologyRules.ExpediteExit);
         }
 
         if (aircraft.IsOnGround)
         {
-            return new PilotSpeechText("taxi without delay", "taxi without delay");
+            return new BuilderClause(new PilotSpeechText("taxi without delay", "taxi without delay"), PhraseologyRules.ExpediteTaxi);
         }
 
         // Bare EXP is rejected outright when there is no vertical goal, so by the time a readback
         // is built the goal is present and its side tells us which word the pilot uses.
         bool climbing = FlightPhysics.ResolveAltitudeGoal(aircraft) is { } goal && goal > aircraft.Altitude;
         string direction = climbing ? "expedite climb" : "expedite descent";
-        return new PilotSpeechText(direction, direction);
+        return new BuilderClause(
+            new PilotSpeechText(direction, direction),
+            climbing ? PhraseologyRules.ExpediteClimb : PhraseologyRules.ExpediteDescent
+        );
     }
 
-    private static PilotSpeechText BuildAltitudeRestrictionClause(AircraftState aircraft, ClimbMaintainCommand cmd)
+    private static BuilderClause BuildAltitudeRestrictionClause(AircraftState aircraft, ClimbMaintainCommand cmd)
     {
-        string vfr = aircraft.FlightPlan.IsVfr ? "VFR " : "";
-        string restriction = cmd.Modifier == AltitudeAssignmentModifier.AtOrAbove ? "at or above" : "at or below";
-        return new PilotSpeechText(
-            $"maintain {vfr}{restriction} {PhraseologyVerbalizer.CompactAltitude(cmd.Altitude)}",
-            $"maintain {vfr}{restriction} {PhraseologyVerbalizer.AltitudeWords(cmd.Altitude)}"
+        bool vfr = aircraft.FlightPlan.IsVfr;
+        bool atOrAbove = cmd.Modifier == AltitudeAssignmentModifier.AtOrAbove;
+        string vfrWord = vfr ? "VFR " : "";
+        string restriction = atOrAbove ? "at or above" : "at or below";
+        BuilderVariantSet variants = (vfr, atOrAbove) switch
+        {
+            (true, true) => PhraseologyRules.RestrictionVfrAtOrAbove,
+            (true, false) => PhraseologyRules.RestrictionVfrAtOrBelow,
+            (false, true) => PhraseologyRules.RestrictionAtOrAbove,
+            (false, false) => PhraseologyRules.RestrictionAtOrBelow,
+        };
+        return new BuilderClause(
+            new PilotSpeechText(
+                $"maintain {vfrWord}{restriction} {PhraseologyVerbalizer.CompactAltitude(cmd.Altitude)}",
+                $"maintain {vfrWord}{restriction} {PhraseologyVerbalizer.AltitudeWords(cmd.Altitude)}"
+            ),
+            variants
         );
+    }
+
+    /// <summary>A clause a readback builder renders directly: its canonical text and the variant set of its shape.</summary>
+    private readonly record struct BuilderClause(PilotSpeechText Canonical, BuilderVariantSet Variants);
+
+    /// <summary>
+    /// The builder's clause as this pilot says it now: the Terminal text is always the canonical; the spoken text is the
+    /// canonical or, for a varied pilot, one seeded pick among it and the shape's rows of the band
+    /// (<see cref="PhraseologyVerbalizer.VerbalizeBuilderClause"/>). Reports into <paramref name="trace"/> whether the Quiet
+    /// pick offered rows beside the canonical, so the readback skips the quiet flavour as for a rule's Quiet rows.
+    /// </summary>
+    private static PilotSpeechText VaryBuilderClause(
+        ParsedCommand cmd,
+        BuilderClause built,
+        string callsign,
+        PilotSpeechContext speechContext,
+        ClauseTrace trace
+    )
+    {
+        var request = new PhraseologyVerbalizer.VariantRequest(callsign, speechContext, trace.WholeReadback);
+        ClauseVerbalization spoken = PhraseologyVerbalizer.VerbalizeBuilderClause(cmd, built.Variants, built.Canonical.Tts, request);
+        trace.OfferedQuietRows |= spoken.OfferedQuietRows;
+        return built.Canonical with { Tts = spoken.Text ?? built.Canonical.Tts };
     }
 
     private static PilotSpeechText BuildTakeoffClearanceClause(
@@ -1463,7 +1509,8 @@ public static partial class PilotResponder
     /// <em>spawned</em> on final (gated by <c>!HasMadeInitialContact</c>). Two branches:
     /// <list type="bullet">
     ///   <item><description>IFR with active approach: <c>"[N123AB] tower, american one twenty three, ILS two eight right."</c></description></item>
-    ///   <item><description>VFR / IFR-no-approach: <c>"[N123AB] tower, american one twenty three three-mile final runway two eight right, with information Alpha."</c></description></item>
+    ///   <item><description>VFR / IFR-no-approach: <c>"[N123AB] tower, american one twenty three three-mile final runway
+    ///   two eight right, with information Alpha."</c></description></item>
     /// </list>
     /// </summary>
     public static PilotSpeechText BuildOnFinal(
@@ -1516,7 +1563,8 @@ public static partial class PilotResponder
     /// Initial-contact check-in for VFR aircraft joining a towered field's traffic pattern for
     /// closed traffic. Fired by <c>PatternEntryPhase</c> on entry in solo-training mode, gated
     /// by <c>!HasMadeInitialContact</c>. Output:
-    /// <c>"[N123AB] tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha."</c>
+    /// <c>"[N123AB] tower, november one two three alpha bravo, three miles south at one thousand five hundred, request
+    /// closed traffic, with information Alpha."</c>
     /// </summary>
     public static PilotSpeechText BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt) =>
         BuildClosedTrafficRequest(aircraft, airportPosition, altitudeFt, "tower", "A");

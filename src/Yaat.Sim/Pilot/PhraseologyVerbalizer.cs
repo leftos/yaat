@@ -185,18 +185,13 @@ public static class PhraseologyVerbalizer
             return $"maintain at or below {fmt.Altitude(atOrBelow.Altitude)}";
         }
 
-        // CrossFix AtOrAbove/AtOrBelow render directly because PickPreferredRule would
-        // tiebreak by declaration order and always pick the first 2-capture rule (the bare
-        // "at" form), which doesn't carry the modifier in its template. Bare "at" falls
-        // through to the rule-driven path below.
-        if (cmd is CrossFixCommand { AltType: CrossFixAltitudeType.AtOrAbove } cfAbove)
+        // CrossFix AtOrAbove/AtOrBelow render directly because PickPreferredRule would tiebreak by declaration order and
+        // always pick the first 2-capture rule (the bare "at" form), which doesn't carry the modifier in its template. The
+        // bare "at" with no speed renders here too, to pick among its variant set; "at" with a speed falls through to the
+        // rule-driven "at and maintain … at … knots" path below.
+        if ((cmd is CrossFixCommand crossFix) && ((crossFix.AltType != CrossFixAltitudeType.At) || (crossFix.Speed is null)))
         {
-            return $"cross {fmt.Fix(cfAbove.FixName)} at or above {fmt.Altitude(cfAbove.Altitude)}";
-        }
-
-        if (cmd is CrossFixCommand { AltType: CrossFixAltitudeType.AtOrBelow } cfBelow)
-        {
-            return $"cross {fmt.Fix(cfBelow.FixName)} at or below {fmt.Altitude(cfBelow.Altitude)}";
+            return RenderCrossFix(crossFix, request, fmt, out offeredQuietRows);
         }
 
         // An expected visual approach (7110.65 4-7-10.d "expect visual approach runway two five right") names a runway, not
@@ -283,7 +278,24 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>Who reads back, in what context, and whether the clause is the whole readback.</summary>
-    private readonly record struct VariantRequest(string Callsign, PilotSpeechContext Context, bool WholeReadback);
+    /// <param name="Callsign">The reading-back aircraft's callsign, which seeds the pick.</param>
+    /// <param name="Context">The pilot's personality, the trait-shifted load band, the scenario seed and the elapsed second.</param>
+    /// <param name="WholeReadback">Whether the clause is the readback's only clause, with no condition.</param>
+    internal readonly record struct VariantRequest(string Callsign, PilotSpeechContext Context, bool WholeReadback);
+
+    /// <summary>
+    /// The spoken clause a readback builder renders directly (an expedite, an altitude restriction): its own
+    /// <paramref name="canonical"/> text, or for a <see cref="PilotPersonality.Varied"/> pilot one seeded pick among it and
+    /// <paramref name="set"/>'s rows of the band, filtered and salted as <see cref="VerbalizeClause"/> picks a rule's rows.
+    /// The rows are filled from <paramref name="cmd"/>'s own captures.
+    /// </summary>
+    /// <param name="cmd">The command read back.</param>
+    /// <param name="set">The shape's variant set, chosen by the builder from the same flag that picks its words.</param>
+    /// <param name="canonical">The builder's canonical spoken clause.</param>
+    /// <param name="request">Who reads back, in what context, and whether the clause is the whole readback.</param>
+    /// <returns>The spoken clause and whether the Quiet band offered a row.</returns>
+    internal static ClauseVerbalization VerbalizeBuilderClause(ParsedCommand cmd, BuilderVariantSet set, string canonical, VariantRequest request) =>
+        VaryDirectClause(cmd, set.Variants, canonical, ExtractArgs(cmd, Spoken), request);
 
     /// <summary>The conditions a band's rows are filtered by before the pick.</summary>
     private readonly record struct CandidateFilter(FrequencyLoadBand Band, double? CurrentIndicatedAirspeed, bool WholeReadback);
@@ -382,14 +394,16 @@ public static class PhraseologyVerbalizer
         && (!tags.HasFlag(PilotVariantTags.GroupFormRange) || ((altitude is int feet) && IsGroupFormRange(feet)));
 
     /// <summary>
-    /// The altitude a climb or descent assigns, read from the command, never from the rendered text, so the altitude tags
-    /// test the value itself; null for a command with no assigned altitude.
+    /// The altitude a climb, descent, expedite or cross-fix restriction assigns, read from the command, never from the
+    /// rendered text, so the altitude tags test the value itself; null for a command with no assigned altitude.
     /// </summary>
     private static int? AssignedAltitude(ParsedCommand cmd) =>
         cmd switch
         {
             ClimbMaintainCommand climb => climb.Altitude,
             DescendMaintainCommand descend => descend.Altitude,
+            ExpediteCommand expedite => expedite.Altitude,
+            CrossFixCommand crossFix => crossFix.Altitude,
             _ => null,
         };
 
@@ -935,6 +949,50 @@ public static class PhraseologyVerbalizer
 
     private const string AltGroup = "alt" + PilotVariant.GroupFormSuffix;
     private const string SpdGroup = "spd" + PilotVariant.GroupFormSuffix;
+
+    /// <summary>
+    /// A cross-fix readback with no rule of its own: "cross {fix} at|at or above|at or below {alt}" from the shape's variant set
+    /// (<see cref="PhraseologyRules.CrossFixAt"/> and its siblings), which a varied pilot picks among; an at-or-above or
+    /// at-or-below restriction with a speed adds "at {speed} knots" after the altitude, as the plain "at" form speaks it
+    /// (7110.65 5-7-2.d), and is read back canonical in every band. <paramref name="offeredQuietRows"/> is whether the pick
+    /// ran in the Quiet band with a row beside the canonical.
+    /// </summary>
+    private static string RenderCrossFix(CrossFixCommand cf, VariantRequest request, CaptureFormatter fmt, out bool offeredQuietRows)
+    {
+        offeredQuietRows = false;
+        BuilderVariantSet set = cf.AltType switch
+        {
+            CrossFixAltitudeType.AtOrAbove => PhraseologyRules.CrossFixAtOrAbove,
+            CrossFixAltitudeType.AtOrBelow => PhraseologyRules.CrossFixAtOrBelow,
+            CrossFixAltitudeType.At => PhraseologyRules.CrossFixAt,
+            _ => throw new ArgumentOutOfRangeException(nameof(cf), cf.AltType, "Unknown cross-fix altitude type."),
+        };
+        IReadOnlyDictionary<string, string> args = CrossFixArgs(cf, fmt);
+        string canonical = RenderPattern(set.Pattern, args);
+        if (cf.Speed is int knots)
+        {
+            return $"{canonical} at {fmt.Speed(knots)} knots";
+        }
+
+        ClauseVerbalization picked = VaryDirectClause(cf, set.Variants, canonical, args, request);
+        offeredQuietRows = picked.OfferedQuietRows;
+        return picked.Text ?? canonical;
+    }
+
+    /// <summary>
+    /// <paramref name="canonical"/>, or for a <see cref="PilotPersonality.Varied"/> pilot one seeded pick among it and
+    /// <paramref name="variants"/>' rows of the context's band, as a rule's variants are picked.
+    /// </summary>
+    private static ClauseVerbalization VaryDirectClause(
+        ParsedCommand cmd,
+        PilotVariantSet variants,
+        string canonical,
+        IReadOnlyDictionary<string, string> args,
+        VariantRequest request
+    ) =>
+        (request.Context.Personality == PilotPersonality.Varied)
+            ? PickVariant(cmd, variants, canonical, args, request)
+            : new ClauseVerbalization(canonical, OfferedQuietRows: false);
 
     private static IReadOnlyDictionary<string, string> CrossFixArgs(CrossFixCommand cf, CaptureFormatter fmt)
     {
