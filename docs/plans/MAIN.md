@@ -45,7 +45,7 @@
 
 ## Bug reports and feature requests
 
-- [!] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
+- [ ] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -59,15 +59,12 @@
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
-  - [ ] YAAT-1063 Send ASDE-X hold bars with Active and Suppressed status · release vNext
   - [ ] YAAT-1064 Predict ASDE-X runway conflicts ahead instead of on footprint overlap · release vNext+1
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext+1
   - [ ] YAAT-1066 Suppress ASDE-X alerts between formation aircraft with MIL in the scratchpad · release vNext+1
   - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext+1
-  - [/] YAAT-1068 Probe the vNAS ASDE-X safety logic from CRC on the Test environment (SFO LC scenario) · release vNext+1
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext+1
   - [ ] YAAT-1070 Re-send the ASDE-X safety-logic configuration to subscribed CRC displays after a rewind or session restore
-- [ ] YAAT-1156 Log every DTO the vNAS server sends CRC from the CRC probe hook · release vNext+1
 
 ## Say again
 
@@ -754,3 +751,7 @@
 - [ ] YAAT-1149 Decide whether the frequency-change sign-off says the callsign last (good day, {cs})
 - [ ] YAAT-1151 Remove the pause Piper speaks between the digits and letters of an N-number callsign
 - [ ] YAAT-1154 Show heading 360 as 360, not 000, in PTAC result and FH/TL/TR describer text
+- [ ] YAAT-1157 Log the CRC callbacks that bypass the entity subjects (text, session, strips) in the probe hook's wire log
+- [ ] YAAT-1158 Decide whether ASDE-X hold bars' airborne 50 kt floor should be lower (slow arrivals in a headwind)
+- [ ] YAAT-1159 Render the safety-logic config's runway areas in the CRC probe hook's wire log (cut at max depth)
+- [ ] YAAT-1161 Lock CapturingHubCallerClients.Sends in the server test harness (same race as YAAT-1160)
