@@ -98,6 +98,20 @@ public class FavoriteSetOrderTests
         }
     }
 
+    [AvaloniaTheory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void MoveFavoriteSet_WithAStepOtherThanOneUpOrDown_Throws(int step)
+    {
+        MainViewModel vm = NewVm();
+
+        ArgumentOutOfRangeException error = Assert.Throws<ArgumentOutOfRangeException>(() => vm.MoveFavoriteSet(Global, step));
+
+        Assert.Equal("step", error.ParamName);
+        Assert.Equal(step, error.ActualValue);
+        Assert.Empty(vm.Preferences.FavoriteSetOrder);
+    }
+
     [Fact]
     public void FavoriteSetOrder_RoundTrips_AndRemoveFavoriteSetClearsBothLists()
     {

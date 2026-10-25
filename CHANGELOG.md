@@ -14,6 +14,7 @@
 - `REPORT OFF 5 FINAL` and `REPORT OFF SUNOL` cancel just the mile-final or fix report, and `REPORT` accepts long reporting-point names such as `OAK30NUM`.
 - `PTAC L240 030 ILS28R` and `PTACF R180 …` force the turn direction, and the pilot reads back "turn left heading two four zero".
 - The Favorites Editor's Duplicate to... copies the selected favorites into another set as independent copies, and Duplicate set... copies a whole set.
+- The favorites bar's Sets menu orders Global, airport, scenario and named sets with ▲/▼ arrows, and layouts and favorites exports keep that order.
 
 ### Changed
 

@@ -529,8 +529,8 @@ public partial class FavoritesBarView : UserControl
         Button up = CreateMoveSetButton("▲", row.CanMoveUp, "Move this set earlier on the bar");
         Button down = CreateMoveSetButton("▼", row.CanMoveDown, "Move this set later on the bar");
 
-        // A transparent panel under the buttons keeps the pointer "over the arrows" even on a disabled
-        // button, so a click there never reaches the row as a load toggle.
+        // A transparent panel under the buttons takes the press even on a disabled button. A row click that
+        // began with a press there never toggles the row's loading; a keyboard click on the row still does.
         var arrows = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -539,6 +539,8 @@ public partial class FavoritesBarView : UserControl
         };
         arrows.Children.Add(up);
         arrows.Children.Add(down);
+        bool pressedOnArrows = false;
+        arrows.AddHandler(InputElement.PointerPressedEvent, (_, _) => pressedOnArrows = true, handledEventsToo: true);
 
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), MinWidth = 200 };
         Grid.SetColumn(label, 1);
@@ -548,10 +550,15 @@ public partial class FavoritesBarView : UserControl
         header.Children.Add(arrows);
 
         var item = new MenuItem { Header = header, StaysOpenOnClick = true };
+        // A press released off the arrows raises no row Click, so the flag would outlive it; a keyboard
+        // click always follows a KeyDown, which clears it first.
+        item.AddHandler(InputElement.KeyDownEvent, (_, _) => pressedOnArrows = false, RoutingStrategies.Tunnel, handledEventsToo: true);
         item.Click += (_, e) =>
         {
             e.Handled = true;
-            if (row.IsSlot || arrows.IsPointerOver)
+            bool fromArrows = pressedOnArrows;
+            pressedOnArrows = false;
+            if (row.IsSlot || fromArrows)
             {
                 return;
             }

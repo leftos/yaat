@@ -1,6 +1,10 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
@@ -49,8 +53,31 @@ public class FavoritesSetsFlyoutTests
     private static List<string> OurLabels(MenuFlyout flyout) =>
         [.. SetRows(flyout).Select(Label).Where(l => (l == "Global") || l.StartsWith("FSF-") || (l == $"Airport ({AirportId})"))];
 
-    private static Button MoveButton(MenuItem row, string glyph) =>
-        ((Grid)row.Header!).Children.OfType<StackPanel>().Single().Children.OfType<Button>().Single(b => (string?)b.Content == glyph);
+    private static Button MoveButton(MenuItem row, string glyph) => Arrows(row).Children.OfType<Button>().Single(b => (string?)b.Content == glyph);
+
+    private static StackPanel Arrows(MenuItem row) => ((Grid)row.Header!).Children.OfType<StackPanel>().Single();
+
+    /// <summary>The centre of <paramref name="target"/> in its top level (the flyout's popup), after a layout pass.</summary>
+    private static (TopLevel Top, Point Centre) OnScreenCentre(Control target)
+    {
+        Dispatcher.UIThread.RunJobs();
+        TopLevel top = TopLevel.GetTopLevel(target) ?? throw new InvalidOperationException("the control is in no top level");
+        top.UpdateLayout();
+        Point centre =
+            target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), top)
+            ?? throw new InvalidOperationException("the control has no position in its top level");
+        return (top, centre);
+    }
+
+    /// <summary>Moves the real headless mouse to the centre of <paramref name="target"/>, then presses and releases the left button there.</summary>
+    private static void PointerClick(Control target)
+    {
+        (TopLevel top, Point centre) = OnScreenCentre(target);
+        top.MouseMove(centre);
+        top.MouseDown(centre, MouseButton.Left);
+        top.MouseUp(centre, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
 
     private static (Window Window, MenuFlyout Flyout) ShowFlyout(MainViewModel vm)
     {
@@ -166,9 +193,144 @@ public class FavoritesSetsFlyoutTests
     }
 
     [AvaloniaFact]
+    public void PointerClickOnAnEnabledMoveDown_MovesTheSetOnePlace_KeepsLoadedStates_AndTheFlyoutOpen()
+    {
+        MainViewModel vm = NewVm();
+        (Window? window, MenuFlyout? flyout) = (null, null);
+        try
+        {
+            FavoriteSet loaded = vm.FavoriteStore.CreateNamedSet("FSF-Loaded")!;
+            FavoriteSet unloaded = vm.FavoriteStore.CreateNamedSet("FSF-Unloaded")!;
+            vm.SetFavoriteSetLoaded(loaded.Id, true);
+            (window, flyout) = ShowFlyout(vm);
+            Assert.Equal(["Global", "FSF-Loaded", "FSF-Unloaded"], OurLabels(flyout));
+
+            PointerClick(MoveButton(Row(flyout, "FSF-Loaded"), "▼"));
+
+            Assert.Equal(["Global", "FSF-Unloaded", "FSF-Loaded"], OurLabels(flyout));
+            Assert.True(flyout.IsOpen);
+            Assert.Equal([loaded.Id], vm.Preferences.LoadedFavoriteSetIds);
+            Assert.False(vm.IsFavoriteSetLoaded(unloaded.Id));
+        }
+        finally
+        {
+            flyout?.Hide();
+            window?.Close();
+            vm.Preferences.SetFavoriteSetOrder([]);
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PointerClickOnADisabledMoveUp_ChangesNeitherTheOrderNorTheLoadedStates_AndKeepsTheFlyoutOpen()
+    {
+        MainViewModel vm = NewVm();
+        (Window? window, MenuFlyout? flyout) = (null, null);
+        try
+        {
+            FavoriteSet loaded = vm.FavoriteStore.CreateNamedSet("FSF-Loaded")!;
+            FavoriteSet unloaded = vm.FavoriteStore.CreateNamedSet("FSF-Unloaded")!;
+            vm.SetFavoriteSetLoaded(loaded.Id, true);
+            List<string> order = [loaded.Id, FavoriteSetOrdering.GlobalSlot, FavoriteSetOrdering.AirportSlot, FavoriteSetOrdering.ScenarioSlot];
+            vm.Preferences.SetFavoriteSetOrder([.. order]);
+            (window, flyout) = ShowFlyout(vm);
+            Assert.Equal(["FSF-Loaded", "Global", "FSF-Unloaded"], OurLabels(flyout));
+            Button up = MoveButton(Row(flyout, "FSF-Loaded"), "▲");
+            Assert.False(up.IsEnabled);
+
+            PointerClick(up);
+
+            Assert.Equal(["FSF-Loaded", "Global", "FSF-Unloaded"], OurLabels(flyout));
+            Assert.Equal(order, vm.Preferences.FavoriteSetOrder);
+            Assert.True(flyout.IsOpen);
+            Assert.Equal([loaded.Id], vm.Preferences.LoadedFavoriteSetIds);
+            Assert.False(vm.IsFavoriteSetLoaded(unloaded.Id));
+        }
+        finally
+        {
+            flyout?.Hide();
+            window?.Close();
+            vm.Preferences.SetFavoriteSetOrder([]);
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void KeyboardClickOnARow_TogglesItsLoading_WhileThePointerRestsOverItsArrows()
+    {
+        MainViewModel vm = NewVm();
+        (Window? window, MenuFlyout? flyout) = (null, null);
+        try
+        {
+            FavoriteSet set = vm.FavoriteStore.CreateNamedSet("FSF-Toggle")!;
+            (window, flyout) = ShowFlyout(vm);
+            MenuItem row = Row(flyout, "FSF-Toggle");
+            (TopLevel top, Point overArrows) = OnScreenCentre(MoveButton(row, "▼"));
+            top.MouseMove(overArrows);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(Arrows(row).IsPointerOver);
+
+            // A keyboard Enter or Space on a menu item raises its Click with no pointer press.
+            row.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.True(vm.IsFavoriteSetLoaded(set.Id));
+            Assert.True(flyout.IsOpen);
+        }
+        finally
+        {
+            flyout?.Hide();
+            window?.Close();
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void KeyboardClickOnARow_TogglesItsLoading_AfterAPressOnItsArrowsWasReleasedElsewhere()
+    {
+        MainViewModel vm = NewVm();
+        (Window? window, MenuFlyout? flyout) = (null, null);
+        try
+        {
+            FavoriteSet set = vm.FavoriteStore.CreateNamedSet("FSF-Toggle")!;
+            (window, flyout) = ShowFlyout(vm);
+            MenuItem row = Row(flyout, "FSF-Toggle");
+            (TopLevel top, Point onArrow) = OnScreenCentre(MoveButton(row, "▼"));
+            var outside = new Point(-100, -100);
+            top.MouseMove(onArrow);
+            top.MouseDown(onArrow, MouseButton.Left);
+            top.MouseMove(outside, RawInputModifiers.LeftMouseButton);
+            top.MouseUp(outside, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Empty(vm.Preferences.FavoriteSetOrder);
+            Assert.False(vm.IsFavoriteSetLoaded(set.Id));
+
+            // A keyboard click on a menu item: a KeyDown, then a Click with no pointer press. Tab stands in for
+            // the KeyDown so the menu's own Enter handling cannot raise a second Click.
+            row.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+            row.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.True(vm.IsFavoriteSetLoaded(set.Id));
+            Assert.True(flyout.IsOpen);
+        }
+        finally
+        {
+            flyout?.Hide();
+            window?.Close();
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
     public void Bar_ShowsTheSetsButton_WithNoNamedSets()
     {
         MainViewModel vm = NewVm();
+        // The store is shared by the assembly; drop any named set another test left behind.
+        foreach (FavoriteSet leaked in vm.FavoriteStore.OrderedSets.Where(s => s.Kind == FavoriteSetKind.Named).ToList())
+        {
+            vm.Preferences.RemoveFavoriteSet(leaked.Id);
+            vm.FavoriteStore.DeleteSet(leaked.Id);
+        }
+
         Assert.Empty(vm.NamedFavoriteSets);
         var view = new FavoritesBarView();
         var window = new Window

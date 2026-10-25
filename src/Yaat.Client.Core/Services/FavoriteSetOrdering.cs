@@ -50,7 +50,7 @@ public static class FavoriteSetOrdering
         var listed = new List<string>();
         foreach (string entry in order)
         {
-            if (known.TryGetValue(entry, out string? canonical) && seen.Add(canonical))
+            if ((entry is not null) && known.TryGetValue(entry, out string? canonical) && seen.Add(canonical))
             {
                 listed.Add(canonical);
             }
@@ -61,7 +61,7 @@ public static class FavoriteSetOrdering
 
         foreach (string id in loadedSetIds.Concat(namedSetIds))
         {
-            if (known.TryGetValue(id, out string? canonical) && seen.Add(canonical))
+            if ((id is not null) && known.TryGetValue(id, out string? canonical) && seen.Add(canonical))
             {
                 result.Add(canonical);
             }

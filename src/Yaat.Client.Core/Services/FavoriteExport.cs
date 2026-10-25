@@ -80,7 +80,9 @@ public static class FavoriteExport
         }
     }
 
-    /// <summary>Writes every set and every favorite (orphans included) plus the loaded-set ids and the bar order as a zip.</summary>
+    /// <summary>
+    /// Writes every set and every favorite (orphans included) plus the loaded-set ids and the bar order as a zip.
+    /// </summary>
     public static void ExportLibrary(FavoriteStore store, IReadOnlyList<string> loadedSetIds, IReadOnlyList<string> setOrder, Stream output)
     {
         using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);

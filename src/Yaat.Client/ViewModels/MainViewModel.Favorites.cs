@@ -145,8 +145,14 @@ public partial class MainViewModel
     /// Moves one row of the bar order a place up (<paramref name="step"/> -1) or down (+1), swapping it with the
     /// nearest visible row in that direction; hidden slots keep their places. No-op past the visible edge.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="step"/> is neither -1 nor +1.</exception>
     public void MoveFavoriteSet(string entry, int step)
     {
+        if ((step != -1) && (step != 1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(step), step, "step is -1 (▲) or +1 (▼)");
+        }
+
         List<string> order = NormalizedFavoriteSetOrder();
         int from = order.FindIndex(e => string.Equals(e, entry, StringComparison.OrdinalIgnoreCase));
         if ((from < 0) || !IsFavoriteSetEntryVisible(order[from]))

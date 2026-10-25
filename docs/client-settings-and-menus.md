@@ -72,7 +72,7 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 ## Layouts
 
-**A layout is the window arrangement only.** It holds window geometries, the pop-out windows, extra Radar and Ground windows, the aircraft-list grid layout, favorite sets and bar/panel state, and the open Strips and vTDLS tabs. It holds no radar, ground or terminal view settings, so a layout stays portable across scenarios.
+**A layout is the window arrangement only.** It holds window geometries, the pop-out windows, extra Radar and Ground windows, the aircraft-list grid layout, favorite sets (loaded ids and bar order) and bar/panel state, and the open Strips and vTDLS tabs. It holds no radar, ground or terminal view settings, so a layout stays portable across scenarios.
 
 **The docked terminal's size is a window arrangement.** `SavedLayout.TerminalSplitRatio` is the terminal's share of the tabs + terminal height; null on a layout captured before it was recorded, which leaves the current split alone. The live value is `MainViewModel.TerminalSplitRatio`, clamped to 0.15–0.85 and persisted as the `terminalSplitRatio` preference (unbundled: it travels with layouts); `MainWindow` writes it when the splitter drag completes and `UpdateContentGridLayout` lays the rows out from it on every pop-out toggle. The Apply Layout dialog's Terminal row reads "docked · size 25%", "popped out" or "docked" (no saved size); applying it sets the ratio after the pop-out flags and only when the terminal ends up docked, since a popped-out terminal is sized by its own window geometry.
 

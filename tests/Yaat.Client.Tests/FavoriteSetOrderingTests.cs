@@ -25,6 +25,14 @@ public class FavoriteSetOrderingTests
     }
 
     [Fact]
+    public void NullEntries_InTheOrderAndTheLoadedList_AreSkipped()
+    {
+        List<string> order = FavoriteSetOrdering.Normalize([S2, null!, Global], [null!, S1], NamedSetIds);
+
+        Assert.Equal([Airport, Scenario, S2, Global, S1, S3, S4], order);
+    }
+
+    [Fact]
     public void MissingTokens_GoToTheFrontInSlotOrder()
     {
         List<string> order = FavoriteSetOrdering.Normalize([S2, Scenario, S1], [S1, S2], NamedSetIds);

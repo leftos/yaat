@@ -380,7 +380,7 @@ public class FavoritesHubImportTests : IDisposable
                 [.. vm.NamedFavoriteSets.Select(s => s.Id)]
             );
             Assert.Equal(existingOrder, normalized.Take(existingOrder.Count));
-            Assert.True(normalized.IndexOf(imported.Id) >= existingOrder.Count);
+            Assert.Equal(imported.Id, normalized[^1]);
         }
         finally
         {

@@ -545,7 +545,10 @@ public sealed partial class UserPreferences
     /// <summary>Called by the public mutators above after Save(). Lets MainWindow refresh its menu.</summary>
     private void RaiseLayoutsChanged() => LayoutsChanged?.Invoke();
 
-    /// <summary>Ids of the currently loaded named favorite sets, in load order; their place on the bar comes from <see cref="FavoriteSetOrder"/>.</summary>
+    /// <summary>
+    /// Ids of the currently loaded named favorite sets, in load order; their place on the bar comes from
+    /// <see cref="FavoriteSetOrder"/>.
+    /// </summary>
     public IReadOnlyList<string> LoadedFavoriteSetIds => _data.LoadedFavoriteSetIds;
 
     /// <summary>

@@ -292,25 +292,30 @@ internal sealed class FavoritesBundleImport
     {
         foreach ((string name, JsonObject root) in Entities.Where(e => IsLibraryManifest(e.Name)))
         {
-            RemapIdArray(root, "loadedSetIds", idChanges);
-            RemapIdArray(root, "setOrder", idChanges);
-            Log.LogDebug("Remapped loaded favorite set ids and set order in {Entry}", name);
+            bool loadedChanged = RemapIdArray(root, "loadedSetIds", idChanges);
+            bool orderChanged = RemapIdArray(root, "setOrder", idChanges);
+            if (loadedChanged || orderChanged)
+            {
+                Log.LogDebug("Remapped loaded favorite set ids and set order in {Entry}", name);
+            }
         }
     }
 
-    private static void RemapIdArray(JsonObject root, string key, Dictionary<string, string?> idChanges)
+    // Returns whether the array's ids changed.
+    private static bool RemapIdArray(JsonObject root, string key, Dictionary<string, string?> idChanges)
     {
         if (root[key] is not JsonArray ids)
         {
-            return;
+            return false;
         }
 
         List<string> remapped = [];
+        bool changed = false;
         foreach (JsonNode? node in ids)
         {
             string? id = ((node is JsonValue value) && value.TryGetValue(out string? text)) ? text : null;
-            bool remaps = (id is not null) && !FavoriteSetOrdering.IsSlot(id) && idChanges.ContainsKey(id);
-            string? mapped = remaps ? idChanges[id!] : id;
+            string? mapped = id is null ? null : ((!FavoriteSetOrdering.IsSlot(id) && idChanges.TryGetValue(id, out string? newId)) ? newId : id);
+            changed |= !string.Equals(mapped, id, StringComparison.Ordinal);
             if (mapped is not null)
             {
                 remapped.Add(mapped);
@@ -318,6 +323,7 @@ internal sealed class FavoritesBundleImport
         }
 
         root[key] = new JsonArray([.. remapped.Select(id => (JsonNode)JsonValue.Create(id))]);
+        return changed;
     }
 
     private byte[] Serialize()
