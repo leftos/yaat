@@ -127,6 +127,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         string[] signatures = [.. list.EnumerateArray().Select(Signature).Order(StringComparer.Ordinal)];
         Assert.Equal(
             [
+                "center_ground(target:string,zoom:double)",
                 "center_radar(callsign:string,rangeNm:double)",
                 "center_radar_at(lat:double,lon:double,rangeNm:double)",
                 "center_radar_on_fix(fix:string,rangeNm:double)",
@@ -134,7 +135,10 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "connect(url:string)",
                 "create_room(artccId:string)",
                 "drag(window:string,fromX:double,fromY:double,toX:double,toY:double,button:string,steps:int,holdMs:int)",
+                "get_aircraft(callsign:string)",
+                "get_airport_context(airport:string)",
                 "get_framing()",
+                "get_traffic(airport:string)",
                 "hover(window:string,selector:string,x:double,y:double,durationMs:int)",
                 "load_recording(path:string)",
                 "pause()",
@@ -142,6 +146,7 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "play()",
                 "prepare_take(path:string,centerLat:double,centerLon:double,rangeNm:double,videoMaps:string,ptlMinutes:double,ptlAll:bool,"
                     + "rbls:string,simRate:int,seekSeconds:double)",
+                "read_terminal(sinceSequence:int)",
                 "remove_rbl(slot:int)",
                 "reset_datablock_offset(callsign:string)",
                 "seek(simSeconds:double)",
@@ -444,6 +449,156 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         Assert.False(result.GetProperty("available").GetBoolean());
         Assert.Contains("AAL9", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>The JSON object a tool that answers in JSON put in its result's message.</summary>
+    private static JsonElement Answer(JsonElement result)
+    {
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        using var document = JsonDocument.Parse(result.GetProperty("message").GetString() ?? "");
+        return document.RootElement.Clone();
+    }
+
+    private static string[] Callsigns(JsonElement traffic) =>
+        [.. traffic.GetProperty("aircraft").EnumerateArray().Select(row => row.GetProperty("callsign").GetString() ?? "")];
+
+    private static TerminalEntry Line(string message, bool isHistory) =>
+        new()
+        {
+            Timestamp = DateTime.UtcNow,
+            ElapsedSeconds = 12.34,
+            Initials = "",
+            Kind = TerminalEntryKind.PilotSpeech,
+            Callsign = "UAL1",
+            Message = message,
+            PilotKind = "Proactive",
+            IsHistory = isHistory,
+        };
+
+    [AvaloniaFact]
+    public async Task GetTraffic_FiltersByAirportAndOmitsEmptyFields()
+    {
+        MainViewModel viewModel = InScenario();
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "UAL1",
+                GroundAirportId = "OAK",
+                Position = new LatLon(37.7213, -122.2208),
+            }
+        );
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "AAL2",
+                Departure = "KSFO",
+                ParkingSpot = "A1",
+                Position = new LatLon(37.6188, -122.3756),
+            }
+        );
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "KOAK" } }),
+            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "" } })
+        );
+
+        JsonElement oakOnly = Answer(Result(responses[0]));
+        Assert.Equal(["UAL1"], Callsigns(oakOnly));
+        JsonElement row = oakOnly.GetProperty("aircraft")[0];
+        Assert.Equal(37.7213, row.GetProperty("lat").GetDouble(), 6);
+        Assert.False(row.TryGetProperty("parking", out _), row.GetRawText());
+        Assert.False(row.TryGetProperty("holdShortAhead", out _), row.GetRawText());
+        Assert.False(row.TryGetProperty("request", out _), row.GetRawText());
+        Assert.Equal(["AAL2", "UAL1"], Callsigns(Answer(Result(responses[1]))));
+        Assert.Equal("A1", Answer(Result(responses[1])).GetProperty("aircraft")[0].GetProperty("parking").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task GetAircraft_UnknownCallsign_Unavailable()
+    {
+        JsonElement result = Result(await CallTool(ToolsOf(InScenario()), "get_aircraft", new { callsign = "AAL9" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Contains("AAL9", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task ReadTerminal_ReturnsEntriesAfterTheCursorAndSkipsHistory()
+    {
+        MainViewModel viewModel = InScenario();
+        TerminalEntry before = Line("before", isHistory: false);
+        viewModel.TerminalEntries.Add(before);
+        viewModel.TerminalEntries.Add(Line("recorded", isHistory: true));
+        TerminalEntry after = Line("ready to taxi", isHistory: false);
+        viewModel.TerminalEntries.Add(after);
+
+        JsonElement answer = Answer(Result(await CallTool(ToolsOf(viewModel), "read_terminal", new { sinceSequence = (int)before.Sequence })));
+
+        JsonElement entry = Assert.Single(answer.GetProperty("entries").EnumerateArray());
+        Assert.Equal(after.Sequence, entry.GetProperty("seq").GetInt64());
+        Assert.Equal("ready to taxi", entry.GetProperty("message").GetString());
+        Assert.Equal("Proactive", entry.GetProperty("pilotKind").GetString());
+        Assert.Equal("PilotSpeech", entry.GetProperty("kind").GetString());
+        Assert.Equal(12.3, entry.GetProperty("t").GetDouble(), 6);
+        Assert.False(entry.TryGetProperty("initials", out _), entry.GetRawText());
+        Assert.False(answer.TryGetProperty("more", out _), answer.GetRawText());
+        Assert.True(answer.GetProperty("cursor").GetInt64() >= after.Sequence);
+    }
+
+    [AvaloniaFact]
+    public async Task ReadTerminal_OverTwoHundredEntries_SetsMoreAndTheCursor()
+    {
+        MainViewModel viewModel = InScenario();
+        TerminalEntry[] lines = [.. Enumerable.Range(0, 201).Select(index => Line($"line {index}", isHistory: false))];
+        foreach (TerminalEntry line in lines)
+        {
+            viewModel.TerminalEntries.Add(line);
+        }
+
+        JsonElement answer = Answer(
+            Result(await CallTool(ToolsOf(viewModel), "read_terminal", new { sinceSequence = (int)(lines[0].Sequence - 1) }))
+        );
+
+        Assert.Equal(200, answer.GetProperty("entries").GetArrayLength());
+        Assert.True(answer.GetProperty("more").GetBoolean());
+        Assert.Equal(lines[199].Sequence, answer.GetProperty("cursor").GetInt64());
+    }
+
+    [AvaloniaFact]
+    public async Task GetAirportContext_NoAirport_InvalidParam()
+    {
+        JsonElement response = await CallTool(ToolsOf(InScenario()), "get_airport_context", new { airport = " " });
+
+        Assert.Equal("airport", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam)));
+    }
+
+    [AvaloniaFact]
+    public async Task GetAirportContext_NoPositionOrRunways_LeavesThemOut()
+    {
+        JsonElement answer = Answer(Result(await CallTool(ToolsOf(InScenario()), "get_airport_context", new { airport = "koak" })));
+
+        Assert.Equal("KOAK", answer.GetProperty("airport").GetString());
+        Assert.False(answer.TryGetProperty("position", out _), answer.GetRawText());
+        Assert.False(answer.TryGetProperty("runwaysInUse", out _), answer.GetRawText());
+        Assert.False(answer.GetProperty("solo").GetProperty("enabled").GetBoolean());
+        Assert.True(answer.GetProperty("sim").TryGetProperty("rate", out _), answer.GetRawText());
+    }
+
+    [AvaloniaFact]
+    public async Task CenterGround_OnACallsign_MovesTheCentreAndZeroKeepsTheZoom()
+    {
+        MainViewModel viewModel = InScenario();
+        viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
+        double zoomBefore = viewModel.Ground.ViewZoom;
+
+        JsonElement answer = Answer(Result(await CallTool(ToolsOf(viewModel), "center_ground", new { target = "ual123", zoom = 0 })));
+
+        Assert.Equal(37.7213, viewModel.Ground.ViewCenterLat, 6);
+        Assert.Equal(-122.2208, viewModel.Ground.ViewCenterLon, 6);
+        Assert.Equal(zoomBefore, viewModel.Ground.ViewZoom);
+        Assert.Equal(37.7213, answer.GetProperty("centerLat").GetDouble(), 6);
+        Assert.Equal(zoomBefore, answer.GetProperty("zoom").GetDouble());
     }
 
     // Until the load restores the scenario's saved radar settings, a centre set now would be overwritten by them.
