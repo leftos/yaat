@@ -65,7 +65,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Concurrency
 
-- Worktrees: every item gets a pair, `../yaat.wt/<slug>/yaat` and `../yaat.wt/<slug>/yaat-server`, both on branch `<slug>` from `<base>` (from the yaat main checkout: `git worktree add ../yaat.wt/<slug>/yaat -b <slug> <base> && git -C ../yaat-server worktree add "$(cd .. && pwd)/yaat.wt/<slug>/yaat-server" -b <slug> <base>`, where yaat-server uses its `main` when it has no `<base>`).
+- Worktrees: every item gets a pair, `../yaat.wt/<slug>/yaat` and `../yaat.wt/<slug>/yaat-server`, both on branch `<slug>` from `<base>` (from the yaat main checkout: `git worktree add ../yaat.wt/<slug>/yaat -b <slug> <base> && git -C ../yaat-server worktree add "$(cd .. && pwd)/yaat.wt/<slug>/yaat-server" -b <slug> <base>`, where yaat-server uses its `main` when it has no `<base>`). Then restore both halves locally (`dotnet restore yaat.slnx` / `yaat-server.slnx` through the gate, `-Slot light`) before any commit: without a local restore the commit hook's formatter marks every `[ObservableProperty]` field readonly and the build fails (`CLAUDE.md`, "Restore a new worktree locally").
 
   Then `branch.<slug>.base` / `branch.<slug>.landOn` are recorded in each half as the user-level `nextup` §3 **Base and target** says.
 
