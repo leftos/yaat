@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Xunit;
 
-namespace Yaat.ClientDriver.Mcp.Tests;
+namespace Yaat.Client.UI.Tests.Helpers;
 
 /// <summary>
 /// The no-desktop decision, covered through <see cref="InteractiveDesktop.Describe"/>: a real headless run (session 0, a

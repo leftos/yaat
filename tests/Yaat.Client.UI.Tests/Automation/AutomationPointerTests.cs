@@ -22,7 +22,6 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Settings;
-using Yaat.ClientDriver.Mcp.Tests;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;

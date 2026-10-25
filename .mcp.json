@@ -3,7 +3,7 @@
     "yaat-client-driver": {
       "type": "stdio",
       "command": "pwsh",
-      "args": ["-NoProfile", "-File", "tools/Yaat.ClientDriver.Mcp/launch.ps1"]
+      "args": ["-NoProfile", "-File", "../yaat-server/tools/Yaat.ClientDriver.Mcp/launch.ps1"]
     }
   }
 }

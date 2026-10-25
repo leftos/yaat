@@ -22,7 +22,7 @@ A window that sets no `Background` captures as pure black, so a scene's window n
 
 ## Placing traffic: spawn it, do not simulate it
 
-Put exactly the aircraft the shot needs where it needs them with `ADD` through `SceneActions.SpawnAsync(vm, "ADD …", timeout)`, which returns the new aircraft (`SendCommandAsync` sends any other command and returns its terminal reply). Then advance only what the state needs: `RoomTicks.AdvanceUntilAsync(vm, ctx, callsign, done, new RoomTicks.Stage(what, step, max))` runs to a state, and `RoomTicks.AdvancePausedAsync` runs a fixed number of seconds. This is the same recipe the client driver uses ([`client-driver-mcp.md`](./client-driver-mcp.md), "Run yaat-server from source…"). The `ADD` forms are in `COMMANDS.md`, "Add Aircraft (ADD)":
+Put exactly the aircraft the shot needs where it needs them with `ADD` through `SceneActions.SpawnAsync(vm, "ADD …", timeout)`, which returns the new aircraft (`SendCommandAsync` sends any other command and returns its terminal reply). Then advance only what the state needs: `RoomTicks.AdvanceUntilAsync(vm, ctx, callsign, done, new RoomTicks.Stage(what, step, max))` runs to a state, and `RoomTicks.AdvancePausedAsync` runs a fixed number of seconds. This is the same recipe the client driver uses (yaat-server `docs/client-driver-mcp.md`, "Run yaat-server from source…"). The `ADD` forms are in `COMMANDS.md`, "Add Aircraft (ADD)":
 
 | Need | Command |
 |---|---|

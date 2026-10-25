@@ -53,7 +53,7 @@ The other endpoints: `/vnas/artccs/{id}` and `/vnas/airports/{id}` pass through 
    The client id is the server's `VNAS_VATSIM_CLIENT_ID` (1985 on yaat1). These two `VITE_DOMAIN`/`VITE_VATSIM_CLIENT_ID` keys apply to the dev server only; a production build reads `VITE_PROD_DOMAIN` and `VITE_PROD_VATSIM_CLIENT_ID` instead (upstream `src/utils/constants.ts:25-26`).
 3. Run `npm start`, which starts Vite on port 3000 (`vite.config.ts`), and open `http://localhost:3000`. The server must allow `http://localhost:3000` and return to `http://localhost:3000/login`; ask its owner if sign-in fails ([Troubleshooting](#troubleshooting)).
 4. Pick the `YAAT` environment (the only one listed) and press **Login with VATSIM**. After VATSIM, the browser comes back to `/login`, which shows "Waiting for vNAS Connection..." until there is a session to join.
-5. Sign in to CRC on the same server with the same CID and open an ERAM position, so vEDST has a session to join (CRC against a YAAT server: [USER_GUIDE.md](../USER_GUIDE.md#connecting-crc-for-students), [crc-first-session.md](crc-first-session.md)). vEDST then joins it and opens.
+5. Sign in to CRC on the same server with the same CID and open an ERAM position, so vEDST has a session to join (CRC against a YAAT server: [USER_GUIDE.md](../USER_GUIDE.md#connecting-crc-for-students), yaat-server `docs/crc-first-session.md`). vEDST then joins it and opens.
 
 ## Against a local yaat-server
 
@@ -64,7 +64,7 @@ Run the server from source in the yaat-server repo, `dotnet run --project src/Ya
 1. In the vEDST checkout, `.env.local` needs only `VITE_VNAS_CONFIG_URL=http://localhost:5130/vnas/configuration`; run `npm start`.
 2. Mint a token pair: `GET http://localhost:5130/vnas/auth/dev-login?cid=<cid>` answers `{nasToken, vatsimToken}`. Use the CID CRC signs in with. Optional query parameters: `name` (default `Dev User`), `rating` (default `I1`), `subdivision`, `artcc` (default the subdivision), `isMentor=true`.
 3. In the browser console on `http://localhost:3000`, run `localStorage.setItem("vatsim-token", "<vatsimToken>")` and reload. vEDST skips the VATSIM login and waits for the CRC session.
-4. Sign in to CRC on the local server with that CID and open an ERAM position (`Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT Local";Url="http://localhost:5130"})`, [crc-first-session.md](crc-first-session.md)).
+4. Sign in to CRC on the local server with that CID and open an ERAM position (`Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT Local";Url="http://localhost:5130"})`, yaat-server `docs/crc-first-session.md`).
 
 **Option B, real VATSIM.**
 

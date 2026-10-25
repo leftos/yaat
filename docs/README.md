@@ -35,9 +35,9 @@
 | Ground view rendering | [`ground-rendering.md`](./ground-rendering.md) |
 | Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md); measurements in [`research/`](./research/) (e.g. the controller-voice ouroboros baseline) |
 | Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
-| Driving the real client / CRC from an agent | [`client-driver-mcp.md`](./client-driver-mcp.md) |
+| Driving the real client / CRC from an agent | yaat-server `docs/client-driver-mcp.md` (the MCP lives in the private yaat-server repo) |
 | Writing a deterministic screenshot scene (GuideCapture) | [`guide-capture.md`](./guide-capture.md) |
-| Setting up CRC against a local server (profile, connect, FPE) | [`crc-first-session.md`](./crc-first-session.md) |
+| Setting up CRC against a local server (profile, connect, FPE) | yaat-server `docs/crc-first-session.md` |
 | vEDST sign-in: enabling it on a server, connecting a vEDST checkout | [`vedst-sign-in.md`](./vedst-sign-in.md) |
 | What data YAAT collects, keeps and deletes (privacy) | [`data-handling.md`](./data-handling.md) |
 | Tests | [`test-map.md`](./test-map.md) (which class of test pins what, and where a new one goes), [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md), [`test-suite-speed.md`](./test-suite-speed.md) |

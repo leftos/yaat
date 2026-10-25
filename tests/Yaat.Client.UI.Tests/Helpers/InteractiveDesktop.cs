@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Xunit;
 
-namespace Yaat.ClientDriver.Mcp.Tests;
+namespace Yaat.Client.UI.Tests.Helpers;
 
 /// <summary>
 /// Whether this process has an interactive desktop to put windows on. The Desktop-trait tests ask

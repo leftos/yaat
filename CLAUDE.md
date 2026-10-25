@@ -22,7 +22,7 @@ dotnet run --project src/Yaat.Client                    # Run client (needs yaat
 dotnet run --project tools/Yaat.Scratch                 # Ad-hoc throwaway scratchpad (intentionally empty placeholder)
 dotnet run --project tools/Yaat.SpeechSandbox           # Speech sandbox GUI (or `-- --pipeline <wav>`, `--lmkit-stt`, `--lmkit-models`, `--lmkit-gpus`, `--yaat-catalog`, `--llm-probe`, `--ouroboros`, `--eval`, `--synth-corpus`, `--atc-ouroboros`, `--tts-bench`)
 dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
-dotnet build tools/Yaat.ClientDriver.Mcp                # Once per clone: the `yaat-client-driver` MCP server in `.mcp.json` runs a shadow copy of this build output and never builds (see docs/client-driver-mcp.md)
+dotnet build ../yaat-server/tools/Yaat.ClientDriver.Mcp # Once per yaat-server checkout: the client-driver MCP lives in the private yaat-server repo (see yaat-server docs/client-driver-mcp.md); `.mcp.json` runs a shadow copy of this build output and never builds
 dotnet run -c Release --project tools/Yaat.PrecomputeCache # Maintainer: compute the committed precompute-cache entries (`-- --check` lists stale ones, `-- --refresh-airports` rebuilds airports.txt; src/Yaat.Sim/Data/PrecomputeCache/README.md)
 dotnet run --project tools/Yaat.RecordingConsolidator    # Dedupe recording .zip fixtures in tests/Yaat.Sim.Tests/TestData (see the `consolidate-recordings` skill)
 pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server (excludes Nightly + PathfinderGrid sweeps for speed)
@@ -147,7 +147,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`live-traffic.md`](docs/live-traffic.md) — `src/Yaat.Sim/LiveTraffic/` (shadow aircraft from an external feed: `AircraftLiveTraffic`, `LiveTrafficKinematics`, `IsShadow` tick bypass + command gate, `RecordedLiveTrafficSample`)
 - [`aircraft-performance.md`](docs/aircraft-performance.md) — per-type performance resolution + the contributor `AircraftProfileOverrides.json` correction layer (`AircraftProfileOverride`, `OverrideAwareProfileCorrectionAdapter`, `CategoryPerformance.BaselineProfile`)
 - [`client-settings-and-menus.md`](docs/client-settings-and-menus.md) — the Settings window (`SettingsNavigation`, sections, search, OK/Apply/Cancel), Scenario defaults vs the session flyout, the Import / Export hub, the View menu and hotkeys, layouts
-- [`client-driver-mcp.md`](docs/client-driver-mcp.md) — `tools/Yaat.ClientDriver.Mcp` (MCP server that drives the real desktop client and CRC through Windows UI Automation: reproducing UI-path bugs end to end, comparing CRC's display with YAAT's)
+- The client-driver MCP (drives the real desktop client and CRC: reproducing UI-path bugs end to end, comparing CRC's display with YAAT's) lives in the private yaat-server repo; read yaat-server `docs/client-driver-mcp.md`
 - [`test-harness.md`](docs/test-harness.md) — writing any Yaat.Sim test / "passes alone but flakes in the suite"
 - [`tick-animator.md`](docs/tick-animator.md) — recording tick-by-tick aircraft state with `TickRecorder` and animating it over a ground layout (LayoutInspector `--ticks --html`) to eyeball test behavior
 - [`approach-and-pattern-geometry.md`](docs/approach-and-pattern-geometry.md) — `Phases/Approach/`, `Phases/Pattern/`, `PatternGeometry`, `AirborneFollowHelper`, `HoldingEntryCalculator`, `ApproachEvaluator`

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Yaat.Client.Logging;
 using Yaat.Sim.Data.Vnas;
@@ -86,22 +87,51 @@ internal static class ModuleInit
         }
     }
 
-    /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>
-    /// <exception cref="InvalidOperationException">No folder above the test output holds yaat.slnx.</exception>
-    private static string FindRepoRoot()
+    /// <summary>
+    /// The yaat checkout this test assembly reads from, the first that holds yaat.slnx of: the <c>YaatRoot</c> assembly metadata
+    /// (set by a test project built outside yaat; a build on another machine bakes that machine's path); the nearest folder
+    /// above the output holding yaat.slnx; the yaat checkout beside, or at <c>extern/yaat</c> inside, the nearest folder above
+    /// the output holding yaat-server.slnx.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">None of those places holds a yaat checkout.</exception>
+    internal static string FindRepoRoot()
+    {
+        string? metadataRoot = typeof(ModuleInit)
+            .Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .SingleOrDefault(attribute => attribute.Key == "YaatRoot")
+            ?.Value;
+        if (!string.IsNullOrEmpty(metadataRoot) && IsYaatCheckout(metadataRoot))
+        {
+            return metadataRoot;
+        }
+
+        return FindYaatAboveOutput()
+            ?? throw new InvalidOperationException(
+                $"Cannot find the yaat checkout: YaatRoot metadata '{metadataRoot ?? "none"}' has no yaat.slnx, and no yaat.slnx or "
+                    + $"yaat-server.slnx (with ../yaat or extern/yaat) is above {AppContext.BaseDirectory}."
+            );
+    }
+
+    private static string? FindYaatAboveOutput()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+            if (IsYaatCheckout(dir.FullName))
             {
                 return dir.FullName;
             }
+
+            if (File.Exists(Path.Combine(dir.FullName, "yaat-server.slnx")))
+            {
+                string[] candidates = [Path.GetFullPath(Path.Combine(dir.FullName, "..", "yaat")), Path.Combine(dir.FullName, "extern", "yaat")];
+                return candidates.FirstOrDefault(IsYaatCheckout);
+            }
         }
 
-        throw new InvalidOperationException(
-            $"No yaat.slnx above {AppContext.BaseDirectory}: the UI tests read navdata from tests/Yaat.Sim.Tests/TestData in the checkout."
-        );
+        return null;
     }
+
+    private static bool IsYaatCheckout(string dir) => File.Exists(Path.Combine(dir, "yaat.slnx"));
 
     internal static void SweepStaleDirs(string rootDir)
     {

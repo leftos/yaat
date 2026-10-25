@@ -11,14 +11,12 @@
     <Project Path="tests/Yaat.Client.Tests/Yaat.Client.Tests.csproj" />
     <Project Path="tests/Yaat.Client.UI.Render.Tests/Yaat.Client.UI.Render.Tests.csproj" />
     <Project Path="tests/Yaat.Client.UI.Tests/Yaat.Client.UI.Tests.csproj" />
-    <Project Path="tests/Yaat.ClientDriver.Mcp.Tests/Yaat.ClientDriver.Mcp.Tests.csproj" />
     <Project Path="tests/Yaat.LayoutInspector.Tests/Yaat.LayoutInspector.Tests.csproj" />
     <Project Path="tests/Yaat.PrecomputeCache.Tests/Yaat.PrecomputeCache.Tests.csproj" />
     <Project Path="tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Yaat.CifpInspector/Yaat.CifpInspector.csproj" />
-    <Project Path="tools/Yaat.ClientDriver.Mcp/Yaat.ClientDriver.Mcp.csproj" />
     <Project Path="tools/Yaat.GuideCapture/Yaat.GuideCapture.csproj" />
     <Project Path="tools/Yaat.LayoutInspector/Yaat.LayoutInspector.csproj" />
     <Project Path="tools/Yaat.PrecomputeCache/Yaat.PrecomputeCache.csproj" />
@@ -27,6 +25,5 @@
     <Project Path="tools/Yaat.SpeechSandbox/Yaat.SpeechSandbox.csproj" />
     <Project Path="tools/Yaat.VStrips.Web/Yaat.VStrips.Web.csproj" />
     <Project Path="tools/Yaat.VTdls.Web/Yaat.VTdls.Web.csproj" />
-    <Project Path="tools/Yaat.WindowRecorder/Yaat.WindowRecorder.csproj" />
   </Folder>
 </Solution>
