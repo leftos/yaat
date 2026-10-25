@@ -256,7 +256,22 @@ public sealed partial class SimulationEngine
             List<AsdexRunwaySurface> runways = BuildAsdexRunwaySurfaces(config.Runways, navDb, fieldElevationFt);
             List<AsdexTaxiwaySegment> taxiways = IsLayoutAirport(World.GroundLayout, facilityId) ? BuildAsdexTaxiwaySegments(World.GroundLayout) : [];
 
-            ApplyAsdexDetection(scenario, facilityId, AsdexSafetyLogicDetector.Detect(runways, taxiways, aircraft, fieldElevationFt), host);
+            ApplyAsdexDetection(
+                scenario,
+                facilityId,
+                AsdexSafetyLogicDetector.Detect(
+                    runways,
+                    taxiways,
+                    aircraft,
+                    fieldElevationFt,
+                    closedRunwayAlertsOnly: !AsdexSafetyLogicSeed.NamesRunwayConfiguration(
+                        scenario.ArtccConfig,
+                        facilityId,
+                        config.RunwayConfigurationId
+                    )
+                ),
+                host
+            );
         }
     }
 

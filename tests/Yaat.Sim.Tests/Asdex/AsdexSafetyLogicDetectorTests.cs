@@ -61,7 +61,8 @@ public class AsdexSafetyLogicDetectorTests
             [Runway(closed: true)],
             [],
             [OnRunwayAligned("AAL1")],
-            FieldElevationFt
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
         );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
@@ -71,19 +72,76 @@ public class AsdexSafetyLogicDetectorTests
         Assert.True(alert.PlayAuralAlert);
     }
 
+    /// <summary>The LIMITED configuration: an aircraft using a closed runway still alerts.</summary>
+    [Fact]
+    public void ClosedRunwayAlertsOnly_ClosedRunway_AlignedUser_StillAlerts()
+    {
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway(closed: true)],
+            [],
+            [OnRunwayAligned("AAL1")],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: true
+        );
+
+        Assert.Equal(AsdexAlertKind.ClosedRunway, Assert.Single(alerts).Kind);
+    }
+
+    /// <summary>The LIMITED configuration drops the occupied-runway alert the same scene raises otherwise.</summary>
+    [Fact]
+    public void ClosedRunwayAlertsOnly_ArrivalOverLinedUpDeparture_DoesNotAlert()
+    {
+        AircraftState arrival = OnRunwayAligned("AAL1", speed: 130, onGround: false);
+        AircraftState linedUp = Aircraft("UAL2", 37.0005, -122.0040, 280, onGround: true, FieldElevationFt, speedKts: 0);
+
+        Assert.Empty(AsdexSafetyLogicDetector.Detect([Runway()], [], [arrival, linedUp], FieldElevationFt, closedRunwayAlertsOnly: true));
+    }
+
+    /// <summary>The LIMITED configuration drops the taxi-onto alert the same scene raises otherwise.</summary>
+    [Fact]
+    public void ClosedRunwayAlertsOnly_CrosserWithActiveDeparture_DoesNotAlert()
+    {
+        AircraftState departure = OnRunwayAligned("AAL1", speed: 90);
+        AircraftState crosser = Aircraft("GND3", 37.0005, -122.0040, 10, onGround: true, FieldElevationFt, speedKts: 12);
+
+        Assert.Empty(AsdexSafetyLogicDetector.Detect([Runway()], [], [departure, crosser], FieldElevationFt, closedRunwayAlertsOnly: true));
+    }
+
+    /// <summary>The LIMITED configuration drops the taxiway-landing alert the same scene raises otherwise.</summary>
+    [Fact]
+    public void ClosedRunwayAlertsOnly_LowArrivalOverTaxiway_DoesNotAlert()
+    {
+        var taxiway = new AsdexTaxiwaySegment("A", new LatLon(37.0020, -122.0100), new LatLon(37.0020, -122.0000));
+        AircraftState lander = Aircraft("AAL1", 37.0020, -122.0050, 280, onGround: false, FieldElevationFt + 60, speedKts: 120);
+
+        Assert.Empty(AsdexSafetyLogicDetector.Detect([Runway()], [taxiway], [lander], FieldElevationFt, closedRunwayAlertsOnly: true));
+    }
+
     [Fact]
     public void ClosedRunway_LoneCrosser_DoesNotAlert()
     {
         // A perpendicular taxiing aircraft is crossing, not landing/departing.
         AircraftState crosser = Aircraft("AAL1", 37.0005, -122.0050, 10, onGround: true, FieldElevationFt, speedKts: 8);
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway(closed: true)], [], [crosser], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway(closed: true)],
+            [],
+            [crosser],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
         Assert.Empty(alerts);
     }
 
     [Fact]
     public void OpenRunway_SingleUser_DoesNotAlert()
     {
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [], [OnRunwayAligned("AAL1")], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [OnRunwayAligned("AAL1")],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
         Assert.Empty(alerts);
     }
 
@@ -93,7 +151,13 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState arrival = OnRunwayAligned("AAL1", speed: 130, onGround: false); // airborne low over the runway
         AircraftState linedUp = Aircraft("UAL2", 37.0005, -122.0040, 280, onGround: true, FieldElevationFt, speedKts: 0); // holding, aligned
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [], [arrival, linedUp], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [arrival, linedUp],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
@@ -107,7 +171,13 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState departure = OnRunwayAligned("AAL1", speed: 90); // rolling, aligned 280
         AircraftState crosser = Aircraft("GND3", 37.0005, -122.0040, 10, onGround: true, FieldElevationFt, speedKts: 12); // crossing N
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [], [departure, crosser], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [departure, crosser],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.TaxiOntoActiveRunway, alert.Kind);
@@ -124,7 +194,13 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState linedUp = Aircraft("AAL1", 37.0005, -122.0050, 280, onGround: true, FieldElevationFt, speedKts: 0);
         AircraftState crosser = Aircraft("GND3", 37.0005, -122.0040, 10, onGround: true, FieldElevationFt, speedKts: 12);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [], [linedUp, crosser], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [linedUp, crosser],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.TaxiOntoActiveRunway, alert.Kind);
@@ -141,7 +217,13 @@ public class AsdexSafetyLogicDetectorTests
         var runway = new AsdexRunwaySurface("28R", RunwayArea, IsClosed: true, MagneticVariationDeg: 15, ElevationFt: FieldElevationFt);
         AircraftState lander = Aircraft("AAL1", 37.0005, -122.0050, 328, onGround: true, FieldElevationFt, speedKts: 20);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([runway], [], [lander], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [runway],
+            [],
+            [lander],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.ClosedRunway, alert.Kind);
@@ -156,7 +238,13 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState departure = OnRunwayAligned("AAL1", speed: 90);
         AircraftState backTaxi = Aircraft("N123", 37.0005, -122.0040, 100, onGround: true, FieldElevationFt, speedKts: 15);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [], [departure, backTaxi], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [departure, backTaxi],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
@@ -167,7 +255,13 @@ public class AsdexSafetyLogicDetectorTests
     {
         AircraftState backTaxi = Aircraft("N123", 37.0005, -122.0050, 100, onGround: true, FieldElevationFt, speedKts: 15);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway(closed: true)], [], [backTaxi], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway(closed: true)],
+            [],
+            [backTaxi],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         Assert.Equal(AsdexAlertKind.ClosedRunway, Assert.Single(alerts).Kind);
     }
@@ -180,7 +274,13 @@ public class AsdexSafetyLogicDetectorTests
         var highRunway = new AsdexRunwaySurface("28R", RunwayArea, IsClosed: true, MagneticVariationDeg: 0, ElevationFt: FieldElevationFt + 500);
         AircraftState arrival = Aircraft("AAL1", 37.0005, -122.0050, 280, onGround: false, FieldElevationFt + 750, speedKts: 130);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([highRunway], [], [arrival], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [highRunway],
+            [],
+            [arrival],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         Assert.Equal(AsdexAlertKind.ClosedRunway, Assert.Single(alerts).Kind);
     }
@@ -191,7 +291,13 @@ public class AsdexSafetyLogicDetectorTests
         var taxiway = new AsdexTaxiwaySegment("A", new LatLon(37.0020, -122.0100), new LatLon(37.0020, -122.0000));
         AircraftState lander = Aircraft("AAL1", 37.0020, -122.0050, 280, onGround: false, FieldElevationFt + 60, speedKts: 120);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [taxiway], [lander], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [taxiway],
+            [lander],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
 
         AsdexSafetyAlert alert = Assert.Single(alerts);
         Assert.Equal(AsdexAlertKind.TaxiwayLanding, alert.Kind);
@@ -205,7 +311,13 @@ public class AsdexSafetyLogicDetectorTests
         var taxiway = new AsdexTaxiwaySegment("A", new LatLon(37.0005, -122.0100), new LatLon(37.0005, -122.0000));
         AircraftState lander = Aircraft("AAL1", 37.0005, -122.0050, 280, onGround: false, FieldElevationFt + 60, speedKts: 120);
 
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway()], [taxiway], [lander], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [taxiway],
+            [lander],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
         Assert.Empty(alerts);
     }
 
@@ -214,7 +326,13 @@ public class AsdexSafetyLogicDetectorTests
     {
         AircraftState inhibited = OnRunwayAligned("AAL1");
         inhibited.Stars.AsdexAlertsInhibited = true;
-        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect([Runway(closed: true)], [], [inhibited], FieldElevationFt);
+        IReadOnlyList<AsdexSafetyAlert> alerts = AsdexSafetyLogicDetector.Detect(
+            [Runway(closed: true)],
+            [],
+            [inhibited],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
         Assert.Empty(alerts);
     }
 
@@ -224,8 +342,20 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState a = OnRunwayAligned("AAL1", speed: 130, onGround: false);
         AircraftState b = Aircraft("UAL2", 37.0005, -122.0040, 280, onGround: true, FieldElevationFt, speedKts: 0);
 
-        IReadOnlyList<AsdexSafetyAlert> first = AsdexSafetyLogicDetector.Detect([Runway()], [], [a, b], FieldElevationFt);
-        IReadOnlyList<AsdexSafetyAlert> second = AsdexSafetyLogicDetector.Detect([Runway()], [], [b, a], FieldElevationFt); // order swapped
+        IReadOnlyList<AsdexSafetyAlert> first = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [a, b],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
+        IReadOnlyList<AsdexSafetyAlert> second = AsdexSafetyLogicDetector.Detect(
+            [Runway()],
+            [],
+            [b, a],
+            FieldElevationFt,
+            closedRunwayAlertsOnly: false
+        ); // order swapped
 
         Assert.Equal(first[0].Id, second[0].Id);
     }

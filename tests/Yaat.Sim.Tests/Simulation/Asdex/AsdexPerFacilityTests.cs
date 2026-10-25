@@ -126,7 +126,7 @@ public class AsdexPerFacilityTests
     public void ASeededConfigAlone_RaisesTheOccupiedRunwayAlertOnSfo28R()
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        engine.LoadScenario(TwoAircraftAtSfo, 7, MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(TwoAircraftAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = FullZoa.Value);
         engine.Scenario!.AsdexSafetyLogicConfigs = Seed();
         RunwayInfo r28R =
             NavigationDatabase.Instance.GetRunway("SFO", "28R")

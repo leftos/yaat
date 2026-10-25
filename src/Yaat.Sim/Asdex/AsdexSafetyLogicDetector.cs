@@ -48,6 +48,11 @@ public sealed record AsdexSafetyAlert(
 /// Stateless per-tick classifier for ASDE-X Safety Logic alerts. Mirrors CRC's simplified
 /// binary alerting (not the real ASDE-X time-to-collision look-ahead) per the controller doc.
 ///
+/// With <c>closedRunwayAlertsOnly</c> (the facility is on the LIMITED runway configuration: "limited", none, or an
+/// id that names none of its configurations) only closed-runway alerts are raised; occupied-runway, taxi-onto and
+/// taxiway-landing alerts are suppressed. Under any named configuration every alert kind is raised on every runway;
+/// the configuration's arrival and departure runway lists play no part.
+///
 /// Load-bearing approximations (flagged for aviation review):
 /// - An arrival is treated as "still airborne over/short-of the runway" up to
 ///   <see cref="ArrivalAglCeilingFt"/> AGL; there is no approach-corridor projection, so an
@@ -75,7 +80,8 @@ public static class AsdexSafetyLogicDetector
         IReadOnlyList<AsdexRunwaySurface> runways,
         IReadOnlyList<AsdexTaxiwaySegment> taxiways,
         IReadOnlyList<AircraftState> aircraft,
-        double fieldElevationFt
+        double fieldElevationFt,
+        bool closedRunwayAlertsOnly
     )
     {
         // Individually-inhibited targets (square drawn around them in CRC) take part in no alert.
@@ -84,53 +90,58 @@ public static class AsdexSafetyLogicDetector
 
         foreach (AsdexRunwaySurface runway in runways)
         {
-            var occupants = candidates.Where(ac => PointInPolygon(ac.Position, runway.Area)).ToList();
-            if (occupants.Count == 0)
+            if (RunwayAlert(runway, candidates, closedRunwayAlertsOnly) is { } alert)
             {
-                continue;
-            }
-
-            // A "claimant" is an aircraft aligned with the runway that is actively using it: on
-            // the surface at any speed (rolling, or lined up and waiting) or arriving at low AGL.
-            // Ground speed does NOT gate this — a stationary lined-up departure still claims the
-            // runway, which is exactly the LUAW-incursion case Safety Logic must catch.
-            var claimants = occupants.Where(ac => ClaimsRunway(ac, runway)).ToList();
-
-            // Condition 1 — closed runway. Any aircraft using a closed runway is an incursion;
-            // this is also the only alert the "LIMITED" configuration generates.
-            if (runway.IsClosed)
-            {
-                if (claimants.Count > 0)
-                {
-                    alerts.Add(BuildAlert(AsdexAlertKind.ClosedRunway, runway, claimants, "CLOSED RWY"));
-                }
-
-                continue;
-            }
-
-            // No alert without an active arrival/departure claiming the runway and a distinct
-            // second aircraft also on it.
-            if (claimants.Count == 0 || occupants.Count < 2)
-            {
-                continue;
-            }
-
-            // The other aircraft sharing the runway: a non-aligned aircraft on the surface is a
-            // taxi-onto incursion; otherwise the conflict is between arrivals/departures
-            // occupying the same runway.
-            var crossers = occupants.Where(ac => ac.IsOnGround && !IsAligned(ac, runway)).ToList();
-            if (crossers.Count > 0)
-            {
-                alerts.Add(BuildAlert(AsdexAlertKind.TaxiOntoActiveRunway, runway, occupants, "RWY INCURSION"));
-            }
-            else
-            {
-                alerts.Add(BuildAlert(AsdexAlertKind.OccupiedRunway, runway, occupants, "OCCUPIED RWY"));
+                alerts.Add(alert);
             }
         }
 
-        AppendTaxiwayLandings(runways, taxiways, candidates, fieldElevationFt, alerts);
+        if (!closedRunwayAlertsOnly)
+        {
+            AppendTaxiwayLandings(runways, taxiways, candidates, fieldElevationFt, alerts);
+        }
+
         return alerts;
+    }
+
+    /// <summary>
+    /// The one alert a runway raises this tick, or null: a closed-runway alert for any aircraft using a closed runway,
+    /// else (unless only closed-runway alerts are raised) a taxi-onto or occupied-runway alert when an aircraft claims
+    /// the runway and a second aircraft is also on it.
+    /// </summary>
+    private static AsdexSafetyAlert? RunwayAlert(AsdexRunwaySurface runway, IReadOnlyList<AircraftState> candidates, bool closedRunwayAlertsOnly)
+    {
+        var occupants = candidates.Where(ac => PointInPolygon(ac.Position, runway.Area)).ToList();
+        if (occupants.Count == 0)
+        {
+            return null;
+        }
+
+        // A "claimant" is an aircraft aligned with the runway that is actively using it: on
+        // the surface at any speed (rolling, or lined up and waiting) or arriving at low AGL.
+        // Ground speed does NOT gate this — a stationary lined-up departure still claims the
+        // runway, which is exactly the LUAW-incursion case Safety Logic must catch.
+        var claimants = occupants.Where(ac => ClaimsRunway(ac, runway)).ToList();
+
+        // Condition 1 — closed runway. Any aircraft using a closed runway is an incursion.
+        if (runway.IsClosed)
+        {
+            return claimants.Count > 0 ? BuildAlert(AsdexAlertKind.ClosedRunway, runway, claimants, "CLOSED RWY") : null;
+        }
+
+        // No alert without an active arrival/departure claiming the runway and a distinct
+        // second aircraft also on it.
+        if (closedRunwayAlertsOnly || (claimants.Count == 0) || (occupants.Count < 2))
+        {
+            return null;
+        }
+
+        // The other aircraft sharing the runway: a non-aligned aircraft on the surface is a
+        // taxi-onto incursion; otherwise the conflict is between arrivals/departures
+        // occupying the same runway.
+        return occupants.Any(ac => ac.IsOnGround && !IsAligned(ac, runway))
+            ? BuildAlert(AsdexAlertKind.TaxiOntoActiveRunway, runway, occupants, "RWY INCURSION")
+            : BuildAlert(AsdexAlertKind.OccupiedRunway, runway, occupants, "OCCUPIED RWY");
     }
 
     private static void AppendTaxiwayLandings(

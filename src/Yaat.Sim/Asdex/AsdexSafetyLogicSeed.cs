@@ -144,6 +144,17 @@ public static class AsdexSafetyLogicSeed
         return repicked.ToImmutable();
     }
 
+    /// <summary>
+    /// True when <paramref name="configurationId"/> names one of the facility's runway configurations. Anything else
+    /// ("limited", "", an id the facility does not have, a facility or ARTCC config that cannot be found) is the LIMITED
+    /// configuration, under which the detector raises closed-runway alerts only.
+    /// </summary>
+    public static bool NamesRunwayConfiguration(ArtccConfigRoot? config, string facilityId, string configurationId) =>
+        (config is not null)
+        && (configurationId.Length > 0)
+        && (FindAsdex(config, facilityId) is { } asdex)
+        && asdex.RunwayConfigurations.Any(candidate => candidate.Id == configurationId);
+
     /// <summary>The ASDE-X configuration of the first facility in walk order with this id, the one the seed built from.</summary>
     private static AsdexConfig? FindAsdex(ArtccConfigRoot config, string facilityId) =>
         Walk(config.Facility)
