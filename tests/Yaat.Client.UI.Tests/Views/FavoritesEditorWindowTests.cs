@@ -122,4 +122,111 @@ public class FavoritesEditorWindowTests
             Dispatcher.UIThread.RunJobs();
         }
     }
+
+    [AvaloniaFact]
+    public void Editor_SetAndSelectionButtons_ReadLinkDuplicateAndMove()
+    {
+        var prefs = new UserPreferences();
+        FavoriteStore store = NewStore();
+        var editor = new FavoritesEditorWindow(prefs, store);
+        editor.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        try
+        {
+            Assert.Equal("Link to...", editor.FindControl<Button>("LinkToButton")!.Content as string);
+            Assert.Equal("Duplicate to...", editor.FindControl<Button>("DuplicateToButton")!.Content as string);
+            Assert.Equal("Move to...", editor.FindControl<Button>("MoveToButton")!.Content as string);
+            Assert.Equal("Duplicate set...", editor.FindControl<Button>("DuplicateSetButton")!.Content as string);
+            Assert.Null(editor.FindControl<Button>("AddToButton"));
+        }
+        finally
+        {
+            editor.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void TransferSelection_Duplicate_AddsIndependentCopiesToTheTarget()
+    {
+        var prefs = new UserPreferences();
+        FavoriteStore store = NewStore();
+        FavoriteSet setA = store.CreateNamedSet("A")!;
+        FavoriteSet setB = store.CreateNamedSet("B")!;
+        FavoriteCommand f1 = new() { Label = "One", CommandText = "FH 090" };
+        FavoriteCommand f2 = new() { Label = "Two", CommandText = "FH 180" };
+        foreach (FavoriteCommand favorite in new[] { f1, f2 })
+        {
+            store.SaveFavorite(favorite);
+            store.AddToSet(setA.Id, favorite.Id);
+        }
+
+        var editor = new FavoritesEditorWindow(prefs, store);
+        editor.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        try
+        {
+            SelectContainer(editor, setA.Id);
+            editor.FindControl<ListBox>("FavoritesList")!.SelectAll();
+            Dispatcher.UIThread.RunJobs();
+
+            editor.TransferSelection(setB.Id, FavoriteTransferMode.Duplicate);
+
+            Assert.Equal(["One", "Two"], store.GetSetFavorites(setB.Id).Select(f => f.Label));
+            Assert.DoesNotContain(store.GetSet(setB.Id)!.FavoriteIds, id => (id == f1.Id) || (id == f2.Id));
+            Assert.Equal([f1.Id, f2.Id], store.GetSet(setA.Id)!.FavoriteIds);
+        }
+        finally
+        {
+            editor.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void TransferSelection_Link_SharesTheSameFavorite()
+    {
+        var prefs = new UserPreferences();
+        FavoriteStore store = NewStore();
+        FavoriteSet setA = store.CreateNamedSet("A")!;
+        FavoriteSet setB = store.CreateNamedSet("B")!;
+        FavoriteCommand f1 = new() { Label = "One", CommandText = "FH 090" };
+        FavoriteCommand f2 = new() { Label = "Two", CommandText = "FH 180" };
+        foreach (FavoriteCommand favorite in new[] { f1, f2 })
+        {
+            store.SaveFavorite(favorite);
+            store.AddToSet(setA.Id, favorite.Id);
+        }
+
+        var editor = new FavoritesEditorWindow(prefs, store);
+        editor.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        try
+        {
+            SelectContainer(editor, setA.Id);
+            editor.FindControl<ListBox>("FavoritesList")!.SelectAll();
+            Dispatcher.UIThread.RunJobs();
+
+            editor.TransferSelection(setB.Id, FavoriteTransferMode.Link);
+
+            Assert.Equal([f1.Id, f2.Id], store.GetSet(setB.Id)!.FavoriteIds);
+            Assert.Equal([f1.Id, f2.Id], store.GetSet(setA.Id)!.FavoriteIds);
+        }
+        finally
+        {
+            editor.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static void SelectContainer(FavoritesEditorWindow editor, string containerId)
+    {
+        ListBox containers = editor.FindControl<ListBox>("ContainersList")!;
+        var items = Assert.IsAssignableFrom<IEnumerable<ListBoxItem>>(containers.ItemsSource).ToList();
+        containers.SelectedItem = items.Single(i => string.Equals(i.Tag as string, containerId, StringComparison.Ordinal));
+        Dispatcher.UIThread.RunJobs();
+    }
 }

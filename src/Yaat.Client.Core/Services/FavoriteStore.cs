@@ -40,7 +40,10 @@ public sealed class FavoriteCommand
     public string TextColor { get; set; } = FavoriteCommandDefaults.TextColor;
     public double ButtonHeight { get; set; } = FavoriteCommandDefaults.ButtonHeight;
 
-    /// <summary>Member-wise copy (same Id) for staging an edit before committing it back through the store.</summary>
+    /// <summary>
+    /// Member-wise copy (same Id) for staging an edit before committing it back through the store, and
+    /// the base of every duplication copy — a new favorite field belongs in here too.
+    /// </summary>
     public FavoriteCommand Clone() =>
         new()
         {
@@ -223,6 +226,19 @@ public sealed class FavoriteStore
     /// <summary>Returns the new set, or null on a blank name or a case-insensitive collision with another named set.</summary>
     public FavoriteSet? CreateNamedSet(string name)
     {
+        if (TryAddNamedSet(name) is not { } set)
+        {
+            return null;
+        }
+
+        SaveSetFile(set);
+        RaiseChanged();
+        return set;
+    }
+
+    /// <summary>Adds an unsaved named set to the store, or returns null on a blank name or a case-insensitive collision.</summary>
+    private FavoriteSet? TryAddNamedSet(string name)
+    {
         string trimmed = name.Trim();
         if (string.IsNullOrEmpty(trimmed) || FindNamedSet(trimmed) is not null)
         {
@@ -236,6 +252,80 @@ public sealed class FavoriteStore
             Name = trimmed,
         };
         _sets.Add(set);
+        return set;
+    }
+
+    /// <summary>
+    /// Copies each favorite into the target set as a new, independent entity: a fresh id, every other
+    /// field copied (spacers included), appended in the given order. Unknown favorite ids are logged and
+    /// skipped. Returns the new ids in order; an unknown target set logs a warning and returns an empty
+    /// list.
+    /// </summary>
+    public List<string> DuplicateIntoSet(string targetSetId, IReadOnlyList<string> favoriteIds)
+    {
+        FavoriteSet? target = GetSet(targetSetId);
+        if (target is null)
+        {
+            Log.LogWarning("DuplicateIntoSet: unknown set id {SetId}", targetSetId);
+            return [];
+        }
+
+        List<string> newIds = CopyInto(target, favoriteIds);
+        if (newIds.Count == 0)
+        {
+            return newIds;
+        }
+
+        SaveSetFile(target);
+        RaiseChanged();
+        return newIds;
+    }
+
+    /// <summary>
+    /// Saves a new independent copy per favorite and appends its id to the target set's order. Writes
+    /// only the favorite files: the caller owns saving the set and raising Changed.
+    /// </summary>
+    private List<string> CopyInto(FavoriteSet target, IReadOnlyList<string> favoriteIds)
+    {
+        List<string> newIds = [];
+        foreach (string favoriteId in favoriteIds)
+        {
+            if (_favorites.GetValueOrDefault(favoriteId) is not { } source)
+            {
+                Log.LogWarning("DuplicateIntoSet: unknown favorite id {FavoriteId}", favoriteId);
+                continue;
+            }
+
+            FavoriteCommand copy = source.Clone();
+            copy.Id = NewFavoriteId();
+            _favorites[copy.Id] = copy;
+            SaveFavoriteFile(copy);
+            newIds.Add(copy.Id);
+        }
+
+        target.FavoriteIds.AddRange(newIds);
+        return newIds;
+    }
+
+    /// <summary>
+    /// Creates a named set holding an independent copy of every favorite in the source set, in its
+    /// order. Returns null on an unknown source, a blank name or a case-insensitive collision with
+    /// another named set.
+    /// </summary>
+    public FavoriteSet? DuplicateSet(string sourceSetId, string name)
+    {
+        if (GetSet(sourceSetId) is not { } source)
+        {
+            Log.LogWarning("DuplicateSet: unknown set id {SetId}", sourceSetId);
+            return null;
+        }
+
+        if (TryAddNamedSet(name) is not { } set)
+        {
+            return null;
+        }
+
+        CopyInto(set, source.FavoriteIds);
         SaveSetFile(set);
         RaiseChanged();
         return set;

@@ -13,6 +13,7 @@
 - Bug report bundles record which YAAT server the session ran on, so a report can be traced to that server's logs.
 - `REPORT OFF 5 FINAL` and `REPORT OFF SUNOL` cancel just the mile-final or fix report, and `REPORT` accepts long reporting-point names such as `OAK30NUM`.
 - `PTAC L240 030 ILS28R` and `PTACF R180 …` force the turn direction, and the pilot reads back "turn left heading two four zero".
+- The Favorites Editor's Duplicate to... copies the selected favorites into another set as independent copies, and Duplicate set... copies a whole set.
 
 ### Changed
 
@@ -39,6 +40,7 @@
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.
 - `GA RH`, `GA MLT` and `GA MRT` end an approach clearance, as a go-around with a heading does.
+- The Favorites Editor's Add to... button is now Link to..., since the favorite it adds is the same one in both sets.
 
 ### Fixed
 

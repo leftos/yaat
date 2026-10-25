@@ -2611,7 +2611,9 @@ Airport sets are useful for airport- or position-specific presets that don't app
 
 - The **Favorites Editor** lists every set on the left (named sets have a **Loaded** checkbox) plus **Not in any set**, which holds favorites you removed from their last set — nothing is lost until you explicitly delete it.
 
-  The right pane lists the selected set's favorites with multi-select: **Move Up/Down** reorders within the set, **Add to…** puts the selection in another set as well, **Move to…** transfers it, **Remove** takes it out of the current set only, and **Delete** destroys it everywhere.
+  The right pane lists the selected set's favorites with multi-select: **Move Up/Down** reorders within the set, **Link to…** shows the selection in another set as well (the same favorite in both, so an edit changes both), **Duplicate to…** copies it into another set as new favorites (an edit changes only that copy), **Move to…** transfers it, **Remove** takes it out of the current set only, and **Delete** destroys it everywhere. Link, Duplicate and Move each open a list of every other set plus **New set…**.
+
+  **Duplicate set...** in the left pane (between **Rename...** and **Delete**) copies the selected set and every favorite in it into a new named set you name (prefilled "Copy of …"); the copy is selected afterwards and is not loaded.
 - **Layouts remember which named sets are loaded**: saving a layout captures the loaded sets, and applying it loads exactly those sets again (see **Layouts** in the Interface section). A layout also records whether the favorites bar is shown and whether the pop-out Favorites Panel is open, and the panel reopens on the next launch if you left it open.
 - On disk, each favorite and each set is its own JSON file under `favorites/` in the YAAT data folder, named after its label (e.g. `FH 270.3f2a9c1b.json`), so they're easy to inspect, back up, or sync.
 

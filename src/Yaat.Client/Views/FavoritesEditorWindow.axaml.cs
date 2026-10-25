@@ -11,9 +11,11 @@ namespace Yaat.Client.Views;
 /// Two-pane manager for favorite sets. The left pane lists every container as a peer — Global,
 /// each airport, each scenario, each named set (with a Loaded checkbox) — plus a "Not in any set"
 /// view of orphaned favorites. The right pane lists the selected container's favorites with
-/// multi-select. A favorite is one entity that can belong to any number of sets: Add to… adds a
-/// membership, Move to… transfers it, Remove takes it out of the selected set only, and Delete
-/// destroys it everywhere. All mutations commit straight to <see cref="FavoriteStore"/>; the live
+/// multi-select. A favorite is one entity that can belong to any number of sets: Link to… adds a
+/// membership (the same favorite in both), Duplicate to… copies the selection into another set as
+/// new independent favorites, Move to… transfers it, Remove takes it out of the selected set only,
+/// and Delete destroys it everywhere. Duplicate set… copies a whole set into a new named set, which
+/// starts unloaded. All mutations commit straight to <see cref="FavoriteStore"/>; the live
 /// bar/panel follow via the store's Changed event.
 /// </summary>
 public partial class FavoritesEditorWindow : Window
@@ -43,10 +45,12 @@ public partial class FavoritesEditorWindow : Window
         WireButton("NewSetButton", OnNewSetClick);
         WireButton("RenameSetButton", OnRenameSetClick);
         WireButton("DeleteSetButton", OnDeleteSetClick);
+        WireButton("DuplicateSetButton", OnDuplicateSetClick);
         WireButton("MoveUpButton", OnMoveUpClick);
         WireButton("MoveDownButton", OnMoveDownClick);
-        WireButton("AddToButton", (s, e) => ShowTransferFlyout(s, move: false));
-        WireButton("MoveToButton", (s, e) => ShowTransferFlyout(s, move: true));
+        WireButton("LinkToButton", (s, e) => ShowTransferFlyout(s, FavoriteTransferMode.Link));
+        WireButton("MoveToButton", (s, e) => ShowTransferFlyout(s, FavoriteTransferMode.Move));
+        WireButton("DuplicateToButton", (s, e) => ShowTransferFlyout(s, FavoriteTransferMode.Duplicate));
         WireButton("RemoveFromSetButton", OnRemoveFromSetClick);
         WireButton("DeleteFavoritesButton", OnDeleteFavoritesClick);
         WireButton("CloseButton", (_, _) => Close());
@@ -229,6 +233,34 @@ public partial class FavoritesEditorWindow : Window
         PopulateFavorites();
     }
 
+    private async void OnDuplicateSetClick(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedSet is not { } set)
+        {
+            SetStatus("Select a set first.");
+            return;
+        }
+
+        var dlg = new FavoriteSetNameDialog(NamedSetNames, $"Copy of {set.DisplayName}") { Title = "Duplicate Favorite Set" };
+        await DialogPresenter.ShowModalAsync(dlg, this);
+        if (dlg.SetName is null)
+        {
+            return;
+        }
+
+        FavoriteSet? copy = _store.DuplicateSet(set.Id, dlg.SetName);
+        if (copy is null)
+        {
+            SetStatus($"Could not create set \"{dlg.SetName}\".");
+            return;
+        }
+
+        _selectedContainerId = copy.Id;
+        SetStatus(null);
+        PopulateContainers();
+        PopulateFavorites();
+    }
+
     private async void OnRenameSetClick(object? sender, RoutedEventArgs e)
     {
         if (SelectedSet is not { Kind: FavoriteSetKind.Named } set)
@@ -317,7 +349,7 @@ public partial class FavoritesEditorWindow : Window
         ReselectFavorites(moved);
     }
 
-    private void ShowTransferFlyout(object? sender, bool move)
+    private void ShowTransferFlyout(object? sender, FavoriteTransferMode mode)
     {
         if (sender is not Button btn)
         {
@@ -341,19 +373,19 @@ public partial class FavoritesEditorWindow : Window
 
             string targetId = set.Id;
             var item = new MenuItem { Header = set.DisplayName };
-            item.Click += (_, _) => TransferSelection(targetId, move);
+            item.Click += (_, _) => TransferSelection(targetId, mode);
             flyout.Items.Add(item);
         }
 
         flyout.Items.Add(new Separator());
         var newSetItem = new MenuItem { Header = "New set…" };
-        newSetItem.Click += async (_, _) => await TransferToNewSetAsync(move);
+        newSetItem.Click += async (_, _) => await TransferToNewSetAsync(mode);
         flyout.Items.Add(newSetItem);
 
         flyout.ShowAt(btn);
     }
 
-    private async Task TransferToNewSetAsync(bool move)
+    private async Task TransferToNewSetAsync(FavoriteTransferMode mode)
     {
         var dlg = new FavoriteSetNameDialog(NamedSetNames, null) { Title = "New Favorite Set" };
         await DialogPresenter.ShowModalAsync(dlg, this);
@@ -369,10 +401,11 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        TransferSelection(set.Id, move);
+        TransferSelection(set.Id, mode);
     }
 
-    private void TransferSelection(string targetSetId, bool move)
+    /// <summary>Applies the selected favorites to the target set — linked, moved, or copied as new entities.</summary>
+    public void TransferSelection(string targetSetId, FavoriteTransferMode mode)
     {
         List<FavoriteCommand> selected = GetSelectedFavorites();
         if (selected.Count == 0)
@@ -380,12 +413,19 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        foreach (FavoriteCommand favorite in selected)
+        if (mode == FavoriteTransferMode.Duplicate)
         {
-            _store.AddToSet(targetSetId, favorite.Id);
-            if (move && SelectedSet is { } source)
+            _store.DuplicateIntoSet(targetSetId, [.. selected.Select(f => f.Id)]);
+        }
+        else
+        {
+            foreach (FavoriteCommand favorite in selected)
             {
-                _store.RemoveFromSet(source.Id, favorite.Id);
+                _store.AddToSet(targetSetId, favorite.Id);
+                if ((mode == FavoriteTransferMode.Move) && (SelectedSet is { } source))
+                {
+                    _store.RemoveFromSet(source.Id, favorite.Id);
+                }
             }
         }
 

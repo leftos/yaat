@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xunit;
 using Yaat.Client.Services;
 
@@ -369,5 +370,148 @@ public class FavoriteStoreTests : IDisposable
         // The retired width field is unknown on read, so a rewrite of the entity drops it.
         store.SaveFavorite(favorite);
         Assert.DoesNotContain("buttonWidth", File.ReadAllText(path), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DuplicateIntoSet_CopiesEveryFieldUnderNewIds_InSourceOrder()
+    {
+        FavoriteStore store = NewStore();
+        FavoriteSet setA = store.CreateNamedSet("A")!;
+        FavoriteSet setB = store.CreateNamedSet("B")!;
+        var f1 = new FavoriteCommand
+        {
+            Label = "T3 B",
+            CommandText = "T T3 B",
+            GroundCommandText = "TAXI T3 B",
+            Category = FavoriteCommandCategory.Ground,
+            BackgroundColor = "#112233",
+            TextColor = "#445566",
+            ButtonHeight = 45,
+        };
+        var spacer = new FavoriteCommand
+        {
+            IsSpacer = true,
+            Category = FavoriteCommandCategory.Ground,
+            ButtonHeight = 30,
+        };
+        FavoriteCommand f2 = Fav("FH 270");
+        foreach (FavoriteCommand favorite in new[] { f1, spacer, f2 })
+        {
+            store.SaveFavorite(favorite);
+            store.AddToSet(setA.Id, favorite.Id);
+        }
+
+        List<string> newIds = store.DuplicateIntoSet(setB.Id, [f1.Id, spacer.Id, f2.Id]);
+
+        Assert.Equal(3, newIds.Count);
+        Assert.Equal(newIds, store.GetSet(setB.Id)!.FavoriteIds);
+        Assert.DoesNotContain(newIds, id => (id == f1.Id) || (id == spacer.Id) || (id == f2.Id));
+        AssertCopyOf(f1, store.GetFavorite(newIds[0])!);
+        AssertCopyOf(spacer, store.GetFavorite(newIds[1])!);
+        AssertCopyOf(f2, store.GetFavorite(newIds[2])!);
+        Assert.Equal([f1.Id, spacer.Id, f2.Id], store.GetSet(setA.Id)!.FavoriteIds);
+    }
+
+    [Fact]
+    public void DuplicateIntoSet_EditingACopyLeavesTheOriginal_AcrossReload()
+    {
+        FavoriteStore store = NewStore();
+        FavoriteSet setA = store.CreateNamedSet("A")!;
+        FavoriteSet setB = store.CreateNamedSet("B")!;
+        FavoriteCommand original = Fav("FH 090");
+        store.SaveFavorite(original);
+        store.AddToSet(setA.Id, original.Id);
+
+        string copyId = Assert.Single(store.DuplicateIntoSet(setB.Id, [original.Id]));
+        FavoriteCommand copy = store.GetFavorite(copyId)!;
+        copy.Label = "FH 180";
+        store.SaveFavorite(copy);
+
+        Assert.Equal("FH 090", store.GetFavorite(original.Id)!.Label);
+
+        FavoriteStore reloaded = NewStore();
+        Assert.Equal("FH 090", reloaded.GetFavorite(original.Id)!.Label);
+        Assert.Equal("FH 180", reloaded.GetFavorite(copyId)!.Label);
+        Assert.Equal([original.Id], reloaded.GetSet(setA.Id)!.FavoriteIds);
+        Assert.Equal([copyId], reloaded.GetSet(setB.Id)!.FavoriteIds);
+    }
+
+    [Fact]
+    public void DuplicateSet_CreatesANamedSetOfIndependentCopies()
+    {
+        FavoriteStore store = NewStore();
+        FavoriteSet source = store.CreateNamedSet("S1")!;
+        FavoriteCommand f1 = Fav("FH 090");
+        FavoriteCommand f2 = Fav("T3 B");
+        foreach (FavoriteCommand favorite in new[] { f1, f2 })
+        {
+            store.SaveFavorite(favorite);
+            store.AddToSet(source.Id, favorite.Id);
+        }
+        int setCount = store.OrderedSets.Count;
+        int favoriteCount = store.AllFavorites.Count;
+
+        FavoriteSet copy = store.DuplicateSet(source.Id, "Copy of S1")!;
+
+        Assert.Equal(FavoriteSetKind.Named, copy.Kind);
+        Assert.Equal("Copy of S1", copy.Name);
+        Assert.Equal(2, copy.FavoriteIds.Count);
+        Assert.DoesNotContain(copy.FavoriteIds, id => (id == f1.Id) || (id == f2.Id));
+        AssertCopyOf(f1, store.GetFavorite(copy.FavoriteIds[0])!);
+        AssertCopyOf(f2, store.GetFavorite(copy.FavoriteIds[1])!);
+        Assert.Equal([f1.Id, f2.Id], store.GetSet(source.Id)!.FavoriteIds);
+
+        Assert.Null(store.DuplicateSet(source.Id, "s1"));
+        Assert.Null(store.DuplicateSet(source.Id, "  "));
+        Assert.Null(store.DuplicateSet("deadbeef", "X"));
+        Assert.Equal(setCount + 1, store.OrderedSets.Count);
+        Assert.Equal(favoriteCount + 2, store.AllFavorites.Count);
+    }
+
+    [Fact]
+    public void DuplicateSet_RaisesChangedOnce()
+    {
+        FavoriteStore store = NewStore();
+        FavoriteSet source = store.CreateNamedSet("S1")!;
+        FavoriteCommand f1 = Fav("FH 090");
+        store.SaveFavorite(f1);
+        store.AddToSet(source.Id, f1.Id);
+
+        int changes = 0;
+        store.Changed += () => changes++;
+
+        Assert.NotNull(store.DuplicateSet(source.Id, "Copy of S1"));
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void DuplicateIntoSet_RaisesChangedOnce_AndANoOpRaisesNothing()
+    {
+        FavoriteStore store = NewStore();
+        FavoriteSet source = store.CreateNamedSet("S1")!;
+        FavoriteSet target = store.CreateNamedSet("T1")!;
+        FavoriteCommand f1 = Fav("FH 090");
+        store.SaveFavorite(f1);
+        store.AddToSet(source.Id, f1.Id);
+
+        int changes = 0;
+        store.Changed += () => changes++;
+
+        Assert.Single(store.DuplicateIntoSet(target.Id, [f1.Id]));
+        Assert.Equal(1, changes);
+
+        changes = 0;
+        Assert.Empty(store.DuplicateIntoSet(target.Id, []));
+        Assert.Empty(store.DuplicateIntoSet(target.Id, ["deadbeef"]));
+        Assert.Equal(0, changes);
+    }
+
+    private static void AssertCopyOf(FavoriteCommand expected, FavoriteCommand actual)
+    {
+        Assert.NotEqual(expected.Id, actual.Id);
+        foreach (PropertyInfo property in typeof(FavoriteCommand).GetProperties().Where(p => p.Name != nameof(FavoriteCommand.Id)))
+        {
+            Assert.Equal(property.GetValue(expected), property.GetValue(actual));
+        }
     }
 }

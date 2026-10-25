@@ -11,20 +11,34 @@
   <Grid Margin="16" RowDefinitions="*,Auto" ColumnDefinitions="220,Auto,*,Auto">
     <ListBox Grid.Row="0" Grid.Column="0" x:Name="ContainersList" Margin="0,0,12,0" />
     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Vertical" Spacing="6" Margin="0,0,12,0">
-      <Button x:Name="NewSetButton" Content="New..." Width="110" HorizontalContentAlignment="Center" />
-      <Button x:Name="RenameSetButton" Content="Rename..." Width="110" HorizontalContentAlignment="Center" />
-      <Button x:Name="DeleteSetButton" Content="Delete" Width="110" HorizontalContentAlignment="Center" />
+      <Button x:Name="NewSetButton" Content="New..." Width="120" HorizontalContentAlignment="Center" />
+      <Button x:Name="RenameSetButton" Content="Rename..." Width="120" HorizontalContentAlignment="Center" />
+      <Button
+        x:Name="DuplicateSetButton"
+        Content="Duplicate set..."
+        Width="120"
+        HorizontalContentAlignment="Center"
+        ToolTip.Tip="Copy this set and every favorite in it into a new named set (not loaded)"
+      />
+      <Button x:Name="DeleteSetButton" Content="Delete" Width="120" HorizontalContentAlignment="Center" />
     </StackPanel>
     <ListBox Grid.Row="0" Grid.Column="2" x:Name="FavoritesList" SelectionMode="Multiple" Margin="0,0,12,0" />
     <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Vertical" Spacing="6">
       <Button x:Name="MoveUpButton" Content="Move Up" Width="120" HorizontalContentAlignment="Center" />
       <Button x:Name="MoveDownButton" Content="Move Down" Width="120" HorizontalContentAlignment="Center" />
       <Button
-        x:Name="AddToButton"
-        Content="Add to..."
+        x:Name="LinkToButton"
+        Content="Link to..."
         Width="120"
         HorizontalContentAlignment="Center"
-        ToolTip.Tip="Add the selection to another set as well (same favorite, shown in both)"
+        ToolTip.Tip="Show the selection in another set as well (the same favorite in both: an edit changes both)"
+      />
+      <Button
+        x:Name="DuplicateToButton"
+        Content="Duplicate to..."
+        Width="120"
+        HorizontalContentAlignment="Center"
+        ToolTip.Tip="Copy the selection into another set as new favorites (an edit changes only that copy)"
       />
       <Button
         x:Name="MoveToButton"
