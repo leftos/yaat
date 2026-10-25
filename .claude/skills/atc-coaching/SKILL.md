@@ -68,9 +68,9 @@ When an aircraft needs a closer look, read `get_aircraft(callsign)`. When geomet
    - **Candidates ranked:** every aircraft that needs something now, and why this one is first.
    - **The choice and why:** the instruction, and the reason for its route, runway, sequencing or wording. Cite 7110.65, the AIM or KOAK.json where it applies.
    - **The exact command:** the YAAT text to send, for example `SWA1234 TAXIAUTO 30`. Name the solo form.
-3. Stop and wait for the trainer. Do not unpause.
+3. Stop and ask the trainer for the ruling with `AskUserQuestion` (approve, or a correction), so the trainer's UI notifies them; never as a plain-text question. Do not unpause.
 4. After the ruling, send the command with `send_command`. Check `sent` and `success`. Read the readback with `read_terminal`, and check that its `pilotKind` is `Readback`. A refusal is reported to the trainer, not retried with a different form on a guess.
-5. Log the exchange, then `play`.
+5. Log the exchange, read `get_pause_events` once more (a trigger can fire while you pause the sim yourself), then `play`. A pause that needs nothing from the student's position is resumed without asking.
 
 **Taking initiative** follows the same steps as handling a pause. Say "Initiative:" first, and say what the scan saw that a trigger did not.
 
