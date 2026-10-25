@@ -218,8 +218,11 @@ public sealed partial class SimulationEngine
     /// The post-physics ASDE-X Safety Logic pass. It clears facilities with no configuration and runway-less
     /// configurations first, then runs the detector per runway facility in ordinal order: the facility's configured
     /// runway footprints (plus the ground layout's taxiways at the layout's own airport) go to the stateless detector,
-    /// and what it finds is diffed against the alerts that facility is already holding. With no navigation data the
-    /// runway facilities keep their standing alerts. Only the difference leaves the engine — the alerts that appeared
+    /// with <c>closedRunwayAlertsOnly</c> decided each tick by whether the facility's runway configuration id is one of
+    /// its configurations (<see cref="AsdexSafetyLogicSeed.NamesRunwayConfiguration"/>), and what it finds is diffed
+    /// against the alerts that facility is already holding.
+    /// With no navigation data the runway facilities keep their standing alerts.
+    /// Only the difference leaves the engine — the alerts that appeared
     /// and the ids that went away, named by facility — because CRC's alert topic is additive with an explicit delete.
     /// Runs on every run kind: the standing set is snapshotted scenario state, so a replay, a rewind and a session
     /// restore all reach the alert picture the live room had.

@@ -161,6 +161,21 @@ public class AsdexSafetyLogicSeedTests
         Assert.Equal("", Seed(ActiveRunways.Empty)["OAK"].RunwayConfigurationId);
     }
 
+    /// <summary>Only an id among the facility's own runway configurations is named; every other case is LIMITED.</summary>
+    [Theory]
+    [InlineData("XYZ", L28D01, false)] // a facility not in ZOA
+    [InlineData("OAK", "", false)] // an ASDE-X facility with no runway configurations
+    [InlineData("SFO", "limited", false)] // the LIMITED id itself
+    [InlineData("SFO", "", false)] // no id
+    [InlineData("SFO", "NOPE", false)] // an id SFO does not have
+    [InlineData("SFO", L28D01, true)] // one of SFO's configurations
+    public void NamesRunwayConfiguration_IsTrueOnlyForOneOfTheFacilitysConfigurations(string facilityId, string configurationId, bool expected) =>
+        Assert.Equal(expected, AsdexSafetyLogicSeed.NamesRunwayConfiguration(ZoaArtccConfig.Full, facilityId, configurationId));
+
+    [Fact]
+    public void NamesRunwayConfiguration_WithNoArtccConfig_IsFalse() =>
+        Assert.False(AsdexSafetyLogicSeed.NamesRunwayConfiguration(null, "SFO", L28D01));
+
     /// <summary>
     /// Four corners, the first two at the navdata runway's end 1 one runway width apart (each half a width from the
     /// threshold), and the ring counter-clockwise seen from above — the order CRC draws its closed-runway X from.

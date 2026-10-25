@@ -349,9 +349,7 @@ default moved its hold-short standoff 250 ft → 280 ft). **Never hardcode a nod
 To add a new airport: fetch its GeoJSON from the vNAS map API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and
 drop it in `TestData/<lowercase-short-id>.geojson`. See `AirportLayoutDownloader` and `docs/ground/README.md` for the ground stack.
 
-`TestArtccConfig.LoadZoa()` (`Helpers/TestArtccConfig.cs`) loads the committed ZOA ARTCC snapshot
-(`TestData/artcc-zoa-snapshot.json`, refreshed via `tools/refresh-artcc-snapshot.py`) for tests exercising replay-time TCP/ERAM
-resolution. It returns `null` when the snapshot is absent — same silent-skip convention.
+`TestArtccConfig.LoadZoa()` (`Helpers/TestArtccConfig.cs`) loads the committed ZOA ARTCC snapshot (`TestData/artcc-zoa-snapshot.json`, refreshed via `tools/refresh-artcc-snapshot.py`) for tests exercising replay-time TCP/ERAM resolution. It returns `null` when the snapshot is absent — same silent-skip convention. ASDE-X tests that need the full ZOA config with its runway configurations use `ZoaArtccConfig.Full` (`Simulation/Asdex/ZoaArtccConfig.cs`) instead, which reads `docs/vnas-artcc-config-examples/zoa.json`.
 
 `SfoGroundHarness` (`Helpers/SfoGroundHarness.cs`) is the multi-aircraft KSFO fixture behind the SFO ground-technique tests
 (`SfoVideoRoutePinTests`, `SfoDepartureFunnelTests`, `SfoSixAlleyChoreographyTests`, `SfoSimultaneousAlleyPushTests`,

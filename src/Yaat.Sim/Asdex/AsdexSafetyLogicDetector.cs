@@ -46,12 +46,10 @@ public sealed record AsdexSafetyAlert(
 
 /// <summary>
 /// Stateless per-tick classifier for ASDE-X Safety Logic alerts. Mirrors CRC's simplified
-/// binary alerting (not the real ASDE-X time-to-collision look-ahead) per the controller doc.
-///
-/// With <c>closedRunwayAlertsOnly</c> (the facility is on the LIMITED runway configuration: "limited", none, or an
-/// id that names none of its configurations) only closed-runway alerts are raised; occupied-runway, taxi-onto and
-/// taxiway-landing alerts are suppressed. Under any named configuration every alert kind is raised on every runway;
-/// the configuration's arrival and departure runway lists play no part.
+/// binary alerting (not the real ASDE-X time-to-collision look-ahead) per the controller doc. Closed-runway-only
+/// alerting under the LIMITED runway configuration follows the CRC manual ("only generates alerts for arrivals or
+/// departures on closed runways", <c>docs/crc/asdex.md</c>), while every alert kind on every runway under a named
+/// configuration was measured on vNAS Test (YAAT-1194).
 ///
 /// Load-bearing approximations (flagged for aviation review):
 /// - An arrival is treated as "still airborne over/short-of the runway" up to
@@ -76,6 +74,17 @@ public static class AsdexSafetyLogicDetector
     /// <summary>Half-width (nm) within which a landing aircraft counts as over a taxiway (~28 m).</summary>
     private const double TaxiwayLandingHalfWidthNm = 0.015;
 
+    /// <summary>The alerts the runways and taxiways raise this tick from the aircraft not individually inhibited.</summary>
+    /// <param name="runways">The facility's runway footprints.</param>
+    /// <param name="taxiways">The taxiway centerline segments checked for taxiway landings.</param>
+    /// <param name="aircraft">Every aircraft this tick.</param>
+    /// <param name="fieldElevationFt">The facility's field elevation, the reference for arrival AGL.</param>
+    /// <param name="closedRunwayAlertsOnly">
+    /// True when the facility is on the LIMITED runway configuration ("limited", none, or an id that names none of its
+    /// configurations): only closed-runway alerts are raised, and occupied-runway, taxi-onto and taxiway-landing alerts
+    /// are suppressed. False under any named configuration: every alert kind is raised on every runway, the
+    /// configuration's arrival and departure runway lists playing no part.
+    /// </param>
     public static IReadOnlyList<AsdexSafetyAlert> Detect(
         IReadOnlyList<AsdexRunwaySurface> runways,
         IReadOnlyList<AsdexTaxiwaySegment> taxiways,
@@ -111,6 +120,11 @@ public static class AsdexSafetyLogicDetector
     /// </summary>
     private static AsdexSafetyAlert? RunwayAlert(AsdexRunwaySurface runway, IReadOnlyList<AircraftState> candidates, bool closedRunwayAlertsOnly)
     {
+        if (!runway.IsClosed && closedRunwayAlertsOnly)
+        {
+            return null;
+        }
+
         var occupants = candidates.Where(ac => PointInPolygon(ac.Position, runway.Area)).ToList();
         if (occupants.Count == 0)
         {
@@ -131,7 +145,7 @@ public static class AsdexSafetyLogicDetector
 
         // No alert without an active arrival/departure claiming the runway and a distinct
         // second aircraft also on it.
-        if (closedRunwayAlertsOnly || (claimants.Count == 0) || (occupants.Count < 2))
+        if ((claimants.Count == 0) || (occupants.Count < 2))
         {
             return null;
         }

@@ -62,7 +62,8 @@
 - An at-or-above or at-or-below crossing the assigned altitude already satisfies keeps that altitude: `DM 120; CFIX X A110` stays at 12,000.
 - Admin views no longer show stray delayed spawns while a room rewinds or loads a recording.
 - Changing a pilot's voice type updates CRC's ASDE-X, SAID, ground and parked STARS displays at once, even for an aircraft standing still.
-- CRC's ASDE-X safety logic works from scenario load: every ASDE-X facility's runways load with the scenario, with no display push needed.
+- CRC's ASDE-X safety logic works from scenario load, on the runway configuration the active runways select, and follows active-runway changes.
+- Under CRC's LIMITED runway configuration, ASDE-X raises only closed-runway alerts, as CRC does.
 - ASDE-X safety alerts reach only their own facility's displays and name the runway end the arrival or departure is using.
 - CRC's ASDE-X display shows the green hold bars at the loaded airport, lit while an arrival inside 1 NM or a rolling departure uses the runway.
 - Warp… no longer sends an aircraft at 800 ft to 80,000 ft.

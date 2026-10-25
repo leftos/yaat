@@ -95,7 +95,7 @@ EndOfSecond    SpineOrder.EndOfSecond
 | `LiveRoomHost` | yaat-server — `RoomEngine.AdvanceLiveSecond` (the hosted loop, the harness, the headless soak room) | every `TickProcessor` body; tape-playback actions when in playback (a pump over the scenario's log at its `PlaybackCursor`); METAR issuance | the broadcasts; `Room.Weather` follows the world's profile |
 | `ReconstructionHost` | yaat-server — `RecordingManager.ReconstructViaServerTick` | the same `TickProcessor` bodies; the recorded log around the second (its own pump); no METAR | the broadcasts (suppressed) |
 
-The action path has the same shape, and `ISimulationHost` includes it: `IActionHost` (`Simulation/Actions/`) is the host's view for a controller *action*. No `Apply*` slot is left (every recorded state change has an engine body; the last, the ASDE-X safety-logic configuration, is `SimulationEngine.ApplyRecordedAsdexSafetyLogic` writing `SimScenarioState.AsdexSafetyLogicConfig`).
+The action path has the same shape, and `ISimulationHost` includes it: `IActionHost` (`Simulation/Actions/`) is the host's view for a controller *action*. No `Apply*` slot is left (every recorded state change has an engine body; the last, the ASDE-X safety-logic configuration, is `SimulationEngine.ApplyRecordedAsdexSafetyLogic` writing the facility's entry in `SimScenarioState.AsdexSafetyLogicConfigs`).
 
 Only the consumers a Sim arm or applier notifies remain: a spawned or deleted aircraft, a hidden live-traffic shadow, a selected position, a lifted ghost overlay, a terminated surface track, changed timers, held departures or consolidation, a weather change, a queued-commands listing, and the strip and TDLS change sets plus the coordination, bookmark, session-clock and CRR-group dirty flags and the ASDE-X alert diff.
 
@@ -139,7 +139,7 @@ If the body is still the server's, add the member to `IHostSteps` and let the co
 
 - **ASDE-X alert processing is a sim step; the host only broadcasts the diff.**
 
-  `SimulationEngine.TickAsdexAlerts` (`SimulationEngine.Asdex.cs`) reads the scenario's safety-logic configuration (`SimScenarioState.AsdexSafetyLogicConfig`), builds the runway surfaces and taxiway segments, calls `AsdexSafetyLogicDetector.Detect` once and folds the findings into the standing set, `SimScenarioState.ActiveAsdexAlerts` (snapshotted as `ScenarioSnapshotDto.ActiveAsdexAlerts`); with no configuration standing it clears the set instead.
+  `SimulationEngine.TickAsdexAlerts` (`SimulationEngine.Asdex.cs`) reads each facility's safety-logic configuration (`SimScenarioState.AsdexSafetyLogicConfigs`), builds the runway surfaces and taxiway segments, calls `AsdexSafetyLogicDetector.Detect` once per facility (only closed-runway alerts while its runway configuration is LIMITED, empty or names none of its `runwayConfigurations`) and folds the findings into the standing set, `SimScenarioState.ActiveAsdexAlerts` (snapshotted as `ScenarioSnapshotDto.ActiveAsdexAlerts`); a facility with no configuration, or one with no runways, has its own standing alerts cleared instead.
 
   What leaves the engine is `IStateChangeConsumer.OnAsdexAlertsChanged(newAlerts, clearedAlertIds)` — a diff, because CRC's alert topic is additive with an explicit delete, never called with both sides empty. `RoomHost` sends it as `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` unless `Room.IsBroadcastSuppressed`; `BareHost` discards it and `ReplayHost` delegates to `BareHost`.
 
@@ -254,7 +254,7 @@ The per-feature parity tests above each guard one step. The **oracle** guards th
 
 **What it still cannot see, worth knowing before trusting a green run.**
 
-It sees exactly what `CaptureSnapshot` covers, so the approach evaluator — room-held, no snapshot DTO — is invisible until that state moves into `Yaat.Sim` (the ASDE-X safety-logic configuration and the standing alert set are covered — `ScenarioSnapshotDto.AsdexSafetyLogicConfig` / `.ActiveAsdexAlerts` — but no fixture pushes a configuration, so both are null on every leg and the alert step is pinned by `AsdexAlertStepTests` instead).
+It sees exactly what `CaptureSnapshot` covers, so the approach evaluator — room-held, no snapshot DTO — is invisible until that state moves into `Yaat.Sim` (the ASDE-X safety-logic configuration and the standing alert set are covered — `ScenarioSnapshotDto.AsdexSafetyLogicConfigs` / `.ActiveAsdexAlerts` — the configs are derived at load, and the alert step is pinned by `AsdexAlertStepTests`).
 
 Tower lists are covered (`ServerSnapshotDto.TowerLists`, the dwell entries, schema 23), and the step runs on every leg.
 

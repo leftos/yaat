@@ -343,11 +343,19 @@ A push is stored under the pushing facility and echoed as one `AsdexSafetyLogicC
 
 A subscribe to the topic gets the subscribing facility's own configuration and then the ack, or only the ack when that facility has none.
 
-Every scenario load seeds the map before the first tick (`AsdexSafetyLogicSeed.Build` over the ARTCC config and navdata, in both load paths: `SimulationEngine`'s scenario load and `ScenarioLifecycleService.BuildScenarioState` for a room load or reload), so snapshot 0 carries it and a rewind before any push returns to it.
+Every scenario load seeds the map before the first tick (`AsdexSafetyLogicSeed.Build` over the ARTCC config, navdata and active runways, in both load paths: `SimulationEngine`'s scenario load and `ScenarioLifecycleService.BuildScenarioState` for a room load or reload), so snapshot 0 carries it and a rewind before any push returns to it.
 
 The seed is derived, not recorded: one entry per facility with an `asdexConfiguration` and navdata runways, and nothing with no ARTCC config, no `asdexConfiguration` or no navdata runways.
 
-Seeded runway ids are the facility's own pair ids from its ASDE-X positions (SFO `1L-19R`, `1R-19L`, `28L-10R`, `28R-10L`), with `{end1}-{end2}` for a runway no position names; every runway starts open and no runway configuration id is sent, so CRC keeps its own default (`LIMITED`).
+Seeded runway ids are the facility's own pair ids from its ASDE-X positions (SFO `1L-19R`, `1R-19L`, `28L-10R`, `28R-10L`), with `{end1}-{end2}` for a runway no position names; every runway starts open.
+
+The seeded runway configuration id is a named configuration, not CRC's `LIMITED` default: `AsdexSafetyLogicSeed.SelectRunwayConfigurationId` takes the facility's `runwayConfigurations` entry whose arrival and departure runway ids cover the airport's active runways (the fewest distinct runway ends, facility order on a tie), the first entry when no runway is active or none covers them, and `""` (LIMITED) for a facility with no entries, such as OAK. The engine's load seeds from the scenario's active runways; `ScenarioLifecycleService` builds the room's seed before they exist and re-picks it once they do, before the load's publish.
+
+A configuration a CRC user pushes is kept: `ApplyRecordedAsdexSafetyLogic` sets `AsdexSafetyLogicConfig.RunwayConfigurationChosen` when a push names a different id than the facility held, and from then on a change of the active runways no longer re-picks it. The flag is kept in snapshots and left off the CRC wire and the recording (`JsonIgnore`), so a replay derives it again.
+
+A live active-runway change (`ARWY`) re-picks each facility whose airport's active runways changed and whose configuration no user chose (`SimulationEngine.RepickAsdexRunwayConfigurations`, called from the `ARWY` body), and `RoomHost.OnActiveRunwaysChanged` republishes every facility's configuration to its subscribers, logging a failed send.
+
+Alerts are gated by the configuration each tick (`AsdexSafetyLogicSeed.NamesRunwayConfiguration`): when the id is `limited`, empty or not among the facility's `runwayConfigurations` (or the facility or ARTCC config is missing) only ClosedRunway alerts are raised, as the CRC manual says (`docs/crc/asdex.md`), and under any named configuration every alert kind is raised on every runway, the runway lists playing no part (measured on vNAS Test).
 
 After a load, `ScenarioLifecycleService.PublishAsdexSafetyLogicSeed` sends each facility's seed to the displays already subscribed, because CRC subscribes once per display and nothing else would send it.
 
