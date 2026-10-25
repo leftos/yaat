@@ -30,6 +30,7 @@ function queueResponses(responses) {
 }
 
 const ISSUE_URL = "https://github.com/leftos/yaat/issues/7";
+const WEBHOOK_SECRET = "test-webhook-secret";
 const rateLimited = (headers) => () => new Response(SECONDARY_LIMIT_BODY, { status: 403, headers });
 const created = () =>
   new Response(JSON.stringify({ number: 7, html_url: ISSUE_URL }), { status: 201 });
@@ -246,6 +247,7 @@ function makeEnv(kv, privateKeyPem) {
     ATTACHMENTS: { put: async () => {} },
     GITHUB_REPO: "leftos/yaat",
     DISCORD_BOT_TOKEN: "bot-token",
+    GITHUB_WEBHOOK_SECRET: WEBHOOK_SECRET,
     GITHUB_APP_ID: "1",
     GITHUB_APP_PRIVATE_KEY: privateKeyPem,
     GITHUB_APP_INSTALLATION_ID: "42",
@@ -253,10 +255,19 @@ function makeEnv(kv, privateKeyPem) {
 }
 
 /** Routes Discord and GitHub calls to canned responses and records every request. */
-function stubWorld({ thread, messages, issueResponses, tokenResponses = [] }) {
+function stubWorld({
+  thread,
+  messages,
+  issueResponses,
+  tokenResponses = [],
+  patchResponses = [],
+  threadResponses = [],
+}) {
   const calls = [];
   const pendingIssues = [...issueResponses];
   const pendingTokens = [...tokenResponses];
+  const pendingPatches = [...patchResponses];
+  const pendingThreads = [...threadResponses];
 
   vi.stubGlobal(
     "fetch",
@@ -277,8 +288,13 @@ function stubWorld({ thread, messages, issueResponses, tokenResponses = [] }) {
       if (url.includes("/messages?")) {
         return json(messages);
       }
+      if (/\/channels\/\d+$/.test(url) && method === "PATCH") {
+        const canned = pendingPatches.shift();
+        return canned ? canned() : json({});
+      }
       if (/\/channels\/\d+$/.test(url) && method === "GET") {
-        return json(thread);
+        const canned = pendingThreads.shift();
+        return canned ? canned() : json(thread);
       }
       return json({});
     }),
@@ -563,5 +579,352 @@ describe("mirrorCommentMessage", () => {
     const msg = worker.mirrorCommentMessage({ user: { login: "wizrad" } }, issueLink);
 
     expect(msg).toContain("**wizrad**");
+  });
+});
+
+// --- GitHub issue title edits ---
+
+/** HMAC-SHA256 of the raw webhook body, the way GitHub signs an `issues` delivery. */
+async function signGitHubBody(secret, body) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body)));
+  return `sha256=${[...signature].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+async function issueWebhookRequest(payload, { secret = WEBHOOK_SECRET, event = "issues" } = {}) {
+  const body = JSON.stringify(payload);
+  return new Request("https://bot.example/github", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-github-event": event,
+      "x-hub-signature-256": await signGitHubBody(secret, body),
+    },
+    body,
+  });
+}
+
+/** Delivers a webhook the way the Worker runtime does, then drains its ctx.waitUntil() work. */
+async function deliver(request, env) {
+  const pending = [];
+  const response = await worker.default.fetch(request, env, {
+    waitUntil: (promise) => pending.push(promise),
+  });
+  await settle(Promise.all(pending));
+  return response;
+}
+
+const EDIT_ISSUE = (title) => ({
+  number: 42,
+  title,
+  html_url: "https://github.com/leftos/yaat/issues/42",
+});
+
+function editedPayload(title, changes = { title: { from: "Old title" } }) {
+  return { action: "edited", issue: EDIT_ISSUE(title), changes };
+}
+
+describe("GitHub issue title edits", () => {
+  let privateKeyPem;
+  let kv;
+  let env;
+
+  beforeAll(async () => {
+    privateKeyPem = await generatePrivateKeyPem();
+  });
+
+  beforeEach(() => {
+    kv = fakeKv();
+    env = makeEnv(kv, privateKeyPem);
+    kv.store.set("issue:42", THREAD_ID);
+  });
+
+  const threadPatches = (calls) =>
+    calls.filter((call) => call.method === "PATCH" && call.url.endsWith(`/channels/${THREAD_ID}`));
+
+  const emptyWorld = (thread, extra = {}) =>
+    stubWorld({ thread, messages: [], issueResponses: [], ...extra });
+
+  it("renames an open thread to the new title", async () => {
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    const patches = threadPatches(calls);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ name: "[#42] New title" });
+  });
+
+  it("keeps the resolution emoji from the live thread name", async () => {
+    const calls = emptyWorld({ name: "✅ [#42] Old title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    const patches = threadPatches(calls);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ name: "✅ [#42] New title" });
+  });
+
+  it("unarchives, renames and re-archives an archived thread", async () => {
+    const calls = emptyWorld({ name: "[#42] Old title", thread_metadata: { archived: true } });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(threadPatches(calls).map((call) => call.body)).toEqual([
+      { archived: false, name: "[#42] New title" },
+      { archived: true },
+    ]);
+  });
+
+  it("truncates a long title to 100 characters without splitting a surrogate pair", async () => {
+    // The ✅ + "[#42] " prefix leaves 92 units for the title, so the high surrogate at index 91
+    // is exactly where a plain slice() would cut the pair in half.
+    const title = `${"a".repeat(91)}\u{1F600}${"b".repeat(27)}`;
+    const calls = emptyWorld({ name: "✅ [#42] Old title" });
+
+    await deliver(await issueWebhookRequest(editedPayload(title)), env);
+
+    const name = threadPatches(calls)[0].body.name;
+    expect(name).toBe(`✅ [#42] ${"a".repeat(91)}`);
+    expect(name.length).toBeLessThanOrEqual(100);
+    expect(/[\uD800-\uDBFF]$/.test(name)).toBe(false);
+  });
+
+  it("writes nothing when the rendered name is unchanged", async () => {
+    const calls = emptyWorld({ name: "✅ [#42] New title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(threadPatches(calls)).toHaveLength(0);
+  });
+
+  it("writes nothing for an issue with no linked thread", async () => {
+    kv.store.delete("issue:42");
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(calls).toHaveLength(0);
+  });
+
+  it("ignores an edit that did not change the title", async () => {
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    await deliver(
+      await issueWebhookRequest(editedPayload("Old title", { body: { from: "an older body" } })),
+      env,
+    );
+
+    expect(calls).toHaveLength(0);
+  });
+
+  it("queues a rate-limited rename and the cron sweep retries it", async () => {
+    emptyWorld(
+      { name: "[#42] Old title" },
+      { patchResponses: [() => new Response(JSON.stringify({ retry_after: 300 }), { status: 429 })] },
+    );
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(JSON.parse(kv.store.get(`pending-rename:${THREAD_ID}`))).toEqual({
+      issueNumber: 42,
+      title: "New title",
+      rearchive: false,
+    });
+
+    const calls = emptyWorld({ name: "[#42] Old title" });
+    await settle(worker.syncAllThreads(env));
+
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+    const patches = threadPatches(calls);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ name: "[#42] New title" });
+  });
+
+  it("drops a rename Discord refuses with 403", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "An older title", rearchive: false }),
+    );
+    const calls = emptyWorld(
+      { name: "[#42] Old title" },
+      {
+        patchResponses: [
+          () => new Response(JSON.stringify({ message: "Missing Permissions", code: 50013 }), { status: 403 }),
+        ],
+      },
+    );
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(threadPatches(calls)).toHaveLength(1);
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+  });
+
+  it("an edit back to the live name cancels an older queued rename", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "An older title", rearchive: false }),
+    );
+    const calls = emptyWorld({ name: "[#42] New title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+    expect(threadPatches(calls)).toHaveLength(0);
+  });
+
+  it("a rate-limited thread read queues the new title for the sweep", async () => {
+    const calls = emptyWorld(
+      { name: "[#42] Old title" },
+      {
+        threadResponses: [
+          () => new Response(JSON.stringify({ message: "You are being rate limited.", retry_after: 5 }), { status: 429 }),
+        ],
+      },
+    );
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(JSON.parse(kv.store.get(`pending-rename:${THREAD_ID}`))).toEqual({
+      issueNumber: 42,
+      title: "New title",
+      rearchive: false,
+    });
+    expect(threadPatches(calls)).toHaveLength(0);
+  });
+
+  it("the sweep renames a thread archived since the rename was queued", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "New title", rearchive: false }),
+    );
+    const calls = emptyWorld({ name: "[#42] Old title", thread_metadata: { archived: true } });
+
+    await settle(worker.syncAllThreads(env));
+
+    expect(threadPatches(calls).map((call) => call.body)).toEqual([
+      { archived: false, name: "[#42] New title" },
+      { archived: true },
+    ]);
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+  });
+
+  it("the sweep keeps the live emoji after a reopen", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "New title", rearchive: false }),
+    );
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    await settle(worker.syncAllThreads(env));
+
+    expect(threadPatches(calls).map((call) => call.body)).toEqual([{ name: "[#42] New title" }]);
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+  });
+
+  it("a title edit after a failed re-archive still re-archives", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "Old title", rearchive: true }),
+    );
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(threadPatches(calls).map((call) => call.body)).toEqual([
+      { name: "[#42] New title" },
+      { archived: true },
+    ]);
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+  });
+
+  it("an edit back to the live name still performs an owed re-archive", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "An older title", rearchive: true }),
+    );
+    const calls = emptyWorld({ name: "[#42] New title" });
+
+    await deliver(await issueWebhookRequest(editedPayload("New title")), env);
+
+    expect(threadPatches(calls).map((call) => call.body)).toEqual([{ archived: true }]);
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+  });
+
+  it("the sweep skips a re-archive a reopen cleared", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "New title", rearchive: true }),
+    );
+    const calls = emptyWorld(
+      { name: "[#42] New title" },
+      {
+        threadResponses: [
+          () => {
+            // A reopen lands between the sweep's first read and its re-archive PATCH.
+            kv.store.set(
+              `pending-rename:${THREAD_ID}`,
+              JSON.stringify({ issueNumber: 42, title: "New title", rearchive: false }),
+            );
+            return json({ name: "[#42] New title" });
+          },
+        ],
+      },
+    );
+
+    await settle(worker.syncAllThreads(env));
+
+    expect(threadPatches(calls)).toHaveLength(0);
+    expect(JSON.parse(kv.store.get(`pending-rename:${THREAD_ID}`))).toEqual({
+      issueNumber: 42,
+      title: "New title",
+      rearchive: false,
+    });
+  });
+
+  it("the sweep drops a malformed record", async () => {
+    kv.store.set(`pending-rename:${THREAD_ID}`, "{not json at all");
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    await settle(worker.syncAllThreads(env));
+
+    expect(kv.store.has(`pending-rename:${THREAD_ID}`)).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a reopen stops a queued re-archive", async () => {
+    kv.store.set(
+      `pending-rename:${THREAD_ID}`,
+      JSON.stringify({ issueNumber: 42, title: "New title", rearchive: true }),
+    );
+    const calls = emptyWorld({ name: "✅ [#42] Old title" });
+
+    await deliver(await issueWebhookRequest({ action: "reopened", issue: EDIT_ISSUE("Old title") }), env);
+
+    expect(JSON.parse(kv.store.get(`pending-rename:${THREAD_ID}`))).toEqual({
+      issueNumber: 42,
+      title: "New title",
+      rearchive: false,
+    });
+    expect(threadPatches(calls).some((call) => call.body.archived === true)).toBe(false);
+  });
+
+  it("rejects a webhook with a bad signature", async () => {
+    const calls = emptyWorld({ name: "[#42] Old title" });
+
+    const response = await deliver(
+      await issueWebhookRequest(editedPayload("New title"), { secret: "not-the-secret" }),
+      env,
+    );
+
+    expect(response.status).toBe(401);
+    expect(calls).toHaveLength(0);
   });
 });

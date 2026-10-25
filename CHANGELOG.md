@@ -11,6 +11,7 @@
 - Auto cross-runway has a third choice, Inactive runways only, which pre-clears crossings of runways not in use and holds aircraft short of active ones.
 - `REPORT MIDFIELD` has a pattern aircraft report midfield downwind on every circuit until cancelled with `REPORT OFF MIDFIELD`.
 - Bug report bundles record which YAAT server the session ran on, so a report can be traced to that server's logs.
+- Renaming a GitHub issue renames its linked Discord thread to match, keeping the resolved mark and retrying when Discord limits renames.
 - `REPORT OFF 5 FINAL` and `REPORT OFF SUNOL` cancel just the mile-final or fix report, and `REPORT` accepts long reporting-point names such as `OAK30NUM`.
 - `PTAC L240 030 ILS28R` and `PTACF R180 …` force the turn direction, and the pilot reads back "turn left heading two four zero".
 - The Favorites Editor's Duplicate to... copies the selected favorites into another set as independent copies, and Duplicate set... copies a whole set.

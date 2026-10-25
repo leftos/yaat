@@ -48,6 +48,7 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 - Labels (`in progress`, `completed`, `wontfix`, `not a bug`, `duplicate`) → status message posted to linked thread
 - Terminal labels/close → per-type emoji prefix on title, matching reaction, thread archived
 - Issue reopened → emoji prefix removed, thread unarchived
+- Issue title edited → linked thread renamed to the new title, keeping the resolution emoji from its own name (`✅ [#123] New title`); an archived thread is unarchived for the edit and re-archived after
 - New issue comments → posted to linked Discord thread (skips comments from Discord→GitHub sync to prevent echo loops)
 - **Agent-written comments are attributed to the agent.** A comment an agent posts through `gh` goes out under the maintainer's GitHub account, so the default `💬 **leftos** commented on …` header reads in Discord as the maintainer speaking personally.
 
@@ -55,7 +56,7 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 
   The body carries the marker through on its own; the header is the part that would otherwise misattribute. Both mirror paths — the `issue_comment` webhook and the backfill in `/track-issue` — go through that one helper so they cannot drift apart.
 
-**KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`. Bookkeeping keys use prefixes (`issue:`, `pending-archive:`, `pending-issue:`, `reopen:`, `validate-cooldown:`); the sync loop treats only bare numeric snowflake keys as threads.
+**KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`. Bookkeeping keys use prefixes (`issue:`, `pending-archive:`, `pending-rename:`, `pending-issue:`, `reopen:`, `validate-cooldown:`); the sync loop treats only bare numeric snowflake keys as threads.
 
 All listings go through `listAllKeys`, which follows the cursor past KV's 1000-key page limit, and the cron sweeps list their own prefix — those keys sort after the numeric thread IDs, so they would be the first to fall off a truncated listing.
 
@@ -91,7 +92,7 @@ Ko-fi wants a 2xx within 15 s and retries up to four times, so the ledger write 
 
 **Ledger.** One KV key per payment, `support:payment:{kofi_transaction_id}`, holding `{id, name, isPublic, amount, currency, isSubscription, paidAt, month}` — the record rides in KV *metadata* so a refresh is a single `list()` call, never one `get` per payment. The supporter's email is never stored. `isPublic` is true only when Ko-fi's `is_public` is true *and* the name is not "Anonymous"; everything else is counted as anonymous.
 
-`support:display` remembers the last channel name and embed hash actually written, so the 5-minute cron (which also handles the month rollover) only touches Discord when something changed — Discord allows two channel renames per ten minutes — and a rejected write is retried next tick because it was never recorded as done.
+`support:display` remembers the last channel name and embed hash actually written, so the 5-minute cron (which also handles the month rollover) only touches Discord when something changed — Discord allows two channel renames per ten minutes — and a rejected write is retried next tick because it was never recorded as done. A thread title rename runs into the same limit: a 429 or a 5xx is recorded as `pending-rename:{threadId}` (7-day TTL) and the cron retries it, while any other refusal is logged and dropped.
 
 **Roles.** `One-time Supporter` and `Monthly Supporter` are created by the setup script but *assigned by Ko-fi's own Discord integration* (ko-fi.com/Discord/Settings → attach each role to the matching reward; the Ko-fi bot's role must sit above both).
 

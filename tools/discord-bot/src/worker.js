@@ -53,6 +53,12 @@ const PENDING_ISSUE_PREFIX = "pending-issue:";
 // A queued report that still can't be created a day later is not going to succeed on its own.
 const PENDING_ISSUE_TTL_SECONDS = 86400;
 
+// KV key prefix for a thread rename Discord refused transiently; the cron retries these.
+const PENDING_RENAME_PREFIX = "pending-rename:";
+
+// A rename that still can't land a week later is not going to succeed on its own.
+const PENDING_RENAME_TTL_SECONDS = 7 * 24 * 60 * 60;
+
 const QUEUED_ISSUE_NOTICE =
   "GitHub is rate-limiting content creation right now, so this report is queued — the issue will be " +
   "created automatically within ~5 minutes. No need to re-run the command.";
@@ -401,6 +407,15 @@ async function handleIssueEvent(payload, env) {
   const threadId = await findThreadForIssue(env, issueNumber);
   if (!threadId) return;
 
+  // A title edit renames the thread and posts nothing. GitHub sends "edited" for body edits too,
+  // so an edit with no title change stops here rather than falling through to the status path.
+  if (action === "edited") {
+    if (payload.changes?.title) {
+      await renameThreadToIssueTitle(env, threadId, issue);
+    }
+    return;
+  }
+
   const issueLink = `[#${issueNumber}](${issue.html_url})`;
   let statusMessage = null;
 
@@ -416,6 +431,7 @@ async function handleIssueEvent(payload, env) {
       statusMessage = `✅ This issue has been **resolved**! The fix should be available soon.\n\nSee ${issueLink} for details.`;
     }
   } else if (action === "reopened") {
+    await stopPendingRearchive(env, threadId);
     // Skip if the /reopen slash command already handled this (avoids duplicate message)
     const reopenFlag = await env.THREAD_ISSUES.get(`reopen:${issueNumber}`);
     if (reopenFlag) {
@@ -532,6 +548,33 @@ function withIssueNumberPrefix(name, issueNumber) {
   return `${prefix}${base}`;
 }
 
+/** The resolution emoji a thread's name starts with, or null when it carries none. */
+function resolutionEmoji(name) {
+  for (const emoji of RESOLUTION_EMOJIS) {
+    if (name.startsWith(`${emoji} `)) return emoji;
+  }
+  return null;
+}
+
+/**
+ * Renders a thread name as `{emoji} [#N] {title}`, cutting the title — never the prefixes — so the
+ * whole name fits Discord's 100-unit cap, and never leaving the cut on a trailing space.
+ */
+function buildThreadName(emoji, issueNumber, title) {
+  const emojiPrefix = emoji ? `${emoji} ` : "";
+  const numberPrefix = `[#${issueNumber}] `;
+  const room = DISCORD_THREAD_NAME_MAX - emojiPrefix.length - numberPrefix.length;
+  const base = capText(String(title), Math.max(room, 0)).trimEnd();
+  return `${emojiPrefix}${numberPrefix}${base}`;
+}
+
+/** Cuts `text` to at most `max` UTF-16 units, dropping a high surrogate the cut would strand. */
+function capText(text, max) {
+  if (text.length <= max) return text;
+  const stranded = max > 0 && /[\uD800-\uDBFF]/.test(text.charAt(max - 1));
+  return text.slice(0, stranded ? max - 1 : max);
+}
+
 async function prefixThreadTitle(botToken, threadId, emoji) {
   const thread = await discordApi(`/channels/${threadId}`, botToken);
 
@@ -587,6 +630,178 @@ async function unmarkThreadResolved(botToken, threadId) {
       `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/${encoded}/@me`,
       { method: "DELETE", headers: { Authorization: `Bot ${botToken}` } },
     );
+  }
+}
+
+// --- Renaming a linked thread to its issue title ---
+
+/**
+ * Records a rename for the cron to retry. Only the issue's title is stored: the emoji and the
+ * archived state are read from the thread when the rename is made, because either may have changed
+ * since it was queued (a reopen strips the emoji, a close archives the thread).
+ */
+async function queuePendingRename(env, threadId, issueNumber, title, rearchive) {
+  await env.THREAD_ISSUES.put(
+    `${PENDING_RENAME_PREFIX}${threadId}`,
+    JSON.stringify({ issueNumber, title, rearchive }),
+    { expirationTtl: PENDING_RENAME_TTL_SECONDS },
+  );
+}
+
+/** A reopened thread must not be re-archived by a rename still queued for it. */
+async function stopPendingRearchive(env, threadId) {
+  const record = await env.THREAD_ISSUES.get(`${PENDING_RENAME_PREFIX}${threadId}`, { type: "json" });
+  if (!record?.rearchive) return;
+  await queuePendingRename(env, threadId, record.issueNumber, record.title, false);
+}
+
+/** The rename queued for a thread, if any. */
+async function readPendingRename(env, threadId) {
+  return env.THREAD_ISSUES.get(`${PENDING_RENAME_PREFIX}${threadId}`, { type: "json" });
+}
+
+/**
+ * Whether the thread owes an archive once its name is written: it is archived now, or a rename that
+ * landed earlier could not re-archive it. The record holds the second half, so a title edit must not
+ * drop an owed re-archive on the floor.
+ */
+function owesRearchive(thread, existing) {
+  return thread.thread_metadata?.archived === true || existing?.rearchive === true;
+}
+
+/**
+ * Writes `issue.title` onto a thread, replacing the emoji its live name carries. An archived thread
+ * is unarchived for the edit, since Discord refuses every edit to an archived thread, and an owed
+ * re-archive is sent after. A refusal that clears on its own leaves a record for the cron to retry.
+ */
+async function applyThreadName(env, threadId, thread, issue, rearchive) {
+  const name = buildThreadName(resolutionEmoji(thread.name), issue.number, issue.title);
+  const archived = thread.thread_metadata?.archived === true;
+
+  const status = await discordPatchStatus(
+    `/channels/${threadId}`,
+    env.DISCORD_BOT_TOKEN,
+    archived ? { archived: false, name } : { name },
+  );
+  if (!isOkStatus(status)) {
+    await settlePendingRename(env, threadId, issue, rearchive, status);
+    return;
+  }
+
+  if (!archived && !rearchive) {
+    await env.THREAD_ISSUES.delete(`${PENDING_RENAME_PREFIX}${threadId}`);
+    return;
+  }
+
+  // The re-archive refusal is the one worth queueing on its own: the name is already written, so the
+  // next tick only has to archive the thread again.
+  const rearchiveStatus = await discordPatchStatus(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, {
+    archived: true,
+  });
+  await settlePendingRename(env, threadId, issue, true, rearchiveStatus);
+}
+
+/**
+ * Pays the re-archive a record owes on a thread whose name already reads right. `recheck` re-reads
+ * the record just before the PATCH, because a reopen that landed since it was first read cancels the
+ * re-archive it cleared.
+ */
+async function rearchiveIfOwed(env, threadId, thread, issue, recheck) {
+  if (thread.thread_metadata?.archived === true) {
+    await env.THREAD_ISSUES.delete(`${PENDING_RENAME_PREFIX}${threadId}`);
+    return;
+  }
+  if (recheck && (await readPendingRename(env, threadId))?.rearchive !== true) return;
+
+  const status = await discordPatchStatus(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, {
+    archived: true,
+  });
+  await settlePendingRename(env, threadId, issue, true, status);
+}
+
+/** Keeps the record when the refusal clears on its own; drops it on success and on a permanent one. */
+async function settlePendingRename(env, threadId, issue, rearchive, status) {
+  if (isRetryableDiscordStatus(status)) {
+    await queuePendingRename(env, threadId, issue.number, issue.title, rearchive);
+  } else {
+    await env.THREAD_ISSUES.delete(`${PENDING_RENAME_PREFIX}${threadId}`);
+  }
+}
+
+async function renameThreadToIssueTitle(env, threadId, issue) {
+  const existing = await readPendingRename(env, threadId);
+
+  let thread;
+  try {
+    thread = await discordApi(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN);
+  } catch (err) {
+    // A read that clears on its own still leaves a rename worth queueing, and with the newest title;
+    // a 404 (the thread was deleted by hand) or another refusal leaves nothing to retry.
+    console.error(`Could not read thread ${threadId} to rename it:`, err);
+    await settlePendingRename(env, threadId, issue, existing?.rearchive === true, discordErrorStatus(err));
+    return;
+  }
+
+  const rearchive = owesRearchive(thread, existing);
+  const name = buildThreadName(resolutionEmoji(thread.name), issue.number, issue.title);
+  if (name === thread.name) {
+    // The name already reads right, so any queued rename for it is stale — but an owed re-archive
+    // is not, and neither is one this edit has just taken on by finding the thread archived.
+    if (rearchive) await rearchiveIfOwed(env, threadId, thread, issue, true);
+    else await env.THREAD_ISSUES.delete(`${PENDING_RENAME_PREFIX}${threadId}`);
+    return;
+  }
+  await applyThreadName(env, threadId, thread, issue, rearchive);
+}
+
+/**
+ * Retries the thread renames Discord refused transiently. The emoji and the archived state are read
+ * from the thread as it reads now, never from the record, which a reopen or a close may have
+ * overtaken since the rename was queued.
+ */
+async function sweepPendingRenames(env) {
+  for (const key of await listAllKeys(env.THREAD_ISSUES, { prefix: PENDING_RENAME_PREFIX })) {
+    const threadId = key.slice(PENDING_RENAME_PREFIX.length);
+
+    let record;
+    try {
+      record = await env.THREAD_ISSUES.get(key, { type: "json" });
+    } catch (err) {
+      // A record that will not parse is not going to start parsing on the next tick.
+      console.error(`Dropping unreadable pending rename ${key}:`, err);
+      await env.THREAD_ISSUES.delete(key);
+      continue;
+    }
+    if (!record) {
+      await env.THREAD_ISSUES.delete(key);
+      continue;
+    }
+
+    let thread;
+    try {
+      thread = await discordApi(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN);
+    } catch (err) {
+      // Only a read Discord refused outright drops the record; a rate limit or an outage clears.
+      console.error(`Failed to sweep pending rename for ${threadId}:`, err);
+      if (!isRetryableDiscordStatus(discordErrorStatus(err))) await env.THREAD_ISSUES.delete(key);
+      continue;
+    }
+
+    const issue = { number: record.issueNumber, title: record.title };
+    const rearchive = owesRearchive(thread, record);
+    try {
+      const name = buildThreadName(resolutionEmoji(thread.name), issue.number, issue.title);
+      if (name !== thread.name) {
+        await applyThreadName(env, threadId, thread, issue, rearchive);
+      } else if (!rearchive) {
+        await env.THREAD_ISSUES.delete(key);
+      } else {
+        await rearchiveIfOwed(env, threadId, thread, issue, true);
+      }
+    } catch (err) {
+      console.error(`Failed to sweep pending rename for ${threadId}:`, err);
+      await env.THREAD_ISSUES.delete(key);
+    }
   }
 }
 
@@ -1060,7 +1275,9 @@ export async function syncAllThreads(env) {
     }
   }
 
-  // Then file any reports GitHub rate-limited, before the thread syncs spend the subrequest budget.
+  // Then retry the renames Discord refused, and file any reports GitHub rate-limited, before the
+  // thread syncs spend the subrequest budget.
+  await sweepPendingRenames(env);
   await drainPendingIssues(env);
 
   // Sync Discord thread replies → GitHub issue comments.
@@ -1070,7 +1287,8 @@ export async function syncAllThreads(env) {
 
   for (const name of await listAllKeys(env.THREAD_ISSUES, {})) {
     // Thread mappings are keyed by the raw Discord snowflake; everything else in this namespace is
-    // bookkeeping under a prefix (issue:, pending-archive:, pending-issue:, reopen:, validate-cooldown:).
+    // bookkeeping under a prefix (issue:, pending-archive:, pending-rename:, pending-issue:, reopen:,
+    // validate-cooldown:).
     if (!/^\d+$/.test(name)) continue;
 
     try {
@@ -1259,6 +1477,50 @@ async function discordPost(path, botToken, body) {
     throw new Error(`Discord POST ${path} failed (${res.status}): ${text}`);
   }
   return res.json();
+}
+
+/** A PATCH Discord never answered reports this status, so the caller can retry rather than drop. */
+const DISCORD_NO_RESPONSE = 0;
+
+/**
+ * PATCHes a Discord endpoint and reports its status. Unlike `discordPatch` it does not swallow the
+ * outcome, so a caller can tell a refusal worth retrying from a permanent one.
+ */
+async function discordPatchStatus(path, botToken, body) {
+  let res;
+  try {
+    res = await fetch(`https://discord.com/api/v10${path}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error(`Discord PATCH ${path} failed:`, err);
+    return DISCORD_NO_RESPONSE;
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`Discord PATCH ${path} failed (${res.status}): ${text}`);
+  }
+  return res.status;
+}
+
+/** 429 is a rate limit and a 5xx an outage: both clear on their own. 0 means the request never landed. */
+function isRetryableDiscordStatus(status) {
+  return status === DISCORD_NO_RESPONSE || status === 429 || status >= 500;
+}
+
+function isOkStatus(status) {
+  return status >= 200 && status < 300;
+}
+
+/** The status a `discordApi` failure reports in its message, or 0 when the request never landed. */
+function discordErrorStatus(err) {
+  const match = /\((\d{3})\)/.exec(String(err?.message));
+  return match ? Number(match[1]) : DISCORD_NO_RESPONSE;
 }
 
 async function discordPatch(path, botToken, body) {
