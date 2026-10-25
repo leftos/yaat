@@ -26,6 +26,16 @@ public class HoldForReleaseSnapshotTests
     }
 
     [Fact]
+    public void GroundOps_LeftStudentFrequencyAtSeconds_RoundTrips()
+    {
+        var stamped = new AircraftGroundOps { LeftStudentFrequencyAtSeconds = 87.0 };
+        var unstamped = new AircraftGroundOps();
+
+        Assert.Equal(87.0, AircraftGroundOps.FromSnapshot(stamped.ToSnapshot(), layout: null).LeftStudentFrequencyAtSeconds);
+        Assert.Null(AircraftGroundOps.FromSnapshot(unstamped.ToSnapshot(), layout: null).LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
     public void ScenarioState_HoldForReleaseState_Serializes()
     {
         var scenario = new SimScenarioState

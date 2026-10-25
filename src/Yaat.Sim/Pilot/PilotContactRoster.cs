@@ -63,14 +63,21 @@ public sealed record PilotAnsweringPosition(
 /// </summary>
 public sealed class PilotContactRoster
 {
-    public static PilotContactRoster Empty { get; } = new([], null);
+    public static PilotContactRoster Empty { get; } = new([], null, null);
 
-    private PilotContactRoster(IReadOnlyList<PilotAnsweringPosition> positions, StudentWorkedRange? studentRange)
+    private PilotContactRoster(IReadOnlyList<PilotAnsweringPosition> positions, StudentWorkedRange? studentRange, string? studentPositionType)
     {
         Positions = positions;
         Student = positions.FirstOrDefault(p => p.Agent == PilotAnsweringAgent.Student);
         StudentRange = studentRange;
+        StudentPositionType = studentPositionType;
     }
+
+    /// <summary>
+    /// The scenario's student position type (<c>GND</c>, <c>TWR</c>, <c>APP</c>, <c>CTR</c>), kept whether or not solo
+    /// training is on, so an RPO room with a student position still reads it; null when none is set.
+    /// </summary>
+    public string? StudentPositionType { get; }
 
     /// <summary>AI entries first in ordinal position-id order, then the student (at most one).</summary>
     public IReadOnlyList<PilotAnsweringPosition> Positions { get; }
@@ -89,8 +96,16 @@ public sealed class PilotContactRoster
     /// <summary>The roster a hand-built context implies: the student when solo training is on, nobody otherwise.</summary>
     public static PilotContactRoster ForStudent(bool soloTrainingMode, TrackOwner? studentPosition, string? studentPositionType, string? radioName) =>
         soloTrainingMode
-            ? new([new PilotAnsweringPosition(studentPosition, studentPositionType, radioName, null, [], PilotAnsweringAgent.Student)], null)
-            : Empty;
+            ? new(
+                [new PilotAnsweringPosition(studentPosition, studentPositionType, radioName, null, [], PilotAnsweringAgent.Student)],
+                null,
+                studentPositionType
+            )
+            : ForTypeOnly(studentPositionType);
+
+    /// <summary>The roster with nobody answering that still carries the student position type; <see cref="Empty"/> when there is none.</summary>
+    private static PilotContactRoster ForTypeOnly(string? studentPositionType) =>
+        studentPositionType is null ? Empty : new([], null, studentPositionType);
 
     /// <summary>
     /// Builds the roster: every AI-staffed position (sorted by position id; an AI entry that IS the student's position is
@@ -136,7 +151,7 @@ public sealed class PilotContactRoster
             );
         }
 
-        return positions.Count == 0 ? Empty : new PilotContactRoster(positions, studentRange);
+        return positions.Count == 0 ? ForTypeOnly(studentPositionType) : new PilotContactRoster(positions, studentRange, studentPositionType);
     }
 
     /// <summary>
@@ -151,6 +166,21 @@ public sealed class PilotContactRoster
         }
 
         return StudentRange.Works(AtcPositionLevel.Delivery, atAirportId);
+    }
+
+    /// <summary>
+    /// Whether the student, not an AI, works the tower at <paramref name="atAirportId"/>: with no range, when the scenario's
+    /// student position type (<see cref="StudentPositionType"/>, read in an RPO room too) is not a radar one
+    /// (<see cref="RunwaySpawnCall.IsRadarStudent"/>); with a range, when it takes in the tower there.
+    /// </summary>
+    public bool StudentWorksTowerAt(string? atAirportId)
+    {
+        if (StudentRange is null)
+        {
+            return !RunwaySpawnCall.IsRadarStudent(StudentPositionType);
+        }
+
+        return StudentRange.Works(AtcPositionLevel.Tower, atAirportId);
     }
 
     /// <summary>

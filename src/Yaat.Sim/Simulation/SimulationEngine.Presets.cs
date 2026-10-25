@@ -130,6 +130,87 @@ public sealed partial class SimulationEngine
         }
     }
 
+    /// <summary>Per aircraft, the last reason the simulated tower logged for keeping its departure waiting; logging only, never sim state.</summary>
+    private readonly Dictionary<string, string> _simulatedTowerWaitReasons = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The silent simulated tower's departures: in a solo room where the tower at the aircraft's airport is simulated
+    /// (<see cref="PilotContactRoster.TowerIsSimulatedAt"/>), a ground departure the student transferred
+    /// (<see cref="AircraftGroundOps.LeftStudentFrequencyAtSeconds"/>) is cleared for takeoff once it is at its departure
+    /// runway, <see cref="SimulatedTowerCtoDelaySeconds"/> after the transfer, and the runway is clear
+    /// (<see cref="SimulatedTowerRunwayGuard"/>); while it is not, the departure waits and is checked again next second. A
+    /// departure that was not transferred holds; one held for release or released is left to the hold-for-release path.
+    /// Reads only snapshotted state and the memoized roster, records nothing and draws no RNG, so every run kind re-derives
+    /// the clearance.
+    /// </summary>
+    private void ProcessSimulatedTowerDepartures()
+    {
+        SimScenarioState scenario = Scenario!;
+        if (!scenario.SoloTrainingMode)
+        {
+            return;
+        }
+
+        List<AircraftState> traffic = World.GetSnapshot();
+        foreach (AircraftState ac in traffic)
+        {
+            if (!IsDueForSimulatedTowerTakeoff(ac, scenario))
+            {
+                continue;
+            }
+
+            if (RunwaySpawnCall.RunwayOf(ac) is not { } runway)
+            {
+                LogSimulatedTowerWait(ac.Callsign, "no departure runway");
+                continue;
+            }
+
+            AirportGroundLayout? layout = ac.Ground.Layout ?? ResolveGroundLayout(ac);
+            if (!SimulatedTowerRunwayGuard.IsClear(ac, runway, traffic, layout, out string? reason))
+            {
+                LogSimulatedTowerWait(ac.Callsign, reason ?? "runway not clear");
+                continue;
+            }
+
+            _simulatedTowerWaitReasons.Remove(ac.Callsign);
+            AutoIssueTakeoffClearance(ac, $"[Sim tower] Cleared for takeoff, runway {runway.Designator}");
+        }
+    }
+
+    /// <summary>
+    /// A ground departure with no takeoff clearance, outside the hold-for-release path, transferred by the student at least
+    /// <see cref="SimulatedTowerCtoDelaySeconds"/> ago, at its departure runway, where the tower is simulated.
+    /// </summary>
+    private static bool IsDueForSimulatedTowerTakeoff(AircraftState ac, SimScenarioState scenario) =>
+        ac.IsOnGround
+        && !HasTakeoffClearance(ac)
+        && !ac.Ground.HeldForRelease
+        && !ac.Ground.ReleasedForDeparture
+        && (ac.Ground.LeftStudentFrequencyAtSeconds is { } stamp)
+        && (scenario.ElapsedSeconds >= stamp + SimulatedTowerCtoDelaySeconds(ac.Callsign))
+        && IsAtItsDepartureRunway(ac)
+        && scenario.PilotContacts.TowerIsSimulatedAt(PilotContactRoster.SurfaceAirportOf(ac));
+
+    /// <summary>
+    /// A takeoff clearance stored for the taxi, or one given at the bar or lined up that the phase has not acted on yet: a
+    /// clearance issued earlier this second (the hold-for-release path's, or the controller's between ticks) satisfies the
+    /// current phase's requirement, and the phase moves on only in the physics step.
+    /// </summary>
+    private static bool HasTakeoffClearance(AircraftState ac) =>
+        (ac.Phases?.DepartureClearance is not null) || (ac.Phases?.CurrentPhase?.Requirements.Any(r => r.IsSatisfied) ?? false);
+
+    /// <summary>Logs why the simulated tower keeps a departure waiting, once per aircraft each time the reason changes.</summary>
+    private void LogSimulatedTowerWait(string callsign, string reason)
+    {
+        if (_simulatedTowerWaitReasons.TryGetValue(callsign, out string? last) && (last == reason))
+        {
+            return;
+        }
+
+        _simulatedTowerWaitReasons[callsign] = reason;
+        _logger.LogDebug("[Sim tower] {Callsign} waits for its takeoff clearance: {Reason}", callsign, reason);
+    }
+
     private static bool IsAtItsDepartureRunway(AircraftState aircraft) =>
         aircraft.Phases?.CurrentPhase switch
         {
@@ -151,19 +232,19 @@ public sealed partial class SimulationEngine
         );
 
     /// <summary>
-    /// Clears a runway spawn with no preset for takeoff at its lined-up call point when the student works a radar position
-    /// and either its field has a tower or it flies VFR (<see cref="RunwaySpawnCall"/>), in a solo room only: the simulated tower sends it off,
+    /// Clears a runway spawn with no preset for takeoff at its lined-up call point when the student does not work the tower
+    /// there (<see cref="PilotContactRoster.StudentWorksTowerAt"/>) and its field has a tower, it flies VFR, or the student
+    /// works no radar position (<see cref="RunwaySpawnCall"/>), in a solo room only: the simulated tower sends it off,
     /// or a VFR pilot at an untowered field departs on its own, scripted, so the existing airborne check-in calls the
     /// student. An IFR spawn at an untowered field released through the hold-for-release spawn gate needs no release
     /// request: lined up in a solo room, it starts the released departure's clock (<see cref="ProcessReleasedGroundDepartures"/>)
     /// at once (<see cref="StartSpawnGateRelease"/>). Closes the call-up decision of every such spawn that has left its
-    /// lined-up position or whose student does not work a radar position, so <see cref="IsRunwaySpawnFieldTowered"/> stops
+    /// lined-up position or whose student works the tower there, so <see cref="IsRunwaySpawnFieldTowered"/> stops
     /// evaluating it.
     /// </summary>
     internal void ProcessRunwaySpawnAutoTakeoffs()
     {
         SimScenarioState scenario = Scenario!;
-        bool radarStudent = RunwaySpawnCall.IsRadarStudent(scenario.StudentPositionType);
         foreach (AircraftState ac in World.GetSnapshot())
         {
             if ((ac.Ground.InitialCallup != InitialCallupPlan.RunwayNoPreset) || ac.Ground.InitialCallupDecisionProcessed)
@@ -171,7 +252,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            if (ShouldCloseDecision(ac, radarStudent))
+            if (ShouldCloseDecision(ac, StudentWorksTowerAtRunwayOf(ac, scenario)))
             {
                 ac.Ground.InitialCallupDecisionProcessed = true;
                 continue;
@@ -188,11 +269,15 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Whether an open runway-spawn call-up decision closes with nothing to do: the student works no radar position, or the
+    /// Whether an open runway-spawn call-up decision closes with nothing to do: the student works the tower there, or the
     /// spawn is no longer lined up.
     /// </summary>
-    private static bool ShouldCloseDecision(AircraftState aircraft, bool radarStudent) =>
-        !radarStudent || (aircraft.Phases?.CurrentPhase is not LinedUpAndWaitingPhase);
+    private static bool ShouldCloseDecision(AircraftState aircraft, bool studentWorksTower) =>
+        studentWorksTower || (aircraft.Phases?.CurrentPhase is not LinedUpAndWaitingPhase);
+
+    /// <summary>Whether the student works the tower at the airport of the runway the aircraft is on (<see cref="RunwaySpawnCall.RunwayOf"/>).</summary>
+    private static bool StudentWorksTowerAtRunwayOf(AircraftState aircraft, SimScenarioState scenario) =>
+        scenario.PilotContacts.StudentWorksTowerAt(RunwaySpawnCall.RunwayOf(aircraft)?.AirportId);
 
     private bool IsUntoweredIfrReleasedAtSpawnGate(AircraftState aircraft) =>
         aircraft.Ground.ReleasedAtSpawnGate && !aircraft.FlightPlan.IsVfr && !IsRunwaySpawnFieldTowered(aircraft);
@@ -203,13 +288,16 @@ public sealed partial class SimulationEngine
     /// </summary>
     private void TryAutoTakeoffAtCallPoint(AircraftState aircraft, SimScenarioState scenario)
     {
-        if (!RunwaySpawnCall.IsAtAutoTakeoffPoint(aircraft, scenario.StudentPositionType))
+        if (!RunwaySpawnCall.IsAtAutoTakeoffPoint(aircraft, StudentWorksTowerAtRunwayOf(aircraft, scenario)))
         {
             return;
         }
 
+        // At an untowered field an IFR spawn asks a radar student for its release; under any other student the approach is
+        // simulated too, so it departs on its own as a VFR spawn does.
         bool towered = IsRunwaySpawnFieldTowered(aircraft);
-        if (!towered && !aircraft.FlightPlan.IsVfr)
+        bool radarStudent = RunwaySpawnCall.IsRadarStudent(scenario.PilotContacts.StudentPositionType);
+        if (!towered && !aircraft.FlightPlan.IsVfr && radarStudent)
         {
             return;
         }
@@ -227,22 +315,24 @@ public sealed partial class SimulationEngine
 
         AutoIssueTakeoffClearance(
             aircraft,
-            towered ? "[Auto] Towered field — cleared for takeoff by the simulated tower" : "[Auto] Untowered field — VFR departure on its own"
+            towered ? "[Auto] Towered field — cleared for takeoff by the simulated tower"
+                : aircraft.FlightPlan.IsVfr ? "[Auto] Untowered field — VFR departure on its own"
+                : "[Auto] Untowered field — IFR departure on its own, approach simulated"
         );
     }
 
     /// <summary>
-    /// Whether a <see cref="InitialCallupPlan.RunwayNoPreset"/> runway spawn whose call is still open, lined up under a radar
-    /// student, sits at a towered field (<see cref="AiPositionResolver.IsTowered"/>); false for every other aircraft, so the
-    /// config is read only for them.
+    /// Whether a <see cref="InitialCallupPlan.RunwayNoPreset"/> runway spawn whose call is still open, lined up under a
+    /// student who does not work the tower there, sits at a towered field (<see cref="AiPositionResolver.IsTowered"/>); false
+    /// for every other aircraft, so the config is read only for them.
     /// </summary>
     private bool IsRunwaySpawnFieldTowered(AircraftState aircraft) =>
         (aircraft.Ground.InitialCallup == InitialCallupPlan.RunwayNoPreset)
         && !aircraft.Ground.InitialCallupDecisionProcessed
         && (aircraft.Phases?.CurrentPhase is LinedUpAndWaitingPhase)
-        && RunwaySpawnCall.IsRadarStudent(Scenario?.StudentPositionType)
-        && (Scenario?.ArtccConfig is { } config)
+        && (Scenario is { ArtccConfig: { } config } scenario)
         && (RunwaySpawnCall.RunwayOf(aircraft) is { } runway)
+        && !scenario.PilotContacts.StudentWorksTowerAt(runway.AirportId)
         && AiPositionResolver.IsTowered(config, runway.AirportId);
 
     /// <summary>
@@ -273,6 +363,22 @@ public sealed partial class SimulationEngine
     internal static double ReleaseAutoCtoJitterSeconds(string callsign) =>
         HeldReleaseService.MinGroundReleaseAutoCtoJitterSeconds
         + (DeterministicHash.Fnv1a("", callsign) % HeldReleaseService.GroundReleaseAutoCtoJitterRangeSeconds);
+
+    /// <summary>The shortest pause between the student's transfer and the simulated tower's takeoff clearance, seconds.</summary>
+    internal const int MinSimulatedTowerCtoDelaySeconds = 5;
+
+    /// <summary>How many whole seconds past <see cref="MinSimulatedTowerCtoDelaySeconds"/> the pause can run (5 to 20 s inclusive).</summary>
+    internal const uint SimulatedTowerCtoDelayRangeSeconds = 16;
+
+    /// <summary>Salt for the simulated-tower delay draw, so it is not correlated with the other per-callsign draws.</summary>
+    private const string SimulatedTowerCtoSalt = "simulated-tower-cto:";
+
+    /// <summary>
+    /// The pause between the student's transfer and the simulated tower's takeoff clearance: a fixed 5 to 20 s per aircraft
+    /// from its callsign (<see cref="DeterministicHash"/>; replay-safe, no RNG state).
+    /// </summary>
+    internal static int SimulatedTowerCtoDelaySeconds(string callsign) =>
+        MinSimulatedTowerCtoDelaySeconds + (int)(DeterministicHash.Fnv1a(SimulatedTowerCtoSalt, callsign) % SimulatedTowerCtoDelayRangeSeconds);
 
     private void AutoIssueTakeoffClearance(AircraftState aircraft, string systemNote)
     {

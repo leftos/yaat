@@ -490,6 +490,110 @@ public class ContactCommandHandlerTests
         Assert.Equal(CompletionReason.Active, ac.CompletionReason);
     }
 
+    // --- The transfer stamp the simulated tower clears a departure from ---
+
+    private static AircraftState MakeGroundAircraft()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.IsOnGround = true;
+        return ac;
+    }
+
+    private static DispatchContext StudentCtx(ArtccConfigRoot? config, double elapsedSeconds, bool isScenarioScripted) =>
+        TestDispatch.Context(
+            new Random(0),
+            soloTrainingMode: true,
+            artccConfig: config,
+            scenarioElapsedSeconds: elapsedSeconds,
+            isScenarioScripted: isScenarioScripted
+        );
+
+    [Fact]
+    public void StudentCt_OnTheGround_StampsTheTransfer()
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeGroundAircraft();
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, StudentCtx(config, 42, false)).Success);
+
+        Assert.Equal(42, ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
+    public void CtToGround_DoesNotStamp()
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeGroundAircraft();
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("OAK_GND"), ac, StudentCtx(config, 42, false)).Success);
+
+        Assert.Null(ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
+    public void ScriptedCt_DoesNotStamp()
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeGroundAircraft();
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, StudentCtx(config, 42, true)).Success);
+
+        Assert.Null(ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
+    public void SecondCt_KeepsTheFirstStamp()
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeGroundAircraft();
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, StudentCtx(config, 42, false)).Success);
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, StudentCtx(config, 50, false)).Success);
+
+        Assert.Equal(42, ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
+    public void Fca_OnTheGround_Stamps()
+    {
+        AircraftState ac = MakeGroundAircraft();
+        Assert.True(ContactCommandHandler.HandleFrequencyChangeApproved(ac, StudentCtx(null, 42, false)).Success);
+
+        Assert.Equal(42, ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
+    public void CtAirborne_DoesNotStamp()
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeAircraft();
+        ac.IsOnGround = false;
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, StudentCtx(config, 42, false)).Success);
+
+        Assert.Null(ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
     [Fact]
     public void Contact_PositionFrequency_PilotSpeechKeepsSpokenForm()
     {

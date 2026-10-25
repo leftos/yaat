@@ -74,6 +74,7 @@ public sealed partial class SimulationEngine
         ProcessTimers();
         ProcessReleasedGroundDepartures();
         ProcessRunwaySpawnAutoTakeoffs();
+        ProcessSimulatedTowerDepartures();
 
         // Ensure ground layout is set
         if (scenario.PrimaryAirportId is not null && World.GroundLayout is null)

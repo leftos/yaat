@@ -141,6 +141,12 @@ public sealed class AircraftGroundOpsDto
     /// <summary>True when a held runway spawn was released through the hold-for-release spawn gate before it spawned.</summary>
     public bool ReleasedAtSpawnGate { get; init; }
 
+    /// <summary>
+    /// Scenario-elapsed seconds of the student's first transfer of this aircraft off its frequency while on the ground
+    /// (drives the simulated tower's takeoff clearance), or null. Optional — earlier snapshots restore null.
+    /// </summary>
+    public double? LeftStudentFrequencyAtSeconds { get; init; }
+
     /// <summary>Absolute-UTC start of the Call-For-Release window, or null. Alert-only (GitHub issue #230).</summary>
     public DateTime? ReleaseWindowStartUtc { get; init; }
 

@@ -113,6 +113,79 @@ public class RunwaySpawnCallE2ETests
     }
 
     [Fact]
+    public void GroundStudentWithRange_TowerField_TakesOffOnItsOwn()
+    {
+        if (LoadWithRange(Fat, "FAT_GND", "GND", AtcPositionLevel.Ground) is not { } run)
+        {
+            return;
+        }
+
+        Tick(run, 85);
+        Assert.IsType<LinedUpAndWaitingPhase>(run.Aircraft.Phases!.CurrentPhase);
+
+        Assert.True(TickUntil(run, () => !run.Aircraft.IsOnGround, 120) > 0, "never took off");
+        Assert.Contains(run.Terminal, t => t.Message.Contains("[Auto] Towered field", StringComparison.Ordinal));
+        Assert.DoesNotContain(run.Terminal, t => t.Message.Contains("ready.", StringComparison.Ordinal));
+        Assert.Empty(ReleaseLines(run));
+    }
+
+    [Fact]
+    public void GroundStudentWithRange_UntoweredIfr_DepartsOnItsOwn()
+    {
+        if (LoadWithRange(Aun, "FAT_GND", "GND", AtcPositionLevel.Ground) is not { } run)
+        {
+            return;
+        }
+
+        Tick(run, 85);
+        Assert.IsType<LinedUpAndWaitingPhase>(run.Aircraft.Phases!.CurrentPhase);
+
+        Assert.True(TickUntil(run, () => !run.Aircraft.IsOnGround, 120) > 0, "never took off");
+        Assert.Contains(run.Terminal, t => t.Message.StartsWith("[Auto] Untowered field", StringComparison.Ordinal));
+        Assert.Empty(ReleaseLines(run));
+        Assert.False(run.Aircraft.Ground.HeldForRelease);
+        Assert.DoesNotContain(run.Terminal, t => t.Message.Contains("ready.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NoPreset_ApproachStudent_TowerField_RpoRoomWithAiTower_KeepsTodaysAutomaticPath()
+    {
+        if (Prepare(Fat, "FAT_F_APP", "APP", []) is not { } prepared)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = false;
+        scenario.SetAiStaffedPositions([TestAiPositions.TowerCab(_zoa!, "FAT_TWR", ControlRole.Local, "FAT")]);
+
+        Tick(engine, 85);
+        AircraftState aircraft = engine.FindAircraft(Fat.Callsign) ?? throw new InvalidOperationException($"{Fat.Callsign} did not spawn");
+        Assert.False(aircraft.Ground.InitialCallupDecisionProcessed, "the call-up decision closed before the lined-up call point");
+
+        Tick(engine, 35);
+        AssertWaitsLinedUpForTheRpo(aircraft, terminal);
+        Assert.True(aircraft.HasAnnouncedLinedUpReady, "the automatic path never took the lined-up call's place");
+    }
+
+    [Fact]
+    public void ApproachStudentWorkingTower_GetsTheLinedUpCall()
+    {
+        if (LoadWithRange(Fat, "FAT_F_APP", "APP", AtcPositionLevel.Tower) is not { } run)
+        {
+            return;
+        }
+
+        Tick(run, 100);
+
+        Assert.Single(run.Terminal, t => t.Message.Contains("runway 29R, ready.", StringComparison.Ordinal));
+        Assert.Equal(PilotPendingRequestKind.Takeoff, run.Aircraft.PendingPilotRequest!.Kind);
+        Assert.True(run.Aircraft.IsOnGround);
+        Assert.DoesNotContain(run.Terminal, t => t.Message.Contains("[Auto]", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void NoPreset_ApproachStudent_TowerField_RpoRoom_WaitsLinedUpForTheRpoTakeoffClearance()
     {
         if (Prepare(Fat, "FAT_F_APP", "APP", []) is not { } prepared)
@@ -384,6 +457,21 @@ public class RunwaySpawnCallE2ETests
         }
 
         (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        engine.TickOneSecond();
+        AircraftState aircraft = engine.FindAircraft(spawn.Callsign) ?? throw new InvalidOperationException($"{spawn.Callsign} did not spawn");
+        return new Run(engine, aircraft, terminal);
+    }
+
+    /// <summary><see cref="Load"/> with no presets and the student's lowest worked level set, so the student has a worked range.</summary>
+    private Run? LoadWithRange(Spawn spawn, string studentCallsign, string studentType, AtcPositionLevel lowest)
+    {
+        if (Prepare(spawn, studentCallsign, studentType, []) is not { } prepared)
+        {
+            return null;
+        }
+
+        (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        engine.Scenario!.StudentLowestWorkedLevel = lowest;
         engine.TickOneSecond();
         AircraftState aircraft = engine.FindAircraft(spawn.Callsign) ?? throw new InvalidOperationException($"{spawn.Callsign} did not spawn");
         return new Run(engine, aircraft, terminal);

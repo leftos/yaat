@@ -93,6 +93,7 @@ public class SnapshotRoundTripTests
         ac.Ground.PushEndSpot = "5A";
         ac.Ground.PresetTaxiStop = new PresetTaxiStop(PresetTaxiStopKind.TaxiwayHoldShort, "C", "T41W");
         ac.Ground.VfrDepartureDirection = "north";
+        ac.Ground.LeftStudentFrequencyAtSeconds = 64.0;
 
         ac.WindComponents = (5.0, -3.0);
         ac.Targets.TargetAltitude = 10000;
@@ -136,6 +137,7 @@ public class SnapshotRoundTripTests
         Assert.Equal("5A", restored.Ground.PushEndSpot);
         Assert.Equal(new PresetTaxiStop(PresetTaxiStopKind.TaxiwayHoldShort, "C", "T41W"), restored.Ground.PresetTaxiStop);
         Assert.Equal("north", restored.Ground.VfrDepartureDirection);
+        Assert.Equal(64.0, restored.Ground.LeftStudentFrequencyAtSeconds);
         Assert.NotNull(restored.PendingPilotRequest);
         Assert.Equal(PilotPendingRequestKind.Approach, restored.PendingPilotRequest.Kind);
         Assert.Equal(PilotPendingRequestResponseState.Standby, restored.PendingPilotRequest.ResponseState);
@@ -602,6 +604,7 @@ public class SnapshotRoundTripTests
                             OnTaxiway = "T41W",
                         },
                         VfrDepartureDirection = "north",
+                        LeftStudentFrequencyAtSeconds = 33.0,
                     },
                     Track = new AircraftTrackDto { OnHandoff = false, HandoffAccepted = false },
                     Stars = new AircraftStarsStateDto
@@ -681,6 +684,7 @@ public class SnapshotRoundTripTests
         Assert.Equal("C", stop.Name);
         Assert.Equal("T41W", stop.OnTaxiway);
         Assert.Equal("north", deserialized.Aircraft[0].Ground.VfrDepartureDirection);
+        Assert.Equal(33.0, deserialized.Aircraft[0].Ground.LeftStudentFrequencyAtSeconds);
         Assert.DoesNotContain("IsScriptedDeparture", json, StringComparison.Ordinal);
         Assert.Equal(45, deserialized.Scenario.SoloParkingInitialCallupRatePercent);
         Assert.Equal(70, deserialized.Scenario.SoloArrivalGeneratorRatePercent);

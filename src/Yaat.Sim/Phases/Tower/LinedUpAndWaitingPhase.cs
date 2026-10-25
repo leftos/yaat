@@ -94,7 +94,12 @@ public sealed class LinedUpAndWaitingPhase : Phase
             && (RunwaySpawnCall.RunwayOf(ctx.Aircraft) ?? ctx.Runway) is { } rwy
         )
         {
-            RunwaySpawnCallKind kind = RunwaySpawnCall.Decide(ctx.Aircraft, ctx.StudentPositionType, ctx.IsRunwaySpawnFieldTowered);
+            RunwaySpawnCallKind kind = RunwaySpawnCall.Decide(
+                ctx.Aircraft,
+                ctx.PilotContacts.StudentWorksTowerAt(rwy.AirportId),
+                RunwaySpawnCall.IsRadarStudent(ctx.PilotContacts.StudentPositionType),
+                ctx.IsRunwaySpawnFieldTowered
+            );
             if (ElapsedSeconds >= RunwaySpawnCall.CallPointSeconds(kind, ctx.Aircraft.Callsign))
             {
                 MakeLinedUpCall(ctx, rwy, kind);

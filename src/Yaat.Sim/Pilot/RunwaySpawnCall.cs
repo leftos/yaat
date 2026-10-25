@@ -12,7 +12,7 @@ public enum RunwaySpawnCallKind
     /// <summary>
     /// No call: a <see cref="InitialCallupPlan.RunwaySayOnly"/> spawn (its SAY preset is what it says), or a
     /// <see cref="InitialCallupPlan.RunwayNoPreset"/> spawn that the engine sends off with an automatic takeoff clearance:
-    /// at a towered field, or flying VFR at an untowered one.
+    /// at a towered field, or at an untowered one flying VFR or under a student who works no radar position.
     /// </summary>
     Silent,
 
@@ -24,11 +24,12 @@ public enum RunwaySpawnCallKind
 }
 
 /// <summary>
-/// The runway-spawn rules at the lined-up call point: a SAY-only spawn stays silent; a spawn with no preset and a radar
-/// student (APP or CTR) departs on an automatic takeoff clearance at a towered field or, flying VFR, at an untowered one
-/// (<see cref="Simulation.SimulationEngine"/> issues it after <see cref="LinedUpAndWaitingPhase.LinedUpReadyDelaySeconds"/>),
-/// and flying IFR at an untowered field asks the student for a release 5 to 10 s after lining up
-/// (<see cref="ReleaseRequestDelaySeconds"/>); every other spawn makes today's lined-up call after
+/// The runway-spawn rules at the lined-up call point: a SAY-only spawn stays silent; a spawn with no preset under a student
+/// who does not work the tower there departs on an automatic takeoff clearance at a towered field or, flying VFR, at an
+/// untowered one (<see cref="Simulation.SimulationEngine"/> issues it after <see cref="LinedUpAndWaitingPhase.LinedUpReadyDelaySeconds"/>),
+/// and flying IFR at an untowered field asks a radar student (APP or CTR) for a release 5 to 10 s after lining up
+/// (<see cref="ReleaseRequestDelaySeconds"/>), while under any other student, for whom the approach is simulated too, it
+/// departs on its own at the same point as a VFR spawn; every other spawn makes today's lined-up call after
 /// <see cref="LinedUpAndWaitingPhase.LinedUpReadyDelaySeconds"/>.
 /// </summary>
 public static class RunwaySpawnCall
@@ -60,10 +61,13 @@ public static class RunwaySpawnCall
     public static bool IsRadarStudent(string? studentPositionType) => studentPositionType is "APP" or "CTR";
 
     /// <summary>
-    /// What the aircraft does at its lined-up call point, given the student's position type and whether its field has a
-    /// tower (<paramref name="fieldTowered"/>, evaluated by the engine from the ARTCC config).
+    /// What the aircraft does at its lined-up call point, given whether the student works the tower at its runway's airport
+    /// (<paramref name="studentWorksTower"/>, <see cref="PilotContactRoster.StudentWorksTowerAt"/>), whether the student
+    /// works a radar position (<paramref name="radarStudent"/>, <see cref="IsRadarStudent"/>: only a radar student is asked
+    /// for a release) and whether its field has a tower (<paramref name="fieldTowered"/>, evaluated by the engine from the
+    /// ARTCC config).
     /// </summary>
-    public static RunwaySpawnCallKind Decide(AircraftState aircraft, string? studentPositionType, bool fieldTowered)
+    public static RunwaySpawnCallKind Decide(AircraftState aircraft, bool studentWorksTower, bool radarStudent, bool fieldTowered)
     {
         AircraftGroundOps ground = aircraft.Ground;
         if (ground.InitialCallup == InitialCallupPlan.RunwaySayOnly)
@@ -71,30 +75,27 @@ public static class RunwaySpawnCall
             return RunwaySpawnCallKind.Silent;
         }
 
-        if (
-            (ground.InitialCallup != InitialCallupPlan.RunwayNoPreset)
-            || ground.InitialCallupDecisionProcessed
-            || !IsRadarStudent(studentPositionType)
-        )
+        if ((ground.InitialCallup != InitialCallupPlan.RunwayNoPreset) || ground.InitialCallupDecisionProcessed || studentWorksTower)
         {
             return RunwaySpawnCallKind.LinedUpCall;
         }
 
         // A spawn released through the hold-for-release spawn gate already has its release: it never asks for one.
-        return (fieldTowered || aircraft.FlightPlan.IsVfr || ground.ReleasedAtSpawnGate)
+        return (fieldTowered || aircraft.FlightPlan.IsVfr || ground.ReleasedAtSpawnGate || !radarStudent)
             ? RunwaySpawnCallKind.Silent
             : RunwaySpawnCallKind.ReleaseRequest;
     }
 
     /// <summary>
     /// True when a <see cref="InitialCallupPlan.RunwayNoPreset"/> spawn has reached its lined-up call point with no takeoff
-    /// clearance and no call made, under a radar student: the moment the engine clears it for takeoff at a towered field,
-    /// or lets it depart on its own when it flies VFR from an untowered one.
+    /// clearance and no call made, under a student who does not work the tower there (<paramref name="studentWorksTower"/>
+    /// false): the moment the engine clears it for takeoff at a towered field, or lets it depart on its own when it flies
+    /// VFR from an untowered one.
     /// </summary>
-    public static bool IsAtAutoTakeoffPoint(AircraftState aircraft, string? studentPositionType) =>
+    public static bool IsAtAutoTakeoffPoint(AircraftState aircraft, bool studentWorksTower) =>
         (aircraft.Ground.InitialCallup == InitialCallupPlan.RunwayNoPreset)
         && !aircraft.Ground.InitialCallupDecisionProcessed
-        && IsRadarStudent(studentPositionType)
+        && !studentWorksTower
         && !aircraft.HasAnnouncedLinedUpReady
         && (aircraft.Phases?.DepartureClearance is null)
         && (aircraft.Phases?.CurrentPhase is LinedUpAndWaitingPhase { ElapsedSeconds: >= LinedUpAndWaitingPhase.LinedUpReadyDelaySeconds });

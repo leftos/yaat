@@ -370,6 +370,14 @@ public class AircraftGroundOps
     public bool ReleasedAtSpawnGate { get; set; }
 
     /// <summary>
+    /// Scenario-elapsed seconds at which the student first transferred this aircraft off its frequency (<c>CT</c> to a
+    /// position that is not a ground position, or <c>FCA</c>) while it was on the ground; null until then. A later transfer
+    /// keeps the first stamp. Where the tower is simulated silently, a transferred departure at its runway is cleared for
+    /// takeoff a short delay after this.
+    /// </summary>
+    public double? LeftStudentFrequencyAtSeconds { get; set; }
+
+    /// <summary>
     /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>), or null
     /// when no window is set. Wall-clock based and used only for instructor-facing expiry alerts on the
     /// client — never gates takeoff and never influences the simulation (GitHub issue #230). Paired with
@@ -424,6 +432,7 @@ public class AircraftGroundOps
             ReleasedForDeparture = ReleasedForDeparture,
             ReleasedAtSeconds = ReleasedAtSeconds,
             ReleasedAtSpawnGate = ReleasedAtSpawnGate,
+            LeftStudentFrequencyAtSeconds = LeftStudentFrequencyAtSeconds,
             ReleaseWindowStartUtc = ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = ReleaseWindowEndUtc,
         };
@@ -472,6 +481,7 @@ public class AircraftGroundOps
             ReleasedForDeparture = dto.ReleasedForDeparture,
             ReleasedAtSeconds = dto.ReleasedAtSeconds,
             ReleasedAtSpawnGate = dto.ReleasedAtSpawnGate,
+            LeftStudentFrequencyAtSeconds = dto.LeftStudentFrequencyAtSeconds,
             ReleaseWindowStartUtc = dto.ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = dto.ReleaseWindowEndUtc,
         };
