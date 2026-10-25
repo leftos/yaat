@@ -39,6 +39,8 @@ Step 7: Wire up node adjacency lists
     ↓
 Step 8: Generate fillet arcs at intersections
     ↓
+Step 9: Mark each runway bar as hold line or short bar
+    ↓
 AirportGroundLayout (complete graph)
 ```
 
@@ -159,7 +161,7 @@ Build an oriented rectangle from the runway LineString endpoints:
 - Heading: bearing along the centerline
 - Length: distance between endpoints
 - Half-width: extracted from navdata (runway type → ADG group → width), default 150ft
-- Hold-short distance: (width / 2) + 75ft from the centerline
+- Hold-short distance: the runway feature's authored `holdShortDistance` from the centerline, else `HoldShortDistanceForWidth` (the AC 150/5300-13B setback keyed on runway width)
 
 #### Step 5b: Classify Nodes
 
@@ -179,7 +181,7 @@ Identify edges where one endpoint is on-runway and the other is off-runway. Thes
 For each boundary edge, process via `ProcessBoundaryEdge()`:
 
 1. Compute the ideal hold-short position: perpendicular projection onto the boundary edge at the correct cross-track distance
-2. **Reuse check**: If the off-runway node is close (within ~15ft) AND is not already a hold-short AND is not a junction (doesn't touch multiple taxiways), upgrade it to `RunwayHoldShort` type and `RunwayId`
+2. **Reuse check**: If the off-runway node is close (within `HoldShortSnapFt`, 5 ft) AND is not already a hold-short AND is not a junction (doesn't touch multiple taxiways), upgrade it to `RunwayHoldShort` type and `RunwayId`
 3. **Otherwise**: Interpolate a new node at the hold-short distance on the boundary edge
 4. **If interpolation needed**: Split the boundary edge via `SplitEdgeAtOneNode()` → two sub-edges connected through the new hold-short node
 
@@ -240,6 +242,12 @@ Each node's adjacency list is built from the complete `layout.Edges` collection.
 
 Replaces eligible intersection nodes with bezier arcs at turns ≥15°. Details in [Fillet Arc Generator](#fillet-arc-generator) section.
 
+### Step 9: Mark Short Bars
+
+**Function**: `RunwayCrossingDetector.MarkShortBars()`
+
+With every node in its final place, sets `GroundNode.IsShortBar` on each `RunwayHoldShort` node whose runway is in the layout: true for a short fallback bar inside the holding distance, false for the runway's hold line. See [ground/hold-short-placement.md](ground/hold-short-placement.md).
+
 ---
 
 ## Data Model: AirportGroundLayout
@@ -258,6 +266,7 @@ public sealed class GroundNode
     public string? Name { get; init; }                            // Parking/spot/helipad identifier
     public TrueHeading? TrueHeading { get; init; }                // Parking heading only
     public RunwayIdentifier? RunwayId { get; set; }               // RunwayHoldShort nodes only
+    public bool? IsShortBar { get; set; }                         // RunwayHoldShort nodes of a runway in the layout: short fallback bar (true) or hold line (false); set in Step 9, serialized only when non-null
     public List<IGroundEdge> Edges { get; init; } = [];           // Adjacency list, populated in Step 7
     public string? Origin { get; set; }                           // Diagnostic: which code path created this node
     public (double Lat, double Lon)? SourceIntersectionPosition;  // Fillet tangent-point origin (for merging)

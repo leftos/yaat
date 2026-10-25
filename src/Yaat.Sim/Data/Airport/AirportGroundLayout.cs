@@ -48,6 +48,15 @@ public sealed class GroundNode
     public RunwayIdentifier? RunwayId { get; set; }
 
     /// <summary>
+    /// Whether this <see cref="GroundNodeType.RunwayHoldShort"/> node is a short bar: a fallback bar inside its runway's holding
+    /// distance (true), or the runway's hold line (false). Set by the layout build for every hold-short node whose runway is in
+    /// the layout; null on any other node, and on every node of a layout serialised before this field existed, where readers
+    /// measure the bar's distance from the runway centerline instead.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsShortBar { get; set; }
+
+    /// <summary>
     /// Adjacent edges for graph traversal. Populated during layout construction.
     /// Not serialized — rebuilt by <see cref="AirportGroundLayout.RebuildAdjacencyLists"/> after deserialization.
     /// </summary>
@@ -2708,14 +2717,24 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// Whether <paramref name="bar"/> sits at the holding distance of <paramref name="runwayDesignator"/> (within
-    /// <see cref="HoldingDistanceToleranceFt"/>). True when the runway is unknown, since there is nothing to measure.
+    /// Whether <paramref name="bar"/> is the hold line of <paramref name="runwayDesignator"/>: its
+    /// <see cref="GroundNode.IsShortBar"/> flag, else its cross-track within <see cref="HoldingDistanceToleranceFt"/> of the
+    /// holding distance. True when the runway is unknown, since there is nothing to measure.
     /// </summary>
     public bool IsAtRunwayHoldingDistance(GroundNode bar, string runwayDesignator) =>
         (FindRunway(runwayDesignator) is not { } runway) || IsAtHoldingDistance(RunwayCrossingDetector.BuildRunwayRectangle(runway), bar);
 
-    private static bool IsAtHoldingDistance(in RunwayRectangle rect, GroundNode node) =>
+    /// <summary>
+    /// Whether <paramref name="node"/> sits at the rectangle's holding distance by its cross-track from the runway centerline,
+    /// within <see cref="HoldingDistanceToleranceFt"/>.
+    /// </summary>
+    internal static bool IsAtHoldingDistanceByCrossTrack(in RunwayRectangle rect, GroundNode node) =>
         CrossTrackFromCenterlineFt(rect, node) >= (rect.HoldShortNm * GeoMath.FeetPerNm) - HoldingDistanceToleranceFt;
+
+    private static bool IsAtHoldingDistance(in RunwayRectangle rect, GroundNode node) =>
+        ((node.IsShortBar is { } isShort) && (node.RunwayId is { } runwayId) && runwayId.Equals(rect.CombinedId))
+            ? !isShort
+            : IsAtHoldingDistanceByCrossTrack(rect, node);
 
     /// <summary>The nodes a continuation adds after its start, ending at the bar, and its length.</summary>
     private readonly record struct OutwardContinuation(List<GroundNode> Steps, double LengthFt);
@@ -2815,7 +2834,7 @@ public sealed class AirportGroundLayout
             return false;
         }
 
-        OutwardStep step = ClassifyOutwardStep(next, nextFt, walk);
+        OutwardStep step = ClassifyOutwardStep(next, walk);
         isTarget = step == OutwardStep.Target;
         return step != OutwardStep.Blocked;
     }
@@ -2841,7 +2860,7 @@ public sealed class AirportGroundLayout
     /// A non-bar node or a short bar of the same runway is passed through; the same runway's free bar at the holding
     /// distance is the target; another runway's bar or an occupied bar ends the branch.
     /// </summary>
-    private static OutwardStep ClassifyOutwardStep(GroundNode node, double crossFt, OutwardWalk walk)
+    private static OutwardStep ClassifyOutwardStep(GroundNode node, OutwardWalk walk)
     {
         if (node.Type != GroundNodeType.RunwayHoldShort)
         {
@@ -2855,7 +2874,7 @@ public sealed class AirportGroundLayout
             return OutwardStep.Blocked;
         }
 
-        return (crossFt >= walk.HoldingFt - HoldingDistanceToleranceFt) ? OutwardStep.Target : OutwardStep.PassThrough;
+        return IsAtHoldingDistance(walk.Rect, node) ? OutwardStep.Target : OutwardStep.PassThrough;
     }
 
     private static double CrossTrackFromCenterlineFt(in RunwayRectangle rect, GroundNode node) =>

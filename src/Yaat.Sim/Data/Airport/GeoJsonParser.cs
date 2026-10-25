@@ -433,6 +433,9 @@ public static class GeoJsonParser
             FilletGeneratorFactory.Create(filletMode).Apply(layout);
         }
 
+        // Step 9: with every node in its final place, mark each runway bar as its runway's hold line or a short fallback bar
+        RunwayCrossingDetector.MarkShortBars(layout);
+
         Log.LogInformation(
             "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, {ArcCount} arcs, " + "{ParkingCount} parking, {HelipadCount} helipads",
             airportId,

@@ -114,6 +114,12 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
 
   A bar flagged unable while another phase flew the aircraft (a follow) is judged again when a fresh taxi phase is about to move its stop, and keeps its painted stop if the firm rate makes it. A stopped aircraft (2 kt or less) cannot overrun a bar, so it never reads one as unmakeable: it reads the hold short back and holds where it stands.
 
+## Hold line or short bar — `GroundNode.IsShortBar`
+
+`RunwayCrossingDetector.MarkShortBars` runs as the last build step (`GeoJsonParser.BuildLayout` step 9, after the fillets have settled every node's position) and sets `GroundNode.IsShortBar` on every `RunwayHoldShort` node whose runway is in the layout: false for the runway's hold line, true for a short fallback bar inside the holding distance. It decides by the bar's cross-track from the runway centerline against the holding distance, within `HoldingDistanceToleranceFt` (`AirportGroundLayout.IsAtHoldingDistanceByCrossTrack`). Every other node reads null.
+
+`AirportGroundLayout.IsAtRunwayHoldingDistance`, the short-bar resolution and the exit search's outward walk read the flag first, and fall back to the cross-track measurement only when it is null (a node whose runway is not in the layout, or a layout serialized before the field). The flag is serialized only when non-null, so it rides in the layout JSON of recording archives and the precompute store without a layout format bump ([snapshots-and-replay.md](../snapshots-and-replay.md)).
+
 ## Placement is not selection
 
 This file covers where the bars **are**. Which one a *route* binds its `HoldShortPoint` to is a separate
