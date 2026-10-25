@@ -13,19 +13,32 @@ public enum WaitUntilKind
     PhaseIsNot,
     QueueEmpty,
     LogMatches,
+    ClientLogMatches,
     SimSeconds,
+    Paused,
 }
 
 /// <summary>
 /// One <c>wait_until</c> condition: its kind as the request named it, the kind, and the fields the kind reads (the others
-/// are empty, null or zero). <paramref name="Callsign"/> is empty on a <c>log_matches</c> that filters on no aircraft.
+/// are empty, null or zero). <paramref name="Callsign"/> is empty on a <c>log_matches</c> that filters on no aircraft, and on
+/// every <c>client_log_matches</c>, which takes none. <paramref name="FromStart"/> is read only by <c>client_log_matches</c>:
+/// whether it reads the whole log from its first line rather than from the wait's first poll.
 /// </summary>
-public sealed record WaitUntilCondition(string Name, WaitUntilKind Kind, string Callsign, string Phase, Regex? Pattern, double AtLeast);
+public sealed record WaitUntilCondition(
+    string Name,
+    WaitUntilKind Kind,
+    string Callsign,
+    string Phase,
+    Regex? Pattern,
+    double AtLeast,
+    bool FromStart
+);
 
 /// <summary>The client actions <c>wait_until</c> runs when its conditions are met.</summary>
 public enum WaitUntilActionKind
 {
     Pause,
+    Unpause,
     SetRate,
 }
 
@@ -57,7 +70,9 @@ public sealed record WaitUntilParams(
         ["phase_is_not"] = WaitUntilKind.PhaseIsNot,
         ["queue_empty"] = WaitUntilKind.QueueEmpty,
         ["log_matches"] = WaitUntilKind.LogMatches,
+        ["client_log_matches"] = WaitUntilKind.ClientLogMatches,
         ["sim_seconds"] = WaitUntilKind.SimSeconds,
+        ["paused"] = WaitUntilKind.Paused,
     };
 
     /// <summary>Reads the params from a request, or returns the <see cref="HandlerErrorResult"/> naming the first bad one.</summary>
@@ -99,7 +114,34 @@ public sealed record WaitUntilParams(
             conditions.Add((WaitUntilCondition)read);
         }
 
-        return (conditions, null);
+        HandlerErrorResult? fromStartError = ReadFromStartAgreement(conditions);
+        return (fromStartError is not null) ? ([], fromStartError) : (conditions, null);
+    }
+
+    /// <summary>
+    /// Refuses conditions that disagree about where their <c>client_log_matches</c> reads the log: one wait reads it from one
+    /// place, so every <c>client_log_matches</c> in it carries the same <c>fromStart</c>. The error names the first one that
+    /// differs from the first <c>client_log_matches</c>.
+    /// </summary>
+    private static HandlerErrorResult? ReadFromStartAgreement(List<WaitUntilCondition> conditions)
+    {
+        int first = conditions.FindIndex(condition => condition.Kind == WaitUntilKind.ClientLogMatches);
+        if (first < 0)
+        {
+            return null;
+        }
+
+        bool fromStart = conditions[first].FromStart;
+        int differing = conditions.FindIndex(
+            first + 1,
+            condition => (condition.Kind == WaitUntilKind.ClientLogMatches) && (condition.FromStart != fromStart)
+        );
+        return (differing < 0)
+            ? null
+            : HandlerResult.InvalidParam(
+                $"conditions[{differing}].fromStart",
+                "Every client_log_matches in one wait reads the log from the same place: give each the same fromStart."
+            );
     }
 
     private static object ReadCondition(JsonElement item, string path)
@@ -124,7 +166,9 @@ public sealed record WaitUntilParams(
         return kind switch
         {
             WaitUntilKind.SimSeconds => ReadSimSeconds(item, path),
+            WaitUntilKind.Paused => new WaitUntilCondition("paused", WaitUntilKind.Paused, "", "", null, 0, false),
             WaitUntilKind.LogMatches => ReadLogMatches(item, path),
+            WaitUntilKind.ClientLogMatches => ReadClientLogMatches(item, path),
             WaitUntilKind.PhaseIs or WaitUntilKind.PhaseIsNot => ReadPhase(item, path, normalized, kind),
             _ => ReadAircraft(item, path, normalized, kind),
         };
@@ -133,7 +177,7 @@ public sealed record WaitUntilParams(
     private static object ReadAircraft(JsonElement item, string path, string name, WaitUntilKind kind)
     {
         (string callsign, HandlerErrorResult? error) = RequiredString(item, path, "callsign");
-        return (error is not null) ? error : new WaitUntilCondition(name, kind, callsign, "", null, 0);
+        return (error is not null) ? error : new WaitUntilCondition(name, kind, callsign, "", null, 0, false);
     }
 
     private static object ReadPhase(JsonElement item, string path, string name, WaitUntilKind kind)
@@ -141,7 +185,7 @@ public sealed record WaitUntilParams(
         (string callsign, HandlerErrorResult? callsignError) = RequiredString(item, path, "callsign");
         (string phase, HandlerErrorResult? phaseError) = RequiredString(item, path, "phase");
         HandlerErrorResult? error = callsignError ?? phaseError;
-        return (error is not null) ? error : new WaitUntilCondition(name, kind, callsign, phase, null, 0);
+        return (error is not null) ? error : new WaitUntilCondition(name, kind, callsign, phase, null, 0, false);
     }
 
     private static object ReadSimSeconds(JsonElement item, string path)
@@ -152,7 +196,7 @@ public sealed record WaitUntilParams(
             && value.TryGetDouble(out double atLeast)
             && double.IsFinite(atLeast);
         return valid
-            ? new WaitUntilCondition("sim_seconds", WaitUntilKind.SimSeconds, "", "", null, value.GetDouble())
+            ? new WaitUntilCondition("sim_seconds", WaitUntilKind.SimSeconds, "", "", null, value.GetDouble(), false)
             : HandlerResult.InvalidParam($"{path}.atLeast", $"'{path}.atLeast' is required and must be a number of seconds.");
     }
 
@@ -172,7 +216,7 @@ public sealed record WaitUntilParams(
         try
         {
             var regex = new Regex(pattern, RegexOptions.NonBacktracking | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            return new WaitUntilCondition("log_matches", WaitUntilKind.LogMatches, callsign ?? "", "", regex, 0);
+            return new WaitUntilCondition("log_matches", WaitUntilKind.LogMatches, callsign ?? "", "", regex, 0, false);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {
@@ -181,6 +225,62 @@ public sealed record WaitUntilParams(
                 $"'{path}.pattern' must be a .NET regex the non-backtracking engine accepts (no backreferences or lookarounds): {ex.Message}"
             );
         }
+    }
+
+    /// <summary>
+    /// A <c>client_log_matches</c>: <c>pattern</c>, a .NET regex matched case-insensitively against each line the client's log
+    /// file gains after the wait begins, or with <c>fromStart: true</c> also against the lines already in the log when the wait
+    /// began. It takes no <c>callsign</c>: the client log is not split by aircraft.
+    /// </summary>
+    private static object ReadClientLogMatches(JsonElement item, string path)
+    {
+        (string pattern, HandlerErrorResult? patternError) = RequiredString(item, path, "pattern");
+        if (patternError is not null)
+        {
+            return patternError;
+        }
+
+        if (item.TryGetProperty("callsign", out _))
+        {
+            return HandlerResult.InvalidParam($"{path}.callsign", "client_log_matches takes no callsign: the client log is not split by aircraft.");
+        }
+
+        (bool fromStart, HandlerErrorResult? fromStartError) = ReadFromStart(item, path);
+        if (fromStartError is not null)
+        {
+            return fromStartError;
+        }
+
+        // The non-backtracking engine matches in time linear in the line's length, so a pattern needs no match timeout; it
+        // refuses the constructs that need backtracking (backreferences, lookarounds, atomic groups).
+        try
+        {
+            var regex = new Regex(pattern, RegexOptions.NonBacktracking | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return new WaitUntilCondition("client_log_matches", WaitUntilKind.ClientLogMatches, "", "", regex, 0, fromStart);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            return HandlerResult.InvalidParam(
+                $"{path}.pattern",
+                $"'{path}.pattern' must be a .NET regex the non-backtracking engine accepts (no backreferences or lookarounds): {ex.Message}"
+            );
+        }
+    }
+
+    /// <summary>The optional <c>fromStart</c> of a <c>client_log_matches</c>, absent meaning false; a present value must be a JSON boolean.</summary>
+    private static (bool FromStart, HandlerErrorResult? Error) ReadFromStart(JsonElement item, string path)
+    {
+        if (!item.TryGetProperty("fromStart", out JsonElement value))
+        {
+            return (false, null);
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => (true, null),
+            JsonValueKind.False => (false, null),
+            _ => (false, HandlerResult.InvalidParam($"{path}.fromStart", $"'{path}.fromStart' must be true or false.")),
+        };
     }
 
     /// <summary>The non-blank string <paramref name="name"/> of the object at <paramref name="path"/>.</summary>
@@ -282,8 +382,9 @@ public sealed record WaitUntilParams(
         return name.ToLowerInvariant() switch
         {
             "pause" => new WaitUntilAction("pause", WaitUntilActionKind.Pause, 0),
+            "unpause" => new WaitUntilAction("unpause", WaitUntilActionKind.Unpause, 0),
             "set_rate" => ReadSetRate(item, path),
-            _ => HandlerResult.InvalidParam($"{path}.action", $"Unknown action '{name}'. Use one of: pause, set_rate."),
+            _ => HandlerResult.InvalidParam($"{path}.action", $"Unknown action '{name}'. Use one of: pause, unpause, set_rate."),
         };
     }
 

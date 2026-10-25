@@ -139,6 +139,24 @@ public abstract class AutomationHostFixture : IDisposable
             )
         );
 
+    /// <summary>The node and every descendant under it, in the order <c>get_tree</c> reported them.</summary>
+    protected static IEnumerable<JsonElement> Flatten(JsonElement node)
+    {
+        yield return node;
+        if (!node.TryGetProperty("children", out JsonElement children))
+        {
+            yield break;
+        }
+
+        foreach (JsonElement child in children.EnumerateArray())
+        {
+            foreach (JsonElement descendant in Flatten(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
     protected static JsonElement Result(JsonElement response)
     {
         Assert.False(response.TryGetProperty("errorInfo", out JsonElement error), $"Unexpected error: {error}");

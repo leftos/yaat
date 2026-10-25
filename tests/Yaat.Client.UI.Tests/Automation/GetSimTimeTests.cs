@@ -44,6 +44,10 @@ public sealed class GetSimTimeTests : AutomationHostFixture
     /// <summary>An <see cref="IAutomationState"/> whose clock reads fixed values; nothing else in it is read.</summary>
     private sealed class ClockState(double simSeconds, bool isPaused, int simRate) : IAutomationState
     {
+#pragma warning disable CS0067 // This fake never changes its state, so it never raises Changed.
+        public event EventHandler? Changed;
+#pragma warning restore CS0067
+
         public IReadOnlyList<AircraftModel> Aircraft => [];
 
         public double ScenarioElapsedSeconds => simSeconds;
@@ -51,6 +55,8 @@ public sealed class GetSimTimeTests : AutomationHostFixture
         public bool IsPaused => isPaused;
 
         public int SimRate => simRate;
+
+        public string ClientLogPath => "";
 
         public long TerminalCursor => 0;
 

@@ -913,7 +913,7 @@ public partial class MainViewModel
     /// <see cref="GroundWeatherNote"/> in place of its weather readout. Both ids are normalized, so a
     /// P-prefixed METAR (PHNL) matches the layout's FAA id (HNL).
     /// </summary>
-    private static WeatherDisplayInfo? PickGroundWeather(IReadOnlyList<WeatherDisplayInfo>? allInfo, string? airportId)
+    internal static WeatherDisplayInfo? PickGroundWeather(IReadOnlyList<WeatherDisplayInfo>? allInfo, string? airportId)
     {
         string? normalized = AirportAirlines.NormalizeAirportId(airportId);
         if (allInfo is null || normalized is null)
@@ -931,6 +931,12 @@ public partial class MainViewModel
 
         return null;
     }
+
+    /// <summary>
+    /// The loaded weather's report for <paramref name="airportId"/> (an FAA or ICAO id), as a Ground View depicting that airport
+    /// picks it (<see cref="PickGroundWeather"/>), or null when the weather carries no station for it.
+    /// </summary>
+    internal WeatherDisplayInfo? GroundWeatherFor(string airportId) => PickGroundWeather(_allWeatherInfo, airportId);
 
     /// <summary>
     /// The note a Ground View shows instead of a weather readout when the loaded weather carries no station

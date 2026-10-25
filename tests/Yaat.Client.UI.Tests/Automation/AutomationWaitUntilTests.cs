@@ -311,6 +311,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
             Kind = TerminalEntryKind.System,
             Callsign = callsign,
             Message = message,
+            PilotKind = null,
         };
 
     [AvaloniaFact]
@@ -449,7 +450,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
                 Conditions(new { kind = "log_matches", pattern = "cleared to land" }),
                 () =>
                     viewModel.RepopulateTerminalFromRecording([
-                        new TerminalBroadcastDto("", "System", "", "history: cleared to land", DateTime.UtcNow, 10),
+                        new TerminalBroadcastDto("", "System", "", "history: cleared to land", DateTime.UtcNow, 10, PilotKind: null),
                     ]),
                 () => viewModel.AddSystemEntry("live: cleared to land")
             )
@@ -571,6 +572,70 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         Assert.Empty(state.Actions);
     }
 
+    [AvaloniaFact]
+    public async Task Paused_HeldAtOnceWhileTheSimIsPaused()
+    {
+        var state = new RecordingState(onGround: false) { IsPaused = true };
+
+        JsonElement result = Result(await WaitUntil(() => state, new { conditions = new[] { new { kind = "paused" } }, timeoutMs = 5000 }));
+
+        Assert.True(result.GetProperty("met").GetBoolean());
+        Assert.Equal([0], Held(result));
+        Assert.Equal("paused", LastValue(result, 0));
+    }
+
+    [AvaloniaFact]
+    public async Task Paused_TimesOutWhileTheSimRuns()
+    {
+        var state = new RecordingState(onGround: false);
+
+        JsonElement result = Result(await WaitUntil(() => state, new { conditions = new[] { new { kind = "paused" } }, timeoutMs = 300 }));
+
+        Assert.False(result.GetProperty("met").GetBoolean());
+        Assert.Equal("running", LastValue(result, 0));
+    }
+
+    [AvaloniaFact]
+    public async Task ModeAny_PausedOrSimSeconds_MetOnTheSimSecondsWhileRunning()
+    {
+        var state = new RecordingState(onGround: false) { ScenarioElapsedSeconds = 20 };
+
+        JsonElement result = Result(
+            await WaitUntil(
+                () => state,
+                new
+                {
+                    conditions = new object[] { new { kind = "paused" }, new { kind = "sim_seconds", atLeast = 10 } },
+                    mode = "any",
+                    timeoutMs = 5000,
+                }
+            )
+        );
+
+        Assert.True(result.GetProperty("met").GetBoolean());
+        Assert.Equal([1], Held(result));
+        Assert.Equal("running", LastValue(result, 0));
+    }
+
+    [AvaloniaFact]
+    public async Task Then_Unpause_RunsOnceOnMatch()
+    {
+        var state = new RecordingState(onGround: false);
+
+        JsonElement result = Result(
+            await WaitUntilAcross(
+                () => state,
+                new { conditions = new[] { new { kind = "on_ground", callsign = Callsign } }, then = new[] { new { action = "unpause" } } },
+                () => state.Aircraft[0].IsOnGround = true
+            )
+        );
+
+        Assert.Equal(["unpause (on ground)"], state.Actions);
+        JsonElement then = result.GetProperty("then");
+        Assert.Equal("unpause", then[0].GetProperty("action").GetString());
+        Assert.True(then[0].GetProperty("ok").GetBoolean());
+    }
+
     /// <summary>
     /// An <see cref="IAutomationState"/> with one aircraft that records each action and the aircraft's state when it ran;
     /// <see cref="OnFirstRead"/> runs inside the first read of the aircraft list and <see cref="OnPause"/> inside the pause.
@@ -580,6 +645,10 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         private readonly List<AircraftModel> _aircraft = [new AircraftModel { Callsign = Callsign, IsOnGround = onGround }];
 
         public List<string> Actions { get; } = [];
+
+#pragma warning disable CS0067 // This fake never changes its state, so it never raises Changed.
+        public event EventHandler? Changed;
+#pragma warning restore CS0067
 
         public int AircraftReads { get; private set; }
 
@@ -601,11 +670,13 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
             }
         }
 
-        public double ScenarioElapsedSeconds => 0;
+        public double ScenarioElapsedSeconds { get; set; }
 
-        public bool IsPaused => false;
+        public bool IsPaused { get; set; }
 
         public int SimRate => 1;
+
+        public string ClientLogPath => "";
 
         public long TerminalCursor => 0;
 
@@ -618,7 +689,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
             return recorded;
         }
 
-        public Task<AutomationActionOutcome> UnpauseAsync() => throw new InvalidOperationException("wait_until never unpauses.");
+        public Task<AutomationActionOutcome> UnpauseAsync() => Record("unpause");
 
         public Task<AutomationActionOutcome> SetRateAsync(int rate) => Record($"set_rate {rate}");
 

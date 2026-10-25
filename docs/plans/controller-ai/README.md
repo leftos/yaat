@@ -48,6 +48,8 @@ Beyond soak-testing, the brains are tuned the way a student is trained: an inter
 
 The session is paced or stepped so the mentor can read each explanation before the next instruction fires. The mentor's notes come back in chat; each becomes a rule or knowledge change, checked by re-running the same seed to the same moment. The trace explains only what the rules know: a gap in the rules shows as a thin reason, which is itself a finding.
 
+Before the brains are coached, the owner coaches Claude itself as a live solo student ([coaching/README.md](coaching/README.md), the `atc-coaching` skill): the lessons it collects in [coaching/ground-lessons.md](coaching/ground-lessons.md) are the rules those brains are then written or corrected from.
+
 ## Architecture
 
 ```

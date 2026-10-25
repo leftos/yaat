@@ -8,6 +8,9 @@ namespace Yaat.Client.Automation;
 /// </summary>
 public interface IAutomationState
 {
+    /// <summary>Raised on the UI thread after a terminal entry or an aircraft is added to or removed from the client's lists.</summary>
+    event EventHandler? Changed;
+
     /// <summary>The aircraft the client shows.</summary>
     IReadOnlyList<AircraftModel> Aircraft { get; }
 
@@ -19,6 +22,9 @@ public interface IAutomationState
 
     /// <summary>The room's sim rate.</summary>
     int SimRate { get; }
+
+    /// <summary>The client's log file (<c>yaat-client.log</c>), or empty when the client writes none.</summary>
+    string ClientLogPath { get; }
 
     /// <summary>The sequence number of the newest terminal entry so far; every entry added later has a higher one.</summary>
     long TerminalCursor { get; }

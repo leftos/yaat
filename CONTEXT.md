@@ -926,6 +926,12 @@ The client's in-process automation endpoint (`src/Yaat.Client/Automation/Automat
 The file picker an automation-mode client uses in place of the native dialog (`InjectedFilePickerService`, built by `FilePickerFactory`): each open or save call takes the oldest answer an agent queued with `queue_file_pick` (a path or a cancel), and fails at once on an empty queue, so no dialog ever opens (yaat-server `docs/client-driver-mcp.md`).
 _Avoid_: file dialog (none opens)
 
+**Coaching session**:
+A live session in which the owner trains Claude as a solo student: Claude works a position in an automation-mode client, scans the traffic about every 10 sim seconds, and before each instruction pauses and explains its picture and the instruction it would give, which it sends only after the owner rules. The `atc-coaching` skill runs it; its logs and lessons live in `docs/plans/controller-ai/coaching/`.
+
+**Pause trigger**:
+An event that makes an automation-mode client pause its room's sim on its own, armed with the app tool `arm_pause_triggers` (`PauseTriggerMonitor`): a pilot's call or report (not a readback), a warning or a new conflict, a new aircraft, a taxiing aircraft stopping for 5 sim seconds, or an optional heartbeat. A coaching session's safety net between scans; each firing is logged for `get_pause_events`.
+
 **Node id**:
 The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
 

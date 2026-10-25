@@ -4,14 +4,18 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Handlers;
 using Yaat.Client.Automation.Protocol;
 using Yaat.Client.Automation.Transport;
+using Yaat.Client.Automation.Tree;
 using Yaat.Client.UI.Tests.Helpers;
 
 namespace Yaat.Client.UI.Tests.Automation;
@@ -121,6 +125,106 @@ public sealed class AutomationHostTests : AutomationHostFixture
         Assert.NotEqual(ownerId, popupEntry.GetProperty("nodeId").GetInt32());
         JsonElement popupAgain = Assert.Single(second.EnumerateArray(), entry => entry.GetProperty("isPopup").GetBoolean());
         Assert.Equal(popupEntry.GetProperty("nodeId").GetInt32(), popupAgain.GetProperty("nodeId").GetInt32());
+    }
+
+    private static Border InWindowOverlay(string title, bool isVisible, Control? child)
+    {
+        var border = new Border
+        {
+            Classes = { ListWindowsHandler.InWindowOverlayClass },
+            IsVisible = isVisible,
+            Child = child,
+        };
+        AutomationProperties.SetName(border, title);
+        return border;
+    }
+
+    private static IEnumerable<JsonElement> BorderRows(JsonElement windows) =>
+        windows.EnumerateArray().Where(entry => entry.GetProperty("typeName").GetString() == nameof(Border));
+
+    [AvaloniaFact]
+    public async Task ListWindows_ListsAVisibleInWindowOverlay()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        Window window = ShowWindow("Overlay owner", null);
+        var panel = new StackPanel();
+        Button button = new() { Name = "ConfirmSetup", Content = "OK" };
+        Border overlay = InWindowOverlay("Session setup", true, button);
+        // The overlay's parent is offset, so a parent-relative y would read 0 where its window-relative y is 50.
+        var offset = new Border { Margin = new Thickness(0, 50, 0, 0), Child = overlay };
+        panel.Children.Add(offset);
+        window.Content = panel;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        await using AutomationPipeTestClient client = await Connect();
+
+        JsonElement first = Result(await client.SendAsync(ProtocolMethods.ListWindows));
+        JsonElement second = Result(await client.SendAsync(ProtocolMethods.ListWindows));
+
+        int ownerId = EntryTitled(first, "Overlay owner").GetProperty("nodeId").GetInt32();
+        JsonElement row = Assert.Single(BorderRows(first));
+        Assert.Equal("Session setup", row.GetProperty("title").GetString());
+        Assert.True(row.GetProperty("isPopup").GetBoolean());
+        Assert.True(row.GetProperty("isVisible").GetBoolean());
+        Assert.Equal(ownerId, row.GetProperty("ownerId").GetInt32());
+        Assert.Equal(0, row.GetProperty("hwnd").GetInt64());
+        int rowId = row.GetProperty("nodeId").GetInt32();
+        Assert.NotEqual(ownerId, rowId);
+        Assert.Equal(rowId, Assert.Single(BorderRows(second)).GetProperty("nodeId").GetInt32());
+        JsonElement bounds = row.GetProperty("bounds");
+        Assert.Equal(50, bounds.GetProperty("y").GetDouble());
+        Assert.Equal(NodeInfoBuilder.GetWindowBounds(overlay)!.Y, bounds.GetProperty("y").GetDouble());
+        Assert.True(bounds.GetProperty("width").GetDouble() > 0);
+        Assert.True(bounds.GetProperty("height").GetDouble() > 0);
+
+        JsonElement tree = Result(await Send(client, ProtocolMethods.GetTree, new { nodeId = rowId, depth = 5 }));
+        JsonElement root = Assert.Single(tree.EnumerateArray());
+        Assert.Equal(nameof(Border), root.GetProperty("type").GetString());
+        Assert.Contains(Flatten(root), node => node.TryGetProperty("name", out JsonElement name) && (name.GetString() == "ConfirmSetup"));
+    }
+
+    [AvaloniaFact]
+    public async Task ListWindows_OmitsAHiddenInWindowOverlay()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        Window window = ShowWindow("Hidden overlay owner", null);
+        var panel = new StackPanel();
+        panel.Children.Add(InWindowOverlay("Session setup", false, null));
+        var hiddenPanel = new StackPanel { IsVisible = false };
+        hiddenPanel.Children.Add(InWindowOverlay("Scenario Setup", true, null));
+        panel.Children.Add(hiddenPanel);
+        window.Content = panel;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        await using AutomationPipeTestClient client = await Connect();
+
+        JsonElement windows = Result(await client.SendAsync(ProtocolMethods.ListWindows));
+
+        Assert.Empty(BorderRows(windows));
+    }
+
+    [AvaloniaFact]
+    public async Task ListWindows_OmitsABorderWithoutTheOverlayClass()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        Window window = ShowWindow("Plain border owner", null);
+        var panel = new StackPanel();
+        panel.Children.Add(
+            new Border
+            {
+                Width = 60,
+                Height = 40,
+                Child = new TextBlock { Text = "Not an overlay" },
+            }
+        );
+        window.Content = panel;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        await using AutomationPipeTestClient client = await Connect();
+
+        JsonElement windows = Result(await client.SendAsync(ProtocolMethods.ListWindows));
+
+        Assert.Empty(BorderRows(windows));
     }
 
     [AvaloniaFact]
