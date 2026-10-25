@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Data;
@@ -20,7 +21,7 @@ public sealed class ScenarioSidecarLoaderTests
             ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
             Assert.NotNull(sidecar);
             ActiveRunway[] expected = [new("28L", ActiveRunwayUse.Departure), new("28R", ActiveRunwayUse.Arrival), new("30", ActiveRunwayUse.Both)];
-            Assert.Equal(expected, sidecar!.ActiveRunways.For("OAK"));
+            Assert.Equal(expected, sidecar!.ActiveRunways!.For("OAK"));
         }
         finally
         {
@@ -51,7 +52,7 @@ public sealed class ScenarioSidecarLoaderTests
 
             ScenarioSidecar? sidecar = result.Find("zoa", "oak");
             Assert.NotNull(sidecar);
-            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways.For("OAK")).Designator);
+            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways!.For("OAK")).Designator);
         }
         finally
         {
@@ -72,7 +73,7 @@ public sealed class ScenarioSidecarLoaderTests
             Assert.Empty(result.Warnings);
             ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
             Assert.NotNull(sidecar);
-            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways.For("OAK")).Designator);
+            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways!.For("OAK")).Designator);
         }
         finally
         {
@@ -147,6 +148,74 @@ public sealed class ScenarioSidecarLoaderTests
         }
     }
 
+    [Theory]
+    [InlineData("""{ "studentLowestPosition": "GND" }""")]
+    [InlineData("""{ "activeRunways": null, "studentLowestPosition": "GND" }""")]
+    public void NoActiveRunwaysKey_LeavesActiveRunwaysNull(string json)
+    {
+        string root = NewRoot();
+        WriteSidecar(root, "ZOA", "oak.json", json);
+
+        try
+        {
+            ScenarioSidecarLoadResult result = ScenarioSidecarLoader.LoadAll(root);
+
+            Assert.Empty(result.Warnings);
+            ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
+            Assert.NotNull(sidecar);
+            Assert.Null(sidecar!.ActiveRunways);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void StudentLowestPosition_IsRead()
+    {
+        string root = NewRoot();
+        WriteSidecar(root, "ZOA", "oak.json", """{ "studentLowestPosition": "del" }""");
+
+        try
+        {
+            ScenarioSidecarLoadResult result = ScenarioSidecarLoader.LoadAll(root);
+
+            Assert.Empty(result.Warnings);
+            ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
+            Assert.NotNull(sidecar);
+            Assert.Equal(AtcPositionLevel.Delivery, sidecar!.StudentLowestPosition);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void StudentLowestPosition_Unknown_WarnsAndIsNull()
+    {
+        string root = NewRoot();
+        WriteSidecar(root, "ZOA", "oak.json", """{ "activeRunways": { "OAK": ["28L"] }, "studentLowestPosition": "TRACON" }""");
+
+        try
+        {
+            ScenarioSidecarLoadResult result = ScenarioSidecarLoader.LoadAll(root);
+
+            ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
+            Assert.NotNull(sidecar);
+            Assert.Null(sidecar!.StudentLowestPosition);
+            Assert.Equal("28L", Assert.Single(sidecar.ActiveRunways!.For("OAK")).Designator);
+            string warning = Assert.Single(result.WarningsFor("ZOA"));
+            Assert.Contains("oak.json", warning, StringComparison.Ordinal);
+            Assert.Contains("studentLowestPosition 'TRACON'", warning, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void UnknownProperties_AreIgnored()
     {
@@ -159,7 +228,7 @@ public sealed class ScenarioSidecarLoaderTests
 
             ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
             Assert.NotNull(sidecar);
-            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways.For("OAK")).Designator);
+            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways!.For("OAK")).Designator);
         }
         finally
         {
@@ -184,8 +253,8 @@ public sealed class ScenarioSidecarLoaderTests
 
             ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
             Assert.NotNull(sidecar);
-            Assert.Empty(sidecar!.ActiveRunways.For("OAK"));
-            Assert.Equal("10L", Assert.Single(sidecar.ActiveRunways.For("SFO")).Designator);
+            Assert.Empty(sidecar!.ActiveRunways!.For("OAK"));
+            Assert.Equal("10L", Assert.Single(sidecar.ActiveRunways!.For("SFO")).Designator);
             Assert.Contains(
                 result.Warnings,
                 w => w.Contains("oak.json", StringComparison.Ordinal) && w.Contains(expectedWarning, StringComparison.Ordinal)
@@ -211,7 +280,7 @@ public sealed class ScenarioSidecarLoaderTests
 
             ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
             Assert.NotNull(sidecar);
-            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways.For("OAK")).Designator);
+            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways!.For("OAK")).Designator);
             Assert.Contains(result.Warnings, w => w.Contains(expectedWarning, StringComparison.Ordinal));
         }
         finally
@@ -236,7 +305,7 @@ public sealed class ScenarioSidecarLoaderTests
 
             ScenarioSidecar? sidecar = result.Find("ZOA", "oak");
             Assert.NotNull(sidecar);
-            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways.For("OAK")).Designator);
+            Assert.Equal("28L", Assert.Single(sidecar!.ActiveRunways!.For("OAK")).Designator);
             string warning = Assert.Single(result.Warnings);
             Assert.Contains("is already loaded from", warning, StringComparison.Ordinal);
             Assert.Contains("oak.json", warning, StringComparison.Ordinal);

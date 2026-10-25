@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 
@@ -13,9 +14,16 @@ public sealed class ScenarioSidecar
 {
     /// <summary>
     /// The runways the scenario's room starts with, read from the sidecar's tokens without a navigation-database check.
-    /// Empty when the sidecar names none.
+    /// Null when the file has no <c>activeRunways</c> key (or it is JSON <c>null</c>): the sidecar leaves the runways to the
+    /// room. A key whose every airport fails to read is not null but empty.
     /// </summary>
-    public ActiveRunways ActiveRunways { get; init; } = ActiveRunways.Empty;
+    public ActiveRunways? ActiveRunways { get; init; }
+
+    /// <summary>
+    /// The lowest position type a solo student works (<c>studentLowestPosition</c>: <c>DEL</c>, <c>GND</c>, <c>TWR</c>,
+    /// <c>APP</c> or <c>CTR</c>). Null when the file names none, or names one that does not read: the room asks instead.
+    /// </summary>
+    public AtcPositionLevel? StudentLowestPosition { get; init; }
 }
 
 /// <summary>The scenario sidecars found under one ARTCCs base directory, looked up by ARTCC id and scenario id.</summary>
@@ -133,13 +141,32 @@ public static class ScenarioSidecarLoader
         }
 
         var warnings = new List<string>();
-        ActiveRunways runways = ActiveRunwayListParser.FromTokenLists(sidecarFile.ActiveRunways, filePath, warnings);
+        ActiveRunways? runways = sidecarFile.ActiveRunways is null
+            ? null
+            : ActiveRunwayListParser.FromTokenLists(sidecarFile.ActiveRunways, filePath, warnings);
+        AtcPositionLevel? lowest = ReadStudentLowestPosition(sidecarFile.StudentLowestPosition, filePath, warnings);
         foreach (string warning in warnings)
         {
             result.Warn(artccId, warning);
         }
 
-        result.Add(artccId, filePath, new ScenarioSidecar { ActiveRunways = runways });
+        result.Add(artccId, filePath, new ScenarioSidecar { ActiveRunways = runways, StudentLowestPosition = lowest });
+    }
+
+    private static AtcPositionLevel? ReadStudentLowestPosition(string? text, string filePath, List<string> warnings)
+    {
+        if (text is null)
+        {
+            return null;
+        }
+
+        if (AtcPositionLevels.TryParse(text, out AtcPositionLevel level))
+        {
+            return level;
+        }
+
+        warnings.Add($"{filePath}: studentLowestPosition '{text}' is not one of DEL, GND, TWR, APP, CTR; ignored");
+        return null;
     }
 
     /// <summary>
@@ -149,5 +176,7 @@ public static class ScenarioSidecarLoader
     private sealed class ScenarioSidecarFile
     {
         public Dictionary<string, List<string>?>? ActiveRunways { get; init; }
+
+        public string? StudentLowestPosition { get; init; }
     }
 }
