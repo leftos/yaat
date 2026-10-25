@@ -63,7 +63,7 @@
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext+1
-  - [ ] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext+1
+  - [/] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
@@ -73,6 +73,10 @@
   - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload · release vNext+1
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext+1
   - [ ] YAAT-1070 Re-send the ASDE-X safety-logic configuration to subscribed CRC displays after a rewind or session restore
+  - [ ] YAAT-1192 Send ASDE-X safety-logic alert texts as vNAS does (RWY OCCUPIED, RWY CLOSED, RWY CLOSED, GO AROUND)
+  - [ ] YAAT-1193 Reconcile YAAT's RWY INCURSION alert with vNAS, which raises RWY OCCUPIED at threshold crossing instead
+  - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
+- [/] YAAT-1191 Seed each ASDE-X facility's runway configuration at scenario load instead of CRC's LIMITED default · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
