@@ -1614,15 +1614,35 @@ Both API and local scenarios appear in the **Scenario > Load Recent Scenario** m
 
 #### Choosing the active runways
 
-When you load a scenario as a mentor in a training room and the scenario does not say which runways are in use, YAAT asks you once the load finishes. The **Active runways** prompt has one row per airport, filled in with YAAT's guess from the scenario's traffic and the weather. An airport where the traffic only gives arrival runways is offered both ways (`28R 30`), since nothing says where it departs.
+When you load a scenario as a mentor in a training room and the scenario does not say which runways are in use, YAAT asks you once the load finishes. The **Session setup** popup then shows an **Active runways** section with one row per airport, filled in with YAAT's guess from the scenario's traffic and the weather. An airport where the traffic only gives arrival runways is offered both ways (`28R 30`), since nothing says where it departs.
 
-The prompt opens by saying what the list is for: YAAT's aircraft menus use the active runways to name and suggest runways, and aircraft the scenario already gives a runway keep it.
+The section opens by saying what the list is for: YAAT's aircraft menus use the active runways to name and suggest runways, and aircraft the scenario already gives a runway keep it.
 
 Under the rows, one line per airport says how this scenario stands, for example `OAK: 2 departures and 6 arrivals in this scenario already have a runway and keep it; the rest are offered these.`, or that no aircraft the scenario places has a runway yet. When the scenario's arrival generators feed the airport, the line ends by naming the runways those arrivals land on.
 
 Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none. Further notes name any airport where the guess has no arrival end, or no runway at all. An airport whose guess has only arrival runways is offered them both ways, since nothing in the scenario says where it departs. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
 
-**OK** sets each airport as an `ARWY` command would, and the server's replies appear in the terminal. **Cancel** keeps the room's current runways and prints a reminder to set them later with `ARWY`. Solo training, live sessions, other members, joining a room and restarting never ask; a restart keeps the runways in use.
+**OK** sets each airport as an `ARWY` command would, and the server's replies appear in the terminal. **Cancel** keeps the room's current runways and prints a reminder to set them later with `ARWY`. Solo training, live sessions, other members, joining a room and restarting never ask about runways; a restart keeps the runways in use.
+
+#### Choosing the positions you work
+
+In solo training, a scenario whose student position is above clearance delivery adds a **Positions you work** section to the same **Session setup** popup (alone, when the room needs no runways answer). You work your own position and the positions you choose below it; YAAT simulates the rest.
+
+The choices run from your own position down to Delivery, each naming every position you would work ("Tower, Ground and Delivery") with a one-line note on what that means for the calls you get. It starts on your own position only. Live sessions never ask, and neither does a scenario whose authors already chose the positions.
+
+**OK** sends the choice, and the popup closes once the server accepts it; **Cancel** keeps your own position only and sends nothing. The choice is kept for that scenario in the room, so reloading it or restarting starts on it. Switching **Solo training mode** on in the session flyout of a loaded scenario asks the same question.
+
+Change it at any time in the session flyout's **Positions you work** row, which shows in a solo session whose student position is above Delivery: a change takes effect at once for the calls to come, and the server's refusal, if any, puts the row back and appears in the terminal.
+
+What you get below your own position, by the lowest position you work:
+
+- **Ground**: departures call you ready to taxi, and no clearance requests reach you; with no tower of your own, YAAT's silent simulated tower works the runways (below).
+- **Delivery**: IFR departures also ask you for their clearance first; once you answer with a beacon code or a PDC, the ordinary ready-to-taxi call follows about 30 seconds later.
+- **Tower, Approach, Center**: as the notes in the popup say; Tower adds the runway calls, Approach and Center leave the tower and the runways to the simulation.
+
+When you do not work the tower at an airport that has one, YAAT's simulated tower works it without a word, and no tower call such as ready for departure reaches you. A departure you transfer with `CT` to a tower position, or `FCA`, while it is on the ground is cleared for takeoff 5 to 20 seconds later once the runway is clear (nothing on, landing on or about to land on it, and the wake-turbulence interval behind the previous departure run). A departure you never transfer holds.
+
+Arrivals are cleared to land by the simulated tower and sent around when the runway is not clear, and after landing they call you for taxi, so you need no landing clearance. An IFR runway spawn at an airport with no tower waits lined up for its release from the approach or center position over it, never departing on its own. The simulated tower's takeoffs and landings are not scored against you.
 
 #### Changing the active runways mid-session
 
@@ -1861,6 +1881,7 @@ Use these USER_GUIDE sections as the UI reference while following the tutorial:
 
 - [Settings](#settings) - enable Solo Training Mode and optional pilot voice.
 - [Loading a Scenario](#loading-a-scenario) - load ARTCC scenarios or local ATCTrainer-format files.
+- [Choosing the positions you work](#choosing-the-positions-you-work) - which positions below your own you work, and what the simulated tower and delivery do for the rest.
 - [Aircraft Generators Editor](#aircraft-generators-editor) - inspect and edit generated traffic workload.
 - [Command Bar](#command-bar) - type commands and read terminal feedback.
 - [Commands](#commands) - quick command introduction and links to the full command reference.

@@ -230,6 +230,8 @@ Do not wait for the sim to solve the next control action. Solo pilots can call, 
 
 ## Pilot-Initiated Requests
 
+You work your own position and the positions you choose below it (the Session setup popup at load, or Session settings › Positions you work); YAAT simulates the rest. A Ground student gets no tower calls: a silent simulated tower clears the departures you transfer with `CT` for takeoff and clears arrivals to land, which then call you for taxi-in. Clearance requests reach a Ground student only when you also work Delivery.
+
 Solo pilots make calls when the scenario and phase call for them. Common examples:
 
 - Parked departures call ready to taxi after the initial delay.

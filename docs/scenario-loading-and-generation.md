@@ -170,11 +170,21 @@ A departure use is a taxi to a runway (`TAXI`, `RWY x TAXI`, `TAXIAUTO`, `TAXIAL
 
 `ScenarioRunwayUse.CountAssigned(result)` (`src/Yaat.Sim/Simulation/ScenarioRunwayUse.cs`) reads the same signals for the load prompt's per-airport counts: an aircraft counts once, at the airport of its spawn runway, else its expected approach, else its first runway-bearing preset, as a departure when it starts on the ground and an arrival when airborne. The primary airport also lists the runways its arrival generators feed. Both readers log in category `ScenarioRunwaySignals` (Debug for each runway read, Warning for a preset or runway it skips).
 
-Only the primary airport, and only when nothing implies an end there, falls back to facility knowledge (`FacilityRunwayKnowledge.Select`, pruned by `RunwayUsabilityGate`) and then to the generic runway-in-use rule for the weather in force; a load has no session configuration or partner decision to consult. `ImpliedActiveRunways.RoomDefault(implied)` keeps only the airports whose implied ends name every runway there (either end counts): with no scenario sidecar, the guess otherwise only pre-fills the mentor's prompt.
+Only the primary airport, and only when nothing implies an end there, falls back to facility knowledge (`FacilityRunwayKnowledge.Select`, pruned by `RunwayUsabilityGate`) and then to the generic runway-in-use rule for the weather in force; a load has no session configuration or partner decision to consult. `ImpliedActiveRunways.RoomDefault(implied)` keeps only the airports whose implied ends name every runway there (either end counts): with no sidecar naming runways, the guess otherwise only pre-fills the mentor's prompt.
 
-The prompt's pre-fill is `ImpliedActiveRunways.OfferedToMentor(implied)` (called by yaat-server `ScenarioLifecycleService`): an airport whose deduced ends are all arrivals has nothing saying where it departs, so each end is offered both ways (`A28R A30` becomes `28R 30`), while a mixed list is offered as given (a scenario with a sidecar shows no prompt). `RoomDefault` reads the unpromoted `For` result, so the room's starting runways are unchanged.
+The prompt's pre-fill is `ImpliedActiveRunways.OfferedToMentor(implied)` (called by yaat-server `ScenarioLifecycleService`): an airport whose deduced ends are all arrivals has nothing saying where it departs, so each end is offered both ways (`A28R A30` becomes `28R 30`), while a mixed list is offered as given (a scenario whose sidecar names runways shows no runways question). `RoomDefault` reads the unpromoted `For` result, so the room's starting runways are unchanged.
 
-What a room starts on is decided at `PopulateRoom`, before the aircraft are placed (their preset commands may read it): the room's carried answer for the scenario (a load), else the sidecar, else `RoomDefault`; a restart starts on the list in use at that moment; a rewind, recording load or checkpoint restore starts on the value the session started on instead (`SimScenarioState.InitialActiveRunways`). The load result's `ActiveRunwaysPromptNeeded` is true only when the scenario is not solo, has no sidecar and the room has no carried answer for it. See [server-rooms-and-hub.md](server-rooms-and-hub.md#scenario-load-prepare-commit-and-the-load-flag) (Active runways).
+What a room starts on is decided at `PopulateRoom`, before the aircraft are placed (their preset commands may read it): the room's carried answer for the scenario (a load), else the sidecar's `activeRunways`, else `RoomDefault`; a restart starts on the list in use at that moment; a rewind, recording load or checkpoint restore starts on the value the session started on instead (`SimScenarioState.InitialActiveRunways`).
+
+The load result's session-setup prompt (`SessionSetup`) carries the active-runways section only when the scenario is not solo, its sidecar names no runways and the room's `ScenarioAnswers` has no answer for it. See [server-rooms-and-hub.md](server-rooms-and-hub.md#scenario-load-prepare-commit-and-the-load-flag) (Active runways).
+
+A scenario sidecar (`{ARTCC}/Scenarios/{scenarioId}.json`, read by `ScenarioSidecarLoader`) holds two optional keys. `activeRunways` is airport → tokens; `ScenarioSidecar.ActiveRunways` is null when the key is absent (or JSON `null`), which leaves the runways to the room (the mentor is still asked), and non-null when the key is present, even when every airport in it fails to read.
+
+`studentLowestPosition` is a level code (`DEL`, `GND`, `TWR`, `APP`, `CTR`, case-insensitive) giving the lowest position type a solo student works; a code that does not read is a load warning and the key is ignored.
+
+The solo student's lowest position worked (`SimScenarioState.StudentLowestWorkedLevel`, see [solo-training-pilot-speech.md](solo-training-pilot-speech.md) "Who the pilot calls") is seeded by `StudentLowestWorkedSeeding` when a solo scenario loads or a loaded one turns solo, from the first valid source, never above the student's own level: the room's `ScenarioAnswers` entry, else the sidecar's `studentLowestPosition`, else the student's own level.
+
+A rewind, recording load or checkpoint restore does not re-seed it; the tape's recorded `StudentLowestWorkedLevel` setting change (written at load for a fresh log) or the snapshot sets it. The prompt's worked-positions section is asked only when a solo student's position has a type above delivery and neither a carried answer nor a valid sidecar value settles it.
 
 ### The resource manifest
 
@@ -761,7 +771,7 @@ reproduces every magnetic→true conversion, so the replayed action log lands on
 
 Both entry points construct a **brand-new `SimScenarioState`**, so anything a controller changed mid-session dies with the old object unless it is carried.
 
-`TrainingRoom.SessionSettings` (`yaat-server: …/Simulation/RoomSessionSettings.cs`) is that carrier: the auto-* toggles, `ValidateDctFixes`, solo mode and its pacing percentages, the auto-accept and command-run delays, the auto-delete override, the departure auto-delete distance, and the dynamic-METAR intent. Both construction sites end with `room.SessionSettings.ApplyTo(scenario)`.
+`TrainingRoom.SessionSettings` (`yaat-server: …/Simulation/RoomSessionSettings.cs`) is the one that holds the room-wide settings: the auto-* toggles, `ValidateDctFixes`, solo mode and its pacing percentages, the auto-accept and command-run delays, the auto-delete override, the departure auto-delete distance, and the dynamic-METAR intent. Both construction sites end with `room.SessionSettings.ApplyTo(scenario)`.
 
 The division of labour:
 

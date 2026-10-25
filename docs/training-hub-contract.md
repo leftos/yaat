@@ -122,7 +122,8 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `SetDepartureAutoDeleteDistanceAsync(distanceNm)` | `SetDepartureAutoDeleteDistance` | `SetDepartureAutoDeleteDistance(distanceNm)` — returns `CommandResultDto`; null turns it off, a value outside 1–500 nm is refused with the reason and no broadcast |
 | `SetValidateDctFixesAsync(validate)` | `SetValidateDctFixes` | `SetValidateDctFixes(...)` `:1814` |
 | `SetRpoShowPilotSpeechAsync(enabled)` | `SetRpoShowPilotSpeech` | `SetRpoShowPilotSpeech(...)` `:1836` |
-| `SetSoloTrainingModeAsync(enabled)` | `SetSoloTrainingMode` | `SetSoloTrainingMode(...)` `:1858` |
+| `SetSoloTrainingModeAsync(enabled)` → `SessionSetupPromptDto?` | `SetSoloTrainingMode` | `SetSoloTrainingMode(...)` → `SessionSetupPromptDto?` — switched on, the caller's reply carries the prompt's worked-positions section (its `ActiveRunways` section is always null) when the lowest position worked is not settled; null otherwise, for switching off, an unchanged setting and no room. Switching solo on also seeds the level (`StudentLowestWorkedSeeding`) |
+| `SetStudentLowestWorkedLevelAsync(level)` | `SetStudentLowestWorkedLevel` | `SetStudentLowestWorkedLevel(level)` → `CommandResultDto` — `level` is a level code (`DEL`, `GND`, `TWR`, `APP`, `CTR`). Refused with the reason outside solo training, with no scenario, for an unknown code, for a student position with no type and for a level above the student's own. The answer is carried as the room's `ScenarioAnswers` entry for the scenario; a changed level is recorded as a `StudentLowestWorkedLevel` setting change and broadcast as `SessionSettingsChanged`, an unchanged one is carried without either |
 | `SetSoloPacingRatesAsync(…)` | `SetSoloPacingRates` | `SetSoloPacingRates(...)` `:1880` |
 | `SetAutoClearedToLandAsync(enabled)` | `SetAutoClearedToLand` | `SetAutoClearedToLand(...)` `:1319` |
 | `SetAutoCrossRunwayModeAsync(mode)` | `SetAutoCrossRunwayMode` | `SetAutoCrossRunwayMode(...)` `:1345` (an undefined `AutoCrossRunwayMode` is a `HubException`) |
@@ -291,11 +292,17 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 
   On the server `LoadScenarioResult.Steps` and `RoomStateDto.LoadingBy` are positional members; the client declares them as `init` properties (`LoadScenarioResultDto.Steps` defaults to empty, `RoomStateDto.LoadingBy` to null).
 
-  `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`), the implied guess that pre-fills the mentor's prompt (`ActiveRunwaysPrefill`) and `ActiveRunwaysPromptNeeded`, true only in an RPO room whose scenario has no sidecar and no carried answer.
+  `LoadScenarioResult` carries the room's active runways as loaded (`ActiveRunways`) and the questions the loader's client is asked at load as `SessionSetup` (`SessionSetupPromptDto?`, a required member on the server and the client; null when nothing is asked, and on a failed load). The prompt has two sections, each null when it does not apply or is already settled.
 
-  `ActiveRunwaysAssigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, once each at that runway's airport, as departures when they start on the ground and arrivals when airborne. An aircraft's runway is its spawn runway, else its expected approach, else its first runway-bearing preset command, read without dispatching. At the primary airport it also lists the runway designators the scenario's arrival generators feed.
+  `SessionSetupPromptDto.ActiveRunways` (`ActiveRunwaysSetupDto(Prefill, Assigned)`) is non-null only in an RPO room whose scenario has no sidecar naming runways and no carried answer: `Prefill` is the implied guess that pre-fills the mentor's prompt, by airport.
 
-  An airport with neither is absent; it is empty on a failed load. All four, and `RoomStateDto.ActiveRunways`, are required members on the server and on the client.
+  `Assigned` (airport → `RunwayUseCountsDto(Departures, Arrivals, GeneratorArrivalRunways)`, from `ScenarioRunwayUse.CountAssigned`) says what the scenario already decides about runways: how many of its loaded aircraft (immediate and delayed) already have a runway, once each at that runway's airport, as departures when they start on the ground and arrivals when airborne. An aircraft's runway is its spawn runway, else its expected approach, else its first runway-bearing preset command, read without dispatching. At the primary airport it also lists the runway designators the scenario's arrival generators feed.
+
+  An airport with neither is absent. `RoomStateDto.ActiveRunways` is a required member on the server and on the client.
+
+  `SessionSetupPromptDto.WorkedPositions` (`WorkedPositionsSetupDto(Own, Prefill, Choices)`, every value a level code) is non-null only in a solo room whose student position has a type above delivery and whose lowest position worked is not settled (no carried answer and no valid sidecar `studentLowestPosition`).
+
+  `Own` is the student's own level, `Prefill` the scenario's current lowest level else `Own`, `Choices` the levels from `Own` down to `DEL`, highest first. `SetSoloTrainingMode` returns the same prompt shape, with only this section, when solo training is switched on mid-session.
 
   `ToweredAirports` (airport ids as the ARTCC configs spell them, ordinal-sorted) is the room's towered set: the airports with a tower facility (`Atct`, `AtctTracon`, `AtctRapcon`) in the scenario's own, its roster's or a geographic neighbour's ARTCC config; any other airport is untowered. It is a required, non-null member of `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `RewindResultDto` (a rewind's or recording load's result and the `RecordingLoaded` broadcast) on the server and the client, empty on a failed load or with no scenario; it lands in `MainViewModel.RoomToweredAirports` (cleared when the room is left). Airport ids match in either spelling (`OAK`/`KOAK`) and, outside the CONUS, through the navigation data's FAA/ICAO index (`ANC`/`PANC`).
 
@@ -460,15 +467,19 @@ This split is the source of the most common wire bug — see the checklist below
 
 ## Session-settings fan-out
 
-The 23 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `SessionSettingsDto` (all in yaat-server `Dtos/TrainingDtos.cs`) — with the same set on the client side.
+The 25 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult`, `RoomStateDto`, `ScenarioLoadedDto` and `SessionSettingsDto` (all in yaat-server `Dtos/TrainingDtos.cs`) — with the same set on the client side. `RewindResultDto.SessionSettings` is a fifth carrier of the same `SessionSettingsDto` (a recording load's result; null on a rewind's).
 
 The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunwayMode` (the `Yaat.Sim.Data.Airport.AutoCrossRunwayMode` enum: Off / All / InactiveOnly), `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`.
 
-The rest are `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`.
+The rest are `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`, `LiveTrafficFilter`, and the two level codes.
+
+The level codes are `StudentLowestWorkedLevel` (the lowest position type the solo student works; null when unset or with no scenario) and `StudentOwnLevel` (the level of the student's own position; null with no typed student position).
+
+Both are nullable `string?` level codes (`DEL`, `GND`, `TWR`, `APP`, `CTR`) with a null default, read from the active scenario (`StudentLowestWorkedSeeding.WireLevel` / `WireOwnLevel`), so the `FromRoomCopy` path with no scenario sends null; they are not in `RoomSessionSettings` (the level is a per-scenario answer, carried in `ScenarioAnswers`).
 
 The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load (`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all four and it silently drops on whichever path you missed.
 
-There is a **fifth** place a session setting has to be listed: `RoomSessionSettings`
+There is a further place a room-level session setting has to be listed: `RoomSessionSettings`
 (`yaat-server: …/Simulation/RoomSessionSettings.cs`), the room-level copy that survives a scenario restart or rewind.
 The hub DTOs above all read the active `SimScenarioState` and fall back to that room copy when no scenario is loaded.
 Miss it and the setting reverts to its default the next time a controller restarts the scenario, while the client's
@@ -610,8 +621,8 @@ extend the resolver to depend on a new input, fingerprint that input too.
   The client lands them as `AircraftModel.TrueTrack`, `IsManeuvering` and `PatternPosition` (a `PatternPosition` record built by `AircraftModel.ToPatternPosition`, null unless both the leg and the distance are sent).
 - `HasTaxiwayHoldShortAhead` (a bool, right after `HasActiveTaxiRoute` in `AircraftStateDto` / `AircraftDto`) is `FollowingPhase.DrivenRouteOf(aircraft)?.HasTaxiwayHoldShortAhead()` (`DtoConverter`): the route the aircraft drives is incomplete and its next uncleared hold short ahead is a taxiway or spot bar, the one a bare `RES` pre-clears (`TaxiRoute.NextUnclearedHoldShortAhead`, `TaxiRoute.IsTaxiwayClassHoldShort`). For a `FOLLOWG` follower the driven route is its follow route, which carries no hold short, so the flag is false for followers. The client lands it on `AircraftModel` / `IMenuAircraft.HasTaxiwayHoldShortAhead`, and `AircraftCommandApplicability.CanResumeTaxi` offers "Resume taxi" to a rolling aircraft on it. It is its own `TrainingDtoFingerprint` field (`AircraftChangeTracker`), since the route's cleared bars are not fingerprinted, so clearing a bar rebroadcasts the aircraft.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
-  → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
-  `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.
+  → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`, the latter the scenario's per-aircraft
+  `IsAutoClearedToLandFor`, true under a simulated tower) are broadcast parameters `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.
 - `HasStoredTaxiRoute` (a bool, right after `HasActiveTaxiRoute` in `AircraftStateDto` / `AircraftDto`) is true while the aircraft has no incomplete active route but `PhaseList.TaxiRoute` holds one a `TAXI`/`TAXIAUTO` on the landing rollout stored behind the exit (`DtoConverter`). Until the exit completes and the route starts, the `TaxiRoute` string and `TaxiDestination` are read from that stored route (`AircraftState.ActiveOrStoredTaxiRoute`), so the strip, the ground view and the status text show it from the moment the TAXI is accepted. The client lands it on `AircraftModel` / `IMenuAircraft.HasStoredTaxiRoute`: the ground view draws the route, and `AircraftCommandApplicability.CanGiveWayTo` / `ShowsGiveWay` offer "Give way to…" on it. It has no fingerprint slot of its own: it co-varies with the `TaxiRoute` string.
 - `ActiveApproachId`, `HasActiveTaxiRoute`, `PointoutToTcpCode` are covered by motion or co-vary with `TaxiRoute` /
   `PointoutStatus`.

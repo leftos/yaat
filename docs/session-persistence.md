@@ -38,7 +38,9 @@ The rebuild is engine creation, the wind-grid registration (`RoomCheckpointArchi
 
 The pin holds each saved layout with its saved GeoJSON, and each saved missing-map airport with no map, as the room had them; only a scenario airport the checkpoint lacks, or holds in another layout format, is fetched now, with one Information line for it.
 
-The reload is `ReloadKind.CheckpointRestore`, started on the manifest's `InitialActiveRunways` with the scenario's sidecar looked up afresh (`ScenarioLifecycleService.FindScenarioSidecar`). After the snapshot restore, the manifest's `CarriedActiveRunways` goes back into the room's carrier, so a later load of the same scenario starts on the answer even after a rewind to before it was given; the snapshot's own list is the current value, not the answer, and a restart starts on that current list.
+The reload is `ReloadKind.CheckpointRestore`, started on the manifest's `InitialActiveRunways` with the scenario's sidecar looked up afresh (`ScenarioLifecycleService.FindScenarioSidecar`). After the snapshot restore, the manifest's `CarriedActiveRunways` and `CarriedStudentLowestWorkedLevel` (a level code; absent in an older checkpoint) go back into the room's `ScenarioAnswers`, so a later load of the same scenario starts on the answers even after a rewind to before they were given; the snapshot's own list and level are the current values, not the answers, and a restart starts on the current list.
+
+`RoomCheckpointArchiveWriter.Finish` rebuilds the manifest field by field, so a new manifest field must be copied there too.
 
 Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
 

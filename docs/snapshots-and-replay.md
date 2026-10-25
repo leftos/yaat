@@ -44,7 +44,11 @@ StateSnapshotDto
 
 **Actual vs filed aircraft type (v4).** `AircraftState.AircraftType` is the physical type (fixed at spawn; drives Tower Cab, physics, and the operator Aircraft List). `AircraftFlightPlan.AircraftType` is the filed type (mutable via amendment; drives STARS, ASDE-X, the Flight Plan Editor, strips, and ERAM). Top-level wins for actual; the FP field is opt-in (no cross-fill). The migrator seeds the filed field from the top-level type for legacy v3 bundles.
 
-The table lists only the steps with a data *transform*; the authoritative full chain (currently through v34 — v22 added `ServerSnapshotDto.Strips` / `.Tdls`, null-safe) is the `Migrate()` source. `Migrate` must tolerate leniently-deserialized nulls on the fields it touches — e.g. a legacy aircraft snapshot can carry a null `FlightPlan`, so the v3→v4 seed guards with `ac.FlightPlan is { AircraftType: null or "" }` rather than dereferencing.
+**Optional fields added without a bump.** `ScenarioSnapshotDto.StudentLowestWorkedLevel` (the `AtcPositionLevel` number, left out of the JSON while null) and `AircraftGroundOpsDto.LeftStudentFrequencyAtSeconds`, `ClearanceObtainedAtSeconds` and `TakeoffRollStartedAtSeconds` (scenario-elapsed seconds, null while unset) restore null from an earlier snapshot: the student then answers every call type, and the simulated tower reads no transfer.
+
+The level also rides the tape as a `StudentLowestWorkedLevel` setting change (the level code, `""` to clear), which the recorded-setting applier replays.
+
+The table lists only the steps with a data *transform*; the authoritative full chain (up to `SnapshotSchemaMigrator.CurrentSchemaVersion`; v22 added `ServerSnapshotDto.Strips` / `.Tdls`, null-safe) is the `Migrate()` source. `Migrate` must tolerate leniently-deserialized nulls on the fields it touches — e.g. a legacy aircraft snapshot can carry a null `FlightPlan`, so the v3→v4 seed guards with `ac.FlightPlan is { AircraftType: null or "" }` rather than dereferencing.
 
 **Renaming a field is a bump even when the step transforms nothing** — schema 24 renamed `SharedStateDto.IsQueriedUntil` (a wall-clock `DateTime?`) to `QueriedUntilElapsedSeconds`; the legacy property is skipped on read and the new one restores null (an old recording shows no query flash rather than one that expired with the recorded session), and the step exists so the version names the change.
 

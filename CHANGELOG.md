@@ -4,6 +4,9 @@
 
 ### Added
 
+- In solo sessions, the Session setup popup asks which positions you work below your own; Session settings › Positions you work changes it later.
+- A scenario sidecar can settle the solo student's lowest worked position with `studentLowestPosition`, so the student is not asked.
+- A solo Ground student who also works Delivery gets IFR departures' clearance requests when no Delivery position is online.
 - Turning off Show quick command icons (Settings › Input › Quick commands) lists the right-click menu's quick commands as text rows under category labels.
 - Quick commands offer Squawk normal to an aircraft on standby on the ground, and Squawk assigned code to one squawking the wrong code.
 - The quick-command strip shows every command with an icon, six to a row, grouped under small category labels.
@@ -20,7 +23,8 @@
 ### Changed
 
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
-- The active-runways prompt offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
+- The Session setup popup offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
+- In solo sessions, an IFR departure lined up at an untowered field never departs on its own; it waits for release from approach or center.
 - Join STAR opens a flyout with a tab per STAR, and the menus' "(other)" list items are gone.
 - Cleared visual, offered to IFR aircraft only, lists only visual approaches: the aircraft's own runway first, then landing runways, the others under Non-arrival runways….
 - Pattern entries open a runway flyout on the assigned runway, and Cleared for takeoff ends in a Custom box.
@@ -46,6 +50,7 @@
 
 ### Fixed
 
+- A solo student on Ground no longer gets tower calls; a simulated tower clears your transferred departures for takeoff and clears arrivals to land.
 - In solo sessions, a refused RPO-only command such as `CLANDF` shows only its terminal error; the pilot no longer reads the refusal back as "unable".
 - Right-click menus and flyouts open on top of a window pinned always on top, such as a pinned Ground View, instead of behind it.
 - One CRC, vEDST or Tower Cab client losing its network no longer freezes every room on the server; the stalled client is dropped instead.

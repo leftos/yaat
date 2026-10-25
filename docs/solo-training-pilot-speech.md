@@ -162,13 +162,13 @@ Output channel follows the usual split: solo mode lands in `PendingNotifications
 
 ## Who the pilot calls — `PilotContactRoster` (`Pilot/PilotContactRoster.cs`)
 
-Pilot-initiated calls are addressed to whoever **answers** pilots this session, not to solo mode as such. The roster (`SimScenarioState.PilotContacts`, memoized on solo mode / student position / AI staffing version / ARTCC config, and handed to phases as `PhaseContext.PilotContacts`) holds every AI-staffed position (`SimScenarioState.AiStaffedPositions`, published by the host that runs the controller AI) plus the solo student.
+Pilot-initiated calls are addressed to whoever **answers** pilots this session, not to solo mode as such. The roster (`SimScenarioState.PilotContacts`, memoized on solo mode / student position / lowest worked level / the scenario's ATC positions / AI staffing version / ARTCC config, and handed to phases as `PhaseContext.PilotContacts`) holds every AI-staffed position (`SimScenarioState.AiStaffedPositions`, published by the host that runs the controller AI) plus the solo student.
 
 The initial-contact sites resolve their addressee with `ResolveFor(aircraft, expectedPositionType, atAirportId, eligibility, checkEligibility)`:
 
 | Site | Wants | At airport | SOP eligibility check |
 |---|---|---|---|
-| Initial call-up, ready to taxi (`InitialCallupCall.TryMake`, from `AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingInPositionPhase`, `HoldingShortPhase`) | `GND`; a delivery student (`…_DEL`) at the airport takes it first as a clearance request | `PilotContactRoster.SurfaceAirportOf` (ground layout, else spawn airport) | yes (`CanInitiateWith`; `CanInitiateWithStudent` for the delivery student) |
+| Initial call-up, ready to taxi (`InitialCallupCall.TryMake`, from `AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingInPositionPhase`, `HoldingShortPhase`) | `GND`; a student who works delivery at the airport (`StudentWorksDeliveryAt`) takes it first as a clearance request | `PilotContactRoster.SurfaceAirportOf` (ground layout, else spawn airport) | yes (`CanInitiateWith`; `CanInitiateWithStudent` for the delivery student) |
 | `HoldingShortPhase` ready for departure | `TWR` | `SurfaceAirportOf` | no (as before) |
 | `LinedUpAndWaitingPhase` lined-up reminder | `TWR` | the departure runway's airport | no (as before) |
 | `LinedUpAndWaitingPhase` release request (`RunwaySpawnCall.TryRequestRelease`) | the student's `APP` or `CTR` | the runway's airport | no |
@@ -176,20 +176,39 @@ The initial-contact sites resolve their addressee with `ResolveFor(aircraft, exp
 | `PatternEntryPhase` closed-traffic request | `TWR` | the pattern runway's airport | yes |
 | `HoldingAfterExitPhase` / `HoldingInPositionPhase` taxi-in call (`Pilot/TaxiInRequest.cs`) | `GND` | `SurfaceAirportOf` | no — a landed aircraft is the cab's already |
 
-Resolution order: an AI position of the wanted type covering the aircraft first; else the student (when solo training
-is on); else, for a **ground** call only, an AI local position covering the airport — a tower working the cab alone
-works ground too, and is addressed by the generic word like a tower-only student; else null — nobody to call, so no
-call and no `PilotPendingRequest`, which is the pre-roster instructor-mode behavior. Coverage for a **tower-cab** AI
-position (GND/TWR) is the airport the call is physically made at, never the filed destination — an OAK departure filed
-to SFO calls Oakland Ground even with AI SFO Ground staffed; radar-role AI positions match the destination/current/
-primary candidates (`PilotInitialContactEligibility.CandidateAirportIds`). Where the site asks for the SOP check, it
-applies to **every** candidate (`PilotInitialContactEligibility.CanInitiateWith(aircraft, position, type, ctx)`): an
-arrival still owned by approach with no handoff inbound does not call the tower whoever staffs it — the transferring
-controller hands the pilot over (7110.65 §2-1-17), the pilot never self-initiates with the next position. An AI entry
-whose callsign is the student's own position is dropped while solo training is on (compare by callsign: tower-cab
-positions share a TCP). `PilotResponder.ResolveAnsweringCallName` picks the addressee's vNAS radio name only when
-its type matches the call — a tower-only student still gets "ground, ready to taxi" — exactly the old
-`StudentRadioName` rule.
+Resolution order: an AI position of the wanted type covering the aircraft first; else the student, when solo training is on and the student's worked range takes in the wanted type at the airport (`StudentAnswers`; with no range set the student answers every type).
+
+Else, for a **ground** call only, an AI local position covering the airport — a tower working the cab alone works ground too, and is addressed by the generic word like a tower-only student; else null — nobody to call, so no call and no `PilotPendingRequest`, which is the pre-roster instructor-mode behavior.
+
+Coverage for a **tower-cab** AI position (GND/TWR) is the airport the call is physically made at, never the filed destination — an OAK departure filed to SFO calls Oakland Ground even with AI SFO Ground staffed; radar-role AI positions match the destination/current/primary candidates (`PilotInitialContactEligibility.CandidateAirportIds`).
+
+Where the site asks for the SOP check, it applies to **every** candidate (`PilotInitialContactEligibility.CanInitiateWith(aircraft, position, type, ctx)`): an arrival still owned by approach with no handoff inbound does not call the tower whoever staffs it — the transferring controller hands the pilot over (7110.65 §2-1-17), the pilot never self-initiates with the next position.
+
+An AI entry whose callsign is the student's own position is dropped while solo training is on (compare by callsign: tower-cab positions share a TCP). `PilotResponder.ResolveAnsweringCallName` picks the addressee's vNAS radio name only when its type matches the call — a tower-only student still gets "ground, ready to taxi" — exactly the old `StudentRadioName` rule.
+
+**The positions the student works.** A solo student works its own position and every position type below it, down to `SimScenarioState.StudentLowestWorkedLevel` (CTR > APP > TWR > GND > DEL; `StudentWorkedRange`, kept on the roster as `PilotContactRoster.StudentRange`).
+
+`StudentWorkedRange.Works(level, airport)` is true when the level is inside that span and no online scenario position of that level covers the airport: a scenario `atc` position with `AutoConnect` counts as online, and an online DEL, GND or TWR covers only its own airport while an online APP or CTR covers every airport. An AI-staffed position of the wanted type still answers first.
+
+The lowest level is seeded when a solo scenario loads or a loaded one turns solo: the room's carried answer for the scenario, else the ARTCC sidecar's `studentLowestPosition`, else the student's own level ([scenario-loading-and-generation.md](scenario-loading-and-generation.md)).
+
+A null level means no range: the student answers every call type, `StudentWorksDeliveryAt` falls back to the student's own `…_DEL` callsign at the airport, `StudentWorksTowerAt` to "the student's position type is not APP or CTR", and no tower is simulated.
+
+**The silent simulated tower.** `PilotContactRoster.TowerIsSimulatedAt(airport)` is true when the airport has a tower (`ToweredAirports`, the ARTCC config's tower-cab rule), the student has a range that does not take in the tower there, and no AI-staffed tower covers the airport.
+
+Then no tower-type call reaches the student (`ResolveFor` finds nobody for `TWR`, so the ready-for-departure call, the lined-up reminder, the final-approach check-in and the closed-traffic request are never made), and the simulation plays the tower without a word:
+
+- **Departures** (`SimulationEngine.ProcessSimulatedTowerDepartures`, in `TickPrePhysics` right after `ProcessRunwaySpawnAutoTakeoffs`, solo rooms only). A ground departure the student transferred is cleared for takeoff (`AutoIssueTakeoffClearance`, scripted, terminal note "[Sim tower] Cleared for takeoff, runway 28R").
+
+  It must be at its departure runway (holding short of it, or lined up with its release), `SimulatedTowerCtoDelaySeconds` after the transfer, and `SimulatedTowerRunwayGuard.ReasonToWait` must find the runway clear. The delay is 5–20 s, an FNV-1a draw on the callsign salted `simulated-tower-cto:` (replay-safe). A departure the student never transferred holds. A departure held for release or released is left to the hold-for-release path ([hold-for-release.md](hold-for-release.md)).
+- **The transfer** is `AircraftGroundOps.LeftStudentFrequencyAtSeconds`, stamped by `ContactCommandHandler` on the first `CT` to a tower-type position, or `FCA`, given to an aircraft on the ground (scenario-scripted commands and a `CT` to a ground position do not stamp it; a later transfer keeps the first stamp).
+- **The runway guard** waits while anyone else is departing, landing, on, crossing, on short final to or fouling the same physical runway at either end, or an arrival to it is inside the controller-AI crossing gate's final gate.
+
+  It also waits while the wake turbulence interval behind the preceding departure from that runway has not run (timed from its `AircraftGroundOps.TakeoffRollStartedAtSeconds`, `RunwayDepartureSeparation`, 7110.65 3-9-6), or traffic on a runway crossing it has not passed the intersection (3-9-8). It is checked every second and the reason is logged at debug level once per change.
+- **Arrivals** land without a clearance and are sent around when the runway is not clear: `SimScenarioState.IsAutoClearedToLandFor` is the room's auto-cleared-to-land toggle or a simulated tower at the assigned runway's airport, and `BuildPhaseContext` derives `PhaseContext.AutoClearedToLand` and `AutoGoAroundOnOccupiedRunway` from it per aircraft (7110.65 3-10-3.a).
+
+  Takeoffs and landings at such an airport are the simulated tower's operations and `SoloTrainingEvaluator` does not score them.
+- **After landing** the aircraft calls the student for taxi-in, below.
 
 **Which spawns make the first call.** The scenario loader classifies every ground and runway spawn once, at load, into `AircraftGroundOps.InitialCallup` (an `InitialCallupPlan`, from `InitialCallupClassifier.Classify`); nothing else arms a call, so an aircraft that taxis to a stand, a warped or generated aircraft, one the instructor adds, or an airborne spawn keeps the default `None` and never calls.
 
@@ -228,19 +247,27 @@ An aircraft that leaves uncalled loses its call: `AtParkingPhase.OnEnd` drops a 
 
 A call from a taxiway by an aircraft whose filed destination is the field it is at asks for parking instead — "ground, on taxiway K, with information A, request taxi to parking." (`PilotResponder.RequestsTaxiToParking`) — and records the `Taxi` request with a parking the pilot has in mind, picked as an arrival's is (`ArrivalParkingPicker`), so the taxi-in path (`AnswerTaxiInRule`, which applies in `AtParkingPhase` too) answers it; a layout with no parking records the plain request.
 
-**A delivery student gets a clearance request.**
+**A student who works delivery gets a clearance request.**
 
-When the solo student works a clearance delivery position (callsign `…_DEL`) at the aircraft's airport and the SOP lets the aircraft call them (`PilotInitialContactEligibility.CanInitiateWithStudent`), the first call — at whichever point the plan reaches — goes to the student as a clearance request, even when an AI ground answers there.
+When the solo student works clearance delivery at the aircraft's airport (`PilotContactRoster.StudentWorksDeliveryAt`) and the SOP lets the aircraft call them (`PilotInitialContactEligibility.CanInitiateWithStudent`), the first call — at whichever point the plan reaches — goes to the student as a clearance request, even when an AI ground answers there.
+
+`StudentWorksDeliveryAt` is true, with a range, when delivery is inside it and no online scenario DEL and no AI-staffed `…_DEL` covers the airport; with no range, when the student's own callsign is that airport's `…_DEL`. A GND student whose lowest position is DEL gets the request too, addressed by the student's own radio name; with the lowest at GND the ordinary ground call stands.
 
 IFR: "clearance, at gate F8, with information A, IFR to Los Angeles Airport."; VFR: "clearance, at gate F8, with information A, VFR departure to the north, at 4500."
 
 (a direction of flight, never the destination, and the filed cruise altitude, left out when none is filed).
 
-The direction (`VfrDepartureDirection.Choose`) is a cardinal whose ±45° sector has no other airport within 10 NM of the field, picked per callsign by an FNV-1a draw among the clear ones, else the cardinal whose nearest airport is farthest; it is chosen at the first request and kept on `AircraftGroundOps.VfrDepartureDirection`, so a follow-up repeats it. The request is recorded as a `Clearance` pending request and closes the decision: no ready-to-taxi call follows.
+The direction (`VfrDepartureDirection.Choose`) is a cardinal whose ±45° sector has no other airport within 10 NM of the field, picked per callsign by an FNV-1a draw among the clear ones, else the cardinal whose nearest airport is farthest; it is chosen at the first request and kept on `AircraftGroundOps.VfrDepartureDirection`, so a follow-up repeats it.
+
+The request is recorded as a `Clearance` pending request, and no other call-up goes out while it is open. It closes the decision, so no ready-to-taxi call follows, unless the student also works ground at the airport.
+
+Then the decision stays open, and once the request is answered (`AircraftGroundOps.ClearanceObtainedAtSeconds`, stamped by `PilotRequestTracker` on the beacon code or the PDC) the ordinary ground call goes to the same student `InitialCallupCall.TaxiCallAfterClearanceSeconds` (30 s) later, never a second clearance request. An IFR ready-to-taxi call after a clearance leaves out the "IFR to …" clause the request already gave.
 
 A beacon code (`SQ <code>`, `RANDSQ`, `SQVFR`) answers it through `PilotRequestTracker.ApplyControllerResponse`; a PDC sent by `TDLSS` answers it in `TdlsCommandHandler.HandleSend` (`PilotRequestTracker.SatisfyOpenRequest`, plus `SimulationWorld.AcknowledgeControllerResponse`); a `TDLSS` in a scenario's timed preset sends no PDC and answers nothing (the dispatcher reports it unapplied). No AI position answers a clearance request (`UnansweredPilotRequestRule`).
 
-**Runway spawns.** `LinedUpAndWaitingPhase` decides at its lined-up call point what a runway spawn does (`RunwaySpawnCall.Decide`). A `RunwaySayOnly` spawn stays silent: its `SAY` preset is what it says. Under a student who works a radar position (`StudentPositionType` `APP` or `CTR`), a `RunwayNoPreset` spawn does not make the lined-up call to a tower nobody staffs.
+**Runway spawns.** `LinedUpAndWaitingPhase` decides at its lined-up call point what a runway spawn does (`RunwaySpawnCall.Decide`). A `RunwaySayOnly` spawn stays silent: its `SAY` preset is what it says.
+
+Under a student who does not work the tower at the runway's airport (`PilotContactRoster.StudentWorksTowerAt`: with a range, the tower is outside it or an online scenario TWR covers the airport; with no range, the student's `StudentPositionType` is `APP` or `CTR`), a `RunwayNoPreset` spawn does not make the lined-up call to a tower nobody staffs.
 
 In an RPO room nothing below departs on its own: a towered or VFR spawn holds lined up with no lined-up call and no "[Auto]" line, a spawn released through the spawn gate holds too (its release clock is never started in an RPO room), as does one released by `REL` (`ProcessReleasedGroundDepartures` clears its release clock), and each leaves on the RPO's `CTO` or its timed preset. In solo training:
 
@@ -248,26 +275,30 @@ In an RPO room nothing below departs on its own: a towered or VFR spawn holds li
 
   After `LinedUpReadyDelaySeconds` (90 s) the engine clears it for takeoff (`SimulationEngine.ProcessRunwaySpawnAutoTakeoffs` → `AutoIssueTakeoffClearance`, terminal note "[Auto] Towered field — cleared for takeoff by the simulated tower"), scripted, so the airborne check-in follows.
 - **Untowered field, VFR**: after the same 90 s it departs on its own, the same way ("[Auto] Untowered field — VFR departure on its own").
-- **Untowered field, IFR**: 5–10 s after lining up (5 s plus an FNV-1a draw on the callsign, `RunwaySpawnCall.ReleaseRequestDelaySeconds`) it asks the student for its release — "NorCal Approach, runway 25 at {airport's spoken name}, ready for departure, request release." (`RunwaySpawnCall.TryRequestRelease` → `PilotResponder.BuildReleaseRequest`) — holds for release (`Ground.HeldForRelease`, so it shows in the release rundown and `REL` finds it) and records a `Release` pending request.
+- **Untowered field, IFR**: it never departs on its own.
+
+  Under a student working a radar position (`StudentPositionType` `APP` or `CTR`), 5–10 s after lining up (5 s plus an FNV-1a draw on the callsign, `RunwaySpawnCall.ReleaseRequestDelaySeconds`) it asks the student for its release — "NorCal Approach, runway 25 at {airport's spoken name}, ready for departure, request release." (`RunwaySpawnCall.TryRequestRelease` → `PilotResponder.BuildReleaseRequest`).
+
+  It holds for release (`Ground.HeldForRelease`, so it shows in the release rundown and `REL` finds it) and records a `Release` pending request.
 
   `REL` or `HFROFF` answers it, and the departure then takes off on the line-up-and-wait auto-clearance after the 5–20 s release jitter ([hold-for-release.md](hold-for-release.md)). The request is not the pilot's initial contact (it does not call `MarkInitialContact`), so the airborne check-in still follows the takeoff. With no ARTCC config loaded the field counts as untowered.
+
+  Under a student working neither a radar position nor the tower there (GND or DEL), the spawn makes no call and waits lined up, silent, for its release as a `CTO` from whoever works the overlying approach or center (the student working it, or the RPO).
 - A spawn released through the hold-for-release spawn gate (`Ground.ReleasedAtSpawnGate`) already has its release and never asks for one: at an untowered field an IFR one starts the released departure's clock as soon as it is lined up and departs after the release jitter; a towered or VFR one departs as above.
 
-Under any other student a `RunwayNoPreset` spawn makes the lined-up call ("tower, runway 28R, ready.") after 90 s, as every other runway spawn without a takeoff clearance does. `ProcessRunwaySpawnAutoTakeoffs` closes the decision of a `RunwayNoPreset` spawn whose student does not work a radar position, or that has left `LinedUpAndWaitingPhase`, so the towered check is never evaluated for it again.
+Under a student who works the tower there a `RunwayNoPreset` spawn makes the lined-up call ("tower, runway 28R, ready.") after 90 s, as every other runway spawn without a takeoff clearance does. `ProcessRunwaySpawnAutoTakeoffs` closes the decision of a `RunwayNoPreset` spawn whose student works the tower there, or that has left `LinedUpAndWaitingPhase`, so the towered check is never evaluated for it again.
 
 The solo pacing slider shows when any loaded aircraft's plan is one of the paced ground plans (`StandCall`, `AfterPush`, `AfterTaxiArrival`; `ScenarioLoadResult.HasParkingSpawns` — a runway spawn's calls are not paced).
 
 The client's pre-load hint, `ScenarioDifficultyHelper.HasParkingSpawns`, runs the classifier's preset rules (`InitialCallupClassifier.ClassifyPresets`) over each `Parking` spawn and each `Coordinates` / `FixOrFrd` spawn with no altitude and no speed in the scenario JSON; the server's post-load value stays authoritative.
 
-**The taxi-in call.** `RunwayExitPhase.CompleteExit` arms `AircraftGroundOps.AwaitingTaxiInCall`; the idle phase the exit ends in makes
-the call three seconds after stopping — `Oakland Ground, clear of runway 28R at W, taxi to gate 29.` (`PilotResponder.BuildTaxiInRequest`,
-AIM 4-3-21.c) — naming the parking the pilot picked itself (`ArrivalParkingPicker`: the operator's own ramp when the layout names one,
-a cargo apron or numbered gate for an airline, a non-gate spot for a registration; occupied, taxied-to and already-requested spots
-skipped; an FNV draw on the callsign, so replays agree). It records a Taxi `PilotPendingRequest` carrying `ParkingName`, follows up
-every 120 s like the parking call, and any taxi clearance closes it. Nobody answering ⇒ the call waits. While a *separately*
-staffed Local answers at the airport, the pilot stays with the tower until sent to ground (AIM 4-3-14.c, 4-3-21.c): a `CT` to a
-ground position or an `FCA` sets `AircraftGroundOps.ReleasedToGround`, which the call consumes; a combined cab (one answering
-position under both hats) needs no release.
+**The taxi-in call.** `RunwayExitPhase.CompleteExit` arms `AircraftGroundOps.AwaitingTaxiInCall`; the idle phase the exit ends in makes the call three seconds after stopping — `Oakland Ground, clear of runway 28R at W, taxi to gate 29.` (`PilotResponder.BuildTaxiInRequest`, AIM 4-3-21.c) — naming the parking the pilot picked itself.
+
+The pick is `ArrivalParkingPicker`: the operator's own ramp when the layout names one, a cargo apron or numbered gate for an airline, a non-gate spot for a registration; occupied, taxied-to and already-requested spots skipped; an FNV draw on the callsign, so replays agree.
+
+It records a Taxi `PilotPendingRequest` carrying `ParkingName`, follows up every 120 s like the parking call, and any taxi clearance closes it. Nobody answering ⇒ the call waits. While a *separately* staffed Local answers at the airport, the pilot stays with the tower until sent to ground (AIM 4-3-14.c, 4-3-21.c): a `CT` to a ground position or an `FCA` sets `AircraftGroundOps.ReleasedToGround`, which the call consumes; a combined cab (one answering position under both hats) needs no release.
+
+A silently simulated tower is no separate Local: under a GND student the aircraft the simulated tower landed calls the student for taxi without any `CT` or `FCA` first.
 
 **Non-gate names stay out of arrival picks (decided, not built yet).** A per-airport denylist data file lists the names in a layout that are not gates, and `ArrivalParkingPicker` excludes them from every pool: SMF's digit-led markers off the concourses (`1`–`4`, `30`–`32`, `40`–`43`), FLL's terminal markers (`1`–`4`), and layout placeholders such as SMF's `FAA`, `GA` and `TEXT`.
 
@@ -303,7 +334,9 @@ Ground's own §2-1-17 transfer duty lands with the CA2 brain).
 
 **Scenario-scripted clearances are not the student talking.**
 
-A `CTO` preset (`DispatchSinglePreset` / `ProcessTimedPresets`) and, in solo rooms only, the automated-tower auto-CTO on a hold-for-release release or for a runway spawn under a radar (APP/CTR) student (`AutoIssueTakeoffClearance`, from `ProcessReleasedGroundDepartures` and `ProcessRunwaySpawnAutoTakeoffs`) flow through the same `DispatchCompound`, but pass `DispatchContext.IsScenarioScripted = true`, so they do **not** set `HasMadeInitialContact`.
+A `CTO` preset (`DispatchSinglePreset` / `ProcessTimedPresets`) and, in solo rooms only, the automated-tower auto-CTO flow through the same `DispatchCompound`. The auto-CTO is the one on a hold-for-release release, for a runway spawn under a student who does not work the tower there, or from the silent simulated tower (`AutoIssueTakeoffClearance`, from `ProcessReleasedGroundDepartures`, `ProcessRunwaySpawnAutoTakeoffs` and `ProcessSimulatedTowerDepartures`).
+
+Both pass `DispatchContext.IsScenarioScripted = true`, so they do **not** set `HasMadeInitialContact`.
 
 A runway-spawn CTO-preset departure (or a released held departure) handed to a non-tower student via auto-track therefore still makes its airborne check-in. The flag rides through deferral on `DeferredDispatch.IsScenarioScripted` (so a preset `WAIT … ; CTO` firing on the ground stays scripted), and across a snapshot restore on a queued `CommandBlock.IsScenarioScripted` (so a preset queued behind a trigger and restored by a rewind still neither sets `HasMadeInitialContact` nor marks its speed controller-issued); live and reaction-delay deferrals default to non-scripted. Live and replayed *controller* commands pass `IsScenarioScripted = false` and keep the suppression.
 

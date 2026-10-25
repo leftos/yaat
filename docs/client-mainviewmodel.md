@@ -189,7 +189,7 @@ Settings window calls it on each Apply (so the `DiscordRichPresenceEnabled` togg
 is the raw scenario id). `MainViewModel.RichPresence` is a settable `IRichPresencePublisher?` that `MainWindow` assigns;
 left null (a headless test host, unless the test assigns a fake) every call is a no-op.
 
-`ClearScenarioState` (`Scenario.cs:985`) is the symmetric teardown: it nulls the active-scenario properties, clears the published Discord presence, clears the active runways and closes their prompt, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral `SessionSettingsDto`.
+`ClearScenarioState` (`Scenario.cs:985`) is the symmetric teardown: it nulls the active-scenario properties, clears the published Discord presence, clears the active runways and closes the session-setup popup, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral `SessionSettingsDto`.
 
 ### Active runways and the load prompt
 
@@ -197,19 +197,19 @@ left null (a headless test host, unless the test assigns a fake) every call is a
 
 It is server-authoritative and replaced wholesale by every payload that carries it: the load result (`ApplyLoadResultActiveRunways`, from `ApplyScenarioResult`), `OnScenarioLoaded`, `ApplyRoomState`, `ApplyRecordingResult` and `ApplyRewindResult` (`RewindResultDto.ActiveRunways`; the rewinder's own result, applied on the UI thread), `OnActiveRunwaysChanged` and `OnScenarioRestarted` (`ScenarioRestartedDto.ActiveRunways`).
 
-The same file holds the prompt the loading mentor answers. It opens only from the loader's own result when `ActiveRunwaysPromptNeeded` is set, the client is a mentor (`!IsNonMentor`) and the load result's `IsLiveSession` is false; a restart, a join and another member's load never open it.
+The same file holds the active-runways section of the session-setup popup the loading mentor answers. It opens only from the loader's own result when `LoadScenarioResultDto.SessionSetup` carries an `ActiveRunways` section, the client is a mentor (`!IsNonMentor`) and the load result's `IsLiveSession` is false; a restart, a join and another member's load never open it.
 
-It is an overlay in `MainWindow.axaml` (`ShowActiveRunwaysPrompt`) with one `ActiveRunwaysRow` per airport (the primary first, then each airport the prefill names), pre-filled from `ActiveRunwaysPrefill`.
+The section sits in the "Session setup" overlay in `MainWindow.axaml` (`ShowActiveRunwaysPrompt`) under an "Active runways" heading, with one `ActiveRunwaysRow` per airport (the primary first, then each airport the prefill names), pre-filled from the section's `Prefill`.
 
 Under its title a fixed line says what the list drives: `YAAT's aircraft menus use these to name and suggest runways. Aircraft the scenario already gives a runway keep it.`
 
-`ActiveRunwaysPromptNotes` holds, for each row's airport in row order, its runway line (`ActiveRunwaysEditor.AssignedNote`, from the load result's `ActiveRunwaysAssigned`: how many departures and arrivals already have a runway and keep it, or that none does, then the runways the scenario's arrival generators land on) and then its notes on the guess (`ActiveRunwaysEditor.Notes`: no departure or no arrival end implied).
+`ActiveRunwaysPromptNotes` holds, for each row's airport in row order, its runway line (`ActiveRunwaysEditor.AssignedNote`, from the section's `Assigned`: how many departures and arrivals already have a runway and keep it, or that none does, then the runways the scenario's arrival generators land on) and then its notes on the guess (`ActiveRunwaysEditor.Notes`: no departure or no arrival end implied).
 
 The notes follow the rows, so an airport whose row was accepted loses its lines.
 
-OK checks every row with `ActiveRunwaysEditor.ToCommand` (`ActiveRunwaysEditor.cs`, returning an `ActiveRunwaysAnswer`, `ActiveRunwaysAnswer.cs`; it reads the text with `ActiveRunwayListParser.ParseWithNone`, the reader `ARWY` itself uses, so commas, tabs and new lines count as spaces when looking for `NONE`; an empty row sets every end of every runway the navigation data knows there, `NONE` alone clears) and sends nothing if a row fails. Otherwise it sends one `ARWY {FAA} {tokens}` per airport through `SendCommandAsync`, not added to command history. An accepted row leaves the prompt and a refused one stays with the server's message.
+The popup's OK (`ConfirmSessionSetupCommand`) checks every active-runways row with `ActiveRunwaysEditor.ToCommand` (`ActiveRunwaysEditor.cs`, returning an `ActiveRunwaysAnswer`, `ActiveRunwaysAnswer.cs`; it reads the text with `ActiveRunwayListParser.ParseWithNone`, the reader `ARWY` itself uses, so commas, tabs and new lines count as spaces when looking for `NONE`; an empty row sets every end of every runway the navigation data knows there, `NONE` alone clears) and sends nothing if a row fails. Otherwise it sends one `ARWY {FAA} {tokens}` per airport through `SendCommandAsync`, not added to command history. An accepted row leaves the prompt and a refused one stays with the server's message.
 
-Cancel sends nothing and prints `Active runways not set; use ARWY or Scenario › Active Runways…`. The prompt also closes on `ClearScenarioState` and on another load (`OnScenarioLoaded`, `ApplyRecordingResult`); an `ActiveRunwaysChanged` leaves it open. Once the prompt closes or reopens while an answer is still sending (an unload, leaving the room, another load), the remaining rows are not sent. `ActiveRunwaysRow` (`ActiveRunwaysRow.cs`) and `ActiveRunwaysEditor` are public so an editor window can reuse the text round trip.
+Cancel (`CancelSessionSetupCommand`, which closes the positions section too) sends nothing and prints `Active runways not set; use ARWY or Scenario › Active Runways…`. The popup also closes on `ClearScenarioState` and on another load (`OnScenarioLoaded`, `ApplyRecordingResult`); an `ActiveRunwaysChanged` leaves it open. Once the prompt closes or reopens while an answer is still sending (an unload, leaving the room, another load), the remaining rows are not sent. `ActiveRunwaysRow` (`ActiveRunwaysRow.cs`) and `ActiveRunwaysEditor` are public so an editor window can reuse the text round trip.
 
 **The window** is `ActiveRunwaysWindowViewModel` (`ActiveRunwaysWindowViewModel.cs`) with `Views/ActiveRunwaysWindow.axaml(.cs)`, opened from **Scenario › Active Runways…** (single instance, enabled by `HasScenario`, geometry key `ActiveRunways`). Its rows are the same `ActiveRunwaysRow`s: one per airport of `RoomActiveRunways`, with the primary airport (`ActiveScenarioPrimaryAirportId`) first and the rest in ordinal order, each holding `ActiveRunwaysEditor.ToText` of the room's tokens. The window is its own view model rather than a second prompt — it is a top-level `Window`, not the overlay `Border`.
 
@@ -218,6 +218,20 @@ Rows follow the room: every `RoomActiveRunways` (or primary-airport) change refr
 `ApplyAsync(navDb, send)` reads every row with `ActiveRunwaysEditor.ReadRows` — the parse-and-refuse helper `SubmitActiveRunwaysPromptAsync` calls too — and sends one `ARWY` per row whose text differs from the room's current text for that airport. Unlike the prompt it keeps every row and the window open: an accepted row counts as untouched again (so it follows the room once more), a refused one keeps its text with the server's message under it, and the other rows still go. Empty stays every end and `NONE` clears, as `ToCommand` already reads them.
 
 The view model closes (the `IsOpen` flag, which the window watches) on any `ActiveScenarioId` change: an unload and leaving the room null it, another scenario load and a recording load set a new one, and a restart re-activates the same id, so the window ends exactly where the prompt does.
+
+### Session setup popup and the positions you work
+
+`MainViewModel.SessionSetup.cs` owns the "Session setup" overlay in `MainWindow.axaml` (always titled "Session setup") and the session flyout's "Positions you work" row.
+
+The overlay has two sections, each shown only while the server asks: the active runways above (`ShowActiveRunwaysPrompt`) and the positions the solo student works (`ShowWorkedPositionsPrompt`). `ShowSessionSetup` is true while either shows, and one OK (`ConfirmSessionSetupCommand`) and one Cancel (`CancelSessionSetupCommand`) serve both.
+
+The positions section opens from the loader's own result (`ApplyLoadResultSessionSetup`, when `SessionSetup.WorkedPositions` is set and the session is not live) or from the reply to switching solo training on (`SendSoloTrainingModeAsync` → `ApplySoloTrainingModeReply`, dropped when another scenario loaded meanwhile).
+
+It shows one radio per level from the student's own down to delivery (`WorkedPositionsChoices.For`, each with a label such as "Ground and Delivery" and a one-line note), the server's `Prefill` selected (the scenario's current level, which a solo load seeds as the student's own position only).
+
+OK sends the active-runways answers first, then the chosen level through `SetStudentLowestWorkedLevelAsync`; an accepted section closes and a refused one stays open with the server's message under it. Cancel closes both and sends nothing, and the popup closes with the rest of the scenario state (`CloseSessionSetup`).
+
+The flyout row (`ShowSessionWorkedPositions`: solo on and the student's own level above delivery) binds `SessionStudentLowestWorkedLevel` over `SessionWorkedPositionsChoices`. A change reaches the hub at once, moves an open popup's radio to it, and a refused one is put back with the reason in the terminal.
 
 ## Scenario load overlay and the room-loading gate
 
@@ -249,13 +263,15 @@ Tests: `LoadOverlayViewModelTests` and `MainViewModelLoadOverlayTests` (`tests/Y
 
 ## Session-settings echo suppression
 
-`ApplySessionSettings` writes 24 `Session*` `[ObservableProperty]` fields from the 23 fields of `SessionSettingsDto`, and the session-settings flyout binds them.
+`ApplySessionSettings` writes 26 `Session*` `[ObservableProperty]` fields from the 25 fields of `SessionSettingsDto`, and the session-settings flyout binds them.
 
 They are `SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptEnabled` + `SessionAutoAcceptDelaySeconds`, the two command-run-delay bounds, `SessionAutoClearedToLand`, `SessionAutoCrossRunwayMode` (+ `SessionAutoCrossRunwayModeIndex`, the flyout combo's index), `SessionAutoPullUpToParallel`, `SessionAutoGoAroundOnOccupiedRunway`, `SessionAutoRejectTakeoffOnOccupiedRunway` and `SessionAutoArrivalSpacingOnOccupiedRunway`.
 
 They also include `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` + `SessionLiveTrafficFilter` (see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them), `SessionValidateDctFixes` and `SessionSoloTrainingMode`.
 
 Last come the four solo-pacing fields (the parking call-up rate percent and the interval seconds the slider shows, the arrival generator rate, the go-around probability), the two `SessionHasSolo*Source` flags, and `SessionRpoShowPilotSpeech`.
+
+The two level fields are `SessionStudentLowestWorkedLevel` and `SessionStudentOwnLevel` (level codes, written by `ApplySessionStudentLevels` in `MainViewModel.SessionSetup.cs`). A change the user makes to the first sends `SetStudentLowestWorkedLevel` at once, and the guard below keeps a server push from echoing.
 
 Each has an `OnXxxChanged` partial, and the ones that re-send the new value to the server are what the guard protects. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
 
@@ -278,7 +294,7 @@ The four number boxes (departure distance, auto-accept delay, the two run-delay 
 - **A push while pending is dropped for that key.** `ApplySessionSettings` checks `SkipPushWhilePending` per key, so a server broadcast does not overwrite a box with a value the user typed and has not sent; the typed value then goes out. The `RunDelay` pair is one key, so a push for either bound is dropped while the other waits.
 - **Discard.** `DiscardAll` drops waiting values without sending when the value's room or scenario is gone: `ClearScenarioState` (unload, leave room, disconnect), `ApplyRecordingResult`, and the room-join, scenario-loaded and load-result adapters.
 - **Threading.** Timers come from the injected `TimeProvider` and fire on the thread pool; each only posts its take-and-commit to the UI thread, and a per-key generation lets a commit already queued for a key the user has since re-typed be skipped. Tests use the `internal MainViewModel(IFilePickerService, TimeProvider)` constructor with `ManualTimeProvider`.
-Because the same 23 DTO fields arrive under four different DTO shapes, there are **four adapters** that all build a `SessionSettingsDto` and call `ApplySessionSettings`:
+Because the same 25 DTO fields arrive under four different DTO shapes, there are **four adapters** that all build a `SessionSettingsDto` and call `ApplySessionSettings`:
 
 - `ApplySessionSettings(SessionSettingsDto)` — the base, used by the live `OnSessionSettingsChanged` broadcast and by `ApplyRecordingResult` for `RewindResultDto.SessionSettings`. A recording load therefore shows the tape's settings (the flyout and "No landing clnc" follow it); the per-position Auto Cleared-to-Land preference is neither read nor written there. A result without settings logs `The recording result for '{Scenario}' carried no session settings; the session's current ones stay`.
 - `ApplySessionSettingsFromRoom(RoomStateDto)`.

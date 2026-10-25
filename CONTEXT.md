@@ -93,20 +93,23 @@ The runway ends a room is using, per airport, each for departures, arrivals or b
 **Carried answer** (of the active runways):
 The mentor's answer to the load prompt, or the last live `ARWY`, kept on the room per scenario (an answer of `NONE` is an empty list). A load of the same scenario starts on it; a restart starts on the list in use, and a rewind on what the session started on (`InitialActiveRunways`).
 
-**Carrier** (of the active runways):
-The room's store of carried answers, one per normalized scenario id (`TrainingRoom.FindCarriedActiveRunways` / `CarryActiveRunways`); only a load reads it.
+**ScenarioAnswers**:
+The room's store of per-scenario answers (`TrainingRoom.ScenarioAnswers`): the carried active runways and the lowest position worked, each keyed by normalized scenario id; only a load reads them.
 
 **Implied active runways**:
-The runway ends a loaded scenario implies per airport, read from its aircraft (loaded phases, expected approach, parsed preset commands, never dispatched) and its arrival generators, else the primary airport's facility knowledge (`ImpliedActiveRunways.For`). With no sidecar it pre-fills the mentor's prompt; the room takes it only where it names every runway.
+The runway ends a loaded scenario implies per airport, read from its aircraft (loaded phases, expected approach, parsed preset commands, never dispatched) and its arrival generators, else the primary airport's facility knowledge (`ImpliedActiveRunways.For`). With no sidecar naming runways it pre-fills the mentor's prompt; the room takes it only where it names every runway.
 
 **Towered airport**:
 An airport with a tower facility (`Atct`, `AtctTracon`, `AtctRapcon`) in the room's own ARTCC config, a scenario roster ARTCC's config or a geographic neighbour ARTCC's config (`ToweredAirports`); every other airport is untowered. An id matches in either spelling (`OAK`/`KOAK`) and, outside the CONUS, through the navigation data's FAA/ICAO pairing (`ANC`/`PANC`). It decides whether an airport-level `CVA` needs a runway, and rides the recording as `towered-airports.json.br`.
 
 **Scenario sidecar**:
-An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways); unlike the per-airport ground sidecar.
+An authored per-scenario JSON file, `Data/ARTCCs/{ARTCC}/Scenarios/{scenario id}.json`, carrying settings the vNAS scenario lacks (its active runways, the lowest position a solo student works); unlike the per-airport ground sidecar.
 
 **Pre-fill** (of the load prompt):
-The implied active runways shown in the prompt's rows (`ActiveRunwaysPrefill`) for the mentor to edit or accept; a guess, not the room's list until OK sends it.
+The implied active runways shown in the session-setup prompt's runway rows (`ActiveRunwaysSetupDto.Prefill`) for the mentor to edit or accept; a guess, not the room's list until OK sends it.
+
+**Session-setup prompt**:
+The questions a scenario load, or switching solo training on, puts to its client in the "Session setup" popup (`SessionSetupPromptDto`): the mentor's active runways and the solo student's positions it works. A section is absent when it does not apply or is already settled.
 
 **Preset**:
 A command the scenario gives one aircraft (`presetCommands`), dispatched at load or at its `timeOffset`, and scripted rather than spoken by the student: it does not count as the student's contact with the pilot.
@@ -536,8 +539,14 @@ A clause spoken as its canonical text in every load band because it has no short
 How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
 _Avoid_: activity level (the meter's four-step reading)
 
+**Lowest position worked**:
+The lowest position type a solo student works (`SimScenarioState.StudentLowestWorkedLevel`, CTR > APP > TWR > GND > DEL): the student works its own position and every type below it down to this one, answers the pilot calls those types take, and the sim plays the rest. The sidecar, the session-setup prompt or the session flyout's "Positions you work" row sets it, and `ScenarioAnswers` carries it per scenario.
+
 **Pilot trait**:
 How much a pilot says on the frequency regardless of load: terse (25%), normal (50%) or chatty (25%), derived from the callsign and the scenario seed and never stored. Terse speaks at the next busier load band, chatty at the next quieter, clamped to quiet..busy (`PilotTrait`, `PilotTraits.EffectiveBand`, docs/solo-training-pilot-speech.md).
+
+**Simulated tower**:
+The tower the sim plays without a word at a towered airport where the solo student does not work the tower and no AI tower covers it (`PilotContactRoster.TowerIsSimulatedAt`): no tower call reaches the student, it clears a departure the student transferred for takeoff once the runway is clear, clears arrivals to land and sends them around when the runway is not clear.
 
 **Value floor**:
 The aviation floor for a rule's variant rows, checked by value rather than by rendered text: a row must carry the rule pattern's captures in the same order and the same ordered keyword classes, and only a busy row may drop climb/descend or the word runway on a runway clearance (`AviationFloor.HoldsTemplate`, enforced at test time over every row, docs/solo-training-pilot-speech.md).
