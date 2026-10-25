@@ -310,10 +310,14 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
         /// <summary>Starts <paramref name="action"/>: its synchronous part, which issues the command, runs here on the UI thread.</summary>
         private static StartedAction Start(IAutomationState state, WaitUntilAction action) => new(action, Run(state, action));
 
-        private static async Task<AutomationActionOutcome> Run(IAutomationState state, WaitUntilAction action) =>
-            (action.Kind == WaitUntilActionKind.Pause)
-                ? await state.PauseAsync().ConfigureAwait(false)
-                : await state.SetRateAsync(action.Rate).ConfigureAwait(false);
+        private static Task<AutomationActionOutcome> Run(IAutomationState state, WaitUntilAction action) =>
+            action.Kind switch
+            {
+                WaitUntilActionKind.Pause => state.PauseAsync(),
+                WaitUntilActionKind.Unpause => state.UnpauseAsync(),
+                WaitUntilActionKind.SetRate => state.SetRateAsync(action.Rate),
+                _ => throw new UnreachableException($"wait_until action {action.Kind} has no run."),
+            };
 
         private void Evaluate(IAutomationState state)
         {
@@ -343,6 +347,11 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             if (condition.Kind == WaitUntilKind.SimSeconds)
             {
                 return (_simSeconds >= condition.AtLeast, $"sim {_simSeconds.ToString("F1", CultureInfo.InvariantCulture)}");
+            }
+
+            if (condition.Kind == WaitUntilKind.Paused)
+            {
+                return state.IsPaused ? (true, "paused") : (false, "running");
             }
 
             if (condition.Kind == WaitUntilKind.LogMatches)

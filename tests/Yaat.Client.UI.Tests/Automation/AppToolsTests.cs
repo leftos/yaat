@@ -120,6 +120,48 @@ public sealed class AppToolsTests : AutomationHostFixture
     private static string ErrorParam(JsonElement error) => error.GetProperty("details").GetProperty("param").GetString() ?? "";
 
     [AvaloniaFact]
+    public async Task SendCommand_NoAircraftMatched_AnswersNotSentWithTheStatusLine()
+    {
+        JsonElement result = Result(await CallTool(ToolsOf(InScenario()), "send_command", new { text = "FOO123 TAXIAUTO 30" }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        using var answer = JsonDocument.Parse(result.GetProperty("message").GetString() ?? "");
+        JsonElement root = answer.RootElement;
+        Assert.False(root.GetProperty("sent").GetBoolean(), root.GetRawText());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("status").GetString()), root.GetRawText());
+    }
+
+    [AvaloniaFact]
+    public async Task SendCommand_EmptyText_IsInvalidParam()
+    {
+        JsonElement error = Error(await CallTool(ToolsOf(InScenario()), "send_command", new { text = "  " }), AutomationErrorCodes.InvalidParam);
+
+        Assert.Equal("text", ErrorParam(error));
+    }
+
+    [AvaloniaFact]
+    public async Task ArmPauseTriggers_HeartbeatBelowFiveSeconds_IsInvalidParam()
+    {
+        JsonElement error = Error(
+            await CallTool(
+                ToolsOf(InScenario()),
+                "arm_pause_triggers",
+                new
+                {
+                    pilotCalls = true,
+                    warnings = true,
+                    newAircraft = true,
+                    groundStops = true,
+                    heartbeatSeconds = 3,
+                }
+            ),
+            AutomationErrorCodes.InvalidParam
+        );
+
+        Assert.Equal("heartbeatSeconds", ErrorParam(error));
+    }
+
+    [AvaloniaFact]
     public async Task ListAppTools_ReportsEveryToolWithItsParameters()
     {
         JsonElement list = Result(await ListTools(ToolsOf(InScenario())));
@@ -127,6 +169,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         string[] signatures = [.. list.EnumerateArray().Select(Signature).Order(StringComparer.Ordinal)];
         Assert.Equal(
             [
+                "arm_pause_triggers(pilotCalls:bool,warnings:bool,newAircraft:bool,groundStops:bool,heartbeatSeconds:int)",
                 "center_ground(target:string,zoom:double)",
                 "center_radar(callsign:string,rangeNm:double)",
                 "center_radar_at(lat:double,lon:double,rangeNm:double)",
@@ -134,10 +177,12 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "clear_rbls()",
                 "connect(url:string)",
                 "create_room(artccId:string)",
+                "disarm_pause_triggers()",
                 "drag(window:string,fromX:double,fromY:double,toX:double,toY:double,button:string,steps:int,holdMs:int)",
                 "get_aircraft(callsign:string)",
                 "get_airport_context(airport:string)",
                 "get_framing()",
+                "get_pause_events(sinceSequence:int)",
                 "get_traffic(airport:string)",
                 "hover(window:string,selector:string,x:double,y:double,durationMs:int)",
                 "load_recording(path:string)",
@@ -150,6 +195,7 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "remove_rbl(slot:int)",
                 "reset_datablock_offset(callsign:string)",
                 "seek(simSeconds:double)",
+                "send_command(text:string)",
                 "set_cloaked(cloaked:bool)",
                 "set_datablock_offset(callsign:string,dxPx:int,dyPx:int)",
                 "set_leader_direction(callsign:string,direction:int)",
@@ -476,7 +522,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         };
 
     [AvaloniaFact]
-    public async Task GetTraffic_FiltersByAirportAndOmitsEmptyFields()
+    public async Task GetTraffic_FiltersByAirportOmitsEmptyFieldsAndSkipsDelayedAircraft()
     {
         MainViewModel viewModel = InScenario();
         viewModel.Aircraft.Add(
@@ -494,6 +540,15 @@ public sealed class AppToolsTests : AutomationHostFixture
                 Departure = "KSFO",
                 ParkingSpot = "A1",
                 Position = new LatLon(37.6188, -122.3756),
+            }
+        );
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "DAL3",
+                GroundAirportId = "OAK",
+                Status = "Delayed (120s)",
+                Position = new LatLon(37.7213, -122.2208),
             }
         );
 

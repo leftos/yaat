@@ -14,6 +14,7 @@ public enum WaitUntilKind
     QueueEmpty,
     LogMatches,
     SimSeconds,
+    Paused,
 }
 
 /// <summary>
@@ -26,6 +27,7 @@ public sealed record WaitUntilCondition(string Name, WaitUntilKind Kind, string 
 public enum WaitUntilActionKind
 {
     Pause,
+    Unpause,
     SetRate,
 }
 
@@ -58,6 +60,7 @@ public sealed record WaitUntilParams(
         ["queue_empty"] = WaitUntilKind.QueueEmpty,
         ["log_matches"] = WaitUntilKind.LogMatches,
         ["sim_seconds"] = WaitUntilKind.SimSeconds,
+        ["paused"] = WaitUntilKind.Paused,
     };
 
     /// <summary>Reads the params from a request, or returns the <see cref="HandlerErrorResult"/> naming the first bad one.</summary>
@@ -124,6 +127,7 @@ public sealed record WaitUntilParams(
         return kind switch
         {
             WaitUntilKind.SimSeconds => ReadSimSeconds(item, path),
+            WaitUntilKind.Paused => new WaitUntilCondition("paused", WaitUntilKind.Paused, "", "", null, 0),
             WaitUntilKind.LogMatches => ReadLogMatches(item, path),
             WaitUntilKind.PhaseIs or WaitUntilKind.PhaseIsNot => ReadPhase(item, path, normalized, kind),
             _ => ReadAircraft(item, path, normalized, kind),
@@ -282,8 +286,9 @@ public sealed record WaitUntilParams(
         return name.ToLowerInvariant() switch
         {
             "pause" => new WaitUntilAction("pause", WaitUntilActionKind.Pause, 0),
+            "unpause" => new WaitUntilAction("unpause", WaitUntilActionKind.Unpause, 0),
             "set_rate" => ReadSetRate(item, path),
-            _ => HandlerResult.InvalidParam($"{path}.action", $"Unknown action '{name}'. Use one of: pause, set_rate."),
+            _ => HandlerResult.InvalidParam($"{path}.action", $"Unknown action '{name}'. Use one of: pause, unpause, set_rate."),
         };
     }
 

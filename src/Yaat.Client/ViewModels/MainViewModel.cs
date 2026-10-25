@@ -2631,6 +2631,42 @@ public partial class MainViewModel : ObservableObject
         return MeasureEndpointResolver.Resolve(token, Aircraft, resolveFix);
     }
 
+    /// <summary>The command the command box last sent to the server, with the server's verdict; null before the first.</summary>
+    public CommandSubmission? LastSubmission { get; private set; }
+
+    /// <summary>
+    /// Types <paramref name="text"/> into the command box and presses Enter, the path a person takes, and reports what it did:
+    /// the command it sent (null when nothing reached the server), the status line, and the warnings it added to the terminal.
+    /// </summary>
+    /// <param name="text">The command line as typed.</param>
+    public async Task<CommandBoxOutcome> SubmitCommandTextAsync(string text)
+    {
+        if (!SendCommandCommand.CanExecute(null))
+        {
+            return new CommandBoxOutcome(null, StatusText, [], "Not in a room.");
+        }
+
+        LastSubmission = null;
+        long before = TerminalEntry.LastSequence;
+        CommandText = text;
+        await SendCommandCommand.ExecuteAsync(null);
+        string[] warnings =
+        [
+            .. TerminalEntries
+                .Where(entry => (entry.Sequence > before) && !entry.IsHistory && (entry.Kind == TerminalEntryKind.Warning))
+                .Select(entry => entry.Message),
+        ];
+        return new CommandBoxOutcome(LastSubmission, StatusText, warnings, null);
+    }
+
+    /// <summary>Sends one command to the server as the command box does, and records it as <see cref="LastSubmission"/>.</summary>
+    private async Task<CommandResultDto> SubmitCommandAsync(string callsign, string canonical)
+    {
+        CommandResultDto result = await _connection.SendCommandAsync(callsign, canonical, _preferences.UserInitials);
+        LastSubmission = new CommandSubmission(callsign, canonical, result.Success, result.Message);
+        return result;
+    }
+
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task SendCommandAsync()
     {
@@ -2822,7 +2858,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     string canonical = compound.CanonicalString;
                     _log.LogDebug("SendCommand (global half-strip): '{Canonical}' (input: '{Input}')", canonical, originalInput);
-                    CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                    CommandResultDto result = await SubmitCommandAsync("", canonical);
 
                     // Always drop the typed text: even when the server rejects, the RPO has
                     // seen the result and should not retype the whole command. The error
@@ -2881,7 +2917,7 @@ public partial class MainViewModel : ObservableObject
         {
             string canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalInput);
-            CommandResultDto result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            CommandResultDto result = await SubmitCommandAsync(target.Callsign, canonical);
             NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
             if (result.Success)
@@ -2985,7 +3021,7 @@ public partial class MainViewModel : ObservableObject
                 canonical,
                 normalization.UsedLlmFallback
             );
-            CommandResultDto result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            CommandResultDto result = await SubmitCommandAsync(target.Callsign, canonical);
             NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
             if (result.Success)
@@ -3062,7 +3098,7 @@ public partial class MainViewModel : ObservableObject
         string canonical = string.IsNullOrEmpty(argument) ? verb : $"{verb} {argument}";
         try
         {
-            CommandResultDto result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+            CommandResultDto result = await SubmitCommandAsync("", canonical);
             AddHistory("", canonical);
             StatusText = CommandStatusResolver.Resolve(result, verb);
         }

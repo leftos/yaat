@@ -26,7 +26,8 @@ public sealed partial class AutomationTools
 
     [AutomationTool(
         "get_traffic",
-        "Lists the aircraft the Aircraft List shows as one JSON object: sim time, pause state and one row per aircraft, ordered by "
+        "Lists the spawned aircraft the Aircraft List shows (a delayed spawn appears once it joins the sim) as one JSON object: sim "
+            + "time, pause state and one row per aircraft, ordered by "
             + "callsign (type, rules, route ends, position, motion, phase, ground state, runway queue, pending pilot request). Fields "
             + "with no value are left out.",
         nameof(NoScenario)
@@ -38,7 +39,7 @@ public sealed partial class AutomationTools
         TrafficRow[] rows =
         [
             .. _viewModel
-                .Aircraft.Where(aircraft => MainViewModel.IsAircraftVisible(aircraft, showOnlyActive: false, filter: "", liveFilter))
+                .Aircraft.Where(aircraft => MainViewModel.IsAircraftVisible(aircraft, showOnlyActive: true, filter: "", liveFilter))
                 .Where(aircraft => (wanted is null) || ServesAirport(aircraft, wanted))
                 .OrderBy(aircraft => aircraft.Callsign, StringComparer.Ordinal)
                 .Select(BuildRow),
