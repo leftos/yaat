@@ -51,8 +51,8 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-1178 Allow ordering of favorite sets when multiple sets are active · release vNext
 - [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
-- [ ] YAAT-1175 Add copy to favorite set · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
