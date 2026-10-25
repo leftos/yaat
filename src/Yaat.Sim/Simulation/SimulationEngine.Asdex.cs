@@ -113,7 +113,33 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        scenario.AsdexSafetyLogicConfigs = scenario.AsdexSafetyLogicConfigs.SetItem(change.FacilityId, change.Config);
+        // A push whose runway configuration differs from the one the facility held is a user's choice (CRC's F2); the
+        // closed-runway and inhibit toggles push the whole configuration with the id unchanged and choose nothing.
+        AsdexSafetyLogicConfig? old = scenario.AsdexSafetyLogicConfigs.GetValueOrDefault(change.FacilityId);
+        bool chosen = (old?.RunwayConfigurationChosen == true) || (change.Config.RunwayConfigurationId != old?.RunwayConfigurationId);
+        AsdexSafetyLogicConfig config =
+            chosen == change.Config.RunwayConfigurationChosen ? change.Config : change.Config with { RunwayConfigurationChosen = chosen };
+        scenario.AsdexSafetyLogicConfigs = scenario.AsdexSafetyLogicConfigs.SetItem(change.FacilityId, config);
+    }
+
+    /// <summary>
+    /// Re-picks the runway configuration of every ASDE-X facility whose airport's active runways differ between
+    /// <paramref name="before"/> and the scenario's current ones and whose configuration no CRC user has chosen
+    /// (<see cref="AsdexSafetyLogicSeed.Repick"/>). Deterministic from scenario state, so a replay reproduces it.
+    /// </summary>
+    public void RepickAsdexRunwayConfigurations(ActiveRunways before)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        scenario.AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Repick(
+            scenario.AsdexSafetyLogicConfigs,
+            scenario.ArtccConfig,
+            before,
+            scenario.ActiveRunways
+        );
     }
 
     // The surface airports resolved for this config and navigation-data instance; rebuilt when either is replaced.

@@ -234,6 +234,10 @@ public sealed class AsdexSafetyLogicConfigDto
     public required List<AsdexRunwayConfigDto> Runways { get; init; }
     public required string RunwayConfigurationId { get; init; }
     public required List<string> InhibitedArrivalAlertPositionIds { get; init; }
+
+    // Optional and left out while false, so a snapshot written before it existed restores as not chosen.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RunwayConfigurationChosen { get; init; }
 }
 
 /// <summary>Snapshot of one <c>AsdexRunwayConfig</c>.</summary>

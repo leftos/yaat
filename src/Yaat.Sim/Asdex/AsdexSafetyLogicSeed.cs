@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Asdex;
 
@@ -13,7 +14,10 @@ namespace Yaat.Sim.Asdex;
 /// has navdata runways. Its runways carry the facility's own ids: the vNAS pair form the facility's positions name
 /// ("28R-10L"), unioned over the positions in config order, then every navdata runway no position names as
 /// <c>{end1}-{end2}</c> in <see cref="NavigationDatabase.GetRunways"/> order, unpadded. Each footprint is the pavement
-/// rectangle, every runway starts open, and no runway configuration id is seeded, so CRC keeps its own default.
+/// rectangle and every runway starts open. The runway configuration is the facility's configuration whose arrival and
+/// departure runway ids cover the room's active arrival and departure runways (the smallest such set, facility order on
+/// a tie), re-picked when the active runways change unless a CRC user has chosen a configuration; with no active runways
+/// or none covering them, the facility's first configuration, and with no configurations, "" (LIMITED).
 /// </summary>
 public static class AsdexSafetyLogicSeed
 {
@@ -24,11 +28,15 @@ public static class AsdexSafetyLogicSeed
         ImmutableSortedDictionary.Create<string, AsdexSafetyLogicConfig>(StringComparer.Ordinal);
 
     /// <summary>
-    /// Builds the seed for every ASDE-X facility in <paramref name="config"/>, keyed by facility id (ordinal). With no
-    /// config or no navdata it is empty; a facility with no navdata runways, and a position runway navdata lacks, are
-    /// left out with a debug log.
+    /// Builds the seed for every ASDE-X facility in <paramref name="config"/>, keyed by facility id (ordinal), each on the
+    /// configuration <paramref name="activeRunways"/> select for its airport. With no config or no navdata it is empty; a
+    /// facility with no navdata runways, and a position runway navdata lacks, are left out with a debug log.
     /// </summary>
-    public static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Build(ArtccConfigRoot? config, NavigationDatabase? navDb)
+    public static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Build(
+        ArtccConfigRoot? config,
+        NavigationDatabase? navDb,
+        ActiveRunways activeRunways
+    )
     {
         if ((config is null) || (navDb is null))
         {
@@ -51,11 +59,107 @@ public static class AsdexSafetyLogicSeed
                 continue;
             }
 
-            seed[facility.Id] = new AsdexSafetyLogicConfig(BuildRunways(facility.Id, asdex, navRunways), "", []);
+            string configurationId = SelectRunwayConfigurationId(asdex, activeRunways.For(facility.Id));
+            seed[facility.Id] = new AsdexSafetyLogicConfig(BuildRunways(facility.Id, asdex, navRunways), configurationId, []);
         }
 
         return seed.ToImmutable();
     }
+
+    /// <summary>
+    /// The id of the facility's runway configuration that covers <paramref name="active"/>: every active arrival end in
+    /// its arrival runway ids, every departure end in its departure runway ids, and an end used for both in both. Of
+    /// several, the one naming the fewest distinct runway ends, the first in the facility's order on a tie. With no
+    /// active runways, or none covering them, the facility's first configuration; with no configurations, "".
+    /// </summary>
+    public static string SelectRunwayConfigurationId(AsdexConfig asdex, IReadOnlyList<ActiveRunway> active)
+    {
+        if (asdex.RunwayConfigurations.Count == 0)
+        {
+            return "";
+        }
+
+        AsdexRunwayConfigurationConfig first = asdex.RunwayConfigurations[0];
+        if (active.Count == 0)
+        {
+            return first.Id;
+        }
+
+        AsdexRunwayConfigurationConfig? best = null;
+        int bestSize = int.MaxValue;
+        foreach (AsdexRunwayConfigurationConfig candidate in asdex.RunwayConfigurations)
+        {
+            HashSet<string> arrivals = NormalizedEnds(candidate.ArrivalRunwayIds);
+            HashSet<string> departures = NormalizedEnds(candidate.DepartureRunwayIds);
+            int size = arrivals.Union(departures).Count();
+            if ((size < bestSize) && active.All(runway => Covers(arrivals, departures, runway)))
+            {
+                best = candidate;
+                bestSize = size;
+            }
+        }
+
+        return (best ?? first).Id;
+    }
+
+    /// <summary>
+    /// <paramref name="configs"/> with the runway configuration of every facility re-picked
+    /// (<see cref="SelectRunwayConfigurationId"/>) whose airport's active runways differ between
+    /// <paramref name="before"/> and <paramref name="after"/>, unless a CRC user has chosen its configuration
+    /// (<see cref="AsdexSafetyLogicConfig.RunwayConfigurationChosen"/>). Every other entry is returned as it stands.
+    /// </summary>
+    public static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Repick(
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs,
+        ArtccConfigRoot? config,
+        ActiveRunways before,
+        ActiveRunways after
+    )
+    {
+        if (config is null)
+        {
+            return configs;
+        }
+
+        var repicked = configs.ToBuilder();
+        foreach ((string facilityId, AsdexSafetyLogicConfig current) in configs)
+        {
+            if (current.RunwayConfigurationChosen || before.For(facilityId).SequenceEqual(after.For(facilityId)))
+            {
+                continue;
+            }
+
+            if (FindAsdex(config, facilityId) is not { } asdex)
+            {
+                continue;
+            }
+
+            string id = SelectRunwayConfigurationId(asdex, after.For(facilityId));
+            if (id != current.RunwayConfigurationId)
+            {
+                Log.LogDebug("ASDE-X facility {FacilityId} re-picks runway configuration {ConfigurationId}", facilityId, id);
+                repicked[facilityId] = current with { RunwayConfigurationId = id };
+            }
+        }
+
+        return repicked.ToImmutable();
+    }
+
+    /// <summary>The ASDE-X configuration of the first facility in walk order with this id, the one the seed built from.</summary>
+    private static AsdexConfig? FindAsdex(ArtccConfigRoot config, string facilityId) =>
+        Walk(config.Facility)
+            .FirstOrDefault(facility => (facility.Id == facilityId) && (facility.AsdexConfiguration is not null))
+            ?.AsdexConfiguration;
+
+    private static HashSet<string> NormalizedEnds(IEnumerable<string> ids) =>
+        [.. ids.Select(id => RunwayIdentifier.NormalizeDesignator(id.Trim().ToUpperInvariant()))];
+
+    private static bool Covers(HashSet<string> arrivals, HashSet<string> departures, ActiveRunway runway) =>
+        runway.Use switch
+        {
+            ActiveRunwayUse.Arrival => arrivals.Contains(runway.Designator),
+            ActiveRunwayUse.Departure => departures.Contains(runway.Designator),
+            _ => arrivals.Contains(runway.Designator) && departures.Contains(runway.Designator),
+        };
 
     private static IEnumerable<FacilityConfig> Walk(FacilityConfig facility)
     {

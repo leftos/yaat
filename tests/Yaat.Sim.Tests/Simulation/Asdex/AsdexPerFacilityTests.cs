@@ -64,7 +64,7 @@ public class AsdexPerFacilityTests
     }
 
     private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() =>
-        AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance);
+        AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance, ActiveRunways.Empty);
 
     private static AsdexSafetyLogicConfig Closed28R() => new([new AsdexRunwayConfig("28R", SharedArea, IsClosed: true)], "WEST-PLAN", []);
 
@@ -83,7 +83,7 @@ public class AsdexPerFacilityTests
         AsdexSafetyLogicConfig pushed = Closed28R();
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "SFO", pushed));
 
-        Assert.Same(pushed, engine.Scenario.AsdexSafetyLogicConfigs["SFO"]);
+        Assert.Equal(pushed with { RunwayConfigurationChosen = true }, engine.Scenario.AsdexSafetyLogicConfigs["SFO"]);
         Assert.Same(oakBefore, engine.Scenario.AsdexSafetyLogicConfigs["OAK"]);
     }
 

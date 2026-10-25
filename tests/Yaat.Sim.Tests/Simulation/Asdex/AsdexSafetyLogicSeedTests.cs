@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 /// The safety-logic configuration a scenario load seeds for every ASDE-X facility in the ARTCC config, from the real
 /// ZOA config (<c>docs/vnas-artcc-config-examples/zoa.json</c>) and real navdata: the facility's own runway ids (the
 /// vNAS pair form its positions list, then every navdata runway no position names), each with a four-corner
-/// footprint CRC can draw, all open and with no runway configuration id, so CRC keeps its own default.
+/// footprint CRC can draw, all open, on the configuration the room's active runways select.
 /// </summary>
 public class AsdexSafetyLogicSeedTests
 {
@@ -37,8 +37,35 @@ public class AsdexSafetyLogicSeedTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() =>
-        AsdexSafetyLogicSeed.Build(Zoa.Value, NavigationDatabase.Instance);
+    private const string L28D01 = "01GVF4AGA8HX03NSN8QJS4WJS4";
+    private const string L28D28 = "01GVM1SKN089G82RCS84S0W8W8";
+    private const string L10D10 = "01GVM1VF16S824B4JHH1YR1FZR";
+
+    private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() => Seed(ActiveRunways.Empty);
+
+    private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed(ActiveRunways activeRunways) =>
+        AsdexSafetyLogicSeed.Build(Zoa.Value, NavigationDatabase.Instance, activeRunways);
+
+    /// <summary>
+    /// One airport's active runways from ARWY-style tokens: a bare end is used for both, a <c>D</c> or <c>A</c> prefix
+    /// for departures or arrivals only.
+    /// </summary>
+    private static ActiveRunways Active(string airport, string tokens) =>
+        ActiveRunways.Empty.With(
+            airport,
+            [
+                .. tokens
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(token =>
+                        token[0] switch
+                        {
+                            'A' => new ActiveRunway(token[1..], ActiveRunwayUse.Arrival),
+                            'D' => new ActiveRunway(token[1..], ActiveRunwayUse.Departure),
+                            _ => new ActiveRunway(token, ActiveRunwayUse.Both),
+                        }
+                    ),
+            ]
+        );
 
     private static RunwayInfo NavRunway(string airport, string end1) =>
         NavigationDatabase.Instance.GetRunway(airport, end1)
@@ -54,13 +81,47 @@ public class AsdexSafetyLogicSeedTests
     }
 
     [Fact]
-    public void Sfo_EveryRunwayIsOpen_AndNoConfigurationIdIsSeeded()
+    public void Sfo_EveryRunwayIsOpen_AndWithNoActiveRunwaysTheFirstConfigurationIsSeeded()
     {
-        AsdexSafetyLogicConfig sfo = Seed()["SFO"];
+        AsdexSafetyLogicConfig sfo = Seed(ActiveRunways.Empty)["SFO"];
 
         Assert.All(sfo.Runways, r => Assert.False(r.IsClosed, $"runway {r.Id} starts closed"));
-        Assert.Equal("", sfo.RunwayConfigurationId);
+        Assert.Equal(L28D01, sfo.RunwayConfigurationId);
         Assert.Empty(sfo.InhibitedArrivalAlertPositionIds);
+    }
+
+    /// <summary>
+    /// The configuration whose arrival and departure runway ids cover the active runways, the smallest such set on more
+    /// than one (28L/28R for both is covered by L28D01 too, which is larger), and the first configuration when none
+    /// covers them.
+    /// </summary>
+    [Theory]
+    [InlineData("A28L A28R D01L D01R", L28D01)]
+    [InlineData("28L 28R", L28D28)]
+    [InlineData("10L 10R", L10D10)]
+    [InlineData("28L 19L", L28D01)]
+    public void Sfo_SeedsTheSmallestConfigurationCoveringItsActiveRunways(string tokens, string expectedId)
+    {
+        AsdexSafetyLogicConfig sfo = Seed(Active("SFO", tokens))["SFO"];
+
+        Assert.Equal(expectedId, sfo.RunwayConfigurationId);
+    }
+
+    [Fact]
+    public void Sfo_ReadsOnlyItsOwnAirportsActiveRunways()
+    {
+        AsdexSafetyLogicConfig sfo = Seed(Active("OAK", "28R 30"))["SFO"];
+
+        Assert.Equal(L28D01, sfo.RunwayConfigurationId);
+    }
+
+    [Fact]
+    public void Oak_HasNoConfigurations_SoNoConfigurationIdIsSeeded()
+    {
+        Assert.Empty(Zoa.Value.FindFacility("OAK")!.AsdexConfiguration!.RunwayConfigurations);
+
+        Assert.Equal("", Seed(Active("OAK", "28R 30"))["OAK"].RunwayConfigurationId);
+        Assert.Equal("", Seed(ActiveRunways.Empty)["OAK"].RunwayConfigurationId);
     }
 
     /// <summary>
@@ -133,7 +194,7 @@ public class AsdexSafetyLogicSeedTests
     }
 
     [Fact]
-    public void ANullConfig_GivesAnEmptyMap() => Assert.Empty(AsdexSafetyLogicSeed.Build(null, NavigationDatabase.Instance));
+    public void ANullConfig_GivesAnEmptyMap() => Assert.Empty(AsdexSafetyLogicSeed.Build(null, NavigationDatabase.Instance, ActiveRunways.Empty));
 
     /// <summary>Shoelace area in lon/lat: positive when the ring runs counter-clockwise seen from above.</summary>
     private static double SignedArea(IReadOnlyList<LatLon> ring)

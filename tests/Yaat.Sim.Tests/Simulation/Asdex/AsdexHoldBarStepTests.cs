@@ -48,7 +48,7 @@ public class AsdexHoldBarStepTests
     }
 
     private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() =>
-        AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance);
+        AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance, ActiveRunways.Empty);
 
     private static SimulationEngine SfoEngine()
     {

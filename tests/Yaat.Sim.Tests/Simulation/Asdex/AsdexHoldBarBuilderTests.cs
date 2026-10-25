@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -34,7 +35,7 @@ public class AsdexHoldBarBuilderTests
     /// <summary>SFO's safety-logic runways as the scenario-load seed gives them, resolved against navdata.</summary>
     internal static IReadOnlyList<AsdexHoldBarRunway> SfoRunways()
     {
-        AsdexSafetyLogicConfig sfo = AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance)["SFO"];
+        AsdexSafetyLogicConfig sfo = AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance, ActiveRunways.Empty)["SFO"];
         return AsdexHoldBarBuilder.ResolveRunways("SFO", sfo.Runways, NavigationDatabase.Instance);
     }
 

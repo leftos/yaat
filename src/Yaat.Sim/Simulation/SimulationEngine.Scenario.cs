@@ -76,9 +76,13 @@ public sealed partial class SimulationEngine
         };
         configureBeforePresets(Scenario);
 
-        // Derived, not recorded: every ASDE-X facility starts on the configuration its ARTCC config and navdata give it,
-        // which the first snapshot then carries. No ARTCC config (a bare load) seeds nothing.
-        Scenario.AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Build(Scenario.ArtccConfig, NavigationDatabase.InstanceOrNull);
+        // Derived, not recorded: every ASDE-X facility starts on the configuration its ARTCC config, navdata and the
+        // active runways set above give it, which the first snapshot then carries. No ARTCC config (a bare load) seeds nothing.
+        Scenario.AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Build(
+            Scenario.ArtccConfig,
+            NavigationDatabase.InstanceOrNull,
+            Scenario.ActiveRunways
+        );
 
         // Add immediate aircraft and dispatch their presets
         foreach (LoadedAircraft loaded in result.ImmediateAircraft)

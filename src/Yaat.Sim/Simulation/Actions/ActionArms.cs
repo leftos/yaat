@@ -550,7 +550,9 @@ internal static class ActionArms
                 return new CommandResult(false, parsed.Error);
             }
 
+            Simulation.ActiveRunways before = scenario.ActiveRunways;
             scenario.ActiveRunways = scenario.ActiveRunways.With(airport, parsed.Runways);
+            ctx.Engine.RepickAsdexRunwayConfigurations(before);
             if (scenario.AutoCrossRunwayMode == AutoCrossRunwayMode.InactiveOnly)
             {
                 // A runway that became active re-arms its own auto-cleared crossings; one that went inactive is pre-cleared.

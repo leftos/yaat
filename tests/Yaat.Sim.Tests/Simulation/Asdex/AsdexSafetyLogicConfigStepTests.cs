@@ -67,7 +67,9 @@ public class AsdexSafetyLogicConfigStepTests
 
         engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", config));
 
-        Assert.Same(config, engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK"));
+        AsdexSafetyLogicConfig? stored = engine.Scenario!.AsdexSafetyLogicConfigs.GetValueOrDefault("OAK");
+        AssertMatches(config, stored);
+        Assert.True(stored!.RunwayConfigurationChosen);
     }
 
     [Fact]
