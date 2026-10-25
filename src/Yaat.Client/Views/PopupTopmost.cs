@@ -31,7 +31,12 @@ public static class PopupTopmost
         Popup.IsOpenProperty.Changed.AddClassHandler<Popup>(
             (popup, e) =>
             {
-                if (e.GetNewValue<bool>())
+                if (!e.GetNewValue<bool>())
+                {
+                    return;
+                }
+
+                if (!AutomationGate.SuppressActivation)
                 {
                     popup.Topmost = true;
                 }

@@ -37,6 +37,7 @@ public partial class AutomationModeSourceTests
     [
         "src/Yaat.Client.Core/Views/WindowGeometryHelper.cs::SetTopmost",
         "src/Yaat.Client.Core/Views/WindowGroupRaiser.cs::RaiseAll",
+        "src/Yaat.Client/Views/PopupTopmost.cs::Register",
     ];
 
     // "relative/path.cs::Member" for each member allowed to call Window.ShowDialog behind the gate.
