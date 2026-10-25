@@ -754,6 +754,28 @@ The synthetic `room:<roomId>` session `GetSessions` offers a Tower Cab 3D connec
 **Tower Cab member**:
 A Tower Cab 3D connection listed in Room Members (`ClientKind.TowerCab`, keyed by its CRC client id): it never counts toward attendance or OpenPositions, is never persisted, and a kick of its CID removes it with the CID's other connections.
 
+## CRC driver hook
+
+The startup hook in the private yaat-server repo that lets the client-driver MCP drive CRC with no real input; detail in yaat-server `docs/crc-driver-hook.md`.
+
+**Breach**:
+The state the hook enters when its fence finds CRC connected to a non-loopback environment: it brings every CRC window to the front and refuses every verb except `hello`, `status`, `profiles` and `dialog_list` (invariant 3 in yaat-server `docs/crc-driver-hook.md`).
+
+**CBT veto**:
+The hook's `WH_CBT` procedure on CRC's main thread returning 1 for `HCBT_ACTIVATE`, so no CRC window ever becomes the active or foreground window; it is what holds, because WPF resets `WS_EX_NOACTIVATE` after a window is created (yaat-server `docs/crc-driver-hook.md`, invariant 3).
+
+**DCB**:
+The STARS Display Control Bar, the button strip around the scope; the hook refuses a `click` inside it and allows no DCB F-keys, since they move the real cursor (yaat-server `docs/crc-driver-hook.md`, invariant 4).
+
+**Epoch** (of the CRC driver hook):
+The session, network client, hub connection and connected host CRC is on; when it changes, the hook sends Escape to every InputManager and closes the menus and dialogs it opened (yaat-server `docs/crc-driver-hook.md`, invariant 10).
+
+**Fence**:
+The check, `Fence.Check`, run in the same dispatcher operation as each input, that CRC is connected to a loopback environment; it fails closed, and a non-loopback find is a breach (yaat-server `docs/crc-driver-hook.md`, invariants 1 and 2).
+
+**Slew**:
+Selecting an ASDE-X target as clicking its icon does; `asdex_slew` calls `InputManager.HandleIconSlew` directly because the real hover reads the owner's cursor (yaat-server `docs/crc-driver-hook.md`).
+
 ## Client settings
 
 **Field advisory flyout**:
