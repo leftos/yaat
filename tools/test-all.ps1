@@ -1,7 +1,9 @@
 #!/usr/bin/env pwsh
 # Builds and runs the full test suites for both yaat and yaat-server repos.
 # The two builds run in sequence; the two test suites then run in parallel, and each
-# suite's output is printed whole, in a fixed order, once both have finished.
+# suite's output is printed whole, in a fixed order, once both have finished. While they
+# run, each assembly's verdict and each failed test print as they happen, with a heartbeat
+# every minute naming the assemblies still running.
 # Usage:
 #   pwsh tools/test-all.ps1                                        # Release (default — ~30% faster on Sim)
 #   pwsh tools/test-all.ps1 -Full                                  # Also run the heavy Nightly + PathfinderGrid sweeps
@@ -131,6 +133,9 @@ function Stop-OnBuildFailure {
 # YAAT_APPDATA_DIR would trade that rare, self-healing window for a cold cache on every run.
 function Start-TestJob {
     param([string]$WorkDir, [string]$Command, [string]$LogPath)
+    # Empty the log before the job starts, so the progress reader never picks up a previous
+    # run's lines in the moment before the job opens the file.
+    [System.IO.File]::WriteAllBytes($LogPath, [byte[]]@())
     Start-Job -ScriptBlock {
         param($workDir, $command, $outputLogPath)
         Set-Location $workDir
@@ -152,6 +157,105 @@ function Start-TestJob {
             $writer.Dispose()
         }
     } -ArgumentList $WorkDir, $Command, $LogPath
+}
+
+# Returns the whole lines a suite's job has written to its log since the last call. A line the
+# job is still writing stays for the next call.
+function Read-NewLogLines {
+    param([hashtable]$Suite)
+    if (-not (Test-Path $Suite.LogPath)) {
+        return @()
+    }
+    $stream = [System.IO.File]::Open($Suite.LogPath, 'Open', 'Read', 'ReadWrite')
+    try {
+        $count = [int]($stream.Length - $Suite.Offset)
+        if ($count -le 0) {
+            return @()
+        }
+        $bytes = [byte[]]::new($count)
+        $null = $stream.Seek($Suite.Offset, 'Begin')
+        $stream.ReadExactly($bytes, 0, $count)
+    } finally {
+        $stream.Dispose()
+    }
+    $end = [Array]::LastIndexOf($bytes, [byte]10)
+    if ($end -lt 0) {
+        return @()
+    }
+    $Suite.Offset += $end + 1
+    return [System.Text.Encoding]::UTF8.GetString($bytes, 0, $end).Split("`n")
+}
+
+function Format-Elapsed {
+    param([TimeSpan]$Elapsed)
+    return '[{0:00}:{1:00}]' -f [int][Math]::Floor($Elapsed.TotalMinutes), $Elapsed.Seconds
+}
+
+# Prints the progress a log line carries: an assembly's verdict, or a failed test. An assembly's
+# `Running tests from` line only marks it running, for the heartbeat.
+function Write-ProgressLine {
+    param([hashtable]$Suite, [string]$Line, [TimeSpan]$Elapsed)
+    $stamp = Format-Elapsed $Elapsed
+    if ($Line -match '^Running tests from (?<dll>.+?\.dll) \(') {
+        $null = $Suite.Running.Add([System.IO.Path]::GetFileNameWithoutExtension($Matches.dll))
+    } elseif ($Line -match '^(?<dll>\S.*?\.dll) \([^)]*\) (?<verdict>.+?) \((?<time>[^()]+)\)$') {
+        $verdict = $Matches.verdict
+        $time = $Matches.time
+        $assembly = [System.IO.Path]::GetFileNameWithoutExtension($Matches.dll)
+        $null = $Suite.Running.Remove($assembly)
+        $color = if ($verdict -eq 'passed') { 'Green' } else { 'Red' }
+        Write-Host "$stamp [$($Suite.Name)] $assembly $verdict ($time)" -ForegroundColor $color
+    } elseif ($Line -match '^failed (?<test>.+) \((?<time>[^()]+)\)$') {
+        Write-Host "$stamp [$($Suite.Name)] failed $($Matches.test) ($($Matches.time))" -ForegroundColor Red
+    }
+}
+
+function Write-Heartbeat {
+    param([hashtable[]]$Suites, [TimeSpan]$Elapsed)
+    $parts = @(foreach ($suite in $Suites) {
+            if ($suite.Running.Count -gt 0) {
+                "$($suite.Name): $(@($suite.Running | Sort-Object) -join ', ')"
+            }
+        })
+    $state = if ($parts.Count -gt 0) { $parts -join '; ' } else { 'no assembly has started yet' }
+    Write-Host "$(Format-Elapsed $Elapsed) still running - $state" -ForegroundColor DarkGray
+}
+
+# Waits for every suite's job, following each log as it grows.
+function Wait-TestJobs {
+    param([hashtable[]]$Suites)
+    $jobs = @($Suites | ForEach-Object { $_.Job })
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $nextHeartbeat = 60
+    while ($true) {
+        $null = Wait-Job -Job $jobs -Timeout 2
+        # The state is read before the logs: a job closes its log before it ends, so the pass
+        # that sees every job finished also reads every line they wrote.
+        $finished = @($jobs | Where-Object { $_.State -in 'Completed', 'Failed', 'Stopped' }).Count -eq $jobs.Count
+        foreach ($suite in $Suites) {
+            foreach ($line in (Read-NewLogLines $suite)) {
+                Write-ProgressLine $suite $line $clock.Elapsed
+            }
+        }
+        if ($finished) {
+            return
+        }
+        if ($clock.Elapsed.TotalSeconds -ge $nextHeartbeat) {
+            Write-Heartbeat $Suites $clock.Elapsed
+            $nextHeartbeat += 60
+        }
+    }
+}
+
+function New-Suite {
+    param([string]$Name, $Job, [string]$LogPath)
+    return @{
+        Name    = $Name
+        Job     = $Job
+        LogPath = $LogPath
+        Offset  = 0L
+        Running = [System.Collections.Generic.HashSet[string]]::new()
+    }
 }
 
 # Prints one finished job's captured output and folds its result into $script:failed.
@@ -231,7 +335,7 @@ $null = New-Item -ItemType Directory -Path (Join-Path $yaatDir '.tmp') -Force
 $yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter" -LogPath $yaatLogPath
 $serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $serverSimArg $testFilter" -LogPath $serverLogPath
 
-$null = Wait-Job -Job $yaatTests, $serverTests
+Wait-TestJobs @((New-Suite 'yaat' $yaatTests $yaatLogPath), (New-Suite 'server' $serverTests $serverLogPath))
 
 Complete-TestJob 'Test yaat' $yaatTests
 Complete-TestJob 'Test yaat-server' $serverTests
