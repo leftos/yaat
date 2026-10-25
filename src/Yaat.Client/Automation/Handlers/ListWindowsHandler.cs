@@ -1,6 +1,7 @@
 // Derived from Zafiro.Avalonia.Mcp (https://github.com/SuperJMN/Zafiro.Avalonia.Mcp), MIT License,
 // Copyright (c) 2026 José Manuel Nieto. Modified for YAAT.
 
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
@@ -12,11 +13,15 @@ namespace Yaat.Client.Automation.Handlers;
 
 /// <summary>
 /// <c>list_windows</c>: every root the registry reports (the host's windows and the windows they own), plus the popups
-/// open in each window's overlay layer, each with its stable node id, its owner's and its native window handle. The host runs only where popups
-/// are overlay popups (automation mode on Windows), so there are no popup windows to list.
+/// open in each window's overlay layer and the in-window overlays visible on screen, each with its stable node id, its
+/// owner's and its native window handle. The host runs only where popups are overlay popups (automation mode on Windows),
+/// so there are no popup windows to list.
 /// </summary>
 public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
 {
+    /// <summary>The style class an in-window overlay's root <see cref="Border"/> carries, so <c>list_windows</c> lists it as a row.</summary>
+    public const string InWindowOverlayClass = "window-overlay";
+
     public string Method => ProtocolMethods.ListWindows;
 
     public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken) =>
@@ -38,6 +43,7 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
         {
             entries.Add(Describe(root));
             AddOverlayPopups(root, entries);
+            AddInWindowOverlays(root, entries);
         }
 
         return entries;
@@ -112,6 +118,53 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
                     bounds,
                     IsActive: false,
                     host.IsVisible,
+                    Hwnd: 0
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// The overlays a window draws inside itself — a modal prompt or progress panel in its own visual tree — as rows of their
+    /// own, so a client can see one is up and root <c>get_tree</c> at its controls. Only a <see cref="Border"/> carrying
+    /// <see cref="InWindowOverlayClass"/> that is visible on screen is listed.
+    /// </summary>
+    private void AddInWindowOverlays(TopLevel root, List<WindowInfo> entries)
+    {
+        if (root is not Window window)
+        {
+            return;
+        }
+
+        int ownerId = registry.GetOrRegister(window);
+        foreach (Border border in window.GetVisualDescendants().OfType<Border>())
+        {
+            if (!(border.Classes.Contains(InWindowOverlayClass)) || !(border.IsVisible) || !(border.IsEffectivelyVisible))
+            {
+                continue;
+            }
+
+            // The overlay is attached to the window during the walk, so the translation succeeds; the fallback covers a border detached mid-walk.
+            BoundsInfo bounds =
+                NodeInfoBuilder.GetWindowBounds(border)
+                ?? new BoundsInfo
+                {
+                    X = border.Bounds.X,
+                    Y = border.Bounds.Y,
+                    Width = border.Bounds.Width,
+                    Height = border.Bounds.Height,
+                };
+            string? title = AutomationProperties.GetName(border);
+            entries.Add(
+                new WindowInfo(
+                    registry.GetOrRegister(border),
+                    string.IsNullOrEmpty(title) ? null : title,
+                    border.GetType().Name,
+                    IsPopup: true,
+                    ownerId,
+                    bounds,
+                    IsActive: false,
+                    IsVisible: true,
                     Hwnd: 0
                 )
             );

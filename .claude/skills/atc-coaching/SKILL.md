@@ -35,7 +35,7 @@ The feature pair is `X:\dev\yaat.wt\feat-controller-ai-coaching\{yaat,yaat-serve
 5. Call these app tools in order: `connect("http://localhost:5130")`, then `create_room("ZOA")`, then `set_solo(true)`. Solo goes on before the scenario loads, so the load sets the room up for a solo student.
 6. Load the scenario: Scenario › Load Scenario › Local Files, its only item, then Load. A session-setup prompt may follow, asking for active runways or the positions the student works.
 
-   The prompt is an overlay inside MainWindow, not a window of its own. `list_windows` does not show it, so find its buttons with `find_elements` under `MainWindow`. Answer it as the trainer chose.
+   While it shows, `list_windows` lists it as a popup row titled `Session setup`; find its buttons with `find_elements` under that row. Answer it as the trainer chose.
 7. Confirm the student position with `get_airport_context("OAK")`: `position.callsign` is `OAK_GND`, and `solo.enabled` is true. The scenario must not set `SoloRpoCommandsAllowed`, which would let solo accept the RPO-only forms; check the scenario file before loading it.
 8. Select the Ground View tab. Call `center_ground("OAK", 4)` (zoom 1 shows the whole field too small to work), then `screenshot` the ground view, so the owner and Claude start from the same picture.
 9. Call `arm_pause_triggers(pilotCalls: true, warnings: true, newAircraft: true, groundStops: true, heartbeatSeconds: 0)`. Start the session log (below).

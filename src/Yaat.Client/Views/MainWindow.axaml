@@ -697,6 +697,9 @@
 
     <!-- Delete-all confirmation overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="UnloadScenarioOverlay"
+      AutomationProperties.Name="Delete All Aircraft?"
       IsVisible="{Binding ShowUnloadScenarioConfirmation}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -719,6 +722,9 @@
 
     <!-- Scenario restart confirmation overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="RestartScenarioOverlay"
+      AutomationProperties.Name="Restart Scenario?"
       IsVisible="{Binding ShowRestartScenarioConfirmation}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -745,6 +751,9 @@
 
     <!-- Surface temp data reset confirmation overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="ResetSurfaceTempDataOverlay"
+      AutomationProperties.Name="Reset ASDE-X / SAID Temp Data?"
       IsVisible="{Binding ShowResetSurfaceTempDataConfirmation}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -771,6 +780,9 @@
 
     <!-- Scenario switch confirmation overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="ScenarioSwitchOverlay"
+      AutomationProperties.Name="Replace Scenario?"
       IsVisible="{Binding
                 ShowScenarioSwitchConfirmation}"
       Background="#CC000000"
@@ -799,6 +811,9 @@
 
     <!-- Scenario setup overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="ScenarioSetupOverlay"
+      AutomationProperties.Name="Scenario Setup"
       IsVisible="{Binding ShowScenarioSetup}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -905,6 +920,9 @@
 
     <!-- Session setup overlay: the loading mentor's active runways (sent as ARWY per airport) and the solo student's worked positions -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="SessionSetupOverlay"
+      AutomationProperties.Name="Session setup"
       IsVisible="{Binding ShowSessionSetup}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -986,6 +1004,9 @@
 
     <!-- Room list overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="RoomListOverlay"
+      AutomationProperties.Name="Training Rooms"
       IsVisible="{Binding ShowRoomList}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -1064,6 +1085,9 @@
 
     <!-- Room Members panel overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="RoomMembersOverlay"
+      AutomationProperties.Name="Room Members"
       IsVisible="{Binding ShowRoomMembersPanel}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -1233,6 +1257,9 @@
 
     <!-- RPO waiting overlay: a non-mentor is connected but not yet pulled into a room -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="RpoWaitingOverlay"
+      AutomationProperties.Name="Waiting for room assignment"
       IsVisible="{Binding ShowRpoWaiting}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -1257,6 +1284,9 @@
 
     <!-- Export recording overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="ExportRecordingOverlay"
+      AutomationProperties.Name="{Binding ExportingStatusText}"
       IsVisible="{Binding IsExportingRecording}"
       Background="#CC000000"
       HorizontalAlignment="Center"
@@ -1273,6 +1303,9 @@
 
     <!-- Scenario load overlay -->
     <Border
+      Classes="window-overlay"
+      AutomationProperties.AutomationId="ScenarioLoadOverlay"
+      AutomationProperties.Name="{Binding LoadOverlay.Title}"
       IsVisible="{Binding LoadOverlay.IsOpen}"
       Background="#CC000000"
       HorizontalAlignment="Center"

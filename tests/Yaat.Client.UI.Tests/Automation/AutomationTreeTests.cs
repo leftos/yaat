@@ -59,23 +59,6 @@ public sealed class AutomationTreeTests : AutomationHostFixture
             )
         );
 
-    private static IEnumerable<JsonElement> Flatten(JsonElement node)
-    {
-        yield return node;
-        if (!node.TryGetProperty("children", out JsonElement children))
-        {
-            yield break;
-        }
-
-        foreach (JsonElement child in children.EnumerateArray())
-        {
-            foreach (JsonElement descendant in Flatten(child))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
     private static IEnumerable<JsonElement> AllNodes(JsonElement roots) => roots.EnumerateArray().SelectMany(Flatten);
 
     private static bool HasName(JsonElement node, string name) => node.TryGetProperty("name", out JsonElement value) && (value.GetString() == name);
