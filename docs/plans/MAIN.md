@@ -53,6 +53,7 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
 - [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
@@ -76,6 +77,8 @@
   - [ ] YAAT-1192 Send ASDE-X safety-logic alert texts as vNAS does (RWY OCCUPIED, RWY CLOSED, RWY CLOSED, GO AROUND)
   - [ ] YAAT-1193 Reconcile YAAT's RWY INCURSION alert with vNAS, which raises RWY OCCUPIED at threshold crossing instead
   - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
+  - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
+  - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [/] YAAT-1191 Seed each ASDE-X facility's runway configuration at scenario load instead of CRC's LIMITED default · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
@@ -525,7 +528,7 @@
 - [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext+1
 - [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
 - [ ] YAAT-1176 Stop stop_process killing the launched client's whole process tree
-- [ ] YAAT-1196 Skip the CRC driver hook's PipeServerTests on routed gate runs (GATE_BOX_JOB)
+- [ ] YAAT-1203 Rename a linked Discord thread when its GitHub issue title changes · release vNext
 
 ## Backlog
 
@@ -779,3 +782,8 @@
 - [ ] YAAT-1161 Lock CapturingHubCallerClients.Sends in the server test harness (same race as YAAT-1160)
 - [ ] YAAT-1186 CRC driver hook: register windows a menu_pick opens after the 250 ms diff
 - [ ] YAAT-1187 CRC driver: bound crc_launch's start-up wait and check the foreground before the epoch Escape
+
+## No project
+
+- [ ] YAAT-1197 Simulated tower: remaining separation rules and crossing approvals
+- [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request
