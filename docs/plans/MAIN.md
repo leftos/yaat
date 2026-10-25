@@ -9,6 +9,12 @@
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
+  - [/] YAAT-1212 Read the tower-cab videomap's two-point segments into the layout parse and the precompute key · release vNext
+  - [ ] YAAT-1214 Place unpaired hold-short points by the reviewed standoff rule (ILS category, elevation, angled taxiways) · release vNext
+  - [ ] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
+  - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
+  - [ ] YAAT-1217 Fetch each airport's tower-cab videomap on yaat-server and feed it to the layout parse · release vNext
+  - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
 
 ## Controller-AI coaching
 
@@ -57,7 +63,6 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -437,9 +442,7 @@
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
-- [ ] YAAT-1180 Tower calls reach a ground-position solo student when tower is unstaffed · release vNext
 - [ ] YAAT-1084 Clear the approach clearance on a bare go-around that re-enters the traffic pattern
-- [ ] YAAT-1181 Solo pilots voice RPO-only refusals as an 'unable' readback · release vNext
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
 - [ ] YAAT-1085 Climb a pattern go-around with a heading to pattern altitude on an instrument approach
@@ -789,6 +792,7 @@
 - [ ] YAAT-1209 Pin one pnpm version for the Discord bot so local pnpm 12 installs as CI does
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
+- [ ] YAAT-1218 Takeoff clearance warns about traffic holding in position behind the departure, not only ahead
 
 ## No project
 
