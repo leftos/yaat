@@ -165,6 +165,28 @@ internal static class RunwayCrossingDetector
         };
     }
 
+    /// <summary>
+    /// Marks every hold-short node of <paramref name="layout"/> whose runway is in the layout as a short bar or its runway's
+    /// hold line (<see cref="GroundNode.IsShortBar"/>), by its cross-track from the runway centerline. Runs last in the build,
+    /// once fillets have settled every node's position.
+    /// </summary>
+    internal static void MarkShortBars(AirportGroundLayout layout)
+    {
+        foreach (GroundNode node in layout.Nodes.Values)
+        {
+            if (
+                (node.Type != GroundNodeType.RunwayHoldShort)
+                || (node.RunwayId is not { } id)
+                || (layout.Runways.FirstOrDefault(candidate => candidate.Id.Equals(id)) is not { } runway)
+            )
+            {
+                continue;
+            }
+
+            node.IsShortBar = !AirportGroundLayout.IsAtHoldingDistanceByCrossTrack(BuildRunwayRectangle(runway), node);
+        }
+    }
+
     internal static bool IsOnRunway(double lat, double lon, in RunwayRectangle rect)
     {
         double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.TrueHeading));

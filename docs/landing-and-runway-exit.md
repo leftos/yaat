@@ -326,7 +326,7 @@ When an exit is found, it builds a **virtual segment**: a synthetic route segmen
 
 ### Exits whose bar sits inside the holding distance
 
-An exit is clear of the runway only when the whole aircraft is past the holding position marking, even if that means entering another taxiway (AIM 4-3-21.b, 2-3-5.a.1; 7110.65 §3-10-9.b NOTE 1). "Inside the holding distance" means short of `GroundRunway.HoldShortDistanceFt ?? HoldShortDistanceForWidth` by more than `AirportGroundLayout.HoldingDistanceToleranceFt` (5 ft); `AirportGroundLayout.IsAtRunwayHoldingDistance` is the one test. `FindAdjacentHoldShort` handles three shapes:
+An exit is clear of the runway only when the whole aircraft is past the holding position marking, even if that means entering another taxiway (AIM 4-3-21.b, 2-3-5.a.1; 7110.65 §3-10-9.b NOTE 1). "Inside the holding distance" means short of `GroundRunway.HoldShortDistanceFt ?? HoldShortDistanceForWidth` by more than `AirportGroundLayout.HoldingDistanceToleranceFt` (5 ft); `AirportGroundLayout.IsAtRunwayHoldingDistance` is the one test; it reads the bar's `GroundNode.IsShortBar` flag, set when the layout is built, and measures the cross-track only when the flag is null ([ground/hold-short-placement.md](ground/hold-short-placement.md)). `FindAdjacentHoldShort` handles three shapes:
 
 - **A branch that dead-ends at a taxiway carrying the runway's bar** (OAK P at J, MIA T8 at S — their own fallback bars are dropped, see `docs/ground/hold-short-placement.md`): `HopToJoiningBar` walks outward onto the joining taxiway to that bar — a shortest-path search keyed on (length, node id), each step at least 1 ft farther from the centerline, capped at the holding distance, honouring one-way edges.
 
