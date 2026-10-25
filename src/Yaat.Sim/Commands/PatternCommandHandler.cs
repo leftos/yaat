@@ -4531,7 +4531,7 @@ internal static class PatternCommandHandler
     {
         if (ctx.RefusesRpoOnly)
         {
-            return new CommandResult(false, "CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training");
+            return CommandDispatcher.OperatorGuidanceRefusal("CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training");
         }
 
         if (aircraft.Phases is null)

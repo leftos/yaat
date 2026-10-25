@@ -21,12 +21,12 @@ namespace Yaat.Sim.Commands;
 /// <see cref="NoDispatcherArm"/> marks the dispatcher fallback (a command that reached
 /// <c>ApplyCommand</c> with no handler arm in its current context) so callers can branch on the case
 /// without parsing the user-facing <see cref="Message"/>.
-/// </summary>
-/// <summary>
-/// Outcome of a dispatch. <paramref name="EffectiveCommand"/> is set when a handler applied a rewritten
-/// form of the command — a TAXI whose unreachable gate lead-out lane was dropped — so the solo pilot
-/// reads back the route it will actually taxi (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>)
-/// instead of the pavement the controller named; null when the command applied as issued.
+/// <para>
+/// <paramref name="EffectiveCommand"/> is set when a handler applied a rewritten form of the command — a
+/// TAXI whose unreachable gate lead-out lane was dropped — so the solo pilot reads back the route it will
+/// actually taxi (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>) instead of the pavement the
+/// controller named; null when the command applied as issued.
+/// </para>
 /// </summary>
 public record CommandResult(
     bool Success,
@@ -53,6 +53,12 @@ public record CommandResult(
     /// over <see cref="Message"/>; null when the generic form applies.
     /// </summary>
     public PilotSpeechText? PilotUnable { get; init; }
+
+    /// <summary>
+    /// True for a refusal about YAAT's own command forms (an RPO-only command, or a bare RFIS/RTIS, refused in solo
+    /// training): operator guidance shown in the terminal only, which no pilot says on frequency, so no "unable" is queued.
+    /// </summary>
+    public bool IsOperatorGuidance { get; init; }
 }
 
 /// <summary>
@@ -3386,6 +3392,11 @@ public static class CommandDispatcher
 
     internal static CommandResult Ok(string message) => new(true, message);
 
+    /// <summary>
+    /// A refusal about YAAT's own command forms: shown in the terminal only, never voiced as a pilot "unable".
+    /// </summary>
+    internal static CommandResult OperatorGuidanceRefusal(string message) => new(false, message) { IsOperatorGuidance = true };
+
     private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
@@ -4403,7 +4414,7 @@ public static class CommandDispatcher
     /// The refusal, or null when the command may proceed.
     /// </summary>
     private static CommandResult? ForcedFollowRefusal(DispatchContext ctx) =>
-        ctx.RefusesRpoOnly ? new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training") : null;
+        ctx.RefusesRpoOnly ? OperatorGuidanceRefusal("FOLLOWF is RPO-only; use RTIS/RTISF in solo training") : null;
 
     /// <summary>
     /// The traffic a FOLLOW names: its explicit callsign always wins; a bare FOLLOWF then folds in the still-pending RTIS

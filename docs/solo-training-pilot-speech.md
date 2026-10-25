@@ -309,13 +309,9 @@ A runway-spawn CTO-preset departure (or a released held departure) handed to a n
 
 ## "Unable" routing on rejected commands
 
-`CommandResult` now carries the rejected `CanonicalCommandType`:
+`CommandResult` carries the rejected `CanonicalCommandType` (`RejectedCommandType`). `CommandDispatcher.WithRejectedCommand` stamps the type onto every failure path before it returns. `SimulationEngine.QueueSoloUnableIfNeeded` then checks `CommandRegistry.Get(rejectedType)?.ProducesPilotUnable` and, if true, queues the handler's own `CommandResult.PilotUnable` or else `PilotResponder.BuildUnable(aircraft, result.Message)`.
 
-```csharp
-public record CommandResult(bool Success, string? Message = null, CanonicalCommandType? RejectedCommandType = null);
-```
-
-`CommandDispatcher.WithRejectedCommand` stamps the type onto every failure path before it returns. `SimulationEngine.QueueSoloUnableIfNeeded` then checks `CommandRegistry.Get(rejectedType)?.ProducesPilotUnable` and queues `PilotResponder.BuildUnable(aircraft, result.Message)` if true.
+A refusal about YAAT's own command forms is never voiced: the RPO-only commands refused in solo (FOLLOWF, CVAF, RFISF, RTISF, CLANDF) and a bare RFIS / RTIS are built with `CommandDispatcher.OperatorGuidanceRefusal`, which sets `CommandResult.IsOperatorGuidance`, and `QueueSoloUnableIfNeeded` returns before queuing anything. The student sees the terminal error only; no pilot says "unable, CLANDF is RPO-only", and the next readback is not queued behind one. A new solo-only refusal that tells the student which command form to use goes through the same factory.
 
 `ProducesPilotUnable` is set on each `CommandDefinition` and defaults from category:
 

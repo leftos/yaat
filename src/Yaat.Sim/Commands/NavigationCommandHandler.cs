@@ -1795,7 +1795,7 @@ internal static class NavigationCommandHandler
     {
         if (ctx.SoloTrainingMode)
         {
-            return new CommandResult(false, "Use RFIS <clock> <miles> in solo training");
+            return CommandDispatcher.OperatorGuidanceRefusal("Use RFIS <clock> <miles> in solo training");
         }
 
         return DispatchReportFieldInSightCore(aircraft, ctx);
@@ -1881,7 +1881,7 @@ internal static class NavigationCommandHandler
     {
         if (ctx.SoloTrainingMode)
         {
-            return new CommandResult(false, "Use RTIS <clock> <miles> <direction> <type> [altitude] in solo training");
+            return CommandDispatcher.OperatorGuidanceRefusal("Use RTIS <clock> <miles> <direction> <type> [altitude] in solo training");
         }
 
         string? normalizedCallsign = string.IsNullOrWhiteSpace(targetCallsign) ? null : targetCallsign.Trim().ToUpperInvariant();
@@ -2208,7 +2208,7 @@ internal static class NavigationCommandHandler
     {
         if (ctx.RefusesRpoOnly)
         {
-            return new CommandResult(false, "RFISF is RPO-only; use RFIS <clock> <miles> in solo training");
+            return CommandDispatcher.OperatorGuidanceRefusal("RFISF is RPO-only; use RFIS <clock> <miles> in solo training");
         }
 
         aircraft.Approach.HasReportedFieldInSight = true;
@@ -2226,7 +2226,9 @@ internal static class NavigationCommandHandler
     {
         if (ctx.RefusesRpoOnly)
         {
-            return new CommandResult(false, "RTISF is RPO-only; use RTIS <clock> <miles> <direction> <type> <altitude> in solo training");
+            return CommandDispatcher.OperatorGuidanceRefusal(
+                "RTISF is RPO-only; use RTIS <clock> <miles> <direction> <type> <altitude> in solo training"
+            );
         }
 
         aircraft.Approach.HasReportedTrafficInSight = true;

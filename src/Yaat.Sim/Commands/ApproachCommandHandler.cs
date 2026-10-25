@@ -1046,7 +1046,7 @@ public static class ApproachCommandHandler
         {
             if (ctx.RefusesRpoOnly)
             {
-                return new CommandResult(false, "CVAF is RPO-only; use RFIS/RTIS in solo training");
+                return CommandDispatcher.OperatorGuidanceRefusal("CVAF is RPO-only; use RFIS/RTIS in solo training");
             }
             if (cmd.FollowCallsign is not null)
             {

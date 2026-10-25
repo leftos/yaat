@@ -33,15 +33,38 @@ public class SoloRpoCommandsAllowedTests(ITestOutputHelper output)
             { "CLANDF", "CVAF 30" },
         };
 
-    public static TheoryData<string, string?, string> RpoOnlyRefusals =>
-        new()
+    private static readonly (string Command, string? Prep, string Refusal)[] RpoOnlyRefusalRows =
+    [
+        ("FOLLOWF LEAD1", null, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training"),
+        ("CVAF 30", null, "CVAF is RPO-only; use RFIS/RTIS in solo training"),
+        ("RFISF", null, "RFISF is RPO-only; use RFIS <clock> <miles> in solo training"),
+        ("RTISF LEAD1", null, "RTISF is RPO-only; use RTIS <clock> <miles> <direction> <type> <altitude> in solo training"),
+        ("CLANDF", "CVAF 30", "CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training"),
+    ];
+
+    public static TheoryData<string, string?, string> RpoOnlyRefusals => RefusalData(RpoOnlyRefusalRows);
+
+    /// <summary>
+    /// Every refusal YAAT gives about its own command forms in solo training — the RPO-only commands plus the bare
+    /// RFIS/RTIS a solo student must use instead — which is operator guidance, never a pilot's "unable".
+    /// </summary>
+    public static TheoryData<string, string?, string> SoloFormRefusals =>
+        RefusalData([
+            .. RpoOnlyRefusalRows,
+            ("RFIS", null, "Use RFIS <clock> <miles> in solo training"),
+            ("RTIS LEAD1", null, "Use RTIS <clock> <miles> <direction> <type> [altitude] in solo training"),
+        ]);
+
+    private static TheoryData<string, string?, string> RefusalData((string Command, string? Prep, string Refusal)[] rows)
+    {
+        var data = new TheoryData<string, string?, string>();
+        foreach ((string Command, string? Prep, string Refusal) row in rows)
         {
-            { "FOLLOWF LEAD1", null, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training" },
-            { "CVAF 30", null, "CVAF is RPO-only; use RFIS/RTIS in solo training" },
-            { "RFISF", null, "RFISF is RPO-only; use RFIS <clock> <miles> in solo training" },
-            { "RTISF LEAD1", null, "RTISF is RPO-only; use RTIS <clock> <miles> <direction> <type> <altitude> in solo training" },
-            { "CLANDF", "CVAF 30", "CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training" },
-        };
+            data.Add(row.Command, row.Prep, row.Refusal);
+        }
+
+        return data;
+    }
 
     [Theory]
     [MemberData(nameof(RpoOnlyCommands))]
@@ -72,6 +95,51 @@ public class SoloRpoCommandsAllowedTests(ITestOutputHelper output)
 
         Assert.False(result.Success, $"'{command}' must be refused in solo without the flag");
         Assert.Contains(refusal, result.Message);
+    }
+
+    [Theory]
+    [MemberData(nameof(SoloFormRefusals))]
+    public void Solo_WithoutFlag_RpoOnlyRefusal_QueuesNoPilotTransmission(string command, string? rpoPrep, string refusal)
+    {
+        SimulationEngine? engine = BuildEngineOnFinal(rpoPrep, soloRpoCommandsAllowed: false);
+        if (engine is null)
+        {
+            return;
+        }
+
+        Assert.True(engine.Scenario!.PilotContacts.AnyAnswering, "the solo student must be answering the pilots");
+        AircraftState subject = engine.World.GetSnapshot().Single(a => a.Callsign == Subject);
+        subject.PendingPilotTransmissions.Clear();
+
+        CommandResult result = engine.SendCommand(Subject, command);
+
+        Assert.False(result.Success, $"'{command}' must be refused in solo without the flag");
+        Assert.Contains(refusal, result.Message);
+        Assert.True(result.IsOperatorGuidance, $"'{command}' is operator guidance, not something a pilot can be unable to do");
+        Assert.Empty(subject.PendingPilotTransmissions);
+    }
+
+    [Fact]
+    public void Solo_RefusedClandf_ThenClandReadbackIsTheOnlyTransmission()
+    {
+        SimulationEngine? engine = BuildEngineOnFinal("CVAF 30", soloRpoCommandsAllowed: false);
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState subject = engine.World.GetSnapshot().Single(a => a.Callsign == Subject);
+        subject.PendingPilotTransmissions.Clear();
+
+        CommandResult forced = engine.SendCommand(Subject, "CLANDF");
+        Assert.False(forced.Success, $"CLANDF must be refused in solo without the flag, got: {forced.Message}");
+
+        CommandResult cleared = engine.SendCommand(Subject, "CLAND 30");
+        Assert.True(cleared.Success, $"CLAND 30 must be accepted in solo, got: {cleared.Message}");
+
+        Yaat.Sim.Pilot.PilotTransmission transmission = Assert.Single(subject.PendingPilotTransmissions);
+        Assert.Equal(Yaat.Sim.Pilot.PilotTransmissionKind.Readback, transmission.Kind);
+        output.WriteLine($"CLAND readback: {transmission.Text}");
     }
 
     [Fact]

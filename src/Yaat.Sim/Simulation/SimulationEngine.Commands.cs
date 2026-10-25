@@ -304,6 +304,11 @@ public sealed partial class SimulationEngine
 
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
     {
+        if (result.IsOperatorGuidance)
+        {
+            return;
+        }
+
         if (result.RejectedCommandType is not { } rejectedType)
         {
             return;
