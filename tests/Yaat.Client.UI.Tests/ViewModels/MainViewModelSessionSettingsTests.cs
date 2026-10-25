@@ -132,9 +132,7 @@ public class MainViewModelSessionSettingsTests
                 Warnings: [],
                 AllAircraft: [],
                 ActiveRunways: [],
-                ActiveRunwaysPrefill: [],
-                ActiveRunwaysPromptNeeded: false,
-                ActiveRunwaysAssigned: [],
+                SessionSetup: null,
                 ToweredAirports: [],
                 AutoDeleteOverride: null,
                 EffectiveAutoDeleteMode: "Parked",
@@ -193,9 +191,7 @@ public class MainViewModelSessionSettingsTests
                 Warnings: [],
                 AllAircraft: [],
                 ActiveRunways: [],
-                ActiveRunwaysPrefill: [],
-                ActiveRunwaysPromptNeeded: false,
-                ActiveRunwaysAssigned: [],
+                SessionSetup: null,
                 ToweredAirports: [],
                 DepartureAutoDeleteDistanceNm: 45
             )

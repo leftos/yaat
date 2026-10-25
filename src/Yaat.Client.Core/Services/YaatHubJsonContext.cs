@@ -91,6 +91,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(List<RestoredRoomInfoDto>))]
 [JsonSerializable(typeof(RestoredRoomInfoDto))]
 [JsonSerializable(typeof(LoadScenarioResultDto))]
+[JsonSerializable(typeof(SessionSetupPromptDto))]
 [JsonSerializable(typeof(ScenarioSummaryDto))]
 [JsonSerializable(typeof(ScenarioSummaryDto[]))]
 [JsonSerializable(typeof(ScenarioCatalogResponseDto))]

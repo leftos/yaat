@@ -15,7 +15,7 @@ namespace Yaat.Client.ViewModels;
 /// the join's <see cref="RoomStateDto"/>, a rewind or recording load's <see cref="RewindResultDto"/>,
 /// <see cref="ServerConnection.ActiveRunwaysChanged"/> and the restart's <see cref="ScenarioRestartedDto"/>) replaces it
 /// wholesale, so whichever arrives last wins; leaving the scenario clears it. The prompt opens only on the mentor's own
-/// load when the server asks (<see cref="LoadScenarioResultDto.ActiveRunwaysPromptNeeded"/>), never in a live session,
+/// load when the server asks (the active-runways section of <see cref="LoadScenarioResultDto.SessionSetup"/>), never in a live session,
 /// and answers with ordinary <c>ARWY</c> commands.
 /// </summary>
 public partial class MainViewModel
@@ -80,16 +80,17 @@ public partial class MainViewModel
     internal void OnActiveRunwaysChanged(ActiveRunwaysChangedDto dto) => Dispatcher.UIThread.Post(() => ApplyActiveRunways(dto.ByAirport));
 
     /// <summary>
-    /// The loader's own result: the room's list as loaded, and the prompt opened with the server's guess when the server
-    /// asks and this client is a mentor outside a live session; any earlier prompt closes otherwise.
+    /// The loader's own result: the room's list as loaded, and the prompt opened with the server's guess when the result's
+    /// session-setup prompt has an active-runways section and this client is a mentor outside a live session; any earlier
+    /// prompt closes otherwise.
     /// </summary>
     internal void ApplyLoadResultActiveRunways(LoadScenarioResultDto result)
     {
         ApplyActiveRunways(result.ActiveRunways);
         ApplyToweredAirports(result.ToweredAirports);
-        if (result.ActiveRunwaysPromptNeeded && (!IsNonMentor) && (!result.IsLiveSession))
+        if ((result.SessionSetup?.ActiveRunways is { } runways) && (!IsNonMentor) && (!result.IsLiveSession))
         {
-            OpenActiveRunwaysPrompt(result.PrimaryAirportId, result.ActiveRunwaysPrefill, result.ActiveRunwaysAssigned);
+            OpenActiveRunwaysPrompt(result.PrimaryAirportId, runways.Prefill, runways.Assigned);
         }
         else
         {

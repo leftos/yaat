@@ -47,9 +47,7 @@ public class MainViewModelActiveRunwaysTests
             AllAircraft: [],
             ActiveRunways: activeRunways,
             ToweredAirports: [],
-            ActiveRunwaysPrefill: prefill,
-            ActiveRunwaysPromptNeeded: promptNeeded,
-            ActiveRunwaysAssigned: [],
+            SessionSetup: promptNeeded ? new SessionSetupPromptDto(new ActiveRunwaysSetupDto(prefill, []), null) : null,
             IsLiveSession: false
         );
 

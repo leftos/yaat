@@ -51,6 +51,13 @@ public class MainViewModelActiveRunwaysPromptTests
 
     private static RecordingSender AcceptAll() => new(_ => new CommandResultDto(true, null));
 
+    /// <summary><paramref name="result"/> with its active-runways section's per-airport lines replaced by <paramref name="assigned"/>.</summary>
+    private static LoadScenarioResultDto WithAssigned(LoadScenarioResultDto result, Dictionary<string, RunwayUseCountsDto> assigned) =>
+        result with
+        {
+            SessionSetup = result.SessionSetup! with { ActiveRunways = result.SessionSetup.ActiveRunways! with { Assigned = assigned } },
+        };
+
     // --- Opening ---
 
     [AvaloniaFact]
@@ -137,10 +144,10 @@ public class MainViewModelActiveRunwaysPromptTests
     {
         MainViewModel vm = NewVm();
         vm.ApplyLoadResultActiveRunways(
-            MainViewModelActiveRunwaysTests.LoadResult([], Runways(("OAK", ["30"]), ("SFO", ["28R"]), ("SQL", ["D30"])), promptNeeded: true) with
-            {
-                ActiveRunwaysAssigned = new Dictionary<string, RunwayUseCountsDto> { ["SQL"] = new(1, 0, []), ["OAK"] = new(0, 2, ["30"]) },
-            }
+            WithAssigned(
+                MainViewModelActiveRunwaysTests.LoadResult([], Runways(("OAK", ["30"]), ("SFO", ["28R"]), ("SQL", ["D30"])), promptNeeded: true),
+                new Dictionary<string, RunwayUseCountsDto> { ["SQL"] = new(1, 0, []), ["OAK"] = new(0, 2, ["30"]) }
+            )
         );
 
         // OAK's generator deduces only its arrival end 30, which the server offers both ways: no guess note for OAK.
@@ -161,10 +168,10 @@ public class MainViewModelActiveRunwaysPromptTests
     {
         MainViewModel vm = NewVm();
         vm.ApplyLoadResultActiveRunways(
-            MainViewModelActiveRunwaysTests.LoadResult([], Runways(("OAK", ["28R"]), ("SFO", ["28R"])), promptNeeded: true) with
-            {
-                ActiveRunwaysAssigned = new Dictionary<string, RunwayUseCountsDto> { ["OAK"] = new(3, 0, []) },
-            }
+            WithAssigned(
+                MainViewModelActiveRunwaysTests.LoadResult([], Runways(("OAK", ["28R"]), ("SFO", ["28R"])), promptNeeded: true),
+                new Dictionary<string, RunwayUseCountsDto> { ["OAK"] = new(3, 0, []) }
+            )
         );
         var sender = new RecordingSender(command =>
             command.StartsWith("ARWY SFO", StringComparison.Ordinal) ? new CommandResultDto(false, "No") : new CommandResultDto(true, null)

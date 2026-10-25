@@ -88,16 +88,18 @@ public class HubJsonContractTests
     public void ConflictAlertsChangedDto_ResolvesThroughYaatHubJsonContext() =>
         Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(ConflictAlertsChangedDto)));
 
-    // The active-runways broadcast, the room-join field and the load result's prompt fields (the assigned-runway counts
-    // included), in the server's wire shape.
+    // The active-runways broadcast, the room-join field and the load result's session-setup prompt (both sections, the
+    // assigned-runway counts included) and lowest worked level, in the server's wire shape.
     [Fact]
     public void ActiveRunwaysShapes_DeserializeIntoClientRecords()
     {
         const string changedJson = """{"ByAirport":{"OAK":["D28L","A28R"],"SFO":["28R"]}}""";
         const string resultJson =
-            """{"Success":true,"Name":"OAK","ScenarioId":"s-1","Warnings":[],"AllAircraft":[],"Steps":[],"""
-            + """ "ActiveRunways":{},"ActiveRunwaysPrefill":{"OAK":["D30"]},"ActiveRunwaysPromptNeeded":true,"""
-            + """ "ActiveRunwaysAssigned":{"OAK":{"Departures":2,"Arrivals":1,"GeneratorArrivalRunways":["28R","30"]}}}""";
+            """{"Success":true,"Name":"OAK","ScenarioId":"s-1","Warnings":[],"AllAircraft":[],"Steps":[],"ActiveRunways":{},"""
+            + """ "SessionSetup":{"ActiveRunways":{"Prefill":{"OAK":["D30"]},"""
+            + """ "Assigned":{"OAK":{"Departures":2,"Arrivals":1,"GeneratorArrivalRunways":["28R","30"]}}},"""
+            + """ "WorkedPositions":{"Own":"GND","Prefill":"GND","Choices":["GND","DEL"]}},"""
+            + """ "StudentLowestWorkedLevel":"GND"}""";
         const string roomJson =
             """{"RoomId":"room-1","CreatorInitials":"CX","CreatorArtccId":"ZOA","Members":[],"AllAircraft":[],"""
             + """ "AircraftGenerators":[],"VfrArrivalGenerators":[],"OverflightGenerators":[],"Positions":[],"LoadingBy":null,"""
@@ -112,13 +114,54 @@ public class HubJsonContractTests
         Assert.Equal(["28R"], changed.ByAirport["SFO"]);
         Assert.NotNull(result);
         Assert.Empty(result.ActiveRunways);
-        Assert.Equal(["D30"], result.ActiveRunwaysPrefill["OAK"]);
-        Assert.True(result.ActiveRunwaysPromptNeeded);
-        RunwayUseCountsDto oak = result.ActiveRunwaysAssigned["OAK"];
+        ActiveRunwaysSetupDto? runways = result.SessionSetup?.ActiveRunways;
+        Assert.NotNull(runways);
+        Assert.Equal(["D30"], runways.Prefill["OAK"]);
+        RunwayUseCountsDto oak = runways.Assigned["OAK"];
         Assert.Equal((2, 1), (oak.Departures, oak.Arrivals));
         Assert.Equal(["28R", "30"], oak.GeneratorArrivalRunways);
+        WorkedPositionsSetupDto? positions = result.SessionSetup?.WorkedPositions;
+        Assert.NotNull(positions);
+        Assert.Equal(("GND", "GND"), (positions.Own, positions.Prefill));
+        Assert.Equal(["GND", "DEL"], positions.Choices);
+        Assert.Equal("GND", result.StudentLowestWorkedLevel);
         Assert.NotNull(room);
         Assert.Equal(["30"], room.ActiveRunways["OAK"]);
+    }
+
+    // The lowest worked level rides every session-settings carrier: the settings broadcast, the room join and the
+    // scenario-loaded broadcast, and back out through the source-gen context unchanged.
+    [Fact]
+    public void SessionSettings_StudentLowestWorkedLevel_RoundTrips()
+    {
+        const string settingsJson =
+            """{"AutoDeleteOverride":null,"EffectiveAutoDeleteMode":null,"DepartureAutoDeleteDistanceNm":null,"AutoAcceptDelaySeconds":-1,"""
+            + """ "AutoClearedToLand":false,"AutoCrossRunwayMode":0,"AutoPullUpToParallel":false,"AutoGoAroundOnOccupiedRunway":false,"""
+            + """ "AutoRejectTakeoffOnOccupiedRunway":false,"AutoArrivalSpacingOnOccupiedRunway":false,"ValidateDctFixes":true,"""
+            + """ "SoloTrainingMode":true,"SoloParkingInitialCallupRatePercent":100,"SoloArrivalGeneratorRatePercent":100,"""
+            + """ "SoloGoAroundProbabilityPercent":0,"HasSoloParkingInitialCallupSource":false,"HasSoloArrivalGeneratorSource":false,"""
+            + """ "RpoShowPilotSpeech":false,"StudentLowestWorkedLevel":"DEL"}""";
+        const string roomJson =
+            """{"RoomId":"room-1","CreatorInitials":"CX","CreatorArtccId":"ZOA","Members":[],"AllAircraft":[],"""
+            + """ "AircraftGenerators":[],"VfrArrivalGenerators":[],"OverflightGenerators":[],"Positions":[],"LoadingBy":null,"""
+            + """ "ActiveRunways":{},"StudentLowestWorkedLevel":"TWR"}""";
+        const string loadedJson =
+            """{"ScenarioId":"s-1","ScenarioName":"OAK","PrimaryAirportId":"OAK","IsPaused":true,"SimRate":1,"AllAircraft":[],"""
+            + """ "ActiveRunways":{},"StudentLowestWorkedLevel":"GND"}""";
+
+        SessionSettingsDto? settings = JsonSerializer.Deserialize(settingsJson, YaatHubJsonContext.Default.SessionSettingsDto);
+        RoomStateDto? room = JsonSerializer.Deserialize(roomJson, YaatHubJsonContext.Default.RoomStateDto);
+        ScenarioLoadedDto? loaded = JsonSerializer.Deserialize(loadedJson, YaatHubJsonContext.Default.ScenarioLoadedDto);
+
+        Assert.NotNull(settings);
+        Assert.Equal("DEL", settings.StudentLowestWorkedLevel);
+        SessionSettingsDto? again = JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(settings, YaatHubJsonContext.Default.SessionSettingsDto),
+            YaatHubJsonContext.Default.SessionSettingsDto
+        );
+        Assert.Equal(settings, again);
+        Assert.Equal("TWR", room?.StudentLowestWorkedLevel);
+        Assert.Equal("GND", loaded?.StudentLowestWorkedLevel);
     }
 
     // The strips state broadcast in the server's camelCase wire shape (yaat-server's

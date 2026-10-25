@@ -719,10 +719,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetRpoShowPilotSpeech", enabled);
     }
 
-    public async Task SetSoloTrainingModeAsync(bool enabled)
+    /// <summary>
+    /// Turns solo training on or off. Switched on, the server replies with the session-setup prompt's worked-positions
+    /// section when the lowest position worked is not settled; otherwise null.
+    /// </summary>
+    public async Task<SessionSetupPromptDto?> SetSoloTrainingModeAsync(bool enabled)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync("SetSoloTrainingMode", enabled);
+        return await _connection!.InvokeAsync<SessionSetupPromptDto?>("SetSoloTrainingMode", enabled);
     }
 
     public async Task SetSoloPacingRatesAsync(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent, int goAroundProbabilityPercent)
@@ -1414,6 +1418,29 @@ public record AircraftDto(
 /// </summary>
 public record RunwayUseCountsDto(int Departures, int Arrivals, List<string> GeneratorArrivalRunways);
 
+/// <summary>
+/// The session-setup prompt: the questions a load (or solo switched on) puts to this client. A section is null when it
+/// does not apply or is already settled; the whole prompt is null when both are. Kept name-for-name in sync with the
+/// server's SessionSetupPromptDto.
+/// </summary>
+/// <param name="ActiveRunways">The mentor's active-runways question; null in a solo room, with a sidecar naming runways, or once answered.</param>
+/// <param name="WorkedPositions">
+/// The solo student's lowest-position-worked question; null outside solo training, for a student position with no type or a
+/// delivery student, and once an answer or the sidecar settles it.
+/// </param>
+public record SessionSetupPromptDto(ActiveRunwaysSetupDto? ActiveRunways, WorkedPositionsSetupDto? WorkedPositions);
+
+/// <summary>The active-runways section of the session-setup prompt.</summary>
+/// <param name="Prefill">The implied guess that pre-fills the section, by airport (tokens as ActiveRunway.ToToken()).</param>
+/// <param name="Assigned">What the scenario already decides about runways, by airport: the section's per-airport lines.</param>
+public record ActiveRunwaysSetupDto(Dictionary<string, List<string>> Prefill, Dictionary<string, RunwayUseCountsDto> Assigned);
+
+/// <summary>The worked-positions section of the session-setup prompt; every value a level code (DEL, GND, TWR, APP, CTR).</summary>
+/// <param name="Own">The student's own position's level.</param>
+/// <param name="Prefill">The level the section starts on: the scenario's current lowest worked level, else the student's own.</param>
+/// <param name="Choices">The levels the student may pick, from <paramref name="Own"/> down to DEL, highest first.</param>
+public record WorkedPositionsSetupDto(string Own, string Prefill, List<string> Choices);
+
 public record LoadScenarioResultDto(
     bool Success,
     string Name,
@@ -1427,12 +1454,8 @@ public record LoadScenarioResultDto(
     List<AircraftDto> AllAircraft,
     // The room's active runways as loaded, by airport (tokens as ActiveRunway.ToToken()).
     Dictionary<string, List<string>> ActiveRunways,
-    // The implied guess that pre-fills the active-runways prompt, by airport.
-    Dictionary<string, List<string>> ActiveRunwaysPrefill,
-    // True only in an RPO room whose scenario has no sidecar and no answer carried for it: the mentor is asked.
-    bool ActiveRunwaysPromptNeeded,
-    // What the scenario already decides about runways, by airport: the prompt's per-airport lines. Empty on a failed load.
-    Dictionary<string, RunwayUseCountsDto> ActiveRunwaysAssigned,
+    // The questions the loader's client is asked; null when none applies, and on a failed load.
+    SessionSetupPromptDto? SessionSetup,
     // The airports the room's loaded ARTCC configs give a tower; every other airport is untowered.
     List<string> ToweredAirports,
     string? WeatherName = null,
@@ -1470,7 +1493,9 @@ public record LoadScenarioResultDto(
     bool IsLiveSession = false,
     // The ARTCC the room is labelled with, as in the room list (TrainingRoomInfoDto.ArtccId): its loaded scenario's,
     // else the creator's.
-    string? ArtccId = null
+    string? ArtccId = null,
+    // The lowest position type the solo student works, as a level code (DEL, GND, TWR, APP, CTR); null when unset.
+    string? StudentLowestWorkedLevel = null
 )
 {
     /// <summary>
@@ -1642,7 +1667,9 @@ public record RoomStateDto(
     bool IsLiveSession = false,
     // The ARTCC the room is labelled with, as in the room list (TrainingRoomInfoDto.ArtccId): its loaded scenario's,
     // else the creator's.
-    string? ArtccId = null
+    string? ArtccId = null,
+    // The lowest position type the solo student works, as a level code (DEL, GND, TWR, APP, CTR); null when unset or with no scenario.
+    string? StudentLowestWorkedLevel = null
 )
 {
     /// <summary>The initials of the member whose scenario load is running in the room; null when none is.</summary>
@@ -1776,7 +1803,9 @@ public record ScenarioLoadedDto(
     bool IsLiveSession = false,
     // The ARTCC the room is labelled with, as in the room list (TrainingRoomInfoDto.ArtccId): its loaded scenario's,
     // else the creator's.
-    string? ArtccId = null
+    string? ArtccId = null,
+    // The lowest position type the solo student works, as a level code; null when unset.
+    string? StudentLowestWorkedLevel = null
 );
 
 /// <summary>The <c>ScenarioUnloaded</c> event.</summary>
@@ -1869,7 +1898,9 @@ public record SessionSettingsDto(
     int CommandRunDelayMaxSeconds = 0,
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
-    string LiveTrafficFilter = ""
+    string LiveTrafficFilter = "",
+    // The lowest position type the solo student works, as a level code; null when unset or with no scenario.
+    string? StudentLowestWorkedLevel = null
 );
 
 /// <summary>

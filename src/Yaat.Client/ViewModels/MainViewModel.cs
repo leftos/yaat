@@ -3746,7 +3746,8 @@ public partial class MainViewModel : ObservableObject
                 state.CommandRunDelayMaxSeconds,
                 state.LiveTrafficEnabled,
                 state.LiveTrafficCeilingFt,
-                state.LiveTrafficFilter
+                state.LiveTrafficFilter,
+                StudentLowestWorkedLevel: state.StudentLowestWorkedLevel
             )
         );
     }
@@ -3779,7 +3780,8 @@ public partial class MainViewModel : ObservableObject
                 dto.CommandRunDelayMaxSeconds,
                 dto.LiveTrafficEnabled,
                 dto.LiveTrafficCeilingFt,
-                dto.LiveTrafficFilter
+                dto.LiveTrafficFilter,
+                StudentLowestWorkedLevel: dto.StudentLowestWorkedLevel
             )
         );
     }
@@ -3812,7 +3814,8 @@ public partial class MainViewModel : ObservableObject
                 result.CommandRunDelayMaxSeconds,
                 result.LiveTrafficEnabled,
                 result.LiveTrafficCeilingFt,
-                result.LiveTrafficFilter
+                result.LiveTrafficFilter,
+                StudentLowestWorkedLevel: result.StudentLowestWorkedLevel
             )
         );
     }

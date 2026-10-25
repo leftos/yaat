@@ -221,9 +221,7 @@ public class SoloAdvisorySettingsTests
                 Warnings: [],
                 AllAircraft: [],
                 ActiveRunways: [],
-                ActiveRunwaysPrefill: [],
-                ActiveRunwaysPromptNeeded: false,
-                ActiveRunwaysAssigned: [],
+                SessionSetup: null,
                 ToweredAirports: []
             )
         );
