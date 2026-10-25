@@ -9,11 +9,7 @@
 ## Controller-AI coaching
 
 - [ ] YAAT-1164 Controller-AI coaching playground: owner trains Claude as a solo student
-  - [ ] YAAT-1166 Coaching app tools: get_traffic, get_aircraft, read_terminal, get_airport_context, center_ground
-  - [ ] YAAT-1167 send_command app tool returning the command's dispatch result
-  - [ ] YAAT-1168 Pause triggers: auto-pause on pilot calls and initiative events, wait_until paused
   - [ ] YAAT-1169 Coaching runbook skill, session records and a live dry run
-  - [ ] YAAT-1170 Document the coaching tools in the client-driver docs after the move
   - [ ] YAAT-1172 Merge feat/controller-ai-coaching to main (#1348)
 
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
@@ -56,6 +52,7 @@
 ## Bug reports and feature requests
 
 - [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
+- [ ] YAAT-1175 Add copy to favorite set · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -767,5 +764,6 @@
 
 ## No project
 
-- [ ] YAAT-1162 Drive CRC without real input (posted messages or an in-process driver hook) · release vNext
+- [/] YAAT-1162 Drive CRC without real input (posted messages or an in-process driver hook) · release vNext
 - [ ] YAAT-1171 Run prek's cheatsheet check beside the build hook (priority groups) if timing shows a gain
+- [ ] YAAT-1176 Stop stop_process killing the launched client's whole process tree
