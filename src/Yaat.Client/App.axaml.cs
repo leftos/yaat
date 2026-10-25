@@ -43,6 +43,7 @@ public class App : Application
     {
         OpenWindows.Register();
         AvaloniaXamlLoader.Load(this);
+        PopupTopmost.Register();
 
         // Fluent caps every menu at FlyoutThemeMaxWidth (456), narrower than the route rows and the designed flyouts lay
         // themselves out against, so the cap is theirs.

@@ -42,6 +42,7 @@
 
 ### Fixed
 
+- Right-click menus and flyouts open on top of a window pinned always on top, such as a pinned Ground View, instead of behind it.
 - One CRC, vEDST or Tower Cab client losing its network no longer freezes every room on the server; the stalled client is dropped instead.
 - A rewind no longer doubles a scenario's VFR arrival and overflight generators, so those aircraft keep spawning at their authored rate.
 - `SPDN` and the other speed commands keep an aircraft's approach clearance on every leg, final and procedure turn included.
