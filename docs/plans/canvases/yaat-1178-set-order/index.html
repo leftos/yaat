@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Favorite Set Order</title>
+<style>
+  :root {
+    --page: #141414;
+    --panel: #1b1b1b;
+    --win: #202020;
+    --win-title: #2b2b2b;
+    --text: #ffffff;
+    --muted: #a8a8a8;
+    --btn: #2d2d2d;
+    --btn-border: #3d3d3d;
+    --list: #1a1a1a;
+    --list-border: #3a3a3a;
+    --sel: #1f4f7a;
+    --hover: #3a3a3a;
+    --flyout: #2c2c2c;
+    --flyout-border: #4a4a4a;
+    --accent: #4aa3f0;
+    --note: #f0c050;
+    --note-bg: #2a2410;
+    --worst: #f08a7a;
+    --worst-bg: #2c1714;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 16px 40px;
+    background: var(--page);
+    color: var(--text);
+    font-family: "Segoe UI", Inter, system-ui, sans-serif;
+    font-size: 13px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 14px; max-width: 1200px; line-height: 1.45; }
+  .lede b { color: var(--text); }
+
+  .lane {
+    display: grid;
+    grid-template-columns: 790px 1fr;
+    gap: 22px;
+    background: var(--panel);
+    border: 1px solid #2c2c2c;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .lane h2 { font-size: 16px; margin: 0 0 6px; }
+  .lane h2 .tag {
+    display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center;
+    border-radius: 50%; background: var(--accent); color: #000; margin-right: 8px; font-size: 14px;
+  }
+  .caption { line-height: 1.5; margin: 0 0 10px; }
+  .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 6px; }
+  .note {
+    background: var(--note-bg); border-left: 3px solid var(--note); padding: 7px 10px; margin: 10px 0 0;
+    line-height: 1.45; color: #f3e2b4;
+  }
+  .worst {
+    background: var(--worst-bg); border-left: 3px solid var(--worst); padding: 7px 10px; margin: 8px 0 0;
+    line-height: 1.45; color: #f6cbc3;
+  }
+  .stage { position: relative; }
+
+  /* ---------- window chrome ---------- */
+  .win { background: var(--win); border: 1px solid #444; width: 760px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  .win .title { background: var(--win-title); padding: 6px 10px; font-size: 12px; display: flex; justify-content: space-between; }
+  .win .title span:last-child { color: var(--muted); letter-spacing: 8px; }
+  .win .body { padding: 16px; display: grid; grid-template-columns: 220px auto 1fr auto; gap: 0 12px; height: 400px; }
+  .lb { background: var(--list); border: 1px solid var(--list-border); overflow: hidden; }
+  .lb .row { padding: 5px 8px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .lb .row.sel { background: var(--sel); }
+  .lb .hdr { padding: 6px 8px 3px; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .lb .row .slot { color: var(--muted); font-size: 11px; }
+  .lb .row .num { color: var(--muted); width: 14px; text-align: right; font-size: 11px; }
+  .cb { width: 14px; height: 14px; border: 1px solid #9a9a9a; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; flex: none; }
+  .cb.on { background: var(--accent); border-color: var(--accent); color: #000; }
+  .cb.off { background: transparent; }
+  .cb.fixed { border-style: dashed; border-color: #666; color: #888; }
+  .col { display: flex; flex-direction: column; gap: 6px; }
+  .btn {
+    background: var(--btn); border: 1px solid var(--btn-border); color: var(--text); width: 120px; text-align: center;
+    padding: 4px 0; border-radius: 4px; font-size: 12px;
+  }
+  .btn.new { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .btn.dim { color: #8a8a8a; }
+  .gap { height: 6px; }
+  .fav-row { padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- main window strip + flyouts ---------- */
+  .mainwin { background: #1e1e1e; border: 1px solid #444; width: 760px; height: 440px; position: relative; overflow: hidden; }
+  .mainwin .radar { position: absolute; inset: 0 0 72px 0; background: radial-gradient(circle at 60% 40%, #10221a 0, #0b0f0d 70%); }
+  .mainwin .radar::after { content: "radar / ground view"; position: absolute; left: 12px; top: 10px; color: #3c5a4a; font-size: 11px; }
+  .mainwin .strip { position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #1e1e1e; border-top: 1px solid #333; padding: 8px 8px 0; display: flex; flex-wrap: wrap; align-content: flex-start; }
+  .tb { background: var(--btn); border: 1px solid var(--btn-border); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 0 4px 4px 0; height: 24px; display: inline-flex; align-items: center; }
+  .tb.open { background: #454545; border-color: #6a6a6a; }
+
+  .flyout {
+    position: absolute; background: var(--flyout); border: 1px solid var(--flyout-border); border-radius: 6px;
+    padding: 4px; min-width: 250px; box-shadow: 0 8px 22px rgba(0,0,0,.6); font-size: 12.5px;
+  }
+  .mi { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 8px; border-radius: 4px; height: 28px; white-space: nowrap; }
+  .mi.hover { background: var(--hover); }
+  .mi .grip { color: #8a8a8a; letter-spacing: -2px; width: 12px; font-size: 13px; }
+  .mi .kind { color: var(--muted); font-size: 11px; margin-left: auto; padding-left: 14px; }
+  .mi.dragging { background: #3d4f63; outline: 1px solid var(--accent); transform: translate(10px, 2px) rotate(-1deg); box-shadow: 0 4px 12px rgba(0,0,0,.6); }
+  .mi.ghost { opacity: .32; }
+  .dropline { height: 2px; background: var(--accent); margin: 0 6px; position: relative; }
+  .dropline::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .sep { height: 1px; background: #474747; margin: 4px 6px; }
+  .arrows { margin-left: auto; display: flex; gap: 2px; padding-left: 12px; }
+  .arr { width: 22px; height: 20px; border: 1px solid #4a4a4a; background: #353535; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: #ddd; }
+  .arr.hot { background: #45607a; border-color: var(--accent); color: #fff; }
+  .arr.off { color: #555; border-color: #3a3a3a; }
+  .cursor { position: absolute; font-size: 18px; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; pointer-events: none; }
+
+  /* ---------- favorites bar ---------- */
+  .barbox { background: #1e1e1e; border: 1px solid #333; padding: 8px 8px 4px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: flex-start; }
+  .grp { display: flex; flex-direction: column; margin-right: 0; }
+  .grp .chips { display: flex; }
+  .grp .brace {
+    margin: 0 4px 2px 0; border: 1px dashed var(--note); border-top: none; height: 7px; border-radius: 0 0 4px 4px;
+  }
+  .grp .bname { color: var(--note); font-size: 10.5px; text-align: center; margin: 1px 4px 4px 0; white-space: nowrap; }
+  .grp.moved .brace { border-style: solid; border-width: 2px; border-top: none; }
+  .grp.moved .bname { font-weight: 700; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 2px 8px; border: 1px solid #000; margin: 0 4px 4px 0; height: 24px;
+    display: inline-flex; align-items: center; color: #111; white-space: nowrap;
+  }
+  .g { background: #F3F3EE; }
+  .a { background: #cfe8c4; }
+  .s { background: #f2d9a8; }
+  .n1 { background: #c6dcf7; }
+  .n2 { background: #e2cdef; }
+  .barnote { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  .today { background: var(--panel); border: 1px solid #2c2c2c; border-radius: 6px; padding: 12px 16px; margin-bottom: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .today h3 { margin: 0 0 6px; font-size: 13px; }
+  .facts { margin: 0; padding-left: 18px; line-height: 1.5; color: #d8d8d8; }
+  .facts code { color: #9fd0ff; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>YAAT-1178 · Order of the favorite sets on the bar</h1>
+<p class="lede">
+  WIZRAD (GitHub #1351) wants <b>Global's favorites after named set "S1"</b>, for any number of loaded sets. Each lane below shows the control the user touches
+  and the bar it produces. The dashed yellow brackets under the bar are mock annotation only: the real bar draws every set's buttons in one run with no labels.
+  Example state: active airport KOAK has an airport set, the loaded scenario has a scenario set, and named sets S1 and S2 are loaded (S1 first).
+</p>
+
+<div class="today">
+  <div>
+    <h3>Bar today (fixed order: Global → airport → scenario → named sets in load order)</h3>
+    <div class="barbox">
+      <div class="bar">
+        <div class="grp"><div class="chips"><span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span></div><div class="brace"></div><div class="bname">Global</div></div>
+        <div class="grp"><div class="chips"><span class="chip a">RWY 30</span><span class="chip a">28R/28L</span></div><div class="brace"></div><div class="bname">Airport (KOAK)</div></div>
+        <div class="grp"><div class="chips"><span class="chip s">N123AB FH</span></div><div class="brace"></div><div class="bname">Scenario</div></div>
+        <div class="grp"><div class="chips"><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span></div><div class="brace"></div><div class="bname">S1</div></div>
+        <div class="grp"><div class="chips"><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span></div><div class="brace"></div><div class="bname">S2</div></div>
+      </div>
+    </div>
+    <h3 style="margin-top:12px">Wanted (every lane produces this)</h3>
+    <div class="barbox">
+      <div class="bar">
+        <div class="grp"><div class="chips"><span class="chip a">RWY 30</span><span class="chip a">28R/28L</span></div><div class="brace"></div><div class="bname">Airport (KOAK)</div></div>
+        <div class="grp"><div class="chips"><span class="chip s">N123AB FH</span></div><div class="brace"></div><div class="bname">Scenario</div></div>
+        <div class="grp"><div class="chips"><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span></div><div class="brace"></div><div class="bname">S1</div></div>
+        <div class="grp moved"><div class="chips"><span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span></div><div class="brace"></div><div class="bname">Global ← moved after S1</div></div>
+        <div class="grp"><div class="chips"><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span></div><div class="brace"></div><div class="bname">S2</div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>What the code does now</h3>
+    <ul class="facts">
+      <li><code>FavoriteStore.ComposeDisplay</code> hard-codes Global, then the active airport's set, then the active scenario's set, then loaded named sets in <code>UserPreferences.LoadedFavoriteSetIds</code> order.</li>
+      <li>The only way to reorder named sets today is unload and reload: <code>SetFavoriteSetLoaded</code> appends to the end. Global, airport and scenario can never move.</li>
+      <li><code>LoadedFavoriteSetIds</code> is a preference and is also saved in each layout (<code>SavedLayout.LoadedFavoriteSetIds</code>), so a full order needs one ordered list there that can name Global / "airport" / "scenario" slots too.</li>
+      <li>Sets flyout (<code>FavoritesBarView.OnSetsClick</code>): a <code>MenuFlyout</code> of named sets only, each a check-box item with <code>StaysOpenOnClick</code>, then "Manage sets…". No context menu, no drag. The Sets button only shows when a named set exists.</li>
+      <li>Editor's left list (<code>PopulateContainers</code>) shows <i>every</i> set from <code>OrderedSets</code>, sorted by kind then name: Global, every airport set, every scenario set, named sets with a Loaded box. It is not in bar order.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================= LANE A ================= -->
+<section class="lane">
+  <div class="stage">
+    <div class="win">
+      <div class="title"><span>Favorites Editor</span><span>– ▢ ✕</span></div>
+      <div class="body">
+        <div class="lb">
+          <div class="hdr">On the bar, in order</div>
+          <div class="row"><span class="num">1</span><span class="cb fixed">•</span>Airport <span class="slot">(active: KOAK)</span></div>
+          <div class="row"><span class="num">2</span><span class="cb fixed">•</span>Scenario <span class="slot">(active)</span></div>
+          <div class="row"><span class="num">3</span><span class="cb on">✓</span>S1</div>
+          <div class="row sel"><span class="num">4</span><span class="cb fixed">•</span>Global</div>
+          <div class="row"><span class="num">5</span><span class="cb on">✓</span>S2</div>
+          <div class="hdr" style="margin-top:6px">Not on the bar</div>
+          <div class="row"><span class="num"></span><span class="cb off"></span>East ops</div>
+          <div class="row"><span class="num"></span><span class="cb off"></span>Ground drills</div>
+          <div class="hdr" style="margin-top:6px">Other airports / scenarios</div>
+          <div class="row" style="color:#bbb">Airport (KSFO)</div>
+          <div class="row" style="color:#bbb">Scenario (OAK TWR 3)</div>
+          <div class="row" style="color:#bbb">Not in any set (2)</div>
+        </div>
+        <div class="col">
+          <div class="btn">New...</div>
+          <div class="btn">Rename...</div>
+          <div class="btn">Duplicate set...</div>
+          <div class="btn dim">Delete</div>
+          <div class="gap"></div>
+          <div class="btn new">Set Up ▲</div>
+          <div class="btn new">Set Down ▼</div>
+        </div>
+        <div class="lb">
+          <div class="fav-row">CTO — Air</div>
+          <div class="fav-row">LUAW — Air</div>
+          <div class="fav-row">GA — Air</div>
+          <div class="fav-row">RFIS — Ground</div>
+        </div>
+        <div class="col">
+          <div class="btn">Move Up</div>
+          <div class="btn">Move Down</div>
+          <div class="btn">Link to...</div>
+          <div class="btn">Duplicate to...</div>
+          <div class="btn">Move to...</div>
+          <div class="btn">Remove</div>
+          <div class="btn">Delete</div>
+        </div>
+      </div>
+    </div>
+    <div class="cursor" style="left:330px; top:226px">➤</div>
+  </div>
+  <div>
+    <h2><span class="tag">A</span>Set Up / Set Down in the Favorites Editor</h2>
+    <p class="caption">
+      Bar → Sets → Manage sets… opens the editor. Its left list leads with the sets on the bar, numbered in bar order; Global is an ordinary row. Select Global and
+      click <b>Set Down</b> three times (past Airport, Scenario and S1); the picture shows the list after those clicks. The new buttons sit in the set column, apart
+      from the favorites' own Move Up / Move Down.
+    </p>
+    <div class="label">Resulting bar</div>
+    <div class="barbox"><div class="bar">
+      <span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span>
+    </div></div>
+    <div class="note"><b>Airport / scenario:</b> one row each, "Airport (active: KOAK)" and "Scenario (active)", moved like any set. The row is a slot: switch to KSFO and KSFO's set takes the same place. Other airports' and scenarios' sets stay listed below, unordered.</div>
+    <div class="worst"><b>Worst case:</b> a modal window away from the bar, and the left list grows with every airport and scenario set ever made; two up/down pairs side by side invite the wrong one.</div>
+  </div>
+</section>
+
+<!-- ================= LANE B ================= -->
+<section class="lane">
+  <div class="stage">
+    <div class="mainwin">
+      <div class="radar"></div>
+      <div class="strip">
+        <span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span><span class="tb open">Sets</span><span class="tb">Panel</span><span class="tb" style="font-weight:700">+</span>
+      </div>
+      <div class="flyout" style="left:20px; top:50px; width:290px">
+        <div class="mi ghost"><span class="grip">⋮⋮</span><span class="cb fixed">•</span>Global<span class="kind">always on</span></div>
+        <div class="mi"><span class="grip">⋮⋮</span><span class="cb fixed">•</span>Airport (KOAK)<span class="kind">active airport</span></div>
+        <div class="mi"><span class="grip">⋮⋮</span><span class="cb fixed">•</span>Scenario<span class="kind">active scenario</span></div>
+        <div class="mi"><span class="grip">⋮⋮</span><span class="cb on">✓</span>S1</div>
+        <div class="dropline"></div>
+        <div class="mi dragging"><span class="grip">⋮⋮</span><span class="cb fixed">•</span>Global<span class="kind">drop here</span></div>
+        <div class="mi"><span class="grip">⋮⋮</span><span class="cb on">✓</span>S2</div>
+        <div class="mi"><span class="grip">⋮⋮</span><span class="cb off"></span>East ops</div>
+        <div class="mi"><span class="grip">⋮⋮</span><span class="cb off"></span>Ground drills</div>
+        <div class="sep"></div>
+        <div class="mi">Manage sets…</div>
+      </div>
+      <div class="cursor" style="left:50px; top:204px">✋</div>
+    </div>
+  </div>
+  <div>
+    <h2><span class="tag">B</span>Drag to reorder in the bar's Sets flyout</h2>
+    <p class="caption">
+      The Sets flyout lists every set the bar can show, in bar order, each with a grip. Press on Global's grip and drag it below S1; a blue line marks the drop.
+      Clicking a named set's row still toggles it loaded. The flyout stays open, so several moves are one visit.
+    </p>
+    <div class="label">Resulting bar</div>
+    <div class="barbox"><div class="bar">
+      <span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span>
+    </div></div>
+    <div class="note"><b>Airport / scenario:</b> rows in the same list, dragged like any set; shown only while an airport or scenario set is active, and the slot keeps its place across airports. Unloaded named sets sit in the list too and drag the same way.</div>
+    <div class="worst"><b>Worst case:</b> drag inside a menu is hard to discover and is custom work (Avalonia menu items don't drag); a slip while clicking a check box reorders instead of loading.</div>
+  </div>
+</section>
+
+<!-- ================= LANE C ================= -->
+<section class="lane">
+  <div class="stage">
+    <div class="mainwin">
+      <div class="radar"></div>
+      <div class="strip">
+        <span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span><span class="tb open">Sets</span><span class="tb">Panel</span><span class="tb" style="font-weight:700">+</span>
+      </div>
+      <div class="flyout" style="left:20px; top:100px; width:250px">
+        <div class="mi hover"><span class="cb fixed">•</span>Global<span class="kind">always on</span></div>
+        <div class="mi"><span class="cb fixed">•</span>Airport (KOAK)<span class="kind">active airport</span></div>
+        <div class="mi"><span class="cb fixed">•</span>Scenario<span class="kind">active scenario</span></div>
+        <div class="mi"><span class="cb on">✓</span>S1</div>
+        <div class="mi"><span class="cb on">✓</span>S2</div>
+        <div class="mi"><span class="cb off"></span>East ops</div>
+        <div class="mi"><span class="cb off"></span>Ground drills</div>
+        <div class="sep"></div>
+        <div class="mi">Manage sets…</div>
+      </div>
+      <div class="flyout" style="left:262px; top:112px; min-width:170px">
+        <div class="mi">Move up</div>
+        <div class="mi hover">Move down</div>
+        <div class="sep"></div>
+        <div class="mi">Move to start</div>
+        <div class="mi">Move to end</div>
+      </div>
+      <div class="cursor" style="left:354px; top:148px">➤</div>
+    </div>
+  </div>
+  <div>
+    <h2><span class="tag">C</span>Move up / Move down in each set's right-click menu</h2>
+    <p class="caption">
+      Same flyout list, in bar order, no grips. Right-click Global → <b>Move down</b>; the row steps one place and the flyout stays open. From today's order
+      (shown), three Move down steps put Global under S1. Move to start / end jump in one click.
+    </p>
+    <div class="label">Resulting bar</div>
+    <div class="barbox"><div class="bar">
+      <span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span>
+    </div></div>
+    <div class="note"><b>Airport / scenario:</b> rows in the same list with the same right-click menu; the slot keeps its place when the active airport or scenario changes.</div>
+    <div class="worst"><b>Worst case:</b> right-click inside a menu is hidden (nothing hints it exists), and moving one set past many takes a right-click and a click per step.</div>
+  </div>
+</section>
+
+<!-- ================= LANE D ================= -->
+<section class="lane">
+  <div class="stage">
+    <div class="mainwin">
+      <div class="radar"></div>
+      <div class="strip">
+        <span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span><span class="tb open">Sets</span><span class="tb">Panel</span><span class="tb" style="font-weight:700">+</span>
+      </div>
+      <div class="flyout" style="left:20px; top:100px; width:300px">
+        <div class="mi hover"><span class="cb fixed">•</span>Global<span class="arrows"><span class="arr off">▲</span><span class="arr hot">▼</span></span></div>
+        <div class="mi"><span class="cb fixed">•</span>Airport (KOAK)<span class="arrows"><span class="arr">▲</span><span class="arr">▼</span></span></div>
+        <div class="mi"><span class="cb fixed">•</span>Scenario<span class="arrows"><span class="arr">▲</span><span class="arr">▼</span></span></div>
+        <div class="mi"><span class="cb on">✓</span>S1<span class="arrows"><span class="arr">▲</span><span class="arr">▼</span></span></div>
+        <div class="mi"><span class="cb on">✓</span>S2<span class="arrows"><span class="arr">▲</span><span class="arr">▼</span></span></div>
+        <div class="mi"><span class="cb off"></span>East ops<span class="arrows"><span class="arr">▲</span><span class="arr">▼</span></span></div>
+        <div class="mi"><span class="cb off"></span>Ground drills<span class="arrows"><span class="arr">▲</span><span class="arr off">▼</span></span></div>
+        <div class="sep"></div>
+        <div class="mi">Manage sets…</div>
+      </div>
+      <div class="cursor" style="left:288px; top:114px">➤</div>
+    </div>
+  </div>
+  <div>
+    <h2><span class="tag">D</span>▲ / ▼ buttons on each row of the Sets flyout</h2>
+    <p class="caption">
+      Same flyout list in bar order, each row ending in ▲ ▼. From today's order (shown), click Global's ▼ three times to put it under S1. The row
+      text still toggles loading; the arrows only move. Why a fourth lane: it keeps C's one-place-at-a-time precision and B's "where the bar is" location, with every
+      control visible, and the flyout already stays open on click (<code>StaysOpenOnClick</code>).
+    </p>
+    <div class="label">Resulting bar</div>
+    <div class="barbox"><div class="bar">
+      <span class="chip a">RWY 30</span><span class="chip a">28R/28L</span><span class="chip s">N123AB FH</span><span class="chip n1">S1 VECT</span><span class="chip n1">S1 HO</span><span class="chip n1">S1 DESC</span><span class="chip g">CTO</span><span class="chip g">LUAW</span><span class="chip g">GA</span><span class="chip g">RFIS</span><span class="chip n2">S2 APP</span><span class="chip n2">S2 MISS</span>
+    </div></div>
+    <div class="note"><b>Airport / scenario:</b> rows with their own arrows in the same list; the slot keeps its place when the active airport or scenario changes.</div>
+    <div class="worst"><b>Worst case:</b> with many sets the flyout gets long and every row carries two small buttons; a click just left of ▲ toggles the set's loading instead.</div>
+  </div>
+</section>
+
+</body>
+</html>
