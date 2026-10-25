@@ -48,7 +48,7 @@ Extract the tail of `MainViewModel.SendCommandAsync` (`MainViewModel.cs:2635-288
 ### 4. Pause triggers + `paused` condition + event log
 - `arm_pause_triggers(pilotCalls, warnings, newAircraft, groundStops, heartbeatSeconds)` / `disarm_pause_triggers()` / `get_pause_events(sinceSequence)`. Held in a `PauseTriggerMonitor` (automation-only, not saved) that evaluates on terminal entries and on each aircraft update batch, calls `IAutomationState.PauseAsync()` and appends `{sequence, trigger, callsign, simSeconds, detail}`.
   - `pilotCalls`: pilot line with `PilotKind` Proactive or Report.
-  - `warnings`: terminal Warning/Error, or `ConflictPeerCallsign` becoming set.
+  - `warnings`: terminal Warning/Error, or `ConflictPeerCallsign` becoming set. The Warning/Error line that answers the agent's own `send_command` does not fire (the agent already has it in the tool's answer): while a `send_command` is in flight such lines are held, the ones whose text and callsign match the command's refusal or warnings are dropped (also within 2 s after it returns), and the rest fire when it returns.
   - `newAircraft`: an aircraft appears.
   - `groundStops`: an on-ground aircraft with an active taxi route, a hold, or a runway-queue slot goes from moving (> 1 kt) to stopped for ≥ 5 sim s.
   - `heartbeatSeconds`: pause every N running sim seconds (0 = off), a scan point.

@@ -19,6 +19,12 @@ public sealed class PauseTriggerMonitorTests
     private static readonly PauseTriggerSet GroundStopsOnly = new(false, false, false, true, 0);
     private static readonly PauseTriggerSet HeartbeatEveryTen = new(false, false, false, false, 10);
 
+    /// <summary>The server's answer to a command it refuses, as the room broadcasts it.</summary>
+    private const string Refusal = "CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training";
+
+    /// <summary>A client-local rejection: a warning line with no callsign that <c>send_command</c> reports as one of its warnings.</summary>
+    private const string ClientLocalWarning = "ELD is a VFR command";
+
     private static TerminalEntry Entry(TerminalEntryKind kind, string callsign, string message, string? pilotKind) =>
         new()
         {
@@ -192,6 +198,150 @@ public sealed class PauseTriggerMonitorTests
                 Assert.Equal("ELD is a VFR command", events[0].Detail);
                 Assert.Equal("UAL5", events[1].Callsign);
                 Assert.Equal(1, state.Pauses);
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void OwnCommandRefusal_HeldDuringTheCall_DoesNotFire()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            WarningsOnly,
+            monitor =>
+            {
+                monitor.OwnCommandStarted();
+                state.Entries.Add(Entry(TerminalEntryKind.Error, "N478RC", Refusal, null));
+                monitor.Evaluate();
+
+                Assert.Empty(monitor.EventsSince(0));
+                Assert.Equal(0, state.Pauses);
+
+                monitor.OwnCommandFinished("N478RC", [Refusal]);
+
+                Assert.Empty(monitor.EventsSince(0));
+                Assert.Equal(0, state.Pauses);
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void OwnCommandRefusal_ArrivingJustAfterTheCall_DoesNotFire()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            WarningsOnly,
+            monitor =>
+            {
+                monitor.OwnCommandStarted();
+                monitor.OwnCommandFinished("N478RC", [Refusal]);
+
+                state.Entries.Add(Entry(TerminalEntryKind.Error, "N478RC", Refusal, null));
+                monitor.Evaluate();
+
+                Assert.Empty(monitor.EventsSince(0));
+                Assert.Equal(0, state.Pauses);
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void ClientLocalWarning_AnsweredBySendCommand_DoesNotFire()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            WarningsOnly,
+            monitor =>
+            {
+                monitor.OwnCommandStarted();
+                state.Entries.Add(Entry(TerminalEntryKind.Warning, "", ClientLocalWarning, null));
+                monitor.Evaluate();
+
+                monitor.OwnCommandFinished(null, [ClientLocalWarning]);
+
+                Assert.Empty(monitor.EventsSince(0));
+                Assert.Equal(0, state.Pauses);
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void OtherWarning_DuringTheCall_FiresWhenTheCallEnds()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            WarningsOnly,
+            monitor =>
+            {
+                monitor.OwnCommandStarted();
+                state.Entries.Add(Entry(TerminalEntryKind.Warning, "UAL5", "conflict alert", null));
+                monitor.Evaluate();
+
+                Assert.Empty(monitor.EventsSince(0));
+                Assert.Equal(0, state.Pauses);
+
+                monitor.OwnCommandFinished("N478RC", [Refusal]);
+
+                PauseEvent fired = Assert.Single(monitor.EventsSince(0));
+                Assert.Equal("warning", fired.Trigger);
+                Assert.Equal("UAL5", fired.Callsign);
+                Assert.Equal("conflict alert", fired.Detail);
+                Assert.Equal(1, state.Pauses);
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void SameTextAgainLater_Fires()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            WarningsOnly,
+            monitor =>
+            {
+                monitor.OwnCommandStarted();
+                state.Entries.Add(Entry(TerminalEntryKind.Error, "N478RC", Refusal, null));
+                monitor.Evaluate();
+                monitor.OwnCommandFinished("N478RC", [Refusal]);
+                Assert.Empty(monitor.EventsSince(0));
+
+                state.Entries.Add(Entry(TerminalEntryKind.Error, "N478RC", Refusal, null));
+                monitor.Evaluate();
+
+                PauseEvent fired = Assert.Single(monitor.EventsSince(0));
+                Assert.Equal("warning", fired.Trigger);
+                Assert.Equal(Refusal, fired.Detail);
+                Assert.Equal(1, state.Pauses);
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void OverlappingCalls_EarlierCallsRefusalHeldDuringTheLaterCall_DoesNotFire()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            WarningsOnly,
+            monitor =>
+            {
+                monitor.OwnCommandStarted();
+                monitor.OwnCommandStarted();
+                monitor.OwnCommandFinished("N478RC", [Refusal]);
+
+                state.Entries.Add(Entry(TerminalEntryKind.Error, "N478RC", Refusal, null));
+                monitor.Evaluate();
+                Assert.Empty(monitor.EventsSince(0));
+
+                monitor.OwnCommandFinished("N478RC", []);
+
+                Assert.Empty(monitor.EventsSince(0));
+                Assert.Equal(0, state.Pauses);
             }
         );
     }
@@ -500,6 +650,8 @@ public sealed class PauseTriggerMonitorTests
         public bool IsPaused { get; set; }
 
         public int SimRate => 1;
+
+        public string ClientLogPath => "";
 
         public long TerminalCursor => (Entries.Count > 0) ? Entries[^1].Sequence : 0;
 

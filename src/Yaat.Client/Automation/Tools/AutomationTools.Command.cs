@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using Yaat.Client.ViewModels;
 
@@ -20,8 +21,22 @@ public sealed partial class AutomationTools
             throw new AppToolArgumentException("text", "'text' must be a command line, such as 'SWA123 TAXIAUTO 30', not empty.");
         }
 
-        CommandBoxOutcome outcome = await _viewModel.SubmitCommandTextAsync(text);
-        CommandSubmission? submission = outcome.Submission;
+        var monitor = PauseTriggerMonitor.For(_viewModel);
+        monitor.OwnCommandStarted();
+        CommandBoxOutcome? outcome = null;
+        try
+        {
+            outcome = await _viewModel.SubmitCommandTextAsync(text);
+        }
+        finally
+        {
+            // The answer to this command — the server's or the client's — is no pause trigger, and it may land after the call.
+            CommandSubmission? finished = outcome?.Submission;
+            monitor.OwnCommandFinished(finished?.Callsign, OwnAnswerTexts(finished, outcome));
+        }
+
+        CommandBoxOutcome completed = outcome ?? throw new UnreachableException("send_command's submission answered nothing.");
+        CommandSubmission? submission = completed.Submission;
         SendCommandAnswer answer = new()
         {
             Sent = submission is not null,
@@ -29,11 +44,31 @@ public sealed partial class AutomationTools
             Canonical = submission?.Canonical,
             Success = submission?.Success,
             Message = submission?.Message,
-            Status = outcome.StatusText,
-            Warnings = (outcome.Warnings.Count > 0) ? outcome.Warnings : null,
-            Refused = outcome.Refused,
+            Status = completed.StatusText,
+            Warnings = (completed.Warnings.Count > 0) ? completed.Warnings : null,
+            Refused = completed.Refused,
         };
         return AppToolOutcome.Done(JsonSerializer.Serialize(answer, CoachingJsonOptions));
+    }
+
+    /// <summary>
+    /// The texts that answer the command <paramref name="submission"/> sent: the server's message when it refused the command, and
+    /// every warning the client added for it. Empty when the submission threw before answering.
+    /// </summary>
+    private static IReadOnlyCollection<string> OwnAnswerTexts(CommandSubmission? submission, CommandBoxOutcome? outcome)
+    {
+        List<string> texts = [];
+        if ((submission is not null) && !submission.Success && !string.IsNullOrEmpty(submission.Message))
+        {
+            texts.Add(submission.Message);
+        }
+
+        if (outcome is not null)
+        {
+            texts.AddRange(outcome.Warnings);
+        }
+
+        return texts;
     }
 
     /// <summary>The <c>send_command</c> object; its property names are the JSON keys, camel-cased, in this order.</summary>

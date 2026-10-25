@@ -56,6 +56,8 @@ public sealed class GetSimTimeTests : AutomationHostFixture
 
         public int SimRate => simRate;
 
+        public string ClientLogPath => "";
+
         public long TerminalCursor => 0;
 
         public IReadOnlyList<TerminalEntry> TerminalEntriesSince(long cursor) => [];

@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -44,6 +45,8 @@ public sealed class MainViewModelAutomationState(MainViewModel viewModel) : IAut
     public bool IsPaused => viewModel.IsPaused;
 
     public int SimRate => viewModel.SimRate;
+
+    public string ClientLogPath => AppLog.LogPath;
 
     public long TerminalCursor => TerminalEntry.LastSequence;
 

@@ -14,7 +14,8 @@ namespace Yaat.Client.Automation.Handlers;
 /// out. Conditions: <c>on_ground</c>, <c>landed</c> (on the ground after being airborne at an earlier poll of this wait),
 /// <c>phase_is</c> and <c>phase_is_not</c> (case-insensitive, exact), <c>queue_empty</c> (no pending conditional commands),
 /// each with a <c>callsign</c>; <c>log_matches</c> (a terminal line added after the call matching <c>pattern</c>, from
-/// <c>callsign</c> when given); and <c>sim_seconds</c> (<c>atLeast</c>). An aircraft not in the client holds no condition and
+/// <c>callsign</c> when given); <c>client_log_matches</c> (a line the client's log file gains after the first poll matching
+/// <c>pattern</c>, read off the UI thread); and <c>sim_seconds</c> (<c>atLeast</c>). An aircraft not in the client holds no condition and
 /// reads <c>absent</c>. At the poll that sees the match it captures the optional <c>screenshot</c> target and starts the
 /// <c>then</c> actions (<c>pause</c>, <c>set_rate</c>) in order. Met or not, the answer is a <see cref="WaitUntilResult"/>,
 /// never a timeout error; while the main window is not up it is <c>UNSUPPORTED_OPERATION</c>. The poll stops when the
@@ -30,9 +31,10 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
 
     /// <summary>
     /// A poll that ended the wait: the conditions held, with the screenshot it captured (a <see cref="RenderedTarget"/> or an
-    /// error message) and the actions it started, or the main window was not up (<see cref="NoState"/>).
+    /// error message) and the actions it started, or the main window was not up (<see cref="NoState"/>), or this client writes
+    /// no log file for a <c>client_log_matches</c> to read (<paramref name="NoClientLog"/>).
     /// </summary>
-    private sealed record Decision(bool NoState, WaitUntilResult Result, object? Captured, IReadOnlyList<StartedAction> Started);
+    private sealed record Decision(bool NoState, bool NoClientLog, WaitUntilResult Result, object? Captured, IReadOnlyList<StartedAction> Started);
 
     public string Method => ProtocolMethods.WaitUntil;
 
@@ -56,6 +58,8 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             Decision? decision;
             try
             {
+                // The client log is read here, off the UI thread, before the poll that looks at what it found.
+                progress.ReadClientLog();
                 decision = await PollWithin(progress, stopwatch, timeout - stopwatch.Elapsed, cancellationToken).ConfigureAwait(false);
                 if (decision is null)
                 {
@@ -137,6 +141,11 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             return NoMainWindow();
         }
 
+        if (decision.NoClientLog)
+        {
+            return NoClientLogFile();
+        }
+
         (ScreenshotResult? screenshot, string? screenshotError) = Encode(decision.Captured);
         List<WaitUntilActionResult>? then =
             (decision.Started.Count > 0) ? await Finish(decision.Started, cancellationToken).ConfigureAwait(false) : null;
@@ -199,10 +208,19 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             null
         );
 
+    private static HandlerErrorResult NoClientLogFile() =>
+        HandlerResult.Error(
+            AutomationErrorCodes.UnsupportedOperation,
+            "The client writes no log file, so client_log_matches has nothing to read.",
+            null,
+            null
+        );
+
     /// <summary>
     /// What the polls of one wait have seen: each condition's last value, whether each <c>landed</c> aircraft has been seen
-    /// airborne, how far each <c>log_matches</c> has read the terminal and what it matched, and the poll that decided the
-    /// wait. A lock keeps a poll the UI thread runs late from deciding after the wait has answered.
+    /// airborne, how far each <c>log_matches</c> has read the terminal and what it matched, how many lines of the client log
+    /// the wait has read and which of them matched, and the poll that decided the wait. A lock keeps a poll the UI thread runs
+    /// late from deciding after the wait has answered.
     /// </summary>
     private sealed class Progress(WaitUntilParams parameters, ScreenshotHandler screenshots)
     {
@@ -211,6 +229,11 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
         private readonly bool[] _seenAirborne = new bool[parameters.Conditions.Count];
         private readonly long[] _logCursor = new long[parameters.Conditions.Count];
         private readonly string?[] _matched = new string?[parameters.Conditions.Count];
+        private readonly bool _wantsClientLog = parameters.Conditions.Any(condition => condition.Kind == WaitUntilKind.ClientLogMatches);
+        private ClientLogTail? _clientLog;
+        private string? _clientLogError;
+        private long _clientLogLines;
+        private bool _clientLogUnavailable;
         private List<int> _held = [];
         private double _simSeconds;
         private bool _polled;
@@ -232,10 +255,15 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
                 IAutomationState? state = stateProvider();
                 if (state is null)
                 {
-                    return Decide(new Decision(NoState: true, Result(met: false, 0), null, []));
+                    return Decide(new Decision(NoState: true, NoClientLog: false, Result(met: false, 0), null, []));
                 }
 
                 Evaluate(state);
+                if (_clientLogUnavailable)
+                {
+                    return Decide(new Decision(NoState: false, NoClientLog: true, Result(met: false, 0), null, []));
+                }
+
                 bool met = parameters.RequireAll ? (_held.Count == parameters.Conditions.Count) : (_held.Count > 0);
                 if (!met)
                 {
@@ -246,7 +274,7 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
                 // The capture comes first, so it shows the state that met the conditions rather than what the actions change.
                 object? captured = Capture();
                 List<StartedAction> started = [.. parameters.Then.Select(action => Start(state, action))];
-                return Decide(new Decision(NoState: false, result, captured, started));
+                return Decide(new Decision(NoState: false, NoClientLog: false, result, captured, started));
             }
         }
 
@@ -324,6 +352,7 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             if (!_polled)
             {
                 Array.Fill(_logCursor, state.TerminalCursor);
+                StartClientLog(state);
                 _polled = true;
             }
 
@@ -342,6 +371,118 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             _held = held;
         }
 
+        /// <summary>
+        /// Records where the client log stands at the wait's first poll: the wait reads lines written from then on. A client that
+        /// writes none leaves nothing to read, which decides the wait rather than timing it out.
+        /// </summary>
+        private void StartClientLog(IAutomationState state)
+        {
+            if (!_wantsClientLog)
+            {
+                return;
+            }
+
+            string path = state.ClientLogPath;
+            if (string.IsNullOrEmpty(path))
+            {
+                _clientLogUnavailable = true;
+                return;
+            }
+
+            // One FileInfo, so the existence check and the length cannot disagree about a file that appears or vanishes between them.
+            var info = new FileInfo(path);
+            if (!info.Exists)
+            {
+                _clientLogUnavailable = true;
+                return;
+            }
+
+            _clientLog = new ClientLogTail(path, info.Length);
+        }
+
+        /// <summary>
+        /// Reads the lines the client log gained since the last read, off the UI thread, and notes them: each still-unmatched
+        /// condition takes the first line its regex matches. An unreadable log leaves its message as the condition's value and
+        /// the wait keeps polling.
+        /// </summary>
+        public void ReadClientLog()
+        {
+            ClientLogTail? tail;
+            lock (_gate)
+            {
+                tail = _clientLog;
+            }
+
+            if (tail is null)
+            {
+                return;
+            }
+
+            IReadOnlyList<string> lines;
+            string? failure = null;
+            try
+            {
+                lines = tail.Read();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                lines = [];
+                failure = ex.Message;
+                Log.LogWarning(ex, "client_log_matches could not read the client log {Path}", tail.FilePath);
+            }
+
+            lock (_gate)
+            {
+                if (_closed)
+                {
+                    return;
+                }
+
+                if (failure is not null)
+                {
+                    _clientLogError = failure;
+                    return;
+                }
+
+                _clientLogError = null;
+                _clientLogLines += lines.Count;
+                RecordClientLogMatches(lines);
+            }
+        }
+
+        /// <summary>Gives each not-yet-matched <c>client_log_matches</c> the first of <paramref name="lines"/> its regex matches.</summary>
+        private void RecordClientLogMatches(IReadOnlyList<string> lines)
+        {
+            for (int index = 0; index < parameters.Conditions.Count; index++)
+            {
+                WaitUntilCondition condition = parameters.Conditions[index];
+                if ((condition.Kind != WaitUntilKind.ClientLogMatches) || (_matched[index] is not null))
+                {
+                    continue;
+                }
+
+                foreach (string line in lines)
+                {
+                    if (condition.Pattern?.IsMatch(line) == true)
+                    {
+                        _matched[index] = line;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>A <c>client_log_matches</c>: the sticky line this wait's reader matched, else the read error, else how far it read.</summary>
+        private (bool Holds, string Value) EvaluateClientLog(int index)
+        {
+            if (_matched[index] is { } line)
+            {
+                return (true, $"matched: {line}");
+            }
+
+            return (_clientLogError is { } error) ? (false, $"log unreadable: {error}") : (false, $"no match ({_clientLogLines} lines read)");
+        }
+
         private (bool Holds, string Value) EvaluateOne(int index, WaitUntilCondition condition, IAutomationState state)
         {
             if (condition.Kind == WaitUntilKind.SimSeconds)
@@ -358,6 +499,11 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             {
                 _matched[index] ??= FirstMatch(index, condition, state);
                 return (_matched[index] is { } message) ? (true, $"matched: {message}") : (false, "no match");
+            }
+
+            if (condition.Kind == WaitUntilKind.ClientLogMatches)
+            {
+                return EvaluateClientLog(index);
             }
 
             AircraftModel? aircraft = state.Aircraft.FirstOrDefault(candidate =>

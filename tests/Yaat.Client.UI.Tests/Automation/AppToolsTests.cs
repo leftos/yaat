@@ -1899,6 +1899,8 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         public int SimRate => 1;
 
+        public string ClientLogPath => "";
+
         public long TerminalCursor => 0;
 
         public IReadOnlyList<TerminalEntry> TerminalEntriesSince(long cursor) => [];

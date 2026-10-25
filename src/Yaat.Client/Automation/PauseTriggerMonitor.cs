@@ -23,7 +23,9 @@ public sealed record PauseEvent(long Sequence, string Trigger, string? Callsign,
 /// <summary>
 /// Pauses the room's sim the moment something needs an agent's attention, while the agent is between calls. Armed with a
 /// <see cref="PauseTriggerSet"/>, it checks the client every 200 ms on the UI thread, logs every event it sees, and sends one
-/// <c>PAUSE</c> for a check that saw any while the sim runs. Automation only; nothing is saved.
+/// <c>PAUSE</c> for a check that saw any while the sim runs. A warning or error line that only answers a command the automation
+/// pipe itself sent — from <see cref="OwnCommandStarted"/> to <see cref="OwnCommandFinished"/> — fires nothing, since the caller
+/// already has that answer. Automation only; nothing is saved.
 /// </summary>
 /// <param name="state">The client state it reads and the pause it sends.</param>
 public sealed class PauseTriggerMonitor(IAutomationState state)
@@ -39,6 +41,9 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     private const double StoppedKnots = 0.5;
     private const double StoppedSeconds = 5.0;
 
+    /// <summary>How long after a command's own answer comes back a late copy of it still counts as that same answer.</summary>
+    private static readonly TimeSpan AnswerWindow = TimeSpan.FromSeconds(2);
+
     private static readonly ILogger Log = AppLog.CreateLogger("PauseTriggerMonitor");
     private static readonly ConditionalWeakTable<MainViewModel, PauseTriggerMonitor> Monitors = [];
 
@@ -47,7 +52,11 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     private readonly Dictionary<string, string?> _conflictPeers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, GroundStopTracker> _groundStops = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PendingEvent> _pending = [];
+    private readonly List<TerminalEntry> _held = [];
+    private readonly List<TerminalEntry> _released = [];
+    private readonly List<RecentAnswer> _recentAnswers = [];
     private DispatcherTimer? _timer;
+    private int _ownCommandsInFlight;
     private long _terminalCursor;
     private double _heartbeatAnchor;
     private long _lastSequence;
@@ -77,6 +86,8 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
         }
 
         _terminalCursor = state.TerminalCursor;
+        _held.Clear();
+        _released.Clear();
         _knownCallsigns.Clear();
         _conflictPeers.Clear();
         _groundStops.Clear();
@@ -103,6 +114,49 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
         }
 
         _timer?.Stop();
+    }
+
+    /// <summary>
+    /// Notes that the automation pipe has just sent a command of its own: until <see cref="OwnCommandFinished"/> says how it ended,
+    /// warning and error lines are held back rather than fired, since the answer to that command is what the caller already gets.
+    /// A counter, so commands that overlap hold the lines until the last of them ends.
+    /// </summary>
+    public void OwnCommandStarted() => _ownCommandsInFlight++;
+
+    /// <summary>
+    /// Notes that a command <see cref="OwnCommandStarted"/> began has ended: <paramref name="callsign"/> is the aircraft it named,
+    /// empty or null for a command that named no aircraft, and <paramref name="answeredTexts"/> the texts that answer it. Those are
+    /// remembered from this finish, so a line held while a command was in flight is dropped at the release when it answers any of
+    /// them, however long it was held; for two seconds after that a late copy of an answer is dropped as it arrives. When no
+    /// command is left in flight the other held lines fire at once as a normal check would.
+    /// </summary>
+    public void OwnCommandFinished(string? callsign, IReadOnlyCollection<string> answeredTexts)
+    {
+        if (_ownCommandsInFlight > 0)
+        {
+            _ownCommandsInFlight--;
+        }
+
+        if (answeredTexts.Count > 0)
+        {
+            _recentAnswers.Add(new RecentAnswer(callsign, [.. answeredTexts], Stopwatch.GetTimestamp()));
+        }
+
+        if (_ownCommandsInFlight > 0)
+        {
+            return;
+        }
+
+        foreach (TerminalEntry entry in _held)
+        {
+            if (!ClaimedByAnAnswer(entry))
+            {
+                _released.Add(entry);
+            }
+        }
+
+        _held.Clear();
+        Evaluate();
     }
 
     /// <summary>Checks the client at once when a terminal entry or an aircraft is added or removed; a no-op while disarmed.</summary>
@@ -154,6 +208,7 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
 
     private void CheckTerminal(PauseTriggerSet triggers)
     {
+        ReleaseHeld(triggers);
         foreach (TerminalEntry entry in state.TerminalEntriesSince(_terminalCursor))
         {
             _terminalCursor = entry.Sequence;
@@ -168,9 +223,76 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
             }
             else if (triggers.Warnings && (entry.Kind is TerminalEntryKind.Warning or TerminalEntryKind.Error))
             {
+                if (_ownCommandsInFlight > 0)
+                {
+                    _held.Add(entry);
+                }
+                else if (!DropsAsOwnAnswer(entry))
+                {
+                    Fire(WarningTrigger, entry.Callsign, entry.Message);
+                }
+            }
+        }
+    }
+
+    /// <summary>Fires the warning and error lines a finished own command released, which its own answer did not claim.</summary>
+    private void ReleaseHeld(PauseTriggerSet triggers)
+    {
+        foreach (TerminalEntry entry in _released)
+        {
+            if (triggers.Warnings)
+            {
                 Fire(WarningTrigger, entry.Callsign, entry.Message);
             }
         }
+
+        _released.Clear();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="entry"/> is a late copy of an answer that came back in the last
+    /// <see cref="AnswerWindow"/>; consumes the text it answers so the same text fires next time.
+    /// </summary>
+    private bool DropsAsOwnAnswer(TerminalEntry entry)
+    {
+        long now = Stopwatch.GetTimestamp();
+        _recentAnswers.RemoveAll(answer => Stopwatch.GetElapsedTime(answer.Started, now) > AnswerWindow);
+        return ClaimedByAnAnswer(entry);
+    }
+
+    /// <summary>Whether a recent answer claims <paramref name="entry"/>, consuming its text; the answer's age does not matter.</summary>
+    private bool ClaimedByAnAnswer(TerminalEntry entry)
+    {
+        foreach (RecentAnswer answer in _recentAnswers)
+        {
+            if (IsAnsweredBy(answer.Texts, answer.Callsign, entry))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="entry"/> carries one of <paramref name="texts"/> as its message, from <paramref name="callsign"/>
+    /// or from no aircraft, consuming that text: each text answers one line only.
+    /// </summary>
+    private static bool IsAnsweredBy(List<string> texts, string? callsign, TerminalEntry entry)
+    {
+        if (!string.IsNullOrEmpty(entry.Callsign) && !string.Equals(entry.Callsign, callsign, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        int index = texts.FindIndex(text => string.Equals(text, entry.Message, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        texts.RemoveAt(index);
+        return true;
     }
 
     private void CheckAircraft(PauseTriggerSet triggers, double now)
@@ -277,6 +399,9 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     }
 
     private sealed record PendingEvent(string Trigger, string? Callsign, string Detail);
+
+    /// <summary>A finished own command's answer: the aircraft it named, the texts not yet claimed, and when it came back.</summary>
+    private sealed record RecentAnswer(string? Callsign, List<string> Texts, long Started);
 
     /// <summary>An aircraft's stop watch: whether it has moved since its last stop, and the sim time it stopped.</summary>
     private sealed class GroundStopTracker

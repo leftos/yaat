@@ -13,13 +13,15 @@ public enum WaitUntilKind
     PhaseIsNot,
     QueueEmpty,
     LogMatches,
+    ClientLogMatches,
     SimSeconds,
     Paused,
 }
 
 /// <summary>
 /// One <c>wait_until</c> condition: its kind as the request named it, the kind, and the fields the kind reads (the others
-/// are empty, null or zero). <paramref name="Callsign"/> is empty on a <c>log_matches</c> that filters on no aircraft.
+/// are empty, null or zero). <paramref name="Callsign"/> is empty on a <c>log_matches</c> that filters on no aircraft, and on
+/// every <c>client_log_matches</c>, which takes none.
 /// </summary>
 public sealed record WaitUntilCondition(string Name, WaitUntilKind Kind, string Callsign, string Phase, Regex? Pattern, double AtLeast);
 
@@ -59,6 +61,7 @@ public sealed record WaitUntilParams(
         ["phase_is_not"] = WaitUntilKind.PhaseIsNot,
         ["queue_empty"] = WaitUntilKind.QueueEmpty,
         ["log_matches"] = WaitUntilKind.LogMatches,
+        ["client_log_matches"] = WaitUntilKind.ClientLogMatches,
         ["sim_seconds"] = WaitUntilKind.SimSeconds,
         ["paused"] = WaitUntilKind.Paused,
     };
@@ -129,6 +132,7 @@ public sealed record WaitUntilParams(
             WaitUntilKind.SimSeconds => ReadSimSeconds(item, path),
             WaitUntilKind.Paused => new WaitUntilCondition("paused", WaitUntilKind.Paused, "", "", null, 0),
             WaitUntilKind.LogMatches => ReadLogMatches(item, path),
+            WaitUntilKind.ClientLogMatches => ReadClientLogMatches(item, path),
             WaitUntilKind.PhaseIs or WaitUntilKind.PhaseIsNot => ReadPhase(item, path, normalized, kind),
             _ => ReadAircraft(item, path, normalized, kind),
         };
@@ -177,6 +181,39 @@ public sealed record WaitUntilParams(
         {
             var regex = new Regex(pattern, RegexOptions.NonBacktracking | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             return new WaitUntilCondition("log_matches", WaitUntilKind.LogMatches, callsign ?? "", "", regex, 0);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            return HandlerResult.InvalidParam(
+                $"{path}.pattern",
+                $"'{path}.pattern' must be a .NET regex the non-backtracking engine accepts (no backreferences or lookarounds): {ex.Message}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// A <c>client_log_matches</c>: <c>pattern</c>, a .NET regex matched case-insensitively against each line the client's log
+    /// file gains after the wait begins. It takes no <c>callsign</c>: the client log is not split by aircraft.
+    /// </summary>
+    private static object ReadClientLogMatches(JsonElement item, string path)
+    {
+        (string pattern, HandlerErrorResult? patternError) = RequiredString(item, path, "pattern");
+        if (patternError is not null)
+        {
+            return patternError;
+        }
+
+        if (item.TryGetProperty("callsign", out _))
+        {
+            return HandlerResult.InvalidParam($"{path}.callsign", "client_log_matches takes no callsign: the client log is not split by aircraft.");
+        }
+
+        // The non-backtracking engine matches in time linear in the line's length, so a pattern needs no match timeout; it
+        // refuses the constructs that need backtracking (backreferences, lookarounds, atomic groups).
+        try
+        {
+            var regex = new Regex(pattern, RegexOptions.NonBacktracking | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return new WaitUntilCondition("client_log_matches", WaitUntilKind.ClientLogMatches, "", "", regex, 0);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {

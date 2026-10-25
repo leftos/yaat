@@ -31,7 +31,7 @@ The feature pair is `X:\dev\yaat.wt\feat-controller-ai-coaching\{yaat,yaat-serve
    - `appDataDir`: `<yaat wt>\.tmp\coaching\appdata`
    - `cloaked: false`, so the owner watches the window
 
-   Wait until the client log (`tail_yaat_log`) shows "Navigation database built". `wait_until`'s `log_matches` reads the terminal, not this log.
+   Wait for navdata with `wait_until` on `{"kind": "client_log_matches", "pattern": "Navigation database built"}` (timeout 120000). `client_log_matches` reads `yaat-client.log`; `log_matches` reads the terminal.
 5. Call these app tools in order: `connect("http://localhost:5130")`, then `create_room("ZOA")`, then `set_solo(true)`. Solo goes on before the scenario loads, so the load sets the room up for a solo student.
 6. Load the scenario: Scenario › Load Scenario › Local Files, its only item, then Load. A session-setup prompt may follow, asking for active runways or the positions the student works.
 
