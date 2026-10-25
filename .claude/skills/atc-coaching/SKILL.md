@@ -9,7 +9,7 @@ The owner trains Claude the way a student is trained. Claude works the position 
 
 ## Ground rules
 
-- **Solo-training forms only.** The room runs in solo mode, and its dispatcher refuses the RPO-only forms. Never use `CLANDF`, `CAPPF`, `CVAF`, `FOLLOWF`, `RTISF`, `RFISF`, or a bare-callsign `RTIS`/`RFIS`. Read COMMANDS.md "Solo Training Command Differences" before the first session of a context.
+- **Solo-training forms only.** The room runs in solo mode, and its dispatcher refuses the RPO-only forms. Never use `CLANDF`, `CAPPF`, `CVAF`, `FOLLOWF`, `RTISF`, `RFISF`, a bare-callsign `RTIS`/`RFIS`, or `TAXIAUTO`: a student issues the taxi route, so taxi with `TAXI` and the taxiways. Read COMMANDS.md "Solo Training Command Differences" before the first session of a context.
 - **Never send before the trainer rules.** Every instruction is proposed first, while the sim is paused. Claude sends it only after the owner approves it or corrects it, then resumes.
 - **Scan like a controller, at a human pace.** While the sim runs, look at the picture about every 10 sim seconds. Don't just wait for a pause trigger. The triggers are a safety net, not the scan.
 - **Sessions run at sim rate 1.** The student works in real time, and a pause trigger is exact only at 1x.
@@ -25,14 +25,14 @@ The feature pair is `X:\dev\yaat.wt\feat-controller-ai-coaching\{yaat,yaat-serve
 2. Start the server from the yaat-server worktree in the background, on `http://localhost:5130`:
    `dotnet run --project src/Yaat.Server -c Release`.
 3. Copy the scenario the trainer picked into `<yaat wt>\.tmp\coaching\scenario\` (alone in that folder).
-   Write `<yaat wt>\.tmp\coaching\appdata\preferences.json` with `lastScenarioFolder` set to that folder, keeping any other keys.
+   Write `<yaat wt>\.tmp\coaching\appdata\preferences.json` with `lastScenarioFolder` set to that folder and `soloTrainingMode` set to `true` (the solo scenario default, so the load starts the room in solo), keeping any other keys.
 4. Launch the client with `launch_yaat`:
    - `exePath`: the worktree's `src/Yaat.Client/bin/Release/net10.0/Yaat.Client.exe`
    - `appDataDir`: `<yaat wt>\.tmp\coaching\appdata`
    - `cloaked: false`, so the owner watches the window
 
-   Wait for navdata with `wait_until` on `{"kind": "client_log_matches", "pattern": "Navigation database built"}` (timeout 120000). `client_log_matches` reads `yaat-client.log`; `log_matches` reads the terminal.
-5. Call these app tools in order: `connect("http://localhost:5130")`, then `create_room("ZOA")`, then `set_solo(true)`. Solo goes on before the scenario loads, so the load sets the room up for a solo student.
+   Wait for navdata with `wait_until` on `{"kind": "client_log_matches", "pattern": "Navdata loaded:", "fromStart": true}` (timeout 120000). Navdata usually loads within seconds of the launch, before the wait starts; `fromStart` reads `yaat-client.log` from its first line, so a line already written still matches. (`log_matches` reads the terminal, not this log.)
+5. Call these app tools in order: `connect("http://localhost:5130")`, then `create_room("ZOA")`. The title bar says `[Solo mode]` from the preference in step 3; `set_solo` runs only once a scenario is loaded.
 6. Load the scenario: Scenario › Load Scenario › Local Files, its only item, then Load. A session-setup prompt may follow, asking for active runways or the positions the student works.
 
    While it shows, `list_windows` lists it as a popup row titled `Session setup`; find its buttons with `find_elements` under that row. Answer it as the trainer chose.

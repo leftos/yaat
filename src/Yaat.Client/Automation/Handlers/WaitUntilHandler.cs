@@ -15,7 +15,8 @@ namespace Yaat.Client.Automation.Handlers;
 /// <c>phase_is</c> and <c>phase_is_not</c> (case-insensitive, exact), <c>queue_empty</c> (no pending conditional commands),
 /// each with a <c>callsign</c>; <c>log_matches</c> (a terminal line added after the call matching <c>pattern</c>, from
 /// <c>callsign</c> when given); <c>client_log_matches</c> (a line the client's log file gains after the first poll matching
-/// <c>pattern</c>, read off the UI thread); and <c>sim_seconds</c> (<c>atLeast</c>). An aircraft not in the client holds no condition and
+/// <c>pattern</c>, read off the UI thread, or with <c>fromStart</c> any line of the whole log from its first line matching it);
+/// and <c>sim_seconds</c> (<c>atLeast</c>). An aircraft not in the client holds no condition and
 /// reads <c>absent</c>. At the poll that sees the match it captures the optional <c>screenshot</c> target and starts the
 /// <c>then</c> actions (<c>pause</c>, <c>set_rate</c>) in order. Met or not, the answer is a <see cref="WaitUntilResult"/>,
 /// never a timeout error; while the main window is not up it is <c>UNSUPPORTED_OPERATION</c>. The poll stops when the
@@ -372,8 +373,9 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
         }
 
         /// <summary>
-        /// Records where the client log stands at the wait's first poll: the wait reads lines written from then on. A client that
-        /// writes none leaves nothing to read, which decides the wait rather than timing it out.
+        /// Records where the client log stands at the wait's first poll: the wait reads lines written from then on, or with
+        /// <c>fromStart</c> the whole log from its first line. A client that writes none leaves nothing to read, which decides
+        /// the wait rather than timing it out.
         /// </summary>
         private void StartClientLog(IAutomationState state)
         {
@@ -397,7 +399,8 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
                 return;
             }
 
-            _clientLog = new ClientLogTail(path, info.Length);
+            bool fromStart = parameters.Conditions.Any(condition => (condition.Kind == WaitUntilKind.ClientLogMatches) && condition.FromStart);
+            _clientLog = new ClientLogTail(path, fromStart ? 0 : info.Length);
         }
 
         /// <summary>

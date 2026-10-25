@@ -233,6 +233,106 @@ public sealed class AutomationWaitUntilClientLogTests : AutomationHostFixture
         Assert.DoesNotContain(true, uiThread);
     }
 
+    [AvaloniaFact]
+    public async Task ClientLogMatches_FromStart_MatchesALineWrittenBeforeTheWait()
+    {
+        using var log = new TempClientLog();
+        log.Write("10:00:00.000 [info] Yaat.Client.ViewModels.MainViewModel: Navdata loaded: 112763 fixes, CIFP initialized");
+        var viewModel = new MainViewModel(new FakeFilePickerService());
+
+        JsonElement result = Result(
+            await WaitUntil(
+                StateOf(viewModel, log.FilePath),
+                new
+                {
+                    conditions = new[]
+                    {
+                        new
+                        {
+                            kind = "client_log_matches",
+                            pattern = "Navdata loaded:",
+                            fromStart = true,
+                        },
+                    },
+                    timeoutMs = 2000,
+                }
+            )
+        );
+
+        Assert.True(result.GetProperty("met").GetBoolean());
+        Assert.Equal(
+            "matched: 10:00:00.000 [info] Yaat.Client.ViewModels.MainViewModel: Navdata loaded: 112763 fixes, CIFP initialized",
+            LastValue(result, 0)
+        );
+    }
+
+    [AvaloniaFact]
+    public async Task ClientLogMatches_WithoutFromStart_IgnoresALineWrittenBeforeTheWait()
+    {
+        using var log = new TempClientLog();
+        log.Write("10:00:00.000 [info] Yaat.Client.ViewModels.MainViewModel: Navdata loaded: 112763 fixes, CIFP initialized");
+        var viewModel = new MainViewModel(new FakeFilePickerService());
+
+        JsonElement result = Result(
+            await WaitUntil(
+                StateOf(viewModel, log.FilePath),
+                new { conditions = new[] { new { kind = "client_log_matches", pattern = "Navdata loaded:" } }, timeoutMs = 500 }
+            )
+        );
+
+        Assert.False(result.GetProperty("met").GetBoolean());
+        Assert.Equal("no match (0 lines read)", LastValue(result, 0));
+    }
+
+    [AvaloniaFact]
+    public async Task ClientLogMatches_FromStartNotBoolean_IsInvalidParam()
+    {
+        using var log = new TempClientLog();
+        var viewModel = new MainViewModel(new FakeFilePickerService());
+
+        JsonElement error = Error(
+            await WaitUntil(
+                StateOf(viewModel, log.FilePath),
+                Conditions(
+                    new
+                    {
+                        kind = "client_log_matches",
+                        pattern = "built",
+                        fromStart = "yes",
+                    }
+                )
+            ),
+            AutomationErrorCodes.InvalidParam
+        );
+
+        Assert.Equal("conditions[0].fromStart", error.GetProperty("details").GetProperty("param").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task ClientLogMatches_MixedFromStart_IsInvalidParam()
+    {
+        using var log = new TempClientLog();
+        var viewModel = new MainViewModel(new FakeFilePickerService());
+
+        JsonElement error = Error(
+            await WaitUntil(
+                StateOf(viewModel, log.FilePath),
+                Conditions(
+                    new
+                    {
+                        kind = "client_log_matches",
+                        pattern = "built",
+                        fromStart = true,
+                    },
+                    new { kind = "client_log_matches", pattern = "loaded" }
+                )
+            ),
+            AutomationErrorCodes.InvalidParam
+        );
+
+        Assert.Equal("conditions[1].fromStart", error.GetProperty("details").GetProperty("param").GetString());
+    }
+
     /// <summary>A client log file the test writes, under its own temp directory, opened as the client's own writer opens it.</summary>
     private sealed class TempClientLog : IDisposable
     {
