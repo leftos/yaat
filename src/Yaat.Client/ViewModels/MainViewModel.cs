@@ -3704,6 +3704,7 @@ public partial class MainViewModel : ObservableObject
         SessionHasSoloParkingInitialCallupSource = dto.HasSoloParkingInitialCallupSource;
         SessionHasSoloArrivalGeneratorSource = dto.HasSoloArrivalGeneratorSource;
         SessionRpoShowPilotSpeech = dto.RpoShowPilotSpeech;
+        ApplySessionStudentLevels(dto.StudentLowestWorkedLevel, dto.StudentOwnLevel);
         _isApplyingSessionSettings = false;
 
         ApplyAutoClearedToLandLocally(dto.AutoClearedToLand);
@@ -3747,7 +3748,8 @@ public partial class MainViewModel : ObservableObject
                 state.LiveTrafficEnabled,
                 state.LiveTrafficCeilingFt,
                 state.LiveTrafficFilter,
-                StudentLowestWorkedLevel: state.StudentLowestWorkedLevel
+                StudentLowestWorkedLevel: state.StudentLowestWorkedLevel,
+                StudentOwnLevel: state.StudentOwnLevel
             )
         );
     }
@@ -3781,7 +3783,8 @@ public partial class MainViewModel : ObservableObject
                 dto.LiveTrafficEnabled,
                 dto.LiveTrafficCeilingFt,
                 dto.LiveTrafficFilter,
-                StudentLowestWorkedLevel: dto.StudentLowestWorkedLevel
+                StudentLowestWorkedLevel: dto.StudentLowestWorkedLevel,
+                StudentOwnLevel: dto.StudentOwnLevel
             )
         );
     }
@@ -3815,7 +3818,8 @@ public partial class MainViewModel : ObservableObject
                 result.LiveTrafficEnabled,
                 result.LiveTrafficCeilingFt,
                 result.LiveTrafficFilter,
-                StudentLowestWorkedLevel: result.StudentLowestWorkedLevel
+                StudentLowestWorkedLevel: result.StudentLowestWorkedLevel,
+                StudentOwnLevel: result.StudentOwnLevel
             )
         );
     }
@@ -4014,10 +4018,16 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowSessionSoloArrivalGeneratorRate));
         OnPropertyChanged(nameof(ShowSessionSoloGoAroundProbability));
         OnPropertyChanged(nameof(ShowSessionSoloAdvisorySettings));
+        OnPropertyChanged(nameof(ShowSessionWorkedPositions));
         RefreshPilotVoiceWarning();
+        if (!value)
+        {
+            CloseWorkedPositionsPrompt();
+        }
+
         if (!_isApplyingSessionSettings)
         {
-            _ = _connection.SetSoloTrainingModeAsync(value);
+            _ = SendSoloTrainingModeAsync(value);
         }
     }
 
@@ -4184,17 +4194,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private async Task SendSoloTrainingMode()
-    {
-        try
-        {
-            await _connection.SetSoloTrainingModeAsync(_preferences.SoloTrainingMode);
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Failed to set solo training mode");
-        }
-    }
+    private Task SendSoloTrainingMode() => SendSoloTrainingModeAsync(_preferences.SoloTrainingMode);
 
     private async Task SendAutoClearedToLand()
     {

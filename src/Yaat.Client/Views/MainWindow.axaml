@@ -903,9 +903,9 @@
       </StackPanel>
     </Border>
 
-    <!-- Active runways prompt overlay (the loading mentor's answer, sent as ARWY per airport) -->
+    <!-- Session setup overlay: the loading mentor's active runways (sent as ARWY per airport) and the solo student's worked positions -->
     <Border
-      IsVisible="{Binding ShowActiveRunwaysPrompt}"
+      IsVisible="{Binding ShowSessionSetup}"
       Background="#CC000000"
       HorizontalAlignment="Center"
       VerticalAlignment="Center"
@@ -915,40 +915,71 @@
       MaxWidth="560"
     >
       <StackPanel Spacing="12">
-        <TextBlock Text="Active runways" FontSize="16" FontWeight="Bold" Foreground="White" />
-        <TextBlock
-          Text="YAAT's aircraft menus use these to name and suggest runways. Aircraft the scenario already gives a runway keep it."
-          TextWrapping="Wrap"
-          Foreground="LightGray"
-        />
-        <TextBlock
-          Text="Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only."
-          TextWrapping="Wrap"
-          Foreground="LightGray"
-        />
-        <ItemsControl ItemsSource="{Binding ActiveRunwaysPromptRows}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ActiveRunwaysRow">
-              <StackPanel Spacing="4" Margin="0,0,0,8">
-                <Grid ColumnDefinitions="56,*" ColumnSpacing="10">
-                  <TextBlock Grid.Column="0" Text="{Binding Airport}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" />
-                  <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" />
-                </Grid>
-                <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#FF8080" TextWrapping="Wrap" Margin="66,0,0,0" />
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <ItemsControl ItemsSource="{Binding ActiveRunwaysPromptNotes}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <TextBlock Text="{Binding}" Foreground="LightGray" FontSize="11" TextWrapping="Wrap" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <TextBlock Text="Session setup" FontSize="16" FontWeight="Bold" Foreground="White" />
+        <StackPanel Spacing="12" IsVisible="{Binding ShowActiveRunwaysPrompt}">
+          <TextBlock Text="Active runways" FontSize="14" FontWeight="Bold" Foreground="White" />
+          <TextBlock
+            Text="YAAT's aircraft menus use these to name and suggest runways. Aircraft the scenario already gives a runway keep it."
+            TextWrapping="Wrap"
+            Foreground="LightGray"
+          />
+          <TextBlock
+            Text="Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only."
+            TextWrapping="Wrap"
+            Foreground="LightGray"
+          />
+          <ItemsControl ItemsSource="{Binding ActiveRunwaysPromptRows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ActiveRunwaysRow">
+                <StackPanel Spacing="4" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="56,*" ColumnSpacing="10">
+                    <TextBlock Grid.Column="0" Text="{Binding Airport}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" />
+                  </Grid>
+                  <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#FF8080" TextWrapping="Wrap" Margin="66,0,0,0" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl ItemsSource="{Binding ActiveRunwaysPromptNotes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" Foreground="LightGray" FontSize="11" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+        <Border Height="1" Background="#3C3C3C" IsVisible="{Binding ShowSessionSetupDivider}" />
+        <StackPanel Spacing="8" IsVisible="{Binding ShowWorkedPositionsPrompt}">
+          <TextBlock Text="Positions you work" FontSize="14" FontWeight="Bold" Foreground="White" />
+          <TextBlock
+            Text="You work your position and the positions you choose below it. YAAT simulates the rest."
+            TextWrapping="Wrap"
+            Foreground="LightGray"
+          />
+          <ItemsControl ItemsSource="{Binding WorkedPositionsPromptChoices}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:WorkedPositionsChoiceRow">
+                <RadioButton GroupName="SessionSetupWorkedPositions" IsChecked="{Binding IsSelected}" Margin="0,0,0,6">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Label}" Foreground="White" />
+                    <TextBlock Text="{Binding Note}" Foreground="LightGray" FontSize="11" TextWrapping="Wrap" />
+                  </StackPanel>
+                </RadioButton>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock
+            Text="{Binding WorkedPositionsPromptError}"
+            IsVisible="{Binding HasWorkedPositionsPromptError}"
+            Foreground="#FF8080"
+            TextWrapping="Wrap"
+          />
+          <TextBlock Text="You can change this later in Session settings." Foreground="LightGray" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-          <Button Content="OK" Command="{Binding ConfirmActiveRunwaysPromptCommand}" />
-          <Button Content="Cancel" Command="{Binding CancelActiveRunwaysPromptCommand}" />
+          <Button Content="OK" Command="{Binding ConfirmSessionSetupCommand}" />
+          <Button Content="Cancel" Command="{Binding CancelSessionSetupCommand}" />
         </StackPanel>
       </StackPanel>
     </Border>

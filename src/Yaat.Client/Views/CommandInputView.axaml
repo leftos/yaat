@@ -231,6 +231,22 @@
 
             <CheckBox Content="Solo Training Mode" IsChecked="{Binding SessionSoloTrainingMode}" />
 
+            <StackPanel Spacing="2" IsVisible="{Binding ShowSessionWorkedPositions}">
+              <TextBlock Text="Positions you work" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <ComboBox
+                ItemsSource="{Binding SessionWorkedPositionsChoices}"
+                SelectedValueBinding="{Binding Code}"
+                SelectedValue="{Binding SessionStudentLowestWorkedLevel}"
+                HorizontalAlignment="Stretch"
+              >
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WorkedPositionsChoice">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+
             <StackPanel Spacing="2" IsVisible="{Binding ShowSessionSoloAdvisorySettings}">
               <TextBlock Text="Pre-fill traffic advisories" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
               <ComboBox

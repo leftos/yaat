@@ -352,7 +352,7 @@ public class MainViewModelActiveRunwaysPromptTests
         MainViewModel vm = PromptedVm(("OAK", ["D28L"]));
         vm.ApplyActiveRunways(Runways(("OAK", ["30"])));
 
-        vm.CancelActiveRunwaysPromptCommand.Execute(null);
+        vm.CancelSessionSetupCommand.Execute(null);
 
         Assert.False(vm.ShowActiveRunwaysPrompt);
         Assert.Equal(NotSetHint, vm.TerminalEntries[^1].Message);

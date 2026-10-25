@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim.Data;
@@ -142,17 +141,9 @@ public partial class MainViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanConfirmActiveRunwaysPrompt))]
-    private Task ConfirmActiveRunwaysPromptAsync() =>
-        SubmitActiveRunwaysPromptAsync(
-            NavigationDatabase.InstanceOrNull,
-            command => _connection.SendCommandAsync("", command, _preferences.UserInitials)
-        );
-
     private bool CanConfirmActiveRunwaysPrompt() => ActiveRunwaysEditor.CanConfirm(ActiveRunwaysPromptRows, NavigationDatabase.InstanceOrNull);
 
     /// <summary>Leaves the room's list as the server seeded it and the room unanswered, and says how to set it later.</summary>
-    [RelayCommand]
     private void CancelActiveRunwaysPrompt()
     {
         CloseActiveRunwaysPrompt();
@@ -191,7 +182,7 @@ public partial class MainViewModel
 
         RefreshActiveRunwaysPromptNotes();
         ShowActiveRunwaysPrompt = true;
-        ConfirmActiveRunwaysPromptCommand.NotifyCanExecuteChanged();
+        ConfirmSessionSetupCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>The primary airport first, whether or not the guess names it, then every other airport the guess names.</summary>
@@ -211,7 +202,7 @@ public partial class MainViewModel
     {
         if (e.PropertyName == nameof(ActiveRunwaysRow.Text))
         {
-            ConfirmActiveRunwaysPromptCommand.NotifyCanExecuteChanged();
+            ConfirmSessionSetupCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -244,11 +235,11 @@ public partial class MainViewModel
         _activeRunwaysPromptAssigned = [];
     }
 
-    /// <summary>Every way out of a scenario: the room has no active runways, and the prompt for them closes.</summary>
+    /// <summary>Every way out of a scenario: the room has no active runways, and the session-setup popup closes.</summary>
     private void ClearActiveRunways()
     {
         RoomActiveRunways = NoActiveRunways;
         RoomToweredAirports = [];
-        CloseActiveRunwaysPrompt();
+        CloseSessionSetup();
     }
 }

@@ -222,13 +222,13 @@ internal static class SceneActions
             return;
         }
 
-        if (vm.ConfirmActiveRunwaysPromptCommand.CanExecute(null))
+        if (vm.ConfirmSessionSetupCommand.CanExecute(null))
         {
-            await vm.ConfirmActiveRunwaysPromptCommand.ExecuteAsync(null);
+            await vm.ConfirmSessionSetupCommand.ExecuteAsync(null);
         }
         else
         {
-            vm.CancelActiveRunwaysPromptCommand.Execute(null);
+            vm.CancelSessionSetupCommand.Execute(null);
         }
 
         await WaitUntilAsync(() => !vm.ShowActiveRunwaysPrompt, timeout, "the active runways prompt to close");

@@ -735,7 +735,7 @@ public partial class MainViewModel
         IsLiveSession = result.IsLiveSession;
         ApplySimState(result.IsPaused, result.SimRate, 0, false, 0);
         ApplySessionSettingsFromLoadScenarioResult(result);
-        ApplyLoadResultActiveRunways(result);
+        ApplyLoadResultSessionSetup(result);
 
         _ = SendAutoAcceptDelay();
         _ = SendCommandRunDelay();
@@ -785,8 +785,8 @@ public partial class MainViewModel
             ApplySimState(dto.IsPaused, dto.SimRate, 0, false, 0);
             ApplyActiveRunways(dto.ActiveRunways);
             ApplyToweredAirports(dto.ToweredAirports);
-            // Another member's load replaces the scenario this client's prompt was asking about.
-            CloseActiveRunwaysPrompt();
+            // Another member's load replaces the scenario this client's popup was asking about.
+            CloseSessionSetup();
 
             // Apply session settings from the server (set by the loading RPO).
             // Do NOT send our preferences — only the loading RPO applies theirs.

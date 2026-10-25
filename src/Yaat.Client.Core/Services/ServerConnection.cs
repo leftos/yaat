@@ -729,6 +729,13 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<SessionSetupPromptDto?>("SetSoloTrainingMode", enabled);
     }
 
+    /// <summary>Sets the lowest position type the solo student works, as a level code; the server refuses it outside solo training.</summary>
+    public async Task<CommandResultDto> SetStudentLowestWorkedLevelAsync(string level)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("SetStudentLowestWorkedLevel", level);
+    }
+
     public async Task SetSoloPacingRatesAsync(int parkingInitialCallupRatePercent, int arrivalGeneratorRatePercent, int goAroundProbabilityPercent)
     {
         EnsureConnected();
@@ -1495,7 +1502,9 @@ public record LoadScenarioResultDto(
     // else the creator's.
     string? ArtccId = null,
     // The lowest position type the solo student works, as a level code (DEL, GND, TWR, APP, CTR); null when unset.
-    string? StudentLowestWorkedLevel = null
+    string? StudentLowestWorkedLevel = null,
+    // The level of the student's own position, as a level code; null when the scenario has no typed student position.
+    string? StudentOwnLevel = null
 )
 {
     /// <summary>
@@ -1669,7 +1678,9 @@ public record RoomStateDto(
     // else the creator's.
     string? ArtccId = null,
     // The lowest position type the solo student works, as a level code (DEL, GND, TWR, APP, CTR); null when unset or with no scenario.
-    string? StudentLowestWorkedLevel = null
+    string? StudentLowestWorkedLevel = null,
+    // The level of the student's own position, as a level code; null when the scenario has no typed student position.
+    string? StudentOwnLevel = null
 )
 {
     /// <summary>The initials of the member whose scenario load is running in the room; null when none is.</summary>
@@ -1805,7 +1816,9 @@ public record ScenarioLoadedDto(
     // else the creator's.
     string? ArtccId = null,
     // The lowest position type the solo student works, as a level code; null when unset.
-    string? StudentLowestWorkedLevel = null
+    string? StudentLowestWorkedLevel = null,
+    // The level of the student's own position, as a level code; null when the scenario has no typed student position.
+    string? StudentOwnLevel = null
 );
 
 /// <summary>The <c>ScenarioUnloaded</c> event.</summary>
@@ -1900,7 +1913,9 @@ public record SessionSettingsDto(
     int LiveTrafficCeilingFt = 0,
     string LiveTrafficFilter = "",
     // The lowest position type the solo student works, as a level code; null when unset or with no scenario.
-    string? StudentLowestWorkedLevel = null
+    string? StudentLowestWorkedLevel = null,
+    // The level of the student's own position, as a level code; null when the scenario has no typed student position.
+    string? StudentOwnLevel = null
 );
 
 /// <summary>

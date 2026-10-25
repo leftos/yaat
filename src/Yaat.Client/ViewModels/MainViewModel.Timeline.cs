@@ -918,7 +918,7 @@ public partial class MainViewModel
         // A recording replaces the scenario, so a prompt asking about the one before it closes.
         ApplyActiveRunways(result.ActiveRunways);
         ApplyToweredAirports(result.ToweredAirports);
-        CloseActiveRunwaysPrompt();
+        CloseSessionSetup();
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
