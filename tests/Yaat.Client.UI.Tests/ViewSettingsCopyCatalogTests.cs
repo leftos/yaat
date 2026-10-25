@@ -232,6 +232,21 @@ public class ViewSettingsCopyCatalogTests
     }
 
     [Fact]
+    public void FavoriteSetsRow_TwoLayoutsDifferingOnlyInSetOrder_AreNotEqual()
+    {
+        var a = new SavedLayout { LoadedFavoriteSetIds = ["aaaa1111"], FavoriteSetOrder = ["global", "aaaa1111", "airport", "scenario"] };
+        var b = new SavedLayout { LoadedFavoriteSetIds = ["aaaa1111"], FavoriteSetOrder = ["aaaa1111", "global", "airport", "scenario"] };
+        var orderOnly = new SavedLayout { FavoriteSetOrder = ["scenario"] };
+        LayoutCopyGroup group = LayoutGroup(ViewSettingsCopyCatalog.LayoutFavoriteSetsKey);
+
+        Assert.False(group.AreEqual(a, b));
+        Assert.True(group.AreEqual(a, a));
+        Assert.True(group.IsSaved(orderOnly));
+        Assert.Equal("not saved", group.Describe(orderOnly));
+        Assert.Equal("1 set", group.Describe(a));
+    }
+
+    [Fact]
     public void FavoritesRows_OnALayoutSavedBeforeTheyExisted_AreNotSaved()
     {
         var legacy = new SavedLayout();

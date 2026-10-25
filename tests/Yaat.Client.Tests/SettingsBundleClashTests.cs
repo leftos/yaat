@@ -45,7 +45,7 @@ public class SettingsBundleClashTests : IDisposable
         target.Favorites.CreateNamedSet("Tower (2)");
         FavoriteStore source = SeededStore("source", "tower", "FH 270");
 
-        SettingsImportPlan plan = SettingsImportPlanner.Plan(SettingsBundleItems.Favorites(source, []), SettingsImportMode.Merge, target);
+        SettingsImportPlan plan = SettingsImportPlanner.Plan(SettingsBundleItems.Favorites(source, [], []), SettingsImportMode.Merge, target);
 
         ImportClash clash = Assert.Single(plan.Clashes);
         Assert.Equal("tower", clash.IncomingName);
@@ -119,7 +119,7 @@ public class SettingsBundleClashTests : IDisposable
         targetStore.SaveFavorite(old);
         targetStore.AddToSet(existing.Id, old.Id);
         FavoriteStore source = SeededStore("source", "Tower", "New");
-        SettingsImportPlan plan = SettingsImportPlanner.Plan(SettingsBundleItems.Favorites(source, []), SettingsImportMode.Merge, target);
+        SettingsImportPlan plan = SettingsImportPlanner.Plan(SettingsBundleItems.Favorites(source, [], []), SettingsImportMode.Merge, target);
         plan.Clashes[0].Choice = choice;
 
         SettingsImportPlanner.Apply(plan, target);

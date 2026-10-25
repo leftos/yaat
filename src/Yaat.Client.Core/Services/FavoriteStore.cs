@@ -19,7 +19,10 @@ public enum FavoriteSetKind
     /// <summary>Visible while <see cref="FavoriteSet.Key"/> matches the active scenario id.</summary>
     Scenario,
 
-    /// <summary>User-created set; visible while loaded (load order kept in <see cref="UserPreferences.LoadedFavoriteSetIds"/>).</summary>
+    /// <summary>
+    /// User-created set; visible while loaded (<see cref="UserPreferences.LoadedFavoriteSetIds"/>), placed on the bar by
+    /// <see cref="UserPreferences.FavoriteSetOrder"/>.
+    /// </summary>
     Named,
 }
 
@@ -493,33 +496,42 @@ public sealed class FavoriteStore
         [.. _sets.Where(s => s.FavoriteIds.Contains(favoriteId, StringComparer.OrdinalIgnoreCase)).Select(s => s.Id)];
 
     /// <summary>
-    /// Builds the display list: each visible container's ordered block in full — Global, the active
-    /// airport's set, the active scenario's set, then the loaded named sets in load order. A favorite
-    /// in several visible containers appears once per container (same entity each time).
+    /// Builds the display list: each visible container's ordered block in full, in the bar order
+    /// <paramref name="setOrder"/> (normalized by <see cref="FavoriteSetOrdering.Normalize"/>): Global, the
+    /// active airport's set and the active scenario's set where their slots sit, and each loaded named set
+    /// where it sits. A favorite in several visible containers appears once per container (same entity each time).
     /// </summary>
-    public List<FavoriteDisplayEntry> ComposeDisplay(string? activeScenarioId, string? activeAirportId, IReadOnlyList<string> loadedSetIds)
+    public List<FavoriteDisplayEntry> ComposeDisplay(
+        string? activeScenarioId,
+        string? activeAirportId,
+        IReadOnlyList<string> setOrder,
+        IReadOnlyList<string> loadedSetIds
+    )
     {
-        var visible = new List<FavoriteSet> { GlobalSet };
-        if (NormalizeAirportId(activeAirportId) is { } airport && FindAirportSet(airport) is { } airportSet)
+        List<string> namedSetIds = [.. OrderedSets.Where(s => s.Kind == FavoriteSetKind.Named).Select(s => s.Id)];
+        var visible = new List<FavoriteSet>();
+        foreach (string entry in FavoriteSetOrdering.Normalize(setOrder, loadedSetIds, namedSetIds))
         {
-            visible.Add(airportSet);
-        }
-
-        if (activeScenarioId is not null && FindScenarioSet(activeScenarioId) is { } scenarioSet)
-        {
-            visible.Add(scenarioSet);
-        }
-
-        foreach (string setId in loadedSetIds)
-        {
-            if (GetSet(setId) is { Kind: FavoriteSetKind.Named } named)
+            if (VisibleSetFor(entry, activeScenarioId, activeAirportId, loadedSetIds) is { } set)
             {
-                visible.Add(named);
+                visible.Add(set);
             }
         }
 
         return [.. visible.SelectMany(set => GetSetFavorites(set.Id).Select(f => new FavoriteDisplayEntry(f, set.Id)))];
     }
+
+    /// <summary>The set a normalized order entry shows on the bar, or null when it shows nothing.</summary>
+    private FavoriteSet? VisibleSetFor(string entry, string? activeScenarioId, string? activeAirportId, IReadOnlyList<string> loadedSetIds) =>
+        entry switch
+        {
+            FavoriteSetOrdering.GlobalSlot => GlobalSet,
+            FavoriteSetOrdering.AirportSlot => NormalizeAirportId(activeAirportId) is { } airport ? FindAirportSet(airport) : null,
+            FavoriteSetOrdering.ScenarioSlot => activeScenarioId is null ? null : FindScenarioSet(activeScenarioId),
+            _ => loadedSetIds.Contains(entry, StringComparer.OrdinalIgnoreCase) && GetSet(entry) is { Kind: FavoriteSetKind.Named } named
+                ? named
+                : null,
+        };
 
     /// <summary>Appends the given favorites to the set, skipping ids already present or unknown (import merge path).</summary>
     internal void AppendToSet(string setId, IEnumerable<string> favoriteIds)

@@ -170,6 +170,7 @@ public sealed partial class UserPreferences
         ["quickCommandLists"] = "the quick-command lists, shared as their own file (*.yaat-quickcommands.json)",
         ["windowProfiles"] = "legacy key, migrated into layouts on load",
         ["loadedFavoriteSetIds"] = "favorites state; the favorites entry carries the loaded-set ids",
+        ["favoriteSetOrder"] = "favorites state; the favorites entry carries the set order",
         ["favoriteCommands"] = "legacy favorites, migrated into the favorites store",
         ["favoriteCommandSets"] = "legacy favorites, migrated into the favorites store",
         ["loadedFavoriteSetNames"] = "legacy favorites, migrated into the favorites store",

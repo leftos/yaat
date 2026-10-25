@@ -408,7 +408,8 @@ public partial class ColumnChooserWindow : Window
 
         public PreferencesImportResult ReplacePreferences(JsonObject preferences) => live.ReplacePreferences(preferences);
 
-        public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace) => live.LoadImportedFavoriteSets(setIds, replace);
+        public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace) =>
+            live.LoadImportedFavoriteSets(setIds, setOrder, replace);
     }
 
     /// <summary>Exports the column layout the chooser shows; every other item as the preferences hold it.</summary>

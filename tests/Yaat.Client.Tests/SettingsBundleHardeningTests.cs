@@ -233,7 +233,7 @@ public class SettingsBundleHardeningTests : IDisposable
         FavoriteSet existing = target.Favorites.CreateNamedSet("Tower")!;
         FavoriteStore source = new(Path.Combine(_root, "source"));
         FavoriteSet incoming = source.CreateNamedSet("Tower")!;
-        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id]);
+        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id], []);
         SettingsBundleEntry layouts = SettingsBundleItems.Layouts([
             new SavedLayout { Name = "GC", LoadedFavoriteSetIds = [incoming.Id, "elsewhere"] },
         ]);
@@ -246,6 +246,116 @@ public class SettingsBundleHardeningTests : IDisposable
         Assert.Equal([SettingsItemType.Favorites, SettingsItemType.Layouts], results.Select(r => r.ItemType));
         List<string> expected = (choice == ClashChoice.Overwrite) ? [existing.Id, "elsewhere"] : ["elsewhere"];
         Assert.Equal(expected, Assert.Single(target.LayoutList).LoadedFavoriteSetIds);
+    }
+
+    [Theory]
+    [InlineData(ClashChoice.Overwrite)]
+    [InlineData(ClashChoice.Skip)]
+    public void ApplyAll_PointsImportedLayoutsSetOrderAtTheImportedFavoriteSets_KeepingSlotTokens(ClashChoice choice)
+    {
+        InMemorySettingsImportTarget target = NewTarget();
+        FavoriteSet existing = target.Favorites.CreateNamedSet("Tower")!;
+        FavoriteStore source = new(Path.Combine(_root, "source"));
+        FavoriteSet incoming = source.CreateNamedSet("Tower")!;
+        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id], []);
+        SettingsBundleEntry layouts = SettingsBundleItems.Layouts([
+            new SavedLayout { Name = "GC", FavoriteSetOrder = ["scenario", incoming.Id, "global", "elsewhere", "airport"] },
+        ]);
+        SettingsImportPlan layoutsPlan = SettingsImportPlanner.Plan(layouts, SettingsImportMode.Merge, target);
+        SettingsImportPlan favoritesPlan = SettingsImportPlanner.Plan(favorites, SettingsImportMode.Merge, target);
+        favoritesPlan.Clashes[0].Choice = choice;
+
+        SettingsImportPlanner.ApplyAll([layoutsPlan, favoritesPlan], target, _ => { });
+
+        List<string> expected =
+            (choice == ClashChoice.Overwrite)
+                ? ["scenario", existing.Id, "global", "elsewhere", "airport"]
+                : ["scenario", "global", "elsewhere", "airport"];
+        Assert.Equal(expected, Assert.Single(target.LayoutList).FavoriteSetOrder);
+    }
+
+    [Fact]
+    public void LayoutWithANullFavoriteSetOrderEntry_FailsNamingTheLayout()
+    {
+        var entry = new SettingsBundleEntry(
+            SettingsItemType.Layouts,
+            SettingsBundleFormats.LayoutsJson,
+            "layouts.json",
+            Encoding.UTF8.GetBytes("""[{"name":"GC","windowGeometries":{},"favoriteSetOrder":["global",null]}]""")
+        );
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => SettingsBundleItems.ReadLayouts(entry));
+
+        Assert.Contains("'GC'", error.Message);
+    }
+
+    [Fact]
+    public void FavoritesRenamedOnCollision_RewriteTheImportedSetOrder_PassingSlotTokensThrough()
+    {
+        InMemorySettingsImportTarget target = NewTarget();
+        FavoriteSet existing = target.Favorites.CreateNamedSet("Tower")!;
+        FavoriteStore source = new(Path.Combine(_root, "source"));
+        using (var copy = new MemoryStream(SettingsBundleItems.Favorites(target.Favorites, [], []).Content))
+        {
+            Assert.NotNull(FavoriteExport.ImportFile(source, "copy.yaat-favlibrary.zip", copy, FavoriteImportMode.Replace));
+        }
+
+        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [existing.Id], ["scenario", existing.Id, "global", "airport"]);
+        SettingsImportPlan plan = SettingsImportPlanner.Plan(favorites, SettingsImportMode.Merge, target);
+        ImportClash clash = Assert.Single(plan.Clashes);
+        clash.Choice = ClashChoice.Rename;
+        clash.RenameTo = "Tower 2";
+
+        SettingsImportResult result = SettingsImportPlanner.Apply(plan, target);
+
+        string renamedId = target.Favorites.FindNamedSet("Tower 2")!.Id;
+        Assert.NotEqual(existing.Id, renamedId);
+        Assert.Equal(["scenario", renamedId, "global", "airport"], result.Favorites!.SetOrder);
+    }
+
+    [Fact]
+    public void ReplaceImportOfALibraryWithoutASetOrder_LeavesAnEmptyOrder()
+    {
+        InMemorySettingsImportTarget target = NewTarget();
+        target.FavoriteSetOrder.AddRange(["scenario", "global"]);
+        FavoriteStore source = new(Path.Combine(_root, "source"));
+        FavoriteSet set = source.CreateNamedSet("Tower")!;
+        byte[] library = WithoutSetOrder(SettingsBundleItems.Favorites(source, [set.Id], ["scenario", set.Id]).Content);
+        var entry = new SettingsBundleEntry(
+            SettingsItemType.Favorites,
+            SettingsBundleFormats.FavoritesLibraryZip,
+            "favorites.yaat-favlibrary.zip",
+            library
+        );
+
+        SettingsImportResult result = SettingsImportPlanner.Apply(SettingsImportPlanner.Plan(entry, SettingsImportMode.Replace, target), target);
+
+        Assert.Empty(result.Favorites!.SetOrder);
+        Assert.Empty(target.FavoriteSetOrder);
+        Assert.Equal([set.Id], target.LoadedFavoriteSetIds);
+    }
+
+    // The library as one written before the set order existed: its manifest has no setOrder key.
+    private static byte[] WithoutSetOrder(byte[] library)
+    {
+        using var buffer = new MemoryStream();
+        buffer.Write(library);
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            ZipArchiveEntry manifest = zip.GetEntry("library.json")!;
+            JsonObject root;
+            using (Stream read = manifest.Open())
+            {
+                root = JsonNode.Parse(read)!.AsObject();
+            }
+
+            Assert.True(root.Remove("setOrder"));
+            manifest.Delete();
+            using Stream write = zip.CreateEntry("library.json").Open();
+            JsonSerializer.Serialize(write, root);
+        }
+
+        return buffer.ToArray();
     }
 
     [Fact]
@@ -264,7 +374,11 @@ public class SettingsBundleHardeningTests : IDisposable
             SettingsImportMode.Merge,
             target
         );
-        SettingsImportPlan favoritesPlan = SettingsImportPlanner.Plan(SettingsBundleItems.Favorites(source, []), SettingsImportMode.Merge, target);
+        SettingsImportPlan favoritesPlan = SettingsImportPlanner.Plan(
+            SettingsBundleItems.Favorites(source, [], []),
+            SettingsImportMode.Merge,
+            target
+        );
         var seen = new List<(SettingsImportResult Result, int LayoutsAtCallback)>();
 
         IReadOnlyList<SettingsImportResult> results = SettingsImportPlanner.ApplyAll(

@@ -2443,19 +2443,30 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Loads exactly the favorite sets the layout captured. Ids whose set has since been deleted are skipped at compose
-    /// time; the returned note surfaces those so the user knows why part of the layout did not take effect. A layout
-    /// saved before favorite sets existed (null) leaves the loaded sets untouched.
+    /// Loads exactly the favorite sets the layout captured and restores its bar order, each only when the layout saved
+    /// it: a layout saved before favorite sets (or their order) existed (null) leaves that part untouched. Loaded ids
+    /// whose set has since been deleted are skipped at compose time; the returned note surfaces those so the user knows
+    /// why part of the layout did not take effect. The order's entries are never counted, being normalized on read.
     /// </summary>
-    private static string ApplyFavoriteSets(MainViewModel vm, SavedLayout layout)
+    public static string ApplyFavoriteSets(MainViewModel vm, SavedLayout layout)
     {
-        if (layout.LoadedFavoriteSetIds is not { } setIds)
+        if ((layout.LoadedFavoriteSetIds is null) && (layout.FavoriteSetOrder is null))
         {
             return "";
         }
 
-        vm.Preferences.SetLoadedFavoriteSets([.. setIds]);
-        int missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
+        if (layout.FavoriteSetOrder is { } order)
+        {
+            vm.Preferences.SetFavoriteSetOrder([.. order]);
+        }
+
+        int missingCount = 0;
+        if (layout.LoadedFavoriteSetIds is { } setIds)
+        {
+            vm.Preferences.SetLoadedFavoriteSets([.. setIds]);
+            missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
+        }
+
         vm.RefreshDisplayFavorites();
         return missingCount > 0 ? $" ({missingCount} favorite set(s) no longer exist)" : "";
     }

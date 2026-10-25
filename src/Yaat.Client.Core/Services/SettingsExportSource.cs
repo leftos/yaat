@@ -39,7 +39,7 @@ public sealed class UserPreferencesExportSource(UserPreferences preferences, Fav
                 .. preferences.Macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }),
             ]),
             SettingsItemType.Verbs => SettingsBundleItems.Verbs(preferences.CommandScheme),
-            SettingsItemType.Favorites => SettingsBundleItems.Favorites(favorites, preferences.LoadedFavoriteSetIds),
+            SettingsItemType.Favorites => SettingsBundleItems.Favorites(favorites, preferences.LoadedFavoriteSetIds, preferences.FavoriteSetOrder),
             SettingsItemType.GridLayout => SettingsBundleItems.GridLayout(preferences.GridLayout ?? new SavedGridLayout()),
             SettingsItemType.Layouts => SettingsBundleItems.Layouts(preferences.Layouts),
             _ => throw new ArgumentOutOfRangeException(nameof(itemType), itemType, "Unknown settings item type"),

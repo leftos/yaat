@@ -49,6 +49,7 @@ public sealed class LayoutService(UserPreferences preferences)
             IsMetarPoppedOut = vm.IsMetarPoppedOut,
             DataGridLayout = CloneGridLayout(_preferences.GridLayout),
             LoadedFavoriteSetIds = [.. _preferences.LoadedFavoriteSetIds],
+            FavoriteSetOrder = [.. _preferences.FavoriteSetOrder],
             ShowFavoritesBar = vm.ShowFavoritesBar,
             IsFavoritesPanelOpen = FavoritesPanelWindow.IsOpen(vm),
             // Which extra Radar/Ground windows are open and on which airport; their geometry rides the

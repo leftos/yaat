@@ -313,7 +313,7 @@ public partial class FavoritesEditorWindow : Window
         }
 
         _store.DeleteSet(set.Id);
-        _preferences.SetFavoriteSetLoaded(set.Id, loaded: false);
+        _preferences.RemoveFavoriteSet(set.Id);
         _selectedContainerId = _store.GlobalSet.Id;
         SetStatus(null);
         PopulateContainers();

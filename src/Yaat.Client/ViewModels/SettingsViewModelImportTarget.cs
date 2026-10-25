@@ -41,8 +41,8 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
     private string? _stagedFavoritesRoot;
     private bool _sweptLeftovers;
 
-    /// <summary>Each staged import's sets to load and whether it replaces the loaded sets, in the order staged.</summary>
-    private readonly List<(List<string> SetIds, bool Replace)> _stagedLoads = [];
+    /// <summary>Each staged import's sets to load, its bar order and whether it replaces the loaded sets, in the order staged.</summary>
+    private readonly List<(List<string> SetIds, List<string> SetOrder, bool Replace)> _stagedLoads = [];
 
     /// <summary>Builds the target over the open Settings window.</summary>
     /// <param name="settings">The open Settings window's view model.</param>
@@ -93,12 +93,23 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
 
     public PreferencesImportResult ReplacePreferences(JsonObject preferences) => _settings.StagePreferences(preferences);
 
-    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace)
+    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace)
     {
         List<string> ids = [.. setIds];
-        _stagedLoads.Add((ids, replace));
-        _settings.StageFavoritesWrite(preferences => new UserPreferencesImportTarget(preferences, _favorites).LoadImportedFavoriteSets(ids, replace));
+        List<string> order = [.. setOrder];
+        _stagedLoads.Add((ids, order, replace));
+        _settings.StageFavoritesWrite(preferences =>
+            new UserPreferencesImportTarget(preferences, _favorites).LoadImportedFavoriteSets(ids, order, replace)
+        );
     }
+
+    /// <summary>
+    /// The bar order as Apply would leave it: <paramref name="order"/>, or the last staged Replace's order when one is
+    /// staged, since a Merge leaves the order as it is.
+    /// </summary>
+    /// <param name="order">The bar order the preferences hold now.</param>
+    public IReadOnlyList<string> FavoriteSetOrderToExport(IReadOnlyList<string> order) =>
+        _stagedLoads.LastOrDefault(load => load.Replace) is { SetOrder: { } staged } ? staged : order;
 
     /// <summary>
     /// The loaded favorite sets as Apply would leave them: <paramref name="loaded"/> with each staged import's sets to load
@@ -108,7 +119,7 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
     public IReadOnlyList<string> LoadedFavoriteSetIdsToExport(IReadOnlyList<string> loaded)
     {
         List<string> ids = [.. loaded];
-        foreach ((List<string> setIds, bool replace) in _stagedLoads)
+        foreach ((List<string> setIds, _, bool replace) in _stagedLoads)
         {
             if (replace)
             {
@@ -172,7 +183,7 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
         Directory.CreateDirectory(Path.Combine(root, "commands"));
 
         using var library = new MemoryStream();
-        FavoriteExport.ExportLibrary(_favorites, [], library);
+        FavoriteExport.ExportLibrary(_favorites, [], [], library);
         library.Position = 0;
         using var zip = new ZipArchive(library, ZipArchiveMode.Read);
         foreach (ZipArchiveEntry entry in zip.Entries)

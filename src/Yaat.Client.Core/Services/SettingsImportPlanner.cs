@@ -258,8 +258,9 @@ public static class SettingsImportPlanner
     }
 
     /// <summary>
-    /// Points the incoming layouts' loaded favorite sets at the ids a favorites import gave them: a mapped id is replaced,
-    /// an id mapped to null (a skipped or unimported set) is dropped, and an id the map does not name is kept.
+    /// Points the incoming layouts' loaded favorite sets and set order at the ids a favorites import gave them: a mapped id
+    /// is replaced, an id mapped to null (a skipped or unimported set) is dropped, and an id the map does not name is kept.
+    /// The order's slot tokens stay as they are.
     /// </summary>
     /// <exception cref="ArgumentException">The plan is not a layouts plan.</exception>
     public static void RemapFavoriteSetIds(SettingsImportPlan layoutsPlan, IReadOnlyDictionary<string, string?> setIdMap)
@@ -274,6 +275,16 @@ public static class SettingsImportPlanner
             if (layout.LoadedFavoriteSetIds is { } ids)
             {
                 layout.LoadedFavoriteSetIds = [.. ids.Select(id => setIdMap.TryGetValue(id, out string? mapped) ? mapped : id).OfType<string>()];
+            }
+
+            if (layout.FavoriteSetOrder is { } order)
+            {
+                layout.FavoriteSetOrder =
+                [
+                    .. order
+                        .Select(entry => (!FavoriteSetOrdering.IsSlot(entry) && setIdMap.TryGetValue(entry, out string? mapped)) ? mapped : entry)
+                        .OfType<string>(),
+                ];
             }
         }
     }
@@ -506,7 +517,7 @@ public static class SettingsImportPlanner
         FavoritesImportOutcome outcome = plan.Favorites!.Import(plan.Clashes, target, plan.Mode);
         if (outcome.Result is { } imported)
         {
-            target.LoadImportedFavoriteSets(imported.NewSetIdsToLoad, replace: plan.Mode == SettingsImportMode.Replace);
+            target.LoadImportedFavoriteSets(imported.NewSetIdsToLoad, imported.SetOrder, replace: plan.Mode == SettingsImportMode.Replace);
         }
 
         return new SettingsImportResult

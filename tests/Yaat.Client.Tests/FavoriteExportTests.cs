@@ -152,7 +152,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(airport.Id, inAirport.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [named.Id], buffer);
+        FavoriteExport.ExportLibrary(source, [named.Id], [], buffer);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
@@ -181,7 +181,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(airport.Id, theirs.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [], buffer);
+        FavoriteExport.ExportLibrary(source, [], [], buffer);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
@@ -282,7 +282,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [pack.Id], buffer);
+        FavoriteExport.ExportLibrary(source, [pack.Id], [], buffer);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
@@ -379,7 +379,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(pack.Id, inSet.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [pack.Id], buffer);
+        FavoriteExport.ExportLibrary(source, [pack.Id], [], buffer);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");

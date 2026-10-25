@@ -22,6 +22,8 @@ internal sealed class InMemorySettingsImportTarget(FavoriteStore favorites) : IS
 
     public List<string> LoadedFavoriteSetIds { get; } = [];
 
+    public List<string> FavoriteSetOrder { get; } = [];
+
     public IReadOnlyList<SavedMacro> Macros => MacroList;
 
     public IReadOnlyList<SavedLayout> Layouts => LayoutList;
@@ -56,11 +58,13 @@ internal sealed class InMemorySettingsImportTarget(FavoriteStore favorites) : IS
         return new PreferencesImportResult([.. preferences.Select(p => p.Key)], []);
     }
 
-    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace)
+    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace)
     {
         if (replace)
         {
             LoadedFavoriteSetIds.Clear();
+            FavoriteSetOrder.Clear();
+            FavoriteSetOrder.AddRange(setOrder);
         }
 
         LoadedFavoriteSetIds.AddRange(setIds.Where(id => !LoadedFavoriteSetIds.Contains(id)));

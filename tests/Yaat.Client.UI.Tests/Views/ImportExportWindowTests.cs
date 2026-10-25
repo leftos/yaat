@@ -290,7 +290,8 @@ public class ImportExportWindowTests : IDisposable
 
         public PreferencesImportResult ReplacePreferences(System.Text.Json.Nodes.JsonObject preferences) => inner.ReplacePreferences(preferences);
 
-        public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace) => inner.LoadImportedFavoriteSets(setIds, replace);
+        public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace) =>
+            inner.LoadImportedFavoriteSets(setIds, setOrder, replace);
     }
 
     private ImportExportWindow Open(SettingsItemType[] preselected, ImportExportTab tab)

@@ -36,6 +36,7 @@ public partial class MainViewModel
         List<FavoriteDisplayEntry> composed = _favoriteStore.ComposeDisplay(
             ActiveScenarioId,
             ActiveScenarioPrimaryAirportId,
+            _preferences.FavoriteSetOrder,
             _preferences.LoadedFavoriteSetIds
         );
 
@@ -120,12 +121,92 @@ public partial class MainViewModel
     public bool IsFavoriteSetLoaded(string setId) =>
         _preferences.LoadedFavoriteSetIds.Any(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Loads (appends to the load order) or unloads one named set; the display refreshes via FavoriteSetsChanged.</summary>
+    /// <summary>Loads or unloads one named set; the display refreshes via FavoriteSetsChanged.</summary>
     public void SetFavoriteSetLoaded(string setId, bool loaded)
     {
         _preferences.SetFavoriteSetLoaded(setId, loaded);
         RefreshDisplayFavorites();
     }
+
+    /// <summary>
+    /// The Sets flyout's rows in bar order: Global, the airport and scenario slots while a set fills them,
+    /// and every named set, loaded or not.
+    /// </summary>
+    public IReadOnlyList<FavoriteSetRow> FavoriteSetRows
+    {
+        get
+        {
+            List<string> visible = [.. NormalizedFavoriteSetOrder().Where(IsFavoriteSetEntryVisible)];
+            return [.. visible.Select((entry, index) => BuildFavoriteSetRow(entry, canMoveUp: index > 0, canMoveDown: index < visible.Count - 1))];
+        }
+    }
+
+    /// <summary>
+    /// Moves one row of the bar order a place up (<paramref name="step"/> -1) or down (+1), swapping it with the
+    /// nearest visible row in that direction; hidden slots keep their places. No-op past the visible edge.
+    /// </summary>
+    public void MoveFavoriteSet(string entry, int step)
+    {
+        List<string> order = NormalizedFavoriteSetOrder();
+        int from = order.FindIndex(e => string.Equals(e, entry, StringComparison.OrdinalIgnoreCase));
+        if ((from < 0) || !IsFavoriteSetEntryVisible(order[from]))
+        {
+            return;
+        }
+
+        int to = from + step;
+        while ((to >= 0) && (to < order.Count) && !IsFavoriteSetEntryVisible(order[to]))
+        {
+            to += step;
+        }
+
+        if ((to < 0) || (to >= order.Count))
+        {
+            return;
+        }
+
+        (order[from], order[to]) = (order[to], order[from]);
+        _preferences.SetFavoriteSetOrder(order);
+        RefreshDisplayFavorites();
+    }
+
+    private List<string> NormalizedFavoriteSetOrder() =>
+        FavoriteSetOrdering.Normalize(_preferences.FavoriteSetOrder, _preferences.LoadedFavoriteSetIds, [.. NamedFavoriteSets.Select(s => s.Id)]);
+
+    /// <summary>False for an airport or scenario slot no set fills; such a slot keeps its place but has no row.</summary>
+    private bool IsFavoriteSetEntryVisible(string entry) =>
+        entry switch
+        {
+            FavoriteSetOrdering.AirportSlot => ActiveFavoriteAirportSet() is not null,
+            FavoriteSetOrdering.ScenarioSlot => (ActiveScenarioId is not null) && (_favoriteStore.FindScenarioSet(ActiveScenarioId) is not null),
+            _ => true,
+        };
+
+    private FavoriteSet? ActiveFavoriteAirportSet() =>
+        FavoriteStore.NormalizeAirportId(ActiveScenarioPrimaryAirportId) is { } airport ? _favoriteStore.FindAirportSet(airport) : null;
+
+    private FavoriteSetRow BuildFavoriteSetRow(string entry, bool canMoveUp, bool canMoveDown) =>
+        entry switch
+        {
+            FavoriteSetOrdering.GlobalSlot => new FavoriteSetRow(entry, "Global", IsSlot: true, IsLoaded: true, canMoveUp, canMoveDown),
+            FavoriteSetOrdering.AirportSlot => new FavoriteSetRow(
+                entry,
+                $"Airport ({ActiveFavoriteAirportSet()?.Key})",
+                IsSlot: true,
+                IsLoaded: true,
+                canMoveUp,
+                canMoveDown
+            ),
+            FavoriteSetOrdering.ScenarioSlot => new FavoriteSetRow(entry, "Scenario", IsSlot: true, IsLoaded: true, canMoveUp, canMoveDown),
+            _ => new FavoriteSetRow(
+                entry,
+                _favoriteStore.GetSet(entry)?.Name ?? entry,
+                IsSlot: false,
+                IsFavoriteSetLoaded(entry),
+                canMoveUp,
+                canMoveDown
+            ),
+        };
 
     public static FavoriteCommandCategory NormalizeFavoriteCategory(FavoriteCommandCategory category) =>
         Enum.IsDefined(category) ? category : FavoriteCommandCategory.Air;

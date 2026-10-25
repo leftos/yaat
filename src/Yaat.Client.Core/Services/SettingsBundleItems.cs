@@ -40,11 +40,11 @@ public static class SettingsBundleItems
             Encoding.UTF8.GetBytes(CommandSchemeFile.Serialize(scheme))
         );
 
-    /// <summary>Every favorite set and favorite plus the loaded-set ids, as a <c>*.yaat-favlibrary.zip</c> file.</summary>
-    public static SettingsBundleEntry Favorites(FavoriteStore store, IReadOnlyList<string> loadedSetIds)
+    /// <summary>Every favorite set and favorite plus the loaded-set ids and the sets' bar order, as a <c>*.yaat-favlibrary.zip</c> file.</summary>
+    public static SettingsBundleEntry Favorites(FavoriteStore store, IReadOnlyList<string> loadedSetIds, IReadOnlyList<string> setOrder)
     {
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(store, loadedSetIds, buffer);
+        FavoriteExport.ExportLibrary(store, loadedSetIds, setOrder, buffer);
         return new SettingsBundleEntry(
             SettingsItemType.Favorites,
             SettingsBundleFormats.FavoritesLibraryZip,
@@ -130,6 +130,11 @@ public static class SettingsBundleItems
             if (layout.LoadedFavoriteSetIds?.Any(id => id is null) == true)
             {
                 throw Unreadable(entry, $"layout '{layout.Name}' lists an empty loaded favorite set id", null);
+            }
+
+            if (layout.FavoriteSetOrder?.Any(id => id is null) == true)
+            {
+                throw Unreadable(entry, $"layout '{layout.Name}' lists an empty entry in its favorite set order", null);
             }
 
             checkedLayouts.Add(layout);

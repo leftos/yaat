@@ -260,12 +260,9 @@ public partial class FavoritesBarView : UserControl
             _panel.Children.Add(btn);
         }
 
-        if (vm.NamedFavoriteSets.Count > 0)
-        {
-            Button setsButton = CreateSetsButton();
-            setsButton.Margin = new Thickness(0, 0, 4, 4);
-            _panel.Children.Add(setsButton);
-        }
+        Button setsButton = CreateSetsButton();
+        setsButton.Margin = new Thickness(0, 0, 4, 4);
+        _panel.Children.Add(setsButton);
 
         _panel.Children.Add(CreateOpenPanelButton());
         _panel.Children.Add(CreateAddButton());
@@ -470,7 +467,7 @@ public partial class FavoritesBarView : UserControl
             FontSize = 12,
         };
 
-        ToolTip.SetTip(btn, "Load or unload favorite sets, or open the sets editor");
+        ToolTip.SetTip(btn, "Load, unload or order favorite sets, or open the sets editor");
         btn.Click += OnSetsClick;
         return btn;
     }
@@ -482,38 +479,112 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        // Built fresh on every open so the checkboxes always reflect the current loaded state —
-        // no persistent subscription (and no repopulation reentrancy) needed.
+        // Built fresh on every open and refilled in place after every toggle or move, so the rows always
+        // reflect the current order and loaded state; no persistent subscription needed.
         var flyout = new MenuFlyout();
-        IReadOnlyList<FavoriteSet> namedSets = vm.NamedFavoriteSets;
-        foreach (FavoriteSet set in namedSets)
-        {
-            string setId = set.Id;
-            var item = new MenuItem
-            {
-                Header = set.Name,
-                ToggleType = MenuItemToggleType.CheckBox,
-                IsChecked = vm.IsFavoriteSetLoaded(setId),
-                StaysOpenOnClick = true,
-            };
-            item.Click += (_, _) =>
-            {
-                bool nowLoaded = !vm.IsFavoriteSetLoaded(setId);
-                item.IsChecked = nowLoaded;
-                vm.SetFavoriteSetLoaded(setId, nowLoaded);
-            };
-            flyout.Items.Add(item);
-        }
-
-        if (namedSets.Count > 0)
-        {
-            flyout.Items.Add(new Separator());
-        }
-
-        var manage = new MenuItem { Header = "Manage sets…" };
-        manage.Click += (_, _) => OpenFavoritesEditor(vm);
-        flyout.Items.Add(manage);
+        FillSetsFlyout(flyout, vm, () => OpenFavoritesEditor(vm));
         flyout.ShowAt(btn);
+    }
+
+    /// <summary>
+    /// Fills the Sets flyout: one row per <see cref="MainViewModel.FavoriteSetRows"/> entry in bar order, each
+    /// ending in ▲/▼ buttons that move it, then a separator and "Manage sets…".
+    /// </summary>
+    /// <param name="flyout">The flyout to fill; its items are replaced.</param>
+    /// <param name="vm">The view model whose rows are listed and changed.</param>
+    /// <param name="openEditor">Opens the Favorites Editor ("Manage sets…").</param>
+    public static void FillSetsFlyout(MenuFlyout flyout, MainViewModel vm, Action openEditor)
+    {
+        flyout.Items.Clear();
+        foreach (FavoriteSetRow row in vm.FavoriteSetRows)
+        {
+            flyout.Items.Add(CreateSetRow(flyout, vm, row, openEditor));
+        }
+
+        flyout.Items.Add(new Separator());
+        var manage = new MenuItem { Header = "Manage sets…" };
+        manage.Click += (_, _) => openEditor();
+        flyout.Items.Add(manage);
+    }
+
+    /// <summary>
+    /// One set row: check mark, label and ▲/▼. The row text toggles a named set's loading; a slot row (Global,
+    /// airport, scenario) has a dimmed check and its text does nothing. The flyout stays open throughout.
+    /// </summary>
+    private static MenuItem CreateSetRow(MenuFlyout flyout, MainViewModel vm, FavoriteSetRow row, Action openEditor)
+    {
+        var check = new TextBlock
+        {
+            Text = row.IsLoaded ? "✓" : "",
+            Width = 16,
+            Opacity = row.IsSlot ? 0.4 : 1,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var label = new TextBlock
+        {
+            Text = row.Label,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Button up = CreateMoveSetButton("▲", row.CanMoveUp, "Move this set earlier on the bar");
+        Button down = CreateMoveSetButton("▼", row.CanMoveDown, "Move this set later on the bar");
+
+        // A transparent panel under the buttons keeps the pointer "over the arrows" even on a disabled
+        // button, so a click there never reaches the row as a load toggle.
+        var arrows = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 2,
+            Background = Brushes.Transparent,
+        };
+        arrows.Children.Add(up);
+        arrows.Children.Add(down);
+
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), MinWidth = 200 };
+        Grid.SetColumn(label, 1);
+        Grid.SetColumn(arrows, 2);
+        header.Children.Add(check);
+        header.Children.Add(label);
+        header.Children.Add(arrows);
+
+        var item = new MenuItem { Header = header, StaysOpenOnClick = true };
+        item.Click += (_, e) =>
+        {
+            e.Handled = true;
+            if (row.IsSlot || arrows.IsPointerOver)
+            {
+                return;
+            }
+
+            vm.SetFavoriteSetLoaded(row.Entry, !vm.IsFavoriteSetLoaded(row.Entry));
+            FillSetsFlyout(flyout, vm, openEditor);
+        };
+        up.Click += (_, e) => MoveSet(e, -1);
+        down.Click += (_, e) => MoveSet(e, 1);
+        return item;
+
+        void MoveSet(RoutedEventArgs e, int step)
+        {
+            e.Handled = true;
+            vm.MoveFavoriteSet(row.Entry, step);
+            FillSetsFlyout(flyout, vm, openEditor);
+        }
+    }
+
+    private static Button CreateMoveSetButton(string glyph, bool isEnabled, string tip)
+    {
+        var btn = new Button
+        {
+            Content = glyph,
+            IsEnabled = isEnabled,
+            FontSize = 9,
+            Padding = new Thickness(4, 0),
+            MinWidth = 0,
+            MinHeight = 0,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        ToolTip.SetTip(btn, tip);
+        return btn;
     }
 
     private void OpenFavoritesEditor(MainViewModel vm)

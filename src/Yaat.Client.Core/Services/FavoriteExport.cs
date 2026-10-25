@@ -29,6 +29,12 @@ public sealed record FavoriteImportResult(
 {
     /// <summary>For every named set the file carried, the id it was given in the store, keyed by its id in the file.</summary>
     public IReadOnlyDictionary<string, string> SetIdMap { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The bar order of the favorite sets the file's library manifest carried, its named-set ids rewritten to the ids the
+    /// store gave them and its slot tokens as they were; empty when the file carries no order.
+    /// </summary>
+    public List<string> SetOrder { get; init; } = [];
 }
 
 /// <summary>
@@ -36,7 +42,7 @@ public sealed record FavoriteImportResult(
 /// <c>set.json</c> plus <c>favorites/[Label].{id}.json</c> for each referenced favorite — the set
 /// and the cut-down favorites side by side, each entity its own json. A library export is
 /// <c>[name].yaat-favlibrary.zip</c> holding every set under <c>sets/</c>, every favorite under
-/// <c>favorites/</c> (orphans included), and <c>library.json</c> with the loaded-set ids.
+/// <c>favorites/</c> (orphans included), and <c>library.json</c> with the loaded-set ids and the sets' bar order.
 /// Import accepts either zip or a single entity json, merging by id.
 /// </summary>
 public static class FavoriteExport
@@ -57,6 +63,9 @@ public static class FavoriteExport
     {
         public int Version { get; set; } = 1;
         public List<string> LoadedSetIds { get; set; } = [];
+
+        /// <summary>The sets' bar order (<see cref="UserPreferences.FavoriteSetOrder"/>); a library written before it existed reads as empty.</summary>
+        public List<string> SetOrder { get; set; } = [];
     }
 
     /// <summary>Writes one set and its referenced favorites as a zip. Throws when the set id is unknown.</summary>
@@ -71,11 +80,11 @@ public static class FavoriteExport
         }
     }
 
-    /// <summary>Writes every set and every favorite (orphans included) plus the loaded-set ids as a zip.</summary>
-    public static void ExportLibrary(FavoriteStore store, IReadOnlyList<string> loadedSetIds, Stream output)
+    /// <summary>Writes every set and every favorite (orphans included) plus the loaded-set ids and the bar order as a zip.</summary>
+    public static void ExportLibrary(FavoriteStore store, IReadOnlyList<string> loadedSetIds, IReadOnlyList<string> setOrder, Stream output)
     {
         using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
-        WriteEntry(zip, "library.json", new LibraryManifest { LoadedSetIds = [.. loadedSetIds] });
+        WriteEntry(zip, "library.json", new LibraryManifest { LoadedSetIds = [.. loadedSetIds], SetOrder = [.. setOrder] });
         foreach (FavoriteSet set in store.OrderedSets)
         {
             string stem = FavoriteStore.SanitizeFileName(set.DisplayName, "set");
@@ -148,8 +157,10 @@ public static class FavoriteExport
         }
 
         List<string> loadedSetIds = manifest?.LoadedSetIds ?? SetIdsToLoadWithoutManifest(sets, mode);
+        List<string> setOrder = manifest?.SetOrder ?? [];
         ClearWhenReplacing(store, mode);
-        return Merge(store, favorites, sets, loadedSetIds, addLoneFavoritesToGlobal: sets.Count == 0);
+        FavoriteImportResult result = Merge(store, favorites, sets, loadedSetIds, addLoneFavoritesToGlobal: sets.Count == 0);
+        return result with { SetOrder = MapSetOrder(setOrder, result.SetIdMap) };
     }
 
     private static FavoriteImportResult? ImportSingleJson(FavoriteStore store, Stream input, FavoriteImportMode mode)
@@ -188,6 +199,15 @@ public static class FavoriteExport
     /// </summary>
     private static List<string> SetIdsToLoadWithoutManifest(List<FavoriteSet> sets, FavoriteImportMode mode) =>
         mode == FavoriteImportMode.Replace ? [.. sets.Select(s => s.Id)] : [];
+
+    // A slot token stays as it is; a named-set id the import gave another id takes it, and any other id is kept (the
+    // order is normalized where it is read, so an id without a set is skipped there).
+    private static List<string> MapSetOrder(List<string> setOrder, IReadOnlyDictionary<string, string> setIdMap) =>
+        [
+            .. setOrder
+                .OfType<string>()
+                .Select(entry => (!FavoriteSetOrdering.IsSlot(entry) && setIdMap.TryGetValue(entry, out string? mapped)) ? mapped : entry),
+        ];
 
     private static void ClearWhenReplacing(FavoriteStore store, FavoriteImportMode mode)
     {

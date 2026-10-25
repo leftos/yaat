@@ -287,29 +287,37 @@ internal sealed class FavoritesBundleImport
         Entities.AddRange(kept);
     }
 
+    // Rewrites the manifest's loaded-set ids and set order to the sets' new ids; the order's slot tokens stay as they are.
     private void RemapLoadedSetIds(Dictionary<string, string?> idChanges)
     {
         foreach ((string name, JsonObject root) in Entities.Where(e => IsLibraryManifest(e.Name)))
         {
-            if (root["loadedSetIds"] is not JsonArray loaded)
-            {
-                continue;
-            }
-
-            List<string> remapped = [];
-            foreach (JsonNode? node in loaded)
-            {
-                string? id = ((node is JsonValue value) && value.TryGetValue(out string? text)) ? text : null;
-                string? mapped = ((id is not null) && idChanges.TryGetValue(id, out string? changed)) ? changed : id;
-                if (mapped is not null)
-                {
-                    remapped.Add(mapped);
-                }
-            }
-
-            root["loadedSetIds"] = new JsonArray([.. remapped.Select(id => (JsonNode)JsonValue.Create(id))]);
-            Log.LogDebug("Remapped loaded favorite set ids in {Entry}", name);
+            RemapIdArray(root, "loadedSetIds", idChanges);
+            RemapIdArray(root, "setOrder", idChanges);
+            Log.LogDebug("Remapped loaded favorite set ids and set order in {Entry}", name);
         }
+    }
+
+    private static void RemapIdArray(JsonObject root, string key, Dictionary<string, string?> idChanges)
+    {
+        if (root[key] is not JsonArray ids)
+        {
+            return;
+        }
+
+        List<string> remapped = [];
+        foreach (JsonNode? node in ids)
+        {
+            string? id = ((node is JsonValue value) && value.TryGetValue(out string? text)) ? text : null;
+            bool remaps = (id is not null) && !FavoriteSetOrdering.IsSlot(id) && idChanges.ContainsKey(id);
+            string? mapped = remaps ? idChanges[id!] : id;
+            if (mapped is not null)
+            {
+                remapped.Add(mapped);
+            }
+        }
+
+        root[key] = new JsonArray([.. remapped.Select(id => (JsonNode)JsonValue.Create(id))]);
     }
 
     private byte[] Serialize()

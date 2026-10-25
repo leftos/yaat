@@ -338,6 +338,66 @@ public class FavoritesHubImportTests : IDisposable
         }
     }
 
+    [AvaloniaFact]
+    public void LiveHub_ReplaceImportOfALibrary_RestoresTheExportedSetOrder()
+    {
+        MainViewModel vm = NewVm();
+        try
+        {
+            string path = WriteLibraryExportWithOrder("FHI-Ordered", "FHI-OrderedFav", id => ["scenario", id, "global", "airport"]);
+
+            ImportThroughLiveHub(vm, path, SettingsImportMode.Replace);
+
+            FavoriteSet imported = vm.FavoriteStore.FindNamedSet("FHI-Ordered")!;
+            Assert.Equal(["scenario", imported.Id, "global", "airport"], vm.Preferences.FavoriteSetOrder);
+            Assert.Equal([imported.Id], vm.Preferences.LoadedFavoriteSetIds);
+        }
+        finally
+        {
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void LiveHub_MergeImportOfALibrary_KeepsTheExistingOrder_AndTheNewSetLandsAfterIt()
+    {
+        MainViewModel vm = NewVm();
+        try
+        {
+            FavoriteSet other = vm.FavoriteStore.CreateNamedSet("FHI-Kept")!;
+            vm.SetFavoriteSetLoaded(other.Id, true);
+            List<string> existingOrder = [other.Id, "scenario", "global", "airport"];
+            vm.Preferences.SetFavoriteSetOrder([.. existingOrder]);
+            string path = WriteLibraryExportWithOrder("FHI-Appended", "FHI-AppendedFav", id => [id, "global", "airport", "scenario"]);
+
+            ImportThroughLiveHub(vm, path, SettingsImportMode.Merge);
+
+            FavoriteSet imported = vm.FavoriteStore.FindNamedSet("FHI-Appended")!;
+            Assert.Equal(existingOrder, vm.Preferences.FavoriteSetOrder);
+            List<string> normalized = FavoriteSetOrdering.Normalize(
+                vm.Preferences.FavoriteSetOrder,
+                vm.Preferences.LoadedFavoriteSetIds,
+                [.. vm.NamedFavoriteSets.Select(s => s.Id)]
+            );
+            Assert.Equal(existingOrder, normalized.Take(existingOrder.Count));
+            Assert.True(normalized.IndexOf(imported.Id) >= existingOrder.Count);
+        }
+        finally
+        {
+            vm.Preferences.SetFavoriteSetOrder([]);
+            Cleanup(vm);
+        }
+    }
+
+    private string WriteLibraryExportWithOrder(string loadedSetName, string favoriteLabel, Func<string, List<string>> order)
+    {
+        FavoriteStore store = SourceStore(loadedSetName, favoriteLabel, out FavoriteSet set);
+        string path = Path.Combine(_root, loadedSetName + FavoriteExport.LibraryExportExtension);
+        using FileStream stream = File.Create(path);
+        FavoriteExport.ExportLibrary(store, [set.Id], order(set.Id), stream);
+        return path;
+    }
+
     private static List<string> LoadedSetIdsOfLibrary(byte[] library)
     {
         using var zip = new ZipArchive(new MemoryStream(library), ZipArchiveMode.Read);
@@ -451,7 +511,7 @@ public class FavoritesHubImportTests : IDisposable
         FavoriteStore store = SourceStore(loadedSetName, favoriteLabel, out FavoriteSet set);
         string path = Path.Combine(_root, loadedSetName + FavoriteExport.LibraryExportExtension);
         using FileStream stream = File.Create(path);
-        FavoriteExport.ExportLibrary(store, [set.Id], stream);
+        FavoriteExport.ExportLibrary(store, [set.Id], [], stream);
         return path;
     }
 }

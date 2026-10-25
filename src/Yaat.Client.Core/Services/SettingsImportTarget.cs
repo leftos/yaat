@@ -46,11 +46,13 @@ public interface ISettingsImportTarget
 
     /// <summary>
     /// Loads the named sets a favorites import asked for into the favorites bar: under Merge each joins the loaded sets,
-    /// under Replace (which took every loaded set with it) they become exactly the loaded sets.
+    /// under Replace (which took every loaded set with it) they become exactly the loaded sets and the file's bar order
+    /// becomes the order; a Merge leaves the order as it is.
     /// </summary>
     /// <param name="setIds">The sets' ids in the store, in load order.</param>
+    /// <param name="setOrder">The file's bar order, its ids those of the store; used only under Replace.</param>
     /// <param name="replace">Whether the import replaced the store.</param>
-    void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace);
+    void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace);
 }
 
 /// <summary>An import target that writes straight to the user's preferences and favorites store.</summary>
@@ -96,11 +98,12 @@ public sealed class UserPreferencesImportTarget(UserPreferences preferences, Fav
 
     public PreferencesImportResult ReplacePreferences(JsonObject preferencesJson) => preferences.ImportBundlePreferences(preferencesJson);
 
-    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, bool replace)
+    public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace)
     {
         if (replace)
         {
             preferences.SetLoadedFavoriteSets([.. setIds]);
+            preferences.SetFavoriteSetOrder([.. setOrder]);
             return;
         }
 

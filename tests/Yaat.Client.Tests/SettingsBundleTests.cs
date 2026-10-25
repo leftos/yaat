@@ -36,7 +36,7 @@ public class SettingsBundleTests : IDisposable
             SettingsBundleItems.Preferences(preferences),
             SettingsBundleItems.Macros(SampleMacros()),
             SettingsBundleItems.Verbs(SampleScheme()),
-            SettingsBundleItems.Favorites(source, [towerSet.Id]),
+            SettingsBundleItems.Favorites(source, [towerSet.Id], []),
             SettingsBundleItems.GridLayout(SampleGridLayout()),
             SettingsBundleItems.Layouts(SampleLayouts()),
         ];
@@ -80,7 +80,7 @@ public class SettingsBundleTests : IDisposable
             SettingsItemType.Macros => (SettingsBundleItems.Macros(SampleMacros()), await LegacyMacroBytes(), ".yaat-macros.json"),
             SettingsItemType.Verbs => (SettingsBundleItems.Verbs(SampleScheme()), await LegacyVerbBytes(), CommandSchemeFile.Extension),
             SettingsItemType.Favorites => (
-                SettingsBundleItems.Favorites(store, []),
+                SettingsBundleItems.Favorites(store, [], []),
                 LegacyLibraryBytes(store),
                 FavoriteExport.LibraryExportExtension
             ),
@@ -289,7 +289,7 @@ public class SettingsBundleTests : IDisposable
     private static byte[] LegacyLibraryBytes(FavoriteStore store)
     {
         using var stream = new MemoryStream();
-        FavoriteExport.ExportLibrary(store, [], stream);
+        FavoriteExport.ExportLibrary(store, [], [], stream);
         return stream.ToArray();
     }
 

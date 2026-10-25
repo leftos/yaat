@@ -545,8 +545,14 @@ public sealed partial class UserPreferences
     /// <summary>Called by the public mutators above after Save(). Lets MainWindow refresh its menu.</summary>
     private void RaiseLayoutsChanged() => LayoutsChanged?.Invoke();
 
-    /// <summary>Ids of the currently loaded named favorite sets, in load order (display order in the bar/panel).</summary>
+    /// <summary>Ids of the currently loaded named favorite sets, in load order; their place on the bar comes from <see cref="FavoriteSetOrder"/>.</summary>
     public IReadOnlyList<string> LoadedFavoriteSetIds => _data.LoadedFavoriteSetIds;
+
+    /// <summary>
+    /// The bar order of the favorite sets as stored: slot tokens of <see cref="FavoriteSetOrdering"/> and named-set
+    /// ids, loaded or not. Read through <see cref="FavoriteSetOrdering.Normalize"/>, never trusted as is.
+    /// </summary>
+    public IReadOnlyList<string> FavoriteSetOrder => _data.FavoriteSetOrder;
     public int FavoritePanelColumns => Math.Clamp(_data.FavoritePanelColumns, 1, 20);
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
@@ -1697,7 +1703,10 @@ public sealed partial class UserPreferences
         }
     }
 
-    /// <summary>Loads (appends to the load order) or unloads one named set by id; no-op when already in the requested state.</summary>
+    /// <summary>
+    /// Loads (appends to the loaded list) or unloads one named set by id; no-op when already in the requested state.
+    /// The set's place on the bar comes from <see cref="FavoriteSetOrder"/>, not from this list.
+    /// </summary>
     public void SetFavoriteSetLoaded(string setId, bool loaded)
     {
         var ids = _data.LoadedFavoriteSetIds.ToList();
@@ -1717,10 +1726,36 @@ public sealed partial class UserPreferences
         SetLoadedFavoriteSets(ids);
     }
 
-    /// <summary>Replaces the loaded named-set id list (order = load order). Ids without a matching set are skipped at compose time.</summary>
+    /// <summary>
+    /// Replaces the loaded named-set id list (its order is load order, which places only sets missing from
+    /// <see cref="FavoriteSetOrder"/>). Ids without a matching set are skipped at compose time.
+    /// </summary>
     public void SetLoadedFavoriteSets(List<string> setIds)
     {
         _data.LoadedFavoriteSetIds = setIds;
+        Save();
+        RaiseFavoriteSetsChanged();
+    }
+
+    /// <summary>Replaces the bar order of the favorite sets (slot tokens and named-set ids).</summary>
+    public void SetFavoriteSetOrder(List<string> order)
+    {
+        _data.FavoriteSetOrder = order;
+        Save();
+        RaiseFavoriteSetsChanged();
+    }
+
+    /// <summary>Drops a deleted named set's id from both the loaded list and the bar order; no-op when neither holds it.</summary>
+    public void RemoveFavoriteSet(string setId)
+    {
+        int removed =
+            _data.LoadedFavoriteSetIds.RemoveAll(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase))
+            + _data.FavoriteSetOrder.RemoveAll(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+        {
+            return;
+        }
+
         Save();
         RaiseFavoriteSetsChanged();
     }
@@ -2167,6 +2202,7 @@ public sealed partial class UserPreferences
             PilotVoiceRadioFxEnabled = GetFieldOr(obj, "pilotVoiceRadioFxEnabled", true),
             PilotVoiceSpeechRate = GetFieldOr(obj, "pilotVoiceSpeechRate", PilotVoiceSpeechRateDefault),
             LoadedFavoriteSetIds = GetFieldOr<List<string>>(obj, "loadedFavoriteSetIds", []),
+            FavoriteSetOrder = GetFieldOr<List<string>>(obj, "favoriteSetOrder", []),
             LegacyFavoriteCommands = GetFieldOr<List<LegacyFavoriteCommand>?>(obj, "favoriteCommands", null),
             LegacyFavoriteCommandSets = GetFieldOr<List<LegacyFavoriteCommandSet>?>(obj, "favoriteCommandSets", null),
             LegacyLoadedFavoriteSetNames = GetFieldOr<List<string>?>(obj, "loadedFavoriteSetNames", null),
@@ -2600,6 +2636,7 @@ public sealed partial class UserPreferences
         public bool PilotVoiceRadioFxEnabled { get; set; } = true;
         public double PilotVoiceSpeechRate { get; set; } = PilotVoiceSpeechRateDefault;
         public List<string> LoadedFavoriteSetIds { get; set; } = [];
+        public List<string> FavoriteSetOrder { get; set; } = [];
 
         // Pre-identity-model favorites storage, kept deserializable only so the one-time
         // FavoriteLegacyMigration can read it; nulled (and thus dropped from the file) afterwards.
@@ -2870,6 +2907,14 @@ public sealed class SavedLayout
     /// before favorite sets existed — applying such a layout leaves the loaded sets untouched.
     /// </summary>
     public List<string>? LoadedFavoriteSetIds { get; set; }
+
+    /// <summary>
+    /// The bar order of the favorite sets at capture time (<see cref="UserPreferences.FavoriteSetOrder"/>: slot tokens and
+    /// named-set ids). Applying the layout restores exactly this order. Null on layouts captured before the order was
+    /// saved — applying such a layout leaves the current order untouched (same convention as
+    /// <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public List<string>? FavoriteSetOrder { get; set; }
 
     /// <summary>
     /// Whether the favorites bar was shown at capture time. Null on layouts captured before the
