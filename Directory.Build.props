@@ -3,5 +3,14 @@
     <Version>0.17.0-beta</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!--
+      yaat-server's solution build references yaat projects from outside its own .slnx and
+      sets this false (its Directory.Build.props), so its projects pass Configuration and
+      Platform to their references. yaat's projects must do the same: with the solution
+      default (true) a yaat project's references to the same projects strip them, each is
+      built twice with different global properties into one obj folder, and the two
+      compiles race (CS2012 "being used by another process").
+    -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 </Project>
