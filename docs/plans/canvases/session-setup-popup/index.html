@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Setup Popup</title>
+<style>
+  :root {
+    --page: #15181c;
+    --radar: #0b1a12;
+    --overlay: rgba(0, 0, 0, 0.8);
+    --text: #ffffff;
+    --subtle: #c8c8c8;
+    --muted: #9a9a9a;
+    --field: #2b2b2b;
+    --field-border: #5a5a5a;
+    --accent: #3a7bd5;
+    --rule: #3c3c3c;
+    --flyout: #2c2c2c;
+    --label: #e6e6e6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 40px;
+    background: var(--page);
+    color: var(--label);
+    font: 13px/1.35 "Segoe UI", system-ui, sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 20px; max-width: 900px; }
+  .lanes { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .lane { width: 470px; max-width: 100%; }
+  .lane h2 { font-size: 13px; margin: 0 0 8px; color: var(--label); }
+  .lane h2 b { color: #8fc1ff; }
+  .radar {
+    background: radial-gradient(circle at 50% 50%, #12301f 0, var(--radar) 70%);
+    border-radius: 6px;
+    padding: 28px 22px;
+  }
+  .popup {
+    background: var(--overlay);
+    border-radius: 8px;
+    padding: 24px;
+    color: var(--text);
+  }
+  .title { font-size: 16px; font-weight: 700; margin: 0 0 12px; }
+  .section + .section { border-top: 1px solid var(--rule); margin-top: 14px; padding-top: 14px; }
+  .section-title { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
+  .hint { color: var(--subtle); margin: 0 0 8px; }
+  .row { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .row b { font-weight: 700; }
+  .box {
+    background: var(--field);
+    border: 1px solid var(--field-border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    min-height: 28px;
+    color: var(--text);
+  }
+  .note { color: var(--subtle); font-size: 11px; }
+  .choice { display: grid; grid-template-columns: 18px 1fr; gap: 6px; margin: 6px 0; }
+  .radio { width: 14px; height: 14px; border: 2px solid var(--field-border); border-radius: 50%; margin-top: 2px; }
+  .radio.on { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 3px, transparent 4px); }
+  .choice-sub { color: var(--subtle); font-size: 11px; }
+  .combo { display: flex; justify-content: space-between; align-items: center; }
+  .combo::after { content: "\25BE"; color: var(--subtle); margin-left: 8px; }
+  .buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .btn { background: #3d3d3d; border: 1px solid #555; border-radius: 4px; padding: 4px 14px; color: var(--text); }
+  .flyout { background: var(--flyout); border: 1px solid #444; border-radius: 6px; padding: 12px; width: 260px; }
+  .flyout .fl-title { font-weight: 700; margin-bottom: 8px; }
+  .check { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .check .tick { width: 14px; height: 14px; border-radius: 3px; background: var(--accent); }
+  .fl-label { color: var(--muted); font-size: 11px; margin: 4px 0 2px; }
+  .fl-new { outline: 2px dashed #e0b13a; outline-offset: 4px; border-radius: 4px; }
+  .legend { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  @media (max-width: 520px) { .lane { width: 100%; } .radar { padding: 16px 8px; } .popup { padding: 16px; } }
+</style>
+</head>
+<body>
+<h1>Session-setup popup (YAAT-1180)</h1>
+<p class="lede">The Active Runways overlay becomes one session-setup popup with sections; each shows only when it applies and is not already settled, and with nothing to ask there is no popup. Lanes A to C are the three states. Lanes C and D differ only in how the positions section is chosen (radio list or drop-down). Lane E is the new row in the session settings flyout (dashed). The student here works OAK_GND, so the choices are Ground and Delivery; an approach student would see Approach, Tower, Ground and Delivery.</p>
+
+<div class="lanes">
+
+  <div class="lane">
+    <h2><b>A</b> · Runways only (mentor, not solo; as today, retitled)</h2>
+    <div class="radar"><div class="popup">
+      <p class="title">Session setup</p>
+      <div class="section">
+        <p class="section-title">Active runways</p>
+        <p class="hint">YAAT's aircraft menus use these to name and suggest runways. Aircraft the scenario already gives a runway keep it.</p>
+        <p class="hint">Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only.</p>
+        <div class="row"><b>OAK</b><div class="box">28R 30</div></div>
+        <div class="row"><b>SFO</b><div class="box">D1R D1L A28L A28R</div></div>
+        <p class="note">OAK: 6 aircraft already assigned 30.</p>
+      </div>
+      <div class="buttons"><span class="btn">OK</span><span class="btn">Cancel</span></div>
+    </div></div>
+  </div>
+
+  <div class="lane">
+    <h2><b>B</b> · Positions only (solo OAK_GND), radio list</h2>
+    <div class="radar"><div class="popup">
+      <p class="title">Session setup</p>
+      <div class="section">
+        <p class="section-title">Positions you work</p>
+        <p class="hint">You work Oakland Ground and the positions you choose below it. YAAT simulates the rest: a silent tower clears departures you hand off and lands arrivals.</p>
+        <div class="choice"><span class="radio on"></span><div>Ground only<div class="choice-sub">Departures call you ready to taxi; no clearance requests.</div></div></div>
+        <div class="choice"><span class="radio"></span><div>Ground and Delivery<div class="choice-sub">IFR departures also ask you for their clearance first.</div></div></div>
+        <p class="note">You can change this later in Session settings.</p>
+      </div>
+      <div class="buttons"><span class="btn">OK</span><span class="btn">Cancel</span></div>
+    </div></div>
+  </div>
+
+  <div class="lane">
+    <h2><b>C</b> · Both sections (solo, no runways answered), radio list</h2>
+    <div class="radar"><div class="popup">
+      <p class="title">Session setup</p>
+      <div class="section">
+        <p class="section-title">Active runways</p>
+        <p class="hint">Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only.</p>
+        <div class="row"><b>OAK</b><div class="box">28R 30</div></div>
+      </div>
+      <div class="section">
+        <p class="section-title">Positions you work</p>
+        <p class="hint">You work Oakland Ground and the positions you choose below it. YAAT simulates the rest.</p>
+        <div class="choice"><span class="radio on"></span><div>Ground only<div class="choice-sub">Departures call you ready to taxi; no clearance requests.</div></div></div>
+        <div class="choice"><span class="radio"></span><div>Ground and Delivery<div class="choice-sub">IFR departures also ask you for their clearance first.</div></div></div>
+      </div>
+      <div class="buttons"><span class="btn">OK</span><span class="btn">Cancel</span></div>
+    </div></div>
+  </div>
+
+  <div class="lane">
+    <h2><b>D</b> · Both sections, drop-down instead of radio list</h2>
+    <div class="radar"><div class="popup">
+      <p class="title">Session setup</p>
+      <div class="section">
+        <p class="section-title">Active runways</p>
+        <p class="hint">Which runways are active? Separate with commas, spaces or new lines. D28L = departures only, A28R = arrivals only.</p>
+        <div class="row"><b>OAK</b><div class="box">28R 30</div></div>
+      </div>
+      <div class="section">
+        <p class="section-title">Positions you work</p>
+        <p class="hint">You work Oakland Ground and the positions you choose below it. YAAT simulates the rest.</p>
+        <div class="row" style="grid-template-columns: 110px 1fr"><span>Lowest position</span><div class="box combo">Ground (no clearance requests)</div></div>
+      </div>
+      <div class="buttons"><span class="btn">OK</span><span class="btn">Cancel</span></div>
+    </div></div>
+  </div>
+
+  <div class="lane">
+    <h2><b>E</b> · Session settings flyout, new row (solo rooms only)</h2>
+    <div class="radar" style="display:flex; justify-content:flex-end">
+      <div class="flyout">
+        <div class="fl-title">Session Settings</div>
+        <div class="check"><span class="tick"></span>Solo Training Mode</div>
+        <div class="fl-new">
+          <div class="fl-label">Positions you work</div>
+          <div class="box combo">Ground and Delivery</div>
+        </div>
+        <div class="fl-label" style="margin-top:10px">Pre-fill traffic advisories</div>
+        <div class="box combo">Off</div>
+        <div class="fl-label" style="margin-top:8px">Parking call-up interval:</div>
+        <div class="box" style="min-height:10px; padding:2px 8px">———●———— 30 s</div>
+      </div>
+    </div>
+    <p class="legend">Changing it takes effect at once and is recorded, so a replay reproduces it.</p>
+  </div>
+
+</div>
+</body>
+</html>
