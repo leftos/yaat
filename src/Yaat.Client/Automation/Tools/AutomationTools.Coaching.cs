@@ -29,10 +29,14 @@ public sealed partial class AutomationTools
         "Lists the spawned aircraft the Aircraft List shows (a delayed spawn appears once it joins the sim) as one JSON object: sim "
             + "time, pause state and one row per aircraft, ordered by "
             + "callsign (type, rules, route ends, position, motion, phase, ground state, runway queue, pending pilot request). Fields "
-            + "with no value are left out.",
+            + "with no value are left out; activeOnly true leaves out the aircraft standing quiet on the ground.",
         nameof(NoScenario)
     )]
-    public Task<AppToolOutcome> GetTraffic([Description("Airport id such as OAK or KOAK; empty for every aircraft.")] string airport)
+    public Task<AppToolOutcome> GetTraffic(
+        [Description("Airport id such as OAK or KOAK; empty for every aircraft.")] string airport,
+        [Description("True to leave out aircraft standing quiet on the ground: stopped, never in contact and with no pending request.")]
+            bool activeOnly
+    )
     {
         string? wanted = string.IsNullOrWhiteSpace(airport) ? null : NormalizeAirport(airport);
         LiveTrafficListFilter liveFilter = _viewModel.LiveTrafficListFilter;
@@ -41,6 +45,7 @@ public sealed partial class AutomationTools
             .. _viewModel
                 .Aircraft.Where(aircraft => MainViewModel.IsAircraftVisible(aircraft, showOnlyActive: true, filter: "", liveFilter))
                 .Where(aircraft => (wanted is null) || ServesAirport(aircraft, wanted))
+                .Where(aircraft => (!activeOnly) || (!IsQuietOnTheGround(aircraft)))
                 .OrderBy(aircraft => aircraft.Callsign, StringComparer.Ordinal)
                 .Select(BuildRow),
         ];
@@ -191,10 +196,16 @@ public sealed partial class AutomationTools
         || AirportMatches(aircraft.Departure, normalized)
         || AirportMatches(aircraft.Destination, normalized);
 
+    /// <summary>
+    /// Whether <paramref name="aircraft"/> stands quiet on the ground: stopped, never in contact and with no pending pilot request.
+    /// </summary>
+    private static bool IsQuietOnTheGround(AircraftModel aircraft) =>
+        (aircraft.IsOnGround) && (aircraft.GroundSpeed < 1.0) && (!aircraft.HasMadeInitialContact) && (aircraft.PendingPilotRequest is null);
+
     /// <summary>The text, or null when it is empty, so the answer leaves the field out.</summary>
     private static string? Text(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
-    private static string Squawk(uint code) => Convert.ToString(code, 8).PadLeft(4, '0');
+    private static string Squawk(uint code) => code.ToString("D4", CultureInfo.InvariantCulture);
 
     private static int Whole(double value) => (int)Math.Round(value);
 

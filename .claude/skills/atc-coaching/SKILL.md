@@ -12,6 +12,7 @@ The owner trains Claude the way a student is trained. Claude works the position 
 - **Solo-training forms only.** The room runs in solo mode, and its dispatcher refuses the RPO-only forms. Never use `CLANDF`, `CAPPF`, `CVAF`, `FOLLOWF`, `RTISF`, `RFISF`, or a bare-callsign `RTIS`/`RFIS`. Read COMMANDS.md "Solo Training Command Differences" before the first session of a context.
 - **Never send before the trainer rules.** Every instruction is proposed first, while the sim is paused. Claude sends it only after the owner approves it or corrects it, then resumes.
 - **Scan like a controller, at a human pace.** While the sim runs, look at the picture about every 10 sim seconds. Don't just wait for a pause trigger. The triggers are a safety net, not the scan.
+- **Sessions run at sim rate 1.** The student works in real time, and a pause trigger is exact only at 1x.
 - **Phraseology and procedure come from the local references:** 7110.65 and AIM under `.claude/reference/faa/`, and OAK knowledge in `src/Yaat.Sim/Data/FacilityOps/KOAK.json`. Cite the paragraph when explaining a choice.
 - **Driver rules:** one driver per application, and close what you opened. See yaat-server's `docs/client-driver-mcp.md`, its "Rules for a driving session", and its "Coaching a student" for the tools' answers.
 
@@ -30,11 +31,14 @@ The feature pair is `X:\dev\yaat.wt\feat-controller-ai-coaching\{yaat,yaat-serve
    - `appDataDir`: `<yaat wt>\.tmp\coaching\appdata`
    - `cloaked: false`, so the owner watches the window
 
-   Wait for "Navigation data loaded".
-5. Call these app tools in order: `connect("http://localhost:5130")`, then `create_room("ZOA")`. Then load the scenario: Scenario › Load Scenario › Local Files, its only item, Load, and the Active runways OK.
-6. Call `set_solo(true)`. Make the student position OAK Ground, then confirm it with `get_airport_context("OAK")`: `position.callsign` is `OAK_GND` and `solo.enabled` is true. The scenario must not set `SoloRpoCommandsAllowed`, which would let solo accept the RPO-only forms; check the scenario file before loading it.
-7. Call `center_ground("OAK", 0)`, then `screenshot` the ground view so the owner and Claude start from the same picture.
-8. Call `arm_pause_triggers(pilotCalls: true, warnings: true, newAircraft: true, groundStops: true, heartbeatSeconds: 0)`. Start the session log (below).
+   Wait until the client log (`tail_yaat_log`) shows "Navigation database built". `wait_until`'s `log_matches` reads the terminal, not this log.
+5. Call these app tools in order: `connect("http://localhost:5130")`, then `create_room("ZOA")`, then `set_solo(true)`. Solo goes on before the scenario loads, so the load sets the room up for a solo student.
+6. Load the scenario: Scenario › Load Scenario › Local Files, its only item, then Load. A session-setup prompt may follow, asking for active runways or the positions the student works.
+
+   The prompt is an overlay inside MainWindow, not a window of its own. `list_windows` does not show it, so find its buttons with `find_elements` under `MainWindow`. Answer it as the trainer chose.
+7. Confirm the student position with `get_airport_context("OAK")`: `position.callsign` is `OAK_GND`, and `solo.enabled` is true. The scenario must not set `SoloRpoCommandsAllowed`, which would let solo accept the RPO-only forms; check the scenario file before loading it.
+8. Select the Ground View tab. Call `center_ground("OAK", 4)` (zoom 1 shows the whole field too small to work), then `screenshot` the ground view, so the owner and Claude start from the same picture.
+9. Call `arm_pause_triggers(pilotCalls: true, warnings: true, newAircraft: true, groundStops: true, heartbeatSeconds: 0)`. Start the session log (below).
 
 ## The loop
 
@@ -43,7 +47,7 @@ play
 repeat:
   wait_until mode=any [ {kind: paused}, {kind: sim_seconds, atLeast: now + 10} ]
   if paused:     get_pause_events(lastEventSeq) → handle each event (below)
-  else (scan):   get_traffic("OAK") + read_terminal(lastSeq) → check the picture
+  else (scan):   get_traffic("OAK", activeOnly: true) + read_terminal(lastSeq) → check the picture
                  if something needs action → pause, then handle it as an initiative
 ```
 

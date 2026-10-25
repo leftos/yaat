@@ -646,6 +646,10 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
 
         public List<string> Actions { get; } = [];
 
+#pragma warning disable CS0067 // This fake never changes its state, so it never raises Changed.
+        public event EventHandler? Changed;
+#pragma warning restore CS0067
+
         public int AircraftReads { get; private set; }
 
         public Action<AircraftModel> OnFirstRead { get; init; } = _ => { };

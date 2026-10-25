@@ -2,6 +2,8 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Models;
+using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.UI.Tests.Automation;
 
@@ -81,6 +83,39 @@ public sealed class PauseTriggerMonitorTests
                 Assert.Equal(1, state.Pauses);
             }
         );
+    }
+
+    [AvaloniaFact]
+    public void PilotCall_PausesOnTheChangeNotification_WithoutATimerTick()
+    {
+        var state = new FakeState();
+        WithMonitor(
+            state,
+            PilotCallsOnly,
+            monitor =>
+            {
+                state.Entries.Add(PilotLine("Proactive"));
+                state.RaiseChanged();
+
+                Assert.Equal(1, state.Pauses);
+                Assert.Equal(["pilot_call"], Triggers(monitor));
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public void ChangeNotification_AfterDisarm_DoesNothing()
+    {
+        var state = new FakeState();
+        var monitor = new PauseTriggerMonitor(state);
+        monitor.Arm(PilotCallsOnly);
+        monitor.Disarm();
+
+        state.Entries.Add(PilotLine("Proactive"));
+        state.RaiseChanged();
+
+        Assert.Equal(0, state.Pauses);
+        Assert.Empty(Triggers(monitor));
     }
 
     [AvaloniaFact]
@@ -423,6 +458,27 @@ public sealed class PauseTriggerMonitorTests
         monitor.Evaluate();
     }
 
+    [AvaloniaFact]
+    public async Task MainViewModelAutomationState_AttachesOnlyWhileChangedHasSubscribers()
+    {
+        var viewModel = new MainViewModel(new FakeFilePickerService());
+        await viewModel.CrcAliasLoad;
+        var state = new MainViewModelAutomationState(viewModel);
+        int raises = 0;
+        void count(object? _1, EventArgs _2) => raises++;
+
+        viewModel.TerminalEntries.Add(PilotLine("Proactive"));
+        Assert.Equal(0, raises);
+
+        state.Changed += count;
+        viewModel.TerminalEntries.Add(PilotLine("Proactive"));
+        Assert.Equal(1, raises);
+
+        state.Changed -= count;
+        viewModel.TerminalEntries.Add(PilotLine("Proactive"));
+        Assert.Equal(1, raises);
+    }
+
     /// <summary>An <see cref="IAutomationState"/> whose aircraft, terminal, clock and pause state a test sets, counting each pause.</summary>
     private sealed class FakeState : IAutomationState
     {
@@ -431,6 +487,11 @@ public sealed class PauseTriggerMonitorTests
         public List<TerminalEntry> Entries { get; } = [];
 
         public int Pauses { get; private set; }
+
+        public event EventHandler? Changed;
+
+        /// <summary>Raises <see cref="Changed"/>, as the client state does when a terminal entry or an aircraft appears.</summary>
+        public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
         IReadOnlyList<AircraftModel> IAutomationState.Aircraft => Aircraft;
 

@@ -8,6 +8,9 @@ namespace Yaat.Client.Automation;
 /// </summary>
 public interface IAutomationState
 {
+    /// <summary>Raised on the UI thread after a terminal entry or an aircraft is added to or removed from the client's lists.</summary>
+    event EventHandler? Changed;
+
     /// <summary>The aircraft the client shows.</summary>
     IReadOnlyList<AircraftModel> Aircraft { get; }
 

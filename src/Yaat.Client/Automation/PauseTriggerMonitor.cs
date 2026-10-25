@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
@@ -50,6 +51,7 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     private long _terminalCursor;
     private double _heartbeatAnchor;
     private long _lastSequence;
+    private bool _subscribed;
 
     /// <summary>Whether the triggers are armed.</summary>
     public bool IsArmed => Triggers is not null;
@@ -68,6 +70,12 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     public void Arm(PauseTriggerSet triggers)
     {
         Triggers = triggers;
+        if (!_subscribed)
+        {
+            state.Changed += OnStateChanged;
+            _subscribed = true;
+        }
+
         _terminalCursor = state.TerminalCursor;
         _knownCallsigns.Clear();
         _conflictPeers.Clear();
@@ -88,8 +96,17 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     public void Disarm()
     {
         Triggers = null;
+        if (_subscribed)
+        {
+            state.Changed -= OnStateChanged;
+            _subscribed = false;
+        }
+
         _timer?.Stop();
     }
+
+    /// <summary>Checks the client at once when a terminal entry or an aircraft is added or removed; a no-op while disarmed.</summary>
+    private void OnStateChanged(object? sender, EventArgs e) => Evaluate();
 
     /// <summary>The logged events above <paramref name="sequence"/>, oldest first.</summary>
     public IReadOnlyList<PauseEvent> EventsSince(long sequence) => [.. _events.Where(logged => logged.Sequence > sequence)];
@@ -105,6 +122,7 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
             return;
         }
 
+        long started = Stopwatch.GetTimestamp();
         bool paused = state.IsPaused;
         double now = state.ScenarioElapsedSeconds;
         _pending.Clear();
@@ -130,7 +148,7 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
 
         if (pauses)
         {
-            _ = PauseAsync(_pending[0]);
+            _ = PauseAsync(_pending[0], started);
         }
     }
 
@@ -238,7 +256,7 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
     private void Fire(string trigger, string? callsign, string detail) =>
         _pending.Add(new PendingEvent(trigger, string.IsNullOrEmpty(callsign) ? null : callsign, detail));
 
-    private async Task PauseAsync(PendingEvent cause)
+    private async Task PauseAsync(PendingEvent cause, long started)
     {
         try
         {
@@ -246,7 +264,11 @@ public sealed class PauseTriggerMonitor(IAutomationState state)
             if (!outcome.Ok)
             {
                 Log.LogWarning("Pause trigger {Trigger} could not pause the sim: {Error}", cause.Trigger, outcome.Error ?? "no reason given");
+                return;
             }
+
+            double milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            Log.LogDebug("Pause trigger {Trigger} paused in {Ms} ms", cause.Trigger, Math.Round(milliseconds));
         }
         catch (Exception ex)
         {

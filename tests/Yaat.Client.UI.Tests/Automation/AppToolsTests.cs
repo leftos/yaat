@@ -10,6 +10,7 @@ using Yaat.Client.Automation;
 using Yaat.Client.Automation.Protocol;
 using Yaat.Client.Automation.Tools;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -183,7 +184,7 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "get_airport_context(airport:string)",
                 "get_framing()",
                 "get_pause_events(sinceSequence:int)",
-                "get_traffic(airport:string)",
+                "get_traffic(airport:string,activeOnly:bool)",
                 "hover(window:string,selector:string,x:double,y:double,durationMs:int)",
                 "load_recording(path:string)",
                 "pause()",
@@ -554,8 +555,8 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
-            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "KOAK" } }),
-            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "" } })
+            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "KOAK", activeOnly = false } }),
+            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "", activeOnly = false } })
         );
 
         JsonElement oakOnly = Answer(Result(responses[0]));
@@ -570,12 +571,72 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
+    public async Task GetTraffic_ActiveOnly_LeavesOutQuietParkedAircraft()
+    {
+        MainViewModel viewModel = InScenario();
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "UAL1",
+                IsOnGround = true,
+                Position = new LatLon(37.7213, -122.2208),
+            }
+        );
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "AAL2",
+                IsOnGround = true,
+                Position = new LatLon(37.7213, -122.2208),
+                PendingPilotRequest = new PendingPilotRequestDto("Taxi", "Pending", "ready to taxi", 1.0, 1.0),
+            }
+        );
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "DAL3",
+                IsOnGround = true,
+                GroundSpeed = 12,
+                Position = new LatLon(37.7213, -122.2208),
+            }
+        );
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "", activeOnly = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "get_traffic", arguments = new { airport = "", activeOnly = false } })
+        );
+
+        Assert.Equal(["AAL2", "DAL3"], Callsigns(Answer(Result(responses[0]))));
+        Assert.Equal(["AAL2", "DAL3", "UAL1"], Callsigns(Answer(Result(responses[1]))));
+    }
+
+    [AvaloniaFact]
     public async Task GetAircraft_UnknownCallsign_Unavailable()
     {
         JsonElement result = Result(await CallTool(ToolsOf(InScenario()), "get_aircraft", new { callsign = "AAL9" }));
 
         Assert.False(result.GetProperty("available").GetBoolean());
         Assert.Contains("AAL9", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task GetAircraft_ReportsTheSquawkDigits()
+    {
+        MainViewModel viewModel = InScenario();
+        viewModel.Aircraft.Add(
+            new AircraftModel
+            {
+                Callsign = "UAL1",
+                BeaconCode = 4601,
+                AssignedBeaconCode = 4601,
+            }
+        );
+
+        JsonElement answer = Answer(Result(await CallTool(ToolsOf(viewModel), "get_aircraft", new { callsign = "UAL1" })));
+
+        Assert.Equal("4601", answer.GetProperty("squawk").GetString());
+        Assert.Equal("4601", answer.GetProperty("assignedSquawk").GetString());
     }
 
     [AvaloniaFact]
@@ -1825,6 +1886,10 @@ public sealed class AppToolsTests : AutomationHostFixture
     private sealed class RateRecordingState(string? refusal) : IAutomationState
     {
         public List<int> Rates { get; } = [];
+
+#pragma warning disable CS0067 // This fake never changes its state, so it never raises Changed.
+        public event EventHandler? Changed;
+#pragma warning restore CS0067
 
         public IReadOnlyList<AircraftModel> Aircraft => [];
 
