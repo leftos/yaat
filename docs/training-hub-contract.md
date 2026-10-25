@@ -239,7 +239,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `AircraftSpawned` | `AircraftDto` | `AircraftSpawned` |
 | `AircraftDeleted` | `string` callsign | `AircraftDeleted` |
 | `SimulationStateChanged` | `(bool, int, double, bool, double)` | `SimulationStateChanged` |
-| `TerminalBroadcast` | `TerminalBroadcastDto` | `TerminalEntryReceived` |
+| `TerminalBroadcast` | `TerminalBroadcastDto` (`PilotKind`: see below) | `TerminalEntryReceived` |
 | `PilotTransmissionBroadcast` | `PilotTransmissionBroadcastDto` (its trailing `SpeechRateFactor` is the load factor from `PilotSpeechRate.LoadFactor`: 1.1 when the frequency is busy, else 1.0) | `PilotTransmissionReceived` — the client multiplies its Speech Speed setting by `SpeechRateFactor` (`PilotSpeechRateNudge.Apply`) |
 | `RoomMemberChanged` | `RoomMemberChangedDto` (carries `RoomMemberDto` — see **Room membership** below) | `RoomMemberChanged` — **not** the client's only source of members; `ApplyRoomState` seeds from `RoomStateDto.Members` because this push can beat the join response |
 | `CrcLobbyChanged` | `CrcLobbyChangedDto` | `CrcLobbyChanged` |
@@ -280,6 +280,11 @@ payload DTO → the `ServerConnection` C# event it re-raises:
   the timeline label, scrubber position, and the base for the relative +15/−15 skips — stays live. It is also sent
   on the discrete events (pause/unpause, sim-rate change, rewind-complete, end-of-tape). The `double elapsed`
   argument carries `scenario.ElapsedSeconds`.
+- **`TerminalBroadcastDto.PilotKind`** (a string, the last field; JSON `pilotKind`) tells a pilot's own call from a readback. On a solo pilot transmission's line (`TickProcessor.BroadcastPilotTransmissions`, through `ITrainingBroadcast.BroadcastPilotTerminalEntry`) it is the `PilotTransmissionKind` name: `"Readback"`, `"Proactive"` (a request), `"Report"` or `"SayReadback"`. A line from `TickProcessor.BroadcastPilotReadbacks` carries `"SayReadback"`.
+
+  It is null on every other line, including the RPO `PilotSpeech` line. The terminal `Kind` stays `SayPilot` / `SayReadback` as before, and the client still collapses both to `TerminalEntryKind.Say`; it keeps the value on `TerminalEntry.PilotKind`.
+
+  It is live only: `RecordedTerminalEntry` does not store it, so `GetTerminalLog` and a recording's terminal history return it null.
 
 ## Scenario load progress
 
@@ -620,6 +625,13 @@ extend the resolver to depend on a new input, fingerprint that input too.
 
   The client lands them as `AircraftModel.TrueTrack`, `IsManeuvering` and `PatternPosition` (a `PatternPosition` record built by `AircraftModel.ToPatternPosition`, null unless both the leg and the distance are sent).
 - `HasTaxiwayHoldShortAhead` (a bool, right after `HasActiveTaxiRoute` in `AircraftStateDto` / `AircraftDto`) is `FollowingPhase.DrivenRouteOf(aircraft)?.HasTaxiwayHoldShortAhead()` (`DtoConverter`): the route the aircraft drives is incomplete and its next uncleared hold short ahead is a taxiway or spot bar, the one a bare `RES` pre-clears (`TaxiRoute.NextUnclearedHoldShortAhead`, `TaxiRoute.IsTaxiwayClassHoldShort`). For a `FOLLOWG` follower the driven route is its follow route, which carries no hold short, so the flag is false for followers. The client lands it on `AircraftModel` / `IMenuAircraft.HasTaxiwayHoldShortAhead`, and `AircraftCommandApplicability.CanResumeTaxi` offers "Resume taxi" to a rolling aircraft on it. It is its own `TrainingDtoFingerprint` field (`AircraftChangeTracker`), since the route's cleared bars are not fingerprinted, so clearing a bar rebroadcasts the aircraft.
+- `PendingPilotRequest` (a `PendingPilotRequestDto(Kind, ResponseState, LastPilotLine, FirstRequestedAtSeconds, LastRequestedAtSeconds)`, `null` by default, after `ArmedReports`; JSON `pendingPilotRequest`: `{kind, responseState, lastPilotLine, firstRequestedAtSeconds, lastRequestedAtSeconds}` or null) is the aircraft's `PilotPendingRequest` while it is open (`IsOpen`: response state `None` or `Standby`), built by `DtoConverter.BuildPendingPilotRequest`. It is null when the aircraft has no request or the request was satisfied, denied or superseded.
+
+  `kind` is the `PilotPendingRequestKind` name (`"Taxi"`, `"Takeoff"`, `"Landing"`, `"Approach"`, `"AirspaceEntry"`, `"Clearance"`, `"Release"`, `"Pushback"`), `responseState` the `PilotPendingRequestResponseState` name (`"None"` or `"Standby"`), `lastPilotLine` the terminal form of the pilot's last asking, and the two times are scenario-elapsed seconds of the first and the last asking.
+
+  `HasMadeInitialContact` (a bool, `false` by default, the last field) is `AircraftState.HasMadeInitialContact`: the pilot has made initial contact on the frequency.
+
+  A request opens, goes to standby and closes, and the pilot makes contact, with nothing else on the aircraft changing, so each has its own `TrainingDtoFingerprint` slot (`PendingPilotRequest`, compared by value as the wire record; `HasMadeInitialContact`). There is no snapshot field of its own and no `YaatHubJsonContext` registration (the record is nested in `AircraftDto`). The client carries both as `AircraftModel.PendingPilotRequest` and `AircraftModel.HasMadeInitialContact` (observable); nothing draws them yet.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`, the latter the scenario's per-aircraft
   `IsAutoClearedToLandFor`, true under a simulated tower) are broadcast parameters `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.

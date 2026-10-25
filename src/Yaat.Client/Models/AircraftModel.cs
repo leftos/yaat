@@ -27,6 +27,14 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private string _callsign = "";
 
+    /// <summary>The pilot's request awaiting the controller (unanswered or on standby), as the server sends it; null when none is open.</summary>
+    [ObservableProperty]
+    private PendingPilotRequestDto? _pendingPilotRequest;
+
+    /// <summary>True once the pilot has made initial contact on the frequency.</summary>
+    [ObservableProperty]
+    private bool _hasMadeInitialContact;
+
     /// <summary>
     /// Actual aircraft type — what's physically flying. Read by Tower Cab (out-the-window
     /// datablock), physics/performance lookups, and the operator-facing Aircraft List data
@@ -1354,6 +1362,8 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             HasStoredTaxiRoute = dto.HasStoredTaxiRoute,
             HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead,
+            PendingPilotRequest = dto.PendingPilotRequest,
+            HasMadeInitialContact = dto.HasMadeInitialContact,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
@@ -1495,6 +1505,8 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         HasStoredTaxiRoute = dto.HasStoredTaxiRoute;
         HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead;
+        PendingPilotRequest = dto.PendingPilotRequest;
+        HasMadeInitialContact = dto.HasMadeInitialContact;
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;

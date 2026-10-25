@@ -76,6 +76,12 @@ public sealed class TerminalEntry
     public required string Message { get; init; }
 
     /// <summary>
+    /// The server's pilot transmission kind ("Readback", "Proactive", "Report", "SayReadback") on a solo pilot line, telling a
+    /// pilot's own call from a readback; null on every other line, on client-local lines and on recorded history.
+    /// </summary>
+    public required string? PilotKind { get; init; }
+
+    /// <summary>
     /// True for a line rebuilt from a loaded recording's terminal history rather than added as it happened, so an
     /// automation wait on new terminal lines skips it.
     /// </summary>

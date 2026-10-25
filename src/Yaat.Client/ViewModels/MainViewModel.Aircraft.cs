@@ -64,6 +64,7 @@ public partial class MainViewModel
                 Kind = TerminalEntryKind.System,
                 Callsign = "",
                 Message = message,
+                PilotKind = null,
             }
         );
     }
@@ -79,6 +80,7 @@ public partial class MainViewModel
                 Kind = TerminalEntryKind.Warning,
                 Callsign = "",
                 Message = message,
+                PilotKind = null,
             }
         );
     }
@@ -99,6 +101,7 @@ public partial class MainViewModel
                 Kind = TerminalEntryKind.Warning,
                 Callsign = callsign,
                 Message = message,
+                PilotKind = null,
             }
         );
         MaybeAttachSpeechBubble(TerminalEntryKind.Warning, callsign, message);
@@ -132,6 +135,7 @@ public partial class MainViewModel
             Kind = kind,
             Callsign = dto.Callsign,
             Message = dto.Message,
+            PilotKind = dto.PilotKind,
             IsHistory = isHistory,
         };
     }

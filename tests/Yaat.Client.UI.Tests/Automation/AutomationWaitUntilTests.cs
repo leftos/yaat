@@ -311,6 +311,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
             Kind = TerminalEntryKind.System,
             Callsign = callsign,
             Message = message,
+            PilotKind = null,
         };
 
     [AvaloniaFact]
@@ -449,7 +450,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
                 Conditions(new { kind = "log_matches", pattern = "cleared to land" }),
                 () =>
                     viewModel.RepopulateTerminalFromRecording([
-                        new TerminalBroadcastDto("", "System", "", "history: cleared to land", DateTime.UtcNow, 10),
+                        new TerminalBroadcastDto("", "System", "", "history: cleared to land", DateTime.UtcNow, 10, PilotKind: null),
                     ]),
                 () => viewModel.AddSystemEntry("live: cleared to land")
             )

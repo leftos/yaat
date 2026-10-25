@@ -94,7 +94,9 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
             on: true,
             vm =>
             {
-                vm.OnTerminalEntry(new TerminalBroadcastDto("", "System", "", "[Restart] Scenario restarted with new traffic", DateTime.UtcNow, 0));
+                vm.OnTerminalEntry(
+                    new TerminalBroadcastDto("", "System", "", "[Restart] Scenario restarted with new traffic", DateTime.UtcNow, 0, PilotKind: null)
+                );
                 Dispatcher.UIThread.RunJobs();
 
                 vm.ApplyScenarioRestart([]);
@@ -110,7 +112,9 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
             on: false,
             vm =>
             {
-                vm.OnTerminalEntry(new TerminalBroadcastDto("", "System", "", "[Restart] Scenario restarted with new traffic", DateTime.UtcNow, 0));
+                vm.OnTerminalEntry(
+                    new TerminalBroadcastDto("", "System", "", "[Restart] Scenario restarted with new traffic", DateTime.UtcNow, 0, PilotKind: null)
+                );
                 Dispatcher.UIThread.RunJobs();
 
                 vm.ApplyScenarioRestart([]);
@@ -241,7 +245,7 @@ public class MainViewModelClearTerminalOnScenarioLoadTests
         Assert.Equal(historyBefore, vm.CommandHistory);
     }
 
-    private static TerminalBroadcastDto Warning(string message) => new("", "Warning", "", message, DateTime.UtcNow, 0);
+    private static TerminalBroadcastDto Warning(string message) => new("", "Warning", "", message, DateTime.UtcNow, 0, PilotKind: null);
 
     private static string[] Messages(MainViewModel vm) => [.. vm.TerminalEntries.Select(e => e.Message)];
 

@@ -1415,7 +1415,24 @@ public record AircraftDto(
     double? PatternDistanceNm = null,
     // The deferred reports armed by REPORT, as the sim projects them (the armed pattern legs, the N-mile final and the fix);
     // null when nothing is armed. Kept name-for-name in sync with the server's AircraftStateDto.
-    ArmedReportsDto? ArmedReports = null
+    ArmedReportsDto? ArmedReports = null,
+    // The pilot's request awaiting the controller (unanswered or on standby), null when none is open; and whether the
+    // pilot has made initial contact. Kept name-for-name in sync with the server's AircraftStateDto.
+    PendingPilotRequestDto? PendingPilotRequest = null,
+    bool HasMadeInitialContact = false
+);
+
+/// <summary>
+/// An aircraft's open pilot request, kept name-for-name in sync with the server's <c>PendingPilotRequestDto</c>: the request
+/// kind and response state by enum name, the terminal form of the pilot's last asking, and the scenario-elapsed seconds of
+/// the first and the last asking.
+/// </summary>
+public record PendingPilotRequestDto(
+    string Kind,
+    string ResponseState,
+    string LastPilotLine,
+    double FirstRequestedAtSeconds,
+    double LastRequestedAtSeconds
 );
 
 /// <summary>
@@ -1944,7 +1961,17 @@ public record UnloadScenarioResultDto(
     string? ArtccId = null
 );
 
-public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp, double? ElapsedSeconds);
+// PilotKind is the PilotTransmissionKind name ("Readback", "Proactive", "Report", "SayReadback") of a solo pilot
+// transmission's line; null on every other line and on recorded history. Kept name-for-name in sync with the server.
+public record TerminalBroadcastDto(
+    string Initials,
+    string Kind,
+    string Callsign,
+    string Message,
+    DateTime Timestamp,
+    double? ElapsedSeconds,
+    string? PilotKind
+);
 
 public record PilotTransmissionBroadcastDto(
     string ScenarioId,

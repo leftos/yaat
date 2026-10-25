@@ -17,6 +17,7 @@ public class TerminalPanelFormatTests
             Kind = TerminalEntryKind.Command,
             Callsign = "AAL100",
             Message = "H270",
+            PilotKind = null,
         };
 
     [Fact]
