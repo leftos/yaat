@@ -13,7 +13,7 @@ The owner trains Claude the way a student is trained. Claude works the position 
 - **Never send before the trainer rules.** Every instruction is proposed first, while the sim is paused. Claude sends it only after the owner approves it or corrects it, then resumes.
 - **Scan like a controller, at a human pace.** While the sim runs, look at the picture about every 10 sim seconds. Don't just wait for a pause trigger. The triggers are a safety net, not the scan.
 - **Phraseology and procedure come from the local references:** 7110.65 and AIM under `.claude/reference/faa/`, and OAK knowledge in `src/Yaat.Sim/Data/FacilityOps/KOAK.json`. Cite the paragraph when explaining a choice.
-- **Driver rules:** one driver per application, and close what you opened. See the client-driver doc, which lives in yaat-server's docs after YAAT-1163, and its "Rules for a driving session".
+- **Driver rules:** one driver per application, and close what you opened. See yaat-server's `docs/client-driver-mcp.md`, its "Rules for a driving session", and its "Coaching a student" for the tools' answers.
 
 ## Setup
 
@@ -76,7 +76,7 @@ When the trainer flags something Claude missed, log it as a miss. Note whether a
 
 - **Session log:** write one per session at `docs/plans/controller-ai/coaching/sessions/NNN-YYYY-MM-DD-<scenario>.md`, using the template in `sessions/README.md`. Append each exchange as it happens, not at the end.
 - **Lessons:** at the end of the session, distill each verdict that taught something into `docs/plans/controller-ai/coaching/ground-lessons.md`. Write it as a rule, map it to the GroundBrain rule, KOAK.json entry or new rule it implies, and link back to the session entry.
-- **Tool friction:** append it to the client-driver friction log (yaat-server's docs after YAAT-1163).
+- **Tool friction:** append it to yaat-server's `docs/plans/client-driver-mcp-friction.md`.
 - Commit the records on the feature branch at the end of the session.
 
 ## Teardown
