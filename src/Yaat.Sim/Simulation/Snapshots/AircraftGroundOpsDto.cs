@@ -147,8 +147,11 @@ public sealed class AircraftGroundOpsDto
     /// </summary>
     public double? LeftStudentFrequencyAtSeconds { get; init; }
 
-    /// <summary>True once the departure's clearance request was answered. Optional — earlier snapshots restore false.</summary>
-    public bool ClearanceObtained { get; init; }
+    /// <summary>Scenario-elapsed seconds the departure's clearance request was answered, or null. Optional — earlier snapshots restore null.</summary>
+    public double? ClearanceObtainedAtSeconds { get; init; }
+
+    /// <summary>Scenario-elapsed seconds the aircraft first began a takeoff roll, or null. Optional — earlier snapshots restore null.</summary>
+    public double? TakeoffRollStartedAtSeconds { get; init; }
 
     /// <summary>Absolute-UTC start of the Call-For-Release window, or null. Alert-only (GitHub issue #230).</summary>
     public DateTime? ReleaseWindowStartUtc { get; init; }

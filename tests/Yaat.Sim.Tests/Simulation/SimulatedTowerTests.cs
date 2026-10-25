@@ -213,10 +213,11 @@ public class SimulatedTowerTests
         Assert.True(cto.Success, cto.Message);
         Assert.True(TickUntil(run.Engine, () => SimTowerCleared(run), 240) > 0, "never cleared once the runway was clear");
         Assert.False(blocker.IsOnGround, "cleared before the departure ahead had left the runway");
+        Assert.NotNull(blocker.Ground.TakeoffRollStartedAtSeconds);
     }
 
     [Fact]
-    public void ArrivalInsideSixtySeconds_Waits()
+    public void ArrivalInsideTheFinalGate_Waits()
     {
         RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
         if (runway is null)
@@ -234,12 +235,12 @@ public class SimulatedTowerTests
         };
 
         AircraftState near = OnFinal(runway, "N152SP", 2.0);
-        Assert.False(SimulatedTowerRunwayGuard.IsClear(departure, runway, [departure, near], null, out string? reason));
+        string? reason = SimulatedTowerRunwayGuard.ReasonToWait(departure, runway, [departure, near], null, 0);
+        Assert.NotNull(reason);
         Assert.Contains("N152SP", reason, StringComparison.Ordinal);
 
         AircraftState far = OnFinal(runway, "N152SP", 6.0);
-        Assert.True(SimulatedTowerRunwayGuard.IsClear(departure, runway, [departure, far], null, out string? clearReason));
-        Assert.Null(clearReason);
+        Assert.Null(SimulatedTowerRunwayGuard.ReasonToWait(departure, runway, [departure, far], null, 0));
     }
 
     [Fact]

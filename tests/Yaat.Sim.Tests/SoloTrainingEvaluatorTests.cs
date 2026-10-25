@@ -923,7 +923,8 @@ public sealed class SoloTrainingEvaluatorTests
         var serviceContext = new SoloTrainingServiceContext(
             new InitialContactEligibilityContext(student, "TWR", "ZOA", "KSFO", InitialContactTransferCatalog.Empty),
             WakeDirectiveCatalog.Empty,
-            null
+            null,
+            SoloTrainingServiceContext.NoSimulatedTower
         );
 
         List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default, serviceContext);
@@ -1057,6 +1058,55 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Contains("7110.65 §3-10-3(a)(2)", notice.RuleReference);
         Assert.Contains("6,000 ft", notice.RequiredText);
     }
+
+    [Fact]
+    public void SimulatedTowerDeparture_IsNotScoredAgainstTheStudent()
+    {
+        RunwayInfo runway = CreateRunway();
+        SoloTrainingServiceContext context = SimulatedTowerContext(runway);
+        AircraftState lead = CreateAircraft("BAW1", "B744", flightRules: "IFR", PositionOnRunway(runway, 1000), altitude: 10, isOnGround: true);
+        SetPhase(lead, runway, new TakeoffPhase());
+        AircraftState follower = CreateAircraft("SWA2", "B738", flightRules: "IFR", PositionOnRunway(runway, 0), altitude: 10, isOnGround: true);
+        SetPhase(follower, runway, new LinedUpAndWaitingPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default, context);
+
+        lead.Position = PositionOnRunway(runway, 2500);
+        lead.IsOnGround = false;
+        SetPhase(lead, runway, new InitialClimbPhase());
+        SetPhase(follower, runway, new TakeoffPhase());
+
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 101, AirspaceDatabase.Default, context);
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+    }
+
+    [Fact]
+    public void SimulatedTowerArrival_IsNotScoredAgainstTheStudent()
+    {
+        RunwayInfo runway = CreateRunway();
+        SoloTrainingServiceContext context = SimulatedTowerContext(runway);
+        AircraftState lead = CreateAircraft("AAL1", "B738", flightRules: "IFR", PositionOnRunway(runway, 2500), altitude: 500, isOnGround: false);
+        SetPhase(lead, runway, new InitialClimbPhase());
+        AircraftState follower = CreateAircraft("UAL2", "B738", flightRules: "IFR", PositionOnRunway(runway, -500), altitude: 100, isOnGround: false);
+        SetPhase(follower, runway, new FinalApproachPhase());
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 30, AirspaceDatabase.Default, context);
+
+        follower.Position = PositionOnRunway(runway, 100);
+        SetPhase(follower, runway, new LandingPhase());
+
+        List<SoloTrainingEvent> notices = evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 31, AirspaceDatabase.Default, context);
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+    }
+
+    /// <summary>A service context whose roster simulates the tower at <paramref name="runway"/>'s airport.</summary>
+    private static SoloTrainingServiceContext SimulatedTowerContext(RunwayInfo runway) =>
+        new(
+            InitialContactEligibilityContext.Empty,
+            WakeDirectiveCatalog.Empty,
+            null,
+            airportId => string.Equals(airportId, runway.AirportId, StringComparison.OrdinalIgnoreCase)
+        );
 
     [Fact]
     public void Evaluate_ArrivalBehindLandedAircraft_AppliesCategoryOneDistanceException()
@@ -2134,7 +2184,8 @@ public sealed class SoloTrainingEvaluatorTests
         var serviceContext = new SoloTrainingServiceContext(
             new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
             new WakeDirectiveCatalog([ApproachWakeRequireAdvisoryRule()]),
-            null
+            null,
+            SoloTrainingServiceContext.NoSimulatedTower
         );
 
         var evaluator = new SoloTrainingEvaluator();
@@ -2249,7 +2300,8 @@ public sealed class SoloTrainingEvaluatorTests
         new(
             new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
             new WakeDirectiveCatalog(rules),
-            null
+            null,
+            SoloTrainingServiceContext.NoSimulatedTower
         );
 
     private static WakeDirectiveRule SuppressWakeIntervalRule() =>

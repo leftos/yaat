@@ -63,10 +63,18 @@ public sealed record PilotAnsweringPosition(
 /// </summary>
 public sealed class PilotContactRoster
 {
-    public static PilotContactRoster Empty { get; } = new([], null, null);
+    public static PilotContactRoster Empty { get; } = new([], null, null, ToweredAirports.Empty);
 
-    private PilotContactRoster(IReadOnlyList<PilotAnsweringPosition> positions, StudentWorkedRange? studentRange, string? studentPositionType)
+    private readonly ToweredAirports _toweredAirports;
+
+    private PilotContactRoster(
+        IReadOnlyList<PilotAnsweringPosition> positions,
+        StudentWorkedRange? studentRange,
+        string? studentPositionType,
+        ToweredAirports toweredAirports
+    )
     {
+        _toweredAirports = toweredAirports;
         Positions = positions;
         Student = positions.FirstOrDefault(p => p.Agent == PilotAnsweringAgent.Student);
         StudentRange = studentRange;
@@ -99,19 +107,22 @@ public sealed class PilotContactRoster
             ? new(
                 [new PilotAnsweringPosition(studentPosition, studentPositionType, radioName, null, [], PilotAnsweringAgent.Student)],
                 null,
-                studentPositionType
+                studentPositionType,
+                ToweredAirports.Empty
             )
             : ForTypeOnly(studentPositionType);
 
     /// <summary>The roster with nobody answering that still carries the student position type; <see cref="Empty"/> when there is none.</summary>
     private static PilotContactRoster ForTypeOnly(string? studentPositionType) =>
-        studentPositionType is null ? Empty : new([], null, studentPositionType);
+        studentPositionType is null ? Empty : new([], null, studentPositionType, ToweredAirports.Empty);
 
     /// <summary>
     /// Builds the roster: every AI-staffed position (sorted by position id; an AI entry that IS the student's position is
     /// dropped while solo training is on — the human answers), then the student when solo training is on, with the
     /// vNAS radio name resolved from the ARTCC config. <paramref name="studentRange"/> limits the call types the student
-    /// answers; null keeps every type.
+    /// answers; null keeps every type. The airports <paramref name="artccConfig"/> gives a tower
+    /// (<see cref="ToweredAirports"/>, the rule of <see cref="AiPositionResolver.IsTowered"/>) are the only ones whose tower can
+    /// be simulated (<see cref="TowerIsSimulatedAt"/>).
     /// </summary>
     public static PilotContactRoster Build(
         bool soloTrainingMode,
@@ -151,7 +162,13 @@ public sealed class PilotContactRoster
             );
         }
 
-        return positions.Count == 0 ? ForTypeOnly(studentPositionType) : new PilotContactRoster(positions, studentRange, studentPositionType);
+        if (positions.Count == 0)
+        {
+            return ForTypeOnly(studentPositionType);
+        }
+
+        ToweredAirports towered = artccConfig is null ? ToweredAirports.Empty : ToweredAirports.From([artccConfig]);
+        return new PilotContactRoster(positions, studentRange, studentPositionType, towered);
     }
 
     /// <summary>
@@ -201,12 +218,15 @@ public sealed class PilotContactRoster
     }
 
     /// <summary>
-    /// Whether the tower at <paramref name="atAirportId"/> is simulated silently: a student with a range that does not
-    /// take in the tower there, and no AI tower covering the airport.
+    /// Whether the tower at <paramref name="atAirportId"/> is simulated silently: the airport has a tower (an untowered field
+    /// has none to simulate, so an IFR departure there still needs its release), a student with a range that does not take in
+    /// the tower there, and no AI tower covering the airport.
     /// </summary>
     public bool TowerIsSimulatedAt(string? atAirportId) =>
         (Student is not null)
         && (StudentRange is not null)
+        && (atAirportId is not null)
+        && _toweredAirports.IsTowered(atAirportId)
         && !StudentRange.Works(AtcPositionLevel.Tower, atAirportId)
         && !AiTowerCabCovers(IsTowerPosition, atAirportId);
 

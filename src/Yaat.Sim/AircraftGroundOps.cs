@@ -378,10 +378,19 @@ public class AircraftGroundOps
     public double? LeftStudentFrequencyAtSeconds { get; set; }
 
     /// <summary>
-    /// True once this departure's clearance request was answered (a beacon code, or a PDC sent by data link). A student who
-    /// works delivery and ground at the airport then gets the ordinary ground call, never a second clearance request.
+    /// Scenario-elapsed seconds at which this departure's clearance request was answered (a beacon code, or a PDC sent by data
+    /// link); null until then. A student who works delivery and ground at the airport then gets the ordinary ground call, never
+    /// a second clearance request, and no sooner than <see cref="Pilot.InitialCallupCall.TaxiCallAfterClearanceSeconds"/> after
+    /// this.
     /// </summary>
-    public bool ClearanceObtained { get; set; }
+    public double? ClearanceObtainedAtSeconds { get; set; }
+
+    /// <summary>
+    /// Scenario-elapsed seconds at which this aircraft first began a takeoff roll (<see cref="Phases.Tower.TakeoffPhase"/>
+    /// started); null until then. A later takeoff keeps the first stamp. The simulated tower times the wake turbulence interval
+    /// behind a departure from it (7110.65 3-9-6 NOTE 2).
+    /// </summary>
+    public double? TakeoffRollStartedAtSeconds { get; set; }
 
     /// <summary>
     /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>), or null
@@ -439,7 +448,8 @@ public class AircraftGroundOps
             ReleasedAtSeconds = ReleasedAtSeconds,
             ReleasedAtSpawnGate = ReleasedAtSpawnGate,
             LeftStudentFrequencyAtSeconds = LeftStudentFrequencyAtSeconds,
-            ClearanceObtained = ClearanceObtained,
+            ClearanceObtainedAtSeconds = ClearanceObtainedAtSeconds,
+            TakeoffRollStartedAtSeconds = TakeoffRollStartedAtSeconds,
             ReleaseWindowStartUtc = ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = ReleaseWindowEndUtc,
         };
@@ -489,7 +499,8 @@ public class AircraftGroundOps
             ReleasedAtSeconds = dto.ReleasedAtSeconds,
             ReleasedAtSpawnGate = dto.ReleasedAtSpawnGate,
             LeftStudentFrequencyAtSeconds = dto.LeftStudentFrequencyAtSeconds,
-            ClearanceObtained = dto.ClearanceObtained,
+            ClearanceObtainedAtSeconds = dto.ClearanceObtainedAtSeconds,
+            TakeoffRollStartedAtSeconds = dto.TakeoffRollStartedAtSeconds,
             ReleaseWindowStartUtc = dto.ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = dto.ReleaseWindowEndUtc,
         };

@@ -1361,7 +1361,8 @@ public sealed partial class SimulationEngine
                     scenario.InitialContactTransfers
                 ),
                 scenario.WakeDirectives,
-                scenario.ArtccConfig
+                scenario.ArtccConfig,
+                scenario.PilotContacts.TowerIsSimulatedAt
             )
         );
     }
@@ -1797,7 +1798,9 @@ public sealed partial class SimulationEngine
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.IsAutoClearedToLandFor(aircraft) ?? false,
             AutoPullUpToParallel = Scenario?.AutoPullUpToParallel ?? false,
-            AutoGoAroundOnOccupiedRunway = Scenario?.AutoGoAroundOnOccupiedRunway ?? false,
+            // The simulated tower sends its own arrivals around when the runway is not clear (7110.65 3-10-3.a), whatever the room toggle.
+            AutoGoAroundOnOccupiedRunway =
+                (Scenario?.AutoGoAroundOnOccupiedRunway ?? false) || (Scenario?.IsSimulatedTowerArrival(aircraft) ?? false),
             AutoRejectTakeoffOnOccupiedRunway = Scenario?.AutoRejectTakeoffOnOccupiedRunway ?? false,
             ListAircraft = World.GetSnapshot,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,

@@ -65,13 +65,22 @@ public sealed record SoloTrainingReportData(
     IReadOnlyList<AircraftDebriefData> AircraftDebriefs
 );
 
+/// <param name="TowerIsSimulatedAt">
+/// Whether the tower at an airport is simulated silently (<see cref="PilotContactRoster.TowerIsSimulatedAt"/>): a takeoff or
+/// landing on a runway there is the simulated tower's operation, never the student's, and is not scored.
+/// </param>
 public sealed record SoloTrainingServiceContext(
     InitialContactEligibilityContext InitialContactEligibility,
     WakeDirectiveCatalog WakeDirectives,
-    ArtccConfigRoot? ArtccConfig
+    ArtccConfigRoot? ArtccConfig,
+    Func<string?, bool> TowerIsSimulatedAt
 )
 {
-    public static SoloTrainingServiceContext Empty { get; } = new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, null);
+    public static SoloTrainingServiceContext Empty { get; } =
+        new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, null, NoSimulatedTower);
+
+    /// <summary>A <see cref="TowerIsSimulatedAt"/> for a context with no student roster: no tower is simulated anywhere.</summary>
+    public static bool NoSimulatedTower(string? airportId) => false;
 }
 
 public sealed class SoloTrainingEvaluator
@@ -255,7 +264,8 @@ public sealed class SoloTrainingEvaluator
             new SoloTrainingServiceContext(
                 new InitialContactEligibilityContext(studentPosition, null, null, null, InitialContactTransferCatalog.Empty),
                 WakeDirectiveCatalog.Empty,
-                null
+                null,
+                SoloTrainingServiceContext.NoSimulatedTower
             )
         );
     }
@@ -1976,7 +1986,6 @@ public sealed class SoloTrainingEvaluator
         private readonly List<RunwayOperation> _recentOperations = [];
         private readonly Dictionary<string, ActiveSameRunwayViolation> _activeViolations = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, ActiveRunwayUserViolation> _activeRunwayUsers = new(StringComparer.OrdinalIgnoreCase);
-        private const double ProjectedConvergingRunwayLimitNm = 1.0;
 
         /// <summary>
         /// Height above the runway (ft) at or above which a low approach crossing the threshold is an altitude-restricted one
@@ -2036,7 +2045,8 @@ public sealed class SoloTrainingEvaluator
             {
                 bool firstObservation = !_previousStates.TryGetValue(state.Callsign, out AircraftRunwayState? previous);
                 RunwayOperation? operation = DetectOperation(state, previous, firstObservation, scenarioElapsedSeconds);
-                if (operation is null)
+                // A takeoff or landing under a silently simulated tower is the simulated tower's, not the student's.
+                if ((operation is null) || serviceContext.TowerIsSimulatedAt(operation.Runway.AirportId))
                 {
                     continue;
                 }
@@ -2200,7 +2210,7 @@ public sealed class SoloTrainingEvaluator
                 displacementFt,
                 runway.PavementLengthFt,
                 SameRunwaySeparation.ResolveSrsCategory(aircraft),
-                ResolveCwtCategory(aircraft)
+                RunwayDepartureSeparation.CwtCategoryOf(aircraft.AircraftType)
             );
         }
 
@@ -2329,7 +2339,7 @@ public sealed class SoloTrainingEvaluator
                     continue;
                 }
 
-                if (TryResolveRunwayRelation(preceding.Runway, operation.Runway) is not { } relation)
+                if (RunwayDepartureSeparation.TryResolveRunwayRelation(preceding.Runway, operation.Runway) is not { } relation)
                 {
                     continue;
                 }
@@ -2494,7 +2504,9 @@ public sealed class SoloTrainingEvaluator
 
             return _recentOperations.Any(recent =>
                 string.Equals(recent.Callsign, other.Callsign, StringComparison.OrdinalIgnoreCase)
-                && (TryResolveRunwayRelation(recent.Runway, operation.Runway) is { Kind: not RunwayRelationKind.SameActive })
+                && (
+                    RunwayDepartureSeparation.TryResolveRunwayRelation(recent.Runway, operation.Runway) is { Kind: not RunwayRelationKind.SameActive }
+                )
                 && IsLatestOperation(recent)
                 && aircraftByCallsign.TryGetValue(recent.Callsign, out AircraftState? recentAircraft)
                 && IsUnderWayForThePairRules(recent, recentAircraft)
@@ -2833,7 +2845,8 @@ public sealed class SoloTrainingEvaluator
                     continue;
                 }
 
-                RunwayRelation relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
+                RunwayRelation relation =
+                    RunwayDepartureSeparation.TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
                 if (TryResolveDepartureWakeRequirement(preceding, succeeding, succeedingState, relation) is not { } requirement)
                 {
                     continue;
@@ -2913,7 +2926,9 @@ public sealed class SoloTrainingEvaluator
                 }
 
                 var succeeding = RunwayOperation.FromState(OperationKind.Landing, succeedingState, scenarioElapsedSeconds);
-                string relationText = IsSameRunway(preceding.Runway, succeedingState.Runway) ? "same runway" : "parallel runways less than 2,500 ft";
+                string relationText = RunwayDepartureSeparation.IsSameRunway(preceding.Runway, succeedingState.Runway)
+                    ? "same runway"
+                    : "parallel runways less than 2,500 ft";
                 violations.Add(
                     BuildWakeViolation(
                         preceding,
@@ -2952,7 +2967,10 @@ public sealed class SoloTrainingEvaluator
                     continue;
                 }
 
-                if (TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) is not { } relation || !IsProjectedOrPhysicalIntersection(relation))
+                if (
+                    RunwayDepartureSeparation.TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) is not { } relation
+                    || !IsProjectedOrPhysicalIntersection(relation)
+                )
                 {
                     continue;
                 }
@@ -3010,7 +3028,8 @@ public sealed class SoloTrainingEvaluator
                         continue;
                     }
 
-                    RunwayRelation relation = TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
+                    RunwayRelation relation =
+                        RunwayDepartureSeparation.TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) ?? RunwayRelation.SameActive();
                     if (TryResolveDepartureWakeRequirement(preceding, succeeding, succeedingState, relation) is not { } requirement)
                     {
                         continue;
@@ -3074,7 +3093,7 @@ public sealed class SoloTrainingEvaluator
                     }
 
                     if (
-                        TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) is not { } relation
+                        RunwayDepartureSeparation.TryResolveRunwayRelation(preceding.Runway, succeeding.Runway) is not { } relation
                         || !IsProjectedOrPhysicalIntersection(relation)
                         || TryResolveProjectedFlightPathWakeRequirement(preceding, succeeding, relation, arrivalBehindDeparture: true)
                             is not { } requirement
@@ -3678,7 +3697,9 @@ public sealed class SoloTrainingEvaluator
                 RunwayRelationKind.Intersecting => WakeDirectiveRelation.Intersecting,
                 RunwayRelationKind.ProjectedConverging => WakeDirectiveRelation.ProjectedConverging,
                 RunwayRelationKind.OppositeDirectionSamePavement => WakeDirectiveRelation.OppositeDirection,
-                _ => IsSameRunway(preceding, succeeding) ? WakeDirectiveRelation.SameRunway : WakeDirectiveRelation.CloseParallel,
+                _ => RunwayDepartureSeparation.IsSameRunway(preceding, succeeding)
+                    ? WakeDirectiveRelation.SameRunway
+                    : WakeDirectiveRelation.CloseParallel,
             };
 
         private static char CwtToChar(CwtCategory category) => category.ToString()[0];
@@ -3700,7 +3721,7 @@ public sealed class SoloTrainingEvaluator
                 return null;
             }
 
-            bool sameRunway = IsSameRunway(preceding.Runway, succeeding.Runway);
+            bool sameRunway = RunwayDepartureSeparation.IsSameRunway(preceding.Runway, succeeding.Runway);
             double? parallelSpacingFt = sameRunway ? null : ParallelRunwaySpacingFt(preceding.Runway, succeeding.Runway);
             bool parallelUnder700 = parallelSpacingFt is < 700.0;
             bool parallelUnder2500 = parallelSpacingFt is < 2500.0;
@@ -3723,30 +3744,31 @@ public sealed class SoloTrainingEvaluator
                     return null;
                 }
 
-                if ((preceding.CwtCategory == CwtCategory.A) && IsCategoryRange(succeeding.CwtCategory, CwtCategory.B, CwtCategory.I))
+                if (
+                    (preceding.CwtCategory == CwtCategory.A)
+                    && RunwayDepartureSeparation.IsCategoryRange(succeeding.CwtCategory, CwtCategory.B, CwtCategory.I)
+                )
                 {
                     return new DepartureWakeRequirement(240.0, "7110.65 §3-9-7(a)", WakeRelationText(sameRunway, parallelSpacingFt));
                 }
 
                 bool categoryBThroughIBehindBOrD =
                     (preceding.CwtCategory is CwtCategory.B or CwtCategory.D)
-                    && IsCategoryRange(succeeding.CwtCategory, CwtCategory.B, CwtCategory.I);
+                    && RunwayDepartureSeparation.IsCategoryRange(succeeding.CwtCategory, CwtCategory.B, CwtCategory.I);
                 if (categoryBThroughIBehindBOrD)
                 {
                     return new DepartureWakeRequirement(180.0, "7110.65 §3-9-7(a)", WakeRelationText(sameRunway, parallelSpacingFt));
                 }
 
-                if ((preceding.CwtCategory == CwtCategory.C) && IsCategoryRange(succeeding.CwtCategory, CwtCategory.E, CwtCategory.I))
+                if (
+                    (preceding.CwtCategory == CwtCategory.C)
+                    && RunwayDepartureSeparation.IsCategoryRange(succeeding.CwtCategory, CwtCategory.E, CwtCategory.I)
+                )
                 {
                     return new DepartureWakeRequirement(180.0, "7110.65 §3-9-7(a)", WakeRelationText(sameRunway, parallelSpacingFt));
                 }
 
                 return null;
-            }
-
-            if (sameOrParallelUnder700 && (preceding.CwtCategory == CwtCategory.E) && (succeeding.CwtCategory == CwtCategory.I))
-            {
-                return new DepartureWakeRequirement(120.0, "7110.65 §3-9-6(g)", WakeRelationText(sameRunway, parallelSpacingFt));
             }
 
             if (!sameOrParallelUnder2500)
@@ -3754,24 +3776,11 @@ public sealed class SoloTrainingEvaluator
                 return null;
             }
 
-            if ((preceding.CwtCategory == CwtCategory.A) && IsCategoryRange(succeeding.CwtCategory, CwtCategory.B, CwtCategory.I))
-            {
-                return new DepartureWakeRequirement(180.0, "7110.65 §3-9-6(f)", WakeRelationText(sameRunway, parallelSpacingFt));
-            }
-
-            bool sameRunwayCategoryBThroughIBehindBOrD =
-                (preceding.CwtCategory is CwtCategory.B or CwtCategory.D) && IsCategoryRange(succeeding.CwtCategory, CwtCategory.B, CwtCategory.I);
-            if (sameRunwayCategoryBThroughIBehindBOrD)
-            {
-                return new DepartureWakeRequirement(120.0, "7110.65 §3-9-6(f)", WakeRelationText(sameRunway, parallelSpacingFt));
-            }
-
-            if ((preceding.CwtCategory == CwtCategory.C) && IsCategoryRange(succeeding.CwtCategory, CwtCategory.E, CwtCategory.I))
-            {
-                return new DepartureWakeRequirement(120.0, "7110.65 §3-9-6(f)", WakeRelationText(sameRunway, parallelSpacingFt));
-            }
-
-            return null;
+            return
+                RunwayDepartureSeparation.DepartureWakeIntervalFor(preceding.CwtCategory, succeeding.CwtCategory, sameOrParallelUnder700)
+                    is { } interval
+                ? new DepartureWakeRequirement(interval.Seconds, interval.RuleReference, WakeRelationText(sameRunway, parallelSpacingFt))
+                : null;
         }
 
         private static DepartureWakeRequirement? TryResolveProjectedFlightPathWakeRequirement(
@@ -3813,17 +3822,17 @@ public sealed class SoloTrainingEvaluator
 
         private static double? RequiredProjectedFlightPathWakeSeconds(CwtCategory preceding, CwtCategory succeeding)
         {
-            if ((preceding == CwtCategory.A) && IsCategoryRange(succeeding, CwtCategory.B, CwtCategory.I))
+            if ((preceding == CwtCategory.A) && RunwayDepartureSeparation.IsCategoryRange(succeeding, CwtCategory.B, CwtCategory.I))
             {
                 return 180.0;
             }
 
-            if ((preceding is CwtCategory.B or CwtCategory.D) && IsCategoryRange(succeeding, CwtCategory.B, CwtCategory.I))
+            if ((preceding is CwtCategory.B or CwtCategory.D) && RunwayDepartureSeparation.IsCategoryRange(succeeding, CwtCategory.B, CwtCategory.I))
             {
                 return 120.0;
             }
 
-            if ((preceding == CwtCategory.C) && IsCategoryRange(succeeding, CwtCategory.E, CwtCategory.I))
+            if ((preceding == CwtCategory.C) && RunwayDepartureSeparation.IsCategoryRange(succeeding, CwtCategory.E, CwtCategory.I))
             {
                 return 120.0;
             }
@@ -3875,8 +3884,6 @@ public sealed class SoloTrainingEvaluator
         private static bool IsIntersectionDeparture(AircraftRunwayState state) =>
             (state.AlongThresholdFt > 500.0) || (state.Phase is TouchAndGoPhase or StopAndGoPhase);
 
-        private static bool IsCategoryRange(CwtCategory actual, CwtCategory min, CwtCategory max) => (actual >= min) && (actual <= max);
-
         private static double DistanceBetween(AircraftRunwayState a, AircraftRunwayState b) => GeoMath.DistanceNm(a.Position, b.Position);
 
         private static string FormatMinutes(double seconds) => $"{seconds / 60.0:N0} minutes";
@@ -3906,60 +3913,13 @@ public sealed class SoloTrainingEvaluator
 
         private static bool RunwaysShareApproachWake(RunwayInfo a, RunwayInfo b)
         {
-            if (IsSameRunway(a, b))
+            if (RunwayDepartureSeparation.IsSameRunway(a, b))
             {
                 return true;
             }
 
             return ParallelRunwaySpacingFt(a, b) is < 2500.0;
         }
-
-        private static RunwayRelation? TryResolveRunwayRelation(RunwayInfo preceding, RunwayInfo succeeding)
-        {
-            if (!string.Equals(preceding.AirportId, succeeding.AirportId, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            if (IsSameRunway(preceding, succeeding))
-            {
-                return RunwayRelation.SameActive();
-            }
-
-            if (IsSamePhysicalRunway(preceding, succeeding))
-            {
-                return new RunwayRelation(RunwayRelationKind.OppositeDirectionSamePavement, null, null);
-            }
-
-            if (RunwayIntersectionCalculator.FindIntersection(preceding, succeeding) is { } intersection)
-            {
-                return new RunwayRelation(
-                    RunwayRelationKind.Intersecting,
-                    intersection.FirstDistFromThresholdNm * GeoMath.FeetPerNm,
-                    intersection.SecondDistFromThresholdNm * GeoMath.FeetPerNm
-                );
-            }
-
-            if (
-                RunwayIntersectionCalculator.FindProjectedFlightPathIntersection(preceding, succeeding, ProjectedConvergingRunwayLimitNm) is
-                { } projectedIntersection
-            )
-            {
-                return new RunwayRelation(
-                    RunwayRelationKind.ProjectedConverging,
-                    projectedIntersection.FirstDistFromThresholdNm * GeoMath.FeetPerNm,
-                    projectedIntersection.SecondDistFromThresholdNm * GeoMath.FeetPerNm
-                );
-            }
-
-            return null;
-        }
-
-        private static bool IsSameRunway(RunwayInfo a, RunwayInfo b) =>
-            string.Equals(BuildRunwayKey(a), BuildRunwayKey(b), StringComparison.OrdinalIgnoreCase);
-
-        private static bool IsSamePhysicalRunway(RunwayInfo a, RunwayInfo b) =>
-            string.Equals(a.AirportId, b.AirportId, StringComparison.OrdinalIgnoreCase) && (a.Id.Overlaps(b.Id));
 
         private static double? ParallelRunwaySpacingFt(RunwayInfo a, RunwayInfo b)
         {
@@ -4083,22 +4043,6 @@ public sealed class SoloTrainingEvaluator
             }
 
             return !SameRunwaySeparation.IsLandingFamilyOccupant(state.Phase, state.RunwayUse);
-        }
-
-        private static CwtCategory ResolveCwtCategory(AircraftState aircraft)
-        {
-            string? cwt = WakeTurbulenceData.GetCwt(aircraft.AircraftType) ?? FaaAircraftDatabase.Get(aircraft.AircraftType)?.Cwt;
-            if (Enum.TryParse(cwt, ignoreCase: true, out CwtCategory category))
-            {
-                return category;
-            }
-
-            return AircraftCategorization.Categorize(aircraft.AircraftType) switch
-            {
-                AircraftCategory.Piston or AircraftCategory.Helicopter => CwtCategory.I,
-                AircraftCategory.Turboprop => CwtCategory.G,
-                _ => CwtCategory.F,
-            };
         }
 
         private static string FormatDepartureSpacingActual(AircraftRunwayState precedingState, AircraftRunwayState succeedingState)
@@ -4323,11 +4267,6 @@ public sealed class SoloTrainingEvaluator
             bool FullSafetyLogic
         );
 
-        private sealed record RunwayRelation(RunwayRelationKind Kind, double? PrecedingIntersectionFt, double? SucceedingIntersectionFt)
-        {
-            public static RunwayRelation SameActive() => new(RunwayRelationKind.SameActive, null, null);
-        }
-
         private sealed record DepartureWakeRequirement(double RequiredSeconds, string RuleReference, string RelationText);
 
         private enum OperationKind
@@ -4344,27 +4283,6 @@ public sealed class SoloTrainingEvaluator
             ArrivalBehindLanding,
             DepartureWakeInterval,
             ApproachWakeSpacing,
-        }
-
-        private enum RunwayRelationKind
-        {
-            SameActive,
-            OppositeDirectionSamePavement,
-            Intersecting,
-            ProjectedConverging,
-        }
-
-        private enum CwtCategory
-        {
-            A = 1,
-            B = 2,
-            C = 3,
-            D = 4,
-            E = 5,
-            F = 6,
-            G = 7,
-            H = 8,
-            I = 9,
         }
     }
 }

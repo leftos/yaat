@@ -1039,7 +1039,12 @@ public class SoloRunwayUserScoringTests
     {
         AircraftState lowApproach = Lander("N73LA", runway, layout, new LowApproachPhase());
         lowApproach.Altitude = runway.ElevationFt + 600;
-        var context = new SoloTrainingServiceContext(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, config);
+        var context = new SoloTrainingServiceContext(
+            InitialContactEligibilityContext.Empty,
+            WakeDirectiveCatalog.Empty,
+            config,
+            SoloTrainingServiceContext.NoSimulatedTower
+        );
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([other, lowApproach], 10, AirspaceDatabase.Default, context);
         CrossTheThreshold(lowApproach, runway, new LowApproachPhase());
@@ -1100,7 +1105,12 @@ public class SoloRunwayUserScoringTests
     {
         AircraftState lander = Lander("AAL78", runway, layout, new LandingPhase());
         List<AircraftState> all = [lander, .. users];
-        var context = new SoloTrainingServiceContext(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, config);
+        var context = new SoloTrainingServiceContext(
+            InitialContactEligibilityContext.Empty,
+            WakeDirectiveCatalog.Empty,
+            config,
+            SoloTrainingServiceContext.NoSimulatedTower
+        );
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate(all, 10, AirspaceDatabase.Default, context);
         CrossTheThreshold(lander, runway, new LandingPhase());

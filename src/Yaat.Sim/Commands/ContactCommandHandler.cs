@@ -64,8 +64,8 @@ public static class ContactCommandHandler
             handoffDetail = owner.Callsign;
         }
 
-        bool toGroundPosition = string.Equals(AtcPositionTypeClassifier.Classify(handoffDetail), "GND", StringComparison.OrdinalIgnoreCase);
-        if (toGroundPosition)
+        string? targetType = AtcPositionTypeClassifier.Classify(handoffDetail);
+        if (string.Equals(targetType, "GND", StringComparison.OrdinalIgnoreCase))
         {
             aircraft.Ground.ReleasedToGround = true;
         }
@@ -75,7 +75,8 @@ public static class ContactCommandHandler
             ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq, speechContext)
             : BuildContactReadbackNoFreq(aircraft, facilityName, speechContext);
         string warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
-        Route(aircraft, ctx, pilotSpeech, warning, toGroundPosition);
+        bool toTowerPosition = string.Equals(targetType, "TWR", StringComparison.OrdinalIgnoreCase);
+        Route(aircraft, ctx, pilotSpeech, warning, toTowerPosition);
         StampHandoffCompletion(aircraft, ctx, handoffDetail);
         return new CommandResult(true, "");
     }
@@ -91,7 +92,7 @@ public static class ContactCommandHandler
         aircraft.Ground.ReleasedToGround = true;
         PilotSpeechText pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft, ctx.SpeechContextFor(aircraft));
         // An FCA names no position: on the ground it counts as a transfer to the tower.
-        Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved", toGroundPosition: false);
+        Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved", towardTheTower: true);
         StampHandoffCompletion(aircraft, ctx, detail: null);
         return new CommandResult(true, "");
     }
@@ -112,13 +113,7 @@ public static class ContactCommandHandler
         aircraft.CompletionDetail = detail;
     }
 
-    private static void Route(
-        AircraftState aircraft,
-        DispatchContext ctx,
-        Pilot.PilotSpeechText pilotSpeech,
-        string warningText,
-        bool toGroundPosition
-    )
+    private static void Route(AircraftState aircraft, DispatchContext ctx, Pilot.PilotSpeechText pilotSpeech, string warningText, bool towardTheTower)
     {
         // Mark frequency change in both solo and RPO modes. Track ownership and comms
         // are independent (an auto-track to departure does not mean the pilot is on
@@ -132,9 +127,9 @@ public static class ContactCommandHandler
             aircraft.HasLeftStudentFrequency = true;
         }
 
-        // The student's first transfer of a ground aircraft to anyone but a ground position starts the simulated tower's
-        // takeoff clock; a later transfer keeps the first stamp.
-        if (!ctx.IsScenarioScripted && aircraft.IsOnGround && !toGroundPosition && (aircraft.Ground.LeftStudentFrequencyAtSeconds is null))
+        // The student's first transfer of a ground aircraft toward the tower (a CT to a tower position, or an FCA) starts the
+        // simulated tower's takeoff clock; a later transfer keeps the first stamp.
+        if (!ctx.IsScenarioScripted && aircraft.IsOnGround && towardTheTower && (aircraft.Ground.LeftStudentFrequencyAtSeconds is null))
         {
             aircraft.Ground.LeftStudentFrequencyAtSeconds = ctx.ScenarioElapsedSeconds;
         }

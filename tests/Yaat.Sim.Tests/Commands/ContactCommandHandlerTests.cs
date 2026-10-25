@@ -539,6 +539,21 @@ public class ContactCommandHandlerTests
     }
 
     [Fact]
+    public void CtToApproach_OnTheGround_DoesNotStamp()
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeGroundAircraft();
+        Assert.True(ContactCommandHandler.HandleContact(new ContactCommand("FAT_F_APP"), ac, StudentCtx(config, 42, false)).Success);
+
+        Assert.Null(ac.Ground.LeftStudentFrequencyAtSeconds);
+    }
+
+    [Fact]
     public void ScriptedCt_DoesNotStamp()
     {
         ArtccConfigRoot? config = TestArtccConfig.LoadZoa();

@@ -87,7 +87,7 @@ public class DeliveryClearanceRequestE2ETests
         SendPdc(run);
 
         Assert.Equal(PilotPendingRequestResponseState.Satisfied, run.Aircraft.PendingPilotRequest!.ResponseState);
-        Assert.True(run.Aircraft.Ground.ClearanceObtained);
+        Assert.NotNull(run.Aircraft.Ground.ClearanceObtainedAtSeconds);
         Assert.Null(run.Engine.World.ActiveFrequency.AwaitingControllerResponseTo);
         Tick(run.Engine, (int)PilotRequestTracker.NormalFollowUpDelaySeconds + 30);
         Assert.Single(PilotLines(run), e => e.Message.Contains("IFR to", StringComparison.Ordinal));
@@ -195,12 +195,21 @@ public class DeliveryClearanceRequestE2ETests
 
         CommandResult squawk = run.Engine.SendCommand("N152SP", "SQ 4321");
         Assert.True(squawk.Success, squawk.Message);
-        Assert.True(run.Aircraft.Ground.ClearanceObtained);
+        double clearedAt = run.Engine.Scenario!.ElapsedSeconds;
+        Assert.Equal(clearedAt, run.Aircraft.Ground.ClearanceObtainedAtSeconds);
+
+        // The crew sets up its clearance before it calls for taxi.
+        while (run.Engine.Scenario.ElapsedSeconds < clearedAt + InitialCallupCall.TaxiCallAfterClearanceSeconds - 1)
+        {
+            run.Engine.TickOneSecond();
+            Assert.DoesNotContain(PilotLines(run), e => e.Message.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
+        }
 
         Tick(run.Engine, 60);
         Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi }, "no ground call after the clearance");
         Assert.Equal(run.DeliveryRadioName, run.Aircraft.PendingPilotRequest!.FacilityCallName);
-        Assert.Single(PilotLines(run), e => e.Message.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
+        TerminalEntry taxiCall = Assert.Single(PilotLines(run), e => e.Message.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain("IFR to", taxiCall.Message, StringComparison.Ordinal);
         Assert.True(run.Aircraft.Ground.InitialCallupDecisionProcessed);
     }
 
@@ -218,7 +227,7 @@ public class DeliveryClearanceRequestE2ETests
         TerminalEntry call = Assert.Single(PilotLines(run));
         Assert.Contains("ready to taxi", call.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(PilotPendingRequestKind.Taxi, run.Aircraft.PendingPilotRequest!.Kind);
-        Assert.False(run.Aircraft.Ground.ClearanceObtained);
+        Assert.Null(run.Aircraft.Ground.ClearanceObtainedAtSeconds);
     }
 
     [Fact]
@@ -245,10 +254,14 @@ public class DeliveryClearanceRequestE2ETests
     [Fact]
     public void ClearanceObtained_RoundTripsInTheSnapshot()
     {
-        var ops = new AircraftGroundOps { ClearanceObtained = true };
+        var ops = new AircraftGroundOps { ClearanceObtainedAtSeconds = 125, TakeoffRollStartedAtSeconds = 300 };
 
-        Assert.True(AircraftGroundOps.FromSnapshot(ops.ToSnapshot(), null).ClearanceObtained);
-        Assert.False(AircraftGroundOps.FromSnapshot(new AircraftGroundOps().ToSnapshot(), null).ClearanceObtained);
+        var restored = AircraftGroundOps.FromSnapshot(ops.ToSnapshot(), null);
+        Assert.Equal(125, restored.ClearanceObtainedAtSeconds);
+        Assert.Equal(300, restored.TakeoffRollStartedAtSeconds);
+        var empty = AircraftGroundOps.FromSnapshot(new AircraftGroundOps().ToSnapshot(), null);
+        Assert.Null(empty.ClearanceObtainedAtSeconds);
+        Assert.Null(empty.TakeoffRollStartedAtSeconds);
     }
 
     [Fact]

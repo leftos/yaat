@@ -119,6 +119,9 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
         // it must not re-spool from idle. A standing start arrives at 0 kt and seeds 0.
         _rollElapsedSeconds = GroundRollProfile.For(ctx.AircraftType, ctx.Category).TimeAtSpeed(ctx.Aircraft.IndicatedAirspeed);
 
+        // The roll starts with the phase: the line-up and any hold in position came before it.
+        ctx.Aircraft.Ground.TakeoffRollStartedAtSeconds ??= ctx.ScenarioElapsedSeconds;
+
         Log.LogDebug(
             "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
             ctx.Aircraft.Callsign,

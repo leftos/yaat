@@ -166,9 +166,9 @@ public sealed partial class SimulationEngine
             }
 
             AirportGroundLayout? layout = ac.Ground.Layout ?? ResolveGroundLayout(ac);
-            if (!SimulatedTowerRunwayGuard.IsClear(ac, runway, traffic, layout, out string? reason))
+            if (SimulatedTowerRunwayGuard.ReasonToWait(ac, runway, traffic, layout, scenario.ElapsedSeconds) is { } reason)
             {
-                LogSimulatedTowerWait(ac.Callsign, reason ?? "runway not clear");
+                LogSimulatedTowerWait(ac.Callsign, reason);
                 continue;
             }
 

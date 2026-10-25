@@ -215,10 +215,17 @@ public sealed class SimScenarioState
 
     /// <summary>
     /// Whether <paramref name="aircraft"/> lands as if cleared to land: the room's <see cref="AutoClearedToLand"/> toggle, or a
-    /// silently simulated tower at its assigned runway's airport (<see cref="Pilot.PilotContactRoster.TowerIsSimulatedAt"/>).
+    /// silently simulated tower at its assigned runway's airport (<see cref="IsSimulatedTowerArrival"/>).
     /// </summary>
-    public bool IsAutoClearedToLandFor(AircraftState aircraft) =>
-        AutoClearedToLand || ((aircraft.Phases?.AssignedRunway is { } runway) && PilotContacts.TowerIsSimulatedAt(runway.AirportId));
+    public bool IsAutoClearedToLandFor(AircraftState aircraft) => AutoClearedToLand || IsSimulatedTowerArrival(aircraft);
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/>'s assigned runway is at an airport whose tower is simulated silently
+    /// (<see cref="Pilot.PilotContactRoster.TowerIsSimulatedAt"/>): that tower clears it to land, and sends it around when the
+    /// runway is not clear (7110.65 3-10-3.a).
+    /// </summary>
+    public bool IsSimulatedTowerArrival(AircraftState aircraft) =>
+        (aircraft.Phases?.AssignedRunway is { } runway) && PilotContacts.TowerIsSimulatedAt(runway.AirportId);
 
     public AutoCrossRunwayMode AutoCrossRunwayMode { get; set; }
 

@@ -152,6 +152,26 @@ public class RunwaySpawnCallE2ETests
     }
 
     [Fact]
+    public void UntoweredField_FcaOnTheGround_IsNotClearedBySimulatedTower()
+    {
+        if (LoadWithRange(Aun, "FAT_F_APP", "APP", AtcPositionLevel.Approach) is not { } run)
+        {
+            return;
+        }
+
+        Assert.False(Yaat.Sim.ControllerAi.AiPositionResolver.IsTowered(_zoa!, Aun.Airport), "the fixture field must be untowered");
+        Assert.True(run.Engine.Scenario!.PilotContacts.TowerIsSimulatedAt(Fat.Airport), "the student's range leaves the FAT tower simulated");
+        Assert.False(run.Engine.Scenario.PilotContacts.TowerIsSimulatedAt(Aun.Airport), "a simulated tower at a field with no tower");
+
+        Tick(run, 10);
+        CommandResult fca = run.Engine.SendCommand(Aun.Callsign, "FCA");
+        Assert.True(fca.Success, fca.Message);
+        Tick(run, 120);
+
+        Assert.DoesNotContain(run.Terminal, t => t.Message.StartsWith("[Sim tower]", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void NoPreset_ApproachStudent_TowerField_RpoRoomWithAiTower_KeepsTodaysAutomaticPath()
     {
         if (Prepare(Fat, "FAT_F_APP", "APP", []) is not { } prepared)

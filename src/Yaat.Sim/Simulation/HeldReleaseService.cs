@@ -276,7 +276,7 @@ public static class HeldReleaseService
         aircraft.Ground.HeldForRelease = false;
         aircraft.Ground.ReleasedForDeparture = true;
         aircraft.Ground.ReleasedAtSeconds = elapsedSeconds;
-        if (!PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Release))
+        if (!PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Release, elapsedSeconds))
         {
             return;
         }

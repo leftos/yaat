@@ -17,6 +17,12 @@ namespace Yaat.Sim.Pilot;
 /// </summary>
 public static class InitialCallupCall
 {
+    /// <summary>
+    /// The least time between a departure's clearance request being answered and its ready-to-taxi call to the same student,
+    /// seconds: the crew copies and sets up the clearance first (a judgement; no published figure).
+    /// </summary>
+    public const double TaxiCallAfterClearanceSeconds = 30.0;
+
     /// <summary>The shortest after-taxi-arrival delay, seconds.</summary>
     public const double MinAfterTaxiArrivalDelaySeconds = 10.0;
 
@@ -100,6 +106,15 @@ public static class InitialCallupCall
         if (DeliveryStudentAt(ctx, atAirportId) is { } delivery)
         {
             return TryMakeClearanceRequest(ctx, delivery, atAirportId, location);
+        }
+
+        // A crew that has just copied its clearance sets up before it calls for taxi; the call is still owed meanwhile.
+        if (
+            ctx.Aircraft.Ground.ClearanceObtainedAtSeconds is { } clearedAt
+            && (ctx.ScenarioElapsedSeconds < clearedAt + TaxiCallAfterClearanceSeconds)
+        )
+        {
+            return false;
         }
 
         // Nobody answering (instructor room, no AI) or the SOP says this aircraft does not call the student yet.
@@ -221,13 +236,13 @@ public static class InitialCallupCall
     /// <summary>
     /// The solo student when they work clearance delivery at the airport the aircraft is on
     /// (<see cref="PilotContactRoster.StudentWorksDeliveryAt"/>), the aircraft has no clearance yet
-    /// (<see cref="AircraftGroundOps.ClearanceObtained"/>) and the SOP lets the aircraft call them; null otherwise. A
+    /// (<see cref="AircraftGroundOps.ClearanceObtainedAtSeconds"/>) and the SOP lets the aircraft call them; null otherwise. A
     /// delivery student takes the first call even when an AI ground answers at the airport.
     /// </summary>
     private static PilotAnsweringPosition? DeliveryStudentAt(PhaseContext ctx, string? atAirportId)
     {
         if (
-            ctx.Aircraft.Ground.ClearanceObtained
+            (ctx.Aircraft.Ground.ClearanceObtainedAtSeconds is not null)
             || (ctx.PilotContacts.Student is not { } student)
             || string.IsNullOrWhiteSpace(atAirportId)
             || !ctx.PilotContacts.StudentWorksDeliveryAt(atAirportId)

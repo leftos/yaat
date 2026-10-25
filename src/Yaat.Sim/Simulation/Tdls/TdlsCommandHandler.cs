@@ -160,7 +160,7 @@ public static class TdlsCommandHandler
     {
         if (
             (engine.FindAircraft(callsign) is not { } aircraft)
-            || !PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Clearance)
+            || !PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Clearance, engine.Scenario?.ElapsedSeconds ?? 0)
         )
         {
             return;

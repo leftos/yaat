@@ -1727,12 +1727,15 @@ public static partial class PilotResponder
     /// Op-type + destination clause a departing pilot states on the ready-to-taxi call
     /// ("IFR to Chicago" / "VFR to Napa", AIM 4-2-3.a.3 / 4-3-18), or empty when no destination is
     /// filed (e.g. a VFR local flight). Leading ", " so it inserts before ", ready to taxi"; the
-    /// destination airport is spoken by name so the terminal and spoken forms match.
+    /// destination airport is spoken by name so the terminal and spoken forms match. An IFR departure that already has its
+    /// clearance (<see cref="AircraftGroundOps.ClearanceObtainedAtSeconds"/>) states neither: the clearance request named them
+    /// (AIM 5-2-1.a.5).
     /// </summary>
     private static string ReadyToTaxiIntentClause(AircraftState aircraft)
     {
         string dest = aircraft.FlightPlan.Destination;
-        if (string.IsNullOrWhiteSpace(dest))
+        bool ifrWithItsClearance = !aircraft.FlightPlan.IsVfr && (aircraft.Ground.ClearanceObtainedAtSeconds is not null);
+        if (string.IsNullOrWhiteSpace(dest) || ifrWithItsClearance)
         {
             return "";
         }

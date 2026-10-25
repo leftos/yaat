@@ -64,7 +64,7 @@ public static class PilotRequestTracker
                 case PilotPendingRequestResponseState.Denied:
                 case PilotPendingRequestResponseState.Superseded:
                     pending.ResponseState = response;
-                    MarkClearanceObtained(aircraft, pending.Kind, response);
+                    MarkClearanceObtained(aircraft, pending.Kind, response, nowSeconds);
                     return;
                 case PilotPendingRequestResponseState.Standby:
                     sawStandby = true;
@@ -86,7 +86,7 @@ public static class PilotRequestTracker
     /// <see cref="PilotPendingRequestKind.Clearance"/> request. An open request of any other kind is left alone.
     /// </summary>
     /// <returns>True when an open request of <paramref name="kind"/> was marked satisfied.</returns>
-    public static bool SatisfyOpenRequest(AircraftState aircraft, PilotPendingRequestKind kind)
+    public static bool SatisfyOpenRequest(AircraftState aircraft, PilotPendingRequestKind kind, double nowSeconds)
     {
         if ((aircraft.PendingPilotRequest is not { IsOpen: true } request) || (request.Kind != kind))
         {
@@ -94,16 +94,24 @@ public static class PilotRequestTracker
         }
 
         request.ResponseState = PilotPendingRequestResponseState.Satisfied;
-        MarkClearanceObtained(aircraft, kind, PilotPendingRequestResponseState.Satisfied);
+        MarkClearanceObtained(aircraft, kind, PilotPendingRequestResponseState.Satisfied, nowSeconds);
         return true;
     }
 
-    /// <summary>A satisfied <see cref="PilotPendingRequestKind.Clearance"/> request gives the departure its clearance (<see cref="AircraftGroundOps.ClearanceObtained"/>).</summary>
-    private static void MarkClearanceObtained(AircraftState aircraft, PilotPendingRequestKind kind, PilotPendingRequestResponseState response)
+    /// <summary>
+    /// A satisfied <see cref="PilotPendingRequestKind.Clearance"/> request gives the departure its clearance, stamped at
+    /// <paramref name="nowSeconds"/> (<see cref="AircraftGroundOps.ClearanceObtainedAtSeconds"/>); a later answer keeps the first stamp.
+    /// </summary>
+    private static void MarkClearanceObtained(
+        AircraftState aircraft,
+        PilotPendingRequestKind kind,
+        PilotPendingRequestResponseState response,
+        double nowSeconds
+    )
     {
         if ((kind == PilotPendingRequestKind.Clearance) && (response == PilotPendingRequestResponseState.Satisfied))
         {
-            aircraft.Ground.ClearanceObtained = true;
+            aircraft.Ground.ClearanceObtainedAtSeconds ??= nowSeconds;
         }
     }
 
