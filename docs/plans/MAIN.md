@@ -6,6 +6,16 @@
 
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
+## Controller-AI coaching
+
+- [ ] YAAT-1164 Controller-AI coaching playground: owner trains Claude as a solo student
+  - [ ] YAAT-1166 Coaching app tools: get_traffic, get_aircraft, read_terminal, get_airport_context, center_ground
+  - [ ] YAAT-1167 send_command app tool returning the command's dispatch result
+  - [ ] YAAT-1168 Pause triggers: auto-pause on pilot calls and initiative events, wait_until paused
+  - [ ] YAAT-1169 Coaching runbook skill, session records and a live dry run
+  - [ ] YAAT-1170 Document the coaching tools in the client-driver docs after the move
+  - [ ] YAAT-1172 Merge feat/controller-ai-coaching to main (#1348)
+
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
 
 - [ ] YAAT-1101 Harden the readback aviation floor: LUAW 'up', pilot -ing forms, runway-designator collapse, F6 test
@@ -45,7 +55,7 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
+- [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -752,6 +762,10 @@
 - [ ] YAAT-1151 Remove the pause Piper speaks between the digits and letters of an N-number callsign
 - [ ] YAAT-1154 Show heading 360 as 360, not 000, in PTAC result and FH/TL/TR describer text
 - [ ] YAAT-1157 Log the CRC callbacks that bypass the entity subjects (text, session, strips) in the probe hook's wire log
-- [ ] YAAT-1158 Decide whether ASDE-X hold bars' airborne 50 kt floor should be lower (slow arrivals in a headwind)
 - [ ] YAAT-1159 Render the safety-logic config's runway areas in the CRC probe hook's wire log (cut at max depth)
 - [ ] YAAT-1161 Lock CapturingHubCallerClients.Sends in the server test harness (same race as YAAT-1160)
+
+## No project
+
+- [ ] YAAT-1162 Drive CRC without real input (posted messages or an in-process driver hook) · release vNext
+- [ ] YAAT-1171 Run prek's cheatsheet check beside the build hook (priority groups) if timing shows a gain
