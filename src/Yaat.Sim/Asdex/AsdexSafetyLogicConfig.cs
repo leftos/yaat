@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Asdex;
@@ -10,13 +11,15 @@ namespace Yaat.Sim.Asdex;
 /// and a rewind onto a snapshot that predates a push returns to what the snapshot holds instead of keeping the
 /// configuration the live room happened to be holding. <see cref="RunwayConfigurationChosen"/> is set once a CRC push
 /// names a different runway configuration than the facility held: from then on a change of the active runways no
-/// longer re-picks it. Derived when a push applies, so it is neither on the CRC wire nor in the recorded push.
+/// longer re-picks it. Derived when a push applies: the CRC wire DTO has no such field, and <c>JsonIgnore</c> keeps it
+/// out of the recorded push, so a replay derives it again; snapshots carry it
+/// (<see cref="AsdexSafetyLogicConfigDto.RunwayConfigurationChosen"/>).
 /// </summary>
 public sealed record AsdexSafetyLogicConfig(
     IReadOnlyList<AsdexRunwayConfig> Runways,
     string RunwayConfigurationId,
     IReadOnlyList<string> InhibitedArrivalAlertPositionIds,
-    bool RunwayConfigurationChosen = false
+    [property: JsonIgnore] bool RunwayConfigurationChosen
 )
 {
     public AsdexSafetyLogicConfigDto ToSnapshot() =>

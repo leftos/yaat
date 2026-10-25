@@ -33,7 +33,12 @@ public class AsdexSnapshotSchema36Tests
     }
 
     private static AsdexSafetyLogicConfig Closed(string runwayId, string configurationId) =>
-        new([new AsdexRunwayConfig(runwayId, SharedArea, IsClosed: true)], configurationId, [$"{configurationId}_TWR"]);
+        new(
+            [new AsdexRunwayConfig(runwayId, SharedArea, IsClosed: true)],
+            configurationId,
+            [$"{configurationId}_TWR"],
+            RunwayConfigurationChosen: false
+        );
 
     /// <summary>An engine with OAK and SFO each configuring a closed 28R over the one aircraft, and both alerts standing.</summary>
     private SimulationEngine? TwoFacilityEngine()

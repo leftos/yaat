@@ -1,10 +1,8 @@
-using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
@@ -42,13 +40,6 @@ public class AsdexLimitedConfigurationAlertTests
         }
         """;
 
-    private static readonly Lazy<ArtccConfigRoot> Zoa = new(() =>
-        JsonSerializer.Deserialize<ArtccConfigRoot>(
-            File.ReadAllText(Path.Combine(TickRecorder.FindRepoRoot(), "docs", "vnas-artcc-config-examples", "zoa.json")),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        )!
-    );
-
     public AsdexLimitedConfigurationAlertTests()
     {
         TestVnasData.EnsureInitialized();
@@ -57,7 +48,7 @@ public class AsdexLimitedConfigurationAlertTests
     private static SimulationEngine Engine()
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        engine.LoadScenario(TwoAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = Zoa.Value);
+        engine.LoadScenario(TwoAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = ZoaArtccConfig.Full);
         return engine;
     }
 

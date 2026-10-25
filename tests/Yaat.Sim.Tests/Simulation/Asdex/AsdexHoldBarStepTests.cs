@@ -1,10 +1,8 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -20,15 +18,6 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 /// </summary>
 public class AsdexHoldBarStepTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static readonly Lazy<ArtccConfigRoot> FullZoa = new(() =>
-        JsonSerializer.Deserialize<ArtccConfigRoot>(
-            File.ReadAllText(Path.Combine(TickRecorder.FindRepoRoot(), "docs", "vnas-artcc-config-examples", "zoa.json")),
-            JsonOptions
-        )!
-    );
-
     private const string OneAircraftNearSfo = """
         {
           "name": "SFO hold bars", "artccId": "ZOA", "primaryAirportId": "SFO",
@@ -48,7 +37,7 @@ public class AsdexHoldBarStepTests
     }
 
     private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() =>
-        AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance, ActiveRunways.Empty);
+        AsdexSafetyLogicSeed.Build(ZoaArtccConfig.Full, NavigationDatabase.Instance, ActiveRunways.Empty);
 
     private static SimulationEngine SfoEngine()
     {

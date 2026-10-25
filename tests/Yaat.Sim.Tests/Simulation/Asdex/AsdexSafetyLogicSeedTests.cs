@@ -23,15 +23,6 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 /// </summary>
 public class AsdexSafetyLogicSeedTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static readonly Lazy<ArtccConfigRoot> Zoa = new(() =>
-        JsonSerializer.Deserialize<ArtccConfigRoot>(
-            File.ReadAllText(Path.Combine(TickRecorder.FindRepoRoot(), "docs", "vnas-artcc-config-examples", "zoa.json")),
-            JsonOptions
-        )!
-    );
-
     public AsdexSafetyLogicSeedTests()
     {
         TestVnasData.EnsureInitialized();
@@ -44,7 +35,7 @@ public class AsdexSafetyLogicSeedTests
     private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() => Seed(ActiveRunways.Empty);
 
     private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed(ActiveRunways activeRunways) =>
-        AsdexSafetyLogicSeed.Build(Zoa.Value, NavigationDatabase.Instance, activeRunways);
+        AsdexSafetyLogicSeed.Build(ZoaArtccConfig.Full, NavigationDatabase.Instance, activeRunways);
 
     /// <summary>
     /// One airport's active runways from ARWY-style tokens: a bare end is used for both, a <c>D</c> or <c>A</c> prefix
@@ -107,6 +98,52 @@ public class AsdexSafetyLogicSeedTests
         Assert.Equal(expectedId, sfo.RunwayConfigurationId);
     }
 
+    /// <summary>
+    /// SFO's configuration with its runway configurations replaced by two narrowed from L28D28, so arrival, departure and
+    /// both-ways use tell them apart: X lands 28L and departs 28R; Y lands and departs both, and comes second.
+    /// </summary>
+    private static AsdexConfig SfoWithNarrowedL28D28()
+    {
+        AsdexConfig sfo = ZoaArtccConfig.Full.FindFacility("SFO")!.AsdexConfiguration!;
+        AsdexConfig copy = JsonSerializer.Deserialize<AsdexConfig>(JsonSerializer.Serialize(sfo))!;
+        AsdexRunwayConfigurationConfig l28D28 = copy.RunwayConfigurations.Single(c => c.Id == L28D28);
+        copy.RunwayConfigurations =
+        [
+            new AsdexRunwayConfigurationConfig
+            {
+                Id = "X",
+                Name = l28D28.Name,
+                ArrivalRunwayIds = ["28L"],
+                DepartureRunwayIds = ["28R"],
+            },
+            new AsdexRunwayConfigurationConfig
+            {
+                Id = "Y",
+                Name = l28D28.Name,
+                ArrivalRunwayIds = ["28L", "28R"],
+                DepartureRunwayIds = ["28L", "28R"],
+            },
+        ];
+        return copy;
+    }
+
+    /// <summary>
+    /// An arrival end must be in the arrival ids, a departure end in the departure ids, and an end used both ways in both:
+    /// X covers 28L landing with 28R departing (and is first on the tie), but not 28L both ways, 28R landing or 28L departing.
+    /// </summary>
+    [Theory]
+    [InlineData("A28L D28R", "X")]
+    [InlineData("28L", "Y")]
+    [InlineData("A28R", "Y")]
+    [InlineData("D28R", "X")]
+    [InlineData("D28L", "Y")]
+    public void SelectRunwayConfigurationId_TellsArrivalDepartureAndBothApart(string tokens, string expectedId)
+    {
+        string id = AsdexSafetyLogicSeed.SelectRunwayConfigurationId(SfoWithNarrowedL28D28(), Active("SFO", tokens).For("SFO"));
+
+        Assert.Equal(expectedId, id);
+    }
+
     [Fact]
     public void Sfo_ReadsOnlyItsOwnAirportsActiveRunways()
     {
@@ -118,7 +155,7 @@ public class AsdexSafetyLogicSeedTests
     [Fact]
     public void Oak_HasNoConfigurations_SoNoConfigurationIdIsSeeded()
     {
-        Assert.Empty(Zoa.Value.FindFacility("OAK")!.AsdexConfiguration!.RunwayConfigurations);
+        Assert.Empty(ZoaArtccConfig.Full.FindFacility("OAK")!.AsdexConfiguration!.RunwayConfigurations);
 
         Assert.Equal("", Seed(Active("OAK", "28R 30"))["OAK"].RunwayConfigurationId);
         Assert.Equal("", Seed(ActiveRunways.Empty)["OAK"].RunwayConfigurationId);
@@ -166,7 +203,7 @@ public class AsdexSafetyLogicSeedTests
     {
         ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> seed = Seed();
 
-        Assert.Null(Zoa.Value.FindFacility("NCT")?.AsdexConfiguration);
+        Assert.Null(ZoaArtccConfig.Full.FindFacility("NCT")?.AsdexConfiguration);
         Assert.False(seed.ContainsKey("NCT"));
         Assert.False(seed.ContainsKey("ZOA"));
     }
@@ -175,7 +212,12 @@ public class AsdexSafetyLogicSeedTests
     public void TheSimLoadPath_SetsTheMapFromTheSeed_AndTheFirstSnapshotCarriesIt()
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = Zoa.Value);
+        engine.LoadScenario(
+            AiTestFixture.ParkedAtOak,
+            7,
+            MagneticDeclination.EvaluationDateUtc,
+            scenario => scenario.ArtccConfig = ZoaArtccConfig.Full
+        );
 
         Assert.Equal(Seed().Keys, engine.Scenario!.AsdexSafetyLogicConfigs.Keys);
         Assert.Equal(["1L-19R", "1R-19L", "28L-10R", "28R-10L"], engine.Scenario.AsdexSafetyLogicConfigs["SFO"].Runways.Select(r => r.Id));

@@ -39,7 +39,8 @@ public class AsdexSafetyLogicConfigStepTests
                 ),
             ],
             "WEST-PLAN",
-            ["OAK_TWR", "OAK_GND"]
+            ["OAK_TWR", "OAK_GND"],
+            RunwayConfigurationChosen: false
         );
 
     private static void AssertMatches(AsdexSafetyLogicConfig expected, AsdexSafetyLogicConfig? actual)

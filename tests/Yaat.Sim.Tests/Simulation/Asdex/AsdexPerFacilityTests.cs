@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
@@ -20,15 +19,6 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 /// </summary>
 public class AsdexPerFacilityTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static readonly Lazy<ArtccConfigRoot> FullZoa = new(() =>
-        JsonSerializer.Deserialize<ArtccConfigRoot>(
-            File.ReadAllText(Path.Combine(TickRecorder.FindRepoRoot(), "docs", "vnas-artcc-config-examples", "zoa.json")),
-            JsonOptions
-        )!
-    );
-
     private const string TwoAircraftAtSfo = """
         {
           "name": "SFO ASDE-X seed", "artccId": "ZOA", "primaryAirportId": "SFO",
@@ -64,9 +54,10 @@ public class AsdexPerFacilityTests
     }
 
     private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Seed() =>
-        AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance, ActiveRunways.Empty);
+        AsdexSafetyLogicSeed.Build(ZoaArtccConfig.Full, NavigationDatabase.Instance, ActiveRunways.Empty);
 
-    private static AsdexSafetyLogicConfig Closed28R() => new([new AsdexRunwayConfig("28R", SharedArea, IsClosed: true)], "WEST-PLAN", []);
+    private static AsdexSafetyLogicConfig Closed28R() =>
+        new([new AsdexRunwayConfig("28R", SharedArea, IsClosed: true)], "WEST-PLAN", [], RunwayConfigurationChosen: false);
 
     [Fact]
     public void APushUnderSfo_LeavesOaksEntryAlone()
@@ -126,7 +117,7 @@ public class AsdexPerFacilityTests
     public void ASeededConfigAlone_RaisesTheOccupiedRunwayAlertOnSfo28R()
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        engine.LoadScenario(TwoAircraftAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = FullZoa.Value);
+        engine.LoadScenario(TwoAircraftAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = ZoaArtccConfig.Full);
         engine.Scenario!.AsdexSafetyLogicConfigs = Seed();
         RunwayInfo r28R =
             NavigationDatabase.Instance.GetRunway("SFO", "28R")

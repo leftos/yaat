@@ -1,9 +1,7 @@
-using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
@@ -18,15 +16,6 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 /// </summary>
 public class AsdexHoldBarBuilderTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static readonly Lazy<ArtccConfigRoot> FullZoa = new(() =>
-        JsonSerializer.Deserialize<ArtccConfigRoot>(
-            File.ReadAllText(Path.Combine(TickRecorder.FindRepoRoot(), "docs", "vnas-artcc-config-examples", "zoa.json")),
-            JsonOptions
-        )!
-    );
-
     public AsdexHoldBarBuilderTests()
     {
         TestVnasData.EnsureInitialized();
@@ -35,7 +24,7 @@ public class AsdexHoldBarBuilderTests
     /// <summary>SFO's safety-logic runways as the scenario-load seed gives them, resolved against navdata.</summary>
     internal static IReadOnlyList<AsdexHoldBarRunway> SfoRunways()
     {
-        AsdexSafetyLogicConfig sfo = AsdexSafetyLogicSeed.Build(FullZoa.Value, NavigationDatabase.Instance, ActiveRunways.Empty)["SFO"];
+        AsdexSafetyLogicConfig sfo = AsdexSafetyLogicSeed.Build(ZoaArtccConfig.Full, NavigationDatabase.Instance, ActiveRunways.Empty)["SFO"];
         return AsdexHoldBarBuilder.ResolveRunways("SFO", sfo.Runways, NavigationDatabase.Instance);
     }
 

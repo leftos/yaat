@@ -3,7 +3,6 @@ using Xunit;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport.Precompute;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
@@ -24,13 +23,6 @@ public class AsdexRunwayConfigurationRepickTests
     private const string L19D10 = "01GVM1TJ6YF6HE25H6E4RD9DA2";
     private const string L10D10 = "01GVM1VF16S824B4JHH1YR1FZR";
 
-    private static readonly Lazy<ArtccConfigRoot> Zoa = new(() =>
-        JsonSerializer.Deserialize<ArtccConfigRoot>(
-            File.ReadAllText(Path.Combine(TickRecorder.FindRepoRoot(), "docs", "vnas-artcc-config-examples", "zoa.json")),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        )!
-    );
-
     public AsdexRunwayConfigurationRepickTests()
     {
         TestVnasData.EnsureInitialized();
@@ -40,7 +32,12 @@ public class AsdexRunwayConfigurationRepickTests
     private static SimulationEngine Engine()
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = Zoa.Value);
+        engine.LoadScenario(
+            AiTestFixture.ParkedAtOak,
+            7,
+            MagneticDeclination.EvaluationDateUtc,
+            scenario => scenario.ArtccConfig = ZoaArtccConfig.Full
+        );
         return engine;
     }
 
@@ -167,7 +164,7 @@ public class AsdexRunwayConfigurationRepickTests
             RngSeed = 7,
             Actions = [.. scenario.ActionLog],
             TotalElapsedSeconds = scenario.ElapsedSeconds,
-            ArtccConfigJson = JsonSerializer.Serialize(Zoa.Value, RecordingJsonOptions.Default),
+            ArtccConfigJson = JsonSerializer.Serialize(ZoaArtccConfig.Full, RecordingJsonOptions.Default),
             SessionStartUtc = MagneticDeclination.EvaluationDateUtc,
             StudentPositionState = new ReplayStudentPosition(scenario.StudentPosition, scenario.StudentTcp, scenario.StudentPositionType, false),
         };

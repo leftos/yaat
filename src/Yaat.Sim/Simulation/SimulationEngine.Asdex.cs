@@ -117,8 +117,7 @@ public sealed partial class SimulationEngine
         // closed-runway and inhibit toggles push the whole configuration with the id unchanged and choose nothing.
         AsdexSafetyLogicConfig? old = scenario.AsdexSafetyLogicConfigs.GetValueOrDefault(change.FacilityId);
         bool chosen = (old?.RunwayConfigurationChosen == true) || (change.Config.RunwayConfigurationId != old?.RunwayConfigurationId);
-        AsdexSafetyLogicConfig config =
-            chosen == change.Config.RunwayConfigurationChosen ? change.Config : change.Config with { RunwayConfigurationChosen = chosen };
+        AsdexSafetyLogicConfig config = change.Config with { RunwayConfigurationChosen = chosen };
         scenario.AsdexSafetyLogicConfigs = scenario.AsdexSafetyLogicConfigs.SetItem(change.FacilityId, config);
     }
 

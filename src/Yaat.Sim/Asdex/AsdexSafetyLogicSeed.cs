@@ -60,7 +60,12 @@ public static class AsdexSafetyLogicSeed
             }
 
             string configurationId = SelectRunwayConfigurationId(asdex, activeRunways.For(facility.Id));
-            seed[facility.Id] = new AsdexSafetyLogicConfig(BuildRunways(facility.Id, asdex, navRunways), configurationId, []);
+            seed[facility.Id] = new AsdexSafetyLogicConfig(
+                BuildRunways(facility.Id, asdex, navRunways),
+                configurationId,
+                [],
+                RunwayConfigurationChosen: false
+            );
         }
 
         return seed.ToImmutable();

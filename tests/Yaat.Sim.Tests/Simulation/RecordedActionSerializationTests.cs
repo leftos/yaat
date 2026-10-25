@@ -107,6 +107,39 @@ public class RecordedActionSerializationTests
         Assert.Equal(current with { SweptLat = null, SweptLon = null, SweptTrackDeg = null, SweptSimSeconds = null }, old);
     }
 
+    /// <summary>
+    /// The chosen flag is derived when a push applies, so a recorded push never carries it: a config holding it serializes
+    /// without the member and reads back as not chosen.
+    /// </summary>
+    [Fact]
+    public void RecordedAsdexSafetyLogicChange_LeavesTheChosenFlagOutOfTheRecording()
+    {
+        var change = new RecordedAsdexSafetyLogicChange(
+            115.0,
+            "SFO",
+            new AsdexSafetyLogicConfig(
+                [new AsdexRunwayConfig("28R", [new LatLon(37.6213, -122.3790), new LatLon(37.6188, -122.3581)], IsClosed: false)],
+                "cfg-1",
+                ["SFO_TWR"],
+                RunwayConfigurationChosen: true
+            )
+        );
+
+        JsonObject json = JsonSerializer.SerializeToNode<RecordedAction>(change, RecordingJsonOptions.Default)!.AsObject();
+        JsonObject config = json.Single(p => p.Key.Equals("config", StringComparison.OrdinalIgnoreCase)).Value!.AsObject();
+        Assert.DoesNotContain(config, p => p.Key.Equals("RunwayConfigurationChosen", StringComparison.OrdinalIgnoreCase));
+
+        RecordedAsdexSafetyLogicChange reread = Assert.IsType<RecordedAsdexSafetyLogicChange>(
+            JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default)
+        );
+        AsdexSafetyLogicConfig expected = change.Config with { RunwayConfigurationChosen = false };
+        Assert.Equal(expected.RunwayConfigurationId, reread.Config.RunwayConfigurationId);
+        Assert.Equal(expected.InhibitedArrivalAlertPositionIds, reread.Config.InhibitedArrivalAlertPositionIds);
+        Assert.Equal(expected.Runways.Select(r => (r.Id, r.IsClosed)), reread.Config.Runways.Select(r => (r.Id, r.IsClosed)));
+        Assert.Equal(expected.Runways.SelectMany(r => r.AreaPoints), reread.Config.Runways.SelectMany(r => r.AreaPoints));
+        Assert.Equal(expected.RunwayConfigurationChosen, reread.Config.RunwayConfigurationChosen);
+    }
+
     private static IReadOnlyList<JsonDerivedTypeAttribute> DerivedTypeRegistrations() =>
         [.. typeof(RecordedAction).GetCustomAttributes<JsonDerivedTypeAttribute>(inherit: false)];
 
@@ -249,7 +282,8 @@ public class RecordedActionSerializationTests
                 new AsdexSafetyLogicConfig(
                     [new AsdexRunwayConfig("30", [new LatLon(37.7213, -122.2208), new LatLon(37.7222, -122.2101)], IsClosed: true)],
                     "cfg-1",
-                    ["OAK_TWR"]
+                    ["OAK_TWR"],
+                    RunwayConfigurationChosen: false
                 )
             ),
             new RecordedAttendanceChange(120.0, ["OAK_TWR", "OAK_GND", "NCT_W_APP"]),
