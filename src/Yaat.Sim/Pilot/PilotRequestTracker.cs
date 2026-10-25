@@ -64,6 +64,7 @@ public static class PilotRequestTracker
                 case PilotPendingRequestResponseState.Denied:
                 case PilotPendingRequestResponseState.Superseded:
                     pending.ResponseState = response;
+                    MarkClearanceObtained(aircraft, pending.Kind, response);
                     return;
                 case PilotPendingRequestResponseState.Standby:
                     sawStandby = true;
@@ -93,7 +94,17 @@ public static class PilotRequestTracker
         }
 
         request.ResponseState = PilotPendingRequestResponseState.Satisfied;
+        MarkClearanceObtained(aircraft, kind, PilotPendingRequestResponseState.Satisfied);
         return true;
+    }
+
+    /// <summary>A satisfied <see cref="PilotPendingRequestKind.Clearance"/> request gives the departure its clearance (<see cref="AircraftGroundOps.ClearanceObtained"/>).</summary>
+    private static void MarkClearanceObtained(AircraftState aircraft, PilotPendingRequestKind kind, PilotPendingRequestResponseState response)
+    {
+        if ((kind == PilotPendingRequestKind.Clearance) && (response == PilotPendingRequestResponseState.Satisfied))
+        {
+            aircraft.Ground.ClearanceObtained = true;
+        }
     }
 
     public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds)

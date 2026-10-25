@@ -130,21 +130,25 @@ public class RunwaySpawnCallE2ETests
     }
 
     [Fact]
-    public void GroundStudentWithRange_UntoweredIfr_DepartsOnItsOwn()
+    public void GroundStudentWithRange_UntoweredIfr_WaitsForItsCto()
     {
         if (LoadWithRange(Aun, "FAT_GND", "GND", AtcPositionLevel.Ground) is not { } run)
         {
             return;
         }
 
-        Tick(run, 85);
-        Assert.IsType<LinedUpAndWaitingPhase>(run.Aircraft.Phases!.CurrentPhase);
+        Tick(run, 180);
 
-        Assert.True(TickUntil(run, () => !run.Aircraft.IsOnGround, 120) > 0, "never took off");
-        Assert.Contains(run.Terminal, t => t.Message.StartsWith("[Auto] Untowered field", StringComparison.Ordinal));
-        Assert.Empty(ReleaseLines(run));
-        Assert.False(run.Aircraft.Ground.HeldForRelease);
+        // IFR at an untowered field still needs its release from the overlying approach or center: nothing departs it.
+        Assert.IsType<LinedUpAndWaitingPhase>(run.Aircraft.Phases!.CurrentPhase);
+        Assert.True(run.Aircraft.IsOnGround, "an untowered IFR spawn departed on its own");
+        Assert.DoesNotContain(run.Terminal, t => t.Message.Contains("[Auto]", StringComparison.Ordinal));
         Assert.DoesNotContain(run.Terminal, t => t.Message.Contains("ready.", StringComparison.Ordinal));
+        Assert.Empty(ReleaseLines(run));
+
+        CommandResult cto = run.Engine.SendCommand(Aun.Callsign, "CTO");
+        Assert.True(cto.Success, cto.Message);
+        Assert.True(TickUntil(run, () => !run.Aircraft.IsOnGround, 120) > 0, "never took off on its CTO");
     }
 
     [Fact]

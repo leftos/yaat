@@ -11,8 +11,10 @@ public enum RunwaySpawnCallKind
 
     /// <summary>
     /// No call: a <see cref="InitialCallupPlan.RunwaySayOnly"/> spawn (its SAY preset is what it says), or a
-    /// <see cref="InitialCallupPlan.RunwayNoPreset"/> spawn that the engine sends off with an automatic takeoff clearance:
-    /// at a towered field, or at an untowered one flying VFR or under a student who works no radar position.
+    /// <see cref="InitialCallupPlan.RunwayNoPreset"/> spawn that the engine sends off with an automatic takeoff clearance
+    /// at a towered field, or flying VFR at an untowered one; flying IFR at an untowered field under a student who works no
+    /// radar position it waits, lined up, for a takeoff clearance (<c>CTO</c>) from whoever works the overlying approach or
+    /// center (the student, or the RPO in an RPO room).
     /// </summary>
     Silent,
 
@@ -28,8 +30,9 @@ public enum RunwaySpawnCallKind
 /// who does not work the tower there departs on an automatic takeoff clearance at a towered field or, flying VFR, at an
 /// untowered one (<see cref="Simulation.SimulationEngine"/> issues it after <see cref="LinedUpAndWaitingPhase.LinedUpReadyDelaySeconds"/>),
 /// and flying IFR at an untowered field asks a radar student (APP or CTR) for a release 5 to 10 s after lining up
-/// (<see cref="ReleaseRequestDelaySeconds"/>), while under any other student, for whom the approach is simulated too, it
-/// departs on its own at the same point as a VFR spawn; every other spawn makes today's lined-up call after
+/// (<see cref="ReleaseRequestDelaySeconds"/>), while under any other student it waits, lined up, for a takeoff clearance
+/// (<c>CTO</c>) from whoever works the overlying approach or center (the student, or the RPO in an RPO room); every other
+/// spawn makes today's lined-up call after
 /// <see cref="LinedUpAndWaitingPhase.LinedUpReadyDelaySeconds"/>.
 /// </summary>
 public static class RunwaySpawnCall

@@ -1795,7 +1795,7 @@ public sealed partial class SimulationEngine
             GroundLayout = groundLayout,
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
-            AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
+            AutoClearedToLand = Scenario?.IsAutoClearedToLandFor(aircraft) ?? false,
             AutoPullUpToParallel = Scenario?.AutoPullUpToParallel ?? false,
             AutoGoAroundOnOccupiedRunway = Scenario?.AutoGoAroundOnOccupiedRunway ?? false,
             AutoRejectTakeoffOnOccupiedRunway = Scenario?.AutoRejectTakeoffOnOccupiedRunway ?? false,

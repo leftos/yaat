@@ -378,6 +378,12 @@ public class AircraftGroundOps
     public double? LeftStudentFrequencyAtSeconds { get; set; }
 
     /// <summary>
+    /// True once this departure's clearance request was answered (a beacon code, or a PDC sent by data link). A student who
+    /// works delivery and ground at the airport then gets the ordinary ground call, never a second clearance request.
+    /// </summary>
+    public bool ClearanceObtained { get; set; }
+
+    /// <summary>
     /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>), or null
     /// when no window is set. Wall-clock based and used only for instructor-facing expiry alerts on the
     /// client — never gates takeoff and never influences the simulation (GitHub issue #230). Paired with
@@ -433,6 +439,7 @@ public class AircraftGroundOps
             ReleasedAtSeconds = ReleasedAtSeconds,
             ReleasedAtSpawnGate = ReleasedAtSpawnGate,
             LeftStudentFrequencyAtSeconds = LeftStudentFrequencyAtSeconds,
+            ClearanceObtained = ClearanceObtained,
             ReleaseWindowStartUtc = ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = ReleaseWindowEndUtc,
         };
@@ -482,6 +489,7 @@ public class AircraftGroundOps
             ReleasedAtSeconds = dto.ReleasedAtSeconds,
             ReleasedAtSpawnGate = dto.ReleasedAtSpawnGate,
             LeftStudentFrequencyAtSeconds = dto.LeftStudentFrequencyAtSeconds,
+            ClearanceObtained = dto.ClearanceObtained,
             ReleaseWindowStartUtc = dto.ReleaseWindowStartUtc,
             ReleaseWindowEndUtc = dto.ReleaseWindowEndUtc,
         };

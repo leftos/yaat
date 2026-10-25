@@ -212,6 +212,14 @@ public sealed class SimScenarioState
 
     // Settings affecting command dispatch
     public bool AutoClearedToLand { get; set; }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/> lands as if cleared to land: the room's <see cref="AutoClearedToLand"/> toggle, or a
+    /// silently simulated tower at its assigned runway's airport (<see cref="Pilot.PilotContactRoster.TowerIsSimulatedAt"/>).
+    /// </summary>
+    public bool IsAutoClearedToLandFor(AircraftState aircraft) =>
+        AutoClearedToLand || ((aircraft.Phases?.AssignedRunway is { } runway) && PilotContacts.TowerIsSimulatedAt(runway.AirportId));
+
     public AutoCrossRunwayMode AutoCrossRunwayMode { get; set; }
 
     /// <summary>

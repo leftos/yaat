@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
@@ -86,6 +87,7 @@ public class DeliveryClearanceRequestE2ETests
         SendPdc(run);
 
         Assert.Equal(PilotPendingRequestResponseState.Satisfied, run.Aircraft.PendingPilotRequest!.ResponseState);
+        Assert.True(run.Aircraft.Ground.ClearanceObtained);
         Assert.Null(run.Engine.World.ActiveFrequency.AwaitingControllerResponseTo);
         Tick(run.Engine, (int)PilotRequestTracker.NormalFollowUpDelaySeconds + 30);
         Assert.Single(PilotLines(run), e => e.Message.Contains("IFR to", StringComparison.Ordinal));
@@ -168,6 +170,85 @@ public class DeliveryClearanceRequestE2ETests
 
         Assert.False(run.Aircraft.PendingPilotRequest is { Kind: PilotPendingRequestKind.Clearance }, "a clearance request to SFO delivery");
         Assert.DoesNotContain(run.Terminal, e => e.Message.EndsWith("IFR to Los Angeles Airport.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void GroundStudent_LowestDelivery_GetsTheClearanceRequest_ThenTheTaxiCall()
+    {
+        if (LoadWithStudent("N152SP", "IFR", "KLAX", 9000, [], "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        run.Engine.Scenario!.StudentLowestWorkedLevel = AtcPositionLevel.Delivery;
+        Tick(run.Engine, 30);
+
+        TerminalEntry request = Assert.Single(PilotLines(run));
+        Assert.StartsWith($"{run.DeliveryRadioName}, at ", request.Message, StringComparison.Ordinal);
+        Assert.EndsWith(", with information Alpha, IFR to Los Angeles Airport.", request.Message, StringComparison.Ordinal);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance }, "no open clearance request");
+
+        // No taxi call while the clearance is still owed.
+        Tick(run.Engine, 30);
+        Assert.DoesNotContain(PilotLines(run), e => e.Message.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(PilotPendingRequestKind.Clearance, run.Aircraft.PendingPilotRequest!.Kind);
+
+        CommandResult squawk = run.Engine.SendCommand("N152SP", "SQ 4321");
+        Assert.True(squawk.Success, squawk.Message);
+        Assert.True(run.Aircraft.Ground.ClearanceObtained);
+
+        Tick(run.Engine, 60);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi }, "no ground call after the clearance");
+        Assert.Equal(run.DeliveryRadioName, run.Aircraft.PendingPilotRequest!.FacilityCallName);
+        Assert.Single(PilotLines(run), e => e.Message.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
+        Assert.True(run.Aircraft.Ground.InitialCallupDecisionProcessed);
+    }
+
+    [Fact]
+    public void GroundStudent_LowestGround_GetsTheGroundCallOnly()
+    {
+        if (LoadWithStudent("N152SP", "IFR", "KLAX", 9000, [], "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        run.Engine.Scenario!.StudentLowestWorkedLevel = AtcPositionLevel.Ground;
+        Tick(run.Engine, 30);
+
+        TerminalEntry call = Assert.Single(PilotLines(run));
+        Assert.Contains("ready to taxi", call.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PilotPendingRequestKind.Taxi, run.Aircraft.PendingPilotRequest!.Kind);
+        Assert.False(run.Aircraft.Ground.ClearanceObtained);
+    }
+
+    [Fact]
+    public void GroundStudent_LowestDelivery_AiDelivery_GetsNoClearanceRequest()
+    {
+        if (LoadWithStudent("N152SP", "IFR", "KLAX", 9000, [], "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = run.Engine.Scenario!;
+        scenario.StudentLowestWorkedLevel = AtcPositionLevel.Delivery;
+        // ZOA's catalog leaves delivery out unless overridden (AiPositionResolver), so the AI delivery is built by hand.
+        scenario.SetAiStaffedPositions([TestAiPositions.OakGround(_zoa!), TestAiPositions.TowerCab(_zoa!, "OAK_DEL", ControlRole.Ground, "OAK")]);
+        Tick(run.Engine, 30);
+
+        Assert.False(
+            run.Aircraft.PendingPilotRequest is { Kind: PilotPendingRequestKind.Clearance },
+            "a clearance request with an AI delivery staffed"
+        );
+        Assert.DoesNotContain(run.Terminal, e => e.Message.EndsWith("IFR to Los Angeles Airport.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ClearanceObtained_RoundTripsInTheSnapshot()
+    {
+        var ops = new AircraftGroundOps { ClearanceObtained = true };
+
+        Assert.True(AircraftGroundOps.FromSnapshot(ops.ToSnapshot(), null).ClearanceObtained);
+        Assert.False(AircraftGroundOps.FromSnapshot(new AircraftGroundOps().ToSnapshot(), null).ClearanceObtained);
     }
 
     [Fact]

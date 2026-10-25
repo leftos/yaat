@@ -12,7 +12,8 @@ namespace Yaat.Sim.Pilot;
 /// on the stand a tow ended on) and the after-taxi-arrival call (<c>HoldingInPositionPhase</c>, <c>HoldingShortPhase</c>).
 /// Each caller waits its own delay first; the call then waits for someone answering ground at the airport and for a
 /// pacing slot, exactly as the stand call does. A student working clearance delivery at the airport gets a clearance
-/// request instead, and no taxi call follows it.
+/// request instead; no taxi call follows it unless the student works ground there too, and then the ground call comes
+/// once the clearance is obtained.
 /// </summary>
 public static class InitialCallupCall
 {
@@ -89,8 +90,8 @@ public static class InitialCallupCall
     /// </summary>
     public static bool TryMake(PhaseContext ctx, ReadyToTaxiLocation location)
     {
-        // The same two checks as CanCall, in the same order, so the call is never owed while CanCall says it cannot come.
-        if (!PacingAllowsCalls(ctx))
+        // The same checks as CanCall, in the same order, so the call is never owed while CanCall says it cannot come.
+        if (!PacingAllowsCalls(ctx) || AwaitsItsClearance(ctx.Aircraft))
         {
             return false;
         }
@@ -170,12 +171,12 @@ public static class InitialCallupCall
 
     /// <summary>
     /// Whether the initial call can come at all: the pacing rate is above zero and someone answers it (a delivery student at
-    /// the airport, or someone answering ground there under the SOP). Pacing slots are not consulted: a call waiting for a
-    /// slot still comes.
+    /// the airport, or someone answering ground there under the SOP), and no clearance request of the aircraft's is still
+    /// open. Pacing slots are not consulted: a call waiting for a slot still comes.
     /// </summary>
     public static bool CanCall(PhaseContext ctx)
     {
-        if (!PacingAllowsCalls(ctx))
+        if (!PacingAllowsCalls(ctx) || AwaitsItsClearance(ctx.Aircraft))
         {
             return false;
         }
@@ -218,29 +219,36 @@ public static class InitialCallupCall
     }
 
     /// <summary>
-    /// The solo student when they work a clearance delivery position (callsign <c>…_DEL</c>) at the airport the aircraft
-    /// is on and the SOP lets the aircraft call them; null otherwise. A delivery student takes the first call even when
-    /// an AI ground answers at the airport.
+    /// The solo student when they work clearance delivery at the airport the aircraft is on
+    /// (<see cref="PilotContactRoster.StudentWorksDeliveryAt"/>), the aircraft has no clearance yet
+    /// (<see cref="AircraftGroundOps.ClearanceObtained"/>) and the SOP lets the aircraft call them; null otherwise. A
+    /// delivery student takes the first call even when an AI ground answers at the airport.
     /// </summary>
     private static PilotAnsweringPosition? DeliveryStudentAt(PhaseContext ctx, string? atAirportId)
     {
-        if (ctx.PilotContacts.Student is not { Owner.Callsign: { } callsign } student || string.IsNullOrWhiteSpace(atAirportId))
+        if (
+            ctx.Aircraft.Ground.ClearanceObtained
+            || (ctx.PilotContacts.Student is not { } student)
+            || string.IsNullOrWhiteSpace(atAirportId)
+            || !ctx.PilotContacts.StudentWorksDeliveryAt(atAirportId)
+        )
         {
             return null;
         }
 
-        int underscore = callsign.IndexOf('_');
-        bool deliveryHere =
-            callsign.EndsWith("_DEL", StringComparison.OrdinalIgnoreCase)
-            && (underscore > 0)
-            && NavigationDatabase.AirportIdsMatch(callsign[..underscore], atAirportId);
-        return (deliveryHere && PilotInitialContactEligibility.CanInitiateWithStudent(ctx.Aircraft, ctx.ToEligibilityContext())) ? student : null;
+        return PilotInitialContactEligibility.CanInitiateWithStudent(ctx.Aircraft, ctx.ToEligibilityContext()) ? student : null;
     }
+
+    /// <summary>Whether the aircraft's clearance request is still open: no other call-up goes out before it is answered.</summary>
+    private static bool AwaitsItsClearance(AircraftState aircraft) =>
+        aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance };
 
     /// <summary>
     /// The first call to a delivery student: an IFR clearance request, or a VFR departure request naming a direction of
     /// flight (chosen once and kept on <see cref="AircraftGroundOps.VfrDepartureDirection"/>) and the filed altitude. It
-    /// records the open <see cref="PilotPendingRequestKind.Clearance"/> request and closes the decision, so no taxi call follows.
+    /// records the open <see cref="PilotPendingRequestKind.Clearance"/> request. The decision closes, so no taxi call
+    /// follows, unless the student also works ground at the airport: then it stays open, and once the clearance is
+    /// obtained the next call-up is the ordinary ground call to the same student.
     /// </summary>
     private static bool TryMakeClearanceRequest(PhaseContext ctx, PilotAnsweringPosition delivery, string? atAirportId, ReadyToTaxiLocation location)
     {
@@ -272,7 +280,7 @@ public static class InitialCallupCall
             PilotRequestContext.Facility(facilityCallName)
         );
         delivery.MarkInitialContact(aircraft);
-        aircraft.Ground.InitialCallupDecisionProcessed = true;
+        aircraft.Ground.InitialCallupDecisionProcessed = ctx.PilotContacts.StudentRange?.Works(AtcPositionLevel.Ground, atAirportId) != true;
         return true;
     }
 

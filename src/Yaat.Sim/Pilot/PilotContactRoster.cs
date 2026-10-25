@@ -155,18 +155,35 @@ public sealed class PilotContactRoster
     }
 
     /// <summary>
-    /// Whether the student works clearance delivery at <paramref name="atAirportId"/>: with no range, a student on a
-    /// <c>…_DEL</c> position; with a range, when it takes in delivery there.
+    /// Whether the student works clearance delivery at <paramref name="atAirportId"/>: with no range, a student on that
+    /// airport's <c>…_DEL</c> position; with a range, when it takes in delivery there and no AI-staffed delivery
+    /// (<c>…_DEL</c>) covers the airport.
     /// </summary>
     public bool StudentWorksDeliveryAt(string? atAirportId)
     {
         if (StudentRange is null)
         {
-            return Student?.Owner?.Callsign is { } callsign && callsign.EndsWith("_DEL", StringComparison.OrdinalIgnoreCase);
+            return Student?.Owner?.Callsign is { } callsign && IsDeliveryAt(callsign, atAirportId);
         }
 
-        return StudentRange.Works(AtcPositionLevel.Delivery, atAirportId);
+        return StudentRange.Works(AtcPositionLevel.Delivery, atAirportId) && !AiTowerCabCovers(IsDeliveryPosition, atAirportId);
     }
+
+    /// <summary>A <c>…_DEL</c> callsign whose airport prefix is <paramref name="atAirportId"/>.</summary>
+    private static bool IsDeliveryAt(string callsign, string? atAirportId)
+    {
+        int underscore = callsign.IndexOf('_');
+        return callsign.EndsWith("_DEL", StringComparison.OrdinalIgnoreCase)
+            && (underscore > 0)
+            && !string.IsNullOrWhiteSpace(atAirportId)
+            && NavigationDatabase.AirportIdsMatch(callsign[..underscore], atAirportId);
+    }
+
+    private static bool IsDeliveryPosition(PilotAnsweringPosition position) =>
+        position.Owner?.Callsign is { } callsign && callsign.EndsWith("_DEL", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTowerPosition(PilotAnsweringPosition position) =>
+        string.Equals(position.PositionType, "TWR", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether the student, not an AI, works the tower at <paramref name="atAirportId"/>: with no range, when the scenario's
@@ -191,7 +208,7 @@ public sealed class PilotContactRoster
         (Student is not null)
         && (StudentRange is not null)
         && !StudentRange.Works(AtcPositionLevel.Tower, atAirportId)
-        && !AiTowerCabCovers("TWR", atAirportId);
+        && !AiTowerCabCovers(IsTowerPosition, atAirportId);
 
     /// <summary>
     /// The airport an aircraft is physically on: its ground layout's airport, else the airport it was spawned at. Null
@@ -288,10 +305,11 @@ public sealed class PilotContactRoster
         return AtcPositionLevels.LevelOfType(expectedPositionType) is { } level && StudentRange.Works(level, atAirportId);
     }
 
-    private bool AiTowerCabCovers(string positionType, string? atAirportId) =>
+    /// <summary>Whether an AI-staffed position <paramref name="matches"/> accepts covers the tower-cab airport <paramref name="atAirportId"/>.</summary>
+    private bool AiTowerCabCovers(Func<PilotAnsweringPosition, bool> matches, string? atAirportId) =>
         Positions.Any(position =>
             (position.Agent == PilotAnsweringAgent.ControllerAi)
-            && string.Equals(position.PositionType, positionType, StringComparison.OrdinalIgnoreCase)
+            && matches(position)
             && ((position.AirportIds.Count == 0) || TowerCabCovers(position, atAirportId))
         );
 

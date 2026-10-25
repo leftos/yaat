@@ -233,10 +233,12 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Clears a runway spawn with no preset for takeoff at its lined-up call point when the student does not work the tower
-    /// there (<see cref="PilotContactRoster.StudentWorksTowerAt"/>) and its field has a tower, it flies VFR, or the student
-    /// works no radar position (<see cref="RunwaySpawnCall"/>), in a solo room only: the simulated tower sends it off,
-    /// or a VFR pilot at an untowered field departs on its own, scripted, so the existing airborne check-in calls the
-    /// student. An IFR spawn at an untowered field released through the hold-for-release spawn gate needs no release
+    /// there (<see cref="PilotContactRoster.StudentWorksTowerAt"/>) and either its field has a tower or it flies VFR
+    /// (<see cref="RunwaySpawnCall"/>), in a solo room only: the simulated tower sends it off, or a VFR pilot at an
+    /// untowered field departs on its own, scripted, so the existing airborne check-in calls the student. Flying IFR at an
+    /// untowered field it asks a radar student (APP or CTR) for its release, and under any other student it waits, lined
+    /// up, for a takeoff clearance (<c>CTO</c>) from whoever works the overlying approach or center (the student, or the
+    /// RPO in an RPO room). An IFR spawn at an untowered field released through the hold-for-release spawn gate needs no release
     /// request: lined up in a solo room, it starts the released departure's clock (<see cref="ProcessReleasedGroundDepartures"/>)
     /// at once (<see cref="StartSpawnGateRelease"/>). Closes the call-up decision of every such spawn that has left its
     /// lined-up position or whose student works the tower there, so <see cref="IsRunwaySpawnFieldTowered"/> stops
@@ -293,11 +295,10 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        // At an untowered field an IFR spawn asks a radar student for its release; under any other student the approach is
-        // simulated too, so it departs on its own as a VFR spawn does.
+        // At an untowered field an IFR spawn asks a radar student for its release; under any other student it waits, lined
+        // up, for a takeoff clearance from whoever works the overlying approach or center.
         bool towered = IsRunwaySpawnFieldTowered(aircraft);
-        bool radarStudent = RunwaySpawnCall.IsRadarStudent(scenario.PilotContacts.StudentPositionType);
-        if (!towered && !aircraft.FlightPlan.IsVfr && radarStudent)
+        if (!towered && !aircraft.FlightPlan.IsVfr)
         {
             return;
         }
@@ -315,9 +316,7 @@ public sealed partial class SimulationEngine
 
         AutoIssueTakeoffClearance(
             aircraft,
-            towered ? "[Auto] Towered field — cleared for takeoff by the simulated tower"
-                : aircraft.FlightPlan.IsVfr ? "[Auto] Untowered field — VFR departure on its own"
-                : "[Auto] Untowered field — IFR departure on its own, approach simulated"
+            towered ? "[Auto] Towered field — cleared for takeoff by the simulated tower" : "[Auto] Untowered field — VFR departure on its own"
         );
     }
 
