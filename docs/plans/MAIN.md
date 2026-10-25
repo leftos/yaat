@@ -11,6 +11,8 @@
 - [ ] YAAT-1164 Controller-AI coaching playground: owner trains Claude as a solo student
   - [ ] YAAT-1169 Coaching runbook skill, session records and a live dry run
   - [ ] YAAT-1172 Merge feat/controller-ai-coaching to main (#1348)
+  - [ ] YAAT-1184 Client driver: wait on the client log and see in-window prompts
+  - [ ] YAAT-1185 Pause triggers ignore the refusal of the agent's own send_command
 
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
 
@@ -51,7 +53,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-1178 Allow ordering of favorite sets when multiple sets are active · release vNext
 - [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
@@ -98,6 +99,7 @@
 - [ ] YAAT-27 Typed command arguments: audit the remaining argument slots (step 2)
 - [ ] YAAT-514 Controller-AI coaching sessions: decision trace per command, stepped pacing, mentor feedback loop
 - [ ] YAAT-996 Extract the client driver into a shared Avalonia driver repo (yamv adopts it)
+- [ ] YAAT-1182 Simulate ground and local control below a solo radar student
 
 ## STT tuning
 
@@ -511,7 +513,6 @@
 - [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
 - [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext+1
 - [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
-- [/] YAAT-1162 Drive CRC without real input (posted messages or an in-process driver hook) · release vNext
 - [ ] YAAT-1176 Stop stop_process killing the launched client's whole process tree
 
 ## Backlog
@@ -764,3 +765,15 @@
 - [ ] YAAT-1157 Log the CRC callbacks that bypass the entity subjects (text, session, strips) in the probe hook's wire log
 - [ ] YAAT-1159 Render the safety-logic config's runway areas in the CRC probe hook's wire log (cut at max depth)
 - [ ] YAAT-1161 Lock CapturingHubCallerClients.Sends in the server test harness (same race as YAAT-1160)
+- [ ] YAAT-1186 CRC driver hook: register windows a menu_pick opens after the 250 ms diff
+- [ ] YAAT-1187 CRC driver: bound crc_launch's start-up wait and check the foreground before the epoch Escape
+
+## No project
+
+- [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
+- [ ] YAAT-1180 Tower calls reach a ground-position solo student when tower is unstaffed · release vNext
+- [ ] YAAT-1181 Solo pilots voice RPO-only refusals as an 'unable' readback · release vNext
+- [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
+- [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range
+- [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for
+- [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance
