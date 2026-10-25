@@ -6,6 +6,10 @@
 
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
+## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
+
+- [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
+
 ## Controller-AI coaching
 
 - [ ] YAAT-1164 Controller-AI coaching playground: owner trains Claude as a solo student
@@ -53,7 +57,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
 - [/] YAAT-1152 when working on SF tower safety logic doesnt appear on CRC · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
@@ -64,7 +67,6 @@
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext+1
-  - [/] YAAT-1059 Gate ASDE-X alerts by the active runway configuration, LIMITED included · release vNext
   - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext+1
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext+1
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext+1
@@ -79,7 +81,6 @@
   - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
-- [/] YAAT-1191 Seed each ASDE-X facility's runway configuration at scenario load instead of CRC's LIMITED default · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -528,7 +529,7 @@
 - [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext+1
 - [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
 - [ ] YAAT-1176 Stop stop_process killing the launched client's whole process tree
-- [ ] YAAT-1203 Rename a linked Discord thread when its GitHub issue title changes · release vNext
+- [ ] YAAT-1206 Name the Windows-only test projects test-all skips on a non-Windows host
 
 ## Backlog
 
@@ -782,6 +783,12 @@
 - [ ] YAAT-1161 Lock CapturingHubCallerClients.Sends in the server test harness (same race as YAAT-1160)
 - [ ] YAAT-1186 CRC driver hook: register windows a menu_pick opens after the 250 ms diff
 - [ ] YAAT-1187 CRC driver: bound crc_launch's start-up wait and check the foreground before the epoch Escape
+- [ ] YAAT-1205 Fail loudly when the ZOA ARTCC test snapshot does not parse
+- [ ] YAAT-1207 Keep a resolved Discord thread name within 100 characters when the emoji is added
+- [ ] YAAT-1208 Report KOAK 28R's 225 ft authored hold-short distance upstream to vZOA (paint says 250 ft)
+- [ ] YAAT-1209 Pin one pnpm version for the Discord bot so local pnpm 12 installs as CI does
+- [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
+- [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
 
 ## No project
 
