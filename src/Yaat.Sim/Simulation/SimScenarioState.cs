@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
@@ -46,9 +47,20 @@ public sealed class SimScenarioState
     /// </summary>
     public DateTime MagneticModelDateUtc => SessionStartUtc.Date;
 
+    private static readonly ILogger Log = SimLog.CreateLogger("SimScenarioState");
+
     private IReadOnlyList<ControllerAi.AiPositionConfig> _aiStaffedPositions = [];
     private Pilot.PilotContactRoster? _pilotContacts;
-    private (bool Solo, TrackOwner? Student, string? StudentType, int StaffingVersion, Data.Vnas.ArtccConfigRoot? Config)? _pilotContactsKey;
+    private (
+        bool Solo,
+        TrackOwner? Student,
+        string? StudentType,
+        Pilot.AtcPositionLevel? Lowest,
+        List<ResolvedAtcPosition> AtcPositions,
+        int AtcPositionCount,
+        int StaffingVersion,
+        Data.Vnas.ArtccConfigRoot? Config
+    )? _pilotContactsKey;
 
     /// <summary>
     /// The AI-staffed positions currently answering pilots, sorted by position id. Kept current by the host that
@@ -85,26 +97,42 @@ public sealed class SimScenarioState
 
     /// <summary>
     /// Who answers pilot calls this session — see <see cref="Pilot.PilotContactRoster"/>. Memoized on its inputs (solo
-    /// mode, student position and type, the AI staffing version, the ARTCC config instance) so it is correct at
-    /// every read without a rebuild hook at each writer, and cheaper than the per-sub-tick radio-name lookup it replaced.
+    /// mode, student position and type, the lowest worked level, the ATC roster, the AI staffing version, the ARTCC
+    /// config instance) so it is correct at every read without a rebuild hook at each writer, and cheaper than the
+    /// per-sub-tick radio-name lookup it replaced.
     /// </summary>
     public Pilot.PilotContactRoster PilotContacts
     {
         get
         {
+            // AtcPositions is replaced whole on restore and only appended to at runtime (.AUTOTRACK), so the list
+            // reference plus its count catches every change to the online positions the worked range reads.
             (
                 bool SoloTrainingMode,
                 TrackOwner? StudentPosition,
                 string? StudentPositionType,
+                Pilot.AtcPositionLevel? StudentLowestWorkedLevel,
+                List<ResolvedAtcPosition> AtcPositions,
+                int AtcPositionCount,
                 int AiStaffingVersion,
                 ArtccConfigRoot? ArtccConfig
-            ) key = (SoloTrainingMode, StudentPosition, StudentPositionType, AiStaffingVersion, ArtccConfig);
+            ) key = (
+                SoloTrainingMode,
+                StudentPosition,
+                StudentPositionType,
+                StudentLowestWorkedLevel,
+                AtcPositions,
+                AtcPositions.Count,
+                AiStaffingVersion,
+                ArtccConfig
+            );
             if (_pilotContacts is null || _pilotContactsKey != key)
             {
                 _pilotContacts = Pilot.PilotContactRoster.Build(
                     SoloTrainingMode,
                     StudentPosition,
                     StudentPositionType,
+                    BuildStudentWorkedRange(),
                     _aiStaffedPositions,
                     ArtccConfig
                 );
@@ -112,6 +140,23 @@ public sealed class SimScenarioState
             }
 
             return _pilotContacts;
+        }
+    }
+
+    /// <summary>
+    /// The student's worked range, or null when none applies. A lowest level above the student's own position (a bad
+    /// recorded value) is logged and treated as no range, so it never stops a tick.
+    /// </summary>
+    private Pilot.StudentWorkedRange? BuildStudentWorkedRange()
+    {
+        try
+        {
+            return Pilot.StudentWorkedRange.For(StudentPosition, StudentLowestWorkedLevel, AtcPositions);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            Log.LogWarning(ex, "Ignoring the student's lowest worked level {Level}: {Reason}", StudentLowestWorkedLevel, ex.Message);
+            return null;
         }
     }
 
@@ -397,6 +442,13 @@ public sealed class SimScenarioState
     public TrackOwner? StudentPosition { get; set; }
     public Tcp? StudentTcp { get; set; }
     public string? StudentPositionType { get; set; }
+
+    /// <summary>
+    /// The lowest position type the solo student works (<see cref="Pilot.StudentWorkedRange"/>). Null means no range: the
+    /// student answers every call type as before. RPO rooms and recordings that predate the setting keep null.
+    /// </summary>
+    public Pilot.AtcPositionLevel? StudentLowestWorkedLevel { get; set; }
+
     public List<ResolvedAtcPosition> AtcPositions { get; set; } = [];
 
     // The current ATIS information letter for the primary field ("A".."Z"), the single source for
@@ -619,6 +671,7 @@ public sealed class SimScenarioState
             StudentPosition = StudentPosition?.ToSnapshot(),
             StudentTcp = StudentTcp?.ToSnapshot(),
             StudentPositionType = StudentPositionType,
+            StudentLowestWorkedLevel = StudentLowestWorkedLevel,
             AtcPositions = [.. AtcPositions.Select(p => p.ToSnapshot())],
             DelayedQueue =
                 DelayedQueue.Count > 0

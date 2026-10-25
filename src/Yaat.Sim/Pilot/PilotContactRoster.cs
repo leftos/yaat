@@ -63,12 +63,13 @@ public sealed record PilotAnsweringPosition(
 /// </summary>
 public sealed class PilotContactRoster
 {
-    public static PilotContactRoster Empty { get; } = new([]);
+    public static PilotContactRoster Empty { get; } = new([], null);
 
-    private PilotContactRoster(IReadOnlyList<PilotAnsweringPosition> positions)
+    private PilotContactRoster(IReadOnlyList<PilotAnsweringPosition> positions, StudentWorkedRange? studentRange)
     {
         Positions = positions;
         Student = positions.FirstOrDefault(p => p.Agent == PilotAnsweringAgent.Student);
+        StudentRange = studentRange;
     }
 
     /// <summary>AI entries first in ordinal position-id order, then the student (at most one).</summary>
@@ -76,24 +77,32 @@ public sealed class PilotContactRoster
 
     public PilotAnsweringPosition? Student { get; }
 
+    /// <summary>
+    /// The position types the student works; null when no range is set, and the student then answers every call type
+    /// no AI position takes.
+    /// </summary>
+    public StudentWorkedRange? StudentRange { get; }
+
     /// <summary>True when anyone answers pilots — the gate that replaced the solo-only pilot-call checks.</summary>
     public bool AnyAnswering => Positions.Count > 0;
 
     /// <summary>The roster a hand-built context implies: the student when solo training is on, nobody otherwise.</summary>
     public static PilotContactRoster ForStudent(bool soloTrainingMode, TrackOwner? studentPosition, string? studentPositionType, string? radioName) =>
         soloTrainingMode
-            ? new([new PilotAnsweringPosition(studentPosition, studentPositionType, radioName, null, [], PilotAnsweringAgent.Student)])
+            ? new([new PilotAnsweringPosition(studentPosition, studentPositionType, radioName, null, [], PilotAnsweringAgent.Student)], null)
             : Empty;
 
     /// <summary>
     /// Builds the roster: every AI-staffed position (sorted by position id; an AI entry that IS the student's position is
     /// dropped while solo training is on — the human answers), then the student when solo training is on, with the
-    /// vNAS radio name resolved from the ARTCC config.
+    /// vNAS radio name resolved from the ARTCC config. <paramref name="studentRange"/> limits the call types the student
+    /// answers; null keeps every type.
     /// </summary>
     public static PilotContactRoster Build(
         bool soloTrainingMode,
         TrackOwner? studentPosition,
         string? studentPositionType,
+        StudentWorkedRange? studentRange,
         IReadOnlyList<AiPositionConfig> aiStaffed,
         ArtccConfigRoot? artccConfig
     )
@@ -127,8 +136,32 @@ public sealed class PilotContactRoster
             );
         }
 
-        return positions.Count == 0 ? Empty : new PilotContactRoster(positions);
+        return positions.Count == 0 ? Empty : new PilotContactRoster(positions, studentRange);
     }
+
+    /// <summary>
+    /// Whether the student works clearance delivery at <paramref name="atAirportId"/>: with no range, a student on a
+    /// <c>…_DEL</c> position; with a range, when it takes in delivery there.
+    /// </summary>
+    public bool StudentWorksDeliveryAt(string? atAirportId)
+    {
+        if (StudentRange is null)
+        {
+            return Student?.Owner?.Callsign is { } callsign && callsign.EndsWith("_DEL", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return StudentRange.Works(AtcPositionLevel.Delivery, atAirportId);
+    }
+
+    /// <summary>
+    /// Whether the tower at <paramref name="atAirportId"/> is simulated silently: a student with a range that does not
+    /// take in the tower there, and no AI tower covering the airport.
+    /// </summary>
+    public bool TowerIsSimulatedAt(string? atAirportId) =>
+        (Student is not null)
+        && (StudentRange is not null)
+        && !StudentRange.Works(AtcPositionLevel.Tower, atAirportId)
+        && !AiTowerCabCovers("TWR", atAirportId);
 
     /// <summary>
     /// The airport an aircraft is physically on: its ground layout's airport, else the airport it was spawned at. Null
@@ -174,7 +207,11 @@ public sealed class PilotContactRoster
             return exact;
         }
 
-        if (Student is { } student && (!checkEligibility || PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, eligibility)))
+        if (
+            Student is { } student
+            && StudentAnswers(expectedPositionType, atAirportId)
+            && (!checkEligibility || PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, eligibility))
+        )
         {
             return student;
         }
@@ -211,6 +248,26 @@ public sealed class PilotContactRoster
         return null;
     }
 
+    private bool StudentAnswers(string expectedPositionType, string? atAirportId)
+    {
+        if (StudentRange is null)
+        {
+            return true;
+        }
+
+        return AtcPositionLevels.LevelOfType(expectedPositionType) is { } level && StudentRange.Works(level, atAirportId);
+    }
+
+    private bool AiTowerCabCovers(string positionType, string? atAirportId) =>
+        Positions.Any(position =>
+            (position.Agent == PilotAnsweringAgent.ControllerAi)
+            && string.Equals(position.PositionType, positionType, StringComparison.OrdinalIgnoreCase)
+            && ((position.AirportIds.Count == 0) || TowerCabCovers(position, atAirportId))
+        );
+
+    private static bool TowerCabCovers(PilotAnsweringPosition position, string? atAirportId) =>
+        !string.IsNullOrWhiteSpace(atAirportId) && position.AirportIds.Any(id => NavigationDatabase.AirportIdsMatch(id, atAirportId));
+
     private static bool Covers(PilotAnsweringPosition position, AircraftState aircraft, string? atAirportId, string? primaryAirportId)
     {
         if (position.AirportIds.Count == 0)
@@ -220,7 +277,7 @@ public sealed class PilotContactRoster
 
         if (position.IsTowerCab)
         {
-            return !string.IsNullOrWhiteSpace(atAirportId) && position.AirportIds.Any(id => NavigationDatabase.AirportIdsMatch(id, atAirportId));
+            return TowerCabCovers(position, atAirportId);
         }
 
         foreach (string candidate in PilotInitialContactEligibility.CandidateAirportIds(aircraft, primaryAirportId))

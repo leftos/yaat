@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Coast;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -121,6 +122,11 @@ public sealed class ScenarioSnapshotDto
     public TrackOwnerDto? StudentPosition { get; init; }
     public TcpDto? StudentTcp { get; init; }
     public string? StudentPositionType { get; init; }
+
+    // The lowest position type the solo student works, as the enum's number. Left out of the JSON while unset; a
+    // snapshot that predates it restores null, the student answering every call type.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AtcPositionLevel? StudentLowestWorkedLevel { get; init; }
 
     /// <summary>
     /// The resolved ATC roster (<c>SimScenarioState.AtcPositions</c>). Optional: absent in snapshots that predate it.

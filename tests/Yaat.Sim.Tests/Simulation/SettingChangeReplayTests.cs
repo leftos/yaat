@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -447,6 +448,54 @@ public class SettingChangeReplayTests(ITestOutputHelper output)
         Assert.Equal(AutoCrossRunwayMode.All, engine.Scenario!.AutoCrossRunwayMode);
         Assert.Equal(TimeSpan.FromSeconds(12), engine.Scenario.AutoAcceptDelay);
         Assert.Equal("AfterRollout", engine.Scenario.ClientAutoDeleteOverride);
+    }
+
+    [Fact]
+    public void StudentLowestWorkedLevel_ReplaysFromTheRecordedChange()
+    {
+        const string bundlePath = "TestData/66fd6538542e.zip";
+        SessionRecording? baseline = RecordingLoader.Load(bundlePath);
+        if (baseline is null)
+        {
+            output.WriteLine($"Skipped: {bundlePath} not present");
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+
+        SimulationEngine ReplayWith(List<RecordedAction> actions)
+        {
+            var recording = new SessionRecording
+            {
+                Version = baseline.Version,
+                ScenarioJson = baseline.ScenarioJson,
+                RngSeed = baseline.RngSeed,
+                WeatherJson = baseline.WeatherJson,
+                Actions = actions,
+                TotalElapsedSeconds = 1,
+                ScenarioName = baseline.ScenarioName,
+                ScenarioId = baseline.ScenarioId,
+                ArtccId = baseline.ArtccId,
+            };
+            var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+            engine.Replay(recording, 1);
+            return engine;
+        }
+
+        SimulationEngine set = ReplayWith([new RecordedSettingChange(0, "StudentLowestWorkedLevel", "GND")]);
+        Assert.Equal(AtcPositionLevel.Ground, set.Scenario!.StudentLowestWorkedLevel);
+
+        SimulationEngine cleared = ReplayWith([
+            new RecordedSettingChange(0, "StudentLowestWorkedLevel", "GND"),
+            new RecordedSettingChange(0, "StudentLowestWorkedLevel", ""),
+        ]);
+        Assert.Null(cleared.Scenario!.StudentLowestWorkedLevel);
     }
 
     /// <summary>

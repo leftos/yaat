@@ -242,6 +242,16 @@ public sealed partial class SimulationEngine
                     ApplyAutoCrossRunwayMode(scenario, acr ? AutoCrossRunwayMode.All : AutoCrossRunwayMode.Off);
                 }
                 break;
+            case "StudentLowestWorkedLevel":
+                if (setting.Value is "")
+                {
+                    scenario.StudentLowestWorkedLevel = null;
+                }
+                else if ((setting.Value is { } lowestCode) && Pilot.AtcPositionLevels.TryParse(lowestCode, out Pilot.AtcPositionLevel lowest))
+                {
+                    scenario.StudentLowestWorkedLevel = lowest;
+                }
+                break;
             case "AutoPullUpToParallel":
                 // Only affects future landing exits — no active-route walk needed.
                 if (bool.TryParse(setting.Value, out bool apup))

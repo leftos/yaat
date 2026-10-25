@@ -1316,6 +1316,33 @@ public class SnapshotRoundTripTests
         Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
     }
 
+    [Fact]
+    public void StudentLowestWorkedLevel_RoundTrips_AndIsOmittedWhenUnset()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        scenario.StudentLowestWorkedLevel = AtcPositionLevel.Ground;
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        scenario.StudentLowestWorkedLevel = null;
+        engine.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+        Assert.Equal(AtcPositionLevel.Ground, engine.Scenario!.StudentLowestWorkedLevel);
+        Assert.Contains("\"StudentLowestWorkedLevel\"", json, StringComparison.Ordinal);
+
+        engine.Scenario.StudentLowestWorkedLevel = null;
+        string unset = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        Assert.DoesNotContain("\"StudentLowestWorkedLevel\"", unset, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// A reload starts the frequency quiet: a reload-and-replay from zero must not inherit times recorded later in the
     /// run the load replaces, or the replay's first minute runs in the wrong band.

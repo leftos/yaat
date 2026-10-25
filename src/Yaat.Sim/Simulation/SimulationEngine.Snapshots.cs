@@ -179,6 +179,7 @@ public sealed partial class SimulationEngine
             Scenario.StudentTcp = scenarioDto.StudentTcp is not null ? Tcp.FromSnapshot(scenarioDto.StudentTcp) : null;
             World.StudentTcp = Scenario.StudentTcp;
             Scenario.StudentPositionType = scenarioDto.StudentPositionType;
+            Scenario.StudentLowestWorkedLevel = scenarioDto.StudentLowestWorkedLevel;
 
             // A pre-feature snapshot carries no roster; the loader's stays, because the scenario load is the roster's
             // other source (unlike the student position, whose only source is the snapshot on a Sim-side run).
