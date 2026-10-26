@@ -44,6 +44,7 @@ public partial class MainViewModel : ObservableObject
     private readonly VideoMapService _videoMapService = new();
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
+    private readonly TowerCabMapDownloader _towerCabMapDownloader = new(http: null, cacheRoot: null);
     private readonly PilotSpeechAlertService _pilotSpeechAlerts;
     private readonly PilotVoiceService _pilotVoice;
 
