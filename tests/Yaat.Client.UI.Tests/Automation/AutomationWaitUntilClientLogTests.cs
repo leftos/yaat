@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Handlers;
@@ -19,6 +21,8 @@ namespace Yaat.Client.UI.Tests.Automation;
 /// </summary>
 public sealed class AutomationWaitUntilClientLogTests : AutomationHostFixture
 {
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(2);
+
     private async Task<JsonElement> WaitUntil(Func<IAutomationState?> state, object parameters)
     {
         using AutomationHost host = StartHost(() => Windows, state);
@@ -62,6 +66,59 @@ public sealed class AutomationWaitUntilClientLogTests : AutomationHostFixture
     private static Func<IAutomationState?> StateOf(MainViewModel viewModel, string clientLogPath) =>
         () => new LogPathState(new MainViewModelAutomationState(viewModel), clientLogPath);
 
+    private static T OffUiThread<T>(Func<Task<T>> work) => Task.Run(work).GetAwaiter().GetResult();
+
+    private static void OffUiThread(Func<Task> work) => Task.Run(work).GetAwaiter().GetResult();
+
+    private static void OffUiThread(Action work) => Task.Run(work).GetAwaiter().GetResult();
+
+    /// <summary>Runs queued UI work until the polls reach <paramref name="count"/>, failing as hung once the hang guard passes.</summary>
+    private static void RunUntilPolls(Func<int> polls, int count)
+    {
+        var guard = Stopwatch.StartNew();
+        while (polls() < count)
+        {
+            Assert.True(guard.Elapsed < HangGuard, $"wait_until hung: poll {count} never ran");
+            Dispatcher.UIThread.RunJobs();
+            if (polls() < count)
+            {
+                Thread.Sleep(5);
+            }
+        }
+    }
+
+    /// <summary>A FakeTimeProvider that counts the timers made on it, so the test advances only once the wait has armed the one it means.</summary>
+    private sealed class TimerCountingClock(FakeTimeProvider inner) : TimeProvider
+    {
+        private int _created;
+
+        public override long TimestampFrequency => inner.TimestampFrequency;
+
+        public override long GetTimestamp() => inner.GetTimestamp();
+
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            ITimer timer = inner.CreateTimer(callback, state, dueTime, period);
+            Interlocked.Increment(ref _created);
+            return timer;
+        }
+
+        public void Advance(TimeSpan by) => inner.Advance(by);
+
+        /// <summary>Waits until the wait has created <paramref name="count"/> timers, failing as hung once the hang guard passes.</summary>
+        public void UntilCreated(int count)
+        {
+            var guard = Stopwatch.StartNew();
+            while (Volatile.Read(ref _created) < count)
+            {
+                Assert.True(guard.Elapsed < HangGuard, $"wait_until hung: timer {count} was never armed");
+                Thread.Sleep(5);
+            }
+        }
+    }
+
     [AvaloniaFact]
     public async Task ClientLogMatches_ALineWrittenAfterTheFirstPoll_Meets()
     {
@@ -101,23 +158,55 @@ public sealed class AutomationWaitUntilClientLogTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
-    public async Task ClientLogMatches_Timeout_ReportsLinesRead()
+    public void ClientLogMatches_Timeout_ReportsLinesRead()
     {
+        // Polls 1 and 2 run when the test says; then the UI thread is held, as a starved one is, while the wait reads the two
+        // lines and its clock passes the deadline: the answer counts the lines the wait read, not the last poll's view.
         using var log = new TempClientLog();
         var viewModel = new MainViewModel(new FakeFilePickerService());
+        var clock = new TimerCountingClock(new FakeTimeProvider());
+        int polls = 0;
+        IAutomationState? State()
+        {
+            polls++;
+            if (polls == 2)
+            {
+                log.Write("10:00:00.000 [info] filler one");
+                log.Write("10:00:00.001 [info] filler two");
+            }
 
-        JsonElement result = Result(
-            await WaitUntilAcross(
-                StateOf(viewModel, log.FilePath),
-                new { conditions = new[] { new { kind = "client_log_matches", pattern = "navigation database built" } }, timeoutMs = 500 },
-                () =>
-                {
-                    log.Write("10:00:00.000 [info] filler one");
-                    log.Write("10:00:00.001 [info] filler two");
-                }
-            )
+            return new LogPathState(new MainViewModelAutomationState(viewModel), log.FilePath);
+        }
+
+        using AutomationHost host = StartHost(() => Windows, State, clock);
+        AutomationPipeTestClient client = OffUiThread(Connect);
+        string request = JsonSerializer.Serialize(
+            new
+            {
+                id = ProtocolMethods.WaitUntil,
+                method = ProtocolMethods.WaitUntil,
+                @params = new { conditions = new[] { new { kind = "client_log_matches", pattern = "navigation database built" } }, timeoutMs = 500 },
+            }
         );
+        OffUiThread(() => client.WriteLineAsync(request));
+        clock.UntilCreated(1); // poll 1 queued, its answer timer armed
+        RunUntilPolls(() => polls, 1);
+        clock.UntilCreated(2); // the pause after poll 1
+        OffUiThread(() => clock.Advance(TimeSpan.FromMilliseconds(100)));
+        clock.UntilCreated(3); // poll 2 queued
+        RunUntilPolls(() => polls, 2);
+        clock.UntilCreated(4); // the pause after poll 2
+        OffUiThread(() => clock.Advance(TimeSpan.FromMilliseconds(100)));
+        clock.UntilCreated(5); // poll 3 queued: the read before it has taken both lines
+        OffUiThread(() => clock.Advance(TimeSpan.FromMilliseconds(300))); // deadline passes, poll 3 still held
 
+        string? reply = OffUiThread(client.ReadLineAsync);
+        Dispatcher.UIThread.RunJobs();
+        OffUiThread(() => client.DisposeAsync().AsTask());
+
+        Assert.NotNull(reply);
+        using var document = JsonDocument.Parse(reply);
+        JsonElement result = Result(document.RootElement);
         Assert.False(result.GetProperty("met").GetBoolean());
         Assert.Equal("no match (2 lines read)", LastValue(result, 0));
     }

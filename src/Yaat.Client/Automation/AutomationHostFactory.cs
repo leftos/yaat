@@ -31,7 +31,11 @@ public static class AutomationHostFactory
             return null;
         }
 
-        var host = new AutomationHost(pipeName, discoveryDirectory, rootsProvider, stateProvider, toolsProvider);
+        var host = new AutomationHost(
+            pipeName,
+            discoveryDirectory,
+            new AutomationSources(rootsProvider, stateProvider, toolsProvider, TimeProvider.System)
+        );
         try
         {
             host.Start();

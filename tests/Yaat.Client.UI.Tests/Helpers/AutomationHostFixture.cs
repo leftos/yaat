@@ -59,13 +59,27 @@ public abstract class AutomationHostFixture : IDisposable
     protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider, Func<IAutomationState?> stateProvider) =>
         StartHost(rootsProvider, stateProvider, () => null);
 
+    /// <summary>
+    /// Starts a host over <paramref name="rootsProvider"/> and <paramref name="stateProvider"/> that measures a wait's
+    /// timeout on <paramref name="clock"/>, with no app tools to call.
+    /// </summary>
+    protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider, Func<IAutomationState?> stateProvider, TimeProvider clock) =>
+        StartHost(rootsProvider, stateProvider, () => null, clock);
+
     protected AutomationHost StartHost(
         Func<IEnumerable<TopLevel>> rootsProvider,
         Func<IAutomationState?> stateProvider,
         Func<AutomationTools?> toolsProvider
+    ) => StartHost(rootsProvider, stateProvider, toolsProvider, TimeProvider.System);
+
+    private AutomationHost StartHost(
+        Func<IEnumerable<TopLevel>> rootsProvider,
+        Func<IAutomationState?> stateProvider,
+        Func<AutomationTools?> toolsProvider,
+        TimeProvider clock
     )
     {
-        var host = new AutomationHost(PipeName, DiscoveryDirectory, rootsProvider, stateProvider, toolsProvider);
+        var host = new AutomationHost(PipeName, DiscoveryDirectory, new AutomationSources(rootsProvider, stateProvider, toolsProvider, clock));
         host.Start();
         return host;
     }

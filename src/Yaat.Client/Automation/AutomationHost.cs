@@ -3,9 +3,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Text;
-using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
-using Yaat.Client.Automation.Tools;
 using Yaat.Client.Automation.Transport;
 using Yaat.Client.Automation.Tree;
 using Yaat.Client.Logging;
@@ -18,21 +16,13 @@ namespace Yaat.Client.Automation;
 /// </summary>
 /// <param name="pipeName">The pipe's name, unique per process.</param>
 /// <param name="discoveryDirectory">The directory the discovery file <c>&lt;pid&gt;.json</c> is written to.</param>
-/// <param name="rootsProvider">The top-level windows to report; read on the UI thread.</param>
-/// <param name="stateProvider">The simulation state, or null while the main window is not up; read on the UI thread.</param>
-/// <param name="toolsProvider">The app tools bound to the main window's view model, or null while it is not up; read on the UI thread.</param>
-public sealed class AutomationHost(
-    string pipeName,
-    string discoveryDirectory,
-    Func<IEnumerable<TopLevel>> rootsProvider,
-    Func<IAutomationState?> stateProvider,
-    Func<AutomationTools?> toolsProvider
-) : IDisposable
+/// <param name="sources">Where the windows, simulation state and app tools are read, and the clock the wait timeouts run on.</param>
+public sealed class AutomationHost(string pipeName, string discoveryDirectory, AutomationSources sources) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger("AutomationHost");
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    private readonly AutomationDispatcher _dispatcher = new(new NodeRegistry(rootsProvider), stateProvider, toolsProvider);
+    private readonly AutomationDispatcher _dispatcher = new(new NodeRegistry(sources.Roots), sources.State, sources.Tools, sources.Time);
     private readonly NamedPipeTransport _transport = new(pipeName);
     private readonly DiscoveryFile _discoveryFile = new(discoveryDirectory, pipeName);
     private int _disposed;

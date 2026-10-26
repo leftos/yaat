@@ -10,7 +10,7 @@ namespace Yaat.Client.Automation.Handlers;
 
 /// <summary>
 /// <c>wait_until</c>: polls the simulation state the client sees on the UI thread every 100 ms until its <c>conditions</c>
-/// hold (any one, or all with <c>mode: all</c>) or <c>timeoutMs</c> (default 30000, clamped to 100–600000) of wall time runs
+/// hold (any one, or all with <c>mode: all</c>) or <c>timeoutMs</c> (default 30000, clamped to 100–600000) on the host's clock runs
 /// out. Conditions: <c>on_ground</c>, <c>landed</c> (on the ground after being airborne at an earlier poll of this wait),
 /// <c>phase_is</c> and <c>phase_is_not</c> (case-insensitive, exact), <c>queue_empty</c> (no pending conditional commands),
 /// each with a <c>callsign</c>; <c>log_matches</c> (a terminal line added after the call matching <c>pattern</c>, from
@@ -22,7 +22,7 @@ namespace Yaat.Client.Automation.Handlers;
 /// never a timeout error; while the main window is not up it is <c>UNSUPPORTED_OPERATION</c>. The poll stops when the
 /// client disconnects or the host stops.
 /// </summary>
-public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, ScreenshotHandler screenshots) : IRequestHandler
+public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, ScreenshotHandler screenshots, TimeProvider time) : IRequestHandler
 {
     private static readonly ILogger Log = AppLog.CreateLogger("WaitUntilHandler");
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(100);
@@ -36,6 +36,13 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
     /// no log file for a <c>client_log_matches</c> to read (<paramref name="NoClientLog"/>).
     /// </summary>
     private sealed record Decision(bool NoState, bool NoClientLog, WaitUntilResult Result, object? Captured, IReadOnlyList<StartedAction> Started);
+
+    /// <summary>The clock a wait measures its timeout and polls on, and the timestamp it started at.</summary>
+    private readonly record struct WaitClock(TimeProvider Clock, long Start)
+    {
+        /// <summary>The time that has passed since the wait started, on <see cref="Clock"/>.</summary>
+        public TimeSpan Elapsed => Clock.GetElapsedTime(Start);
+    }
 
     public string Method => ProtocolMethods.WaitUntil;
 
@@ -52,7 +59,7 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
 
     private async Task<object> Poll(Progress progress, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var clock = new WaitClock(time, time.GetTimestamp());
         var timeout = TimeSpan.FromMilliseconds(progress.Parameters.TimeoutMs);
         while (true)
         {
@@ -61,10 +68,10 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             {
                 // The client log is read here, off the UI thread, before the poll that looks at what it found.
                 progress.ReadClientLog();
-                decision = await PollWithin(progress, stopwatch, timeout - stopwatch.Elapsed, cancellationToken).ConfigureAwait(false);
+                decision = await PollWithin(progress, clock, timeout - clock.Elapsed, cancellationToken).ConfigureAwait(false);
                 if (decision is null)
                 {
-                    await Task.Delay(PollDelay(timeout - stopwatch.Elapsed), cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(PollDelay(timeout - clock.Elapsed), time, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -79,13 +86,13 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
                 return await Answer(decision, cancellationToken).ConfigureAwait(false);
             }
 
-            if (stopwatch.Elapsed >= timeout)
+            if (clock.Elapsed >= timeout)
             {
                 // A poll the UI thread ran after this wait stopped waiting for it may still have decided; its answer stands.
                 Decision? late = progress.Close();
                 return (late is not null)
                     ? await Answer(late, cancellationToken).ConfigureAwait(false)
-                    : progress.NotMet((int)stopwatch.ElapsedMilliseconds);
+                    : progress.NotMet((int)clock.Elapsed.TotalMilliseconds);
             }
         }
     }
@@ -113,7 +120,7 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
     /// One poll on the UI thread; null when the conditions do not hold or the UI thread does not run it within
     /// <paramref name="remaining"/>.
     /// </summary>
-    private async Task<Decision?> PollWithin(Progress progress, Stopwatch stopwatch, TimeSpan remaining, CancellationToken cancellationToken)
+    private async Task<Decision?> PollWithin(Progress progress, WaitClock clock, TimeSpan remaining, CancellationToken cancellationToken)
     {
         if (remaining <= TimeSpan.Zero)
         {
@@ -123,9 +130,9 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
         try
         {
             return await Dispatcher
-                .UIThread.InvokeAsync(() => progress.Poll(stateProvider, stopwatch, cancellationToken))
+                .UIThread.InvokeAsync(() => progress.Poll(stateProvider, clock, cancellationToken))
                 .GetTask()
-                .WaitAsync(remaining, cancellationToken)
+                .WaitAsync(remaining, clock.Clock, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (TimeoutException)
@@ -244,7 +251,7 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
         public WaitUntilParams Parameters => parameters;
 
         /// <summary>Evaluates every condition against the state, on the UI thread; the decision when the wait is over, else null.</summary>
-        public Decision? Poll(Func<IAutomationState?> stateProvider, Stopwatch stopwatch, CancellationToken cancellationToken)
+        public Decision? Poll(Func<IAutomationState?> stateProvider, WaitClock clock, CancellationToken cancellationToken)
         {
             lock (_gate)
             {
@@ -271,7 +278,7 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
                     return null;
                 }
 
-                WaitUntilResult result = Result(met: true, (int)stopwatch.ElapsedMilliseconds);
+                WaitUntilResult result = Result(met: true, (int)clock.Elapsed.TotalMilliseconds);
                 // The capture comes first, so it shows the state that met the conditions rather than what the actions change.
                 object? captured = Capture();
                 List<StartedAction> started = [.. parameters.Then.Select(action => Start(state, action))];
@@ -289,10 +296,26 @@ public sealed class WaitUntilHandler(Func<IAutomationState?> stateProvider, Scre
             }
         }
 
+        /// <summary>
+        /// The answer for a wait that ran out of time: each unmatched <c>client_log_matches</c> takes the reader's count of every
+        /// line read so far, including lines read after the last poll, so the answer counts what the wait read rather than a held
+        /// poll's view.
+        /// </summary>
         public WaitUntilResult NotMet(int elapsedMs)
         {
             lock (_gate)
             {
+                if (_polled)
+                {
+                    for (int index = 0; index < parameters.Conditions.Count; index++)
+                    {
+                        if ((parameters.Conditions[index].Kind == WaitUntilKind.ClientLogMatches) && (_matched[index] is null))
+                        {
+                            _last[index] = EvaluateClientLog(index).Value;
+                        }
+                    }
+                }
+
                 return Result(met: false, elapsedMs);
             }
         }
