@@ -4,16 +4,14 @@
 
 ## Do first
 
-- [/] YAAT-1221 Solo push request skips the clearance request when the student works delivery · release vNext — High · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [ ] YAAT-1214 Place unpaired hold-short points by the reviewed standoff rule (ILS category, elevation, angled taxiways) · release vNext
+  - [/] YAAT-1214 Place unpaired hold-short points by the reviewed standoff rule (ILS category, elevation, angled taxiways) · release vNext
   - [ ] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
-  - [ ] YAAT-1217 Fetch each airport's tower-cab videomap on yaat-server and feed it to the layout parse · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
 
 ## Controller-AI coaching
@@ -702,7 +700,6 @@
 - [ ] YAAT-881 yaat-nextup: build at-risk tests from staged figures on a threshold change
 - [ ] YAAT-894 Validate a recording's strip rack keys when it is imported
 - [ ] YAAT-897 Find why KMIA taxiways M, M1L, N, P and Q share one coincident edge #320→#319
-- [ ] YAAT-902 Make ExitFlyoutTests initialise the navigation database itself (4 fail when the class runs alone)
 - [ ] YAAT-903 Stop the bounded taxi detour charging a runway-exit holding bar as a second crossing (SFO S1 bar #840)
 - [ ] YAAT-924 Track a JRADO radial with wind correction after the intercept
 - [ ] YAAT-925 Log exceptions from the flyouts' async key handlers
@@ -816,3 +813,4 @@
 - [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals
 - [ ] YAAT-1228 Fill missing airline telephonies (JSX Big Stripe) from JO 7340.2 ch. 3
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
+- [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
