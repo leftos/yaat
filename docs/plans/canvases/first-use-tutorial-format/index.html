@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tutorial Step Format</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #171a1f;
+    --surface-2: #1f232a;
+    --border: #2c313a;
+    --text: #e6e8eb;
+    --muted: #9aa3ad;
+    --faint: #6b737d;
+    --accent: #f2b33d;
+    --accent-soft: rgba(242, 179, 61, 0.16);
+    --done: #4cb782;
+    --desk: #1a2230;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    padding: 32px 16px 56px;
+  }
+  main { max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; font-weight: 650; }
+  .lede { color: var(--muted); margin: 0 0 18px; max-width: 900px; }
+  .step-spec {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 36px;
+    font-size: 13.5px;
+  }
+  .step-spec b { color: var(--accent); }
+  kbd {
+    font: 600 11.5px/1 "Cascadia Mono", Consolas, monospace;
+    background: #2a2f38;
+    border: 1px solid #434a55;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  section.lane { margin-bottom: 44px; }
+  .lane-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .lane-letter {
+    flex: none;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #1b1406;
+    font-weight: 750;
+    display: grid; place-items: center;
+    font-size: 15px;
+  }
+  .lane-head h2 { margin: 0; font-size: 18px; font-weight: 650; }
+  .lane-head span.sub { color: var(--muted); font-size: 13px; }
+  .notes { margin: 10px 0 0; padding: 0; list-style: none; font-size: 13.5px; }
+  .notes li { padding: 3px 0; }
+  .notes .k { display: inline-block; width: 92px; color: var(--muted); }
+  .notes .worst .k { color: #e8806f; }
+
+  /* Every lane draws the same 1600x1000 screenshot; anchors are % of it. */
+  .shot { position: relative; width: 100%; line-height: 0; }
+  .shot img { width: 100%; display: block; }
+  .frame { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #000; }
+
+  /* The Ground View tab in the screenshot: x 86-168, y 38-62 of 1600x1000. */
+  .target {
+    position: absolute;
+    left: 5.375%; top: 3.8%;
+    width: 5.125%; height: 2.4%;
+    border-radius: 4px;
+  }
+  .target.outline {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px var(--accent-soft);
+  }
+
+  /* Lane A: coach mark */
+  .target.spotlight {
+    box-shadow: 0 0 0 3px var(--accent), 0 0 0 4000px rgba(0, 0, 0, 0.74);
+  }
+  .callout-arrow {
+    position: absolute;
+    left: calc(7.9% - 9px);
+    top: calc(6.2% + 5px);
+    width: 0; height: 0;
+    border: 9px solid transparent;
+    border-bottom-color: var(--surface-2);
+    border-top: 0;
+    z-index: 3;
+  }
+  .callout {
+    position: absolute;
+    left: 2.2%;
+    top: calc(6.2% + 14px);
+    width: 330px;
+    z-index: 2;
+  }
+  .card {
+    line-height: 1.45;
+    background: var(--surface-2);
+    border: 1px solid #3a404b;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    padding: 12px 14px 12px;
+    font-size: 13px;
+  }
+  .step-num { color: var(--accent); font-size: 11.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+  .card h3 { margin: 2px 0 4px; font-size: 15px; font-weight: 650; }
+  .card p { margin: 0 0 10px; color: #cfd4da; }
+  .dots { display: flex; gap: 4px; margin: 8px 0 10px; }
+  .dots i { width: 14px; height: 4px; border-radius: 2px; background: #3a404b; }
+  .dots i.on { background: var(--accent); }
+  .dots i.done { background: #8a6a2c; }
+  .actions { display: flex; align-items: center; gap: 8px; }
+  .btn {
+    font-size: 12.5px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid #4a515d;
+    background: #2a2f38;
+    color: var(--text);
+  }
+  .wait { margin-left: auto; color: var(--faint); font-size: 11.5px; font-style: italic; }
+
+  /* Lane B: docked panel */
+  .win { position: relative; aspect-ratio: 1600 / 1000; line-height: 0; }
+  .win .views { position: absolute; left: 0; top: 0; bottom: 0; width: 77%; overflow: hidden; }
+  .win .views img { width: calc(100% / 0.77); display: block; }
+  .win .views .target { left: calc(5.375% / 0.77); width: calc(5.125% / 0.77); }
+  .dock {
+    position: absolute; right: 0; top: 3.6%; bottom: 0; width: 23%;
+    line-height: 1.45;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 12px 12px;
+    font-size: 12.5px;
+    display: flex; flex-direction: column;
+  }
+  .dock-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .dock-head b { font-size: 13.5px; }
+  .dock-head .x { color: var(--faint); font-size: 12px; }
+  .bar { height: 4px; background: #2c313a; border-radius: 2px; margin: 8px 0 10px; }
+  .bar i { display: block; height: 100%; width: 33%; background: var(--accent); border-radius: 2px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: flex; gap: 8px; padding: 5px 4px; color: var(--muted); border-radius: 4px; }
+  .steps li .n {
+    flex: none; width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid #4a515d; font-size: 10.5px; display: grid; place-items: center;
+  }
+  .steps li.done { color: var(--faint); }
+  .steps li.done .n { background: var(--done); border-color: var(--done); color: #08130d; }
+  .steps li.cur { background: var(--accent-soft); color: var(--text); flex-direction: column; gap: 6px; padding: 8px; }
+  .steps li.cur .row { display: flex; gap: 8px; font-weight: 650; }
+  .steps li.cur .n { background: var(--accent); border-color: var(--accent); color: #1b1406; }
+  .steps li.cur p { margin: 0 0 0 26px; color: #cfd4da; }
+  .steps li.cur .actions { margin-left: 26px; }
+  .dock-foot { margin-top: auto; color: var(--faint); font-size: 11.5px; }
+
+  /* Lane C: floating window on a desktop */
+  .desk {
+    position: relative;
+    background: radial-gradient(ellipse at 70% 20%, #24324a 0%, var(--desk) 60%, #121822 100%);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 22px 22px 22px;
+    overflow: hidden;
+  }
+  .desk .mainwin {
+    width: 73%;
+    border: 1px solid #3a404b;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    background: #000;
+  }
+  .titlebar {
+    line-height: 1;
+    height: 26px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 8px 0 10px;
+    background: #20242b;
+    border-bottom: 1px solid #343a44;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .titlebar .ctl { letter-spacing: 10px; color: var(--faint); }
+  .float {
+    position: absolute;
+    left: calc(73% + 34px);
+    top: 70px;
+    width: 300px;
+    border: 1px solid #4a515d;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.65);
+    background: var(--surface-2);
+  }
+  .float .card { border: 0; border-radius: 0; box-shadow: none; }
+  .pin { color: var(--accent); font-size: 11px; }
+
+  /* After-state strip */
+  .after { display: flex; gap: 18px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px; }
+  .after .shot { width: 360px; flex: none; }
+  .after p { margin: 0; color: var(--muted); }
+  .after p b { color: var(--text); }
+  .fine { color: var(--faint); font-size: 12px; margin-top: 28px; }
+
+  @media (max-width: 760px) {
+    .callout { width: 250px; }
+    .dock { font-size: 11px; }
+    .float { position: static; width: auto; margin-top: 16px; }
+    .desk .mainwin { width: 100%; }
+    .after { flex-direction: column; align-items: flex-start; }
+    .after .shot { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>YAAT-1253 · First-use tutorial: how a step looks</h1>
+  <p class="lede">The same tutorial step drawn three ways over the real client (OAK Clearances Intro, Aircraft List tab). Each lane is a candidate for how the guided tour presents itself; pick one, or a mix.</p>
+
+  <div class="step-spec">
+    <b>Step 3 of 9 — Open the Ground view:</b> click the Ground tab or press <kbd>Ctrl+Shift+G</kbd>.
+    &nbsp;[Skip] [Back]&nbsp; · Next advances when you do it (no Next button: the step completes when the Ground View tab is selected).
+  </div>
+
+  <!-- A: Coach mark -->
+  <section class="lane" id="lane-a">
+    <div class="lane-head">
+      <div class="lane-letter">A</div>
+      <h2>Coach mark</h2>
+      <span class="sub">dimmed backdrop, spotlight cut-out on the Ground tab, callout anchored to it</span>
+    </div>
+    <div class="frame">
+      <div class="shot">
+        <img src="main-window-aircraft-list.png" alt="YAAT main window, Aircraft List tab, 18 aircraft at OAK">
+        <div class="target spotlight"></div>
+        <div class="callout-arrow"></div>
+        <div class="callout">
+          <div class="card">
+            <div class="step-num">Step 3 of 9</div>
+            <h3>Open the Ground view</h3>
+            <p>Click the <b>Ground View</b> tab or press <kbd>Ctrl+Shift+G</kbd>.</p>
+            <div class="dots"><i class="done"></i><i class="done"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="actions"><span class="btn">Back</span><span class="btn">Skip</span><span class="wait">Next advances when you do it</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="k">Behaves</span>An overlay layer over the main window; only the spotlit control takes clicks, the hotkey still works, and the callout follows the control.</li>
+      <li class="worst"><span class="k">Worst case</span>Blocks the rest of the window while a step waits: no reading the grid or typing a command until the user does the step or skips.</li>
+    </ul>
+  </section>
+
+  <!-- B: Docked guide panel -->
+  <section class="lane" id="lane-b">
+    <div class="lane-head">
+      <div class="lane-letter">B</div>
+      <h2>Docked guide panel</h2>
+      <span class="sub">narrow panel on the right of the main window, step list, target outlined, no dimming</span>
+    </div>
+    <div class="frame">
+      <div class="win">
+        <div class="views">
+          <img src="main-window-aircraft-list.png" alt="YAAT main window, narrowed by the docked panel">
+          <div class="target outline"></div>
+        </div>
+        <aside class="dock">
+          <div class="dock-head"><b>Getting started</b><span class="x">Hide ✕</span></div>
+          <div class="bar"><i></i></div>
+          <ol class="steps">
+            <li class="done"><span class="n">✓</span>Connect to a server</li>
+            <li class="done"><span class="n">✓</span>Load a scenario</li>
+            <li class="cur">
+              <div class="row"><span class="n">3</span>Open the Ground view</div>
+              <p>Click the <b>Ground View</b> tab or press <kbd>Ctrl+Shift+G</kbd>.</p>
+              <div class="actions"><span class="btn">Back</span><span class="btn">Skip</span></div>
+              <p class="wait" style="margin-left:26px">Next advances when you do it</p>
+            </li>
+            <li><span class="n">4</span>Open the Radar view</li>
+            <li><span class="n">5</span>Select an aircraft</li>
+            <li><span class="n">6</span>Send a first command</li>
+            <li><span class="n">7</span>Save a favorite</li>
+            <li><span class="n">8</span>Write a macro</li>
+            <li><span class="n">9</span>Set your command verbs</li>
+          </ol>
+          <div class="dock-foot">Steps 4–9 are illustrative.</div>
+        </aside>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="k">Behaves</span>Part of the main window's layout; the whole tour stays visible, the app stays fully usable, and the outline marks where to act.</li>
+      <li class="worst"><span class="k">Worst case</span>Takes width from the views: the grid loses its right-hand columns (here everything past Name) and the radar and ground scopes shrink while the panel is open.</li>
+    </ul>
+  </section>
+
+  <!-- C: Floating guide window -->
+  <section class="lane" id="lane-c">
+    <div class="lane-head">
+      <div class="lane-letter">C</div>
+      <h2>Floating guide window</h2>
+      <span class="sub">small always-on-top window beside the main window, target outlined</span>
+    </div>
+    <div class="desk">
+      <div class="mainwin">
+        <div class="titlebar"><span>YAAT</span><span class="ctl">–□✕</span></div>
+        <div class="shot">
+          <img src="main-window-aircraft-list.png" alt="YAAT main window at full width">
+          <div class="target outline"></div>
+        </div>
+      </div>
+      <div class="float">
+        <div class="titlebar"><span>YAAT tour</span><span class="pin">📌 on top</span></div>
+        <div class="card">
+          <div class="step-num">Step 3 of 9</div>
+          <h3>Open the Ground view</h3>
+          <p>Click the <b>Ground View</b> tab in the main window, or press <kbd>Ctrl+Shift+G</kbd>.</p>
+          <div class="bar"><i></i></div>
+          <div class="actions"><span class="btn">Back</span><span class="btn">Skip</span><span class="wait">Next advances when you do it</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="k">Behaves</span>Its own window, so it can sit beside any YAAT window (pop-outs, Settings) and the main window keeps its full width.</li>
+      <li class="worst"><span class="k">Worst case</span>Can be lost behind other windows or left on another monitor, far from the control it points at; the outline is the only link between them.</li>
+    </ul>
+  </section>
+
+  <!-- After -->
+  <section class="lane">
+    <div class="lane-head">
+      <div class="lane-letter" style="background:var(--done)">✓</div>
+      <h2>When the user does it</h2>
+    </div>
+    <div class="after">
+      <div class="shot frame"><img src="ground-view.png" alt="YAAT Ground View tab at OAK"></div>
+      <p><b>Ground View tab selected</b> (by click or <kbd>Ctrl+Shift+G</kbd>): the step completes on its own and every format moves to Step 4. In A the spotlight jumps to the next target; in B step 3 collapses with a tick; in C the window's text changes in place.</p>
+    </div>
+  </section>
+
+  <p class="fine">Screenshots: docs/user-guide/img/main-window-overview.png and ground-view.png (GuideCapture). Ground View hotkey is the default binding, rebindable in Settings › Keys. Tutorial chrome is drawn in HTML over the screenshots; colours and sizes are indicative.</p>
+</main>
+</body>
+</html>
