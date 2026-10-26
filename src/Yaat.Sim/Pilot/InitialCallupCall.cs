@@ -11,15 +11,17 @@ namespace Yaat.Sim.Pilot;
 /// stand call (<c>AtParkingPhase</c>), the after-push call (<c>HoldingAfterPushbackPhase</c>, or <c>AtParkingPhase</c>
 /// on the stand a tow ended on) and the after-taxi-arrival call (<c>HoldingInPositionPhase</c>, <c>HoldingShortPhase</c>).
 /// Each caller waits its own delay first; the call then waits for someone answering ground at the airport and for a
-/// pacing slot, exactly as the stand call does. A student working clearance delivery at the airport gets a clearance
-/// request instead; no taxi call follows it unless the student works ground there too, and then the ground call comes
-/// once the clearance is obtained.
+/// pacing slot, exactly as the stand call does. Only the stand call asks for a clearance: an IFR departure from the airport
+/// it is on, with no clearance yet, asks the student for it first — a delivery student, else the student answering ground
+/// when nobody else covers delivery there — and no ground call follows that request unless the student answers ground there
+/// too, in which case it comes once the clearance is obtained. An aircraft a preset (or a controller) already pushed or
+/// taxied counts as cleared and makes its ground call.
 /// </summary>
 public static class InitialCallupCall
 {
     /// <summary>
-    /// The least time between a departure's clearance request being answered and its ready-to-taxi call to the same student,
-    /// seconds: the crew copies and sets up the clearance first (a judgement; no published figure).
+    /// The least time between a departure's clearance request being answered and its ready-to-taxi or pushback request to the
+    /// same student, seconds: the crew copies and sets up the clearance first (a judgement; no published figure).
     /// </summary>
     public const double TaxiCallAfterClearanceSeconds = 30.0;
 
@@ -91,8 +93,12 @@ public static class InitialCallupCall
     /// Makes the initial call from <paramref name="location"/> once someone answers ground at the airport and a pacing slot
     /// is free: queues the line, records the open Taxi request, marks the aircraft as having called and the decision
     /// processed. A jet or turboprop on a push-back stand asks for pushback instead: the open request is a Pushback one,
-    /// and the decision stays open as the after-push call (<see cref="MakePushbackRequest"/>). Returns false, changing
-    /// nothing, when nobody answers or no slot is free; the caller retries next tick.
+    /// and the decision stays open as the after-push call (<see cref="MakePushbackRequest"/>). A stand call from an IFR
+    /// departure with no clearance asks for the clearance first (<see cref="TryMakeClearanceRequest"/>), to a delivery
+    /// student or, delivery outside the worked range, to the student answering ground; the pushback or taxi request follows
+    /// once it is answered. A call from an aircraft a preset or a controller already pushed or taxied
+    /// (<see cref="CallsFromTheStand"/> false) counts as cleared and asks for the pushback or taxi instead. Returns false,
+    /// changing nothing, when nobody answers or no slot is free; the caller retries next tick.
     /// </summary>
     public static bool TryMake(PhaseContext ctx, ReadyToTaxiLocation location)
     {
@@ -105,7 +111,7 @@ public static class InitialCallupCall
         string? atAirportId = PilotContactRoster.SurfaceAirportOf(ctx.Aircraft);
         if (DeliveryStudentAt(ctx, atAirportId) is { } delivery)
         {
-            return TryMakeClearanceRequest(ctx, delivery, atAirportId, location);
+            return TryMakeClearanceRequest(ctx, delivery, atAirportId, location, "clearance");
         }
 
         // A crew that has just copied its clearance sets up before it calls for taxi; the call is still owed meanwhile.
@@ -121,6 +127,13 @@ public static class InitialCallupCall
         if (GroundAnswering(ctx, atAirportId) is not { } answering)
         {
             return false;
+        }
+
+        // Top-down coverage: an uncleared IFR departure from this airport asks the student for its clearance before anything
+        // else, and the pushback or taxi request follows once it is answered.
+        if (AsksForItsClearanceFirst(ctx, answering, atAirportId))
+        {
+            return TryMakeClearanceRequest(ctx, answering, atAirportId, location, "ground");
         }
 
         if (!TryReserveSlot(ctx))
@@ -186,8 +199,8 @@ public static class InitialCallupCall
 
     /// <summary>
     /// Whether the initial call can come at all: the pacing rate is above zero and someone answers it (a delivery student at
-    /// the airport, or someone answering ground there under the SOP), and no clearance request of the aircraft's is still
-    /// open. Pacing slots are not consulted: a call waiting for a slot still comes.
+    /// the airport on a stand call, or someone answering ground there under the SOP), and no clearance request of the
+    /// aircraft's is still open. Pacing slots are not consulted: a call waiting for a slot still comes.
     /// </summary>
     public static bool CanCall(PhaseContext ctx)
     {
@@ -202,6 +215,32 @@ public static class InitialCallupCall
 
     private static PilotAnsweringPosition? GroundAnswering(PhaseContext ctx, string? atAirportId) =>
         ctx.PilotContacts.ResolveFor(ctx.Aircraft, "GND", atAirportId, ctx.ToEligibilityContext(), true);
+
+    /// <summary>
+    /// Whether the call is the aircraft's clearance request rather than its ground request: the stand call of an IFR
+    /// departure from the airport it is on, with no clearance yet, calling the student when nobody else covers delivery
+    /// there (the pilot knows delivery is offline). An aircraft a preset or a controller already pushed or taxied
+    /// (<see cref="CallsFromTheStand"/> false) counts as cleared and asks for ground instead. An AI ground is never asked:
+    /// nothing would answer a clearance given to it.
+    /// </summary>
+    private static bool AsksForItsClearanceFirst(PhaseContext ctx, PilotAnsweringPosition answering, string? atAirportId) =>
+        CallsFromTheStand(ctx.Aircraft)
+        && (answering.Agent == PilotAnsweringAgent.Student)
+        && !ctx.Aircraft.FlightPlan.IsVfr
+        && (ctx.Aircraft.Ground.ClearanceObtainedAtSeconds is null)
+        && DepartsFrom(ctx.Aircraft, atAirportId)
+        && !ctx.PilotContacts.DeliveryCoveredByAnother(atAirportId);
+
+    /// <summary>
+    /// Whether the aircraft still makes its stand call, the only call that asks for a clearance: a preset push or taxi (or
+    /// a controller's <c>PUSH</c>) replaces <see cref="InitialCallupPlan.StandCall"/> with an after-push or after-taxi-arrival
+    /// plan, so the aircraft is already past its clearance and makes its ordinary ground call.
+    /// </summary>
+    private static bool CallsFromTheStand(AircraftState aircraft) => aircraft.Ground.InitialCallup == InitialCallupPlan.StandCall;
+
+    /// <summary>Whether the flight plan departs from <paramref name="atAirportId"/>, in either its ICAO or its FAA form.</summary>
+    private static bool DepartsFrom(AircraftState aircraft, string? atAirportId) =>
+        NavigationDatabase.AirportIdsMatch(aircraft.FlightPlan.Departure, atAirportId);
 
     private static bool PacingAllowsCalls(PhaseContext ctx) =>
         ScenarioPacing.ClampParkingInitialCallupPercent(ctx.SoloParkingInitialCallupRatePercent) > 0;
@@ -235,16 +274,19 @@ public static class InitialCallupCall
 
     /// <summary>
     /// The solo student when they work clearance delivery at the airport the aircraft is on
-    /// (<see cref="PilotContactRoster.StudentWorksDeliveryAt"/>), the aircraft has no clearance yet
-    /// (<see cref="AircraftGroundOps.ClearanceObtainedAtSeconds"/>) and the SOP lets the aircraft call them; null otherwise. A
-    /// delivery student takes the first call even when an AI ground answers at the airport.
+    /// (<see cref="PilotContactRoster.StudentWorksDeliveryAt"/>), the aircraft departs from that airport, has no clearance yet
+    /// (<see cref="AircraftGroundOps.ClearanceObtainedAtSeconds"/>), makes its stand call and the SOP lets the aircraft call
+    /// them; null otherwise. A delivery student takes the first call even when an AI ground answers at the airport, and an
+    /// aircraft a preset or a controller already pushed or taxied counts as cleared, so delivery gets no call from it.
     /// </summary>
     private static PilotAnsweringPosition? DeliveryStudentAt(PhaseContext ctx, string? atAirportId)
     {
         if (
             (ctx.Aircraft.Ground.ClearanceObtainedAtSeconds is not null)
+            || !CallsFromTheStand(ctx.Aircraft)
             || (ctx.PilotContacts.Student is not { } student)
             || string.IsNullOrWhiteSpace(atAirportId)
+            || !DepartsFrom(ctx.Aircraft, atAirportId)
             || !ctx.PilotContacts.StudentWorksDeliveryAt(atAirportId)
         )
         {
@@ -259,13 +301,21 @@ public static class InitialCallupCall
         aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance };
 
     /// <summary>
-    /// The first call to a delivery student: an IFR clearance request, or a VFR departure request naming a direction of
-    /// flight (chosen once and kept on <see cref="AircraftGroundOps.VfrDepartureDirection"/>) and the filed altitude. It
-    /// records the open <see cref="PilotPendingRequestKind.Clearance"/> request. The decision closes, so no taxi call
-    /// follows, unless the student also works ground at the airport: then it stays open, and once the clearance is
-    /// obtained the next call-up is the ordinary ground call to the same student.
+    /// The first call to the solo student — a delivery student, or, with delivery outside the worked range, the student
+    /// answering ground: an IFR clearance request, or a VFR departure request naming a direction of flight (chosen once and
+    /// kept on <see cref="AircraftGroundOps.VfrDepartureDirection"/>) and the filed altitude. It records the open
+    /// <see cref="PilotPendingRequestKind.Clearance"/> request, addressed by the addressee's radio name when it works ground
+    /// and by <paramref name="fallbackFacilityWord"/> otherwise. The decision closes, so no further call follows, unless the
+    /// student also answers ground at the airport: then it stays open, and once the clearance is obtained the next call-up
+    /// is the ground call (pushback or ready to taxi) to the same student.
     /// </summary>
-    private static bool TryMakeClearanceRequest(PhaseContext ctx, PilotAnsweringPosition delivery, string? atAirportId, ReadyToTaxiLocation location)
+    private static bool TryMakeClearanceRequest(
+        PhaseContext ctx,
+        PilotAnsweringPosition answering,
+        string? atAirportId,
+        ReadyToTaxiLocation location,
+        string fallbackFacilityWord
+    )
     {
         if (!TryReserveSlot(ctx))
         {
@@ -278,7 +328,7 @@ public static class InitialCallupCall
             aircraft.Ground.VfrDepartureDirection = VfrDepartureDirection.Choose(aircraft.Callsign, atAirportId);
         }
 
-        string facilityCallName = PilotResponder.ResolveAnsweringCallName(delivery, "GND", "clearance");
+        string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", fallbackFacilityWord);
         PilotSpeechText line = PilotResponder.BuildClearanceRequest(
             aircraft,
             facilityCallName,
@@ -294,8 +344,8 @@ public static class InitialCallupCall
             line,
             PilotRequestContext.Facility(facilityCallName)
         );
-        delivery.MarkInitialContact(aircraft);
-        aircraft.Ground.InitialCallupDecisionProcessed = ctx.PilotContacts.StudentRange?.Works(AtcPositionLevel.Ground, atAirportId) != true;
+        answering.MarkInitialContact(aircraft);
+        aircraft.Ground.InitialCallupDecisionProcessed = GroundAnswering(ctx, atAirportId)?.Agent != PilotAnsweringAgent.Student;
         return true;
     }
 

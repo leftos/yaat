@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
@@ -13,7 +14,8 @@ namespace Yaat.Sim.Tests.Pilot;
 /// <summary>
 /// A student working clearance delivery (OAK_DEL) gets the departure's first call as a clearance request, never "ready to
 /// taxi", even with an AI ground answering at OAK (YAAT-308): IFR names the destination; VFR names a direction of flight
-/// clear of nearby airports and the filed altitude. A beacon code (SQ) or a PDC sent by TDLSS answers the request.
+/// clear of nearby airports and the filed altitude. A beacon code (SQ) or a PDC sent by TDLSS answers the request. A
+/// student answering ground with delivery out of its worked range gets the same first call, to itself (YAAT-1221).
 /// </summary>
 [Collection("NavDbMutator")]
 public class DeliveryClearanceRequestE2ETests
@@ -214,7 +216,7 @@ public class DeliveryClearanceRequestE2ETests
     }
 
     [Fact]
-    public void GroundStudent_LowestGround_GetsTheGroundCallOnly()
+    public void GroundStudent_LowestGround_IfrAsksGroundForItsClearanceFirst()
     {
         if (LoadWithStudent("N152SP", "IFR", "KLAX", 9000, [], "OAK_GND") is not { } run)
         {
@@ -225,9 +227,124 @@ public class DeliveryClearanceRequestE2ETests
         Tick(run.Engine, 30);
 
         TerminalEntry call = Assert.Single(PilotLines(run));
-        Assert.Contains("ready to taxi", call.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(PilotPendingRequestKind.Taxi, run.Aircraft.PendingPilotRequest!.Kind);
+        Assert.StartsWith($"{run.DeliveryRadioName}, at ", call.Message, StringComparison.Ordinal);
+        Assert.EndsWith(", with information Alpha, IFR to Los Angeles Airport.", call.Message, StringComparison.Ordinal);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance }, "no open clearance request");
         Assert.Null(run.Aircraft.Ground.ClearanceObtainedAtSeconds);
+
+        CommandResult squawk = run.Engine.SendCommand("N152SP", "SQ 4321");
+        Assert.True(squawk.Success, squawk.Message);
+        Tick(run.Engine, (int)InitialCallupCall.TaxiCallAfterClearanceSeconds + 30);
+
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi }, "no ground call after the clearance");
+        Assert.Equal(run.DeliveryRadioName, run.Aircraft.PendingPilotRequest!.FacilityCallName);
+        Assert.Single(PilotLines(run), e => e.Message.Contains("ready to taxi", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>A preset push already put the aircraft past its clearance, so a ground student covering delivery gets the
+    /// crew's ordinary ready-to-taxi call, never a clearance request (YAAT-1221).</summary>
+    [Fact]
+    public void GroundStudent_LowestGround_AfterPresetPush_IfrMakesItsGroundCall_NotAClearanceRequest()
+    {
+        if (LoadWithStudent("N152SP", "IFR", "KLAX", 9000, [("PUSH", 0)], "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        run.Engine.Scenario!.StudentLowestWorkedLevel = AtcPositionLevel.Ground;
+
+        Assert.True(
+            TickUntil(run.Engine, () => run.Aircraft.PendingPilotRequest is { IsOpen: true }, 400) >= 0,
+            "the aircraft should call after the push"
+        );
+        Assert.True(
+            run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
+            "the ground call to the student, not a clearance request"
+        );
+        Assert.Equal(run.DeliveryRadioName, run.Aircraft.PendingPilotRequest!.FacilityCallName);
+        Assert.DoesNotContain(PilotLines(run), e => e.Message.EndsWith("IFR to Los Angeles Airport.", StringComparison.Ordinal));
+    }
+
+    /// <summary>Top-down coverage (YAAT-1221): an IFR jet on a push-back stand with no clearance asks the lowest position the
+    /// student works for its clearance first, and asks for pushback only once the clearance is obtained.</summary>
+    [Theory]
+    [InlineData(AtcPositionLevel.Delivery)]
+    [InlineData(AtcPositionLevel.Ground)]
+    public void GroundStudent_PushBackStandIfrJet_AsksForItsClearanceBeforePushback(AtcPositionLevel lowest)
+    {
+        if (LoadGate31Jet(lowest, "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        Tick(run.Engine, 30);
+
+        TerminalEntry first = Assert.Single(PilotLines(run));
+        Assert.Equal("Oakland Ground, at gate 31, with information Alpha, IFR to Los Angeles Airport.", first.Message);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance }, "no open clearance request");
+
+        CommandResult squawk = run.Engine.SendCommand("SWA1391", "SQ 4321");
+        Assert.True(squawk.Success, squawk.Message);
+        Tick(run.Engine, (int)InitialCallupCall.TaxiCallAfterClearanceSeconds + 30);
+
+        Assert.True(
+            run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback },
+            "no pushback request after the clearance"
+        );
+        Assert.Equal("Oakland Ground, at gate 31, with information Alpha, request pushback.", run.Aircraft.PendingPilotRequest!.LastPilotLine);
+    }
+
+    /// <summary>The live report's sequence (YAAT-1221): lowest = GND at load, DEL set after the stand call. The uncleared IFR
+    /// departure never asks for pushback, first call or follow-up.</summary>
+    [Fact]
+    public void GroundStudent_DeliverySetMidSession_UnclearedIfrJetNeverAsksForPushback()
+    {
+        if (LoadGate31Jet(AtcPositionLevel.Ground, "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        for (int second = 1; second <= 300; second++)
+        {
+            if (second == 60)
+            {
+                run.Engine.Scenario!.StudentLowestWorkedLevel = AtcPositionLevel.Delivery;
+            }
+
+            run.Engine.TickOneSecond();
+            Assert.DoesNotContain(PilotLines(run), e => e.Message.EndsWith("request pushback.", StringComparison.Ordinal));
+        }
+
+        Assert.Null(run.Aircraft.Ground.ClearanceObtainedAtSeconds);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance }, "no open clearance request");
+    }
+
+    /// <summary>S1-OAK-2/3/4's SWA1391 (B737, IFR to KLAX, gate 31, a push-back stand) under a solo student on
+    /// <paramref name="studentCallsign"/> working down to <paramref name="lowest"/> (null when no level is set, so the student
+    /// answers every call type), with no AI position staffed, as in a live solo room.</summary>
+    private Run? LoadGate31Jet(AtcPositionLevel? lowest, string studentCallsign)
+    {
+        var groundData = new TestAirportGroundData();
+        if ((_zoa is null) || (groundData.GetLayout("OAK") is null))
+        {
+            return null;
+        }
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += entry => terminal.Add(entry);
+        List<string> warnings = engine.LoadScenario(Gate31JetScenario, 42, MagneticDeclination.EvaluationDateUtc);
+        Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.ArtccConfig = _zoa;
+        scenario.SoloTrainingMode = true;
+        PositionConfig ground = _zoa.FindPositionByCallsign(studentCallsign, facilityHint: null)!;
+        scenario.StudentPosition = _zoa.ResolvePosition(ground.Id);
+        scenario.StudentPositionType = "GND";
+        scenario.StudentLowestWorkedLevel = lowest;
+        AircraftState aircraft = engine.FindAircraft("SWA1391") ?? throw new InvalidOperationException("SWA1391 did not spawn");
+        Assert.Equal(StandDeparture.PushBack, ParkedStandDeparture.Of(aircraft, aircraft.Ground.Layout));
+        return new Run(engine, aircraft, terminal, ground.RadioName.Trim());
     }
 
     [Fact]
@@ -340,8 +457,10 @@ public class DeliveryClearanceRequestE2ETests
         }
     }
 
+    /// <summary>A preset push already put the aircraft past its clearance, so the delivery student gets no clearance
+    /// request: the crew makes its ordinary ground call instead.</summary>
     [Fact]
-    public void AfterPush_DeliveryStudent_WordsTheLocationAsPushedBackFrom()
+    public void AfterPresetPush_DeliveryStudent_GetsNoClearanceRequest()
     {
         if (Load("N152SP", "IFR", "KLAX", 9000, [("PUSH", 0)]) is not { } run)
         {
@@ -350,10 +469,108 @@ public class DeliveryClearanceRequestE2ETests
 
         Tick(run.Engine, 200);
 
-        // The request, and its follow-up when the push and set-up took long enough: never a taxi call.
+        // The push and its ground call to the AI ground, over the run the old clearance-request test covered.
         Assert.NotEmpty(PilotLines(run));
-        Assert.All(PilotLines(run), e => Assert.Matches("^Oakland Clearance, pushed back from .*, IFR to Los Angeles Airport[.]$", e.Message));
-        Assert.Equal(PilotPendingRequestKind.Clearance, run.Aircraft.PendingPilotRequest!.Kind);
+        Assert.False(
+            run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance },
+            "a clearance request after a preset push"
+        );
+        Assert.DoesNotContain(PilotLines(run), e => e.Message.EndsWith("IFR to Los Angeles Airport.", StringComparison.Ordinal));
+    }
+
+    /// <summary>An IFR arrival the scenario places on taxiway K calls for taxi to parking, never for an IFR clearance: the
+    /// clearance-first branch is for a departure from the airport the aircraft is on (YAAT-1221).</summary>
+    [Fact]
+    public void Ifr_ArrivalOnATaxiway_AsksForTaxiToParking_NotForItsClearance()
+    {
+        if (LoadArrivalOnTaxiway() is not { } run)
+        {
+            return;
+        }
+
+        Tick(run.Engine, 30);
+
+        TerminalEntry call = Assert.Single(PilotLines(run));
+        Assert.Equal("Oakland Ground, on taxiway K, with information Alpha, request taxi to parking.", call.Message);
+        Assert.DoesNotContain("IFR to", call.Message, StringComparison.Ordinal);
+        Assert.Equal(PilotPendingRequestKind.Taxi, run.Aircraft.PendingPilotRequest!.Kind);
+    }
+
+    /// <summary>With someone else covering delivery at the airport (an AI <c>…_DEL</c>), the pilot knows delivery is online
+    /// and the lowest position the student works — ground — gets the pushback request first (YAAT-1221).</summary>
+    [Fact]
+    public void GroundStudent_AiDeliveryStaffed_GetsThePushbackRequestFirst()
+    {
+        if (LoadGate31Jet(AtcPositionLevel.Ground, "OAK_GND") is not { } run)
+        {
+            return;
+        }
+
+        // ZOA's catalog leaves delivery out unless overridden (AiPositionResolver), so the AI delivery is built by hand. Its
+        // role keeps it off the ground call: a …_DEL entry is recognized by callsign, wherever the AI's role puts it.
+        run.Engine.Scenario!.SetAiStaffedPositions([TestAiPositions.TowerCab(_zoa!, "OAK_DEL", ControlRole.Approach, "OAK")]);
+
+        Tick(run.Engine, 30);
+
+        TerminalEntry first = Assert.Single(PilotLines(run));
+        Assert.Equal("Oakland Ground, at gate 31, with information Alpha, request pushback.", first.Message);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback }, "no pushback request");
+        Assert.Null(run.Aircraft.Ground.ClearanceObtainedAtSeconds);
+    }
+
+    /// <summary>A student with no lowest level set answers every call type (YAAT-1221): an uncleared IFR jet on a push-back
+    /// stand at its own airport asks for its clearance first, then for pushback once it is answered.</summary>
+    [Fact]
+    public void DeliveryStudent_NoLowestLevel_GetsTheClearanceRequestThenThePushbackRequest()
+    {
+        if (LoadGate31Jet(null, "OAK_DEL") is not { } run)
+        {
+            return;
+        }
+
+        Tick(run.Engine, 30);
+
+        TerminalEntry first = Assert.Single(PilotLines(run));
+        Assert.Equal("Oakland Clearance, at gate 31, with information Alpha, IFR to Los Angeles Airport.", first.Message);
+        Assert.True(run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Clearance }, "no open clearance request");
+
+        CommandResult squawk = run.Engine.SendCommand("SWA1391", "SQ 4321");
+        Assert.True(squawk.Success, squawk.Message);
+        Tick(run.Engine, (int)InitialCallupCall.TaxiCallAfterClearanceSeconds + 30);
+
+        Assert.True(
+            run.Aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Pushback },
+            "no pushback request after the clearance"
+        );
+        Assert.Equal(run.DeliveryRadioName, run.Aircraft.PendingPilotRequest!.FacilityCallName);
+        Assert.EndsWith(", request pushback.", run.Aircraft.PendingPilotRequest!.LastPilotLine, StringComparison.Ordinal);
+    }
+
+    /// <summary>An IFR arrival (KLAX→KOAK) on taxiway K at OAK under a solo OAK_GND student working down to ground, with no
+    /// AI position staffed.</summary>
+    private Run? LoadArrivalOnTaxiway()
+    {
+        var groundData = new TestAirportGroundData();
+        if ((_zoa is null) || (groundData.GetLayout("OAK") is null))
+        {
+            return null;
+        }
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
+        var terminal = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += entry => terminal.Add(entry);
+        List<string> warnings = engine.LoadScenario(TaxiwayArrivalScenario, 42, MagneticDeclination.EvaluationDateUtc);
+        Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.ArtccConfig = _zoa;
+        scenario.SoloTrainingMode = true;
+        PositionConfig ground = _zoa.FindPositionByCallsign("OAK_GND", facilityHint: null)!;
+        scenario.StudentPosition = _zoa.ResolvePosition(ground.Id);
+        scenario.StudentPositionType = "GND";
+        scenario.StudentLowestWorkedLevel = AtcPositionLevel.Ground;
+        AircraftState aircraft =
+            engine.FindAircraft(TaxiwayArrivalCallsign) ?? throw new InvalidOperationException($"{TaxiwayArrivalCallsign} did not spawn");
+        return new Run(engine, aircraft, terminal, ground.RadioName.Trim());
     }
 
     private static string Cardinal(double bearing)
@@ -370,8 +587,58 @@ public class DeliveryClearanceRequestE2ETests
 
     private sealed record Run(SimulationEngine Engine, AircraftState Aircraft, List<TerminalEntry> Terminal, string DeliveryRadioName);
 
+    private const string TaxiwayArrivalCallsign = "N52417";
+
     /// <summary>TDLSS with the nine PDC fields in canonical order.</summary>
     private const string PdcSendCommand = "TDLSS 10 MIN|OAKLAND4|ALTAM||CLIMB VIA SID|5000||120.9|";
+
+    private const string Gate31JetScenario = """
+        {
+          "id": "delivery-gate31-jet",
+          "name": "Clearance before pushback",
+          "artccId": "ZOA",
+          "primaryAirportId": "OAK",
+          "aircraft": [
+            {
+              "id": "a1",
+              "aircraftId": "SWA1391",
+              "aircraftType": "B737/L",
+              "transponderMode": "Off",
+              "startingConditions": { "type": "Parking", "parking": "31" },
+              "flightplan": {
+                "rules": "IFR", "departure": "KOAK", "destination": "KLAX", "cruiseAltitude": 35000,
+                "cruiseSpeed": 250, "route": "CNDEL5 SUSEY EBAYE BURGL IRNMN2", "remarks": "/V/",
+                "aircraftType": "B737/L"
+              },
+              "presetCommands": []
+            }
+          ]
+        }
+        """;
+
+    /// <summary>An IFR arrival the scenario places on taxiway K at OAK (the coordinate spawn the ground call-up tests use).</summary>
+    private const string TaxiwayArrivalScenario = """
+        {
+          "id": "delivery-taxiway-arrival",
+          "name": "Arrival on taxiway K",
+          "artccId": "ZOA",
+          "primaryAirportId": "OAK",
+          "aircraft": [
+            {
+              "id": "a1",
+              "aircraftId": "N52417",
+              "aircraftType": "C172",
+              "transponderMode": "C",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.73212069, "lon": -122.22503752 } },
+              "flightplan": {
+                "rules": "IFR", "departure": "KLAX", "destination": "KOAK", "cruiseAltitude": 9000,
+                "cruiseSpeed": 120, "route": "", "remarks": "", "aircraftType": "C172"
+              },
+              "airportId": "OAK"
+            }
+          ]
+        }
+        """;
 
     /// <summary>Queues and sends the PDC by data link (TDLSQ, then <see cref="PdcSendCommand"/>).</summary>
     private static void SendPdc(Run run)
@@ -456,5 +723,20 @@ public class DeliveryClearanceRequestE2ETests
         {
             engine.TickOneSecond();
         }
+    }
+
+    /// <summary>Ticks one second at a time until <paramref name="done"/> holds; the ticks it took, or -1 when it never held.</summary>
+    private static int TickUntil(SimulationEngine engine, Func<bool> done, int maxSeconds)
+    {
+        for (int i = 1; i <= maxSeconds; i++)
+        {
+            engine.TickOneSecond();
+            if (done())
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 }

@@ -105,8 +105,17 @@ public sealed record StudentWorkedRange(AtcPositionLevel Own, AtcPositionLevel L
     /// <param name="level">The position type a pilot calls.</param>
     /// <param name="atAirportId">The airport the call is made at; null when unknown.</param>
     /// <returns>True when the student answers for that level there.</returns>
-    public bool Works(AtcPositionLevel level, string? atAirportId) =>
-        (level >= Lowest) && (level <= Own) && !Online.Any(online => (online.Level == level) && Covers(online, atAirportId));
+    public bool Works(AtcPositionLevel level, string? atAirportId) => (level >= Lowest) && (level <= Own) && !CoveredOnline(level, atAirportId);
+
+    /// <summary>
+    /// Whether an online scenario position of <paramref name="level"/> covers <paramref name="atAirportId"/>, taking that
+    /// level out of the student's range there.
+    /// </summary>
+    /// <param name="level">The position level.</param>
+    /// <param name="atAirportId">The airport the call is made at; null when unknown.</param>
+    /// <returns>True when an online position of that level covers the airport.</returns>
+    public bool CoveredOnline(AtcPositionLevel level, string? atAirportId) =>
+        Online.Any(online => (online.Level == level) && Covers(online, atAirportId));
 
     /// <summary>
     /// The student's range, or null when there is no range to apply (no lowest level chosen, no student, or a student

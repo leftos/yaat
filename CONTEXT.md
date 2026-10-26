@@ -203,7 +203,7 @@ A taxiway a landing aircraft has said "unable" to: it is skipped by every exit s
 _Avoid_: missed exit (an exit passed without an instruction is not given up)
 
 **Initial call-up**:
-The first call a spawned aircraft makes on its own to get moving: a ground spawn's "ready to taxi" (or its clearance request to a delivery student), or an untowered runway spawn's release request to a radar student. Whether and when an aircraft makes it is decided once, at scenario load, as its `InitialCallupPlan` (`InitialCallupClassifier`, docs/solo-training-pilot-speech.md); an aircraft the loader did not arm never makes one.
+The first call a spawned aircraft makes on its own to get moving: a ground spawn's "ready to taxi" (or, for an uncleared IFR departure, its clearance request to the lowest position the student works), or an untowered runway spawn's release request to a radar student. Whether and when an aircraft makes it is decided once, at scenario load, as its `InitialCallupPlan` (`InitialCallupClassifier`, docs/solo-training-pilot-speech.md); an aircraft the loader did not arm never makes one.
 _Avoid_: check-in (a check-in is the call on a frequency change), initial contact (an airborne check-in still follows a release request)
 
 **Pre-clear**:

@@ -195,6 +195,34 @@ public class DelayedInitialCallupE2ETests
         Assert.EndsWith(", ready to taxi.", line.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>A preset taxi already put the aircraft past its clearance, so a ground student covering delivery gets the
+    /// crew's ordinary ready-to-taxi call at the bar, never a clearance request (YAAT-1221).</summary>
+    [Fact]
+    public void GroundStudent_LowestGround_AfterPresetTaxi_IfrMakesItsGroundCall_NotAClearanceRequest()
+    {
+        if (Load("SFO", "N43778", "C25C", "41-4", ("TAXI T41W C HS C", 0)) is not { } run)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = run.Engine.Scenario!;
+        ArtccConfigRoot zoa = _zoa!;
+        PositionConfig ground = zoa.FindPositionByCallsign("SFO_GND", facilityHint: null)!;
+        scenario.StudentPosition = zoa.ResolvePosition(ground.Id);
+        scenario.StudentPositionType = "GND";
+        scenario.StudentLowestWorkedLevel = AtcPositionLevel.Ground;
+
+        Assert.True(TickUntil(run.Engine, () => PhaseOf(run, "N43778") is HoldingShortPhase, 600) >= 0, "the preset taxi should reach the bar");
+        Tick(run.Engine, 25);
+
+        AircraftState aircraft = run.Engine.FindAircraft("N43778")!;
+        Assert.True(
+            aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.Taxi },
+            "the ground call to the student, not a clearance request"
+        );
+        Assert.DoesNotContain(run.Said, e => (e.Callsign == "N43778") && e.Message.EndsWith("IFR to Los Angeles Airport.", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void PresetTaxiCall_ComesAtTheSameSimTimeAcrossRuns()
     {

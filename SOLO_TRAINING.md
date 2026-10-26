@@ -217,7 +217,7 @@ YAAT tries normal command parsing first. If that fails in Solo Training, the nat
 
 A simple IFR departure session usually looks like this:
 
-1. A parked aircraft calls ready to taxi, or requests pushback from a push-back stand (with a clearance-delivery student, it calls for its clearance first).
+1. A parked aircraft calls ready to taxi, or requests pushback from a push-back stand (an IFR departure with no clearance yet calls for its clearance first: to a clearance-delivery student, else to a Ground student; an aircraft the scenario already pushed back or taxied counts as cleared).
 2. Issue pushback or taxi instructions.
 3. Clear the aircraft to cross or hold short as needed.
 4. Clear the aircraft for takeoff.
@@ -230,13 +230,14 @@ Do not wait for the sim to solve the next control action. Solo pilots can call, 
 
 ## Pilot-Initiated Requests
 
-You work your own position and the positions you choose below it (the Session setup popup at load, or Session settings › Positions you work); YAAT simulates the rest. A Ground student gets no tower calls: a silent simulated tower clears the departures you transfer with `CT` for takeoff and clears arrivals to land, which then call you for taxi-in. Clearance requests reach a Ground student only when you also work Delivery.
+You work your own position and the positions you choose below it (the Session setup popup at load, or Session settings › Positions you work); YAAT simulates the rest. A Ground student gets no tower calls: a silent simulated tower clears the departures you transfer with `CT` for takeoff and clears arrivals to land, which then call you for taxi-in. An IFR departure with no clearance yet asks a Ground student for it first (a VFR departure's departure request reaches you only when you also work Delivery), unless an AI or online controller works Delivery or Ground there.
 
 Solo pilots make calls when the scenario and phase call for them. Common examples:
 
 - Parked departures call ready to taxi after the initial delay.
 - A jet or turboprop parked at a push-back stand says "request pushback" instead of calling ready to taxi; `PUSH` or `TAXI` answers it.
 - With a clearance-delivery student, departures call for their IFR clearance, or a VFR departure naming a direction and altitude, instead of "ready to taxi". A beacon code (`SQ`, `RANDSQ`, `SQVFR`) or a PDC sent with `TDLSS` answers it, and the pilot stops repeating it.
+- With Ground as your lowest position, an IFR departure with no clearance yet calls "Ground" for its IFR clearance first, then requests pushback or taxi once you answer.
 - An aircraft scripted to push back calls ready to taxi once pushed back, naming the gate it left or the spot it reached. One scripted to taxi to a spot or taxiway hold short calls from there 10-20 seconds after stopping.
 - An aircraft already taxiing, at its stand after arriving, or scripted to taxi to the runway or to parking never calls ready to taxi.
 - With a radar (APP/CTR) student, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`. Unscripted runway departures at towered fields, or VFR departures at untowered ones, depart unprompted.

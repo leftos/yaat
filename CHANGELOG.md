@@ -6,7 +6,7 @@
 
 - In solo sessions, the Session setup popup asks which positions you work below your own; Session settings › Positions you work changes it later.
 - A scenario sidecar can settle the solo student's lowest worked position with `studentLowestPosition`, so the student is not asked.
-- A solo Ground student who also works Delivery gets IFR departures' clearance requests when no Delivery position is online.
+- In solo sessions, an IFR departure asks your lowest worked position for its clearance before pushback; aircraft a preset already moved count as cleared.
 - Turning off Show quick command icons (Settings › Input › Quick commands) lists the right-click menu's quick commands as text rows under category labels.
 - Quick commands offer Squawk normal to an aircraft on standby on the ground, and Squawk assigned code to one squawking the wrong code.
 - The quick-command strip shows every command with an icon, six to a row, grouped under small category labels.

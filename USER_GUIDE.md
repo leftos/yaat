@@ -1636,7 +1636,7 @@ Change it at any time in the session flyout's **Positions you work** row, which 
 
 What you get below your own position, by the lowest position you work:
 
-- **Ground**: departures call you ready to taxi, and no clearance requests reach you; with no tower of your own, YAAT's silent simulated tower works the runways (below).
+- **Ground**: an IFR departure with no clearance yet calls you for its clearance first, then asks to push or taxi (one the scenario already pushed back or taxied counts as cleared); a VFR departure calls you ready to taxi; with no tower of your own, YAAT's silent simulated tower works the runways (below).
 - **Delivery**: IFR departures also ask you for their clearance first; once you answer with a beacon code or a PDC, the ordinary ready-to-taxi call follows about 30 seconds later.
 - **Tower, Approach, Center**: as the notes in the popup say; Tower adds the runway calls, Approach and Center leave the tower and the runways to the simulation.
 

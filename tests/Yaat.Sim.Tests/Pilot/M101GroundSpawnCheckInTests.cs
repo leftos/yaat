@@ -142,7 +142,8 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_FiresOnceOnly()
     {
-        AircraftState ac = MakeAircraft();
+        // An IFR stand call is a clearance request first, which keeps the decision open (YAAT-1221); these tests pin pacing.
+        AircraftState ac = MakeAircraft(isVfr: true);
         var phase = new AtParkingPhase();
         PhaseContext ctx = Ctx(ac);
 
@@ -238,8 +239,9 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_OneHundredRate_PacesInitialCallupsEveryTwentySeconds()
     {
+        // An IFR stand call is a clearance request first, which keeps the decision open (YAAT-1221); these tests pin pacing.
         SimScenarioState scenario = NewScenario(parkingRatePercent: 100);
-        AircraftState[] aircraft = [.. Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", parkingSpot: "KILO RAMP"))];
+        AircraftState[] aircraft = [.. Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", isVfr: true, parkingSpot: "KILO RAMP"))];
         AtParkingPhase[] phases = [.. aircraft.Select(_ => new AtParkingPhase())];
         for (int i = 0; i < aircraft.Length; i++)
         {
@@ -257,14 +259,49 @@ public class M101GroundSpawnCheckInTests
         Assert.Single(aircraft[2].PendingPilotTransmissions);
     }
 
+    [Fact]
+    public void AtParking_IfrPacedCallups_AskForTheirClearance()
+    {
+        // An IFR call to the student is a clearance request, which keeps the decision open (YAAT-1221), so pacing is
+        // asserted on the queued transmissions and the request kind instead.
+        SimScenarioState scenario = NewScenario(parkingRatePercent: 100);
+        AircraftState[] aircraft = [.. Enumerable.Range(1, 3).Select(i => IfrStandAircraft($"N{i}"))];
+        AtParkingPhase[] phases = [.. aircraft.Select(_ => new AtParkingPhase())];
+        for (int i = 0; i < aircraft.Length; i++)
+        {
+            phases[i].OnStart(Ctx(aircraft[i], soloParkingInitialCallupRatePercent: 100, scenario: scenario));
+        }
+
+        _ = TickParkingCallupWithScenario(aircraft[0], phases[0], scenario, 5, 5);
+        _ = TickParkingCallupWithScenario(aircraft[1], phases[1], scenario, 5, 5);
+        _ = TickParkingCallupWithScenario(aircraft[2], phases[2], scenario, 5, 24.9);
+        _ = TickParkingCallupWithScenario(aircraft[1], phases[1], scenario, 25, 25);
+        _ = TickParkingCallupWithScenario(aircraft[2], phases[2], scenario, 45, 45);
+
+        Assert.All(aircraft, ac => Assert.Single(ac.PendingPilotTransmissions));
+        Assert.All(aircraft, ac => Assert.Equal(PilotPendingRequestKind.Clearance, ac.PendingPilotRequest!.Kind));
+        Assert.All(aircraft, ac => Assert.False(ac.Ground.InitialCallupDecisionProcessed));
+    }
+
+    /// <summary>An IFR departure from the airport it sits on, at a stand: its stand call goes to the student as a clearance
+    /// request (YAAT-1221), which needs the filed departure to be the surface airport.</summary>
+    private static AircraftState IfrStandAircraft(string callsign)
+    {
+        AircraftState ac = MakeAircraft(callsign, isVfr: false, parkingSpot: "KILO RAMP");
+        ac.AirportId = "OAK";
+        ac.FlightPlan.Departure = "KOAK";
+        return ac;
+    }
+
     [Theory]
     [InlineData(200, 15)]
     [InlineData(50, 45)]
     public void AtParking_PacingRateControlsSpacing(int ratePercent, double secondCallElapsedSeconds)
     {
+        // An IFR stand call is a clearance request first, which keeps the decision open (YAAT-1221); these tests pin pacing.
         SimScenarioState scenario = NewScenario(ratePercent);
-        AircraftState first = MakeAircraft("N1", parkingSpot: "KILO RAMP");
-        AircraftState second = MakeAircraft("N2", parkingSpot: "KILO RAMP");
+        AircraftState first = MakeAircraft("N1", isVfr: true, parkingSpot: "KILO RAMP");
+        AircraftState second = MakeAircraft("N2", isVfr: true, parkingSpot: "KILO RAMP");
         var phase1 = new AtParkingPhase();
         var phase2 = new AtParkingPhase();
         phase1.OnStart(Ctx(first, soloParkingInitialCallupRatePercent: ratePercent, scenario: scenario));
@@ -278,8 +315,9 @@ public class M101GroundSpawnCheckInTests
     [Fact]
     public void AtParking_RaisingFromZeroResumesWaitingAircraft()
     {
+        // An IFR stand call is a clearance request first, which keeps the decision open (YAAT-1221); these tests pin pacing.
         SimScenarioState scenario = NewScenario(parkingRatePercent: 0, elapsedSeconds: 10);
-        AircraftState ac = MakeAircraft("N1", parkingSpot: "KILO RAMP");
+        AircraftState ac = MakeAircraft("N1", isVfr: true, parkingSpot: "KILO RAMP");
         var phase = new AtParkingPhase();
         phase.OnStart(Ctx(ac, soloParkingInitialCallupRatePercent: 0, scenario: scenario));
 

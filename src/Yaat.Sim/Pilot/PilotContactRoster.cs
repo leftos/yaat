@@ -186,6 +186,16 @@ public sealed class PilotContactRoster
         return StudentRange.Works(AtcPositionLevel.Delivery, atAirportId) && !AiTowerCabCovers(IsDeliveryPosition, atAirportId);
     }
 
+    /// <summary>
+    /// Whether clearance delivery at <paramref name="atAirportId"/> is covered by someone other than the student: an online
+    /// scenario delivery, or an AI-staffed <c>…_DEL</c>. The pilot then knows delivery is online and asks the lowest position
+    /// the student works instead of asking for its clearance.
+    /// </summary>
+    /// <param name="atAirportId">The airport the call is made at.</param>
+    /// <returns>True when a position other than the student works delivery there.</returns>
+    public bool DeliveryCoveredByAnother(string? atAirportId) =>
+        ((StudentRange?.CoveredOnline(AtcPositionLevel.Delivery, atAirportId)) == true) || AiTowerCabCovers(IsDeliveryPosition, atAirportId);
+
     /// <summary>A <c>…_DEL</c> callsign whose airport prefix is <paramref name="atAirportId"/>.</summary>
     private static bool IsDeliveryAt(string callsign, string? atAirportId)
     {

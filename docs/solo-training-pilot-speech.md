@@ -168,7 +168,7 @@ The initial-contact sites resolve their addressee with `ResolveFor(aircraft, exp
 
 | Site | Wants | At airport | SOP eligibility check |
 |---|---|---|---|
-| Initial call-up, ready to taxi (`InitialCallupCall.TryMake`, from `AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingInPositionPhase`, `HoldingShortPhase`) | `GND`; a student who works delivery at the airport (`StudentWorksDeliveryAt`) takes it first as a clearance request | `PilotContactRoster.SurfaceAirportOf` (ground layout, else spawn airport) | yes (`CanInitiateWith`; `CanInitiateWithStudent` for the delivery student) |
+| Initial call-up, ready to taxi (`InitialCallupCall.TryMake`, from `AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingInPositionPhase`, `HoldingShortPhase`) | `GND`; an uncleared IFR departure from the airport asks the student for its clearance first: a student who works delivery there (`StudentWorksDeliveryAt`), else the student answering ground when nobody else covers delivery (`DeliveryCoveredByAnother`) | `PilotContactRoster.SurfaceAirportOf` (ground layout, else spawn airport) | yes (`CanInitiateWith`; `CanInitiateWithStudent` for the delivery student) |
 | `HoldingShortPhase` ready for departure | `TWR` | `SurfaceAirportOf` | no (as before) |
 | `LinedUpAndWaitingPhase` lined-up reminder | `TWR` | the departure runway's airport | no (as before) |
 | `LinedUpAndWaitingPhase` release request (`RunwaySpawnCall.TryRequestRelease`) | the student's `APP` or `CTR` | the runway's airport | no |
@@ -231,7 +231,7 @@ The taxiway's name is kept as `AircraftGroundOps.SpawnTaxiway`; a parking spawn 
 
 - **Stand call** (`StandCall`, `AtParkingPhase`): 5 s after the phase starts (`ReadyToTaxiDelaySeconds`), from the stand ("at gate F8", "at parking GA13"), else from the spawn taxiway ("on taxiway K"), else "at the ramp".
 
-  A jet or turboprop on a `PushBack` stand (`ParkedStandDeparture.Of`) asks for a push instead (`InitialCallupCall.RequestsPushback`): "request pushback", recorded as a `Pushback` pending request. The plan re-arms as `AfterPush` with the decision still open, so the after-push ready-to-taxi call follows the push.
+  A jet or turboprop on a `PushBack` stand (`ParkedStandDeparture.Of`) asks for a push instead (`InitialCallupCall.RequestsPushback`): "request pushback", recorded as a `Pushback` pending request. An uncleared IFR departure whose call goes to the student asks for its clearance first and requests the push 30 s after it is answered (below). The plan re-arms as `AfterPush` with the decision still open, so the after-push ready-to-taxi call follows the push.
 
   A piston, a helicopter and any aircraft on an `Either` or `TaxiOut` stand still call "ready to taxi". AI Ground answers the request with a recorded `PUSH`; a `TAXI` straight off the stand answers it too, and `AtParkingPhase.OnEnd` then drops the owed after-push call.
 - **After-push call** (`AfterPush`): the crew's post-push setup delay — jet 90 s, turboprop 60 s, piston and helicopter 30 s (`InitialCallupCall.PostPushSetupDelaySeconds`) — from the start of `HoldingAfterPushbackPhase`, naming the spot the tow ended on ("at spot 5") or the stand it left ("pushed back from gate F8").
@@ -247,21 +247,25 @@ An aircraft that leaves uncalled loses its call: `AtParkingPhase.OnEnd` drops a 
 
 A call from a taxiway by an aircraft whose filed destination is the field it is at asks for parking instead — "ground, on taxiway K, with information A, request taxi to parking." (`PilotResponder.RequestsTaxiToParking`) — and records the `Taxi` request with a parking the pilot has in mind, picked as an arrival's is (`ArrivalParkingPicker`), so the taxi-in path (`AnswerTaxiInRule`, which applies in `AtParkingPhase` too) answers it; a layout with no parking records the plain request.
 
-**A student who works delivery gets a clearance request.**
+**An uncleared IFR departure asks the student for its clearance first.**
 
-When the solo student works clearance delivery at the aircraft's airport (`PilotContactRoster.StudentWorksDeliveryAt`) and the SOP lets the aircraft call them (`PilotInitialContactEligibility.CanInitiateWithStudent`), the first call — at whichever point the plan reaches — goes to the student as a clearance request, even when an AI ground answers there.
+The rule is top-down coverage, as on VATSIM: a stand call-up for an IFR departure goes to the lowest position the student works, for the first request it needs. When the solo student works clearance delivery at the aircraft's airport (`PilotContactRoster.StudentWorksDeliveryAt`) and the SOP lets the aircraft call them (`PilotInitialContactEligibility.CanInitiateWithStudent`), the first call — at whichever point the plan reaches — goes to the student as a clearance request, even when an AI ground answers there.
 
-`StudentWorksDeliveryAt` is true, with a range, when delivery is inside it and no online scenario DEL and no AI-staffed `…_DEL` covers the airport; with no range, when the student's own callsign is that airport's `…_DEL`. A GND student whose lowest position is DEL gets the request too, addressed by the student's own radio name; with the lowest at GND the ordinary ground call stands.
+`StudentWorksDeliveryAt` is true, with a range, when delivery is inside it and no online scenario DEL and no AI-staffed `…_DEL` covers the airport; with no range, when the student's own callsign is that airport's `…_DEL`. A GND student whose lowest position is DEL gets the request too, addressed by the student's own radio name ("Oakland Clearance" for an OAK_DEL student, "Oakland Ground" for an OAK_GND student covering delivery).
 
-IFR: "clearance, at gate F8, with information A, IFR to Los Angeles Airport."; VFR: "clearance, at gate F8, with information A, VFR departure to the north, at 4500."
+With the student's lowest position at GND, an IFR departure from the airport with no clearance yet calls the student on ground for the clearance first, then requests pushback or taxi once it is answered (`InitialCallupCall.AsksForItsClearanceFirst`). The pilot knows delivery is offline, so the request is addressed "ground" when the student has no radio name there. Both clearance-first branches ask only from the stand call (`InitialCallup` still `StandCall`): an aircraft a scenario preset or a controller already pushed back or taxied counts as cleared and makes its ordinary ground call.
+
+It applies only when nothing else covers delivery (`PilotContactRoster.DeliveryCoveredByAnother`: an online scenario DEL or an AI-staffed `…_DEL`) and the student, not an AI position, answers ground: an AI ground never gets the request, since nothing would answer it and the aircraft would wait forever. A VFR departure's ordinary ground call is unchanged. An aircraft on a taxiway makes the request only at its departure airport, on both branches (`DepartsFrom`).
+
+IFR: "Oakland Clearance, at gate F8, with information A, IFR to Los Angeles Airport." (the addressee is the student's own radio name, "Oakland Ground" for a GND student); VFR, delivery student only: "Oakland Clearance, at gate F8, with information A, VFR departure to the north, at 4500."
 
 (a direction of flight, never the destination, and the filed cruise altitude, left out when none is filed).
 
 The direction (`VfrDepartureDirection.Choose`) is a cardinal whose ±45° sector has no other airport within 10 NM of the field, picked per callsign by an FNV-1a draw among the clear ones, else the cardinal whose nearest airport is farthest; it is chosen at the first request and kept on `AircraftGroundOps.VfrDepartureDirection`, so a follow-up repeats it.
 
-The request is recorded as a `Clearance` pending request, and no other call-up goes out while it is open. It closes the decision, so no ready-to-taxi call follows, unless the student also works ground at the airport.
+The request is recorded as a `Clearance` pending request, and no other call-up goes out while it is open. It closes the decision, so no ready-to-taxi call follows, unless the student also answers ground at the airport.
 
-Then the decision stays open, and once the request is answered (`AircraftGroundOps.ClearanceObtainedAtSeconds`, stamped by `PilotRequestTracker` on the beacon code or the PDC) the ordinary ground call goes to the same student `InitialCallupCall.TaxiCallAfterClearanceSeconds` (30 s) later, never a second clearance request. An IFR ready-to-taxi call after a clearance leaves out the "IFR to …" clause the request already gave.
+Then the decision stays open, and once the request is answered (`AircraftGroundOps.ClearanceObtainedAtSeconds`, stamped by `PilotRequestTracker` on the beacon code or the PDC) the ordinary ground call (ready to taxi, or the pushback request from a push-back stand) goes to the same student `InitialCallupCall.TaxiCallAfterClearanceSeconds` (30 s) later, never a second clearance request. An IFR ready-to-taxi call after a clearance leaves out the "IFR to …" clause the request already gave.
 
 A beacon code (`SQ <code>`, `RANDSQ`, `SQVFR`) answers it through `PilotRequestTracker.ApplyControllerResponse`; a PDC sent by `TDLSS` answers it in `TdlsCommandHandler.HandleSend` (`PilotRequestTracker.SatisfyOpenRequest`, plus `SimulationWorld.AcknowledgeControllerResponse`); a `TDLSS` in a scenario's timed preset sends no PDC and answers nothing (the dispatcher reports it unapplied). No AI position answers a clearance request (`UnansweredPilotRequestRule`).
 
@@ -366,7 +370,7 @@ A refusal about YAAT's own command forms is never voiced: the RPO-only commands 
 
   A `Taxi`, `Pushback` or `Clearance` request is also closed as `Superseded` once the aircraft is in any phase but one where a pilot still waits for a taxi clearance (`AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`, `HoldingInPositionPhase`, or `HoldingShortPhase` at a bar that protects no runway), so an aircraft taxiing or following never repeats "at parking GA16 … ready to taxi" from the taxiway.
 
-Eight request kinds: `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (a departure's request to a delivery student) and `Release` (an untowered runway spawn's release request).
+Eight request kinds: `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (an IFR or VFR departure's request to the lowest position the student works) and `Release` (an untowered runway spawn's release request).
 
 Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `FollowGroundCommand`, like any taxi or push, → Satisfied for Taxi; `SquawkCommand` / `RandomSquawkCommand` / `SquawkVfrCommand` → Satisfied for Clearance; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff). A `Release` request is answered only through `SatisfyOpenRequest`.
 
