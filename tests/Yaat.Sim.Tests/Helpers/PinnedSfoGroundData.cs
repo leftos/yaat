@@ -36,7 +36,13 @@ internal sealed class PinnedSfoGroundData(string sfoGeoJsonPath) : IAirportGroun
             if (!_loaded)
             {
                 _sfo = File.Exists(_sfoGeoJsonPath)
-                    ? GeoJsonParser.Parse("SFO", File.ReadAllText(_sfoGeoJsonPath), null, TestStandLeadIns.For("SFO"), FilletMode.Standard)
+                    ? GeoJsonParser.Parse(
+                        "SFO",
+                        File.ReadAllText(_sfoGeoJsonPath),
+                        null,
+                        new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null),
+                        FilletMode.Standard
+                    )
                     : null;
                 _loaded = true;
             }

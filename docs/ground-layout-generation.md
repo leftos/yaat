@@ -44,9 +44,11 @@ Step 9: Mark each runway bar as hold line or short bar
 AirportGroundLayout (complete graph)
 ```
 
-**Entry point**: `GeoJsonParser.Parse()` in `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
+**Entry points**: the `GeoJsonParser.Parse*` overloads (`Parse`, `ParseWithDiagnostics`, `ParseMultiple`) in `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`, which all build through `ParseCollectingIssues` / `BuildLayout`.
 
-**Critical invariant**: During Steps 2-6, `GroundNode.Edges` adjacency lists remain EMPTY. All edges are added to `layout.Edges` only. At the end of Step 7, `RebuildAdjacencyLists()` populates each node's `Edges` list from the complete `layout.Edges` collection. This timing is essential because earlier steps need to perform lookups on `layout.Edges` directly.
+**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap)` (`LayoutInputs.cs`). `StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none. The layout build does not read the videomap yet, and production and the test harness pass `VideoMap: null`.
+
+**Critical invariant**: During Steps 2-6, `GroundNode.Edges` adjacency lists remain EMPTY. All edges are added to `layout.Edges` only. At the end of Step 7, `RebuildAdjacencyLists()` populates each node's `Edges` list from `AllEdges` (`layout.Edges` plus the arcs, which exist only after Step 8 and join the lists when it rebuilds them). This timing is essential because earlier steps need to perform lookups on `layout.Edges` directly.
 
 ---
 
@@ -83,7 +85,7 @@ the landing threshold; departures and anything covering the physical surface (ru
 
 ### Step 1: Parse Features
 
-`GeoJsonParser.Parse()` calls `JsonDocument.Parse()` and iterates features:
+`GeoJsonParser.ParseCollectingIssues` (behind `Parse` and `ParseWithDiagnostics`) calls `JsonDocument.Parse()` and `ClassifyFeatures` iterates the features (`ParseMultiple` classifies its merged files' features directly):
 
 - Features are classified by `properties.type`
 - A feature whose parse throws `InvalidOperationException` (for example a wrong value type) is logged and skipped; no other exception type is caught per feature
@@ -234,7 +236,7 @@ foreach (var edge in AllEdges)  // Both GroundEdge and GroundArc
 }
 ```
 
-Each node's adjacency list is built from the complete `layout.Edges` collection. After this step, the graph is fully connected and ready for traversal.
+Each node's adjacency list is built from the complete edge collection (`AllEdges`); the same call builds the taxiway-to-nodes index behind `GetNodesOnTaxiway` and clears the exit search's memos. After this step, the graph is fully connected and ready for traversal.
 
 ### Step 8: Generate Fillet Arcs
 

@@ -18,7 +18,7 @@ public class AdwResolverTests
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "mia.geojson");
-        return GeoJsonParser.Parse("MIA", File.ReadAllText(path), "MIA", []);
+        return GeoJsonParser.Parse("MIA", File.ReadAllText(path), "MIA", new LayoutInputs([], VideoMap: null));
     }
 
     private static LatLon MidPoint(AdwMark mark) => new((mark.A.Lat + mark.B.Lat) / 2.0, (mark.A.Lon + mark.B.Lon) / 2.0);

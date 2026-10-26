@@ -38,7 +38,13 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestStandLeadIns.For(shortId), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
@@ -99,7 +105,13 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestStandLeadIns.For(shortId), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
@@ -156,7 +168,13 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestStandLeadIns.For(shortId), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
@@ -216,7 +234,13 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestStandLeadIns.For(shortId), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 
@@ -299,7 +323,13 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestStandLeadIns.For(shortId), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         new FilletArcGenerator().Apply(layout);
 

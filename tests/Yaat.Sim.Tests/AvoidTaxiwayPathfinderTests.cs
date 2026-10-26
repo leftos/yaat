@@ -144,7 +144,7 @@ public class AvoidTaxiwayPathfinderTests
     private static AirportGroundLayout? LoadOak()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, []) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null)) : null;
     }
 
     [Fact]

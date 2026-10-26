@@ -365,7 +365,7 @@ public class Issue396RampLaneRepositionTests
             return;
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(), "TST", []);
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniRampGeoJson(), "TST", new LayoutInputs([], VideoMap: null));
         SimulationEngine engine = BuildEngine(new FixedGroundData(layout), "TST", soloTraining: false);
         AircraftState aircraft = AddParkedAt(engine, layout, "TST1", "B738", "G", "TST");
 

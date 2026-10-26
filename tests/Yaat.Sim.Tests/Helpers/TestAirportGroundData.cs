@@ -73,8 +73,15 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
             // back to null so the harness's silent-skip convention still holds.
             TestVnasData.EnsureInitialized();
             string? runwayAirportCode = NavigationDatabase.InstanceOrNull is not null ? shortId.ToUpperInvariant() : null;
-
-            layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), runwayAirportCode, TestStandLeadIns.For(shortId), filletMode);
+            // The videomap is null because both production call sites pass null today; a harness that read the tower-cab
+            // fixture would build a graph the shipping code does not.
+            layout = GeoJsonParser.Parse(
+                shortId,
+                File.ReadAllText(path),
+                runwayAirportCode,
+                new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+                filletMode
+            );
         }
 
         return layout;

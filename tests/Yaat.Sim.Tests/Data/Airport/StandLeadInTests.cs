@@ -91,7 +91,13 @@ public class StandLeadInTests
             return;
         }
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", geoJson, null, [new StandLeadIn("D12", "A", D12LeadInPoint, null)], FilletMode.None);
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "SFO",
+            geoJson,
+            null,
+            new LayoutInputs([new StandLeadIn("D12", "A", D12LeadInPoint, null)], VideoMap: null),
+            FilletMode.None
+        );
 
         GroundNode d12 = Assert.IsType<GroundNode>(layout.FindParkingByName("D12"));
         GroundEdge connector = Assert.Single(layout.Edges, e => (e.Origin == ParkingConnector) && e.Nodes.Contains(d12));
@@ -120,14 +126,14 @@ public class StandLeadInTests
             return;
         }
 
-        AirportGroundLayout baseline = GeoJsonParser.Parse("SFO", geoJson, null, [], FilletMode.None);
+        AirportGroundLayout baseline = GeoJsonParser.Parse("SFO", geoJson, null, new LayoutInputs([], VideoMap: null), FilletMode.None);
         var capture = WarningLogCapture.Install();
 
         AirportGroundLayout layout = GeoJsonParser.Parse(
             "SFO",
             geoJson,
             null,
-            [new StandLeadIn(stand, taxiway, new LatLon(lat, lon), null)],
+            new LayoutInputs([new StandLeadIn(stand, taxiway, new LatLon(lat, lon), null)], VideoMap: null),
             FilletMode.None
         );
 
@@ -153,7 +159,7 @@ public class StandLeadInTests
             return;
         }
 
-        AirportGroundLayout baseline = GeoJsonParser.Parse("SFO", geoJson, null, [], FilletMode.None);
+        AirportGroundLayout baseline = GeoJsonParser.Parse("SFO", geoJson, null, new LayoutInputs([], VideoMap: null), FilletMode.None);
         GroundEdge centreline = baseline.Edges.First(e => e.IsRunwayCenterline);
         var capture = WarningLogCapture.Install();
 
@@ -161,7 +167,7 @@ public class StandLeadInTests
             "SFO",
             geoJson,
             null,
-            [new StandLeadIn("D12", centreline.TaxiwayName, centreline.Nodes[0].Position, null)],
+            new LayoutInputs([new StandLeadIn("D12", centreline.TaxiwayName, centreline.Nodes[0].Position, null)], VideoMap: null),
             FilletMode.None
         );
 
@@ -193,14 +199,14 @@ public class StandLeadInTests
               ]
             }
             """;
-        AirportGroundLayout baseline = GeoJsonParser.Parse("TST", geoJson, null, [], FilletMode.None);
+        AirportGroundLayout baseline = GeoJsonParser.Parse("TST", geoJson, null, new LayoutInputs([], VideoMap: null), FilletMode.None);
         var capture = WarningLogCapture.Install();
 
         AirportGroundLayout layout = GeoJsonParser.Parse(
             "TST",
             geoJson,
             null,
-            [new StandLeadIn("P1", "A", new LatLon(37.7, -122.2), null)],
+            new LayoutInputs([new StandLeadIn("P1", "A", new LatLon(37.7, -122.2), null)], VideoMap: null),
             FilletMode.None
         );
 

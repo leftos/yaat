@@ -36,7 +36,10 @@ public static class GroundMapCheck
                     faaId.ToLowerInvariant(),
                     fetched.Content,
                     faaId,
-                    (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaId)
+                    new LayoutInputs(
+                        (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaId),
+                        VideoMap: null
+                    )
                 )
                 .Issues;
             return new GroundMapCheckResult(faaId, GroundMapOutcome.Ok, Error: null, issues, Exception: null);

@@ -93,7 +93,7 @@ public class PrecomputeKeyTests
     [Fact]
     public void StoredKeyWithoutStandLeadInHash_ReadsAsLayoutStale()
     {
-        var current = PrecomputeKey.Current("md5", 7, "sidecar", AirportSidecarHash.OfStandLeadIns([]));
+        var current = PrecomputeKey.Current("md5", 7, "sidecar", AirportSidecarHash.OfStandLeadIns([]), string.Empty);
         JsonObject json = JsonSerializer.SerializeToNode(current, GroundLayoutSerializer.Options)!.AsObject();
         string field = json.Select(property => property.Key)
             .Single(key => key.Equals(nameof(PrecomputeKey.StandLeadInHash), StringComparison.OrdinalIgnoreCase));
@@ -105,6 +105,37 @@ public class PrecomputeKeyTests
         Assert.False(current.LayoutMatches(old));
     }
 
+    /// <summary>A videomap change can move the bars the layout snaps to, so it stales both halves; the offline check never sees it.</summary>
+    [Fact]
+    public void VideoMapChange_BreaksBothMatches()
+    {
+        var stored = PrecomputeKey.Current("md5", 7, "sidecar", "lead-ins", "videomap");
+        var current = PrecomputeKey.Current("md5", 7, "sidecar", "lead-ins", "other");
+
+        Assert.False(current.LayoutMatches(stored));
+        Assert.False(current.PushTargetsMatch(stored));
+        Assert.True(current.PushTargetsMatchOffline(stored));
+    }
+
+    /// <summary>
+    /// An entry written before the videomap hash existed still reads, with the empty hash of an airport without a map, so
+    /// it stays current against a key built without a map.
+    /// </summary>
+    [Fact]
+    public void AnEntryWithoutAVideoMapHash_ReadsEmpty()
+    {
+        var current = PrecomputeKey.Current("md5", 7, "sidecar", "lead-ins", videoMapHash: "");
+        JsonObject json = JsonSerializer.SerializeToNode(current, GroundLayoutSerializer.Options)!.AsObject();
+        string field = json.Select(property => property.Key)
+            .Single(key => key.Equals(nameof(PrecomputeKey.VideoMapHash), StringComparison.OrdinalIgnoreCase));
+        json.Remove(field);
+
+        PrecomputeKey old = json.Deserialize<PrecomputeKey>(GroundLayoutSerializer.Options)!;
+
+        Assert.Equal(string.Empty, old.VideoMapHash);
+        Assert.True(current.LayoutMatches(old));
+    }
+
     /// <summary>
     /// The offline comparison of a stored key with the key built for a client that has no vNAS ignores the two facts
     /// only the maintainer's run knows (the GeoJSON MD5 and the navdata serial, which the offline key leaves blank) and
@@ -113,7 +144,7 @@ public class PrecomputeKeyTests
     [Fact]
     public void PushTargetsMatchOffline_IgnoresMd5AndSerial_ButNotSourceHashes()
     {
-        var stored = PrecomputeKey.Current("md5", 7, "sidecar", "lead-ins");
+        var stored = PrecomputeKey.Current("md5", 7, "sidecar", "lead-ins", string.Empty);
         var offline = PrecomputeKey.CurrentOffline("sidecar");
 
         Assert.NotEqual(stored.GeoJsonMd5, offline.GeoJsonMd5);

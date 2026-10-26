@@ -136,7 +136,10 @@ public sealed class AirportLayoutDownloader : IDisposable
                 faaCode.ToLowerInvariant(),
                 geoJson,
                 faaCode,
-                (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaCode)
+                new LayoutInputs(
+                    (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(faaCode),
+                    VideoMap: null
+                )
             );
         }
         catch (Exception ex)

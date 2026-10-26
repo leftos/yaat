@@ -39,7 +39,7 @@ public class HoldShortRunwayBothEndsTests
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "oak.geojson");
         Assert.True(File.Exists(path), $"{path} is missing from the test output");
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, []);
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null));
     }
 
     private static bool IsBar(GroundNode node, string runwayEnd, string taxiway) =>

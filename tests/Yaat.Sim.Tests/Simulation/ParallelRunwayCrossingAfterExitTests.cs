@@ -33,7 +33,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse(airportId.ToUpperInvariant(), File.ReadAllText(path), null, []);
+        return GeoJsonParser.Parse(airportId.ToUpperInvariant(), File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null));
     }
 
     /// <summary>

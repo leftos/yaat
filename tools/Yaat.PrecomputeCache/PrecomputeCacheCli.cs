@@ -155,7 +155,7 @@ public static class PrecomputeCacheCli
                 && IsCurrent(
                     run.Store,
                     airport,
-                    PrecomputeEntryBuild.CurrentKey(airport, geoJson, services.ArtccsDir, context.NavDataSerial),
+                    PrecomputeEntryBuild.CurrentKey(airport, geoJson, services.ArtccsDir, context.NavDataSerial, videoMap: null),
                     services
                 )
             );

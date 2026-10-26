@@ -46,7 +46,8 @@ public class PushTargetPlannerParallelTests
             GeoJsonMd5,
             12_345,
             AirportSidecarHash.For(ArtccsDir, airport),
-            AirportSidecarHash.ForStandLeadIns(ArtccsDir, airport)
+            AirportSidecarHash.ForStandLeadIns(ArtccsDir, airport),
+            string.Empty
         );
         string sequentialRoot = NewRoot();
         string[] parallelRoots = [NewRoot(), NewRoot()];

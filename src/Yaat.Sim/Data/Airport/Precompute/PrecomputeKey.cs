@@ -3,12 +3,12 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Sim.Data.Airport.Precompute;
 
 /// <summary>
-/// Identifies one airport's precomputed data, so a stored entry is recognised as stale. <see cref="LayoutMatches"/>
-/// covers everything the layout payload depends on, the airport's stand lead-ins among them (the one sidecar section the
-/// layout build reads); <see cref="PushTargetsMatch"/> adds the push-target sources and the airport's whole sidecar hash, so
-/// a precompute-planner-only change, or a sidecar change outside the lead-ins, invalidates the push half alone. The tug
-/// planner's files (the <c>Tug*.cs</c> files under <c>Data/Airport</c>) are in the push-target set only, so an edit to
-/// one stales only the push half.
+/// Identifies one airport's precomputed data, so a stored entry is recognised as stale. <see cref="LayoutMatches"/> covers
+/// everything the layout payload depends on, the airport's stand lead-ins among them (the one sidecar section the layout
+/// build reads) and its tower-cab videomap; <see cref="PushTargetsMatch"/> adds the push-target sources and the airport's
+/// whole sidecar hash, so a precompute-planner-only change, or a sidecar change outside the lead-ins, invalidates the
+/// push half alone. The tug planner's files (the <c>Tug*.cs</c> files under <c>Data/Airport</c>) are in the push-target
+/// set only, so an edit to one stales only the push half.
 /// </summary>
 public sealed record PrecomputeKey
 {
@@ -37,21 +37,28 @@ public sealed record PrecomputeKey
     public string StandLeadInHash { get; init; } = string.Empty;
 
     /// <summary>
+    /// The hash of the airport's tower-cab videomap (<see cref="TowerCabVideoMap.Hash"/>), empty when it has none. Not
+    /// required, so an entry written before the field existed still reads, with the empty hash of an airport without a map.
+    /// </summary>
+    public string VideoMapHash { get; init; } = string.Empty;
+
+    /// <summary>
     /// The key of data computed now from the offline facts alone, for comparison through
     /// <see cref="PushTargetsMatchOffline"/>: its four offline fields (the layout format version and the three source
-    /// hashes) are current, its <see cref="GeoJsonMd5"/> and <see cref="StandLeadInHash"/> are empty and its
+    /// hashes) are current, its <see cref="GeoJsonMd5"/>, <see cref="StandLeadInHash"/> and <see cref="VideoMapHash"/> are empty and its
     /// <see cref="NavDataSerial"/> zero, so <see cref="LayoutMatches"/> and <see cref="PushTargetsMatch"/> must not be used to
     /// compare it. The sidecar hash covers the lead-ins, so an offline comparison still sees a lead-in edit.
     /// </summary>
     /// <param name="pushSidecarHash">The airport's sidecar hash (<see cref="AirportSidecarHash.For"/>).</param>
     /// <returns>The key.</returns>
-    public static PrecomputeKey CurrentOffline(string pushSidecarHash) => Current(string.Empty, 0, pushSidecarHash, string.Empty);
+    public static PrecomputeKey CurrentOffline(string pushSidecarHash) => Current(string.Empty, 0, pushSidecarHash, string.Empty, string.Empty);
 
     /// <summary>
     /// The key of data computed now, from the airport's GeoJSON hash, the loaded navdata serial, the airport's sidecar hash
-    /// (<see cref="AirportSidecarHash.For"/>) and its stand lead-in hash (<see cref="AirportSidecarHash.ForStandLeadIns"/>).
+    /// (<see cref="AirportSidecarHash.For"/>), its stand lead-in hash (<see cref="AirportSidecarHash.ForStandLeadIns"/>) and
+    /// its tower-cab videomap hash (<see cref="TowerCabVideoMap.Hash"/>, empty when it has none).
     /// </summary>
-    public static PrecomputeKey Current(string geoJsonMd5, long navDataSerial, string pushSidecarHash, string standLeadInHash) =>
+    public static PrecomputeKey Current(string geoJsonMd5, long navDataSerial, string pushSidecarHash, string standLeadInHash, string videoMapHash) =>
         new()
         {
             GeoJsonMd5 = geoJsonMd5,
@@ -61,6 +68,7 @@ public sealed record PrecomputeKey
             PushTargetSourceHash = PrecomputeSourceHashes.PushTargets,
             PushSidecarHash = pushSidecarHash,
             StandLeadInHash = standLeadInHash,
+            VideoMapHash = videoMapHash,
         };
 
     /// <summary>True when the layout payload computed under <paramref name="other"/> is still current.</summary>
@@ -71,7 +79,8 @@ public sealed record PrecomputeKey
             && (NavDataSerial == other.NavDataSerial)
             && (LayoutFormatVersion == other.LayoutFormatVersion)
             && (LayoutSourceHash == other.LayoutSourceHash)
-            && (StandLeadInHash == other.StandLeadInHash);
+            && (StandLeadInHash == other.StandLeadInHash)
+            && (VideoMapHash == other.VideoMapHash);
     }
 
     /// <summary>True when the push targets computed under <paramref name="other"/> are still current.</summary>
