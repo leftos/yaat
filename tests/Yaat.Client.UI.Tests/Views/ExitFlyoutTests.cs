@@ -36,6 +36,8 @@ public class ExitFlyoutTests
     private const string Callsign = "N12KJ";
     private const string Initials = "AB";
 
+    public ExitFlyoutTests() => TestVnasData.EnsureInitialized();
+
     // --- Lanes -----------------------------------------------------------------------------
 
     [AvaloniaFact]
@@ -524,12 +526,8 @@ public class ExitFlyoutTests
     [InlineData("OAK", "KOAK", true)]
     [InlineData("KSFO", "OAK", false)]
     [InlineData("", "OAK", false)]
-    public void LandsAt_MatchesTheAirportInEitherForm(string destination, string airportId, bool expected)
-    {
-        TestVnasData.EnsureInitialized();
-
+    public void LandsAt_MatchesTheAirportInEitherForm(string destination, string airportId, bool expected) =>
         Assert.Equal(expected, GroundViewModel.LandsAt(destination, airportId));
-    }
 
     /// <summary>
     /// An SFO arrival on its 28R while the ground view shows KOAK, which has a 28R too, gets none of OAK's exits: the host lists
@@ -635,7 +633,6 @@ public class ExitFlyoutTests
     /// <summary>A client host over a main view model holding <paramref name="aircraft"/>, its ground view on the real KOAK layout.</summary>
     private static (ClientMenuHost Host, AircraftModel Aircraft) OakHost(AircraftModel aircraft)
     {
-        TestVnasData.EnsureInitialized();
         MainViewModel main = MainWith(aircraft);
         main.Ground.SetDomainLayoutForTesting(MenuGoldenFixtures.OakDomainLayout);
         return (new ClientMenuHost(main, aircraft, new Border()), aircraft);
