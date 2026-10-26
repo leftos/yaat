@@ -26,7 +26,9 @@ internal static class PrecomputeBuilderFixtures
     internal static readonly Lazy<string> SfoGeoJson = new(() => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")));
 
     /// <summary>KOAK parsed as a build parses it, for entries whose push targets the check never reads.</summary>
-    internal static readonly Lazy<AirportGroundLayout> OakLayout = new(() => GeoJsonParser.Parse("oak", OakGeoJson.Value, "OAK", []));
+    internal static readonly Lazy<AirportGroundLayout> OakLayout = new(() =>
+        GeoJsonParser.Parse("oak", OakGeoJson.Value, "OAK", new LayoutInputs([], VideoMap: null))
+    );
 
     internal static readonly IReadOnlySet<string> Gate26 = new HashSet<string>(StringComparer.Ordinal) { "26" };
 
@@ -36,7 +38,13 @@ internal static class PrecomputeBuilderFixtures
     internal static string Md5() => GeoJsonMd5.Of(OakGeoJson.Value);
 
     internal static PrecomputeKey FreshKey() =>
-        PrecomputeKey.Current(Md5(), NavDataSerial, AirportSidecarHash.For(ArtccsDir, "OAK"), AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"));
+        PrecomputeKey.Current(
+            Md5(),
+            NavDataSerial,
+            AirportSidecarHash.For(ArtccsDir, "OAK"),
+            AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"),
+            string.Empty
+        );
 
     internal static PrecomputeOnlineFacts Online(string md5, long navDataSerial) =>
         new(navDataSerial, new Dictionary<string, string?>(StringComparer.Ordinal) { ["OAK"] = md5 });

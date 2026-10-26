@@ -775,7 +775,9 @@ public class GroundViewModelPushRouteTests
     private static AirportGroundLayout? LoadSfoLayout()
     {
         string path = Path.Combine("TestData", "sfo.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
+        return File.Exists(path)
+            ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            : null;
     }
 
     private static GroundViewModel MakeViewModel()

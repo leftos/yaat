@@ -961,6 +961,10 @@ _Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC confi
 **Sidecar**:
 A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](ARTCC_CUSTOMIZATION.md)).
 
+**Tower-cab videomap**:
+The vNAS GeoJSON map CRC Tower Cab draws over the satellite image, named by the facility's `towerCabConfiguration.videoMapId`; `TowerCabVideoMap.Read` keeps its two-point line segments (painted hold-short bars), and `LayoutInputs.VideoMap` carries them to the layout build (null = none).
+_Avoid_: video map (the radar's facility video maps are a different thing)
+
 ## Flight strips
 
 **Auto-sorted rack**:

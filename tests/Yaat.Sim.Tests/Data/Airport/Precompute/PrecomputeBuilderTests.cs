@@ -170,7 +170,8 @@ public class PrecomputeBuilderTests
                         Md5(),
                         NavDataSerial,
                         AirportSidecarHash.For(artccs, "OAK"),
-                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK")
+                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK"),
+                        string.Empty
                     )
                 );
                 Assert.Equal(PrecomputeCheckStatus.Current, Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null)).Status);
@@ -209,7 +210,8 @@ public class PrecomputeBuilderTests
                         Md5(),
                         NavDataSerial,
                         AirportSidecarHash.For(artccs, "OAK"),
-                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK")
+                        AirportSidecarHash.ForStandLeadIns(artccs, "OAK"),
+                        string.Empty
                     )
                 );
                 Assert.Equal(PrecomputeCheckStatus.Current, Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null)).Status);
@@ -228,6 +230,23 @@ public class PrecomputeBuilderTests
         {
             DeleteRoot(artccs);
         }
+    }
+
+    /// <summary>The check has no videomap to hash, so an entry written with a map's hash reports layout-stale either way.</summary>
+    [Fact]
+    public void Check_EntryWithAVideoMapHash_ReportsVideoMapStale()
+    {
+        WithStore(store =>
+        {
+            WriteOak(store, FreshKey() with { VideoMapHash = "abc" });
+
+            PrecomputeCheckResult offline = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], ArtccsDir, null));
+            PrecomputeCheckResult online = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], ArtccsDir, Online(Md5(), NavDataSerial)));
+
+            Assert.Equal(PrecomputeCheckStatus.LayoutStale, offline.Status);
+            Assert.Contains("the videomap hash differs", offline.Describe(), StringComparison.Ordinal);
+            Assert.Equal(PrecomputeCheckStatus.LayoutStale, online.Status);
+        });
     }
 
     [Fact]

@@ -47,7 +47,7 @@ public class SfoT9AB1ConnectorTests
             return null;
         }
 
-        return GeoJsonParser.Parse("SFO", File.ReadAllText(FixturePath), null, TestStandLeadIns.For("SFO"));
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(FixturePath), null, new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null));
     }
 
     private static bool Traverses(TaxiRoute route, string twy) =>

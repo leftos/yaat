@@ -36,7 +36,8 @@ public class PrecomputeBuilderBuildTests
                 md5,
                 NavDataSerial,
                 AirportSidecarHash.For(ArtccsDir, "OAK"),
-                AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK")
+                AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"),
+                string.Empty
             );
             Assert.Equal(current, built.Key);
             Assert.Equal("OAK", built.AirportId);

@@ -28,13 +28,15 @@ public static class PrecomputeEntryBuild
     /// <param name="geoJson">The airport's vNAS GeoJSON.</param>
     /// <param name="artccsDir">The ARTCCs data directory its sidecars are read from.</param>
     /// <param name="navDataSerial">The serial of the loaded navdata.</param>
+    /// <param name="videoMap">The airport's tower-cab videomap, or null when it has none.</param>
     /// <returns>The key.</returns>
-    public static PrecomputeKey CurrentKey(string faa, string geoJson, string artccsDir, long navDataSerial) =>
+    public static PrecomputeKey CurrentKey(string faa, string geoJson, string artccsDir, long navDataSerial, TowerCabVideoMap? videoMap) =>
         PrecomputeKey.Current(
             GeoJsonMd5.Of(geoJson),
             navDataSerial,
             AirportSidecarHash.For(artccsDir, faa),
-            AirportSidecarHash.ForStandLeadIns(artccsDir, faa)
+            AirportSidecarHash.ForStandLeadIns(artccsDir, faa),
+            videoMap?.Hash ?? string.Empty
         );
 
     /// <summary>
@@ -58,8 +60,13 @@ public static class PrecomputeEntryBuild
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(context);
 
-        PrecomputeKey key = CurrentKey(faa, geoJson, context.ArtccsDir, context.NavDataSerial);
-        AirportGroundLayout layout = GeoJsonParser.Parse(faa.ToLowerInvariant(), geoJson, faa, context.Sidecars.GetStandLeadIns(faa));
+        PrecomputeKey key = CurrentKey(faa, geoJson, context.ArtccsDir, context.NavDataSerial, videoMap: null);
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            faa.ToLowerInvariant(),
+            geoJson,
+            faa,
+            new LayoutInputs(context.Sidecars.GetStandLeadIns(faa), VideoMap: null)
+        );
         IReadOnlyList<PushTargetEntry> targets = standNames is null
             ? PushTargetPlanner.Compute(layout, context.Envelopes, context.Sidecars, context.StandLoop)
             : PushTargetPlanner.ComputeStands(layout, context.Envelopes, context.Sidecars, standNames, context.StandLoop);

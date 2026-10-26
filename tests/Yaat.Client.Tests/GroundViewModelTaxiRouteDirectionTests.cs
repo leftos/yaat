@@ -34,7 +34,9 @@ public class GroundViewModelTaxiRouteDirectionTests
     private static AirportGroundLayout? LoadOakLayout()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
+        return File.Exists(path)
+            ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            : null;
     }
 
     /// <summary>The route the simulation assigns UPS2951 for <c>TAXI S HS B</c> from the end of its pushback.</summary>

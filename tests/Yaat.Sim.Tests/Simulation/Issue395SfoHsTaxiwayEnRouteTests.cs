@@ -53,7 +53,9 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "sfo.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, TestStandLeadIns.For("SFO")) : null;
+        return File.Exists(path)
+            ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs(TestStandLeadIns.For("SFO"), VideoMap: null))
+            : null;
     }
 
     private static List<string> SegmentTaxiways(TaxiRoute route) =>

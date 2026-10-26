@@ -31,7 +31,10 @@ public class PrecomputeBuilderParallelTests
         Dictionary<string, (string GeoJson, IReadOnlySet<string> Stands)> airports = new(StringComparer.Ordinal)
         {
             ["OAK"] = (OakGeoJson.Value, StandsNear(OakLayout.Value, "26", 3)),
-            ["SFO"] = (SfoGeoJson.Value, StandsNear(GeoJsonParser.Parse("sfo", SfoGeoJson.Value, "SFO", []), "D2", 3)),
+            ["SFO"] = (
+                SfoGeoJson.Value,
+                StandsNear(GeoJsonParser.Parse("sfo", SfoGeoJson.Value, "SFO", new LayoutInputs([], VideoMap: null)), "D2", 3)
+            ),
         };
         string sequentialRoot = NewRoot();
         string parallelRoot = NewRoot();

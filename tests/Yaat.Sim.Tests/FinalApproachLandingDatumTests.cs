@@ -39,7 +39,8 @@ public class FinalApproachLandingDatumTests(ITestOutputHelper output)
     /// </summary>
     private const double StillSlowingKts = 30.0;
 
-    private static AirportGroundLayout Layout() => GeoJsonParser.Parse("SJC", File.ReadAllText(Path.Combine("TestData", "sjc.geojson")), "SJC", []);
+    private static AirportGroundLayout Layout() =>
+        GeoJsonParser.Parse("SJC", File.ReadAllText(Path.Combine("TestData", "sjc.geojson")), "SJC", new LayoutInputs([], VideoMap: null));
 
     private static RunwayInfo Runway()
     {

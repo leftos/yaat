@@ -96,49 +96,41 @@ public static class GeoJsonParser
     /// <param name="airportId">The layout's airport id.</param>
     /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
     /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
-    /// <param name="standLeadIns">
-    /// The airport's sidecar stand lead-ins (<see cref="AirportSidecarCatalog.GetStandLeadIns"/>): each listed stand is
-    /// connected to its named taxiway's vertex instead of the nearest taxiway edge.
-    /// </param>
+    /// <param name="inputs">The airport's stand lead-ins and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
     /// <returns>The layout.</returns>
-    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, IReadOnlyList<StandLeadIn> standLeadIns) =>
-        Parse(airportId, geoJson, runwayAirportCode, standLeadIns, FilletMode.Standard);
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, LayoutInputs inputs) =>
+        Parse(airportId, geoJson, runwayAirportCode, inputs, FilletMode.Standard);
+
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, LayoutInputs inputs, bool applyFillets) =>
+        Parse(airportId, geoJson, runwayAirportCode, inputs, applyFillets ? FilletMode.Standard : FilletMode.None);
 
     public static AirportGroundLayout Parse(
         string airportId,
         string geoJson,
         string? runwayAirportCode,
-        IReadOnlyList<StandLeadIn> standLeadIns,
-        bool applyFillets
-    ) => Parse(airportId, geoJson, runwayAirportCode, standLeadIns, applyFillets ? FilletMode.Standard : FilletMode.None);
-
-    public static AirportGroundLayout Parse(
-        string airportId,
-        string geoJson,
-        string? runwayAirportCode,
-        IReadOnlyList<StandLeadIn> standLeadIns,
+        LayoutInputs inputs,
         FilletMode filletMode
-    ) => ParseCollectingIssues(new LayoutSource(airportId, runwayAirportCode, standLeadIns), geoJson, filletMode, issues: []);
+    ) => ParseCollectingIssues(new LayoutSource(airportId, runwayAirportCode, inputs), geoJson, filletMode, issues: []);
 
     /// <summary>
-    /// Parse as <see cref="Parse(string, string, string?, IReadOnlyList{StandLeadIn})"/> does (Standard fillets) and also return the
+    /// Parse as <see cref="Parse(string, string, string?, LayoutInputs)"/> does (Standard fillets) and also return the
     /// features left out of the layout: one <see cref="GroundMapIssue"/> per unknown-type feature and per malformed feature skipped.
     /// </summary>
     /// <param name="airportId">The layout's airport id.</param>
     /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
     /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
-    /// <param name="standLeadIns">The airport's sidecar stand lead-ins (<see cref="AirportSidecarCatalog.GetStandLeadIns"/>).</param>
+    /// <param name="inputs">The airport's stand lead-ins and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
     /// <returns>The layout and the dropped features, in feature order.</returns>
     public static (AirportGroundLayout Layout, IReadOnlyList<GroundMapIssue> Issues) ParseWithDiagnostics(
         string airportId,
         string geoJson,
         string? runwayAirportCode,
-        IReadOnlyList<StandLeadIn> standLeadIns
+        LayoutInputs inputs
     )
     {
         var issues = new List<GroundMapIssue>();
         AirportGroundLayout layout = ParseCollectingIssues(
-            new LayoutSource(airportId, runwayAirportCode, standLeadIns),
+            new LayoutSource(airportId, runwayAirportCode, inputs),
             geoJson,
             FilletMode.Standard,
             issues
@@ -146,8 +138,11 @@ public static class GeoJsonParser
         return (layout, issues);
     }
 
-    /// <summary>What a layout is built for: its airport id, the code its runway widths are looked up by, and its stand lead-ins.</summary>
-    private sealed record LayoutSource(string AirportId, string? RunwayAirportCode, IReadOnlyList<StandLeadIn> StandLeadIns);
+    /// <summary>
+    /// What a layout is built for: its airport id, the code its runway widths are looked up by, and its per-airport inputs
+    /// (stand lead-ins and tower-cab videomap).
+    /// </summary>
+    private sealed record LayoutSource(string AirportId, string? RunwayAirportCode, LayoutInputs Inputs);
 
     private static AirportGroundLayout ParseCollectingIssues(LayoutSource source, string geoJson, FilletMode filletMode, List<GroundMapIssue> issues)
     {
@@ -173,14 +168,14 @@ public static class GeoJsonParser
         string airportId,
         IEnumerable<string> geoJsonFiles,
         string? runwayAirportCode,
-        IReadOnlyList<StandLeadIn> standLeadIns
-    ) => ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, standLeadIns, FilletMode.Standard);
+        LayoutInputs inputs
+    ) => ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, inputs, FilletMode.Standard);
 
     public static AirportGroundLayout ParseMultiple(
         string airportId,
         IEnumerable<string> geoJsonFiles,
         string? runwayAirportCode,
-        IReadOnlyList<StandLeadIn> standLeadIns,
+        LayoutInputs inputs,
         FilletMode filletMode
     )
     {
@@ -188,7 +183,7 @@ public static class GeoJsonParser
 
         if (merged.Count == 1)
         {
-            return Parse(airportId, merged[0], runwayAirportCode, standLeadIns, filletMode);
+            return Parse(airportId, merged[0], runwayAirportCode, inputs, filletMode);
         }
 
         var allFeatures = new List<JsonElement>();
@@ -211,7 +206,7 @@ public static class GeoJsonParser
             List<RunwayFeature> Runways
         ) classified = ClassifyFeatures(airportId, allFeatures, issues: []);
         return BuildLayout(
-            new LayoutSource(airportId, runwayAirportCode, standLeadIns),
+            new LayoutSource(airportId, runwayAirportCode, inputs),
             classified.Parkings,
             classified.Helipads,
             classified.Spots,
@@ -380,7 +375,7 @@ public static class GeoJsonParser
         RunwayCrossingDetector.DropRedundantFallbackBars(layout, fallbackBars);
 
         // Step 6: Create parking nodes and connect each to its sidecar lead-in's taxiway vertex, else to the nearest taxiway
-        Dictionary<string, StandLeadIn> leadInsByStand = UsableStandLeadIns(airportId, parkings, source.StandLeadIns);
+        Dictionary<string, StandLeadIn> leadInsByStand = UsableStandLeadIns(airportId, parkings, source.Inputs.StandLeadIns);
         var parkingNodes = new List<GroundNode>();
         foreach (ParkingFeature pkg in parkings)
         {

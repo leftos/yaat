@@ -38,7 +38,9 @@ public class GroundViewModelMidEdgeStartOverlayTests
     private static AirportGroundLayout? LoadOakLayout()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, [], FilletMode.Standard) : null;
+        return File.Exists(path)
+            ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            : null;
     }
 
     [Fact]

@@ -21,7 +21,13 @@ public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, TestStandLeadIns.For(shortId), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         _ = new FilletArcGenerator().Apply(layout);
 
@@ -52,7 +58,13 @@ public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout pre = GeoJsonParser.Parse("oak", File.ReadAllText(path), null, TestStandLeadIns.For("oak"), FilletMode.None);
+        AirportGroundLayout pre = GeoJsonParser.Parse(
+            "oak",
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs(TestStandLeadIns.For("oak"), VideoMap: null),
+            FilletMode.None
+        );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
         _ = new FilletArcGenerator().Apply(layout);
 

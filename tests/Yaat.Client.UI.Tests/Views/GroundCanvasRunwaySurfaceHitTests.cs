@@ -468,7 +468,9 @@ public class GroundCanvasRunwaySurfaceHitTests
     private static readonly Lazy<GroundLayoutDto> SfoLayout = new(() =>
     {
         string path = Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson");
-        return MenuGoldenFixtures.ToGroundLayoutDto(GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, [], FilletMode.Standard));
+        return MenuGoldenFixtures.ToGroundLayoutDto(
+            GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+        );
     });
 
     private static GroundRunwayDto Runway(GroundLayoutDto layout, string name)

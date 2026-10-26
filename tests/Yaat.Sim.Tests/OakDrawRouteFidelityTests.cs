@@ -32,7 +32,7 @@ public class OakDrawRouteFidelityTests
     private static AirportGroundLayout? LoadOak()
     {
         string path = Path.Combine("TestData", "oak.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, []) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null)) : null;
     }
 
     // The dense node list a drawn route commits: each segment's ToNodeId, consecutive-deduped

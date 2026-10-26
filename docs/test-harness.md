@@ -88,6 +88,8 @@ The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the sa
 
 Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1short`) are deliberate snapshots and are skipped, and an airport the API has no map for is kept as committed. `--check` reports what would change and exits 1 if anything would.
 
+`TestData/TowerCabMaps/<id>.geojson` holds an airport's tower-cab videomap (`oak.geojson`, read by `TowerCabVideoMapTests`). It lives in a subfolder because several tests read every top-level `TestData/*.geojson` as a ground layout, which a videomap is not. The same script refreshes it (the ARTCC for each fixture is in its `TOWER_CAB_ARTCC`); a response that is not JSON or not a FeatureCollection prints why to stderr and keeps the fixture. `TestAirportGroundData` and `PinnedSfoGroundData` build layouts with `VideoMap: null`, as production does, so no layout test depends on this fixture.
+
 **CIFP is required too, and downloads stay enabled on purpose.** `ModuleInit` throws if it cannot
 resolve one. Unlike NavData it needs no offline-first switch: `CifpPathResolver` already returns a
 current-cycle cache hit *before* considering the network, which is why it costs ~9 ms rather than
@@ -376,7 +378,7 @@ runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationData
 `"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet
 arcs (taxiway topology, `TurnAngleDeg`) should pass `runwayAirportCode: null` to skip the runway-crossing pass while still producing
 nodes/edges/arcs (`OneWayResolverTests`, `GroundArcRenderFilterTests`, `DtoConverterGroundLayoutTests` all do). This applies to tests
-calling `GeoJsonParser.Parse` **directly**; the `TestAirportGroundData` harness always passes the real code (see above), because a graph
+calling `GeoJsonParser.Parse` **directly** (its last required input is a `LayoutInputs`; `TestStandLeadIns.For(id)` gives an airport's shipped lead-ins, `VideoMap: null` the no-map case); the `TestAirportGroundData` harness always passes the real code (see above), because a graph
 built against a 150 ft placeholder width is not the graph production builds.
 
 ## Ticking a phase by hand — steer *and* integrate, at 0.25 s
