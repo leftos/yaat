@@ -4,15 +4,12 @@
 
 ## Do first
 
-- [/] YAAT-1220 Make the crc_launch CrcToolsTests load-proof (5 fail under full-suite load) · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [/] YAAT-1247 Flaky: ClientLogMatches_Timeout_ReportsLinesRead reads 0 lines under load · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-1221 Solo push request skips the clearance request when the student works delivery · release vNext — High · Singles
+- [/] YAAT-1221 Solo push request skips the clearance request when the student works delivery · release vNext — High · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [/] YAAT-1212 Read the tower-cab videomap's two-point segments into the layout parse and the precompute key · release vNext
   - [ ] YAAT-1214 Place unpaired hold-short points by the reviewed standoff rule (ILS category, elevation, angled taxiways) · release vNext
   - [ ] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
@@ -451,6 +448,9 @@
 - [ ] YAAT-1097 Make dotnet format style and the build agree on var for a nullable static factory
 - [ ] YAAT-1100 Split PhraseologyVerbalizer.VerbalizeCore under the 100-line limit
 - [ ] YAAT-1171 Run prek's cheatsheet check beside the build hook (priority groups) if timing shows a gain
+- [ ] YAAT-1248 Move the remaining wall-clock automation wait tests onto the injected clock
+- [ ] YAAT-1249 wait_until answers met:false when its final log read finds the match after the last poll
+- [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 
 ## Singles
 
