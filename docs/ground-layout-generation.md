@@ -46,7 +46,7 @@ AirportGroundLayout (complete graph)
 
 **Entry points**: the `GeoJsonParser.Parse*` overloads (`Parse`, `ParseWithDiagnostics`, `ParseMultiple`) in `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`, which all build through `ParseCollectingIssues` / `BuildLayout`.
 
-**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap)` (`LayoutInputs.cs`). `StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none. The layout build does not read the videomap yet, and production and the test harness pass `VideoMap: null`.
+**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap)` (`LayoutInputs.cs`). `StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none. The layout build does not read the videomap yet. yaat-server passes the map it fetched (`TowerCabMapDownloader`), and the test harness, the precompute builder, `GroundMapCheck` and LayoutInspector pass `VideoMap: null`.
 
 **Critical invariant**: During Steps 2-6, `GroundNode.Edges` adjacency lists remain EMPTY. All edges are added to `layout.Edges` only. At the end of Step 7, `RebuildAdjacencyLists()` populates each node's `Edges` list from `AllEdges` (`layout.Edges` plus the arcs, which exist only after Step 8 and join the lists when it rebuilds them). This timing is essential because earlier steps need to perform lookups on `layout.Edges` directly.
 

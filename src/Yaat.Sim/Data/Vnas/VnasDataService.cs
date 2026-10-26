@@ -27,6 +27,12 @@ public sealed class VnasDataService : IDisposable
     public IReadOnlyList<AircraftCwtEntry> AircraftCwt { get; private set; } = [];
     public string CurrentAiracCycle { get; private set; } = "";
 
+    /// <summary>
+    /// Base URL the vNAS config publishes for tower-cab videomaps, or empty when the config fetch failed.
+    /// A downloader given an empty URL serves whatever is cached on disk, without a network request.
+    /// </summary>
+    public string VideoMapBaseUrl { get; private set; } = "";
+
     public VnasDataService()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
@@ -57,6 +63,8 @@ public sealed class VnasDataService : IDisposable
         {
             Log.LogWarning(ex, "Failed to fetch VNAS config; " + "using cached data if available");
         }
+
+        VideoMapBaseUrl = config?.VideoMapBaseUrl ?? "";
 
         await LoadNavDataAsync(config, manifest);
         await LoadAircraftSpecsAsync(config, manifest);

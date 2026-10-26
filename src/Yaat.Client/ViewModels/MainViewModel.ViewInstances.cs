@@ -94,7 +94,7 @@ public partial class MainViewModel
         };
         vm.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         vm.SetAircraftProvider(() => Aircraft);
-        vm.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);
+        vm.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver, _towerCabMapDownloader);
         // Null only while the constructor builds the primary views — Measure is created right after
         // them and handed over there. Every later instance gets it here.
         if (Measure is { } measure)

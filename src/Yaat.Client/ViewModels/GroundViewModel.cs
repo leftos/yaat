@@ -87,6 +87,7 @@ public partial class GroundViewModel : ObservableObject
     private VnasConfigService? _vnasConfigService;
     private TowerCabImageService? _towerCabImageService;
     private ArtccAirportResolver? _artccResolver;
+    private TowerCabMapDownloader? _towerCabMapDownloader;
 
     public UserPreferences? Preferences { get; }
 
@@ -377,12 +378,14 @@ public partial class GroundViewModel : ObservableObject
     public void SetTowerCabServices(
         VnasConfigService vnasConfigService,
         TowerCabImageService towerCabImageService,
-        ArtccAirportResolver artccResolver
+        ArtccAirportResolver artccResolver,
+        TowerCabMapDownloader towerCabMapDownloader
     )
     {
         _vnasConfigService = vnasConfigService;
         _towerCabImageService = towerCabImageService;
         _artccResolver = artccResolver;
+        _towerCabMapDownloader = towerCabMapDownloader;
     }
 
     public async Task LoadTowerCabLayersAsync(string artccId, string airportId)
@@ -395,7 +398,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        if (_vnasConfigService is null || _towerCabImageService is null)
+        if (_vnasConfigService is null || _towerCabImageService is null || _towerCabMapDownloader is null)
         {
             _log.LogDebug("Tower cab services not initialized; skipping layer load");
             return;
@@ -438,7 +441,12 @@ public partial class GroundViewModel : ObservableObject
                 string? videoMapId = await GetTowerCabVideoMapIdAsync(artccId, airportId);
                 if (videoMapId is not null)
                 {
-                    TowerCabMapData? mapData = await DownloadAndParseTowerCabMapAsync(_vnasConfigService.VideoMapBaseUrl, artccId, videoMapId);
+                    TowerCabMapData? mapData = await DownloadAndParseTowerCabMapAsync(
+                        _towerCabMapDownloader,
+                        _vnasConfigService.VideoMapBaseUrl,
+                        artccId,
+                        videoMapId
+                    );
                     TowerCabMap = mapData;
                     if (mapData is not null)
                     {
@@ -468,15 +476,14 @@ public partial class GroundViewModel : ObservableObject
         return await _artccResolver.GetTowerCabVideoMapIdAsync(artccId, airportId);
     }
 
-    private async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(string videoMapBaseUrl, string artccId, string videoMapId)
+    private static async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(
+        TowerCabMapDownloader towerCabMaps,
+        string videoMapBaseUrl,
+        string artccId,
+        string videoMapId
+    )
     {
-        string cachePath = Path.Combine(YaatPaths.Combine("cache", "towercab-maps", artccId), $"{videoMapId}.geojson");
-        string url = $"{videoMapBaseUrl}/{artccId}/{videoMapId}.geojson";
-
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        string? json = (
-            await HttpFileCache.GetOrRefreshAsync(http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)
-        ).Content;
+        string? json = (await towerCabMaps.FetchAsync(videoMapBaseUrl, artccId, videoMapId, CancellationToken.None)).Content;
         return json is null ? null : TowerCabMapParser.Parse(json);
     }
 
