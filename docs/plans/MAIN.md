@@ -13,6 +13,7 @@
   - [ ] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
+  - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
 
 ## Controller-AI coaching
 
@@ -814,3 +815,7 @@
 - [ ] YAAT-1228 Fill missing airline telephonies (JSX Big Stripe) from JO 7340.2 ch. 3
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
+
+## No project
+
+- [ ] YAAT-1253 Offer an optional guided first-use tutorial: views, aliases, macros, favorites, aircraft grid, setup settings · release vNext+1
