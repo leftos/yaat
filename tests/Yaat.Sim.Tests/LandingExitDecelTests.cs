@@ -679,13 +679,17 @@ public class LandingExitDecelTests
         double maxRateAfterApproachLeg = 0;
         double maxMeasuredAfterApproachLeg = 0;
         int ticksAfterApproachLeg = 0;
+        int measuredSeconds = 0;
         double previousGs = aircraft.GroundSpeed;
+        bool pastApproachLeg = false;
         for (int t = 1; t <= 400; t++)
         {
             engine.TickOneSecond();
             double gs = aircraft.GroundSpeed;
             double delta = gs - previousGs;
             previousGs = gs;
+            bool startedPastApproachLeg = pastApproachLeg;
+            pastApproachLeg = false;
 
             if (aircraft.Phases?.CurrentPhase is LandingPhase { CandidateExit: { } candidate })
             {
@@ -707,13 +711,31 @@ public class LandingExitDecelTests
             {
                 ticksAfterApproachLeg++;
                 maxRateAfterApproachLeg = Math.Max(maxRateAfterApproachLeg, aircraft.Targets.DesiredDecelRate ?? taxiRate);
-                maxMeasuredAfterApproachLeg = Math.Max(maxMeasuredAfterApproachLeg, -delta);
+
+                // A second that spans the approach-leg-to-turn switch mixes the two rates: it is bounded by the approach leg's
+                // rate, and only a whole second past the switch is held to the taxi rate.
+                if (startedPastApproachLeg)
+                {
+                    maxMeasuredAfterApproachLeg = Math.Max(maxMeasuredAfterApproachLeg, -delta);
+                    measuredSeconds++;
+                }
+                else
+                {
+                    double approachLegRate = exit.TurnOffDecelRate ?? taxiRate;
+                    Assert.True(
+                        -delta <= approachLegRate + 0.05,
+                        $"the second spanning the switch decelerated at {-delta:F2} kt/s, above the approach leg's {approachLegRate:F2} kt/s"
+                    );
+                }
+
+                pastApproachLeg = true;
             }
         }
 
         Assert.NotNull(committed);
         Assert.Equal(ExitTaxiway, committed.TaxiwayName);
         Assert.True(ticksAfterApproachLeg > 0, "the C172 never left the approach leg of its exit route");
+        Assert.True(measuredSeconds > 0, "no whole second past the approach leg was measured");
 
         double halfLengthFt = AircraftLength.ResolveFt("C172") / 2.0;
         double pastBarFt = GeoMath.DistanceNm(aircraft.Position, committed.HoldShortNode.Position) * GeoMath.FeetPerNm;
@@ -725,6 +747,46 @@ public class LandingExitDecelTests
             maxMeasuredAfterApproachLeg <= taxiRate + 0.05,
             $"decelerated at up to {maxMeasuredAfterApproachLeg:F2} kt/s past the approach leg"
         );
+    }
+
+    /// <summary>
+    /// A standard exit's turn-entry lead is the first corner's tangent length R·tan(Δ/2) at the category's main-gear turn radius:
+    /// a piston at 74° 11.3 ft, a jet at 90° 25 ft, and an angle past 120° (an exit doubling back) measured as 120°.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftCategory.Piston, 74.0, 11.3)]
+    [InlineData(AircraftCategory.Jet, 90.0, 25.0)]
+    [InlineData(AircraftCategory.Piston, 120.0, 25.98)]
+    [InlineData(AircraftCategory.Piston, 170.0, 25.98)]
+    public void TurnEntryLead_IsTheFirstCornerTangent_CappedAt120Degrees(AircraftCategory category, double exitAngleDeg, double expectedFt)
+    {
+        double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(category, exitAngleDeg);
+        double leadFt = RolloutBraking.TurnEntryLeadNm(category, turnOffSpeed, exitAngleDeg) * GeoMath.FeetPerNm;
+        Assert.InRange(leadFt, expectedFt - 0.1, expectedFt + 0.1);
+    }
+
+    /// <summary>A high-speed exit's turn-off is judged at its branch point: no turn-entry lead.</summary>
+    [Fact]
+    public void TurnEntryLead_HighSpeedExit_IsZero()
+    {
+        double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, 30.0);
+        Assert.Equal(0.0, RolloutBraking.TurnEntryLeadNm(AircraftCategory.Jet, turnOffSpeed, 30.0));
+    }
+
+    /// <summary>
+    /// The rate a standard exit's hand-off is judged at is the rate the runway exit will brake at: the max-effort rate under
+    /// <c>EXP</c> whatever the selection rate, else the selection rate capped at max effort, else the taxi rate.
+    /// </summary>
+    [Fact]
+    public void HandOffDecelRate_UnderExpedite_IsTheMaxEffortRate()
+    {
+        const AircraftCategory Piston = AircraftCategory.Piston;
+        double maxEffort = CategoryPerformance.ExpediteExitDecelRate(Piston);
+        Assert.Equal(maxEffort, LandingPhase.HandOffDecelRate(Piston, true, 2.5));
+        Assert.Equal(maxEffort, LandingPhase.HandOffDecelRate(Piston, true, null));
+        Assert.Equal(2.5, LandingPhase.HandOffDecelRate(Piston, false, 2.5));
+        Assert.Equal(maxEffort, LandingPhase.HandOffDecelRate(Piston, false, maxEffort + 1.0));
+        Assert.Equal(CategoryPerformance.TaxiDecelRate(Piston), LandingPhase.HandOffDecelRate(Piston, false, null));
     }
 
     // -- The stop past the bar on a two-node exit --
@@ -1656,6 +1718,44 @@ public class LandingExitDecelTests
             string.Equals(first.TaxiwayName, second.TaxiwayName, StringComparison.OrdinalIgnoreCase),
             $"the straight-line fallback still picked {first.TaxiwayName} after the crew gave it up"
         );
+    }
+
+    /// <summary>
+    /// The straight-line fallback takes the turn-off speed of the exit angle it measures (<see cref="AirportGroundLayout.MeasureExitAngle"/>,
+    /// <see cref="AirportGroundLayout.UnmeasuredExitAngleDeg"/> when the exit cannot be measured), never the speed of an unknown angle: a
+    /// B738 at 150 kt 500 ft before OAK 30's W6 falls back to the nearest taxiway node ahead.
+    /// </summary>
+    [Fact]
+    public void StraightLineFallback_TakesTheTurnOffSpeedOfTheMeasuredExitAngle()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
+        if ((layout is null) || (runway is null))
+        {
+            return;
+        }
+
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
+        AirportGroundLayout.CenterlineExitResult? w6 = layout.FindOnSidePreferredExit(
+            threshold.Lat,
+            threshold.Lon,
+            runway.TrueHeading,
+            runway.Designator,
+            new ExitPreference { Taxiway = "W6" },
+            sidePref: null
+        );
+        Assert.NotNull(w6);
+        LatLon start = GeoMath.ProjectPoint(w6.Value.Path[0].Position, runway.TrueHeading.ToReciprocal(), 500.0 / GeoMath.FeetPerNm);
+
+        ResolvedExitInfo candidate = FallbackCandidateAt(layout, runway, start, givenUp: null);
+
+        double measuredAngle = layout.MeasureExitAngle([candidate.HoldShortNode], candidate.HoldShortNode, candidate.TaxiwayName, runway.TrueHeading);
+        double measuredSpeed = CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, measuredAngle);
+        double unknownAngleSpeed = CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, null);
+        string staged =
+            $"{candidate.TaxiwayName} measures {measuredAngle:F1} deg ({measuredSpeed} kt), an unknown angle gives {unknownAngleSpeed} kt";
+        Assert.True(measuredSpeed != unknownAngleSpeed, $"the staging cannot tell the two apart: {staged}");
+        Assert.True(candidate.TurnOffSpeed == measuredSpeed, $"the fallback took {candidate.TurnOffSpeed} kt: {staged}");
     }
 
     /// <summary>

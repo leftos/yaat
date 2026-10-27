@@ -156,6 +156,18 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private double? _noseOffsetNm;
 
+    /// <summary>
+    /// The candidate <see cref="_turnEntryLeadNm"/> was computed for (<see cref="CandidateTurnEntryLeadNm"/>). Derived from the
+    /// candidate's own path, so it stays out of the snapshot: a restored phase computes the same lead.
+    /// </summary>
+    private ResolvedExitInfo? _turnEntryLeadCandidate;
+
+    /// <summary>
+    /// How far before its branch point <see cref="_turnEntryLeadCandidate"/>'s turn begins (nm,
+    /// <see cref="RolloutBraking.TurnEntryLeadNm"/>); zero for a high-speed exit.
+    /// </summary>
+    private double _turnEntryLeadNm;
+
     private double _stabilizedSinceSec;
     private double _touchdownLat;
     private double _touchdownLon;
@@ -1046,9 +1058,10 @@ public sealed class LandingPhase : Phase
         GeoMath.AlongTrackDistanceNm(position, new LatLon(plan.ThresholdLat, plan.ThresholdLon), plan.RunwayHeading);
 
     /// <summary>
-    /// True when the rollout has passed the candidate exit's branch point without being able to take it: past the
-    /// branch and either still too fast for the turn-off or committed to a standard exit, which must be entered
-    /// before the branch.
+    /// True when the rollout can no longer take the candidate exit: past its turn-entry point
+    /// (<see cref="CandidateTurnEntryLeadNm"/>; the branch point itself for a high-speed exit) still faster than the turn-off
+    /// speed plus <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/>, or at a standard exit's branch point still in the
+    /// rollout, which happens only when the hand-off was held (above coast speed, or a LAHSO lander without a usable exit).
     /// </summary>
     private bool HasMissedCandidateExit(PhaseContext ctx, LandingPlan plan)
     {
@@ -1058,18 +1071,36 @@ public sealed class LandingPhase : Phase
         }
 
         double distToBranchPoint = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
-
-        // Missed-exit conditions: past branch AND (too fast OR standard exit at branch)
-        double highSpeedTurnOff = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
+        double distToTurnEntry = distToBranchPoint - CandidateTurnEntryLeadNm(ctx, plan, _candidateExit);
         bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
-        bool standardExitAtBranch = _candidateExit.TurnOffSpeed < highSpeedTurnOff;
 
-        return (distToBranchPoint <= 0) && (tooFast || standardExitAtBranch);
+        return ((distToTurnEntry <= 0) && tooFast)
+            || ((distToBranchPoint <= 0) && RolloutBraking.IsStandardExit(ctx.Category, _candidateExit.TurnOffSpeed));
+    }
+
+    /// <summary>
+    /// <see cref="RolloutBraking.TurnEntryLeadNm"/> for <paramref name="candidate"/>, its exit angle measured by the layout's one
+    /// exit-angle rule (<see cref="AirportGroundLayout.MeasureExitAngle"/>), or
+    /// <see cref="AirportGroundLayout.UnmeasuredExitAngleDeg"/> without a layout. Cached for the candidate in hand, so a candidate
+    /// restored from a snapshot gets the same lead from the same path.
+    /// </summary>
+    private double CandidateTurnEntryLeadNm(PhaseContext ctx, LandingPlan plan, ResolvedExitInfo candidate)
+    {
+        if (!ReferenceEquals(candidate, _turnEntryLeadCandidate))
+        {
+            double exitAngle =
+                ctx.GroundLayout?.MeasureExitAngle(candidate.Path, candidate.HoldShortNode, candidate.TaxiwayName, plan.RunwayHeading)
+                ?? AirportGroundLayout.UnmeasuredExitAngleDeg;
+            _turnEntryLeadNm = RolloutBraking.TurnEntryLeadNm(ctx.Category, candidate.TurnOffSpeed, exitAngle);
+            _turnEntryLeadCandidate = candidate;
+        }
+
+        return _turnEntryLeadNm;
     }
 
     /// <summary>
     /// The rollout's speed plan: the target speed and braking rate that bring the aircraft to the candidate exit's
-    /// turn-off speed by its branch point, or to coast speed when there is no candidate. Never plans above the
+    /// turn-off speed by its turn-entry point, or to coast speed when there is no candidate. Never plans above the
     /// current speed: once IAS is at or below the planned target it holds IAS. Braking below coast is
     /// <see cref="RunwayExitPhase"/>'s job.
     /// </summary>
@@ -1099,8 +1130,8 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// The part of <see cref="PlanExitDeceleration"/> that shapes the plan to <paramref name="candidate"/>: coast
-    /// speed at the default rollout rate unless the exit is still ahead, the aircraft is faster than its turn-off
-    /// speed, and the turn-off is within braking limits.
+    /// speed at the default rollout rate unless the exit's turn-entry point (<see cref="CandidateTurnEntryLeadNm"/>) is still
+    /// ahead, the aircraft is faster than its turn-off speed, and the turn-off speed at that point is within braking limits.
     /// </summary>
     private (double TargetSpeed, double DecelRate) PlanCandidateExitDeceleration(
         PhaseContext ctx,
@@ -1111,14 +1142,16 @@ public sealed class LandingPhase : Phase
     {
         double targetSpeed = coastSpeed;
         double decelRateOverride = plan.DefaultDecel;
-        double distToBranch = GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+        double distToTurnEntry =
+            GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading)
+            - CandidateTurnEntryLeadNm(ctx, plan, candidate);
 
-        if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > candidate.TurnOffSpeed))
+        if ((distToTurnEntry > 0) && (ctx.Aircraft.IndicatedAirspeed > candidate.TurnOffSpeed))
         {
             double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(
                 ctx.Aircraft.GroundSpeed,
                 candidate.TurnOffSpeed,
-                distToBranch,
+                distToTurnEntry,
                 ctx.Category
             );
             double brakingLimit = CommittedExitBrakingLimit(ctx, candidate);
@@ -1129,8 +1162,8 @@ public sealed class LandingPhase : Phase
                 // than coast (e.g. 12-kt standard exits for a piston whose coast
                 // is 25 kt). RunwayExitPhase still handles the final braking through
                 // the turn, but letting LandingPhase drop below coast is what allows
-                // a slow piston to actually take a 90° midfield exit — otherwise the
-                // missed-exit check at distToBranch≤0 always fires for standard exits.
+                // a slow piston to reach a 90° midfield exit's turn-entry point slow
+                // enough to turn there.
                 targetSpeed = Math.Min(coastSpeed, candidate.TurnOffSpeed);
 
                 // Raise the decel rate if the direct turn-off requires firmer
@@ -1141,10 +1174,11 @@ public sealed class LandingPhase : Phase
                 }
 
                 // Reserve distance for RunwayExitPhase to brake from coast to
-                // turn-off speed. Aim to reach coast speed at (branch - buffer),
-                // not at the branch itself.
+                // turn-off speed. Aim to reach coast speed at (turn entry - buffer),
+                // not at the turn-entry point itself. The buffer is reserved at the
+                // routine rollout rate (the plan's default deceleration).
                 double brakingBufferNm = RolloutBraking.BrakingDistanceNm(coastSpeed, candidate.TurnOffSpeed, plan.DefaultDecel);
-                double effectiveDist = distToBranch - brakingBufferNm;
+                double effectiveDist = distToTurnEntry - brakingBufferNm;
 
                 // Gentle decel when the exit is far enough that normal braking
                 // would reach coast speed too early. Lower the rate so the
@@ -1169,12 +1203,16 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
-    /// The rollout-to-exit hand-off gate: the aircraft is at or below coast speed, a standard exit's branch is not
-    /// too close to turn onto, and a LAHSO lander has a candidate <see cref="RunwayExitPhase"/> will honour.
+    /// The rollout-to-exit hand-off gate: the aircraft is at or below coast speed, a standard exit can still be turned onto
+    /// (<see cref="CanTurnOffAtTurnEntry"/>: its turn-entry point makeable, or its branch point still ahead with the aircraft
+    /// already within turn-off speed), and a LAHSO lander has a candidate <see cref="RunwayExitPhase"/> will honour.
     /// </summary>
     private bool CanHandOff(PhaseContext ctx, LandingPlan plan, double coastSpeed)
     {
-        bool handoffBlocked = IsStandardExitBranchTooClose(ctx, plan, coastSpeed);
+        bool handoffBlocked =
+            (_candidateExit is not null)
+            && RolloutBraking.IsStandardExit(ctx.Category, _candidateExit.TurnOffSpeed)
+            && !CanTurnOffAtTurnEntry(ctx, plan, _candidateExit);
 
         // A LAHSO lander hands off only with a candidate RunwayExitPhase will actually honour: one the resolver has
         // restricted to a branch point before the hold-short point, that carries a real path, and whose hold-short
@@ -1187,21 +1225,38 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
-    /// True when the candidate is a standard exit whose branch point is less than 0.02 nm ahead, too close for a
-    /// turn arc, so hand-off waits for the next exit.
+    /// True when <see cref="JudgeExitReach"/> finds <paramref name="candidate"/> reachable at the rate <see cref="RunwayExitPhase"/>
+    /// will brake the approach leg at (<see cref="CommittedTurnOffDecelRate"/>): its turn-entry point makeable at that rate, or its
+    /// branch point still ahead with the aircraft already within turn-off speed. A standard exit handed off otherwise could only be
+    /// reached too fast to turn.
     /// </summary>
-    private bool IsStandardExitBranchTooClose(PhaseContext ctx, LandingPlan plan, double coastSpeed)
-    {
-        if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
-        {
-            double distToBranch = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+    private bool CanTurnOffAtTurnEntry(PhaseContext ctx, LandingPlan plan, ResolvedExitInfo candidate) =>
+        JudgeExitReach(
+            ExitReachOrigin.Of(ctx.Aircraft),
+            ctx.Category,
+            plan.RunwayHeading,
+            candidate.BranchPointNode,
+            (candidate.TurnOffSpeed, CommittedTurnOffDecelRate(ctx, candidate), CandidateTurnEntryLeadNm(ctx, plan, candidate))
+        ) == ExitReach.Reachable;
 
-            double hsExitSpeed = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
-            bool isStandardExit = _candidateExit.TurnOffSpeed < hsExitSpeed;
-            return isStandardExit && (distToBranch < 0.02);
+    /// <summary><see cref="HandOffDecelRate"/> for <paramref name="candidate"/> as the aircraft stands.</summary>
+    private static double CommittedTurnOffDecelRate(PhaseContext ctx, ResolvedExitInfo candidate) =>
+        HandOffDecelRate(ctx.Category, ctx.Aircraft.Ground.IsExpeditingExit, candidate.SelectionDecelRate);
+
+    /// <summary>
+    /// The rate <see cref="RunwayExitPhase"/> brakes toward a handed-off exit chosen at <paramref name="selectionRate"/>, and so the
+    /// rate the hand-off judges a standard exit at: the max-effort <see cref="CategoryPerformance.ExpediteExitDecelRate"/> under
+    /// <c>EXP</c> (<paramref name="expediting"/>), else the turn-off rate the runway exit keeps from the selection rate
+    /// (<see cref="RolloutBraking.CaptureTurnOffRate"/>), the category taxi rate when it keeps none.
+    /// </summary>
+    public static double HandOffDecelRate(AircraftCategory category, bool expediting, double? selectionRate)
+    {
+        if (expediting)
+        {
+            return CategoryPerformance.ExpediteExitDecelRate(category);
         }
 
-        return false;
+        return RolloutBraking.CaptureTurnOffRate(selectionRate, category) ?? CategoryPerformance.TaxiDecelRate(category);
     }
 
     /// <summary>
@@ -2133,29 +2188,35 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// The one reachability test every exit search on the rollout applies, named or not, at command time and on the tick, and the
-    /// final-approach forecast applies from the projected touchdown: a connection whose <paramref name="branch"/> is at or behind
-    /// <paramref name="from"/> along the runway is passed; otherwise it is reachable when the indicated airspeed is already within
-    /// <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/> of the turn-off speed, or when the ground speed needs no more than the
-    /// braking limit to come down to it by the branch.
+    /// final-approach forecast applies from the projected touchdown, and the hand-off applies to a standard exit. An aircraft whose
+    /// indicated airspeed is already within <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/> of the turn-off speed has no
+    /// braking left to do: the connection is reachable while its <paramref name="branch"/> is ahead, passed once the branch is at or
+    /// behind <paramref name="from"/>. Otherwise it is judged at its turn-entry point (the branch less the target's
+    /// <see cref="RolloutBraking.TurnEntryLeadNm"/>): passed when that point is at or behind, reachable when the ground speed needs
+    /// no more than the braking limit to come down to the turn-off speed by it.
     /// </summary>
     private static ExitReach JudgeExitReach(
         ExitReachOrigin from,
         AircraftCategory category,
         TrueHeading runwayHeading,
         GroundNode branch,
-        (double TurnOffSpeed, double BrakingLimit) target
+        (double TurnOffSpeed, double BrakingLimit, double TurnEntryLeadNm) target
     )
     {
         double distToBranch = GeoMath.AlongTrackDistanceNm(branch.Position, from.Position, runwayHeading);
-        if (distToBranch <= 0)
+        if (from.IndicatedAirspeedKts <= target.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts)
+        {
+            return (distToBranch > 0) ? ExitReach.Reachable : ExitReach.AtOrBehind;
+        }
+
+        double distToTurnEntry = distToBranch - target.TurnEntryLeadNm;
+        if (distToTurnEntry <= 0)
         {
             return ExitReach.AtOrBehind;
         }
 
-        bool alreadySlowEnough = from.IndicatedAirspeedKts <= target.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
         bool reachable =
-            alreadySlowEnough
-            || (RolloutBraking.RequiredDecelKtsPerSec(from.GroundSpeedKts, target.TurnOffSpeed, distToBranch, category) <= target.BrakingLimit);
+            RolloutBraking.RequiredDecelKtsPerSec(from.GroundSpeedKts, target.TurnOffSpeed, distToTurnEntry, category) <= target.BrakingLimit;
         return reachable ? ExitReach.Reachable : ExitReach.BeyondLimit;
     }
 
@@ -2285,7 +2346,7 @@ public sealed class LandingPhase : Phase
             return;
         }
 
-        double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, plan.RunwayHeading);
+        double fallbackAngle = ctx.GroundLayout.MeasureExitAngle([result.Value.Node], result.Value.Node, result.Value.Taxiway, plan.RunwayHeading);
         double fallbackTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
 
         _candidateExit = new ResolvedExitInfo
@@ -2590,7 +2651,14 @@ public sealed class LandingPhase : Phase
         GroundNode branchNode = candidate.Path[0];
         double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(query.Category, candidate.ExitAngle);
         double brakingLimit = query.BrakingLimitForTurnOffSpeed(turnOffSpeed);
-        ExitReach reach = JudgeExitReach(query.From, query.Category, query.Plan.RunwayHeading, branchNode, (turnOffSpeed, brakingLimit));
+        double turnEntryLeadNm = RolloutBraking.TurnEntryLeadNm(query.Category, turnOffSpeed, candidate.ExitAngle);
+        ExitReach reach = JudgeExitReach(
+            query.From,
+            query.Category,
+            query.Plan.RunwayHeading,
+            branchNode,
+            (turnOffSpeed, brakingLimit, turnEntryLeadNm)
+        );
 
         if (reach == ExitReach.AtOrBehind)
         {
@@ -2667,8 +2735,9 @@ public sealed class LandingPhase : Phase
             return RolloutBraking.NamedExitBrakingLimit(ctx.Category, expedite);
         }
 
-        bool highSpeedExit = turnOffSpeed >= CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
-        return highSpeedExit ? CategoryPerformance.ComfortableExitDecelRate(ctx.Category) : CategoryPerformance.RolloutDecelRate(ctx.Category);
+        return !RolloutBraking.IsStandardExit(ctx.Category, turnOffSpeed)
+            ? CategoryPerformance.ComfortableExitDecelRate(ctx.Category)
+            : CategoryPerformance.RolloutDecelRate(ctx.Category);
     }
 
     /// <summary>

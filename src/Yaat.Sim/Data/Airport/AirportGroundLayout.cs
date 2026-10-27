@@ -1928,9 +1928,7 @@ public sealed class AirportGroundLayout
             );
             if (result is not null)
             {
-                double? exitAngle =
-                    ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, runwayHeading)
-                    ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
+                double exitAngle = MeasureExitAngle(result.Value.Path, result.Value.Node, result.Value.Taxiway, runwayHeading);
                 if (Log.IsEnabled(LogLevel.Debug))
                 {
                     Log.LogDebug(
@@ -1942,16 +1940,16 @@ public sealed class AirportGroundLayout
                     );
                 }
 
-                bool isBackExit = (exitAngle is not null) && (exitAngle.Value > BackExitAngleThreshold);
+                bool isBackExit = exitAngle > BackExitAngleThreshold;
                 bool hasTaxiwayPreference = preference?.Taxiway is not null;
                 if (isBackExit && !hasTaxiwayPreference)
                 {
                     // Remember the nearest back-exit but keep walking for a forward one.
-                    deferredBackExit ??= (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle!.Value, result.Value.Side, current);
+                    deferredBackExit ??= (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle, result.Value.Side, current);
                     continue;
                 }
 
-                return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90, result.Value.Side, current);
+                return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle, result.Value.Side, current);
             }
         }
 
@@ -2447,7 +2445,7 @@ public sealed class AirportGroundLayout
                 + "(dist={Dist:F4} parking={Park:F4} anglePen={AngPen:F2} hsBonus={Hs:F2}){Result}",
             candidate.Bar.Id,
             candidate.Taxiway,
-            angle.Angle ?? 0,
+            angle.Angle,
             onRequestedSide ? "ON" : "OFF",
             score,
             candidate.TotalDistNm,
@@ -2463,7 +2461,7 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>An exit's angle from the runway heading, with the score penalty and bonus it earns.</summary>
-    private readonly record struct ExitAngleScore(double? Angle, double Penalty, double Bonus);
+    private readonly record struct ExitAngleScore(double Angle, double Penalty, double Bonus);
 
     /// <summary>
     /// Without the backward penalty (more than 100°) a short backward exit (E at 111° from node 230 at SFO) can outscore a
@@ -2473,18 +2471,27 @@ public sealed class AirportGroundLayout
     /// </summary>
     private ExitAngleScore ScoreExitAngle(ExitSearch search, ExitCandidate candidate)
     {
-        double? exitAngle =
-            ComputePathExitAngle(candidate.Path, candidate.Taxiway, search.RunwayHeading)
-            ?? ComputeExitAngle(candidate.Bar, candidate.Taxiway, search.RunwayHeading);
-        if ((exitAngle is not { } angle) || (search.Preference?.Taxiway is not null))
+        double angle = MeasureExitAngle(candidate.Path, candidate.Bar, candidate.Taxiway, search.RunwayHeading);
+        if (search.Preference?.Taxiway is not null)
         {
-            return new ExitAngleScore(exitAngle, 0, 0);
+            return new ExitAngleScore(angle, 0, 0);
         }
 
         double penalty = (angle > 100) ? 10.0 : 0;
         double bonus = (angle <= 45.0) ? HighSpeedExitBonus : 0;
-        return new ExitAngleScore(exitAngle, penalty, bonus);
+        return new ExitAngleScore(angle, penalty, bonus);
     }
+
+    /// <summary>The exit angle (degrees) <see cref="MeasureExitAngle"/> gives an exit whose angle cannot be measured.</summary>
+    public const double UnmeasuredExitAngleDeg = 90.0;
+
+    /// <summary>
+    /// The one exit-angle rule: the angle between the runway and the exit taxiway measured along <paramref name="path"/>
+    /// (<see cref="ComputePathExitAngle"/>), else searched from <paramref name="holdShort"/> (<see cref="ComputeExitAngle"/>),
+    /// else <see cref="UnmeasuredExitAngleDeg"/>. Exit search, exit scoring and the rollout's turn-entry lead all measure with it.
+    /// </summary>
+    public double MeasureExitAngle(IReadOnlyList<GroundNode> path, GroundNode holdShort, string exitTaxiway, TrueHeading runwayHeading) =>
+        ComputePathExitAngle(path, exitTaxiway, runwayHeading) ?? ComputeExitAngle(holdShort, exitTaxiway, runwayHeading) ?? UnmeasuredExitAngleDeg;
 
     /// <summary>
     /// Another runway's bar the branch reaches moving away from that runway (the step onto the bar ends farther from its
@@ -4417,10 +4424,8 @@ public sealed class AirportGroundLayout
                         continue;
                     }
 
-                    double? angle =
-                        ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, rwyHeading)
-                        ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                    bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
+                    double angle = MeasureExitAngle(result.Value.Path, result.Value.Node, result.Value.Taxiway, rwyHeading);
+                    bool isHighSpeed = angle <= 45.0;
                     exits.Add((result.Value.Node.Id, side, isHighSpeed));
                 }
             }

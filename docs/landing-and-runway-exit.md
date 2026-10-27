@@ -141,9 +141,15 @@ Fallback-chosen, instructed and restored-without-a-rate exits are capped at the 
 Instructed exits (`ER`/`EL`/`EXIT`) use the firm rate and `EXP` the expedite rate (`RolloutBraking.NamedExitBrakingLimit`); an instructed exit that would need more than that is refused or given up with the crew's "unable" (§ Unable and replan). Not the first exit that requires maximum effort. Back-exits (>100°) are deferred during the centerline walk: `FindExitFromCenterline` keeps looking for a forward exit and only returns a back-exit if nothing forward is found within the walk range.
 
 - Target the smaller of `coastSpeed` and the exit's `turnOffSpeed` — a 12-kt standard exit needs the aircraft at 12 kt at the branch, not at 25 kt coast
-- Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed (using the default decel rate)
-- Plan decel to reach the target speed at that buffer point — not at the exit itself
+- Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed, reserved at the plan's routine rollout rate (the default decel rate)
+- Plan decel to reach the target speed at that buffer point before the exit's turn-entry point (below) — not at the branch itself
 - If the exit is far enough that normal braking would reach target too early, use a gentler rate (floored at 0.5 kts/s) to avoid a long pointless coast
+
+**The turn-entry point.** A standard exit's turn begins short of its branch point, where the ground navigator starts rounding the first corner. That turn-entry point P = branch − R·tan(min(Δ, 120°)/2) is the one place the rollout judges, plans, hands off and declares a standard exit missed against (`RolloutBraking.TurnEntryLeadNm`; `RolloutBraking.IsStandardExit` is a turn-off speed below `HighSpeedExitSpeed`). R is `MainGearTurnRadiusFt` (piston 15, turboprop 18, jet 25 ft) and Δ the exit angle from `AirportGroundLayout.MeasureExitAngle` (the path, else the hold-short node, else 90°), so a 74° piston exit leads by 11.3 ft and a 90° jet exit by 25 ft. A high-speed exit has lead 0 and is judged at the branch.
+
+- **Judged** — `JudgeExitReach` measures the braking from the aircraft to P at the braking limit. An aircraft already within turn-off speed + 3 kt has no braking left to do, so it is judged against the branch itself and can still turn between P and the branch. A standard exit the rollout accepts is therefore the one it takes: OAK 28R C172 `TAXIAUTO 30` leaves at E with its route kept, not an "unable E".
+- **Handed off** — `CanHandOff` needs IAS at or below coast and the reach test to P passing at the committed turn-off rate (`LandingPhase.HandOffDecelRate`: `RolloutBraking.CaptureTurnOffRate` of the selection rate, or `ExpediteExitDecelRate` under `EXP`), the rate `RunwayExitPhase` brakes the approach leg at.
+- **Missed** — past P with IAS above turn-off + 3 kt (`HasMissedCandidateExit`). A standard exit still in `LandingPhase` at its branch is only the backstop for a hand-off that was blocked (above coast, LAHSO).
 
 **The turn-off keeps the rollout's rate.** The rate the exit was chosen with carries across the handoff (`PhaseList.ResolvedExit` → `RunwayExitPhase.TurnOffDecelRate`, snapshotted, capped at the expedite rate; a late re-target carries its own firm or expedite limit).
 
@@ -397,7 +403,7 @@ Handing a route to the navigator is **not** the same thing as turning off. Segme
 - **The turn lead** — the branch point must still be `max(RetargetLeadSeconds × groundspeed, MinRetargetLeadFt)` plus the main-gear turn radius ahead. The radius term covers `GroundNavigator.StraightArrivalThresholdNm`'s tangent corner-rounding, which begins the arc `r·tan(δ/2)` *before* the branch vertex.
 
   `RetargetLeadSeconds` is **4.0** and means one thing only (aviation-reviewed): a receive/readback/re-plan budget, well under the 5-10 s used for airborne clearances because an exit instruction during rollout is high-expectancy.
-- **Reachability** — `RunRetargetSearch` resolves the new preference **exactly, with no relaxation**, and accepts a candidate only if it is past that lead **and** the aircraft can still brake to its turn-off speed (`RolloutBraking.RequiredDecelKtsPerSec` against `RolloutBraking.NamedExitBrakingLimit` — the firm rate, or the max-effort rate when the instruction runs without delay — the same limit `LandingPhase` judges a named exit by).
+- **Reachability** — `RunRetargetSearch` resolves the new preference **exactly, with no relaxation**, and accepts a candidate only if it is past that lead **and** the aircraft can still brake to its turn-off speed by the exit's turn-entry point (`RolloutBraking.RequiredDecelKtsPerSec` against `RolloutBraking.NamedExitBrakingLimit` — the firm rate, or the max-effort rate when the instruction runs without delay — the same limit `LandingPhase` judges a named exit by).
 
   `EvaluateRetarget` takes that expedite as an argument: the handler passes the one the instruction will run under (`EXP` on it, or standing for the same taxiway), not the flag as it stood, so a fresh `EXIT W5 EXP` is judged at max effort and a bare `EXIT W5` naming a new taxiway under a standing `EXP` at the firm rate; the tick re-asks with the flag the handler wrote. The search skips taxiways the crew has given up, except the one the instruction names (§ The given-up set).
 
@@ -517,14 +523,14 @@ Helicopters are exempt (a wheeled pedal-turn holds the hover rate). Tight fillet
 | Turn-off tolerance | 3.0 kts | Discrete-tick overshoot margin |
 | High-speed exit threshold | 45° | Exits ≤45° use high-speed turn-off |
 | High-speed exit bonus | 0.15 nm | Scoring bonus for ≤45° exits |
-| Standard exit min distance | 0.02 nm | Min distance to branch for standard exit handoff |
+| Turn-entry lead | R·tan(min(Δ, 120°)/2) | Standard exits only: how far before the branch the turn begins (`RolloutBraking.TurnEntryLeadNm`); the point the hand-off, plan and missed-exit test use |
 
 ## Exit Angle Classification
 
 The angle is the one measured in "Exit angle and exit chain" above, so the class of an exit follows its turn off the runway, not where its bar stands.
 
 - **High-speed exits** (≤45°): shallow turns, higher turn-off speed (30 kts for jets). Tolerate shorter virtual segments since the turn angle is small.
-- **Standard exits** (>45°): steep turns, lower turn-off speed (15 kts for jets). Need more distance for the turn arc. Rejected if the aircraft is at/past the branch point — the virtual segment would be too short.
+- **Standard exits** (>45°): steep turns, lower turn-off speed (15 kts for jets). Need more distance for the turn arc. Judged against the turn-entry point short of the branch (§ The turn-entry point); rejected once the aircraft is past it and too fast to turn.
 
 ## Final Approach Course (FAC) Alignment
 
@@ -571,8 +577,8 @@ The `SA` (Make Short Approach) compressed pattern has two coupled geometry invar
 
 **Do not shorten the virtual segment.** A longer virtual segment is always better — it gives GroundNavigator more context for turn anticipation. Handing off the aircraft far from the exit (at coast speed with room to brake) is correct behavior.
 
-**Do not loosen the unable/degenerate guards.** Standard exits at the branch point are always rejected. This prevents degenerate near-zero virtual segments that cause heading reversals. Fix the braking planning instead.
+**Do not loosen the unable/degenerate guards.** A standard exit is rejected once the aircraft is past its turn-entry point too fast to turn, or at its branch point still in the rollout. This prevents degenerate near-zero virtual segments that cause heading reversals. Fix the braking planning instead.
 
-**Brake toward the exit's turn-off speed when it is below coast.** LandingPhase targets `min(coastSpeed, candidateExit.TurnOffSpeed)` so a slow piston can actually take a 12-kt standard exit — the missed-exit check at `distToBranch≤0` fires unconditionally for standard exits, so the aircraft has to be at or below turn-off speed *before* the branch, not at coast.
+**Brake toward the exit's turn-off speed when it is below coast.** LandingPhase targets `min(coastSpeed, candidateExit.TurnOffSpeed)` so a slow piston can actually take a 12-kt standard exit — the missed-exit check fires past the turn-entry point while IAS is above turn-off + 3 kt, so the aircraft has to be at or below turn-off speed by that point, not at coast.
 
 RunwayExitPhase still owns braking through the turn; LandingPhase just stops stranding slow aircraft above a reachable exit's turn-off.
