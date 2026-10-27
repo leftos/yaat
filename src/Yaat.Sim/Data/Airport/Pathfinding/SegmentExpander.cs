@@ -381,6 +381,14 @@ public static class SegmentExpander
         // route already reaches a hold-short for the destination runway — the named taxiway
         // serves the runway directly (e.g. B1 has its own 10L hold-short), so the materialiser
         // truncates there and a variant extension would only back-track to it.
+        // From an off-taxiway head (SFO: holding short of C on ramp taxilane T421) the extension is
+        // only deferred: taken at once it would route the whole clearance from the start node to a
+        // variant's bar, skipping the taxiway's own full-length bar. The constrained fallback below
+        // is preferred and runs first; the deferred edges apply only when it leaves the route short
+        // of the bar (OAK: B has no 28L bar, only the R stub, so the extension stands there). The
+        // step's failure is not gated: it is Run's cue to try a connector stub, so it is returned
+        // whatever the head.
+        List<DirectionalEdge>? deferredVariantEdges = null;
         if (
             ctx.Destination.Kind == DestinationKind.Runway
             && ctx.Destination.RunwayId is { } destRunway
@@ -398,7 +406,16 @@ public static class SegmentExpander
 
                 if (varEdges is not null)
                 {
-                    edges.AddRange(varEdges);
+                    if (WalkReachedTaxiway(ctx, head, edges, lastWaypoint.Name))
+                    {
+                        edges.AddRange(varEdges);
+                    }
+                    else
+                    {
+                        Log.LogDebug("[variant] deferred: head #{HeadNodeId} is not on {Taxiway}", head.HeadNodeId, lastWaypoint.Name);
+                        ctx.DiagnosticLog?.Invoke($"[variant] deferred: head #{head.HeadNodeId} not on {lastWaypoint.Name}");
+                        deferredVariantEdges = varEdges;
+                    }
                 }
             }
         }
@@ -451,6 +468,19 @@ public static class SegmentExpander
             {
                 ctx.DiagnosticLog?.Invoke($"[fallback] constrained A* failed: {autoFailure?.HumanMessage ?? "no route"}");
             }
+        }
+
+        // The fallback block above only substitutes its route when that route reaches a bar, so the deferred
+        // extension never mixes with a fallback route: it applies exactly when the route is still
+        // short of the bar, as the off-taxiway head's last resort.
+        if (
+            (deferredVariantEdges is not null)
+            && ctx.Destination.RunwayId is { } deferredRunway
+            && !RouteReachesRunwayHoldShort(edges, deferredRunway, ctx)
+        )
+        {
+            edges.AddRange(deferredVariantEdges);
+            ctx.DiagnosticLog?.Invoke("[variant] deferred extension applied");
         }
 
         // Parking/spot extension: after the named taxiway walk, auto-route to destination.
@@ -1913,6 +1943,21 @@ public static class SegmentExpander
 
     private static bool StartIsOnTaxiway(SearchContext ctx, string taxiwayName) =>
         ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? start) && start.Edges.Any(e => e.MatchesTaxiway(taxiwayName));
+
+    /// <summary>
+    /// Whether the walk ever reached <paramref name="taxiwayName"/>: it traversed an edge of it, or the head stands on a node
+    /// carrying one (a start already on the taxiway, with nothing walked). It decides where the variant step's extension
+    /// applies: the numbered variant (<c>B</c> → <c>B1</c>) and the same-name <c>ExtendToNearestHoldShort</c> fallback both
+    /// extend from the walked terminus, and a head that never reached the taxiway (SFO: holding short of <c>C</c> on ramp
+    /// taxilane <c>T421</c>, four hops past the bridge) must not take one ahead of the taxiway's own full-length bar — its
+    /// extension is deferred until the constrained fallback has had its turn. The step's <c>DestinationUnreachable</c> is a
+    /// separate matter — <c>Run</c>'s connector ladder (<c>TryRunwayConnectorFallback</c>) depends on it — so it is returned
+    /// whatever the head.
+    /// The walked-edges check is cheap insurance over the head-node check, not a separate rule.
+    /// </summary>
+    private static bool WalkReachedTaxiway(SearchContext ctx, PartialRoute head, List<DirectionalEdge> walkedEdges, string taxiwayName) =>
+        (walkedEdges.Any(e => e.Edge.MatchesTaxiway(taxiwayName)))
+        || (ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode) && NodeIncidentToTaxiway(headNode, taxiwayName));
 
     /// <summary>
     /// The start leg when <see cref="BridgeStartToTaxiway"/> reaches no node of <paramref name="taxiway"/> (SFO: pushed off

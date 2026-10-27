@@ -300,9 +300,11 @@ A departure runway can lie *beyond* one or more runway crossings on the cleared 
 
 When the explicit walk + variant extension do **not** reach a hold-short for the destination runway, `SegmentExpander.Run` runs a last-resort flat A* (`AutoRouter`) from the start to the runway, which explores all branches and reaches the lineup hold-short across the crossings.
 
+From a head that never reached the last named taxiway, the fallback is tried *before* the variant extension (step 6 of the explicit walk) and replaces it when it reaches the bar; SFO `TAXI C 28R` takes C's own full-length 28R bar this way, not the C2 stub 582 ft up the runway. The deferred variant edges apply only if the fallback misses.
+
 The fallback is **hard-constrained to the cleared taxiways**: every letter-only taxiway the controller did not name is added to `AvoidedTaxiways` with `AvoidMode.HardExclude` (numbered connectors and RAMP stay free), so it cannot detour onto an un-named taxiway — it must cross every runway the cleared taxiways cross (e.g. `RWY 30 TAXI C B W HS 28R` crosses 28R then 28L).
 
-It only runs on the failing path, so it never changes a route that already reaches its runway. An explicit `HS <rwy>` on a crossed runway is a hold/authorization marker, not a routing terminus.
+It only runs on the failing path, so it never changes a route that already reaches its runway (a deferred variant extension is not yet a route that reaches it). An explicit `HS <rwy>` on a crossed runway is a hold/authorization marker, not a routing terminus.
 
 ### Node-reference paths (`TAXI #1124 #352 …`) — the drawn-route contract
 
@@ -619,6 +621,10 @@ Everything else falls to `WalkToNaturalTerminus` (`:2649`): walks forward along 
 A multi-name junction arc is a turn *off* the taxiway, not a continuation; single-name wins regardless of cost, cost only breaks ties within a tier. Runway-crossing arcs (`IsRunwayJunction`, e.g. `H - RWY01L/19R`) *continue* the taxiway across a runway and are not excluded. (This greedy one-step walk is a known gap vs. multi-candidate discipline — see Caveats.)
 
 **6. Variant resolution** (`TryVariantExtension`, `:1683`). When the destination is a runway and the walked route hasn't already reached a hold-short for it, the expander looks for **numbered variants** of the last named taxiway whose hold-short serves the runway (`B` → `B1`). Exactly one → auto-extend. More than one (e.g. `W1`…`W7` off `W` to rwy 30) → **auto-pick the variant whose hold-short is nearest the runway threshold** (via `NavigationDatabase` threshold lookup).
+
+The step's extension runs at once only when the walk reached the last named taxiway — it traversed an edge of it, or the head stands on a node carrying one.
+
+From a head that never reached it, the extension is deferred: the runway-destination fallback A* (see *Runway-destination fallback across crossings* above) runs first, and the deferred edges apply only if that fallback left the route short of the bar. The step's `DestinationUnreachable` is still raised and still hands over to the connector step. `ExplicitPathOptions.DiagnosticLog` gets `[variant] deferred: head #n not on X` when the extension is deferred and `[variant] deferred extension applied` when the fallback missed the bar and the edges were applied.
 
 Zero variants → try same-name hold-shorts, else raise `DestinationUnreachable` blaming the last taxiway — which `Run` answers with the **connector fallback** (`TryRunwayConnectorFallback`: a numbered stub ≤ 600 ft off the last taxiway carrying a bar for the runway, threaded as a final waypoint and re-resolved; see *Runway reached through a short numbered stub* above) before the failure reaches the controller. When threshold is unavailable (no navdata) a failure is raised naming the candidates.
 
