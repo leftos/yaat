@@ -51,6 +51,7 @@
 ### Fixed
 
 - An arrival exiting SFO 28R onto Q pulls up to hold short of 28L, so a bare `CROSS` works there as it does at K.
+- A bare `TAXI B` given just past a hold-short bar taxis the way the aircraft faces instead of turning back across the runways.
 - `GIVEWAY` holds the aircraft short of where its route meets the traffic's, however far off or crossing at any angle, until the traffic has passed.
 - `TAXI C 28R` from an SFO gate holds at C's own full-length 28R bar instead of turning onto C2, 582 ft up the runway.
 - A solo student on Ground no longer gets tower calls; a simulated tower clears your transferred departures for takeoff and clears arrivals to land.

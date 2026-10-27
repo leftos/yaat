@@ -384,7 +384,7 @@ public static class RouteCostFunction
     /// taxiway. In that case the existing turn-hint machinery directs the first move, so the default
     /// <see cref="FirstHopHeadingBiasNmPerDeg"/> is suppressed to leave hinted routes unchanged.
     /// </summary>
-    private static bool FirstWaypointHasTurnHint(SearchContext ctx) => ctx.WaypointTurnHints is { Count: > 0 } hints && hints[0] is not null;
+    private static bool FirstWaypointHasTurnHint(SearchContext ctx) => (ctx.WaypointTurnHints is { Count: > 0 } hints) && (hints[0] is not null);
 
     private static GroundNode? FindPrevNode(PartialRoute current, IGroundEdge candidate)
     {

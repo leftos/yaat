@@ -319,6 +319,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
     `Simulation/GroundTaxi/TurnAboutAtRunwayBarFootprintTests.cs` (an aircraft at rest short of a KOAK/KSFO runway bar and cleared back over its taxiway turns about with no part past the hold line, else holds, says "unable, no room to turn around on {twy}, holding short of runway {rwy}" once and survives a snapshot; owns `TickOneSecondBySubTick`, the sub-tick stepper mirroring `SimulationEngine.RunSecond`).
 
     `Simulation/GroundTaxi/TaxiwayDepartureHeadingTests.cs` (`TaxiCoverageRunner.TaxiwayDepartureHeading` faces away from the runway at a bar).
+    `Simulation/GroundTaxi/BareTaxiFirstStepHeadingTests.cs` (a bare single-taxiway `TAXI` takes its first step along the aircraft's heading: on KOAK B at the 28L bar facing away from the runways it taxis along B instead of crossing 28L and 28R; facing the runway it holds short at the bar or stays off 28L).
 
     `Simulation/GroundTaxi/SfoSpot10JoinATests.cs` (YAAT-717: SFO spot 10 `TAXI A` takes no T9, its first segment and every junction stay within the turn limit, and three recorded poses hold; with `Issue396GateBridgeDeepeningTests` it covers the start bridge).
 

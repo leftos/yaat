@@ -616,9 +616,11 @@ It is refused (`NoRoomToClearRunway`) when a T, a runway centreline or another r
 
 `CrossingRunwayPhase.AppendTailClearance` (the crossing phase's own half-length tail clearance, YAAT-944) is a separate path and unchanged.
 
-Everything else falls to `WalkToNaturalTerminus` (`:2649`): walks forward along the taxiway one admissible edge at a time until none remain. **Requirement ①:** an exact **single-name** edge ranks *strictly above* a membership-taxiway junction arc (`IsMembershipTaxiwayJunctionArc: true` — multi-name and not a runway-crossing arc).
+Everything else falls to `WalkToNaturalTerminus`: walks forward along the taxiway one admissible edge at a time until none remain (`TerminusCandidates` lists the admissible steps, `CostRankedTerminusStep` ranks them, `HeadingLedTerminusStep` may override the first). **Requirement ①:** an exact **single-name** edge ranks *strictly above* a membership-taxiway junction arc (`IsMembershipTaxiwayJunctionArc: true` — multi-name and not a runway-crossing arc).
 
-A multi-name junction arc is a turn *off* the taxiway, not a continuation; single-name wins regardless of cost, cost only breaks ties within a tier. Runway-crossing arcs (`IsRunwayJunction`, e.g. `H - RWY01L/19R`) *continue* the taxiway across a runway and are not excluded. (This greedy one-step walk is a known gap vs. multi-candidate discipline — see Caveats.)
+A multi-name junction arc is a turn *off* the taxiway, not a continuation; single-name wins regardless of cost, cost only breaks ties within a tier, except for a bare taxi's first step (below). Runway-crossing arcs (`IsRunwayJunction`, e.g. `H - RWY01L/19R`) *continue* the taxiway across a runway and are not excluded. (This greedy one-step walk is a known gap vs. multi-candidate discipline — see Caveats.)
+
+**Heading-led first step.** A bare single-taxiway TAXI (no destination, no `>`/`<` turn hint on the walked taxiway, known `StartHeadingTrue`) takes its first step along the aircraft's heading when that step is clearly ahead. Within the winning tier the closest step must depart within 90° of the heading (`FirstStepHeadingAheadDeg`) and every other step at least 45° further off (`FirstStepHeadingMarginDeg`); zero-length edges are left out of the comparison. Otherwise the cost ranking decides as before. The rule holds under every `RoutePreference`, `Shortest` included, and logs `[terminus] twy=<name> first step <from>-><to> follows heading <deg> (cost ranking chose <from>-><to>)`.
 
 **6. Variant resolution** (`TryVariantExtension`, `:1683`). When the destination is a runway and the walked route hasn't already reached a hold-short for it, the expander looks for **numbered variants** of the last named taxiway whose hold-short serves the runway (`B` → `B1`). Exactly one → auto-extend. More than one (e.g. `W1`…`W7` off `W` to rwy 30) → **auto-pick the variant whose hold-short is nearest the runway threshold** (via `NavigationDatabase` threshold lookup).
 
@@ -889,6 +891,8 @@ Verify each against current code before relying on it — several are open work 
 - **Auto-route 200k expansion cap.** `AutoRouter.MaxExpansions = 200_000`. SFO cross-field routes legitimately explore 100k+, so this is a real ceiling, not a safety margin — a latency risk on degenerate/disconnected layouts. There is no CI latency budget yet.
 
 - **`WalkToNaturalTerminus` is one-step greedy.** It picks the best immediate next edge per step (with the requirement-① tier rule), not a multi-candidate search. Acceptable on forced-next-edge topologies; risky where the terminus branches.
+
+  The first step of an unbiased walk is ranked by `IncrementalCost`, which charges the 0.3 nm runway-crossing penalty for stepping out over a bar away from the runway, while the first-hop heading bias tops out at 0.09 nm (`FirstHopHeadingBiasNmPerDeg` × 180°). Cost alone could therefore send an aircraft facing away from a runway back across it, which is why a bare taxi's first step is heading-led (see the heading-led first step under `WalkToNaturalTerminus`).
 
 - **Validate work with current geometry.** Use `LayoutInspector --fillet-mode standard` to inspect the live graph. The full ground-stack acceptance suite is a final gate, not a discovery tool (it can hang on ground deadlocks / latency spikes); drive work with targeted scoped tests.
 

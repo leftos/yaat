@@ -989,7 +989,7 @@ public static class SegmentExpander
             }
         }
 
-        return WalkToNaturalTerminus(head, waypoint.Name, ctx, bias);
+        return WalkToNaturalTerminus(head, waypoint.Name, ctx, bias, waypoint.TurnHint);
     }
 
     /// <summary>
@@ -3725,130 +3725,213 @@ public static class SegmentExpander
     // Walk to natural terminus (last waypoint, no destination)
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// A bare walk's first step follows the aircraft's heading only when that step departs within this many degrees of it.
+    /// </summary>
+    private const double FirstStepHeadingAheadDeg = 90.0;
+
+    /// <summary>
+    /// A bare walk's first step follows the aircraft's heading only when every other step in its tier departs at least this
+    /// many degrees further off the heading; a closer call is left to the cost ranking.
+    /// </summary>
+    private const double FirstStepHeadingMarginDeg = 45.0;
+
+    /// <summary>One admissible step of a walk along a named taxiway, with its incremental cost and ranking tier.</summary>
+    private readonly record struct TerminusStep(IGroundEdge Edge, GroundNode Next, double Cost, bool IsJunctionArc);
+
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) WalkToNaturalTerminus(
         PartialRoute head,
         string taxiwayName,
         SearchContext ctx,
-        LatLon? biasToward
+        LatLon? biasToward,
+        TurnDirection? turnHint
     )
     {
         // Walk forward along the taxiway from current head, staying on the named taxiway,
         // following the geometrically admissible continuation until no more edges remain.
         var edges = new List<DirectionalEdge>();
         PartialRoute current = head;
-        bool madeProgress = true;
 
-        while (madeProgress)
+        while (ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? headNode))
         {
-            madeProgress = false;
-
-            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out GroundNode? headNode))
-            {
-                break;
-            }
+            List<TerminusStep> candidates = TerminusCandidates(current, headNode, taxiwayName, ctx);
 
             // On the first (momentum-free) step, break ties toward the destination so the walk
             // heads the right way along the taxiway; afterwards admissibility fixes the direction.
-            bool firstStep = (edges.Count == 0) && (biasToward is not null);
-
-            // Find the best admissible forward step on this taxiway.
-            IGroundEdge? bestEdge = null;
-            GroundNode? bestNext = null;
-            double bestCost = double.MaxValue;
-            double bestBiasDist = double.MaxValue;
-            // Sentinel true so the first single-name candidate always displaces it.
-            bool bestIsJunctionArc = true;
-
-            foreach (IGroundEdge edge in headNode.Edges)
-            {
-                if (!edge.MatchesTaxiway(taxiwayName))
-                {
-                    continue;
-                }
-
-                GroundNode nextNode = edge.OtherNode(headNode);
-                if (current.VisitedNodeIds.Contains(nextNode.Id))
-                {
-                    continue;
-                }
-
-                if (IsBlockedTurnEdge(ctx, current, nextNode.Id))
-                {
-                    continue;
-                }
-
-                if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
-                {
-                    continue;
-                }
-
-                double cost = RouteCostFunction.IncrementalCost(current, edge, nextNode, ctx);
-
-                // req ①: when extending the same named taxiway, an exact single-name edge ranks
-                // strictly above a junction arc that matches taxiwayName only by membership (e.g.
-                // an "A - Q1" arc when walking A). A multi-name junction arc is a turn OFF the
-                // taxiway onto a crossing one, not a continuation of it — the collapsed junctions
-                // expose several such membership matches at one node. Single-name wins regardless
-                // of cost; cost only breaks ties within the same tier. Runway-crossing arcs
-                // (IsRunwayJunction, e.g. "H - RWY...") DO continue the taxiway across a runway and
-                // are not treated as junction arcs.
-                bool isJunctionArc = edge is GroundArc { IsMembershipTaxiwayJunctionArc: true };
-                if (!isJunctionArc && (edge is GroundArc { TaxiwayNames.Length: >= 2 } runwayJunctionArc))
-                {
-                    // A runway-junction membership arc continues the walked taxiway across the runway
-                    // only when it stays roughly on-direction. An arc that sweeps >90° between its
-                    // entry and exit tangents is the corner ONTO the crossing runway (or a reverse
-                    // corner off it), not a continuation — when the exit corner and reverse corner
-                    // share one fused tangent node, both arcs depart tangent to the taxiway and the
-                    // reverse one can be the cheapest step, dead-ending the greedy walk mid-crossing.
-                    // Demote such arcs below single-name edges; they stay usable when nothing else
-                    // continues the taxiway.
-                    double departure = runwayJunctionArc.TangentBearingAt(headNode, headNode);
-                    double arrivalTangent = runwayJunctionArc.TangentBearingAt(nextNode, headNode);
-                    isJunctionArc = GeoMath.AbsBearingDifference(departure, arrivalTangent) > 90.0;
-                }
-
-                double biasDist = firstStep ? GeoMath.DistanceNm(nextNode.Position, biasToward!.Value) : 0.0;
-                bool sameTier = bestIsJunctionArc == isJunctionArc;
-                bool tieBetter = firstStep ? (biasDist < bestBiasDist) : (cost < bestCost);
-                bool better = (bestEdge is null) || (bestIsJunctionArc && !isJunctionArc) || (sameTier && tieBetter);
-
-                if (better)
-                {
-                    bestCost = cost;
-                    bestBiasDist = biasDist;
-                    bestEdge = edge;
-                    bestNext = nextNode;
-                    bestIsJunctionArc = isJunctionArc;
-                }
-            }
-
-            if (bestEdge is null)
+            LatLon? firstStepBias = (edges.Count == 0) ? biasToward : null;
+            if (CostRankedTerminusStep(candidates, firstStepBias) is not { } best)
             {
                 break;
             }
 
-            double arrival = GeometricAdmissibility.GetArrivalBearing(bestEdge, headNode, bestNext!);
-            string twyName = RouteCostFunction.ResolveTaxiwayName(bestEdge, current.HeadNodeId);
+            if (
+                (FirstStepHeading(current, biasToward, turnHint, ctx) is { } headingTrue)
+                && (HeadingLedTerminusStep(candidates, best.IsJunctionArc, headNode, headingTrue) is { } headingLed)
+            )
+            {
+                ctx.DiagnosticLog?.Invoke(
+                    $"[terminus] twy={taxiwayName} first step {headNode.Id}->{headingLed.Next.Id} follows heading {headingTrue:F0} "
+                        + $"(cost ranking chose {headNode.Id}->{best.Next.Id})"
+                );
+                best = headingLed;
+            }
 
-            edges.Add(bestEdge.Directed(headNode, bestNext!));
+            double arrival = GeometricAdmissibility.GetArrivalBearing(best.Edge, headNode, best.Next);
+            string twyName = RouteCostFunction.ResolveTaxiwayName(best.Edge, current.HeadNodeId);
+
+            edges.Add(best.Edge.Directed(headNode, best.Next));
             current = current with
             {
-                HeadNodeId = bestNext!.Id,
+                HeadNodeId = best.Next.Id,
                 ArrivalBearing = arrival,
-                LastEdge = bestEdge,
+                LastEdge = best.Edge,
                 LastTaxiwayName = twyName,
                 Previous = current,
                 Depth = current.Depth + 1,
-                AccumulatedCost = current.AccumulatedCost + bestCost,
-                VisitedNodeIds = current.VisitedNodeIds.Add(bestNext!.Id),
+                AccumulatedCost = current.AccumulatedCost + best.Cost,
+                VisitedNodeIds = current.VisitedNodeIds.Add(best.Next.Id),
             };
-            madeProgress = true;
         }
 
         ctx.DiagnosticLog?.Invoke($"[terminus] twy={taxiwayName} terminus={current.HeadNodeId} edges={edges.Count}");
 
         return (edges, current, null);
+    }
+
+    /// <summary>Every admissible, unvisited, unblocked step from <paramref name="headNode"/> along <paramref name="taxiwayName"/>.</summary>
+    private static List<TerminusStep> TerminusCandidates(PartialRoute current, GroundNode headNode, string taxiwayName, SearchContext ctx)
+    {
+        var candidates = new List<TerminusStep>();
+        foreach (IGroundEdge edge in headNode.Edges)
+        {
+            if (!edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            GroundNode nextNode = edge.OtherNode(headNode);
+            if (current.VisitedNodeIds.Contains(nextNode.Id))
+            {
+                continue;
+            }
+
+            if (IsBlockedTurnEdge(ctx, current, nextNode.Id))
+            {
+                continue;
+            }
+
+            if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
+            {
+                continue;
+            }
+
+            double cost = RouteCostFunction.IncrementalCost(current, edge, nextNode, ctx);
+            candidates.Add(new TerminusStep(edge, nextNode, cost, IsTerminusJunctionArc(edge, headNode, nextNode)));
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Whether a step ranks in the junction-arc tier, below every single-name edge, when walking a named taxiway.
+    /// </summary>
+    private static bool IsTerminusJunctionArc(IGroundEdge edge, GroundNode headNode, GroundNode nextNode)
+    {
+        // req ①: when extending the same named taxiway, an exact single-name edge ranks
+        // strictly above a junction arc that matches taxiwayName only by membership (e.g.
+        // an "A - Q1" arc when walking A). A multi-name junction arc is a turn OFF the
+        // taxiway onto a crossing one, not a continuation of it — the collapsed junctions
+        // expose several such membership matches at one node. Single-name wins regardless
+        // of cost; cost only breaks ties within the same tier. Runway-crossing arcs
+        // (IsRunwayJunction, e.g. "H - RWY...") DO continue the taxiway across a runway and
+        // are not treated as junction arcs.
+        if (edge is GroundArc { IsMembershipTaxiwayJunctionArc: true })
+        {
+            return true;
+        }
+
+        if (edge is not GroundArc { TaxiwayNames.Length: >= 2 } runwayJunctionArc)
+        {
+            return false;
+        }
+
+        // A runway-junction membership arc continues the walked taxiway across the runway
+        // only when it stays roughly on-direction. An arc that sweeps >90° between its
+        // entry and exit tangents is the corner ONTO the crossing runway (or a reverse
+        // corner off it), not a continuation — when the exit corner and reverse corner
+        // share one fused tangent node, both arcs depart tangent to the taxiway and the
+        // reverse one can be the cheapest step, dead-ending the greedy walk mid-crossing.
+        // Demote such arcs below single-name edges; they stay usable when nothing else
+        // continues the taxiway.
+        double departure = runwayJunctionArc.TangentBearingAt(headNode, headNode);
+        double arrivalTangent = runwayJunctionArc.TangentBearingAt(nextNode, headNode);
+        return GeoMath.AbsBearingDifference(departure, arrivalTangent) > 90.0;
+    }
+
+    /// <summary>
+    /// The step the walk takes by cost: a single-name edge beats a junction arc, then within a tier the cheaper step wins,
+    /// or the one nearer <paramref name="firstStepBias"/> when it is set. Null when there is no candidate.
+    /// </summary>
+    private static TerminusStep? CostRankedTerminusStep(List<TerminusStep> candidates, LatLon? firstStepBias)
+    {
+        TerminusStep? best = null;
+        double bestRank = double.MaxValue;
+        foreach (TerminusStep candidate in candidates)
+        {
+            double rank = (firstStepBias is { } bias) ? GeoMath.DistanceNm(candidate.Next.Position, bias) : candidate.Cost;
+            bool better =
+                (best is not { } held)
+                || (held.IsJunctionArc && !candidate.IsJunctionArc)
+                || ((held.IsJunctionArc == candidate.IsJunctionArc) && (rank < bestRank));
+            if (better)
+            {
+                best = candidate;
+                bestRank = rank;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The aircraft's heading when the walk is about to take a bare taxi's first step: no edge taken yet, no destination
+    /// to bias toward, a known heading and no explicit turn hint on the walked taxiway. Null otherwise. The rule holds under
+    /// every <see cref="RoutePreference"/>, <see cref="RoutePreference.Shortest"/> included, unlike the first-hop cost bias.
+    /// </summary>
+    private static double? FirstStepHeading(PartialRoute current, LatLon? biasToward, TurnDirection? turnHint, SearchContext ctx) =>
+        ((current.LastEdge is null) && (biasToward is null) && (turnHint is null)) ? ctx.StartHeadingTrue : null;
+
+    /// <summary>
+    /// The step in the winning tier that the heading clearly favours: within <see cref="FirstStepHeadingAheadDeg"/> of
+    /// <paramref name="headingTrue"/>, with every other step in the tier at least <see cref="FirstStepHeadingMarginDeg"/>
+    /// further off. Null when no step is clearly favoured, which leaves the cost ranking's choice.
+    /// </summary>
+    private static TerminusStep? HeadingLedTerminusStep(
+        List<TerminusStep> candidates,
+        bool tierIsJunctionArc,
+        GroundNode headNode,
+        double headingTrue
+    )
+    {
+        List<(TerminusStep Step, double OffHeadingDeg)> tier =
+        [
+            .. candidates
+                .Where(c => (c.IsJunctionArc == tierIsJunctionArc) && !GeometricAdmissibility.IsNoOpEdge(c.Edge))
+                .Select(c =>
+                    (
+                        Step: c,
+                        OffHeadingDeg: GeoMath.AbsBearingDifference(GeometricAdmissibility.GetDepartureBearing(c.Edge, headNode, c.Next), headingTrue)
+                    )
+                )
+                .OrderBy(t => t.OffHeadingDeg),
+        ];
+        if ((tier.Count == 0) || (tier[0].OffHeadingDeg > FirstStepHeadingAheadDeg))
+        {
+            return null;
+        }
+
+        bool clearlyAhead = (tier.Count == 1) || (tier[1].OffHeadingDeg >= tier[0].OffHeadingDeg + FirstStepHeadingMarginDeg);
+        return clearlyAhead ? tier[0].Step : null;
     }
 
     /// <summary>
