@@ -756,19 +756,19 @@ public class PointMenuTests
         string[][] titles =
         [
             [
-                "RW At G · near click · via W1 W B A C G · crosses 28L · ~15,950 ft [bold]",
-                "RW At G · near click · via W1 W U T B C G · crosses 28L · ~15,250 ft",
-                "RW At G · near click · via W1 W B C G · crosses 28L · ~15,350 ft",
+                "RW At G · near click · via W1 W B A C G · crosses 28L · ~15,900 ft [bold]",
+                "RW At G · near click · via W1 W U T B C G · crosses 28L · ~15,200 ft",
+                "RW At G · near click · via W1 W B C G · crosses 28L · ~15,300 ft",
                 "RW At B · nearest, full length · via W1 W B · crosses 28L · ~12,100 ft [bold]",
                 "RW At B · nearest, full length · via W1 W U T B · crosses 28L · ~12,000 ft",
             ],
             [
-                "RW At G · near click · via W1 W B A C G · crosses 28L · ~15,950 ft [bold]",
-                "RW At G · near click · via W1 W U T B C G · crosses 28L · ~15,250 ft",
-                "RW At G · near click · via W1 W B C G · crosses 28L · ~15,350 ft",
+                "RW At G · near click · via W1 W B A C G · crosses 28L · ~15,900 ft [bold]",
+                "RW At G · near click · via W1 W U T B C G · crosses 28L · ~15,200 ft",
+                "RW At G · near click · via W1 W B C G · crosses 28L · ~15,300 ft",
                 "RW At C1 · full length · via W1 W B A C C1 · crosses 28L, 15 · ~18,700 ft [bold]",
                 "RW At C1 · full length · via W1 W U T B C C1 · crosses 28L, 15 · ~18,000 ft",
-                "RW At C1 · full length · via W1 W B C C1 · crosses 28L, 15 · ~18,100 ft",
+                "RW At C1 · full length · via W1 W B C C1 · crosses 28L, 15 · ~18,050 ft",
                 "RW At B · nearest · via W1 W B · crosses 28L · ~12,100 ft [bold]",
                 "RW At B · nearest · via W1 W U T B · crosses 28L · ~12,000 ft",
             ],

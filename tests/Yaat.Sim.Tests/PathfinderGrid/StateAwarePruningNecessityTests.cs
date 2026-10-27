@@ -225,6 +225,7 @@ public class StateAwarePruningNecessityTests
             diagnosticLog: null,
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: null,
             aircraftLengthFt: null
         ) with
         {

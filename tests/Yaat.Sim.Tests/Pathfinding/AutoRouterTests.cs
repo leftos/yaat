@@ -67,7 +67,10 @@ public class AutoRouterTests
             WakeTurbulenceData.WakeClass.Large,
             preference,
             log
-        );
+        )
+        {
+            StartPose = null,
+        };
 
     // ---------------------------------------------------------------------------
     // Trivial: start == destination
@@ -360,7 +363,10 @@ public class AutoRouterTests
             WakeTurbulenceData.WakeClass.Large,
             null,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
         (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 

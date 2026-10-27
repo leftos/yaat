@@ -146,7 +146,9 @@ internal static class MenuGoldenFixtures
         return holdShort
             .Edges.Where(e => e.MatchesTaxiway("W3"))
             .Select(e => (e.Nodes[0].Id == holdShort.Id) ? e.Nodes[1] : e.Nodes[0])
-            .Single(n => !n.Edges.Any(e => e.TaxiwayName.Contains("RWY", StringComparison.OrdinalIgnoreCase)));
+            .MaxBy(n =>
+                layout.Nodes.Values.Where(r => r.Edges.Any(e => e.IsRunwayCenterline)).Min(r => Yaat.Sim.GeoMath.DistanceNm(r.Position, n.Position))
+            )!;
     }
 
     private static List<MenuFixture> GroundFixtures(AirportGroundLayout layout)

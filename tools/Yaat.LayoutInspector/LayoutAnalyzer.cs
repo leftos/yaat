@@ -687,7 +687,7 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
                         }
 
                         double? angle =
-                            AirportGroundLayout.ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, rwyHeading)
+                            Layout.ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, rwyHeading)
                             ?? Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
                         double totalDist = GeoMath.DistanceNm(node.Position, result.Value.Node.Position);
                         bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);

@@ -178,7 +178,8 @@ public static class PrecomputeBuilder
     /// The key the check compares <paramref name="committed"/> with: offline, the committed GeoJSON MD5 and navdata serial
     /// stand (they cannot be known without vNAS); online, vNAS's now, an empty MD5 for an airport it has no map for. The
     /// videomap hash is empty either way, since the check has no videomap to hash, so an entry written with a map's hash
-    /// reports stale until the check can read the map.
+    /// reports stale until the check can read the map. The standoff-input hash is the committed one offline, as the MD5 and
+    /// serial are; online it is hashed from the loaded navdata (<see cref="HoldShortStandoff.InputHash"/>).
     /// </summary>
     private static PrecomputeKey CurrentKeyFor(PrecomputeKey committed, string faa, string artccsDir, PrecomputeOnlineFacts? online) =>
         PrecomputeKey.Current(
@@ -186,7 +187,8 @@ public static class PrecomputeBuilder
             online?.NavDataSerial ?? committed.NavDataSerial,
             AirportSidecarHash.For(artccsDir, faa),
             AirportSidecarHash.ForStandLeadIns(artccsDir, faa),
-            string.Empty
+            string.Empty,
+            online is null ? committed.StandoffInputHash : HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, faa)
         );
 
     private static IEnumerable<string> LayoutReasons(PrecomputeKey committed, PrecomputeKey current, bool noVnasMap)
@@ -209,6 +211,11 @@ public static class PrecomputeBuilder
         if (committed.VideoMapHash != current.VideoMapHash)
         {
             yield return "the videomap hash differs";
+        }
+
+        if (committed.StandoffInputHash != current.StandoffInputHash)
+        {
+            yield return "the standoff-input hash differs";
         }
 
         if (noVnasMap)

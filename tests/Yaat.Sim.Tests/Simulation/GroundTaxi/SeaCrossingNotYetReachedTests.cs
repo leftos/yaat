@@ -30,10 +30,10 @@ public sealed class SeaCrossingNotYetReachedTests
     private const int OnC = 174;
 
     /// <summary>The next C node east of <see cref="OnC"/>, toward taxiway B.</summary>
-    private const int EastOnC = 847;
+    private const int EastOnC = 841;
 
     /// <summary>D's near 34R/16L bar, entered from B.</summary>
-    private const int DBar = 416;
+    private const int DBar = 414;
 
     /// <summary>The speed (kt) the C172 is taxiing at when the HOLD or the re-route is given.</summary>
     private const double TaxiKts = 12.0;

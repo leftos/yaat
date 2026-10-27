@@ -74,6 +74,10 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// N9225L's <c>TAXI D @NEW1</c> after it settles holding clear of its exit off 28R resolves with no reversals. It exits on G,
+    /// which meets D, so the route runs G D all the way to NEW1 with no note and no hold short of C; the check stops at the route.
+    /// </summary>
     [Fact]
     public void N9225L_TaxiD_AtNEW1_HasNoReversals()
     {
@@ -115,11 +119,10 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             Assert.Equal("Holding After Exit", ac!.Phases?.CurrentPhase?.Name);
 
-            // E does not meet D: C joins them, and the clearance does not name it, so the aircraft holds short of C on E
-            // The route it drives is the part along E.
+            // N9225L exits on G, which meets D, so the clearance resolves all the way to NEW1 with no note.
             CommandResult taxi = engine.SendCommand("N9225L", "TAXI D @NEW1");
             Assert.True(taxi.Success, $"TAXI D @NEW1 failed: {taxi.Message}");
-            Assert.Contains("Holding short of C: route to @NEW1 needs C, not in clearance", taxi.Message);
+            Assert.Equal("Taxi via G D @NEW1", taxi.Message);
 
             ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
@@ -129,17 +132,6 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             int reversals = CountReversals(segments);
             output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {reversals} reversal(s)");
             Assert.True(reversals == 0, $"N9225L TAXI D @NEW1 produced {reversals} reversal(s) in {segments.Count} segments");
-
-            // Tick forward so the aircraft taxis to the hold — also produces the trajectory in the attached recorder's
-            // CSV for post-hoc visualization with LayoutInspector.
-            for (int t = 0; (t < 300) && (ac!.Phases?.CurrentPhase?.Name != "Holding Short C"); t++)
-            {
-                engine.TickOneSecond();
-                ac = engine.FindAircraft("N9225L");
-            }
-
-            Assert.NotNull(ac);
-            Assert.Equal("Holding Short C", ac.Phases?.CurrentPhase?.Name);
         }
     }
 

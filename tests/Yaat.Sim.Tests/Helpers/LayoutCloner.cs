@@ -50,6 +50,7 @@ public static class LayoutCloner
                     Name = runway.Name,
                     Coordinates = [.. runway.Coordinates],
                     WidthFt = runway.WidthFt,
+                    HoldShortStandoffFt = runway.HoldShortStandoffFt,
                 }
             );
         }

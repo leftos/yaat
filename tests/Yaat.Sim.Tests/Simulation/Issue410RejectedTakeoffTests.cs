@@ -125,16 +125,18 @@ public class Issue410RejectedTakeoffTests
 
     /// <summary>
     /// A departure rolling at 60 kt (the low-speed regime) on <paramref name="runway"/> with a B738 held past the runway's hold line,
-    /// <paramref name="nosePastFt"/> over the marking; ticked on the real layout for up to two minutes.
+    /// <paramref name="nosePastFt"/> over the marking as <paramref name="place"/> measures it (past the marking, or toward the
+    /// centreline from the bar); ticked on the real layout for up to two minutes.
     /// </summary>
     private static (bool WentAirborne, AircraftState Departure, AircraftState? Blocker) RollPastBarFouler(
         RunwayInfo runway,
         AirportGroundLayout layout,
         GroundNode bar,
-        double nosePastFt
+        double nosePastFt,
+        Func<RunwayInfo, GroundNode, string, bool, double, double, AircraftState> place
     )
     {
-        AircraftState fouler = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, nosePastFt, alongFt: 0);
+        AircraftState fouler = place(runway, bar, "B738", true, nosePastFt, 0.0);
         fouler.Phases = new PhaseList();
         fouler.Phases.Add(new TaxiingPhase());
         fouler.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -165,14 +167,20 @@ public class Issue410RejectedTakeoffTests
     [Fact]
     public void RollingDeparture_FoulerWithItsNoseOverThePavement_Rejects()
     {
-        // The issue's B738, 150 ft past the KOAK 33 line: its reference point is off the 75 ft runway, its nose 25 ft from the
-        // centreline. Part of it is over the pavement, so it obstructs the departure's path.
+        // The issue's B738 with its nose 25 ft from the KOAK 33 centreline, placed from the bar's own distance from that
+        // centreline: part of it is over the 75 ft pavement, so it obstructs the departure's path.
         if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
         {
             return;
         }
 
-        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt: 150.0);
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(
+            oak.Runway,
+            oak.Layout,
+            oak.Bar,
+            nosePastFt: RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position) - 25.0,
+            RunwayOccupancyTests.SquareToTheRunway
+        );
 
         Assert.NotNull(blocker);
         Assert.False(airborne, $"Departure must reject for a fouler over the pavement (IAS={dep.IndicatedAirspeed:F0})");
@@ -182,13 +190,20 @@ public class Issue410RejectedTakeoffTests
     [Fact]
     public void RollingDeparture_FoulerWithNoPartOverThePavement_ContinuesToLiftoff()
     {
-        // A nose 10 ft past the line is a hold-line overrun for the controller's advisory; nothing of it is over the pavement.
+        // The nose stands 10 ft outside the pavement edge, from the bar's own distance from the centreline: past the line, so a
+        // hold-line overrun for the controller's advisory, but no part of it over the pavement.
         if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
         {
             return;
         }
 
-        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt: 10.0);
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(
+            oak.Runway,
+            oak.Layout,
+            oak.Bar,
+            nosePastFt: RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position) - ((oak.Runway.WidthFt / 2.0) + 10.0),
+            RunwayOccupancyTests.SquareToTheRunway
+        );
 
         Assert.Null(blocker);
         Assert.True(airborne, $"A fouler clear of the pavement must not trigger a reject (IAS={dep.IndicatedAirspeed:F0})");
@@ -207,7 +222,13 @@ public class Issue410RejectedTakeoffTests
 
         Assert.Equal(150.0, oak.Runway.WidthFt);
         double nosePastFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position) - ((oak.Runway.WidthFt / 2.0) + 15.0);
-        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt);
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(
+            oak.Runway,
+            oak.Layout,
+            oak.Bar,
+            nosePastFt,
+            RunwayOccupancyTests.SquareToTheRunway
+        );
 
         Assert.Null(blocker);
         Assert.True(airborne, $"A part 15 ft beyond the pavement edge must not trigger a reject (IAS={dep.IndicatedAirspeed:F0})");
@@ -224,7 +245,13 @@ public class Issue410RejectedTakeoffTests
 
         Assert.Equal(150.0, oak.Runway.WidthFt);
         double nosePastFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position) - ((oak.Runway.WidthFt / 2.0) - 5.0);
-        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(oak.Runway, oak.Layout, oak.Bar, nosePastFt);
+        (bool airborne, AircraftState dep, AircraftState? blocker) = RollPastBarFouler(
+            oak.Runway,
+            oak.Layout,
+            oak.Bar,
+            nosePastFt,
+            RunwayOccupancyTests.SquareToTheRunway
+        );
 
         Assert.NotNull(blocker);
         Assert.False(airborne, $"A part 5 ft inside the pavement edge must reject (IAS={dep.IndicatedAirspeed:F0})");

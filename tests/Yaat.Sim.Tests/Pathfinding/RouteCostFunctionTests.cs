@@ -64,7 +64,10 @@ public class RouteCostFunctionTests
             WakeTurbulenceData.WakeClass.Large,
             preference,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
     private static PartialRoute StartRoute(int nodeId) => PartialRoute.StartAt(nodeId);
 
@@ -438,7 +441,10 @@ public class RouteCostFunctionTests
             WakeTurbulenceData.WakeClass.Large,
             null,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
         PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
@@ -470,7 +476,10 @@ public class RouteCostFunctionTests
             WakeTurbulenceData.WakeClass.Large,
             null,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
         PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);

@@ -48,6 +48,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
             out failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

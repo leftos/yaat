@@ -289,6 +289,7 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
             diagnosticLog: null,
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: null,
             aircraftLengthFt: null
         );
 

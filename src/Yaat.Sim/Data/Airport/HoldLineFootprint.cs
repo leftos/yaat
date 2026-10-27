@@ -88,7 +88,7 @@ public sealed class HoldLineFootprint
             LatLon point = _body.PointOf(part, position, headingDeg);
             foreach (RunwayGuard guard in _guards)
             {
-                if (Crosses(guard, part, point))
+                if (Crosses(guard, part, point, position))
                 {
                     return new HoldLineCrossing(guard.Runway, part, point);
                 }
@@ -98,16 +98,18 @@ public sealed class HoldLineFootprint
         return null;
     }
 
-    private bool Crosses(RunwayGuard guard, AircraftBodyPart part, LatLon point) =>
+    private bool Crosses(RunwayGuard guard, AircraftBodyPart part, LatLon point, LatLon gearPosition) =>
         guard.PavementOnly.Contains(part)
             ? (!guard.StartedOnPavement.Contains(part) && RunwayOccupancy.IsWithinPavement(point, guard.Runway))
-            : IsPastHoldLine(guard, point);
+            : IsPastHoldLine(guard, point, gearPosition);
 
     /// <summary>
-    /// Whether <paramref name="point"/> is past <paramref name="guard"/>'s runway's hold line: on its pavement, or inside its bars'
-    /// line within <see cref="MarkedBarReachFt"/> along the runway of one of its bars on the point's side.
+    /// Whether <paramref name="point"/>, a part of the aircraft with its main gear at <paramref name="gearPosition"/>, is past
+    /// <paramref name="guard"/>'s runway's hold line: on its pavement, or inside its bars' line
+    /// (<see cref="RunwayHoldBars.IsInsideBarLine(AirportGroundLayout, RunwayInfo, LatLon, LatLon)"/>) within
+    /// <see cref="MarkedBarReachFt"/> along the runway of one of its bars on the point's side.
     /// </summary>
-    private bool IsPastHoldLine(RunwayGuard guard, LatLon point)
+    private bool IsPastHoldLine(RunwayGuard guard, LatLon point, LatLon gearPosition)
     {
         if (RunwayOccupancy.IsWithinPavement(point, guard.Runway))
         {
@@ -116,7 +118,8 @@ public sealed class HoldLineFootprint
 
         double[] sideBarsFt = RunwayHoldBars.IsRightOfCentreline(guard.Runway, point) ? guard.RightBarsFt : guard.LeftBarsFt;
         double alongFt = guard.AlongFt(point);
-        return sideBarsFt.Any(barFt => Math.Abs(barFt - alongFt) <= MarkedBarReachFt) && RunwayHoldBars.IsInsideBarLine(_layout, guard.Runway, point);
+        return sideBarsFt.Any(barFt => Math.Abs(barFt - alongFt) <= MarkedBarReachFt)
+            && RunwayHoldBars.IsInsideBarLine(_layout, guard.Runway, point, gearPosition);
     }
 
     private RunwayGuard GuardFor(RunwayInfo runway, (LatLon Position, double HeadingDeg) start)
@@ -132,8 +135,8 @@ public sealed class HoldLineFootprint
         };
 
         LatLon PointOf(AircraftBodyPart part) => _body.PointOf(part, start.Position, start.HeadingDeg);
-        AircraftBodyPart[] pastLine = [.. AircraftBody.AllParts.Where(part => IsPastHoldLine(guard, PointOf(part)))];
-        bool stillOnRunway = IsPastHoldLine(guard, start.Position) || pastLine.Contains(AircraftBodyPart.Tail);
+        AircraftBodyPart[] pastLine = [.. AircraftBody.AllParts.Where(part => IsPastHoldLine(guard, PointOf(part), start.Position))];
+        bool stillOnRunway = IsPastHoldLine(guard, start.Position, start.Position) || pastLine.Contains(AircraftBodyPart.Tail);
         return guard with
         {
             PavementOnly = [.. stillOnRunway ? AircraftBody.AllParts : pastLine],

@@ -43,7 +43,8 @@ internal static class PrecomputeBuilderFixtures
             NavDataSerial,
             AirportSidecarHash.For(ArtccsDir, "OAK"),
             AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"),
-            string.Empty
+            string.Empty,
+            standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
         );
 
     internal static PrecomputeOnlineFacts Online(string md5, long navDataSerial) =>

@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -21,36 +22,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class LateExitChangeTests(ITestOutputHelper output)
 {
-    private const double RunwayHeadingDeg = 281.0;
-
-    private static (GroundNode Branch, GroundNode HoldShort, string Taxiway)? FindExitPair(AirportGroundLayout layout, string runwayId)
-    {
-        foreach (GroundNode holdShort in layout.GetRunwayHoldShortNodes(runwayId))
-        {
-            foreach (IGroundEdge edge in holdShort.Edges)
-            {
-                if (string.IsNullOrEmpty(edge.TaxiwayName))
-                {
-                    continue;
-                }
-
-                foreach (GroundNode node in edge.Nodes)
-                {
-                    if (node.Id != holdShort.Id)
-                    {
-                        return (node, holdShort, edge.TaxiwayName);
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
     /// <summary>
     /// Build an aircraft in <paramref name="state"/> on OAK 28R, positioned <paramref name="distToBranchFt"/>
     /// short of its committed exit's branch node along the runway heading. <paramref name="turnStarted"/>
-    /// latches the phase past the point of no return.
+    /// latches the phase past the point of no return. The committed exit is the last one on the left — J, the
+    /// high-speed exit before 28R's last stretch — so a late <c>EL</c> aimed at any left exit is a change
+    /// toward a nearer, tighter one.
     /// </summary>
     private static AircraftState? BuildCommittedExit(RunwayExitPhase.ExitState state, double distToBranchFt, bool turnStarted) =>
         BuildCommittedExit(state, distToBranchFt, turnStarted, speedKts: 25.0);
@@ -63,40 +40,36 @@ public class LateExitChangeTests(ITestOutputHelper output)
             return null;
         }
 
-        (GroundNode Branch, GroundNode HoldShort, string Taxiway)? pair = FindExitPair(layout, "28R");
-        if (pair is null)
-        {
-            return null;
-        }
-
-        (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        TrueHeading heading = runway.TrueHeading;
+        LatLon threshold = new(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        AirportGroundLayout.CenterlineExitResult exit = LastLeftExit(layout, threshold, heading);
 
         var dto = new RunwayExitPhaseDto
         {
             Status = (int)PhaseStatus.Active,
             ElapsedSeconds = 4.0,
             ReachedExitNode = true,
-            ExitNodeId = holdShort.Id,
-            ExitTaxiway = taxiway,
+            ExitNodeId = exit.HoldShort.Id,
+            ExitTaxiway = exit.Taxiway,
             RunwayId = "28R",
             ExitSpeed = 25.0,
             TimeSinceLastLog = 0.0,
-            RunwayHeadingDeg = RunwayHeadingDeg,
+            RunwayHeadingDeg = heading.Degrees,
             ExitStateValue = (int)state,
             TurnStarted = turnStarted,
-            ExitWaypointNodeIds = [branch.Id, holdShort.Id],
+            ExitWaypointNodeIds = [.. exit.Path.Select(n => n.Id)],
         };
 
         // Back up along the reciprocal so the branch node sits distToBranchFt ahead on the runway heading.
-        var reciprocal = new TrueHeading((RunwayHeadingDeg + 180.0) % 360.0);
-        LatLon position = GeoMath.ProjectPoint(branch.Position, reciprocal, distToBranchFt / GeoMath.FeetPerNm);
+        LatLon position = GeoMath.ProjectPoint(exit.Path[0].Position, heading.ToReciprocal(), distToBranchFt / GeoMath.FeetPerNm);
 
         var aircraft = new AircraftState
         {
             Callsign = "TEST1",
             AircraftType = "B738",
             Position = position,
-            TrueHeading = new TrueHeading(RunwayHeadingDeg),
+            TrueHeading = heading,
             Altitude = 9.0,
             IndicatedAirspeed = speedKts,
             IsOnGround = true,
@@ -107,6 +80,68 @@ public class LateExitChangeTests(ITestOutputHelper output)
         aircraft.Ground.Layout = layout;
         aircraft.Ground.LayoutAirportId = "OAK";
         return aircraft;
+    }
+
+    /// <summary>
+    /// The last OAK 28R exit on the left, walked from the threshold: the exit a jet at coast speed can just brake
+    /// for, and the one a late <c>EL</c> has to be refused for.
+    /// </summary>
+    private static AirportGroundLayout.CenterlineExitResult LastLeftExit(AirportGroundLayout layout, LatLon threshold, TrueHeading heading)
+    {
+        var walked = new List<AirportGroundLayout.CenterlineExitResult>();
+        layout.FindOnSidePreferredExit(
+            threshold.Lat,
+            threshold.Lon,
+            heading,
+            "28R",
+            new ExitPreference { Side = ExitSide.Left },
+            ExitSide.Left,
+            filter: candidate =>
+            {
+                walked.Add(candidate);
+                return AirportGroundLayout.CandidateVerdict.Skip;
+            },
+            maxIterations: 60
+        );
+
+        List<AirportGroundLayout.CenterlineExitResult> onTheLeft = [.. walked.Where(c => c.Side == ExitSide.Left)];
+        Assert.NotEmpty(onTheLeft);
+        return onTheLeft.MaxBy(c => GeoMath.AlongTrackDistanceNm(c.Path[0].Position, threshold, heading));
+    }
+
+    /// <summary>
+    /// Every OAK 28R exit on the left still ahead of <paramref name="aircraft"/>, in the order it would meet them.
+    /// </summary>
+    private static List<AirportGroundLayout.CenterlineExitResult> LeftExitsAhead(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        AirportGroundLayout layout
+    )
+    {
+        var walked = new List<AirportGroundLayout.CenterlineExitResult>();
+        layout.FindOnSidePreferredExit(
+            aircraft.Position.Lat,
+            aircraft.Position.Lon,
+            runway.TrueHeading,
+            runway.Designator,
+            new ExitPreference { Side = ExitSide.Left },
+            ExitSide.Left,
+            filter: candidate =>
+            {
+                if (
+                    (candidate.Side == ExitSide.Left)
+                    && (GeoMath.AlongTrackDistanceNm(candidate.Path[0].Position, aircraft.Position, runway.TrueHeading) > 0)
+                )
+                {
+                    walked.Add(candidate);
+                }
+
+                return AirportGroundLayout.CandidateVerdict.Skip;
+            },
+            maxIterations: 60
+        );
+
+        return [.. walked.OrderBy(c => GeoMath.AlongTrackDistanceNm(c.Path[0].Position, aircraft.Position, runway.TrueHeading))];
     }
 
     [Fact]
@@ -228,6 +263,36 @@ public class LateExitChangeTests(ITestOutputHelper output)
         {
             return;
         }
+
+        // The 150 kt refusal is the braking gate, not the turn lead: every left exit still ahead — J, the committed one, is
+        // the farthest — needs more than the jet's firm rate at 150 kt, and at least one lies beyond the turn lead, which
+        // the lead alone would let through.
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(fast.Ground.Layout);
+        List<AirportGroundLayout.CenterlineExitResult> ahead = LeftExitsAhead(fast, runway, layout);
+        Assert.NotEmpty(ahead);
+        double leadFt = Math.Max(4.0 * (150.0 * GeoMath.FeetPerNm / 3600.0), 100.0) + CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
+        Assert.All(
+            ahead,
+            exit =>
+            {
+                double toBranchNm = GeoMath.AlongTrackDistanceNm(exit.Path[0].Position, fast.Position, runway.TrueHeading);
+                double required = RolloutBraking.RequiredDecelKtsPerSec(
+                    150.0,
+                    CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, exit.ExitAngle),
+                    toBranchNm,
+                    AircraftCategory.Jet
+                );
+                Assert.True(
+                    required > RolloutBraking.NamedExitBrakingLimit(AircraftCategory.Jet, expedite: false),
+                    $"{exit.Taxiway}'s branch {toBranchNm * GeoMath.FeetPerNm:F0} ft ahead needs {required:F2} kt/s at 150 kt"
+                );
+            }
+        );
+        Assert.Contains(
+            ahead,
+            exit => (GeoMath.AlongTrackDistanceNm(exit.Path[0].Position, fast.Position, runway.TrueHeading) * GeoMath.FeetPerNm) > leadFt
+        );
 
         CommandResult atTaxiSpeed = GroundCommandHandler.TryExitCommand(
             slow,

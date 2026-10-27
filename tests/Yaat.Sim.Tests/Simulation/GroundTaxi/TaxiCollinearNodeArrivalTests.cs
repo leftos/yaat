@@ -23,6 +23,9 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     /// <summary>How far past the collinear node (ft) the speed is watched.</summary>
     private const double WatchPastNodeFt = 200.0;
 
+    /// <summary>How far (ft) west of the 28L/10R bar the aircraft starts, clear of the bar's own node.</summary>
+    private const double BarStandoffFt = 30.0;
+
     /// <summary>The most (kt) the ground speed may drop below the speed held entering the arrival window.</summary>
     private const double MaxSpeedDropKts = 1.0;
 
@@ -35,9 +38,10 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     private const int MaxTickSeconds = 120;
 
     /// <summary>
-    /// Starting from rest on node 176 (east of it B crosses 28L/10R), the C172 holds its 20 kt taxi speed well before the
-    /// arrival window. The B738 is still accelerating toward its 30 kt there (about 27 kt): an accelerating aircraft only
-    /// gains speed through a node on a straight line, so the speed it held entering the window still pins the dip.
+    /// Started from rest 30 ft west of the 28L/10R bar on B, on the edge running to the collinear node, the C172 holds its
+    /// 20 kt taxi speed well before the arrival window. The B738 is still accelerating toward its 30 kt there (about 27 kt): an
+    /// accelerating aircraft only gains speed through a node on a straight line, so the speed it held entering the window still
+    /// pins the dip.
     /// </summary>
     [Theory]
     [InlineData("C172")]
@@ -52,9 +56,10 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
             return;
         }
 
-        (GroundNode start, GroundNode node, GroundNode next) = CollinearBNodesEastOfSpot9(layout);
-        var lineHeading = new TrueHeading(GeoMath.BearingTo(start.Position, node.Position));
-        output.WriteLine($"B {start.Id} -> {node.Id} -> {next.Id}, bearing {lineHeading.Degrees:F1}");
+        (GroundNode bar, GroundNode node, GroundNode next) = CollinearBNodesEastOfSpot9(layout);
+        var lineHeading = new TrueHeading(GeoMath.BearingTo(bar.Position, node.Position));
+        LatLon start = GeoMath.ProjectPoint(bar.Position, lineHeading, BarStandoffFt / GeoMath.FeetPerNm);
+        output.WriteLine($"B {bar.Id} (bar) -> {node.Id} -> {next.Id}, bearing {lineHeading.Degrees:F1}");
 
         var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
@@ -68,18 +73,18 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
                 AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             },
         };
-        AircraftState aircraft = SpawnAt(layout, start.Position, lineHeading, type);
+        AircraftState aircraft = SpawnAt(layout, start, lineHeading, type);
         engine.World.AddAircraft(aircraft);
 
         // Along the occupied B, a node reference names where the taxi ends: B's end ahead.
-        GroundNode bEnd = TaxiStartsOnOccupiedTaxiwayTests.NodesAhead(start, lineHeading.Degrees, "B").Last();
+        GroundNode bEnd = TaxiStartsOnOccupiedTaxiwayTests.NodesAhead(bar, lineHeading.Degrees, "B").Last();
         string command = $"TAXI B #{bEnd.Id}";
         output.WriteLine(command);
         CommandResult taxi = engine.SendCommand(aircraft.Callsign, command);
         Assert.True(taxi.Success, $"'{command}' was refused: {taxi.Message}");
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         SfoGroundHarness.DumpRoute(output, route);
-        AssertRouteRunsThrough(route, start, node, next);
+        AssertRouteRunsThrough(route, node, next);
 
         double? entrySpeedKts = null;
         double previousSpeedKts = aircraft.GroundSpeed;
@@ -115,10 +120,10 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The three B nodes east of spot 9 whose two straight edges lie on one line: <c>Start</c> (the far end, by the 28L/10R
-    /// crossing), <c>Node</c> (the collinear node) and <c>Next</c> (toward spot 9).
+    /// The 28L/10R hold-short bar on B, the collinear <c>Node</c> west of it and <c>Next</c> (toward spot 9): three B nodes
+    /// whose two straight edges lie on one line.
     /// </summary>
-    private static (GroundNode Start, GroundNode Node, GroundNode Next) CollinearBNodesEastOfSpot9(AirportGroundLayout layout)
+    private static (GroundNode Bar, GroundNode Node, GroundNode Next) CollinearBNodesEastOfSpot9(AirportGroundLayout layout)
     {
         GroundNode spot9 = Assert.IsType<GroundNode>(layout.FindSpotNodeByName("9"));
         List<(GroundNode Start, GroundNode Node, GroundNode Next)> candidates =
@@ -131,6 +136,11 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
             select (start, node, next),
         ];
         Assert.True(candidates.Count == 1, $"spot 9 leads to {candidates.Count} pairs of long collinear B edges, expected one");
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "10R", "B");
+        Assert.True(
+            bars.Any(b => b.Id == candidates[0].Start.Id),
+            $"the start node {candidates[0].Start.Id} is not the 28L/10R hold-short on B ({string.Join(", ", bars.Select(b => b.Id))})"
+        );
         return candidates[0];
     }
 
@@ -148,13 +158,17 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     private static IEnumerable<GroundNode> StraightBNeighbours(GroundNode node) =>
         node.Edges.Where(e => (e is GroundEdge) && e.MatchesTaxiway("B")).Select(e => e.OtherNode(node));
 
-    private static void AssertRouteRunsThrough(TaxiRoute route, GroundNode start, GroundNode node, GroundNode next)
+    /// <summary>
+    /// The route passes <paramref name="node"/> — starting there or arriving at it — and runs on to <paramref name="next"/> as
+    /// its next segment.
+    /// </summary>
+    private static void AssertRouteRunsThrough(TaxiRoute route, GroundNode node, GroundNode next)
     {
-        int into = route.Segments.FindIndex(s => (s.FromNodeId == start.Id) && (s.ToNodeId == node.Id));
-        Assert.True(into >= 0, $"the route has no {start.Id} -> {node.Id} segment");
+        int outOf = route.Segments.FindIndex(s => (s.FromNodeId == node.Id) && (s.ToNodeId == next.Id));
+        Assert.True(outOf >= 0, $"the route has no {node.Id} -> {next.Id} segment");
         Assert.True(
-            (into + 1 < route.Segments.Count) && (route.Segments[into + 1].FromNodeId == node.Id) && (route.Segments[into + 1].ToNodeId == next.Id),
-            $"the route does not continue {node.Id} -> {next.Id} after {start.Id} -> {node.Id}"
+            (outOf == 0) || (route.Segments[outOf - 1].ToNodeId == node.Id),
+            $"the route does not pass {node.Id} before running on to {next.Id}"
         );
     }
 

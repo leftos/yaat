@@ -21,4 +21,8 @@ An entry's key carries the airport's sidecar hash, which stales the push targets
 
 Its tower-cab videomap hash (`VideoMapHash`, `TowerCabVideoMap.Hash`; "" = the airport has no map) is part of the layout match only. Nothing reads the videomap yet and the shipped entries are written with "", so an entry with a non-empty `VideoMapHash` reads as layout-stale, offline and online, naming "the videomap hash differs".
 
+Its standoff-input hash (`StandoffInputHash`, `HoldShortStandoff.InputHash`) covers the runway inputs the hold-short standoff rule reads for every navdata runway of the airport: width, length, highest ILS category and higher threshold elevation. It is part of the layout match, so a navdata or CIFP change that moves a runway's S stales the entry.
+
+`--check` names it "the standoff-input hash differs". It is "" when no navdata runway is known, and offline it is the committed one, as the map MD5 and the NavData serial are. An entry stored without the field reads as layout-stale.
+
 Regenerate at an AIRAC cycle and before a release, and commit the changed entries. The design is in [`docs/ground/pushback.md`](../../../../docs/ground/pushback.md) ("The push-target cache").

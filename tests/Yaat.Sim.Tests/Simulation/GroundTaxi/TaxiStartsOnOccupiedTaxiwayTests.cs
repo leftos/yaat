@@ -914,18 +914,18 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A C172 rolling along a KOAK taxiway toward a junction whose straight edge beyond ends at a runway holding position
-    /// (<see cref="RollOntoAContinuationToARunwayBar"/>; W2, shorter than its turn-about reach, <see cref="TurnAboutReachFt"/>),
-    /// so fast that its taxi-rate stop would put its nose, half its length ahead, <see cref="TaxiStopNoseOverBarFt"/> past the
-    /// bar. No turn about there, at either rate, keeps every part (nose, wingtips, tail) short of the runway's hold line, so it
-    /// stops straight ahead at the firm rate, every part short of the line, holds and says once that it has no room to turn
-    /// around, holding short of the bar's runway.
+    /// A C172 rolling along a KSEA taxiway toward a junction whose straight edge beyond ends at a runway holding position
+    /// (<see cref="RollOntoAContinuationToARunwayBar"/>; Q, shorter than its turn-about reach, <see cref="TurnAboutReachFt"/>;
+    /// KOAK has none, its W2 30/12 bar standing on the junction), so fast that its taxi-rate stop would put its nose, half its
+    /// length ahead, <see cref="TaxiStopNoseOverBarFt"/> past the bar. No turn about there, at either rate, keeps every part
+    /// (nose, wingtips, tail) short of the runway's hold line, so it stops straight ahead at the firm rate, every part short of
+    /// the line, holds and says once that it has no room to turn around, holding short of the bar's runway.
     /// </summary>
     [Fact]
     public void RollingTurnAboutOnAContinuationToARunwayBar_StopsAndSaysUnableHoldingShortOfTheRunway()
     {
         const string Type = "C172";
-        if (RollOntoAContinuationToARunwayBar(("OAK", Type), (_, _) => HalfLengthFt(Type) - TaxiStopNoseOverBarFt) is not { } rolled)
+        if (RollOntoAContinuationToARunwayBar(("SEA", Type), (_, _) => HalfLengthFt(Type) - TaxiStopNoseOverBarFt) is not { } rolled)
         {
             return;
         }
@@ -2814,7 +2814,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             ?? throw new InvalidOperationException(
                 $"no straight KOAK taxi edge of {MinTurnAboutStubFt:F0} ft or more ends at a holding position its taxiway crosses"
             );
-        AircraftState aircraft = TaxiBackThrough(ground, (ahead, holdShort, stub), farSide);
+        AircraftState aircraft = TaxiBackThrough(ground, (ahead, holdShort, stub), farSide, "");
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         Assert.Equal(holdShort.Id, route.Segments[0].FromNodeId);
         Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
@@ -2937,8 +2937,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// A C172 half-way along the first KOAK stub to a runway holding position (<see cref="FirstStubToARunwayHoldShort"/>),
-    /// facing away from it, cleared along a route drawn back through the holding position to the node beyond it: the
-    /// aircraft and the holding position.
+    /// facing away from it, cleared along a route drawn back through the holding position (runway 30/12's) to the node
+    /// beyond it, crossing runway 30: the aircraft and the holding position.
     /// </summary>
     private (AircraftState Aircraft, GroundNode HoldShort) TaxiBackThroughARunwayHoldShort(SfoGround ground)
     {
@@ -2946,14 +2946,20 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             FirstStubToARunwayHoldShort(ground.Layout)
             ?? throw new InvalidOperationException("no straight KOAK taxi edge ends at a runway holding position");
         GroundNode beyond = holdShort.Edges.First(e => !ReferenceEquals(e, stub)).OtherNode(holdShort);
-        return (TaxiBackThrough(ground, (ahead, holdShort, stub), beyond), holdShort);
+        return (TaxiBackThrough(ground, (ahead, holdShort, stub), beyond, " CROSS 30"), holdShort);
     }
 
     /// <summary>
     /// A C172 half-way along <paramref name="stub"/>'s edge, facing its node ahead, cleared along a route drawn back through
-    /// its holding position to <paramref name="to"/>.
+    /// its holding position to <paramref name="to"/>, with <paramref name="clearance"/> (empty, or a leading-space suffix
+    /// such as <c> CROSS 30</c>) appended to the TAXI.
     /// </summary>
-    private AircraftState TaxiBackThrough(SfoGround ground, (GroundNode Ahead, GroundNode HoldShort, GroundEdge Edge) stub, GroundNode to)
+    private AircraftState TaxiBackThrough(
+        SfoGround ground,
+        (GroundNode Ahead, GroundNode HoldShort, GroundEdge Edge) stub,
+        GroundNode to,
+        string clearance
+    )
     {
         (GroundNode ahead, GroundNode holdShort, GroundEdge edge) = stub;
         LatLon position = Along(holdShort.Position, ahead.Position, 0.5);
@@ -2967,7 +2973,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         aircraft.AircraftType = "C172";
         ground.Engine.World.AddAircraft(aircraft);
 
-        string command = $"TAXI #{holdShort.Id} #{to.Id}";
+        string command = $"TAXI #{holdShort.Id} #{to.Id}{clearance}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
         output.WriteLine(
             $"{edge.TaxiwayName} edge {ahead.Id}-{holdShort.Id} ({edge.DistanceNm * GeoMath.FeetPerNm:F0} ft), holding position for "

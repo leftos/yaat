@@ -23,7 +23,10 @@ public sealed record PrecomputeBuildContext(
 /// </summary>
 public static class PrecomputeEntryBuild
 {
-    /// <summary>The key of an entry computed now for <paramref name="faa"/> from <paramref name="geoJson"/>.</summary>
+    /// <summary>
+    /// The key of an entry computed now for <paramref name="faa"/> from <paramref name="geoJson"/>, its standoff-input hash
+    /// from the loaded navdata the layout parse reads (<see cref="NavigationDatabase.InstanceOrNull"/>).
+    /// </summary>
     /// <param name="faa">The airport, FAA id.</param>
     /// <param name="geoJson">The airport's vNAS GeoJSON.</param>
     /// <param name="artccsDir">The ARTCCs data directory its sidecars are read from.</param>
@@ -36,7 +39,8 @@ public static class PrecomputeEntryBuild
             navDataSerial,
             AirportSidecarHash.For(artccsDir, faa),
             AirportSidecarHash.ForStandLeadIns(artccsDir, faa),
-            videoMap?.Hash ?? string.Empty
+            videoMap?.Hash ?? string.Empty,
+            HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, faa)
         );
 
     /// <summary>

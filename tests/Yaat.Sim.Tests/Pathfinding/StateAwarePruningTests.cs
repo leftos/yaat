@@ -67,7 +67,10 @@ public class StateAwarePruningTests
             WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
     // ---------------------------------------------------------------------------
     // Synthetic repro: cheap arrival at the pre-destination junction dead-ends;

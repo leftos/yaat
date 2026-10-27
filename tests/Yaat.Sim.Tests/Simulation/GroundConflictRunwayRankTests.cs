@@ -177,8 +177,8 @@ public class GroundConflictRunwayRankTests
 
     /// <summary>
     /// B1: an OAK 28R arrival exiting on P toward J's bar (P meets J inside the 28R holding distance) keeps priority over traffic on
-    /// J while its tail is inside the hold line, though it has left the centreline (<see cref="RunwayExitPhase.IsOnCenterline"/>
-    /// false, following its exit path).
+    /// J coming up behind it, out of its path, while its tail is inside the hold line, though it has left the centreline
+    /// (<see cref="RunwayExitPhase.IsOnCenterline"/> false, following its exit path).
     /// </summary>
     [Fact]
     public void PExit_TailInsideTheHoldLine_JTrafficYields()
@@ -220,14 +220,14 @@ public class GroundConflictRunwayRankTests
     }
 
     private const double ArrivalWithinBarFt = 120.0;
-    private const double JTrafficBeyondBarFt = 60.0;
+    private const double JTrafficBehindFt = 100.0;
 
     private sealed record PExit(AirportGroundLayout Layout, AircraftState Arrival, AircraftState JTraffic);
 
     /// <summary>
     /// A C25A landed on OAK 28R and exiting on P, ticked until it follows its exit path with its main gear off the pavement and its
-    /// tail still inside the hold line within <see cref="ArrivalWithinBarFt"/> of J's 28R bar, and a B738 on J beyond that bar
-    /// taxiing toward it (<see cref="JTrafficBeyond"/>). Null when the data is unavailable.
+    /// tail still inside the hold line within <see cref="ArrivalWithinBarFt"/> of J's 28R bar, and a B738 on J behind it
+    /// taxiing toward it (<see cref="JTrafficBehind"/>). Null when the data is unavailable.
     /// </summary>
     private static PExit? ExitingOnP()
     {
@@ -250,7 +250,7 @@ public class GroundConflictRunwayRankTests
             bool offThePavement = !RunwayOccupancy.IsOnPavement(arrival, runway);
             if (offTheCentreline && nearTheBar && offThePavement && TailInside(arrival, runway, jBar))
             {
-                return new PExit(layout, arrival, JTrafficBeyond(jBar, runway));
+                return new PExit(layout, arrival, JTrafficBehind(arrival));
             }
         }
 
@@ -271,19 +271,11 @@ public class GroundConflictRunwayRankTests
     }
 
     /// <summary>
-    /// A B738 on J <see cref="JTrafficBeyondBarFt"/> beyond <paramref name="jBar"/>, away from the runway along J's first edge
-    /// there, taxiing toward the bar at 10 kt.
+    /// A B738 on J <see cref="JTrafficBehindFt"/> behind the exiting <paramref name="arrival"/>, which has turned off P onto J
+    /// toward J's 28R bar, taxiing along J toward it at 10 kt: traffic coming up behind the exit, not in the arrival's path.
     /// </summary>
-    private static AircraftState JTrafficBeyond(GroundNode jBar, RunwayInfo runway)
-    {
-        GroundNode beyond = jBar
-            .Edges.Where(edge => edge.MatchesTaxiway("J"))
-            .Select(edge => edge.Nodes[0].Id == jBar.Id ? edge.Nodes[1] : edge.Nodes[0])
-            .First(node => RunwayHoldBars.CentrelineFt(runway, node.Position) > RunwayHoldBars.CentrelineFt(runway, jBar.Position));
-        LatLon position = Project(jBar.Position, new TrueHeading(GeoMath.BearingTo(jBar.Position, beyond.Position)), JTrafficBeyondBarFt);
-        var towardBar = new TrueHeading(GeoMath.BearingTo(position, jBar.Position));
-        return Ground("JTFC1", "B738", position, towardBar, 10.0, new TaxiingPhase(), runway: null);
-    }
+    private static AircraftState JTrafficBehind(AircraftState arrival) =>
+        Converging("JTFC1", arrival, offNoseDeg: 180.0, distanceFt: JTrafficBehindFt, new TaxiingPhase(), runway: null);
 
     // --- Clearing one runway toward its parallel (SFO 28R / 28L) ----------------------------------
 

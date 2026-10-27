@@ -91,6 +91,12 @@ public sealed class NavigationDatabase
     private readonly IReadOnlyDictionary<(string Airport, string Runway), double> _runwayThresholdElevationsFt =
         new Dictionary<(string, string), double>();
 
+    /// <summary>
+    /// ILS category (1, 2 or 3) per (ICAO airport, runway end), from the CIFP localizer records. Empty when no CIFP is
+    /// available; an end without an ILS category has no entry.
+    /// </summary>
+    private readonly IReadOnlyDictionary<(string Airport, string Runway), int> _localizerCategories = new Dictionary<(string, string), int>();
+
     // Supplementary CIFP chain (newest→oldest cached prior cycles, plus any bundle) consulted when a
     // procedure is absent from the current cycle. Empty when no older source is available.
     private readonly IReadOnlyList<string> _supplementaryCifpFilePaths;
@@ -275,7 +281,9 @@ public sealed class NavigationDatabase
 
         // Before BuildIndex: it stamps each runway end's elevation, and the per-end landing threshold
         // elevations only exist in the CIFP.
-        _runwayThresholdElevationsFt = LoadCifpRunwayThresholdElevations(cifpFilePath);
+        CifpParser.CifpRunwayEnds runwayEnds = LoadCifpRunwayEnds(cifpFilePath);
+        _runwayThresholdElevationsFt = runwayEnds.ThresholdElevationsFt;
+        _localizerCategories = runwayEnds.LocalizerCategories;
         BuildIndex(navData);
         BuildProcedureIndex(navData);
         LoadCifpNavaids(cifpFilePath);
@@ -2865,20 +2873,54 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
-    /// Loads each runway end's landing threshold elevation from the CIFP, so <see cref="BuildIndex"/> can
-    /// stamp it onto the runway ends instead of giving both airport elevation.
+    /// Loads each runway end's landing threshold elevation and ILS category from the CIFP in one pass, so
+    /// <see cref="BuildIndex"/> can stamp the elevations onto the runway ends instead of giving both airport elevation, and
+    /// <see cref="LocalizerCategory"/> can answer.
     /// </summary>
-    private static IReadOnlyDictionary<(string Airport, string Runway), double> LoadCifpRunwayThresholdElevations(string cifpFilePath)
+    private static CifpParser.CifpRunwayEnds LoadCifpRunwayEnds(string cifpFilePath)
     {
         if (!File.Exists(cifpFilePath))
         {
-            Log.LogWarning("CIFP file not found, runway ends fall back to airport elevation: {Path}", cifpFilePath);
-            return new Dictionary<(string, string), double>();
+            Log.LogWarning("CIFP file not found, runway ends fall back to airport elevation and none has an ILS category: {Path}", cifpFilePath);
+            return new CifpParser.CifpRunwayEnds(new Dictionary<(string, string), double>(), new Dictionary<(string, string), int>());
         }
 
-        IReadOnlyDictionary<(string Airport, string Runway), double> elevations = CifpParser.ParseRunwayThresholdElevations(cifpFilePath);
-        Log.LogInformation("CIFP runway threshold elevations: {Count} runway ends", elevations.Count);
-        return elevations;
+        CifpParser.CifpRunwayEnds runwayEnds = CifpParser.ParseRunwayEnds(cifpFilePath);
+        Log.LogInformation(
+            "CIFP runway ends: {Elevations} threshold elevations, {Categories} localizer categories",
+            runwayEnds.ThresholdElevationsFt.Count,
+            runwayEnds.LocalizerCategories.Count
+        );
+        return runwayEnds;
+    }
+
+    /// <summary>
+    /// The ILS category (1, 2 or 3 for CAT I, II or III) of the localizer serving <paramref name="runwayEnd"/> at
+    /// <paramref name="airportId"/>, from the CIFP; null when the end has no localizer, a localizer only (category 0), or
+    /// the CIFP does not know the airport or the end.
+    /// </summary>
+    /// <param name="airportId">The airport's FAA or ICAO id (<c>OAK</c>, <c>KOAK</c>).</param>
+    /// <param name="runwayEnd">The runway end, zero-padded or not (<c>01L</c>, <c>1L</c>).</param>
+    public int? LocalizerCategory(string airportId, string runwayEnd)
+    {
+        string designator = RunwayIdentifier.NormalizeDesignator(runwayEnd);
+
+        // The CIFP keys everything by ICAO: the navdata airport's own ICAO id first (PANC for ANC), as the threshold
+        // elevations resolve it.
+        if (
+            (_airportCanonical.TryGetValue(airportId, out string? icaoId)) && (_localizerCategories.TryGetValue((icaoId, designator), out int byIcao))
+        )
+        {
+            return byIcao;
+        }
+
+        if (_localizerCategories.TryGetValue((airportId, designator), out int category))
+        {
+            return category;
+        }
+
+        // vNAS carries some US airports by FAA id only.
+        return ((airportId.Length == 3) && (_localizerCategories.TryGetValue(("K" + airportId, designator), out int byFaa))) ? byFaa : null;
     }
 
     /// <summary>

@@ -342,7 +342,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void TaxiAuto_Accepted_HoldsShortOfACrossingOnTheRoute()
     {
-        if (AcceptOnRollout("OAK", "28R", "C172", "TAXIAUTO 30") is not { } accepted)
+        if (AcceptOnRolloutPastExit("OAK", "28R", "C172", "TAXIAUTO 30", ("E", ExitSide.Right)) is not { } accepted)
         {
             return;
         }
@@ -360,7 +360,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void Cross_WhileTheRouteWaits_ClearsTheStoredCrossing()
     {
-        if (AcceptOnRollout("OAK", "28R", "C172", "TAXIAUTO 30") is not { } accepted)
+        if (AcceptOnRolloutPastExit("OAK", "28R", "C172", "TAXIAUTO 30", ("E", ExitSide.Right)) is not { } accepted)
         {
             return;
         }
@@ -2146,6 +2146,67 @@ public sealed class TaxiOnLandingRolloutRulingTests
     /// <summary>Sends <paramref name="command"/> once a second from touchdown until the rollout accepts it; a refusal changes nothing.</summary>
     private Accepted? AcceptOnRollout(string airport, string runway, string type, string command) =>
         Touchdown(airport, runway, type) is { } spawned ? SendUntilAccepted(spawned, command) : null;
+
+    /// <summary>
+    /// Ticks the rollout from touchdown until the branch of <paramref name="taxiway"/>'s exit on <paramref name="side"/> of the
+    /// runway is behind the aircraft along the runway, then sends <paramref name="command"/> until accepted; the exit it implies
+    /// is never <paramref name="taxiway"/>.
+    /// </summary>
+    private Accepted? AcceptOnRolloutPastExit(string airport, string runway, string type, string command, (string Taxiway, ExitSide Side) passed)
+    {
+        if (Touchdown(airport, runway, type) is not { } spawned)
+        {
+            return null;
+        }
+
+        AircraftState aircraft = spawned.Aircraft;
+        RunwayInfo info = spawned.Runway;
+        GroundNode branch = ExitBranch(aircraft.Ground.Layout!, info, passed);
+        int past = SfoGroundHarness.TickUntil(
+            spawned.Engine,
+            () => GeoMath.AlongTrackDistanceNm(branch.Position, aircraft.Position, info.TrueHeading) <= 0,
+            120,
+            null
+        );
+        Assert.True(past > 0, $"never rolled past {passed.Taxiway}'s branch #{branch.Id}: {aircraft.Phases?.CurrentPhase?.Name}");
+
+        Accepted accepted = SendUntilAccepted(spawned, command);
+        Assert.NotEqual(passed.Taxiway, aircraft.Phases?.RequestedExit?.Taxiway, StringComparer.OrdinalIgnoreCase);
+        return accepted;
+    }
+
+    /// <summary>
+    /// The runway centerline node where <paramref name="exit"/>'s taxiway leaves <paramref name="runway"/> on its side: its hold-short
+    /// bar on that side, walked back along the taxiway to the first node with a centerline edge of the runway.
+    /// </summary>
+    private static GroundNode ExitBranch(AirportGroundLayout layout, RunwayInfo runway, (string Taxiway, ExitSide Side) exit)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        GroundNode bar = TestLayoutNodes
+            .RunwayHoldShortsOnTaxiway(layout, runway.Designator, exit.Taxiway)
+            .Single(n => (GeoMath.SignedCrossTrackDistanceNm(n.Position, threshold, runway.TrueHeading) > 0) == (exit.Side == ExitSide.Right));
+
+        var seen = new HashSet<int> { bar.Id };
+        var frontier = new Queue<GroundNode>([bar]);
+        while (frontier.TryDequeue(out GroundNode? node))
+        {
+            if (node.Edges.Any(e => e.IsRunwayCenterline && e.MatchesRunway(runway.Designator)))
+            {
+                return node;
+            }
+
+            foreach (IGroundEdge edge in node.Edges.Where(e => e.MatchesTaxiway(exit.Taxiway) && !e.IsRunwayCenterline))
+            {
+                GroundNode next = edge.OtherNode(node);
+                if (seen.Add(next.Id))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"no {runway.Designator} centerline node on {exit.Taxiway} from bar #{bar.Id}");
+    }
 
     /// <summary>Sends <paramref name="command"/> to the arrival on its rollout once a second until it is accepted.</summary>
     private Accepted SendUntilAccepted(ShortFinalArrival.Spawned spawned, string command)

@@ -91,6 +91,7 @@ Neither should become the runway hold point; the pairing correctly left them unp
    - W ≥ 75 → 150 (175 if any ILS)
    - else → 125 (175 if any ILS)
    - For results ≥ 250 (AAC C/D/E rows): add `E_ft / 100` (use the higher threshold elevation of the pair).
+   - Only an ILS moves a runway to the instrument rows (the 175 ft row, CAT II/III at 280): a LOC, LDA or LPV approach does not. The category is read from the CIFP localizer records with category 1, 2 or 3; a localizer-only record (category 0) gives none.
 
 **Step B: centerline point.** Place the node where the taxiway centerline is at
 

@@ -46,6 +46,7 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
 
         var opts = new ExplicitPathOptions
         {
+            StartPose = null,
             OccupiedTaxiway = null,
             ImpliedLeadTaxiway = null,
             AircraftLengthFt = AircraftLength.ResolveFt("B738"),

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport;
@@ -43,6 +44,9 @@ internal readonly record struct ExplicitHoldShortPlan
 public static class HoldShortAnnotator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HoldShortAnnotator");
+
+    /// <summary>The airport and node ids <see cref="FirstLegLeadsTowardRunway"/> has already warned about.</summary>
+    private static readonly ConcurrentDictionary<(string AirportId, int NodeId), byte> UnmeasuredStartBarWarned = new();
 
     /// <summary>
     /// True when the route leaves <paramref name="startNodeId"/> — a hold-short bar the aircraft is
@@ -105,11 +109,103 @@ public static class HoldShortAnnotator
         node.Edges.Exists(edge => edge.IsRunwayCenterline && (edge.MatchesRunway(runwayId.End1) || edge.MatchesRunway(runwayId.End2)));
 
     /// <summary>
+    /// Whether the aircraft has not yet passed <paramref name="bar"/>, the route's start node, along the route's first leg
+    /// (from the bar toward <paramref name="firstLegNext"/>): the part of its body furthest along that leg (nose, tail or a
+    /// wingtip) lies no more than <see cref="Simulation.RunwayOccupancy.HoldLineFoulToleranceFt"/> past the bar in that
+    /// direction. An aircraft at the line, or still short of it, has the bar ahead; one already past it along the route has
+    /// not, and neither has one facing the bar and cleared back the other way, whose tail is the part furthest along the route.
+    /// This is geometry only: whether the bar holds is <see cref="StartBarHolds"/>, which never holds a route leading away from
+    /// the runway, so an aircraft leaving the runway is not held at its start bar.
+    /// </summary>
+    /// <param name="bar">The runway hold-short node the route starts at.</param>
+    /// <param name="firstLegNext">The node the route's first segment leads to from the bar.</param>
+    /// <param name="pose">The aircraft's pose.</param>
+    /// <returns>True when the bar is still ahead of every part of the aircraft.</returns>
+    internal static bool StartBarIsAhead(GroundNode bar, GroundNode firstLegNext, StartPose pose) =>
+        pose.PartPositions().All(part => StartBarIsAhead(bar, firstLegNext, part));
+
+    /// <summary>
+    /// Whether <paramref name="bar"/>, the route's start node, holds the aircraft — as a hold-short on a taxi route, and as a
+    /// runway entry on a follower's way back: the route's first leg leads toward the bar's runway
+    /// (<see cref="FirstLegLeadsTowardRunway"/>) and the aircraft has not yet passed the bar along it
+    /// (<see cref="StartBarIsAhead(GroundNode, GroundNode, StartPose)"/>). The holding position marking stops traffic not
+    /// cleared onto the runway; for traffic leaving the runway it marks the point where it is clear (AIM 2-3-5.a.1, 4-3-21.a),
+    /// so a route leading away from the runway is never held there.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="bar">The runway hold-short node the route starts at.</param>
+    /// <param name="firstLegNext">The node the route's first segment leads to from the bar.</param>
+    /// <param name="pose">The aircraft's pose.</param>
+    /// <returns>True when the start bar is a hold for the route.</returns>
+    internal static bool StartBarHolds(AirportGroundLayout layout, GroundNode bar, GroundNode firstLegNext, StartPose pose) =>
+        FirstLegLeadsTowardRunway(layout, bar, firstLegNext) && StartBarIsAhead(bar, firstLegNext, pose);
+
+    /// <summary>
+    /// Whether the route's first leg, from <paramref name="bar"/> to <paramref name="firstLegNext"/>, leads toward the bar's
+    /// runway: its far node lies no farther from the runway centreline than the bar. True when the layout has no runway of the
+    /// bar's name to measure against, which keeps the bar a hold.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="bar">The runway hold-short node the route starts at.</param>
+    /// <param name="firstLegNext">The node the route's first segment leads to from the bar.</param>
+    /// <returns>True when the first leg leads toward the runway.</returns>
+    internal static bool FirstLegLeadsTowardRunway(AirportGroundLayout layout, GroundNode bar, GroundNode firstLegNext)
+    {
+        GroundRunway? runway = (bar.RunwayId is { } runwayId) ? layout.Runways.FirstOrDefault(r => r.Id.Overlaps(runwayId)) : null;
+        if ((runway is null) || (runway.Coordinates.Count < 2))
+        {
+            if (UnmeasuredStartBarWarned.TryAdd((layout.AirportId, bar.Id), 0))
+            {
+                Log.LogWarning(
+                    "[HoldShortAnnotator] Start bar {NodeId} has no ground runway {Runway} to measure its first leg against — holding there",
+                    bar.Id,
+                    bar.RunwayId
+                );
+            }
+
+            return true;
+        }
+
+        var end1 = new LatLon(runway.Coordinates[0].Lat, runway.Coordinates[0].Lon);
+        var end2 = new LatLon(runway.Coordinates[^1].Lat, runway.Coordinates[^1].Lon);
+        return GeoMath.DistanceToSegmentFt(firstLegNext.Position, end1, end2) <= GeoMath.DistanceToSegmentFt(bar.Position, end1, end2);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="point"/> lies no more than <see cref="Simulation.RunwayOccupancy.HoldLineFoulToleranceFt"/> past
+    /// <paramref name="bar"/> along the route's first leg (from the bar toward <paramref name="firstLegNext"/>).
+    /// </summary>
+    /// <param name="bar">The runway hold-short node the route starts at.</param>
+    /// <param name="firstLegNext">The node the route's first segment leads to from the bar.</param>
+    /// <param name="point">A point of the aircraft's body.</param>
+    /// <returns>True when the bar is still ahead of the point.</returns>
+    private static bool StartBarIsAhead(GroundNode bar, GroundNode firstLegNext, LatLon point)
+    {
+        double distanceFt = GeoMath.DistanceNm(bar.Position, point) * GeoMath.FeetPerNm;
+        double legDeg = GeoMath.BearingTo(bar.Position, firstLegNext.Position);
+        double angleRad = GeoMath.SignedBearingDifference(legDeg, GeoMath.BearingTo(bar.Position, point)) * Math.PI / 180.0;
+        return distanceFt * Math.Cos(angleRad) <= Simulation.RunwayOccupancy.HoldLineFoulToleranceFt;
+    }
+
+    /// <summary>
     /// Scans the segment list for runway hold-short nodes and inserts implicit
     /// hold-short points at each runway crossing entry. Exit-side nodes are
-    /// recognised by entry/exit pairing and skipped.
+    /// recognised by entry/exit pairing and skipped. A route that starts at a runway bar, leading toward its runway, that the
+    /// aircraft has not yet passed along it (<see cref="StartBarHolds"/>, judged from <paramref name="startPose"/>) holds there too.
     /// </summary>
-    internal static void AddImplicitRunwayHoldShorts(AirportGroundLayout layout, List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts)
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="segments">The route's segments.</param>
+    /// <param name="holdShorts">The route's hold-short points, added to.</param>
+    /// <param name="startPose">
+    /// The aircraft's pose when the route starts at the aircraft; null when it starts elsewhere (an extension past another
+    /// route's end), where the start bar is never a hold.
+    /// </param>
+    internal static void AddImplicitRunwayHoldShorts(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        StartPose? startPose
+    )
     {
         // Entry/exit pairing by encounter order: the first HS node for a
         // runway is the entry side (add hold-short); the second distinct HS
@@ -117,7 +213,23 @@ public static class HoldShortAnnotator
         // Revisiting the same node (backtrack) doesn't count as a new encounter.
         var enteredRunways = new Dictionary<RunwayIdentifier, int>();
         var seenHsNodes = new HashSet<(RunwayIdentifier, int)>();
+        AnnotateStartBar(layout, segments, holdShorts, startPose, enteredRunways, seenHsNodes);
+        AnnotateRouteBars(layout, segments, holdShorts, enteredRunways, seenHsNodes);
+    }
 
+    /// <summary>
+    /// The start-node half of <see cref="AddImplicitRunwayHoldShorts"/>: pre-seeds the pairing when the route starts at a bar
+    /// and goes on to cross its runway, and holds at that bar when the aircraft has not yet passed it along the route.
+    /// </summary>
+    private static void AnnotateStartBar(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        StartPose? startPose,
+        Dictionary<RunwayIdentifier, int> enteredRunways,
+        HashSet<(RunwayIdentifier, int)> seenHsNodes
+    )
+    {
         // Pre-seed entry tracking from the starting node. If the route begins
         // at a RunwayHoldShort and the aircraft is mid-crossing (e.g., re-routed
         // from a destination hold-short), the next HS for the same runway is
@@ -161,9 +273,44 @@ public static class HoldShortAnnotator
                         startRwyId
                     );
                 }
+
+                if (
+                    (startPose is { } pose)
+                    && layout.Nodes.TryGetValue(segments[0].ToNodeId, out GroundNode? firstLegNext)
+                    && StartBarHolds(layout, startNode, firstLegNext, pose)
+                    && !HoldShortExists(holdShorts, startNodeId)
+                )
+                {
+                    seenHsNodes.Add((startRwyId, startNodeId));
+                    holdShorts.Add(
+                        new HoldShortPoint
+                        {
+                            NodeId = startNodeId,
+                            Reason = HoldShortReason.RunwayCrossing,
+                            TargetName = startRwyId.ToString(),
+                        }
+                    );
+                    Log.LogDebug(
+                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway}, still ahead of the aircraft — adding hold-short",
+                        startNodeId,
+                        startRwyId
+                    );
+                }
             }
         }
+    }
 
+    /// <summary>
+    /// The segment half of <see cref="AddImplicitRunwayHoldShorts"/>: each bar a segment ends at, entry side held, exit side skipped.
+    /// </summary>
+    private static void AnnotateRouteBars(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        Dictionary<RunwayIdentifier, int> enteredRunways,
+        HashSet<(RunwayIdentifier, int)> seenHsNodes
+    )
+    {
         foreach (TaxiRouteSegment seg in segments)
         {
             if (

@@ -385,6 +385,12 @@ public static partial class GroundCommandHandler
         string? implicitCrossLabel = null;
         if (priorRwy is not null)
         {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: runway crossing carried over to the new route: {PriorRwy} (phase {Phase})",
+                aircraft.Callsign,
+                priorRwy,
+                aircraft.Phases?.CurrentPhase?.GetType().Name ?? "none"
+            );
             HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
             if (firstCrossing is not null && firstCrossing.TargetName is { Length: > 0 } crossingRwy)
             {
@@ -1581,6 +1587,7 @@ public static partial class GroundCommandHandler
             );
 
         double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
+        var startPose = StartPose.Of(aircraft);
         TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
         {
             if (confineToRamp && (command.Path.Count == 0))
@@ -1607,6 +1614,7 @@ public static partial class GroundCommandHandler
                     category,
                     wakeClass,
                     startHeadingTrueDeg,
+                    startPose,
                     aircraftLengthFt,
                     StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
                 );
@@ -1638,6 +1646,7 @@ public static partial class GroundCommandHandler
                 category,
                 wakeClass,
                 startHeadingTrueDeg,
+                startPose,
                 aircraftLengthFt,
                 StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
             );
@@ -1720,6 +1729,7 @@ public static partial class GroundCommandHandler
                         DestinationRunway = taxi.DestinationRunway,
                         DestinationHintNode = destinationNode,
                         PathTurnHints = taxi.PathTurnHints,
+                        StartPose = startPose,
                     },
                     Category = category,
                     WakeClass = wakeClass,
@@ -1764,6 +1774,7 @@ public static partial class GroundCommandHandler
                         DestinationRunway = taxi.DestinationRunway,
                         PathTurnHints = taxi.PathTurnHints,
                         StartHeadingTrue = startHeadingTrueDeg,
+                        StartPose = startPose,
                     },
                     Category = category,
                     WakeClass = wakeClass,
@@ -3119,6 +3130,7 @@ public static partial class GroundCommandHandler
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
+        StartPose startPose,
         double aircraftLengthFt,
         StartTaxiways startTaxiways
     )
@@ -3161,6 +3173,7 @@ public static partial class GroundCommandHandler
                 DestinationHintNode = crossAnchor,
                 PathTurnHints = taxi.PathTurnHints,
                 StartHeadingTrue = startHeadingTrueDeg,
+                StartPose = startPose,
             },
             category,
             wakeClass
@@ -3266,7 +3279,7 @@ public static partial class GroundCommandHandler
         TaxiRoute? route = TaxiPathfinder.FindAdjacentRunwayRoute(
             groundLayout,
             startNode,
-            (aircraft.Position, aircraft.TrueHeading),
+            StartPose.Of(aircraft),
             runwayId,
             category,
             WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category)
@@ -4317,6 +4330,7 @@ public static partial class GroundCommandHandler
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
+        StartPose startPose,
         double aircraftLengthFt,
         StartTaxiways startTaxiways
     )
@@ -4361,6 +4375,7 @@ public static partial class GroundCommandHandler
                 DestinationHintNode = destNode,
                 PathTurnHints = taxi.PathTurnHints,
                 StartHeadingTrue = startHeadingTrueDeg,
+                StartPose = startPose,
             },
             category,
             wakeClass
@@ -4411,7 +4426,7 @@ public static partial class GroundCommandHandler
             combined = [.. explicitRoute.Segments, .. extension.Segments];
 
             holdShorts = [.. explicitRoute.HoldShortPoints];
-            HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
+            HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts, startPose: null);
             warnings.AddRange(extension.Warnings);
         }
 

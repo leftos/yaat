@@ -10,7 +10,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// <summary>
 /// Unit-level cover for the free-space approach leg that bridges an aircraft's live position to the node
 /// its resolved taxi route starts at. After a plain <c>PUSH</c> off OAK gate 15 the aircraft rests ~105 ft
-/// ahead of the route's start node (763, the <c>T - RAMP</c> fillet arc's from-node), so the route as
+/// ahead of the route's start node (755, the <c>T - RAMP</c> fillet arc's from-node), so the route as
 /// resolved begins somewhere the aircraft is not.
 ///
 /// <para>The leg is apron transit at the pilot's discretion (7110.65 §3-7-2 NOTE 2; AIM 4-3-20.g.7) and adds
@@ -31,7 +31,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     private const double PushedHeadingDeg = 53.0;
 
     /// <summary>The route's start node — the from-node of the <c>T - RAMP</c> fillet arc.</summary>
-    private const int StartNodeId = 763;
+    private const int StartNodeId = 755;
 
     /// <summary>OAK W1's runway 30 holding position.</summary>
     private const int HoldShortNodeId = 495;
@@ -45,9 +45,9 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     /// <summary>How far past a node an aircraft that has already driven through it sits.</summary>
     private const double PastNodeStandoffFt = 30.0;
 
-    /// <summary>A straight taxiway T pair: 153 is the node the route would start at, 766 the next one along.</summary>
+    /// <summary>A straight taxiway T pair: 153 is the node the route would start at, 758 the next one along.</summary>
     private const int StraightFromNodeId = 153;
-    private const int StraightToNodeId = 766;
+    private const int StraightToNodeId = 758;
 
     private AirportGroundLayout? LoadOakLayout()
     {
@@ -219,16 +219,16 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
     /// <summary>
     /// An SFO aircraft on F, 40 ft short of the F/A junction (node 54, ahead), nosed 298° towards it: mid-way along F
-    /// edge 54–1597, whose far end 1597 lies on E.
+    /// edge 54–1598, whose far end 1598 lies on E.
     /// </summary>
     private static readonly LatLon SfoOnFShortOfA = new(37.61906270023921, -122.38060898289163);
 
     private const double SfoOnFShortOfAHeadingDeg = 297.9;
 
-    /// <summary>SFO's F/A junction: its F edge runs to node 1597, where F meets E.</summary>
+    /// <summary>SFO's F/A junction: its F edge runs to node 1598, where F meets E.</summary>
     private const int SfoFAJunctionNodeId = 54;
 
-    private const int SfoFAtENodeId = 1597;
+    private const int SfoFAtENodeId = 1598;
 
     /// <summary>
     /// A stale current taxiway that names the very taxiway the route bridges along: an SFO aircraft standing at the F/A
@@ -265,7 +265,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
     /// <summary>
     /// A C172 on F 40 ft short of node 54, nosed away from E, cleared <c>TAXI B</c>: the route from node 54 ahead would
-    /// drive back along F past the aircraft to reach E, so the taxi starts at F's far end, node 1597 on E. The aircraft
+    /// drive back along F past the aircraft to reach E, so the taxi starts at F's far end, node 1598 on E. The aircraft
     /// turns about and taxis E then B. It occupies F, not its stale current taxiway E, so E is noted as not issued.
     /// </summary>
     [Fact]
@@ -310,15 +310,15 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         );
     }
 
-    /// <summary>How far along F from node 1607, F's far end from the F/A junction, the C172 stands when it turns about toward 1607.</summary>
+    /// <summary>How far along F from node 1608, F's far end from the F/A junction, the C172 stands when it turns about toward 1607.</summary>
     private const double TurnsAboutFromFarEndFt = 30.0;
 
-    /// <summary>How far along F from node 1607 the C172 stands when its route leaves ahead through the F/A junction.</summary>
+    /// <summary>How far along F from node 1608 the C172 stands when its route leaves ahead through the F/A junction.</summary>
     private const double RouteAheadFt = 45.0;
 
     /// <summary>
-    /// A C172 held after a push on F, 30 ft from node 1607 and nosed along F toward the F/A junction (node 54), cleared
-    /// <c>TAXI B</c>: the start logic turns it about toward 1607, behind it, so the RPO is warned on the bearing to that target.
+    /// A C172 held after a push on F, 30 ft from node 1608 and nosed along F toward the F/A junction (node 54), cleared
+    /// <c>TAXI B</c>: the start logic turns it about toward 1608, behind it, so the RPO is warned on the bearing to that target.
     /// </summary>
     [Fact]
     public void OnF_TurnsAboutTowardTheFarEnd_Warns()
@@ -340,7 +340,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The same C172 45 ft from node 1607: its route leaves ahead through the F/A junction, so it does not turn about and is not
+    /// The same C172 45 ft from node 1608: its route leaves ahead through the F/A junction, so it does not turn about and is not
     /// warned.
     /// </summary>
     [Fact]
@@ -358,10 +358,10 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     }
 
     /// <summary>SFO F's far end from the F/A junction along the edge the stale-E pose stands on.</summary>
-    private const int SfoFFarEndNodeId = 1607;
+    private const int SfoFFarEndNodeId = 1608;
 
     /// <summary>
-    /// A C172 held after a push on F edge 54–1607, <paramref name="fromFarEndFt"/> from 1607, nosed toward 54, cleared <c>TAXI B</c>.
+    /// A C172 held after a push on F edge 54–1608, <paramref name="fromFarEndFt"/> from 1608, nosed toward 54, cleared <c>TAXI B</c>.
     /// </summary>
     private (CommandResult Result, TaxiRoute Route) TaxiBAlongFTowardA(AirportGroundLayout layout, double fromFarEndFt)
     {
@@ -457,9 +457,10 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         // position with the aircraft short of it and pointing at it — every other guard passes, and only the
         // holding-position guard can refuse the leg.
         double runwayBearing = GeoMath.BearingTo(bar.Position, runwaySide.Position);
-        LatLon position = Project(bar.Position, runwayBearing, HoldShortStandoffFt);
+        double standoffFt = GeoMath.DistanceNm(bar.Position, runwaySide.Position) * GeoMath.FeetPerNm / 5.0;
+        LatLon position = Project(bar.Position, runwayBearing, standoffFt);
         double headingDeg = GeoMath.BearingTo(position, bar.Position);
-        output.WriteLine($"aircraft {HoldShortStandoffFt:F0} ft from the bar on bearing {runwayBearing:F0}, facing {headingDeg:F0}");
+        output.WriteLine($"aircraft {standoffFt:F1} ft from the bar on bearing {runwayBearing:F0}, facing {headingDeg:F0}");
 
         AircraftState aircraft = MakeAircraft(layout, position, headingDeg);
         TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], Expedite: false, DestinationRunway: null));
@@ -475,7 +476,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     ///
     /// <para>Driven through <see cref="TaxiApproachLeg.Prepend"/> directly: from this pose
     /// <see cref="AirportGroundLayout.FindTaxiStartNode"/> rejects the node behind and resolves the route
-    /// from node 766 ahead instead, so the shape only reaches the leg through the plain nearest-node
+    /// from node 758 ahead instead, so the shape only reaches the leg through the plain nearest-node
     /// fallback.</para>
     /// </summary>
     [Fact]
@@ -585,8 +586,8 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.Equal(1, result.SpotLineUpPullFromSegment);
     }
 
-    /// <summary>Node 1144 — the from-node of OAK taxiway G's 28R exit fillet, on the runway centerline.</summary>
-    private const int RunwayExitNodeId = 1144;
+    /// <summary>Node 1134 — the from-node of OAK taxiway G's 28R exit fillet, on the runway centerline.</summary>
+    private const int RunwayExitNodeId = 1134;
 
     /// <summary>The exit fillet's departure bearing: runway 28R's landing direction at that node.</summary>
     private const double Runway28RHeadingDeg = 292.0;
@@ -594,8 +595,8 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     /// <summary>How far back along the runway the rolling-out aircraft still is — a rollout is far from its exit.</summary>
     private const double RolloutBehindExitFt = 300.0;
 
-    /// <summary>Node 1142 — the far (north) end of that same exit fillet, off the runway on taxiway G.</summary>
-    private const int AcrossRunwayNodeId = 1142;
+    /// <summary>Node 1132 — the far (north) end of that same exit fillet, off the runway on taxiway G.</summary>
+    private const int AcrossRunwayNodeId = 1132;
 
     /// <summary>How far back along 28R the apron-side aircraft sits, so its line to that node crosses the runway obliquely.</summary>
     private const double AcrossRunwayAlongFt = 150.0;
@@ -686,8 +687,8 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.Same(route, TaxiApproachLeg.Prepend(layout, position, new TrueHeading(Runway28RHeadingDeg), route));
     }
 
-    /// <summary>Node 805 — a real node on OAK taxiway B, 540 ft south of the 28R centerline and 2,460 ft back from node 1144.</summary>
-    private const int ParallelTaxiwayNodeId = 805;
+    /// <summary>Node 797 — a real node on OAK taxiway B, 540 ft south of the 28R centerline and 2,460 ft back from node 1144.</summary>
+    private const int ParallelTaxiwayNodeId = 797;
 
     /// <summary>A heading across 28R rather than along it: an aircraft on the pavement pointed at the far side.</summary>
     private const double AcrossRunwayHeadingDeg = 20.0;
@@ -696,7 +697,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     private const double AlongRunwayToleranceDeg = 15.0;
 
     /// <summary>
-    /// The one-segment route a rollout resolves to: OAK taxiway G's 28R exit fillet, leaving node 1144 for the
+    /// The one-segment route a rollout resolves to: OAK taxiway G's 28R exit fillet, leaving node 1134 for the
     /// taxiway side. Built directly rather than through <c>TryTaxi</c> so only the approach leg's own guards
     /// decide — a route resolved for an aircraft standing somewhere else starts at whatever node is nearest IT.
     /// </summary>
@@ -714,7 +715,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
     /// <summary>
     /// A parallel taxiway is not the runway. Bearing alone admitted an aircraft holding on OAK taxiway B — 540 ft
-    /// south of the 28R centerline — because its line to node 1144, 2,460 ft up the field, still ran within 15° of
+    /// south of the 28R centerline — because its line to node 1134, 2,460 ft up the field, still ran within 15° of
     /// the runway, and the along-runway exception then skipped both the length bound and the runway-crossing
     /// refusal. The leg it was given ran across B's holding position marking and onto the runway
     /// (AIM 4-3-18.a.5, AIM 2-3-5.a.1), so the exception must test that the aircraft is ON that runway.

@@ -9,7 +9,7 @@ Taxi to runway alias:TAXI
   For Departure 30 — TAXI TE U W W2 30
   ---
   Hold short RWY 30 — TAXI TE U W W2 HS 30
-  RW At W3 · nearest · ~7,750 ft avail · via TE U W3 · ~3,050 ft [bold]
+  RW At W3 · nearest · ~7,750 ft avail · via TE U W3 · ~3,000 ft [bold]
   For Departure 30 — TAXI TE U W3 30
   ---
   Hold short RWY 30 — TAXI TE U W3 HS 30

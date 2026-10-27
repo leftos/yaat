@@ -128,7 +128,8 @@ public static class RouteMaterialiser
                 if (boundAtStart)
                 {
                     warnings.Add(
-                        $"HS {target.Target} holds at the first {target.Target} crossing, at the start of the route — use {target.Target}@<taxiway> to hold at a later crossing"
+                        $"HS {target.Target} holds at the first {target.Target} crossing, at the start of the route — "
+                            + $"use {target.Target}@<taxiway> to hold at a later crossing"
                     );
                 }
             }
@@ -407,7 +408,10 @@ public static class RouteMaterialiser
     /// send the aircraft over the runway to reach its own hold-short (issue #316).
     ///
     /// A route that begins at a single-sided exit bar (just vacated the runway and never crosses it
-    /// again) is not a crossing and is left alone: its next hold-short is a genuine new entry.
+    /// again) is not a crossing: its next hold-short is a genuine new entry. Its start bar is still the route's hold for
+    /// that runway while the route's first leg leads toward the runway and the aircraft has not yet passed the bar along it
+    /// (<see cref="HoldShortAnnotator.StartBarHolds"/>, from <see cref="SearchContext.StartPose"/>); a route leading away
+    /// from the runway is leaving it, and the bar marks where it is clear, not a hold.
     /// </summary>
     private static void AnnotateStartCrossing(
         List<TaxiRouteSegment> segments,
@@ -428,8 +432,17 @@ public static class RouteMaterialiser
             !ctx.Layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode)
             || startNode.Type != GroundNodeType.RunwayHoldShort
             || startNode.RunwayId is not { } startRwyId
-            || !HoldShortAnnotator.RouteCrossesRunwayAfterStart(ctx.Layout, segments, startNodeId, startRwyId)
         )
+        {
+            return;
+        }
+
+        bool crossesAfterStart = HoldShortAnnotator.RouteCrossesRunwayAfterStart(ctx.Layout, segments, startNodeId, startRwyId);
+        bool barAhead =
+            (ctx.StartPose is { } pose)
+            && ctx.Layout.Nodes.TryGetValue(segments[0].ToNodeId, out GroundNode? firstLegNext)
+            && HoldShortAnnotator.StartBarHolds(ctx.Layout, startNode, firstLegNext, pose);
+        if (!crossesAfterStart && !barAhead)
         {
             return;
         }
@@ -449,8 +462,13 @@ public static class RouteMaterialiser
             return;
         }
 
+        // Only a bar the route goes on to cross pairs with the far bar; a start bar the aircraft is leaving the runway by
+        // pairs with nothing, so a later bar of the same runway is a new entry.
         seen.Add(startNodeId);
-        enteredRunways[startRwyId] = startNodeId;
+        if (crossesAfterStart)
+        {
+            enteredRunways[startRwyId] = startNodeId;
+        }
 
         holdShorts.Add(
             new HoldShortPoint

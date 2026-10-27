@@ -1332,6 +1332,18 @@ public class AirportE2ETests
         Assert.NotNull(exitHoldShort);
 
         AircraftState ac = MakeGroundAircraft(position: exitHoldShort.Position);
+        // Facing up G toward SIG1, as an exited aircraft does.
+        ac.TrueHeading = new TrueHeading(
+            GeoMath.BearingTo(
+                exitHoldShort.Position,
+                exitHoldShort
+                    .Edges.OfType<GroundEdge>()
+                    .Where(e => e.MatchesTaxiway("G"))
+                    .Select(e => e.OtherNode(exitHoldShort))
+                    .MinBy(n => GeoMath.DistanceNm(n.Position, sig1.Position))!
+                    .Position
+            )
+        );
 
         var taxi = new TaxiCommand(["G"], [], Expedite: false, DestinationParking: "SIG1");
         CommandResult result = GroundCommandHandler.TryTaxi(ac, taxi, layout);

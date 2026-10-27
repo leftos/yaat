@@ -69,7 +69,7 @@ the nav DB must be initialized first.
 ### What the constructor builds
 
 `NavigationDatabase(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` (`NavigationDatabase.cs:114`) runs, in
-order: `LoadCifpRunwayThresholdElevations` (see below — it must precede `BuildIndex`, which stamps them onto runway ends),
+order: `LoadCifpRunwayEnds` (see below — it must precede `BuildIndex`, which stamps the elevations onto runway ends),
 `BuildIndex` (airports/fixes/runways/airways, eager), `BuildProcedureIndex` (SID/STAR bodies + transitions, eager),
 `LoadCifpNavaids` (supplements `_navDb` with VOR/DME/NDB from CIFP), then the per-ARTCC user-data loads (`LoadCustomFixes`,
 `LoadFixPronunciations`, initial-contact transfers, wake directives, taxi routes, avoid-taxiways), then `AllFixNames`. CIFP
@@ -82,13 +82,17 @@ on both ends. A glidepath is referenced to the **landing threshold** of the end 
 height of the glide slope above threshold"), so on a sloped runway that put the whole final approach off by the runway's rise —
 140 ft at KASE, whose RWY 15 threshold is 7,680 ft and RWY 33 is 7,820 ft.
 
-`CifpParser.ParseRunwayThresholdElevations` reads the CIFP airport-runway records (section `P`, subsection `G`) and
+`CifpParser.ParseRunwayEnds` reads the CIFP airport-runway records (section `P`, subsection `G`) and
 `ThresholdElevationFt` stamps each end during `BuildIndex`, keyed by ICAO id with a `K`+FAA-id fallback and falling back to
 airport elevation whenever the CIFP has nothing (no CIFP loaded, non-US airport, omitted runway). Nothing downstream changed:
 `ctx.FieldElevation` is already `runway?.ElevationFt`, so the glidepath, flare and touchdown altitude all follow.
 
 Note this is the *threshold* elevation, not TDZE (the highest point in the first 3,000 ft). TDZE is the reference for
 approach minimums; the glidepath's datum is the threshold, which is what the CIFP field gives.
+
+The same pass (`ParseRunwayEnds` returns a `CifpRunwayEnds`) reads the CIFP localizer records (subsection `I`) into each runway end's ILS category: `NavigationDatabase.LocalizerCategory(airport, end)` answers 1, 2 or 3 for CAT I, II or III, null for an end with no localizer or a localizer only (category 0). An end served by more than one localizer takes the highest.
+
+Only an ILS localizer record counts: LOC, LDA and LPV approaches add nothing. The hold-short standoff rule reads the category, the threshold elevation and the runway's length and width (`RunwayStandoffInputs`, [hold-short-placement.md](ground/hold-short-placement.md)).
 
 `artccsBaseDir` defaults to `{AppContext.BaseDirectory}/Data/ARTCCs`; pass an empty string to skip per-ARTCC loading entirely
 (many tests do). `supplementaryCifpFilePath` is only retained if the file exists and differs from the primary CIFP path
@@ -263,7 +267,7 @@ That parse no longer streams the whole ~50 MB file: the airport-scoped parsers (
 `ParseTerminalWaypoints`/`ParseAirportMagneticVariation`) read through `CifpAirportIndex.ReadAirportLines(path, icao)`, which
 scans each CIFP file **once per process** (keyed by path + length + mtime) into per-airport byte ranges of its `SUSAP` records and
 then seeks straight to them. Most airports are one contiguous block; ~180 in the FAA file are split in two, so an airport maps to a
-list of ranges. The whole-file parsers (`Parse`, `ParseRunwayThresholdElevations`, `ParseNavaids`) still stream the file.
+list of ranges. The whole-file parsers (`Parse`, `ParseRunwayEnds`, `ParseNavaids`) still stream the file.
 
 `ParseNavaids` reads the VHF/NDB records of section D and the terminal NDBs of section PN into `CifpNavaid` (position, name, type and the station declination from columns 75–79, `G`/`T` read as 0); the first record for an ident wins.
 

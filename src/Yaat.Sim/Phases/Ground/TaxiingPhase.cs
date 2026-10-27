@@ -1420,10 +1420,27 @@ public sealed class TaxiingPhase : Phase
     /// <summary>
     /// The first bar ahead on <paramref name="route"/> that is a runway's (<see cref="NeedsRunwayCrossing"/>) or is uncleared,
     /// whichever comes first, with the index of the segment ending at it: an uncleared bar of any kind is returned as it is met,
-    /// for the caller to reject. Null when there is neither.
+    /// for the caller to reject. A hold-short point at the route's start node that passes the same test, while the route is
+    /// still on its first segment, comes first, with index -1. Null when there is none.
     /// </summary>
-    private static (HoldShortPoint Bar, int SegmentIndex)? FirstRunwayBarAhead(TaxiRoute route, AirportGroundLayout layout)
+    internal static (HoldShortPoint Bar, int SegmentIndex)? FirstRunwayBarAhead(TaxiRoute route, AirportGroundLayout layout)
     {
+        if (
+            (route.CurrentSegmentIndex <= 0)
+            && (route.Segments.Count > 0)
+            && (route.GetHoldShortAt(route.Segments[0].FromNodeId) is { } startBar)
+            && (!startBar.IsCleared || NeedsRunwayCrossing(startBar, layout))
+        )
+        {
+            Log.LogDebug(
+                "[Taxi] route starts at hold-short node {NodeId} ({Target}, cleared={Cleared})",
+                startBar.NodeId,
+                startBar.TargetName,
+                startBar.IsCleared
+            );
+            return (startBar, -1);
+        }
+
         for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
             if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is not { } bar)
@@ -2311,6 +2328,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         _startNodeHoldDone = true;
+        _nav.SayPendingTurnAboutUnable(ctx);
         TakeHoldShort(ctx, route, holdShort);
         return true;
     }

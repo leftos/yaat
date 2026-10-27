@@ -78,7 +78,7 @@ public sealed class OakTaxiMidRunwayCrossingTests
     [Fact]
     public void SecondTaxiGivenOffThe28RPavementShortOfTheNorthMarking_FinishesClearingTheRunwayInsteadOfHoldingAtItsFarBar()
     {
-        if (StartCrossing28R(NoseOffThe28RPavement) is not { } rig)
+        if (StartCrossing28R((layout, aircraft) => NoseOffThe28RPavement(aircraft) && NorthOf28R(layout, aircraft)) is not { } rig)
         {
             return;
         }
@@ -87,9 +87,13 @@ public sealed class OakTaxiMidRunwayCrossingTests
         Assert.True(first.Success, first.Message);
         RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R") ?? throw new InvalidOperationException("no OAK 28R in navdata");
         TaxiRoute route = Assert.IsType<TaxiRoute>(rig.Aircraft.Ground.AssignedTaxiRoute);
-        int barSegment = route.Segments.FindIndex(s => (route.GetHoldShortAt(s.ToNodeId) is { TargetName: { } t }) && t.Contains("28R"));
-        Assert.True(barSegment >= 0, $"{TaxiToSig7} has no 28R bar ahead: {route.ToSummary()}");
-        GroundNode northBar = rig.Layout.Nodes[route.Segments[barSegment].ToNodeId];
+        Assert.DoesNotContain(route.HoldShortPoints, h => (h.TargetName?.Contains("28R") == true) && !h.IsCleared);
+        GroundNode northBar = route
+            .Segments.Select(s => s.FromNodeId)
+            .Append(route.Segments[^1].ToNodeId)
+            .Select(id => rig.Layout.Nodes[id])
+            .First(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains("28R"));
+        int barSegment = (northBar.Id == route.Segments[0].FromNodeId) ? 0 : route.Segments.FindIndex(s => s.ToNodeId == northBar.Id) + 1;
 
         Assert.True(
             TickUntil(
@@ -106,11 +110,55 @@ public sealed class OakTaxiMidRunwayCrossingTests
         AssertParksAtSig7WithoutHoldingAt28R(rig);
     }
 
+    /// <summary>
+    /// An aircraft that holds no clearance for 28R — stopped on B between the runways, its nose at the south 28R bar, not taxiing,
+    /// holding or crossing — given <c>TAXI B C D @SIG7</c>: the route starts at that bar, still ahead of the aircraft, and the
+    /// hold-short point there stays uncleared, so the aircraft holds short of 28R.
+    /// </summary>
+    [Fact]
+    public void SecondTaxi_FromOutsideTheRunway_StartNodeBarStaysUncleared()
+    {
+        var groundData = new TestAirportGroundData();
+        if (groundData.GetLayout("OAK") is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode sig7 = layout.FindSpotByName("SIG7") ?? throw new InvalidOperationException("OAK has no SIG7");
+        double sig7Side = Math.Sign(Signed28RCrossTrackFt(layout, sig7.Position));
+        GroundNode southBar28R =
+            layout.Nodes.Values.FirstOrDefault(n =>
+                (n.Type == GroundNodeType.RunwayHoldShort)
+                && (n.RunwayId is { } id)
+                && id.Contains("28R")
+                && n.Edges.Any(e => e.MatchesTaxiway("B"))
+                && (Math.Sign(Signed28RCrossTrackFt(layout, n.Position)) != sig7Side)
+            ) ?? throw new InvalidOperationException("OAK has no 28R hold-short bar on B south of the runway");
+        GroundRunway runway28R = layout.FindRunway("28R") ?? throw new InvalidOperationException("OAK has no 28R");
+        var end1 = new LatLon(runway28R.Coordinates[0].Lat, runway28R.Coordinates[0].Lon);
+        var end2 = new LatLon(runway28R.Coordinates[^1].Lat, runway28R.Coordinates[^1].Lon);
+        double alongDeg = GeoMath.BearingTo(end1, end2);
+        var towardRunway = new TrueHeading((alongDeg + (sig7Side * 90.0) + 360.0) % 360.0);
+        double halfLengthNm = AircraftLength.ResolveFt("C56X") / 2.0 / GeoMath.FeetPerNm;
+        LatLon centre = GeoMath.ProjectPoint(southBar28R.Position, new TrueHeading((towardRunway.Degrees + 180.0) % 360.0), halfLengthNm);
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = NewScenario() };
+        AircraftState aircraft = SpawnHolding(engine, layout, centre, towardRunway);
+
+        CommandResult taxi = engine.SendCommand(Callsign, "TAXI B C D @SIG7");
+        Assert.True(taxi.Success, taxi.Message);
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Equal(southBar28R.Id, route.Segments[0].FromNodeId);
+        HoldShortPoint start = Assert.Single(route.HoldShortPoints, h => h.NodeId == southBar28R.Id);
+        Assert.Contains("28R", start.TargetName);
+        Assert.False(start.IsCleared, $"the start-node 28R point at #{southBar28R.Id} was cleared with no crossing clearance: {route.ToSummary()}");
+    }
+
     /// <summary>On 28R, within <see cref="OnTheRunwayFt"/> of its centreline.</summary>
     private static bool OnThe28R(AirportGroundLayout layout, AircraftState aircraft) => Abs28RCrossTrackFt(layout, aircraft) < OnTheRunwayFt;
 
     /// <summary>Leaving 28R: the nose off its pavement, so a route given now starts off the runway.</summary>
-    private static bool NoseOffThe28RPavement(AirportGroundLayout layout, AircraftState aircraft)
+    private static bool NoseOffThe28RPavement(AircraftState aircraft)
     {
         RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R") ?? throw new InvalidOperationException("no OAK 28R in navdata");
         double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
@@ -154,18 +202,7 @@ public sealed class OakTaxiMidRunwayCrossingTests
             return null;
         }
 
-        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
-        {
-            Scenario = new SimScenarioState
-            {
-                ScenarioId = "yaat-710",
-                ScenarioName = "YAAT-710 TAXI mid-crossing",
-                RngSeed = 42,
-                OriginalScenarioJson = "{}",
-                PrimaryAirportId = "OAK",
-                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
-            },
-        };
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped()) { Scenario = NewScenario() };
 
         GroundNode start = layout.FindIntersectionNode("V", "B") ?? throw new InvalidOperationException("OAK has no V/B junction");
         GroundNode southBar28L =
@@ -178,7 +215,12 @@ public sealed class OakTaxiMidRunwayCrossingTests
                 )
                 .MinBy(n => GeoMath.DistanceNm(n.Position, start.Position))
             ?? throw new InvalidOperationException("OAK has no 28L hold-short bar on B");
-        AircraftState aircraft = SpawnHolding(engine, layout, start, new TrueHeading(GeoMath.BearingTo(start.Position, southBar28L.Position)));
+        AircraftState aircraft = SpawnHolding(
+            engine,
+            layout,
+            start.Position,
+            new TrueHeading(GeoMath.BearingTo(start.Position, southBar28L.Position))
+        );
 
         Assert.True(engine.SendCommand(Callsign, "TAXI B @SIG7 HS 28L").Success);
         Assert.True(
@@ -229,22 +271,42 @@ public sealed class OakTaxiMidRunwayCrossingTests
         Assert.Equal("SIG7", aircraft.Ground.ParkingSpot);
     }
 
-    private static double Abs28RCrossTrackFt(AirportGroundLayout layout, AircraftState aircraft)
+    private static double Abs28RCrossTrackFt(AirportGroundLayout layout, AircraftState aircraft) =>
+        Math.Abs(Signed28RCrossTrackFt(layout, aircraft.Position));
+
+    /// <summary>On SIG7's side of 28R: the aircraft's cross-track from the 28R centreline has the sign of SIG7's.</summary>
+    private static bool NorthOf28R(AirportGroundLayout layout, AircraftState aircraft)
+    {
+        GroundNode sig7 = layout.FindSpotByName("SIG7") ?? throw new InvalidOperationException("OAK has no SIG7");
+        return Math.Sign(Signed28RCrossTrackFt(layout, aircraft.Position)) == Math.Sign(Signed28RCrossTrackFt(layout, sig7.Position));
+    }
+
+    private static double Signed28RCrossTrackFt(AirportGroundLayout layout, LatLon point)
     {
         GroundRunway runway = layout.FindRunway("28R") ?? throw new InvalidOperationException("OAK has no 28R");
         var end1 = new LatLon(runway.Coordinates[0].Lat, runway.Coordinates[0].Lon);
         var end2 = new LatLon(runway.Coordinates[^1].Lat, runway.Coordinates[^1].Lon);
-        return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, end1, new TrueHeading(GeoMath.BearingTo(end1, end2))))
-            * GeoMath.FeetPerNm;
+        return GeoMath.SignedCrossTrackDistanceNm(point, end1, new TrueHeading(GeoMath.BearingTo(end1, end2))) * GeoMath.FeetPerNm;
     }
 
-    private static AircraftState SpawnHolding(SimulationEngine engine, AirportGroundLayout layout, GroundNode node, TrueHeading heading)
+    private static SimScenarioState NewScenario() =>
+        new()
+        {
+            ScenarioId = "yaat-710",
+            ScenarioName = "YAAT-710 TAXI mid-crossing",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "OAK",
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+        };
+
+    private static AircraftState SpawnHolding(SimulationEngine engine, AirportGroundLayout layout, LatLon position, TrueHeading heading)
     {
         var aircraft = new AircraftState
         {
             Callsign = Callsign,
             AircraftType = "C56X",
-            Position = node.Position,
+            Position = position,
             TrueHeading = heading,
             Altitude = 0,
             IndicatedAirspeed = 0,

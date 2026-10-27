@@ -84,6 +84,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             diagnosticLog: log,
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
     }
@@ -423,6 +424,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             diagnosticLog: null,
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
 
@@ -584,6 +586,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             diagnosticLog: s => output.WriteLine(s),
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
 
@@ -624,5 +627,60 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     {
         double d = Math.Abs(b - a) % 360.0;
         return d > 180.0 ? 360.0 - d : d;
+    }
+
+    /// <summary>
+    /// The look-ahead anchor for C toward 28R at OAK averages only the 28R bars on a straight C edge: a 28R bar on G whose
+    /// only C edge is the C/G fillet arc at its tangent is G's bar, and must not pull the anchor toward G.
+    /// </summary>
+    [Fact]
+    public void Oak_HoldShortC_AnchorIsNotPulledToGsBar()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
+        List<GroundNode> bars28R = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> onArcOnly =
+        [
+            .. bars28R.Where(n =>
+                n.Edges.Any(e => (e is GroundArc) && e.MatchesTaxiway("C")) && !n.Edges.Any(e => (e is GroundEdge) && e.MatchesTaxiway("C"))
+            ),
+        ];
+        Assert.True(onArcOnly.Count > 0, "OAK has no 28R bar on a C arc tangent; the fixture premise is gone");
+        List<GroundNode> onC = [.. bars28R.Where(n => n.Edges.Any(e => (e is GroundEdge) && e.MatchesTaxiway("C")))];
+
+        var ctx = SearchContext.Compile(
+            layout,
+            startNodeId: onArcOnly[0].Id,
+            waypointSequence: ["C"],
+            destinationRunway: "28R",
+            destinationParking: null,
+            destinationSpot: null,
+            destinationNodeId: null,
+            explicitHoldShorts: null,
+            category: AircraftCategory.Jet,
+            wakeClass: WakeTurbulenceData.WakeClass.Large,
+            preference: null,
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null,
+            startPose: null,
+            aircraftLengthFt: AircraftLength.ResolveFt("B738")
+        );
+
+        (double Lat, double Lon)? anchor = SegmentExpander.ResolveRunwayHoldShortAnchorOnTaxiway("C", "28R", ctx);
+
+        output.WriteLine(
+            $"28R bars on a C arc only: {string.Join(", ", onArcOnly.Select(n => n.Id))}; "
+                + $"on a straight C edge: {string.Join(", ", onC.Select(n => n.Id))}"
+        );
+        if (onC.Count == 0)
+        {
+            Assert.Null(anchor);
+            return;
+        }
+
+        Assert.NotNull(anchor);
+        Assert.Equal(onC.Average(n => n.Position.Lat), anchor.Value.Lat, 9);
+        Assert.Equal(onC.Average(n => n.Position.Lon), anchor.Value.Lon, 9);
     }
 }

@@ -106,8 +106,8 @@ public class GroundConflictDetectorTests
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            run.Chain[6].Position,
-            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
+            run.Chain[5].Position,
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
         var empty = new TaxiRoute { Segments = [], HoldShortPoints = [] };
 
@@ -2239,8 +2239,8 @@ public class GroundConflictDetectorTests
             FollowCornerGeometry.AirportId,
             SiblingCallsign,
             "C172",
-            run.Chain[6].Position,
-            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
+            run.Chain[5].Position,
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
         last.Ground.Layout = run.Layout;
         last.Phases = new PhaseList();
@@ -2313,8 +2313,8 @@ public class GroundConflictDetectorTests
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            chain[4].Position,
-            FollowCornerGeometry.Facing(chain[4], chain[3])
+            chain[3].Position,
+            FollowCornerGeometry.Facing(chain[3], chain[2])
         );
         waiting.Phases = new PhaseList();
         waiting.Phases.Add(new FollowingPhase("N1LED"));
@@ -2323,8 +2323,8 @@ public class GroundConflictDetectorTests
             FollowCornerGeometry.AirportId,
             ThirdCallsign,
             "C172",
-            chain[2].Position,
-            FollowCornerGeometry.Facing(chain[2], chain[3])
+            chain[1].Position,
+            FollowCornerGeometry.Facing(chain[1], chain[2])
         );
         mover.Phases = null;
         mover.IndicatedAirspeed = 10.0;
@@ -2357,15 +2357,15 @@ public class GroundConflictDetectorTests
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        TrueHeading nose = FollowCornerGeometry.Facing(chain[3], chain[2]);
+        TrueHeading nose = FollowCornerGeometry.Facing(chain[2], chain[1]);
         TrueHeading tailward = nose.ToReciprocal();
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
-        AircraftState lead = MakeAircraft(LeadCallsign, chain[3].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
+        AircraftState lead = MakeAircraft(LeadCallsign, chain[2].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
         lead.Phases = new PhaseList();
         lead.Phases.Add(StraightPushFrom(lead));
         lead.Phases.CurrentPhase!.Status = PhaseStatus.Active;
         lead.Ground.Layout = layout;
-        LatLon astern = GeoMath.ProjectPoint(chain[3].Position, tailward, 150.0 / FtPerNm);
+        LatLon astern = GeoMath.ProjectPoint(chain[2].Position, tailward, 150.0 / FtPerNm);
         AircraftState follower = MakeAircraft(FollowerCallsign, astern, heading: nose.Degrees, phase: new FollowingPhase(LeadCallsign));
         follower.Ground.Layout = layout;
 
@@ -2395,32 +2395,32 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        // The lead came south down B from chain[5] to chain[3] (its trail), the follower behind it, and is now re-routed back north.
+        // The lead came south down B from chain[4] to chain[2] (its trail), the follower behind it, and is now re-routed back north.
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         const double TaxiKts = 10.0;
         AircraftState lead = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             LeadCallsign,
             "C172",
-            chain[3].Position,
-            FollowCornerGeometry.Facing(chain[3], chain[4])
+            chain[2].Position,
+            FollowCornerGeometry.Facing(chain[2], chain[3])
         );
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
-        lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 3, 5);
-        for (int i = 5; i > 3; i--)
+        lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 2, 4);
+        for (int i = 4; i > 2; i--)
         {
             lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
         }
 
-        LatLon onTrail = FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
+        LatLon onTrail = FollowCornerGeometry.Between(chain[3].Position, chain[4].Position, 0.5);
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
             onTrail,
-            FollowCornerGeometry.Facing(chain[5], chain[4])
+            FollowCornerGeometry.Facing(chain[4], chain[3])
         );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
@@ -2595,16 +2595,16 @@ public class GroundConflictDetectorTests
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        TrueHeading nose = FollowCornerGeometry.Facing(chain[3], chain[2]);
+        TrueHeading nose = FollowCornerGeometry.Facing(chain[2], chain[1]);
         TrueHeading tailward = nose.ToReciprocal();
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Piston);
-        AircraftState lead = MakeAircraft(LeadCallsign, chain[3].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
+        AircraftState lead = MakeAircraft(LeadCallsign, chain[2].Position, heading: nose.Degrees, gs: pushKts, pushbackHeading: tailward.Degrees);
         lead.AircraftType = "C172";
         lead.Phases = new PhaseList();
         lead.Phases.Add(StraightPushFrom(lead));
         lead.Phases.CurrentPhase!.Status = PhaseStatus.Active;
         lead.Ground.Layout = layout;
-        LatLon aheadOfNose = GeoMath.ProjectPoint(chain[3].Position, nose, 150.0 / FtPerNm);
+        LatLon aheadOfNose = GeoMath.ProjectPoint(chain[2].Position, nose, 150.0 / FtPerNm);
         AircraftState follower = MakeAircraft(
             FollowerCallsign,
             aheadOfNose,
@@ -2636,8 +2636,8 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
-    /// The lead of the re-route above has driven on back past <c>chain[4]</c>, the node it turned at, onto the B edge it first
-    /// came down, its follower still holding further up that edge: its trail is that edge, the edge on to <c>chain[3]</c>, and
+    /// The lead of the re-route above has driven on back past <c>chain[3]</c>, the node it turned at, onto the B edge it first
+    /// came down, its follower still holding further up that edge: its trail is that edge, the edge on to <c>chain[2]</c>, and
     /// that first edge again. The node the two newest trail edges share is now behind the lead, but the edge it is on appears
     /// earlier in its trail, so it is retracing its own trail toward its follower and is limited, the follower unlimited.
     /// </summary>
@@ -2649,36 +2649,36 @@ public class GroundConflictDetectorTests
             return;
         }
 
-        // The lead came south down B from chain[5] to chain[3], turned back north, and has passed chain[4] again.
+        // The lead came south down B from chain[4] to chain[2], turned back north, and has passed chain[3] again.
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         const double TaxiKts = 10.0;
-        LatLon pastTurnNode = FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.2);
+        LatLon pastTurnNode = FollowCornerGeometry.Between(chain[3].Position, chain[4].Position, 0.2);
         AircraftState lead = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             LeadCallsign,
             "C172",
             pastTurnNode,
-            FollowCornerGeometry.Facing(chain[4], chain[5])
+            FollowCornerGeometry.Facing(chain[3], chain[4])
         );
         lead.Phases = null;
         lead.IndicatedAirspeed = TaxiKts;
         lead.Ground.Layout = layout;
-        lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 4, 5);
-        for (int i = 5; i > 3; i--)
+        lead.Ground.AssignedTaxiRoute = RouteAlongB(chain, 3, 4);
+        for (int i = 4; i > 2; i--)
         {
             lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
         }
 
-        GroundEdge drivenAgain = FollowCornerGeometry.EdgeBetween(chain[4], chain[5]);
+        GroundEdge drivenAgain = FollowCornerGeometry.EdgeBetween(chain[3], chain[4]);
         lead.Ground.TaxiEdgeTrail.Record(drivenAgain, TaxiEdgeTrail.EntryNodeOf(drivenAgain, lead));
 
-        LatLon onTrail = FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.5);
+        LatLon onTrail = FollowCornerGeometry.Between(chain[3].Position, chain[4].Position, 0.5);
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
             onTrail,
-            FollowCornerGeometry.Facing(chain[5], chain[4])
+            FollowCornerGeometry.Facing(chain[4], chain[3])
         );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
@@ -3777,22 +3777,22 @@ public class GroundConflictDetectorTests
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
         AircraftState a = MakeAircraft(
             MutualA,
-            chain[2].Position,
-            heading: FollowCornerGeometry.Facing(chain[2], chain[3]).Degrees,
+            chain[1].Position,
+            heading: FollowCornerGeometry.Facing(chain[1], chain[2]).Degrees,
             phase: new FollowingPhase(MutualB)
         );
         AircraftState b = MakeAircraft(
             MutualB,
-            chain[5].Position,
-            heading: FollowCornerGeometry.Facing(chain[5], chain[4]).Degrees,
+            chain[4].Position,
+            heading: FollowCornerGeometry.Facing(chain[4], chain[3]).Degrees,
             phase: new FollowingPhase(MutualA)
         );
         AircraftState third = MakeAircraft(
             ThirdCallsign,
-            chain[3].Position,
-            heading: FollowCornerGeometry.Facing(chain[3], chain[4]).Degrees,
+            chain[2].Position,
+            heading: FollowCornerGeometry.Facing(chain[2], chain[3]).Degrees,
             gs: 10.0,
-            taxiRoute: RouteAlongB(chain, 3, 5)
+            taxiRoute: RouteAlongB(chain, 2, 4)
         );
         Assert.True(
             GeoMath.DistanceNm(a.Position, b.Position) <= GroundConflictDetector.SearchRangeNm,
@@ -3876,7 +3876,7 @@ public class GroundConflictDetectorTests
             (run.Engine, run.Layout),
             FollowerCallsign,
             "C172",
-            (run.Chain[6], run.Chain[5]),
+            (run.Chain[5], run.Chain[4]),
             "TAXI B W 30"
         );
         CommandResult result = run.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {run.Lead.Callsign}{clearance}");

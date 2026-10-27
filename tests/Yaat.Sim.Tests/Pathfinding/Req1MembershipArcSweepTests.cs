@@ -107,6 +107,7 @@ public class Req1MembershipArcSweepTests
                         out _,
                         new ExplicitPathOptions
                         {
+                            StartPose = null,
                             OccupiedTaxiway = null,
                             ImpliedLeadTaxiway = null,
                             AircraftLengthFt = AircraftLength.ResolveFt("B738"),

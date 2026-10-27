@@ -98,6 +98,7 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
         {
             var options = new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

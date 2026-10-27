@@ -61,6 +61,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -109,6 +110,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -153,6 +155,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -166,7 +169,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
         Assert.NotNull(route);
 
         var holdShorts = new List<HoldShortPoint>();
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, route.Segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, route.Segments, holdShorts, startPose: null);
         foreach (HoldShortPoint hs in holdShorts)
         {
             output.WriteLine($"  hold-short #{hs.NodeId} {hs.TargetName} {hs.Reason}");
@@ -210,6 +213,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

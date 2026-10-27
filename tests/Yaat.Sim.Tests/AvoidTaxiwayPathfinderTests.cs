@@ -56,6 +56,7 @@ public class AvoidTaxiwayPathfinderTests
             null
         )
         {
+            StartPose = null,
             AvoidedTaxiways = avoided,
             AvoidMode = mode,
         };
@@ -190,6 +191,7 @@ public class AvoidTaxiwayPathfinderTests
             null,
             null,
             null,
+            startPose: null,
             aircraftLengthFt: null
         );
         Assert.Equal(AvoidTaxiwayMode.HardExclude, auto.AvoidMode);
@@ -211,6 +213,7 @@ public class AvoidTaxiwayPathfinderTests
             null,
             null,
             null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
         Assert.Equal(AvoidTaxiwayMode.Off, explicitCtx.AvoidMode);

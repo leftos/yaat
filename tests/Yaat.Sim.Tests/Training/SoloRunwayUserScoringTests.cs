@@ -1531,7 +1531,7 @@ public class SoloRunwayUserScoringTests
     private static AircraftState MidCrossing(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar)
     {
         double barFt = RunwayHoldBars.CentrelineFt(runway, bar.Position);
-        AircraftState crossing = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, barFt + 20.0, alongFt: 0);
+        AircraftState crossing = RunwayOccupancyTests.SquareToTheRunway(runway, bar, "B738", facingRunway: true, barFt + 20.0, alongFt: 0);
         crossing.Callsign = "CROSS1";
         crossing.IndicatedAirspeed = 15;
         crossing.Targets.TargetSpeed = 15;

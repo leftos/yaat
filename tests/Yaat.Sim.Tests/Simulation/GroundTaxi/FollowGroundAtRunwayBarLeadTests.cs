@@ -289,9 +289,19 @@ public class FollowGroundAtRunwayBarLeadTests(ITestOutputHelper output) : Follow
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
         AssertSent(ground, Leader, "HOLD");
         AssertSent(ground, Follower, "CROSS 1L");
+        // Taxiing on clear of 1L means having crossed it, not merely standing outside its hold line: the hold line is reached
+        // before the crossing, so the bar's own approach satisfies the latter.
+        RunwayInfo runway1L = SfoGroundHarness.Runway("1L");
+        bool crossed = false;
         int taxiingAt = SfoGroundHarness.TickUntil(
             ground.Engine,
-            () => (follower.Phases?.CurrentPhase is TaxiingPhase) && (FollowingPhase.RunwayInsideHoldLine(follower, ground.Layout) is null),
+            () =>
+            {
+                crossed |= RunwayOccupancy.IsOnPavement(follower, runway1L);
+                return (follower.Phases?.CurrentPhase is TaxiingPhase)
+                    && crossed
+                    && (FollowingPhase.RunwayInsideHoldLine(follower, ground.Layout) is null);
+            },
             CrossBudgetSeconds,
             null
         );

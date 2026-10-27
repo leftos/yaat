@@ -306,8 +306,8 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        GroundNode near = chain[3];
-        GroundNode far = chain[4];
+        GroundNode near = chain[2];
+        GroundNode far = chain[3];
         GroundEdge edge = FollowCornerGeometry.EdgeBetween(near, far);
         LatLon midway = FollowCornerGeometry.Between(near.Position, far.Position, 0.5);
 
@@ -353,14 +353,14 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        GroundEdge edge = FollowCornerGeometry.EdgeBetween(chain[3], chain[4]);
+        GroundEdge edge = FollowCornerGeometry.EdgeBetween(chain[2], chain[3]);
         var trail = new TaxiEdgeTrail();
 
-        Assert.Throws<ArgumentException>(() => trail.Record(edge, chain[5]));
+        Assert.Throws<ArgumentException>(() => trail.Record(edge, chain[4]));
         Assert.Empty(trail.Edges);
 
-        trail.Record(edge, chain[4]);
-        Assert.Equal(chain[4].Id, Assert.Single(trail.Edges).EntryNodeId);
+        trail.Record(edge, chain[3]);
+        Assert.Equal(chain[3].Id, Assert.Single(trail.Edges).EntryNodeId);
     }
 
     /// <summary>
@@ -376,7 +376,7 @@ public class TaxiEdgeTrailTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        GroundEdge edge = FollowCornerGeometry.EdgeBetween(chain[3], chain[4]);
+        GroundEdge edge = FollowCornerGeometry.EdgeBetween(chain[2], chain[3]);
         List<TaxiTrailEdgeDto> dto =
         [
             new TaxiTrailEdgeDto

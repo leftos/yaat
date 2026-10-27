@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
@@ -24,11 +25,12 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
     private const string Callsign = "N9225L";
     private const int TouchdownSecond = 400;
 
-    // The re-acquire gate pins ground speed at exactly ReacquireSpeedKts (5.0). A normal
-    // braking pass-through of that speed lasts a tick or two; a crawl holds it for many
-    // seconds. Before the fix the exit had two such plateaus (≈6 s and ≈5 s); after it,
-    // none. Allow a small pass-through window.
-    private const int MaxConsecutiveReacquireFloorSeconds = 2;
+    // The re-acquire gate pins the navigator's target speed at exactly ReacquireSpeedKts (5.0).
+    // A brief re-acquire through a bend lasts a few sub-ticks; a crawl holds it for many seconds.
+    // Before the fix the exit had two such plateaus (≈6 s and ≈5 s). Allow up to 2 s of sub-ticks.
+    private const int MaxConsecutiveReacquireSubTicks = 8;
+
+    private const int SubTicksPerSecond = SimulationEngine.PhysicsSubTickRate;
 
     [Fact]
     public void N9225L_ExitsG_WithoutReacquireCrawl()
@@ -49,13 +51,13 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
         var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.Replay(recording, TouchdownSecond);
 
-        int? stopSecond = null;
+        double? stopSecond = null;
         string? exitTaxiway = null;
-        int floorRun = 0;
-        int maxFloorRun = 0;
-        for (int t = TouchdownSecond + 1; t <= TouchdownSecond + 60; t++)
+        int pinnedRun = 0;
+        int maxPinnedRun = 0;
+        for (int subTick = 1; subTick <= 60 * SubTicksPerSecond; subTick++)
         {
-            engine.ReplayOneSecond();
+            engine.ReplayOneSubTick();
             AircraftState? ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
 
@@ -65,35 +67,37 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
                 exitTaxiway = twy;
             }
 
-            // Count consecutive seconds pinned at the re-acquire floor (4.5–5.5 kt).
-            if ((ac.GroundSpeed is >= 4.5 and <= 5.5) && (exitTaxiway is not null))
+            // Count consecutive sub-ticks the navigator targets the re-acquire speed, until the final stop.
+            bool pinned = ac.Ground.LastNavDiag is { } diag && (Math.Abs(diag.TargetSpeedKts - GroundNavigator.ReacquireSpeedKts) <= 0.01);
+            if (pinned && (exitTaxiway is not null))
             {
-                floorRun++;
-                maxFloorRun = Math.Max(maxFloorRun, floorRun);
+                pinnedRun++;
+                maxPinnedRun = Math.Max(maxPinnedRun, pinnedRun);
             }
             else
             {
-                floorRun = 0;
+                pinnedRun = 0;
             }
 
-            if ((ac.GroundSpeed <= 1.0) && (t > TouchdownSecond + 5))
+            if ((ac.GroundSpeed <= 1.0) && (subTick > 5 * SubTicksPerSecond))
             {
-                stopSecond = t;
+                stopSecond = TouchdownSecond + ((double)subTick / SubTicksPerSecond);
                 break;
             }
         }
 
-        output.WriteLine($"N9225L exit taxiway={exitTaxiway ?? "(none)"} stopped@={stopSecond?.ToString() ?? "n/a"} maxFloorRun={maxFloorRun}s");
+        output.WriteLine(
+            $"N9225L exit taxiway={exitTaxiway ?? "(none)"} stopped@={stopSecond?.ToString() ?? "n/a"} maxPinnedRun={maxPinnedRun} sub-ticks"
+        );
 
-        // E is the first exit past the touchdown point now that the pattern descent rolls out
-        // on the glide path (issue #412 follow-up) instead of arriving high and floating to G.
-        Assert.Equal("E", exitTaxiway);
+        Assert.Equal("G", exitTaxiway);
         Assert.NotNull(stopSecond);
         Assert.True(
-            maxFloorRun <= MaxConsecutiveReacquireFloorSeconds,
-            $"N9225L crawled at the {5.0:F0} kt re-acquire floor for {maxFloorRun} consecutive seconds during the 28R→G "
-                + "exit. That means the navigator handed off a corner/short segment with a large cross-track (arc playback "
-                + "ending short of its node, or a loose arrival into a short stub) and the establish-straight gate pinned it."
+            maxPinnedRun <= MaxConsecutiveReacquireSubTicks,
+            $"N9225L's navigator targeted the {GroundNavigator.ReacquireSpeedKts:F0} kt re-acquire speed for {maxPinnedRun} "
+                + "consecutive sub-ticks during the 28R→G exit. That means the navigator handed off a corner/short segment "
+                + "with a large cross-track (arc playback ending short of its node, or a loose arrival into a short stub) "
+                + "and the establish-straight gate pinned it."
         );
     }
 }

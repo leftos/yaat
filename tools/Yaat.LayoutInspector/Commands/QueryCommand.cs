@@ -180,6 +180,7 @@ public sealed class QueryCommand : ICommand
                 out string? pfFailReason,
                 new ExplicitPathOptions
                 {
+                    StartPose = null,
                     OccupiedTaxiway = null,
                     ImpliedLeadTaxiway = null,
                     AircraftLengthFt = LongestFallbackLengthFt,
@@ -480,6 +481,7 @@ public sealed class QueryCommand : ICommand
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = LongestFallbackLengthFt,

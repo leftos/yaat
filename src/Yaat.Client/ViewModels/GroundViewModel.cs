@@ -1409,6 +1409,20 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The pathfinder options <see cref="PresetTaxiRow"/> resolves <paramref name="preset"/> with for <paramref name="ac"/>:
+    /// its start pose (position as main gear, heading, type body), its type's length and the preset's destination runway.
+    /// </summary>
+    internal static ExplicitPathOptions PresetTaxiRowOptions(AircraftModel ac, TaxiRouteDefinition preset) =>
+        new()
+        {
+            StartPose = StartPose.Of(ac.Position, ac.Heading.Degrees, ac.AircraftType),
+            OccupiedTaxiway = null,
+            ImpliedLeadTaxiway = null,
+            AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
+            DestinationRunway = preset.DestinationRunway,
+        };
+
+    /// <summary>
     /// <paramref name="preset"/>'s row from <paramref name="start"/>: its path resolved for the aircraft's category and wake
     /// class, the path's taxiways as the via (what the command sends), and the distance from the aircraft along the
     /// resolved path. Null when the path does not resolve from there, or ends where the aircraft stands (the bar it is
@@ -1422,13 +1436,7 @@ public partial class GroundViewModel : ObservableObject
             start.Id,
             path,
             out _,
-            new ExplicitPathOptions
-            {
-                OccupiedTaxiway = null,
-                ImpliedLeadTaxiway = null,
-                AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
-                DestinationRunway = preset.DestinationRunway,
-            },
+            PresetTaxiRowOptions(ac, preset),
             CategoryFor(ac),
             WakeClassFor(ac)
         );
@@ -2663,7 +2671,7 @@ public partial class GroundViewModel : ObservableObject
     /// The route taxiway the node at <paramref name="position"/> lies on: the one the route arrives by, and for the start
     /// node the one it leaves by. Null when that segment names none.
     /// </summary>
-    private static string? RouteTaxiwayAt(TaxiRoute route, int position) => ArrivingTaxiway(route.Segments[Math.Max(position - 1, 0)]);
+    private static string? RouteTaxiwayAt(TaxiRoute route, int position) => ArrivingTaxiway(route, Math.Max(position - 1, 0));
 
     /// <summary>
     /// The line heading the Hold short of… ladder: <c>route S T V W4 · RWY 30</c>, then the stand the taxi is to
@@ -2777,7 +2785,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        string? next = ArrivingTaxiway(route.Segments[position]);
+        string? next = DepartingTaxiway(route, position);
         bool isTurn =
             (next is not null)
             && routeTaxiways.Contains(next)
@@ -2868,7 +2876,7 @@ public partial class GroundViewModel : ObservableObject
             return (location is null) ? "at the end of the route" : $"at {location}, end of route";
         }
 
-        string? next = ArrivingTaxiway(route.Segments[position]);
+        string? next = DepartingTaxiway(route, position);
         if ((location is not null) && (next is not null) && !string.Equals(location, next, StringComparison.OrdinalIgnoreCase))
         {
             return $"before turning onto {next}";
@@ -2966,11 +2974,44 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The route taxiway a segment travels ON — the location half of a located hold-short. A fillet
-    /// arc carries the joined junction name ("C - J"), so the composite is split and the first
-    /// plain taxiway name wins. Null when the segment is pure runway/ramp pavement.
+    /// The route taxiway <paramref name="route"/>'s segment <paramref name="index"/> travels ON — the location half of a
+    /// located hold-short: the name of the last straight segment up to it, so a fillet arc ("C - J") takes the taxiway the
+    /// route followed into it. A route that starts on arcs falls back to the arc's first plain name. Null when that segment
+    /// is pure runway/ramp pavement.
     /// </summary>
-    private static string? ArrivingTaxiway(TaxiRouteSegment seg)
+    private static string? ArrivingTaxiway(TaxiRoute route, int index)
+    {
+        for (int i = index; i >= 0; i--)
+        {
+            if (route.Segments[i].Edge.Edge is not GroundArc)
+            {
+                return PlainTaxiway(route.Segments[i]);
+            }
+        }
+
+        return PlainTaxiway(route.Segments[index]);
+    }
+
+    /// <summary>
+    /// The route taxiway <paramref name="route"/> goes on to from segment <paramref name="index"/>: the name of the first
+    /// straight segment from it on, so a fillet arc ("S - T") leads onto the taxiway the route follows out of it. A route
+    /// that ends on arcs falls back to the arc's first plain name.
+    /// </summary>
+    private static string? DepartingTaxiway(TaxiRoute route, int index)
+    {
+        for (int i = index; i < route.Segments.Count; i++)
+        {
+            if (route.Segments[i].Edge.Edge is not GroundArc)
+            {
+                return PlainTaxiway(route.Segments[i]);
+            }
+        }
+
+        return PlainTaxiway(route.Segments[index]);
+    }
+
+    /// <summary>The first plain taxiway name of <paramref name="seg"/> (a fillet arc's joined name split); null on runway/ramp.</summary>
+    private static string? PlainTaxiway(TaxiRouteSegment seg)
     {
         foreach (string name in seg.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
         {
@@ -3120,10 +3161,8 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The taxiway a <c>RunwayHoldShort</c> node sits on: the name of its edge that leads off the runway — not along a
-    /// runway centerline, toward a node with no runway-centerline edge — else of any edge not along a centerline, the
-    /// ordinal-first name when several qualify, so the answer does not depend on edge order. Null when the node is not in
-    /// the layout or no such edge is named.
+    /// The taxiway a <c>RunwayHoldShort</c> node sits on (<see cref="RunwayHoldBars.BarTaxiwayName"/>). Null when the node is
+    /// not in the layout or no straight edge at it is named.
     /// </summary>
     public string? GetHoldShortTaxiwayName(int nodeId)
     {
@@ -3132,9 +3171,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        List<IGroundEdge> offRunway = [.. node.Edges.Where(e => !e.IsRunwayCenterline && !string.IsNullOrEmpty(e.TaxiwayName))];
-        List<IGroundEdge> leadingOff = [.. offRunway.Where(e => !e.OtherNode(node).Edges.Any(other => other.IsRunwayCenterline))];
-        return (leadingOff.Count > 0 ? leadingOff : offRunway).Select(e => e.TaxiwayName).Order(StringComparer.Ordinal).FirstOrDefault();
+        return RunwayHoldBars.BarTaxiwayName(node);
     }
 
     /// <summary>
@@ -3271,7 +3308,7 @@ public partial class GroundViewModel : ObservableObject
     /// What <see cref="ResolveRemainingRoute"/> rebuilds an aircraft's route from: the clearance's taxiways from the one
     /// it is on, the destination and the pathfinder options the server used. Null when the clearance names no taxiway.
     /// </summary>
-    private static RemainingRouteRequest? RemainingRouteRequestFor(AirportGroundLayout layout, AircraftModel ac)
+    internal static RemainingRouteRequest? RemainingRouteRequestFor(AirportGroundLayout layout, AircraftModel ac)
     {
         List<string> routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
         if (routeTaxiways.Count == 0)
@@ -3311,6 +3348,7 @@ public partial class GroundViewModel : ObservableObject
             Destination = destination,
             Options = new ExplicitPathOptions
             {
+                StartPose = StartPose.Of(ac.Position, ac.Heading.Degrees, ac.AircraftType),
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
@@ -3402,7 +3440,7 @@ public partial class GroundViewModel : ObservableObject
     /// What <see cref="ResolveRemainingRoute"/> rebuilds a route from: the clearance's taxiways from the one the aircraft
     /// is on, its destination node (a stand or spot) and the pathfinder options, category and wake class the server used.
     /// </summary>
-    private sealed record RemainingRouteRequest
+    internal sealed record RemainingRouteRequest
     {
         public required AirportGroundLayout Layout { get; init; }
 

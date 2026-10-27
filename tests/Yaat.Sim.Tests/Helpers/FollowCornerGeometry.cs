@@ -33,7 +33,7 @@ internal static class FollowCornerGeometry
     }
 
     /// <summary>
-    /// A C560 spawned on B at <c>Chain[3]</c> facing the 28R bar, cleared <c>TAXI B W 30</c> (crossings pre-cleared) and ticked
+    /// A C560 spawned on B at <c>Chain[2]</c> facing the 28R bar, cleared <c>TAXI B W 30</c> (crossings pre-cleared) and ticked
     /// until its trail holds at least two edges.
     /// </summary>
     internal static LeadRun? StartTaxiingLead(ITestOutputHelper output)
@@ -45,7 +45,7 @@ internal static class FollowCornerGeometry
 
         (SimulationEngine engine, AirportGroundLayout layout) = setup;
         List<GroundNode> chain = BChain(layout);
-        AircraftState lead = AddTaxiing(setup, "N1LED", "C560", (chain[3], chain[2]), "TAXI B W 30");
+        AircraftState lead = AddTaxiing(setup, "N1LED", "C560", (chain[2], chain[1]), "TAXI B W 30");
         for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
         {
             engine.TickOneSecond();
@@ -114,7 +114,7 @@ internal static class FollowCornerGeometry
         GroundNode current = bar28R.OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L.Position)).First();
         List<GroundNode> chain = [current];
         GroundNode? previous = null;
-        while (chain.Count < 7)
+        while (chain.Count < 6)
         {
             GroundNode here = current;
             GroundNode? next = here

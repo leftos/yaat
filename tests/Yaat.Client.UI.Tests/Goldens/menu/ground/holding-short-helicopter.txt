@@ -31,7 +31,7 @@ All Commands
     Taxi to runway alias:TAXI
       Finding runway entries…
     Preset taxi route alias:TAXI
-      30 to TERMINAL · via W V T · ~4,800 ft — TAXI W V T
+      30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
     Air taxi alias:ATXI
       Air taxi to · Filter pads, parking, spots, runways
     Cross 30 alias:CROSS

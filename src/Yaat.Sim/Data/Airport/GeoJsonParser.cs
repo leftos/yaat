@@ -348,10 +348,13 @@ public static class GeoJsonParser
         RemoveOverlappingEdges(layout);
 
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
+        // Every runway's S and rectangle come first, so each crossing sees every other runway's holding area whatever the order.
         var fallbackBars = new List<FallbackBar>();
-        foreach (RunwayFeature rwy in runways)
+        List<RunwayPlan> plans = [.. runways.Select(rwy => RunwayCrossingDetector.PlanRunway(rwy, layout.AirportId, runwayAirportCode))];
+        foreach (RunwayPlan plan in plans)
         {
-            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, runwayAirportCode);
+            RunwayFeature rwy = plan.Feature;
+            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(plan, plans, layout, coordIndex, ref nextNodeId);
             double rwyWidthFt = crossings.WidthFt;
             fallbackBars.AddRange(crossings.FallbackBars);
 
@@ -362,6 +365,7 @@ public static class GeoJsonParser
                     Coordinates = [.. rwy.Coords],
                     WidthFt = rwyWidthFt,
                     HoldShortDistanceFt = rwy.HoldShortDistanceFt,
+                    HoldShortStandoffFt = crossings.HoldShortStandoffFt,
                     TurnoffByEnd = rwy.TurnoffByEnd,
                     PatternAltitudeAglFt = rwy.PatternAltitudeAglFt,
                     PatternSizeNm = rwy.PatternSizeNm,

@@ -1317,7 +1317,7 @@ public class GroundCommandHandlerTests
         }
 
         Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
-        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, "N1LED", "C560", (chain[5], chain[4]), "TAXI B W 30");
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, "N1LED", "C560", (chain[4], chain[3]), "TAXI B W 30");
 
         CommandResult result = GroundCommandHandler.TryFollow(
             follower,
@@ -1349,8 +1349,8 @@ public class GroundCommandHandlerTests
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            chain[3].Position,
-            FollowCornerGeometry.Facing(chain[3], chain[2])
+            chain[2].Position,
+            FollowCornerGeometry.Facing(chain[2], chain[1])
         );
         follower.Ground.Layout = layout;
 

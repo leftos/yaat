@@ -224,6 +224,10 @@ The overlay never draws on into the junction or along B.
 
 The overlay never decides a turn about itself and never infers one from the heading or from whether a route drives the occupied edge. A shape name the client does not know logs a warning in `AircraftModel` and draws as `None`. A turned-about route starts behind the aircraft by design, so it skips the reversal check below.
 
+The request also carries the aircraft's **start pose** (`ExplicitPathOptions.StartPose`, `StartPose.Of(position, heading, type)`: main gear, heading, body from the type), which the server's route had too. It decides whether a runway bar at the route's start node holds the aircraft ([ground/hold-short-placement.md](ground/hold-short-placement.md), start bar), so a route leaving a runway draws without a hold at the bar it leaves by.
+
+The Ground View's preset taxi rows resolve the same way (`GroundViewModel.PresetTaxiRowOptions`), as does the route preview of a row pointed at.
+
 It passes `AssignedRunway` (when set) as `ExplicitPathOptions.DestinationRunway` so the reconstruction **truncates at the runway hold-short** — the same hint the server used to build the route.
 
 Without it the resolver has no runway terminus and walks the last taxiway to its full physical extent, drawing past the hold-short bar (the `TAXI D C B 28R` "highlights all of B past 28R" bug).

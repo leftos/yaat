@@ -868,6 +868,10 @@ Locate the hold-short with `@`: `HS C@J` means "hold short of C at its crossing 
 **Tail over the runway, and clearing it.** When you hold an aircraft short of a taxiway whose hold line sits closer than the aircraft's own length past a runway it just crossed (e.g. `TAXI G B HS B` across SFO 01L/19R), it can't be both short of the taxiway and clear of the runway — so it stops at the taxiway line with its tail over the runway bars, the TAXI echo flags it'll be unable to clear the runway, and a terminal note warns the runway isn't clear.
 
 To resolve it, issue `CLRWY` (alias `CLEARRWY`): the aircraft pulls forward just until it's clear of the runway and holds, and the warning clears. It enters the taxiway minimally rather than driving on to the next junction.
+
+**Where the runway hold-short bars sit.** The ground view draws each runway's hold-short bars where the airport-design standard puts the hold line, not at a flat distance: the runway's separation comes from its authored value (a value more than 15 ft under the rule on a large runway is replaced by the rule, with a data warning in the log), else from its width, length, ILS category and elevation, and a taxiway that meets the runway at a shallow angle has its bar a little farther out so the whole painted line stays clear.
+
+Bars on some runways (OAK 28R and 30) have moved from earlier versions, and an exit's high-speed or standard class follows how it turns off the runway, not where its bar stands. A route that starts at a runway's hold-short bar and leads away from the runway (an arrival taxiing off) is not held at that bar.
 - **On empty space**: left-click to deselect the current aircraft
 
 **Selecting vs. targeting.** Left-click selects the aircraft you're working. Right-clicking a *different* aircraft no longer changes the selection — it opens that aircraft's menu (and, when both are on the ground, the relative give-way / follow actions above), so you can keep one aircraft selected while pointing at others as traffic.

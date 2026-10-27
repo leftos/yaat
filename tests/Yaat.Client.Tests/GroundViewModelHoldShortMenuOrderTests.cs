@@ -5,6 +5,8 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.Tests;
@@ -202,7 +204,10 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         AirportGroundLayout layout = LoadOak();
         GroundNode northBar = NorthBar28ROnG(layout);
-        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, northBar, "G", "28L", NoActiveRunways);
+        // The bar now sits on the C/G arc tangent, where the first G edge out of it in edge order leads toward the runway: the
+        // two nodes back along G are the ones further from 28R's centreline.
+        GroundNode start = WalkBackAwayFrom28R(layout, northBar, "G", 2);
+        (GroundViewModel vm, AircraftModel ac) = ClearedFrom(layout, start, northBar, "G", "28L", NoActiveRunways);
         TaxiRoute route = vm.ResolveRemainingRoute(ac)!;
         List<int> bars28R = [.. route.Segments.Select(s => layout.Nodes[s.ToNodeId]).Where(n => IsBar(n, "28R", "G")).Select(n => n.Id)];
         Assert.True(bars28R.Count == 2, $"the route passes {bars28R.Count} of 28R's bars on G");
@@ -568,6 +573,19 @@ public class GroundViewModelHoldShortMenuOrderTests
     )
     {
         GroundNode start = WalkBack(bar, taxiway, 2, NearRunway);
+        return ClearedFrom(layout, start, bar, taxiway, runway, active);
+    }
+
+    /// <summary>An aircraft at <paramref name="start"/>, facing <paramref name="bar"/>, cleared along <paramref name="taxiway"/>.</summary>
+    private static (GroundViewModel Vm, AircraftModel Ac) ClearedFrom(
+        AirportGroundLayout layout,
+        GroundNode start,
+        GroundNode bar,
+        string taxiway,
+        string runway,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> active
+    )
+    {
         var ac = new AircraftModel
         {
             Callsign = "UAL100",
@@ -606,6 +624,36 @@ public class GroundViewModelHoldShortMenuOrderTests
             .Select(e => e.OtherNode(current))
             .Where(n => (n.Id != previous.Id) && (n.Type != GroundNodeType.RunwayHoldShort) && !avoid(n));
         return candidates.Select(n => TryWalkBack(n, current, taxiway, hops - 1, avoid)).FirstOrDefault(found => found is not null);
+    }
+
+    /// <summary>
+    /// The node <paramref name="hops"/> straight <paramref name="taxiway"/> edges back from <paramref name="bar"/>, walking away
+    /// from 28R: only a neighbour further from its centreline than the current node counts, never a bar or a runway link.
+    /// </summary>
+    private static GroundNode WalkBackAwayFrom28R(AirportGroundLayout layout, GroundNode bar, string taxiway, int hops)
+    {
+        RunwayInfo runway = Assert.Single(RunwayOccupancy.AirportRunways(layout.AirportId), r => (r.Id.End1 == "28R") || (r.Id.End2 == "28R"));
+        GroundNode? start = TryWalkAwayFrom(runway, bar, taxiway, hops);
+        Assert.True(start is not null, $"no {hops}-hop walk along {taxiway} away from 28R from node {bar.Id}");
+        return start!;
+    }
+
+    private static GroundNode? TryWalkAwayFrom(RunwayInfo runway, GroundNode current, string taxiway, int hops)
+    {
+        if (hops == 0)
+        {
+            return current;
+        }
+
+        double hereFt = RunwayHoldBars.CentrelineFt(runway, current.Position);
+        return current
+            .Edges.OfType<GroundEdge>()
+            .Where(e => e.TaxiwayName == taxiway)
+            .Select(e => e.OtherNode(current))
+            .Where(n => (n.Type != GroundNodeType.RunwayHoldShort) && !NearRunway(n))
+            .Where(n => RunwayHoldBars.CentrelineFt(runway, n.Position) > hereFt)
+            .Select(n => TryWalkAwayFrom(runway, n, taxiway, hops - 1))
+            .FirstOrDefault(found => found is not null);
     }
 
     /// <summary>A 15/33 bar on K and the K node behind it, away from the runway, the pair a longest K edge apart.</summary>

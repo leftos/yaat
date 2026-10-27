@@ -22,7 +22,7 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 
 **Pushback and tug moves** are a separate ground-movement mechanism (a tug pushing tail-first or pulling nose-first along a planned chain of moves, not a taxi route) — see [`pushback.md`](./pushback.md) · `TugKinematics`, `TugMovePlanner`, `TugPathCheck`, `PushbackPhase`.
 
-**Runway hold-short bars** are seated at graph-build time, *before* the fillet generator — the constant perpendicular standoff from the runway centerline, angle-independent. See [`hold-short-placement.md`](./hold-short-placement.md) · `RunwayCrossingDetector`.
+**Runway hold-short bars** are seated at graph-build time, *before* the fillet generator — at the reviewed standoff rule's distance from the runway centerline: a per-runway base separation S (ILS category, elevation, width and length; the authored value unless far below the rule) plus an angled-taxiway term for the taxiway's centerline point. See [`hold-short-placement.md`](./hold-short-placement.md) · `RunwayCrossingDetector`, `HoldShortStandoff`.
 
 **Ground follow (`FOLLOWG`)** is checked when issued: the follower must be able to join the lead's taxi path (its trail, the edge it is on, its remaining route) through the pathfinder's goal-set search, and must not stand ahead of the lead on it. See [`navigator.md`](./navigator.md#followg-joining-the-leads-taxi-path) · `FollowRoutePlanner`, `TaxiPathfinder.FindRouteToNearestGoal`. `FollowingPhase` then drives that plan over the taxiways through its own navigator, giving way at the merge and stopping at runway bars it has no crossing for: [`navigator.md`](./navigator.md#followg-driving-the-follow-route).
 

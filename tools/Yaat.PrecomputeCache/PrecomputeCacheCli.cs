@@ -187,6 +187,12 @@ public static class PrecomputeCacheCli
         string root = RootOf(options, services);
         IReadOnlyList<string> airports = AirportsOf(options, root);
         PrecomputeOnlineFacts? online = options.Online ? await OnlineFactsAsync(airports, services) : null;
+        if (online is not null)
+        {
+            // The online check hashes each airport's standoff inputs from the navdata, as the compute keyed them.
+            await services.InitializeNavigationAsync();
+        }
+
         IReadOnlyList<PrecomputeCheckResult> results = PrecomputeBuilder.Check(new PrecomputeStore(root), airports, services.ArtccsDir, online);
         foreach (PrecomputeCheckResult result in results)
         {

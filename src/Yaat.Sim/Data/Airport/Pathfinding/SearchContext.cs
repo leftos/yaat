@@ -467,6 +467,15 @@ public sealed record SearchContext(
     public double? StartHeadingTrue { get; init; }
 
     /// <summary>
+    /// The aircraft's pose (main gear, heading, body) when the route starts at the aircraft, which decides whether a runway bar
+    /// at the start node holds it (<see cref="HoldShortAnnotator.StartBarHolds"/>): only on a first leg toward the runway, while
+    /// the bar is still ahead of every part of the body; never for an aircraft leaving the runway.
+    /// Null when the route does not start at an aircraft (a planner, a preview, an extension past another route's end): the
+    /// start bar is then held only when the route goes on to cross its runway.
+    /// </summary>
+    public required StartPose? StartPose { get; init; }
+
+    /// <summary>
     /// The aircraft's length in feet (<see cref="ExplicitPathOptions.AircraftLengthFt"/>), given to <see cref="Compile"/>: a
     /// bare taxi that crosses a runway ends half of it plus <see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/> past
     /// the far bar. Null for an auto route, whose search never ends a bare crossing; the explicit resolver refuses to end one
@@ -511,6 +520,7 @@ public sealed record SearchContext(
         Action<string>? diagnosticLog,
         IReadOnlyList<TurnDirection?>? waypointTurnHints,
         double? startHeadingTrue,
+        StartPose? startPose,
         double? aircraftLengthFt
     )
     {
@@ -592,6 +602,7 @@ public sealed record SearchContext(
             CrossingPairs = ResolveCrossingPairs(layout),
             WaypointTurnHints = waypointTurnHints,
             StartHeadingTrue = startHeadingTrue,
+            StartPose = startPose,
             AircraftLengthFt = aircraftLengthFt,
             AllowedCenterlineNames = allowedCenterlines,
         };

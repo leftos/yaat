@@ -497,6 +497,345 @@ public class LandingExitListTests
         Assert.Contains(list, row => row.TurnOffAngleDeg > 100);
     }
 
+    [Fact]
+    public void Oak28R_ExitE_AngleIsItsTurnOffOnThePavement_NotABendBeyond()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "28R"));
+        GroundNode bar = Assert.Single(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "E"));
+        double angle = Assert.NotNull(layout.ComputeExitAngle(bar, "E", runway.TrueHeading));
+        Assert.InRange(angle, 70.0, 78.0); // E turns off 28R at 74.2° until past the runway edge; the bar's outward edge read 68.1°
+    }
+
+    /// <summary>
+    /// The path angle over E from the 28R centreline node where it leaves the runway to its bar reads the turn-off across the
+    /// runway edge (74.2°), not the 45.4° leg beyond it or the bend toward C the bar sits on.
+    /// </summary>
+    [Fact]
+    public void Oak28R_ExitE_PathAngle_IsItsTurnOffOnThePavement()
+    {
+        if (Oak28RExitEChain() is not { } exitE)
+        {
+            return;
+        }
+
+        double angle = Assert.NotNull(exitE.Layout.ComputePathExitAngle(exitE.Chain, "E", exitE.Runway.TrueHeading));
+        Assert.True((angle >= 70.0) && (angle <= 78.0), $"E reads {angle:F1}° over {DescribeHops(exitE.Chain, exitE.Runway.TrueHeading)}");
+    }
+
+    private static string DescribeHops(List<GroundNode> chain, TrueHeading runwayHeading) =>
+        string.Join(
+            "; ",
+            Enumerable
+                .Range(0, chain.Count - 1)
+                .Select(i =>
+                {
+                    IGroundEdge edge = chain[i].Edges.First(e => e.OtherNode(chain[i]).Id == chain[i + 1].Id);
+                    double bearing = GeoMath.BearingTo(chain[i].Position, chain[i + 1].Position);
+                    double angle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
+                    double lengthFt = edge.DistanceNm * GeoMath.FeetPerNm;
+                    return $"#{chain[i].Id}->#{chain[i + 1].Id} {edge.GetType().Name} '{edge.TaxiwayName}' {lengthFt:F1} ft {angle:F1}°";
+                })
+        );
+
+    /// <summary>
+    /// The exit angle does not depend on how the turn-off is drawn: OAK 28R's E reads the same with its first leg's middle node
+    /// (the first node joining two straight edges in line within 10°) removed, so the leg is one hop instead of two.
+    /// </summary>
+    [Fact]
+    public void ExitAngle_DoesNotDependOnHowTheLegIsDrawn()
+    {
+        if (Oak28RExitEChain() is not { } exitE)
+        {
+            return;
+        }
+
+        List<GroundNode> chain = exitE.Chain;
+        int middle = Enumerable
+            .Range(1, chain.Count - 2)
+            .FirstOrDefault(i => IsStraightHop(chain[i - 1], chain[i]) && IsStraightHop(chain[i], chain[i + 1]) && IsInLine(chain, i), -1);
+        Assert.True(middle > 0, $"E's chain has no node joining two straight edges in line: {Describe(chain)}");
+
+        List<GroundNode> merged = [.. chain.Take(middle), .. chain.Skip(middle + 1)];
+        double drawn = Assert.NotNull(exitE.Layout.TurnOffAngle(chain, exitE.Runway.TrueHeading));
+        double asOneEdge = Assert.NotNull(exitE.Layout.TurnOffAngle(merged, exitE.Runway.TrueHeading));
+        Assert.InRange(drawn, 70.0, 78.0);
+        Assert.InRange(asOneEdge, drawn - 0.5, drawn + 0.5);
+    }
+
+    /// <summary>
+    /// An exit that doubles back against the landing direction reads over 90°: the first real OAK or SFO exit whose first hop
+    /// off the centreline is straight at more than 100° to the landing heading.
+    /// </summary>
+    [Fact]
+    public void ExitAngle_DoublingBack_ReadsOver90()
+    {
+        ExitChainFixture exit = Assert.IsType<ExitChainFixture>(
+            RealExitChains().FirstOrDefault(e => e.Hops[0].Straight && (e.Hops[0].AngleDeg > 100.0))
+        );
+        double angle = Assert.NotNull(exit.Layout.TurnOffAngle(exit.Chain, exit.Heading));
+        string hops = DescribeHops(exit.Chain, exit.Heading);
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{exit.Layout.AirportId} {exit.Taxiway} off {exit.Heading.Degrees:F0}°: {angle:F1}° over {hops}"
+        );
+        Assert.True(angle > 90.0, $"{exit.Taxiway} reads {angle:F1}° over {hops}");
+    }
+
+    /// <summary>
+    /// The exit angle does not depend on the order the layout lists each node's edges in, so a freshly parsed layout and one read
+    /// back another way score every exit alike: every OAK runway bar's exit angle, from both landing directions, on a fresh parse
+    /// and on a second fresh parse with every node's edges reversed.
+    /// </summary>
+    [Fact]
+    public void ExitAngle_SameWhateverTheEdgeOrder()
+    {
+        TestVnasData.EnsureInitialized();
+        if ((TestAirportGroundData.LoadUncached("OAK") is not { } parsed) || (TestAirportGroundData.LoadUncached("OAK") is not { } reversed))
+        {
+            return;
+        }
+
+        foreach (GroundNode node in reversed.Nodes.Values)
+        {
+            node.Edges.Reverse();
+        }
+
+        int compared = 0;
+        foreach (GroundRunway groundRunway in parsed.Runways)
+        {
+            foreach (GroundNode bar in parsed.GetRunwayHoldShortNodes(groundRunway.Id.End1))
+            {
+                if (RunwayHoldBars.BarTaxiwayName(bar) is not { } taxiway)
+                {
+                    continue;
+                }
+
+                foreach (string end in (string[])[groundRunway.Id.End1, groundRunway.Id.End2])
+                {
+                    if (NavigationDatabase.Instance.GetRunway("OAK", end) is not { } runway)
+                    {
+                        continue;
+                    }
+
+                    double? asParsed = parsed.ComputeExitAngle(bar, taxiway, runway.TrueHeading);
+                    double? asReversed = reversed.ComputeExitAngle(reversed.Nodes[bar.Id], taxiway, runway.TrueHeading);
+                    Assert.True(asParsed == asReversed, $"{taxiway} bar #{bar.Id} off {end}: {asParsed:F2}° parsed, {asReversed:F2}° reversed");
+                    compared++;
+                }
+            }
+        }
+
+        Assert.True(compared > 20, $"only {compared} OAK exits compared");
+    }
+
+    /// <summary>
+    /// A fillet built for the other landing direction is not the turn-off: OAK's high-speed exits W3 off 12, W4 and W5 off 30 and
+    /// J off 10L and 28R each start on a short arc drawn for the opposite runway end, whose tangent at the centreline points back
+    /// up the runway; the exit is the chain leaving the runway forward, so each reads a high-speed angle.
+    /// </summary>
+    [Fact]
+    public void ExitAngle_FilletForTheOppositeDirection_IsNotTheTurnOff()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("OAK") is not { } layout)
+        {
+            return;
+        }
+
+        AssertExitAnglesAtMost45(layout, "OAK", [("12", "W3"), ("30", "W4"), ("30", "W5"), ("10L", "J"), ("28R", "J")]);
+    }
+
+    /// <summary>
+    /// An exit's chain ends on the centreline of the runway its bar protects, not on another runway's it crosses first: SFO's T
+    /// bar of 28R/10L off 28R and H bar of 01R/19L off 19L each read their own high-speed turn-off.
+    /// </summary>
+    [Fact]
+    public void ExitAngle_ChainEndsOnTheBarsOwnRunway()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("SFO") is not { } layout)
+        {
+            return;
+        }
+
+        AssertExitAnglesAtMost45(layout, "SFO", [("28R", "T"), ("19L", "H")]);
+    }
+
+    /// <summary>
+    /// Each runway end and taxiway has a bar (<see cref="RunwayHoldBars.BarTaxiwayName"/>) reading an exit angle of at most 45°
+    /// landing on that end — the turn-off for that direction; a taxiway crossing the runway also has a bar on the far side, which
+    /// that direction reaches only by doubling back. The failures, with every bar's angle, are reported together.
+    /// </summary>
+    private static void AssertExitAnglesAtMost45(AirportGroundLayout layout, string airport, (string Runway, string Taxiway)[] exits)
+    {
+        List<string> failures = [];
+        foreach ((string designator, string taxiway) in exits)
+        {
+            RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway(airport, designator));
+            List<GroundNode> bars =
+            [
+                .. layout
+                    .GetRunwayHoldShortNodes(designator)
+                    .Where(bar => string.Equals(RunwayHoldBars.BarTaxiwayName(bar), taxiway, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(bar => bar.Id),
+            ];
+            List<(int Id, double? Angle)> angles = [.. bars.Select(bar => (bar.Id, layout.ComputeExitAngle(bar, taxiway, runway.TrueHeading)))];
+            string read = string.Join(", ", angles.Select(a => $"#{a.Id} {a.Angle:F2}°"));
+            if (!angles.Any(a => (a.Angle is { } angle) && (angle <= 45.0)))
+            {
+                failures.Add($"{taxiway} off {designator}: [{read}]");
+            }
+        }
+
+        Assert.True(failures.Count == 0, $"{airport} exits not read as high-speed: {string.Join("; ", failures)}");
+    }
+
+    private sealed record ExitHop(bool Straight, double AngleDeg);
+
+    private sealed record ExitChainFixture(
+        AirportGroundLayout Layout,
+        string Taxiway,
+        TrueHeading Heading,
+        List<GroundNode> Chain,
+        List<ExitHop> Hops
+    );
+
+    /// <summary>
+    /// Every runway bar's exit chain at OAK then SFO, once per landing direction: walked back from the bar along its taxiway
+    /// (<see cref="RunwayHoldBars.BarTaxiwayName"/>), each step nearer the runway centreline, and reversed; each hop measured here
+    /// by its chord, apart from the code under test.
+    /// </summary>
+    private static IEnumerable<ExitChainFixture> RealExitChains()
+    {
+        TestVnasData.EnsureInitialized();
+        foreach (string airport in (string[])["OAK", "SFO"])
+        {
+            if (new TestAirportGroundData().GetLayout(airport) is not { } layout)
+            {
+                continue;
+            }
+
+            foreach (GroundRunway groundRunway in layout.Runways)
+            {
+                foreach (ExitChainFixture exit in ExitChainsOf(airport, layout, groundRunway))
+                {
+                    yield return exit;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<ExitChainFixture> ExitChainsOf(string airport, AirportGroundLayout layout, GroundRunway groundRunway)
+    {
+        foreach (GroundNode bar in layout.GetRunwayHoldShortNodes(groundRunway.Id.End1).OrderBy(n => n.Id))
+        {
+            if ((RunwayHoldBars.BarTaxiwayName(bar) is not { } taxiway) || (WalkToCentreline(groundRunway, bar, taxiway) is not { } chain))
+            {
+                continue;
+            }
+
+            foreach (string end in (string[])[groundRunway.Id.End1, groundRunway.Id.End2])
+            {
+                if (NavigationDatabase.Instance.GetRunway(airport, end) is { } runway)
+                {
+                    yield return new ExitChainFixture(layout, taxiway, runway.TrueHeading, chain, ChordHops(chain, runway.TrueHeading));
+                }
+            }
+        }
+    }
+
+    private static List<GroundNode>? WalkToCentreline(GroundRunway groundRunway, GroundNode bar, string taxiway)
+    {
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(groundRunway);
+        List<GroundNode> chain = [bar];
+        GroundNode node = bar;
+        while (!AirportGroundLayout.HasRunwayCenterlineEdge(node))
+        {
+            GroundNode from = node;
+            double fromFt = AirportGroundLayout.CrossTrackFromCenterlineFt(rect, from);
+            GroundNode? nearer = from
+                .Edges.Where(e => !e.IsRunwayCenterline && e.MatchesTaxiway(taxiway))
+                .Select(e => e.OtherNode(from))
+                .Where(n => AirportGroundLayout.CrossTrackFromCenterlineFt(rect, n) < fromFt)
+                .MinBy(n => AirportGroundLayout.CrossTrackFromCenterlineFt(rect, n));
+            if ((nearer is null) || (chain.Count >= 50))
+            {
+                return null;
+            }
+
+            chain.Add(nearer);
+            node = nearer;
+        }
+
+        chain.Reverse();
+        return chain.Count >= 2 ? chain : null;
+    }
+
+    private static List<ExitHop> ChordHops(List<GroundNode> chain, TrueHeading heading) =>
+        [
+            .. Enumerable
+                .Range(0, chain.Count - 1)
+                .Select(i => new ExitHop(
+                    IsStraightHop(chain[i], chain[i + 1]),
+                    heading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(chain[i].Position, chain[i + 1].Position)))
+                )),
+        ];
+
+    private static bool IsStraightHop(GroundNode from, GroundNode to) =>
+        from.Edges.Any(e => (e is GroundEdge) && (e.OtherNode(from).Id == to.Id))
+        && !from.Edges.Any(e => (e is GroundArc) && (e.OtherNode(from).Id == to.Id));
+
+    private static bool IsInLine(List<GroundNode> chain, int i)
+    {
+        var inbound = new TrueHeading(GeoMath.BearingTo(chain[i - 1].Position, chain[i].Position));
+        var outbound = new TrueHeading(GeoMath.BearingTo(chain[i].Position, chain[i + 1].Position));
+        return inbound.AbsAngleTo(outbound) <= 10.0;
+    }
+
+    /// <summary>
+    /// OAK 28R's E from the centreline node where it leaves the runway to its bar: walked back from the bar along E, each step
+    /// nearer the 28R centreline, then reversed so it runs runway to bar.
+    /// </summary>
+    private static (AirportGroundLayout Layout, RunwayInfo Runway, List<GroundNode> Chain)? Oak28RExitEChain()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return null;
+        }
+
+        RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "28R"));
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(Assert.IsType<GroundRunway>(layout.FindRunway("28R")));
+        GroundNode node = Assert.Single(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "E"));
+        List<GroundNode> chain = [node];
+        while (!AirportGroundLayout.HasRunwayCenterlineEdge(node))
+        {
+            GroundNode from = node;
+            double fromFt = AirportGroundLayout.CrossTrackFromCenterlineFt(rect, from);
+            GroundNode nearer =
+                from.Edges.Where(e => !e.IsRunwayCenterline && e.MatchesTaxiway("E"))
+                    .Select(e => e.OtherNode(from))
+                    .Where(n => AirportGroundLayout.CrossTrackFromCenterlineFt(rect, n) < fromFt)
+                    .MinBy(n => AirportGroundLayout.CrossTrackFromCenterlineFt(rect, n))
+                ?? throw new InvalidOperationException($"E has no step nearer 28R from #{from.Id} ({fromFt:F1} ft); walked {Describe(chain)}");
+            Assert.True(chain.Count < 50, $"E walk from the bar does not reach 28R: {Describe(chain)}");
+            chain.Add(nearer);
+            node = nearer;
+        }
+
+        chain.Reverse();
+        return (layout, runway, chain);
+    }
+
+    private static string Describe(IEnumerable<GroundNode> chain) => string.Join(" ", chain.Select(n => $"#{n.Id}"));
+
     /// <summary>
     /// The runway's exits the "Exit at" box offers (<see cref="LandingPhase.ListRunwayExits"/>), on OAK 28R's right side: only
     /// connections clearly past the landing threshold, so B, which crosses the runway at its approach end, is left out and the

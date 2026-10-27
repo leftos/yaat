@@ -173,7 +173,9 @@ public static class OccupiedRunwayGoAround
     /// around: the runway safety area's half-width for its width class (<see cref="SmallRunwayEdgeBandFt"/>,
     /// <see cref="MediumRunwayEdgeBandFt"/>, <see cref="LargeRunwayEdgeBandFt"/>; the width classes
     /// <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/> reads as design groups), never nearer than
-    /// <see cref="EdgeBandHoldLineMarginFt"/> to the runway's hold line where <paramref name="layout"/> authors one.
+    /// <see cref="EdgeBandHoldLineMarginFt"/> to the runway's hold line where <paramref name="layout"/> knows it: the base
+    /// separation its bars were seated at (<see cref="GroundRunway.HoldShortStandoffFt"/>), else the authored
+    /// <c>holdShortDistance</c> of a layout built before the standoff was stored.
     /// </summary>
     public static double GoAroundEdgeBandFt(RunwayInfo runway, AirportGroundLayout? layout)
     {
@@ -184,8 +186,9 @@ public static class OccupiedRunwayGoAround
             _ => LargeRunwayEdgeBandFt,
         };
         AirportGroundLayout? ownLayout = ((layout is not null) && RunwayOccupancy.IsLayoutOf(layout, runway)) ? layout : null;
-        double? holdLineFt = ownLayout?.Runways.FirstOrDefault(r => r.Id.Overlaps(runway.Id))?.HoldShortDistanceFt;
-        return holdLineFt is { } authoredFt ? Math.Min(bandFt, authoredFt - EdgeBandHoldLineMarginFt) : bandFt;
+        GroundRunway? groundRunway = ownLayout?.Runways.FirstOrDefault(r => r.Id.Overlaps(runway.Id));
+        double? holdLineFt = groundRunway?.HoldShortStandoffFt ?? groundRunway?.HoldShortDistanceFt;
+        return holdLineFt is { } lineFt ? Math.Min(bandFt, lineFt - EdgeBandHoldLineMarginFt) : bandFt;
     }
 
     /// <summary>Some part of <paramref name="occupant"/> (<see cref="AircraftBody"/>) lies inside <see cref="GoAroundEdgeBandFt"/>.</summary>

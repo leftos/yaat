@@ -30,6 +30,7 @@
 - A bare `TAXI B` to a crossing taxiway holds short of B instead of stopping in the intersection; one rolling too fast to stop says unable.
 - `CTO` while holding short of a taxiway that reaches the runway now makes an intersection departure from it, read back as "at echo".
 - A taxi readback stops at the first hold short and reads every runway crossing explicitly; a covered `CROSS` joins the taxi's readback.
+- Generated hold-short bars sit back by the runway's standoff, farther at ILS runways, high fields and angled taxiways, closer to the painted lines.
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The Session setup popup offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
 - In solo sessions, an IFR departure lined up at an untowered field never departs on its own; it waits for release from approach or center.

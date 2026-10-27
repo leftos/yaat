@@ -17,10 +17,10 @@ namespace Yaat.Sim.Tests.Phases;
 public class ClearRunwayPhaseFallbackLengthTests(ITestOutputHelper output)
 {
     /// <summary>SFO taxiway M, west-side hold-short of 01L/19R.</summary>
-    private const int MWestHoldShortNodeId = 882;
+    private const int MWestHoldShortNodeId = 881;
 
     /// <summary>SFO taxiway M, east-side hold-short of 01L/19R — the runway holding position the aircraft pulls clear of.</summary>
-    private const int MEastHoldShortNodeId = 883;
+    private const int MEastHoldShortNodeId = 882;
 
     private const string UnknownType = "ZZZZ";
 

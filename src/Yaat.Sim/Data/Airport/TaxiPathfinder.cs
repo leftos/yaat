@@ -114,6 +114,7 @@ public static class TaxiPathfinder
             diagnosticLog: options.DiagnosticLog,
             waypointTurnHints: options.PathTurnHints,
             startHeadingTrue: options.StartHeadingTrue,
+            startPose: options.StartPose,
             aircraftLengthFt: options.AircraftLengthFt
         ) with
         {
@@ -293,7 +294,7 @@ public static class TaxiPathfinder
             return null;
         }
 
-        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass);
+        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass, startPose: null);
 
         LatLon reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
         var candidates = holdShortNodes.OrderBy(n => GeoMath.DistanceNm(reference, n.Position)).ToList();
@@ -352,13 +353,14 @@ public static class TaxiPathfinder
     public static TaxiRoute? FindAdjacentRunwayRoute(
         AirportGroundLayout layout,
         GroundNode startNode,
-        (LatLon Position, TrueHeading Heading) aircraft,
+        StartPose startPose,
         string runwayId,
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass
     )
     {
-        (LatLon position, TrueHeading heading) = aircraft;
+        LatLon position = startPose.MainGear;
+        var heading = new TrueHeading(startPose.HeadingTrueDeg);
         List<GroundNode> holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
         double atBarNm = AtRunwayHoldShortRadiusFt / GeoMath.FeetPerNm;
         GroundNode? atBar = holdShortNodes
@@ -391,7 +393,7 @@ public static class TaxiPathfinder
             return route;
         }
 
-        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass);
+        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass, startPose);
 
         // The start node is the bar itself (the heading-aligned endpoint of the edge the aircraft is on)
         // while the aircraft is still short of it: route from the node behind the aircraft so the
@@ -469,6 +471,32 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
+    /// Whether <paramref name="segments"/> run along one taxiway to <paramref name="finalBar"/>: every straight segment carries
+    /// the first one's name, a fillet arc segment (whose joined name, "C - G", names no taxiway) after a straight one takes that
+    /// straight one's name, and the bar sits on that taxiway (<see cref="RunwayHoldBars.BarTaxiwayName"/>), so an arc onto
+    /// another taxiway's bar ends the run on a second taxiway.
+    /// </summary>
+    private static bool OnOneTaxiway(List<TaxiRouteSegment> segments, GroundNode finalBar)
+    {
+        string? taxiway = null;
+        foreach (TaxiRouteSegment segment in segments)
+        {
+            if ((segment.Edge.Edge is GroundArc) && (taxiway is not null))
+            {
+                continue;
+            }
+
+            taxiway ??= segment.TaxiwayName;
+            if (!string.Equals(segment.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return string.Equals(RunwayHoldBars.BarTaxiwayName(finalBar), taxiway, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// A short run to the bar is only "already at the runway" when it stays on one taxiway, is short, ends at the
     /// destination bar, and crosses nothing — a route carrying any other hold-short reaches the bar from the far
     /// side of another runway, which needs a crossing clearance the bare command cannot carry.
@@ -484,8 +512,7 @@ public static class TaxiPathfinder
             return false;
         }
 
-        string taxiway = route.Segments[0].TaxiwayName;
-        return route.Segments.All(s => string.Equals(s.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+        return OnOneTaxiway(route.Segments, layout.Nodes[route.Segments[^1].ToNodeId])
             && route.HoldShortPoints.All(h => h.Reason == HoldShortReason.DestinationRunway)
             && (route.TotalDistanceNm * GeoMath.FeetPerNm <= AdjacentRunwayHoldShortMaxFt);
     }
@@ -495,7 +522,8 @@ public static class TaxiPathfinder
         GroundNode startNode,
         string runwayId,
         AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass
+        WakeTurbulenceData.WakeClass wakeClass,
+        StartPose? startPose
     )
     {
         return SearchContext.Compile(
@@ -513,6 +541,7 @@ public static class TaxiPathfinder
             diagnosticLog: null,
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: startPose,
             aircraftLengthFt: null
         );
     }
@@ -641,6 +670,7 @@ public static class TaxiPathfinder
             diagnosticLog: null,
             waypointTurnHints: null,
             startHeadingTrue: null,
+            startPose: null,
             aircraftLengthFt: null
         );
 

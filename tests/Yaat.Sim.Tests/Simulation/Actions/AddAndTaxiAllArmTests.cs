@@ -254,7 +254,11 @@ public class AddAndTaxiAllArmTests
         {
             Callsign = callsign,
             AircraftType = "C172",
-            Position = behind.Position,
+            Position = GeoMath.ProjectPoint(
+                bar.Position,
+                new TrueHeading(GeoMath.BearingTo(bar.Position, behind.Position)),
+                20.0 / GeoMath.FeetPerNm
+            ),
             TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
