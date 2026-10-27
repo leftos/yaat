@@ -13,8 +13,8 @@ The test projects:
 
 | Project | Tests | Notable harness wiring |
 |---|---|---|
-| `tests/Yaat.Sim.Tests` | Simulation, commands, physics, phases, navdata, parsers, ground/pathfinder | `ModuleInit` warms CIFP/NavData + `GroundNavigator.ThrowOnOrbit`; `xunit.runner.json` parallelizes collections |
-| `tests/Yaat.Client.UI.Tests` | Avalonia headless UI / `MainViewModel` / `UserPreferences` | `ModuleInit` redirects `YAAT_APPDATA_DIR`; `xunit.runner.json` *disables* collection parallelism |
+| `tests/Yaat.Sim.Tests` | Simulation, commands, physics, phases, navdata, parsers, ground/pathfinder | `ModuleInit` warms CIFP/NavData, registers the lazy `NavigationDatabase` test default loader + `GroundNavigator.ThrowOnOrbit`; `xunit.runner.json` parallelizes collections |
+| `tests/Yaat.Client.UI.Tests` | Avalonia headless UI / `MainViewModel` / `UserPreferences` | `ModuleInit` redirects `YAAT_APPDATA_DIR` and registers the lazy `NavigationDatabase` test default loader; `xunit.runner.json` *disables* collection parallelism |
 | `tests/Yaat.LayoutInspector.Tests` | LayoutInspector CLI parsing and tick-recording merge | None — plain unit tests over the tool project |
 | yaat-server tests (`../yaat-server`) | Server rooms, hub, broadcast | Reached only via `tools/test-all.ps1` — bare `dotnet test` from yaat never builds them |
 
@@ -176,7 +176,9 @@ test that ran *after* such a parser test would silently inherit the synthetic DB
 class that asks for it. (For per-test scoping that does not stomp the global, `NavigationDatabase` also offers an `AsyncLocal` scoped
 override — see `NavigationDatabase.Instance` / `InstanceOrNull` — but `EnsureInitialized` deliberately targets the process-wide default.)
 
-A Yaat.Sim.Tests class that never calls `EnsureInitialized()` still reads the real database: `ModuleInit` registers `NavigationDatabase.SetTestDefaultLoader` over `TestVnasData.LoadRealDataWithoutInstalling()`, so the first read that finds no default installed loads it and installs it as the default.
+A Yaat.Sim.Tests class that never calls `EnsureInitialized()` still reads the real database: `ModuleInit` registers `NavigationDatabase.SetTestDefaultLoader` over `TestVnasData.LoadRealDataWithoutInstalling()`, so the first read that finds no default installed loads it and installs it as the default. `Yaat.Client.UI.Tests` registers the same loader. `Yaat.Client.Tests` registers none: it links no committed NavData/CIFP and resolves them online, so a loader there would only re-word a failure, and a class there that reads the database calls `EnsureInitialized()` in its constructor.
+
+To find every test that depends on the order the database was installed in, add an untracked assembly-level `BeforeAfterTestAttribute` to the project whose `After` empties `NavigationDatabase`'s default (by reflection on `_default._installed`). Every order-dependent reader then fails with certainty in one suite run (it found the last such class in 1m22s). Delete the probe afterwards.
 
 ### Per-test navigation database (yaat-server tests)
 

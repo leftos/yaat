@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Yaat.Client.Logging;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Testing;
 
@@ -85,6 +86,13 @@ internal static class ModuleInit
                     + $"{navDataPath ?? "none"}); restore them with git checkout."
             );
         }
+
+        // A class that reads NavigationDatabase.Instance without installing one gets the real database on its
+        // first read, rather than only when an earlier class happened to call TestVnasData.EnsureInitialized().
+        NavigationDatabase.SetTestDefaultLoader(() =>
+            TestVnasData.LoadRealDataWithoutInstalling()
+            ?? throw new InvalidOperationException($"The real navigation database could not be loaded from the resolved NavData at {navDataPath}.")
+        );
     }
 
     /// <summary>

@@ -80,7 +80,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 - **SignalR**: JSON on `/hubs/training`; DTOs as records in `src/Yaat.Client.Core/Services/ServerConnection.cs`. Hub API signatures are in the code — read `ServerConnection.cs` (client) and `TrainingHub.cs` (server).
 - **MVVM**: `[ObservableProperty]`/`[RelayCommand]`; `_camelCase` fields → `PascalCase` props
 - **Threading**: SignalR callbacks → `Dispatcher.UIThread.Post()` to marshal to UI
-- **NavigationDatabase**: Static singleton. `Initialize(navData)` at startup; tests use `SetInstance(db)`.
+- **NavigationDatabase**: Static singleton. `Initialize(navData)` at startup; tests get the real one from the lazy `SetTestDefaultLoader` and install another only through `ScopedOverride`.
 - **No DI**: `MainWindow` creates `MainViewModel` directly
 - **Snapshots**: `SimulationWorld.GetSnapshot()` → shallow copy; treat as read-only
 
