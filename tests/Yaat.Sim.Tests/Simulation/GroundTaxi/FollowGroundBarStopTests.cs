@@ -344,21 +344,39 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A B744 that exited runway 33 onto C and stopped with its tail still inside bar 518's hold line, its follow route then
-    /// leading back across 33 to its lead, stops at bar 518: a bar met heading toward the runway is a crossing, whichever runway
-    /// the follower is exiting (AIM 4-3-21.b). It never reaches the runway pavement.
+    /// A B77W that landed on SFO 28R and exited right onto D, stopped with its tail still 30 ft inside D's 28R hold line, its
+    /// follow route then turning back across 28R on D toward its lead waiting past the far-side bar, stops at the exit bar: a
+    /// follower whose tail is still inside an exit bar's hold line and whose route turns back across the runway it just left
+    /// stops at that bar, since a bar met heading toward the runway is a runway crossing needing a clearance (AIM 4-3-21.b).
+    /// It never reaches the runway pavement.
     /// </summary>
     [Fact]
-    public void Following_LongAircraftTurnsBackBeforeClearingTheExitBar_StopsAtIt()
+    public void Following_B77WTurnsBackAcross28RBeforeClearingTheDBar_StopsAtIt()
     {
-        double halfLengthFt = AircraftLength.ResolveFt("B744") / 2.0;
-        if (StartExitedRunway33(WithFollowerType("B744"), followerBackFt: halfLengthFt - 30.0, followerHeadingOffDeg: 0.0) is not { } run)
+        if (SfoGroundHarness.Build(output, AutoCrossRunwayMode.Off) is not { } ground)
         {
             return;
         }
 
+        List<GroundNode> spawnBars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(ground.Layout, "28R", "D");
+        Assert.Equal(2, spawnBars.Count);
+        SfoGroundHarness.SpawnAt(ground, KoakFollowClip.Follower, "B77W", (spawnBars[0], new TrueHeading(0.0)), new HoldingInPositionPhase());
+        SfoGroundHarness.SpawnAt(ground, KoakFollowClip.Lead, "C172", (spawnBars[1], new TrueHeading(0.0)), new HoldingInPositionPhase());
+        double lengthFt = AircraftLength.ResolveFt("B77W");
+        output.WriteLine($"B77W length {lengthFt:F1} ft");
+
+        ExitedRun run = StartExitedRunway(
+            ground.Engine,
+            runwayId: "28R",
+            stage: (layout, _) => LeadPastFarBarAcrossRunway(layout, "28R", "D", "28L"),
+            followerBackFt: (lengthFt / 2.0) - 30.0,
+            followerHeadingOffDeg: 0.0
+        );
+
         (SimulationEngine engine, AircraftState follower, GroundNode bar, _) = run;
-        AssertStopsAtBarOffRunway33(engine, follower, bar);
+        Assert.Contains(bar.Edges, e => string.Equals(e.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
+        Assert.True(bar.RunwayId?.Overlaps(RunwayIdentifier.Parse("28R")) ?? false, $"bar node {bar.Id} holds for runway {bar.RunwayId}, not 28R");
+        AssertStopsAtBarOffRunway(engine, follower, bar, "28R");
     }
 
     /// <summary>
@@ -382,11 +400,19 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
     /// Runs the clip until the follower holds short or reaches runway 33's pavement; asserts it held at <paramref name="bar"/>
     /// off the pavement.
     /// </summary>
-    private void AssertStopsAtBarOffRunway33(SimulationEngine engine, AircraftState follower, GroundNode bar)
+    private void AssertStopsAtBarOffRunway33(SimulationEngine engine, AircraftState follower, GroundNode bar) =>
+        AssertStopsAtBarOffRunway(engine, follower, bar, "33");
+
+    /// <summary>
+    /// Runs the clip until the follower holds short or reaches runway <paramref name="runwayId"/>'s pavement, logging the
+    /// follow route once it is planned; asserts it held at <paramref name="bar"/> off the pavement.
+    /// </summary>
+    private void AssertStopsAtBarOffRunway(SimulationEngine engine, AircraftState follower, GroundNode bar, string runwayId)
     {
         string airportId = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout).AirportId;
-        RunwayInfo runway33 = RunwayOccupancy.AirportRunways(airportId).First(r => r.Id.Overlaps(RunwayIdentifier.Parse("33")));
-        output.WriteLine($"runway {runway33.Id} at {airportId}");
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(airportId).First(r => r.Id.Overlaps(RunwayIdentifier.Parse(runwayId)));
+        output.WriteLine($"runway {runway.Id} at {airportId}");
+        bool routeLogged = false;
         int heldAt = KoakFollowClip.RunScript(
             engine,
             output,
@@ -394,16 +420,24 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
             HoldBudgetSeconds,
             second =>
             {
+                if (!routeLogged && (follower.Phases?.CurrentPhase is FollowingPhase { FollowRoute: { } route }))
+                {
+                    routeLogged = true;
+                    output.WriteLine(
+                        $"t={second} follow route: {string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}->{s.ToNodeId}({s.TaxiwayName})"))}"
+                    );
+                }
+
                 output.WriteLine(
                     $"t={second} {follower.Phases?.CurrentPhase?.Name} gs={follower.GroundSpeed:F1} hdg={follower.TrueHeading.Degrees:F0} "
                         + $"toBar={GeoMath.DistanceNm(follower.Position, bar.Position) * GeoMath.FeetPerNm:F0}"
                 );
-                return (follower.Phases?.CurrentPhase is HoldingShortPhase) || RunwayOccupancy.IsOnPavement(follower, runway33);
+                return (follower.Phases?.CurrentPhase is HoldingShortPhase) || RunwayOccupancy.IsOnPavement(follower, runway);
             }
         );
 
         output.WriteLine($"ended at t={heldAt}");
-        Assert.False(RunwayOccupancy.IsOnPavement(follower, runway33), $"{follower.Callsign} drove onto runway 33 with no crossing clearance");
+        Assert.False(RunwayOccupancy.IsOnPavement(follower, runway), $"{follower.Callsign} drove onto runway {runwayId} with no crossing clearance");
         HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
         Assert.Equal(bar.Id, hold.HoldShort.NodeId);
     }
@@ -411,27 +445,45 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
     private sealed record ExitedRun(SimulationEngine Engine, AircraftState Follower, GroundNode Bar, double ApproachDeg);
 
     /// <summary>
+    /// Where an exited-runway scene stands its two aircraft: the exit bar the follower has just passed, the bearing from it
+    /// back along the taxiway the follower stands on, and the lead's position and heading.
+    /// </summary>
+    private sealed record ExitStage(GroundNode Bar, double ApproachDeg, LatLon LeadAt, double LeadHeadingDeg);
+
+    /// <summary>
     /// The H1 clip on <paramref name="scenarioJson"/> with its lead held on C 150 ft past runway 33's far-side bar on C and its
     /// follower <paramref name="followerBackFt"/> back from bar 518 along C, heading <paramref name="followerHeadingOffDeg"/> off
     /// the bearing away from the runway, put straight into a follow of the lead that remembers runway 33 as the one it is exiting.
     /// </summary>
-    private ExitedRun? StartExitedRunway33(string scenarioJson, double followerBackFt, double followerHeadingOffDeg)
-    {
-        if (KoakFollowClip.Load(output, scenarioJson) is not { } engine)
-        {
-            return null;
-        }
+    private ExitedRun? StartExitedRunway33(string scenarioJson, double followerBackFt, double followerHeadingOffDeg) =>
+        KoakFollowClip.Load(output, scenarioJson) is { } engine
+            ? StartExitedRunway(engine, "33", LeadPastFarBarAcrossRunway33OnC, followerBackFt, followerHeadingOffDeg)
+            : null;
 
+    /// <summary>
+    /// <paramref name="engine"/>'s follower (<see cref="KoakFollowClip.Follower"/>) <paramref name="followerBackFt"/> back from
+    /// the exit bar <paramref name="stage"/> picks, along the approach bearing it gives, heading
+    /// <paramref name="followerHeadingOffDeg"/> off that bearing (away from the runway); its lead
+    /// (<see cref="KoakFollowClip.Lead"/>) held in position where <paramref name="stage"/> puts it; and the follower put straight
+    /// into a follow of the lead that remembers <paramref name="runwayId"/> as the runway it is exiting.
+    /// </summary>
+    private static ExitedRun StartExitedRunway(
+        SimulationEngine engine,
+        string runwayId,
+        Func<AirportGroundLayout, LatLon, ExitStage> stage,
+        double followerBackFt,
+        double followerHeadingOffDeg
+    )
+    {
         AircraftState follower = engine.FindAircraft(KoakFollowClip.Follower)!;
         AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(follower.Ground.Layout);
-        GroundNode bar = NearSideRunway33BarOnC(layout, follower.Position);
-        GroundNode farBar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "33", "C").MaxBy(n => GeoMath.DistanceNm(bar.Position, n.Position))!;
-        double approachDeg = ApproachBearingDeg(bar, follower.Position);
-        double awayFromRunwayDeg = GeoMath.BearingTo(farBar.Position, bar.Position);
+        ExitStage staged = stage(layout, follower.Position);
+        GroundNode bar = staged.Bar;
+        double approachDeg = staged.ApproachDeg;
 
-        lead.Position = OffsetFt(farBar.Position, (awayFromRunwayDeg + 180.0) % 360.0, 150.0);
-        lead.TrueHeading = new TrueHeading((awayFromRunwayDeg + 180.0) % 360.0);
+        lead.Position = staged.LeadAt;
+        lead.TrueHeading = new TrueHeading(staged.LeadHeadingDeg);
         lead.Phases = new PhaseList();
         lead.Phases.Add(new HoldingInPositionPhase());
         lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
@@ -445,7 +497,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
                 Requirements = [],
                 TargetCallsign = KoakFollowClip.Lead,
                 TimeSinceLastLog = 0,
-                ExitingRunways = ["33"],
+                ExitingRunways = [runwayId],
             },
             layout
         );
@@ -974,6 +1026,39 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
             .Edges.Where(e => !e.IsRunwayCenterline)
             .Select(e => GeoMath.BearingTo(bar.Position, (e.Nodes[0].Id == bar.Id ? e.Nodes[1] : e.Nodes[0]).Position))
             .MinBy(bearing => Math.Abs(GeoMath.SignedBearingDifference(towardSide, bearing)));
+    }
+
+    /// <summary>
+    /// The 33/C stage: the exit bar is the runway 33 bar on C nearest the follower's spawn, its approach the side the spawn lies
+    /// on, and the lead stands on C 150 ft past runway 33's far-side bar on C, facing on across the runway.
+    /// </summary>
+    private static ExitStage LeadPastFarBarAcrossRunway33OnC(AirportGroundLayout layout, LatLon followerSpawn)
+    {
+        GroundNode bar = NearSideRunway33BarOnC(layout, followerSpawn);
+        GroundNode farBar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "33", "C").MaxBy(n => GeoMath.DistanceNm(bar.Position, n.Position))!;
+        double awayFromRunwayDeg = GeoMath.BearingTo(farBar.Position, bar.Position);
+        double towardLeadDeg = (awayFromRunwayDeg + 180.0) % 360.0;
+        return new ExitStage(bar, ApproachBearingDeg(bar, followerSpawn), OffsetFt(farBar.Position, towardLeadDeg, 150.0), towardLeadDeg);
+    }
+
+    /// <summary>
+    /// A crossing taxiway's stage between parallel runways: of runway <paramref name="runwayId"/>'s two bars on
+    /// <paramref name="taxiway"/>, the exit bar is the one farther from the nearest of <paramref name="parallelRunwayId"/>'s bars
+    /// on it (the side away from the parallel), its approach the side away from the runway, and the lead holds 100 ft past the far bar along
+    /// <paramref name="taxiway"/>, facing on away from the runway.
+    /// </summary>
+    private static ExitStage LeadPastFarBarAcrossRunway(AirportGroundLayout layout, string runwayId, string taxiway, string parallelRunwayId)
+    {
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, runwayId, taxiway);
+        Assert.Equal(2, bars.Count);
+        List<GroundNode> parallelBars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, parallelRunwayId, taxiway);
+        Assert.NotEmpty(parallelBars);
+        GroundNode bar = bars.MaxBy(n => parallelBars.Min(p => GeoMath.DistanceNm(p.Position, n.Position)))!;
+        GroundNode farBar = bars.Single(n => n.Id != bar.Id);
+        double awayFromRunwayDeg = GeoMath.BearingTo(farBar.Position, bar.Position);
+        double towardLeadDeg = GeoMath.BearingTo(bar.Position, farBar.Position);
+        double approachDeg = ApproachBearingDeg(bar, OffsetFt(bar.Position, awayFromRunwayDeg, ApproachReadFt));
+        return new ExitStage(bar, approachDeg, OffsetFt(farBar.Position, towardLeadDeg, 100.0), towardLeadDeg);
     }
 
     /// <summary>
