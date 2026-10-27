@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [/] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -14,10 +14,12 @@
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
-  - [ ] YAAT-1256 Judge a standard exit the rollout accepts by whether it can hand off for it (OAK 28R E read back, then missed) · release vNext
+  - [/] YAAT-1256 Judge a standard exit the rollout accepts by whether it can hand off for it (OAK 28R E read back, then missed) · release vNext
   - [ ] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
-  - [ ] YAAT-1269 Make the full-length lineup bar pick side-aware (SFO 28R C: #545 beats far-side #839 by 8 ft) · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
+- [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
+- [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
+- [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs
 
 ## Controller-AI coaching
 
@@ -86,7 +88,7 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [ ] YAAT-1282 A bare TAXI from holding short of a runway implicitly clears the crossing (OAK B at 28L crosses)
+- [ ] YAAT-1282 A bare TAXI from holding short of a runway implicitly clears the crossing (OAK B at 28L crosses) · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -565,7 +567,7 @@
 ## Backlog
 
 - [ ] YAAT-595 RoomCheckpointArchive.Open(path) leaks its file handle on a non-zip checkpoint
-- [ ] YAAT-1022 Make tools/test-all.ps1 routable to the Mac mini builder
+- [ ] YAAT-1022 Name the Windows-only test projects a Mac test-all run skipped in its summary
 - [ ] YAAT-824 Make the tower-cab session-binding test wait for the push queue before resetting the socket
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
@@ -836,3 +838,8 @@
 - [ ] YAAT-1279 Make the exit-angle chain's edge choice independent of edge order (parallel edges, per-node rank)
 - [ ] YAAT-1280 Keep named runway-crossing links out of a hold bar's taxiway axis (NamedStraightOffCentreline)
 - [ ] YAAT-1281 SFO exits list shows Q at K's 28R bar and H/A1 off 19L with no angle
+- [ ] YAAT-1283 Turn off at a crawl on reverse exits: cap the turn-off speed by the exit angle above 90°
+- [ ] YAAT-1284 Reconcile OAK 15/33's runway extent and threshold between the vNAS layout and CIFP
+- [ ] YAAT-1285 Name the intersection in TAXIAUTO's response when the route ends at a non-full-length bar
+- [ ] YAAT-1286 Give up a CLANDF forced exit once the aircraft is past its turn-entry point
+- [ ] YAAT-1289 Keep the rollout's brake rate on the hand-off sub-tick instead of falling back to the taxi rate
