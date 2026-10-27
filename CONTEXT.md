@@ -932,6 +932,12 @@ A live session in which the owner trains Claude as a solo student: Claude works 
 **Pause trigger**:
 An event that makes an automation-mode client pause its room's sim on its own, armed with the app tool `arm_pause_triggers` (`PauseTriggerMonitor`): a pilot's call or report (not a readback), a warning or a new conflict, a new aircraft, a taxiing aircraft stopping for 5 sim seconds, or an optional heartbeat. A coaching session's safety net between scans; each firing is logged for `get_pause_events`.
 
+**Push long**:
+A pushback that ends farther than the aircraft's own lead-in line, typically across an alley to the far spot or deeper along the taxiway, so it leaves room for an arrival turning into a neighbouring gate (`docs/plans/controller-ai/coaching/sfo-video-lessons.md` G8).
+
+**West end** (SFO):
+Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
+
 **Node id**:
 The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
 

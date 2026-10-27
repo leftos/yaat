@@ -2,6 +2,8 @@
 
 The rules the trainer taught in coaching sessions, distilled from the session logs in [`sessions/`](sessions/). Each lesson is written as a rule a controller follows, with its source exchange and where it belongs in the controller AI.
 
+Lessons from ZOA's SFO Ground familiarization video, checked against the SFO SOPs, are in [`sfo-video-lessons.md`](sfo-video-lessons.md); several confirm rows here (L3, L7, L8, L9, L11).
+
 **Target** is one of:
 - a GroundBrain rule in [`../04-ground-brain.md`](../04-ground-brain.md) (new, changed or confirmed);
 - an entry in `src/Yaat.Sim/Data/FacilityOps/KOAK.json`;
