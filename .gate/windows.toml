@@ -1,0 +1,9 @@
+paths = [
+  "../yaat-server/tools/Yaat.CrcDriverHook/*",
+  "../yaat-server/tests/Yaat.CrcDriverHook.Tests/*",
+  "../yaat-server/tools/Yaat.ClientDriver.Mcp/*",
+  "../yaat-server/tests/Yaat.ClientDriver.Mcp.Tests/*",
+  "../yaat-server/tools/Yaat.CrcProbeHook/*",
+  "../yaat-server/tests/Yaat.CrcProbeHook.Tests/*",
+  "../yaat-server/tools/Yaat.WindowRecorder/*",
+]
