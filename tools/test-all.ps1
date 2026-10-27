@@ -290,6 +290,24 @@ function Complete-TestJob {
     Write-Host "OK: $Label" -ForegroundColor Green
 }
 
+# A crashing test host leaves its Mini dump and its JSON crash report in the folder the macOS
+# block below names. Printing them here is what carries that evidence into the routed run's log,
+# which is all a failed routed run returns.
+function Write-CrashEvidence {
+    param([Parameter(Mandatory)][string]$Folder, [Parameter(Mandatory)][datetime]$Since)
+    if (-not (Test-Path $Folder)) {
+        return
+    }
+    $evidence = @(Get-ChildItem -Path $Folder -File | Where-Object { $_.LastWriteTime -ge $Since })
+    foreach ($dump in @($evidence | Where-Object { $_.Name -like '*.dmp' })) {
+        Write-Host "Crash dump: $($dump.FullName)" -ForegroundColor Red
+    }
+    foreach ($report in @($evidence | Where-Object { $_.Name -like '*.crashreport.json' })) {
+        Write-Host "Crash report: $($report.FullName)" -ForegroundColor Red
+        Get-Content -Raw $report.FullName | Out-Host
+    }
+}
+
 # Exclude the heavy gated-by-intent categories unless -Full. `--filter-not-trait`
 # only drops tests explicitly tagged Nightly, PathfinderGrid or Desktop; untagged
 # tests still run. Desktop is the interactive-desktop suite, which starts real
@@ -328,6 +346,24 @@ if ($BuildOnly) {
     Write-Host "`nBoth builds passed; no tests run (-BuildOnly)." -ForegroundColor Green
     exit 0
 }
+
+# A rare test-host crash on the Mac builder (signal 11, once in about 590 routed runs) otherwise
+# leaves no evidence: a routed run returns only its log, never a dump. These runtime variables
+# make a crashing test host write a Mini dump and a JSON crash report to a folder outside the work
+# tree the builder prunes; Write-CrashEvidence prints both paths and the report into this log.
+$crashDumpDir = $null
+$crashScanStart = $null
+if ($IsMacOS) {
+    $crashDumpDir = Join-Path $HOME 'yaat-crashdumps'
+    $null = New-Item -ItemType Directory -Path $crashDumpDir -Force
+    $env:DOTNET_DbgEnableMiniDump = '1'
+    $env:DOTNET_DbgMiniDumpType = '1'
+    $env:DOTNET_DbgMiniDumpName = (Join-Path $crashDumpDir '%e-%p-%t.dmp')
+    $env:DOTNET_EnableCrashReport = '1'
+    $crashScanStart = Get-Date
+    Write-Host "Crash dumps (macOS): $crashDumpDir" -ForegroundColor Yellow
+}
+
 Write-Host "`nRunning both test suites in parallel..." -ForegroundColor Cyan
 $yaatLogPath = Join-Path $yaatDir '.tmp\test-all-yaat.log'
 $serverLogPath = Join-Path $yaatDir '.tmp\test-all-server.log'
@@ -339,6 +375,10 @@ Wait-TestJobs @((New-Suite 'yaat' $yaatTests $yaatLogPath), (New-Suite 'server' 
 
 Complete-TestJob 'Test yaat' $yaatTests
 Complete-TestJob 'Test yaat-server' $serverTests
+
+if ($IsMacOS) {
+    Write-CrashEvidence -Folder $crashDumpDir -Since $crashScanStart
+}
 
 Write-Host ''
 if ($failed) {

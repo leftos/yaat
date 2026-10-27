@@ -600,6 +600,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **Use `pwsh tools/test-all.ps1`, not bare `dotnet test`, for full-suite confidence.** Bare `dotnet test` from yaat never builds the
   sibling yaat-server, so a `Yaat.Sim` signature change that breaks the server passes locally and fails in CI. The heavy
   `Nightly`/`PathfinderGrid` categories are excluded by default; pass `-Full` for the complete set.
+- **A test host that crashes on the Mac builder leaves its evidence in the test-all log.** On macOS, `test-all.ps1` sets the runtime's dump-on-crash variables (Mini dump plus a JSON crash report, in `~/yaat-crashdumps` on the builder), then prints each new dump's path and each crash report's content after the suites. A routed run returns only its log when it fails, so the report's native stack is read from the log; a bare routed `dotnet test` gets none of this.
 - **`TaxiBudgetDeriver`/`TaxiBudgetEvaluator` budgets are deliberately generous** (real spins exceed them 5–10×). If a regression slips
   through, tighten the multipliers — do NOT hand-tune per-pair numbers. The arc-aware per-segment time floor and per-segment turn overhead
   are load-bearing; flat formulas under-allow tight-fillet and long clean routes by 2–8×.
