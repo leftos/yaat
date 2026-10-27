@@ -85,7 +85,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         var segments = new List<TaxiRouteSegment> { Seg(1, 2) };
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts, startPose: null);
 
         HoldShortPoint hs = Assert.Single(holdShorts);
         Assert.Equal(2, hs.NodeId);
@@ -116,7 +116,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         var segments = new List<TaxiRouteSegment> { Seg(1, 2), Seg(2, 3), Seg(3, 4) };
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts, startPose: null);
 
         HoldShortPoint hs = Assert.Single(holdShorts);
         Assert.Equal(2, hs.NodeId);
@@ -131,7 +131,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         var segments = new List<TaxiRouteSegment> { Seg(1, 2), Seg(2, 3), Seg(3, 4) };
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts, startPose: null);
 
         Assert.Equal(2, holdShorts.Count);
         Assert.Contains(holdShorts, h => h.NodeId == 2);
@@ -154,7 +154,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
             },
         };
 
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts, startPose: null);
 
         Assert.Single(holdShorts);
     }
@@ -166,7 +166,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         var segments = new List<TaxiRouteSegment> { Seg(1, 2), Seg(2, 3) };
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts, startPose: null);
 
         Assert.Empty(holdShorts);
     }
@@ -177,7 +177,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         AirportGroundLayout layout = LayoutWith(HoldShortNode(1, "28R"));
         var holdShorts = new List<HoldShortPoint>();
 
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, [], holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, [], holdShorts, startPose: null);
 
         Assert.Empty(holdShorts);
     }
@@ -485,7 +485,10 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
             ?? throw new InvalidOperationException("SFO layout has no node on B next to node 137 with an edge on T");
     }
 
-    /// <summary>How far short of the <see cref="SfoBAtT"/> node on B the aircraft stands: inside the approach leg's 450 ft free-space bound.</summary>
+    /// <summary>
+    /// How far short of the <see cref="SfoBAtT"/> node on B the aircraft stands: inside the approach leg's 450 ft free-space
+    /// bound.
+    /// </summary>
     private const double ShortOfBarNodeFt = 300.0;
 
     /// <summary>How far short of the <see cref="SfoBAtT"/> node on B an aircraft stands inside a B738's 159.5 ft taxiway setback.</summary>
@@ -941,27 +944,41 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         (List<GroundNode> Nodes, string Crossed, double BarToJunctionFt)? best = null;
         foreach (GroundNode bar in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).OrderBy(n => n.Id))
         {
-            if ((bar.Edges.Count != 2) || (bar.RunwayId is not { } rwyId) || (layout.FindRunway(rwyId.End1) is not { } runway))
+            if (ExitThroughBar(layout, bar) is not { } walk || (walk.BarToJunctionFt <= minFt) || (walk.BarToJunctionFt >= maxFt))
             {
                 continue;
             }
 
-            GroundNode a = bar.Edges[0].OtherNode(bar)!;
-            GroundNode b = bar.Edges[1].OtherNode(bar)!;
-            (GroundNode start, IGroundEdge outEdge) =
-                DistanceToRunwayFt(runway, a.Position) < DistanceToRunwayFt(runway, b.Position) ? (a, bar.Edges[1]) : (b, bar.Edges[0]);
-            if (WalkToJunction(bar, outEdge) is not { } walk || (walk.DistanceFt <= minFt) || (walk.DistanceFt >= maxFt))
+            if ((best is null) || (walk.BarToJunctionFt < best.Value.BarToJunctionFt))
             {
-                continue;
-            }
-
-            if ((best is null) || (walk.DistanceFt < best.Value.BarToJunctionFt))
-            {
-                best = ([start, bar, .. walk.Nodes], walk.Crossed, walk.DistanceFt);
+                best = walk;
             }
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// The route through <paramref name="bar"/>: the runway-side neighbour, the bar, and the straight taxiway nodes beyond it up
+    /// to the first node another taxiway joins (by a straight edge or a fillet arc), with that taxiway's name.
+    /// </summary>
+    private static (List<GroundNode> Nodes, string Crossed, double BarToJunctionFt)? ExitThroughBar(AirportGroundLayout layout, GroundNode bar)
+    {
+        if ((bar.Edges.Count != 2) || (bar.RunwayId is not { } rwyId) || (layout.FindRunway(rwyId.End1) is not { } runway))
+        {
+            return null;
+        }
+
+        GroundNode a = bar.Edges[0].OtherNode(bar)!;
+        GroundNode b = bar.Edges[1].OtherNode(bar)!;
+        (GroundNode start, IGroundEdge outEdge) =
+            DistanceToRunwayFt(runway, a.Position) < DistanceToRunwayFt(runway, b.Position) ? (a, bar.Edges[1]) : (b, bar.Edges[0]);
+        if (WalkToJunction(bar, outEdge) is not { } walk)
+        {
+            return null;
+        }
+
+        return ([start, bar, .. walk.Nodes], walk.Crossed, walk.DistanceFt);
     }
 
     private static double DistanceToRunwayFt(GroundRunway runway, LatLon point) =>
@@ -1036,29 +1053,28 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
             return;
         }
 
-        // A C172: the just-past-runway window is its length + 30 ft (~57 ft), and the SFO floor wants its nose 156 ft
-        // from the crossed taxiway. An exit whose bar sits far enough before the junction that the length + 30 stop
-        // leaves the tail clear of the bar (1.5 L + 30 ft), yet within 140 ft, is outside the window and inside the
-        // floor's walk-back, so only the runway-bar clamp in the junction search keeps the tail off the runway.
+        // SFO's 10R/28L bar on S3, its junction with S2 about 115 ft beyond: a C172's floor wants its nose 156 ft from
+        // the crossed taxiway, so the floor alone would put the tail inside the bar and only the runway-bar clamp keeps
+        // it off the runway. Pinned by runway, taxiway and junction rather than found: the exit the window's finder picks
+        // is not one the floor applies to.
         double lengthFt = LengthFt("C172");
-        (List<GroundNode> Nodes, string Crossed, double BarToJunctionFt)? exit = FindRunwayExitToJunction(
-            layout,
-            (1.5 * lengthFt) + 30.0 + 2.0,
-            140.0
+        GroundNode bar = Assert.Single(
+            TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "10R", "S3"),
+            candidate => ExitThroughBar(layout, candidate) is { } walk && walk.Crossed == "S2"
         );
-        Assert.True(exit is not null, "SFO has no runway exit whose bar is 1.5 L + 32 to 140 ft before a taxiway junction");
+        (List<GroundNode> Nodes, string Crossed, double BarToJunctionFt)? exit = ExitThroughBar(layout, bar);
+        Assert.True(exit is not null, $"SFO's 10R/28L bar on S3 (node {bar.Id}) has no straight walk to a taxiway junction");
         (List<GroundNode> nodes, string crossed, double barToJunctionFt) = exit.Value;
-        output.WriteLine($"exit: bar {nodes[1].Id} -> junction {nodes[^1].Id} on {crossed}, {barToJunctionFt:F0} ft");
+        output.WriteLine($"exit: bar {bar.Id} -> junction {nodes[^1].Id} on {crossed}, {barToJunctionFt:F0} ft");
         TaxiRoute route = RouteThrough(nodes, crossed);
 
         HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt);
 
         HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
         LatLon centre = new(hold.Latitude!.Value, hold.Longitude!.Value);
-        double tailToBarFt = (GeoMath.DistanceNm(centre, nodes[1].Position) * GeoMath.FeetPerNm) - (lengthFt / 2.0);
-        Assert.True(Math.Abs(tailToBarFt) <= 0.5, $"tail is {tailToBarFt:F1} ft from runway bar {nodes[1].Id}; expected the clamp to put it there");
+        double tailToBarFt = (GeoMath.DistanceNm(centre, bar.Position) * GeoMath.FeetPerNm) - (lengthFt / 2.0);
+        Assert.True(Math.Abs(tailToBarFt) <= 0.5, $"tail is {tailToBarFt:F1} ft from runway bar {bar.Id}; expected the clamp to put it there");
         Assert.Null(hold.TailOverRunwayNodeId);
-        Assert.Contains(route.Warnings, w => w.StartsWith($"holding short of TWY {crossed} — wingtip clearance", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1092,5 +1108,181 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         Assert.Equal(expected.Position.Lat, hold.Latitude);
         Assert.Equal(expected.Position.Lon, hold.Longitude);
         Assert.DoesNotContain(route.Warnings, w => w.Contains("wingtip clearance", StringComparison.Ordinal));
+    }
+
+    /// <summary>OAK's 28R bar #188 on B, north of the runway, and its B neighbours toward and away from the runway.</summary>
+    private static (GroundNode Bar, GroundNode TowardRunway, GroundNode AwayFromRunway) Oak28RBarOnB()
+    {
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
+        GroundNode bar = layout.Nodes[188];
+        Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
+        Assert.True((bar.RunwayId is { } id) && id.Contains("28R"), $"node 188 is no 28R bar: {bar.RunwayId}");
+        List<GroundNode> onB = [.. bar.Edges.OfType<GroundEdge>().Where(e => e.TaxiwayName == "B").Select(e => e.OtherNode(bar))];
+        return (bar, onB.MinBy(n => n.Position.Lat)!, onB.MaxBy(n => n.Position.Lat)!);
+    }
+
+    private static LatLon Toward(GroundNode from, GroundNode to, double ft) =>
+        GeoMath.ProjectPoint(from.Position, new TrueHeading(GeoMath.BearingTo(from.Position, to.Position)), ft / GeoMath.FeetPerNm);
+
+    /// <summary>
+    /// The pose of an aircraft of <paramref name="body"/> whose nose is at <paramref name="nose"/>, heading <paramref name="headingDeg"/>.
+    /// </summary>
+    private static StartPose PoseFromNose(LatLon nose, double headingDeg, AircraftBody body) =>
+        new(GeoMath.ProjectPoint(nose, new TrueHeading(headingDeg).ToReciprocal(), body.LengthFt / 2.0 / GeoMath.FeetPerNm), headingDeg, body);
+
+    /// <summary>
+    /// N462NX leaving 28R northbound on B, its nose 150 ft short of the north bar #188 on the runway side, on a route whose
+    /// first leg leads north away from the runway: the bar is still ahead.
+    /// </summary>
+    [Fact]
+    public void StartBarIsAhead_LeavingTheRunwayShortOfTheBar_IsAhead()
+    {
+        TestVnasData.EnsureInitialized();
+        (GroundNode bar, GroundNode toward, GroundNode away) = Oak28RBarOnB();
+        var c172 = AircraftBody.Of("C172");
+        StartPose pose = PoseFromNose(Toward(bar, toward, 150.0), GeoMath.BearingTo(bar.Position, away.Position), c172);
+
+        Assert.True(HoldShortAnnotator.StartBarIsAhead(bar, away, pose));
+    }
+
+    /// <summary>An aircraft holding at the line outside, nose on the bar, on a route leading onto the runway: the bar is ahead.</summary>
+    [Fact]
+    public void StartBarIsAhead_HoldingAtTheLineBeforeEntering_IsAhead()
+    {
+        TestVnasData.EnsureInitialized();
+        (GroundNode bar, GroundNode toward, GroundNode _) = Oak28RBarOnB();
+        var c172 = AircraftBody.Of("C172");
+        StartPose pose = PoseFromNose(bar.Position, GeoMath.BearingTo(bar.Position, toward.Position), c172);
+
+        Assert.True(HoldShortAnnotator.StartBarIsAhead(bar, toward, pose));
+    }
+
+    /// <summary>
+    /// An aircraft whose nose is already 50 ft past the bar on the runway side, on a route leading on toward the runway: it
+    /// has passed the line, so the bar is not ahead.
+    /// </summary>
+    [Fact]
+    public void StartBarIsAhead_NosePastTheLineTowardTheRunway_IsNotAhead()
+    {
+        TestVnasData.EnsureInitialized();
+        (GroundNode bar, GroundNode toward, GroundNode _) = Oak28RBarOnB();
+        var c172 = AircraftBody.Of("C172");
+        StartPose pose = PoseFromNose(Toward(bar, toward, 50.0), GeoMath.BearingTo(bar.Position, toward.Position), c172);
+
+        Assert.False(HoldShortAnnotator.StartBarIsAhead(bar, toward, pose));
+    }
+
+    /// <summary>
+    /// A C172 north of bar #188, its nose 1 ft short of it, on a route whose first leg leads north away from the runway. Facing
+    /// the bar, its tail is the part furthest along the leg, well past the bar: the bar is not ahead. Turned to face along the
+    /// leg with the nose where it was, the nose leads, 1 ft past the bar, inside the tolerance: the bar is ahead.
+    /// </summary>
+    [Fact]
+    public void StartBarIsAhead_JudgesThePartFurthestAlongTheLeg_NotTheNose()
+    {
+        TestVnasData.EnsureInitialized();
+        (GroundNode bar, GroundNode _, GroundNode away) = Oak28RBarOnB();
+        LatLon nose = Toward(bar, away, 1.0);
+        var c172 = AircraftBody.Of("C172");
+        double legDeg = GeoMath.BearingTo(bar.Position, away.Position);
+        double facingTheBarDeg = GeoMath.BearingTo(away.Position, bar.Position);
+
+        Assert.False(HoldShortAnnotator.StartBarIsAhead(bar, away, PoseFromNose(nose, facingTheBarDeg, c172)));
+        Assert.True(HoldShortAnnotator.StartBarIsAhead(bar, away, PoseFromNose(nose, legDeg, c172)));
+    }
+
+    /// <summary>
+    /// A B738 that stopped on a HOLD while exiting 28R northbound on B, straddling bar #188 with its nose 2.5 ft past the line
+    /// (inside <see cref="RunwayOccupancy.HoldLineFoulToleranceFt"/>), then taxied on north away from the runway: the bar marks
+    /// where it is clear of the runway, not a hold, so the route's start bar is not held.
+    /// </summary>
+    [Fact]
+    public void Taxi_AfterHoldDuringExit_StraddlingLineLeavingRunway_NotHeldAtStartBar()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
+        (GroundNode bar, GroundNode _, GroundNode away) = Oak28RBarOnB();
+        double legDeg = GeoMath.BearingTo(bar.Position, away.Position);
+        StartPose pose = PoseFromNose(Toward(bar, away, 2.5), legDeg, AircraftBody.Of("B738"));
+        List<HoldShortPoint> holds = [];
+
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, RouteThrough([bar, away], "B").Segments, holds, pose);
+
+        Assert.DoesNotContain(holds, h => h.NodeId == bar.Id);
+    }
+
+    /// <summary>
+    /// A C172 following traffic while leaving 28R northbound on B, its nose 20 ft short of bar #188 on the runway side, on a way
+    /// back leading north away from the runway: the start bar is no runway entry, so the way back is not refused.
+    /// </summary>
+    [Fact]
+    public void Follow_WhileLeavingRunwayAcrossStartBar_NotRefusedAsEntry()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
+        (GroundNode bar, GroundNode toward, GroundNode away) = Oak28RBarOnB();
+        StartPose pose = PoseFromNose(Toward(bar, toward, 20.0), GeoMath.BearingTo(bar.Position, away.Position), AircraftBody.Of("C172"));
+        var onto = new FollowRoutePlanner.RouteFromHere(RouteThrough([bar, away], "B").Segments, away.Id);
+
+        Assert.DoesNotContain(bar.Id, FollowingPhase.RunwayEntries(layout, onto, pose));
+    }
+
+    /// <summary>
+    /// A route south on B from the node north of OAK's 28R bar #188 to that bar, with a cleared taxiway hold-short at its start
+    /// node: the start hold is cleared and no runway's, so the first runway bar ahead is #188.
+    /// </summary>
+    [Fact]
+    public void FirstRunwayBarAhead_ClearedTaxiwayHoldAtStart_ReturnsTheRunwayBar()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
+        (GroundNode bar, GroundNode _, GroundNode away) = Oak28RBarOnB();
+        Assert.NotEqual(GroundNodeType.RunwayHoldShort, away.Type);
+        var route = new TaxiRoute
+        {
+            Segments = RouteThrough([away, bar], "B").Segments,
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = away.Id,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "C",
+                    IsCleared = true,
+                },
+                new HoldShortPoint
+                {
+                    NodeId = bar.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28R",
+                },
+            ],
+            CurrentSegmentIndex = 0,
+        };
+
+        (HoldShortPoint Bar, int SegmentIndex)? first = TaxiingPhase.FirstRunwayBarAhead(route, layout);
+
+        Assert.NotNull(first);
+        Assert.Equal(bar.Id, first.Value.Bar.NodeId);
+        Assert.Equal(0, first.Value.SegmentIndex);
+    }
+
+    /// <summary>
+    /// A C172 holding short of bar #188 outside 28R, nose on the bar, on a route whose first leg leads south onto the runway:
+    /// the start bar is held.
+    /// </summary>
+    [Fact]
+    public void Taxi_ShortOfStartBar_FirstLegTowardRunway_HoldsAtStartBar()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
+        (GroundNode bar, GroundNode toward, GroundNode _) = Oak28RBarOnB();
+        StartPose pose = PoseFromNose(bar.Position, GeoMath.BearingTo(bar.Position, toward.Position), AircraftBody.Of("C172"));
+        List<HoldShortPoint> holds = [];
+
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, RouteThrough([bar, toward], "B").Segments, holds, pose);
+
+        HoldShortPoint hold = Assert.Single(holds, h => h.NodeId == bar.Id);
+        Assert.Equal(HoldShortReason.RunwayCrossing, hold.Reason);
     }
 }

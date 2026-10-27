@@ -163,7 +163,7 @@ Build an oriented rectangle from the runway LineString endpoints:
 - Heading: bearing along the centerline
 - Length: distance between endpoints
 - Half-width: extracted from navdata (runway type → ADG group → width), default 150ft
-- Hold-short distance: the runway feature's authored `holdShortDistance` from the centerline, else `HoldShortDistanceForWidth` (the AC 150/5300-13B setback keyed on runway width)
+- Hold-short distance: the runway feature's authored `holdShortDistance` from the centerline, unless it is far below the standoff rule's value, else the rule (`HoldShortStandoff`: runway width, length, CIFP ILS category and elevation; [hold-short-placement.md](ground/hold-short-placement.md))
 
 #### Step 5b: Classify Nodes
 

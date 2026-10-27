@@ -17,8 +17,8 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
 /// YAAT-509: an aircraft holding short of a runway bar and cleared back over its taxiway must not turn about across the
-/// hold line. KOAK and KSFO runway holding positions sit a few feet from a split node of their taxiway (OAK C bar 517 19 ft
-/// past node 353), so a turn about there would carry its nose, a wingtip or its tail over the line. No part of the aircraft
+/// hold line. KOAK and KSFO runway holding positions sit a few feet from a split node of their taxiway (OAK C bar 353 19 ft
+/// past node 1118), so a turn about there would carry its nose, a wingtip or its tail over the line. No part of the aircraft
 /// may pass the line (AIM 2-3-5.a.1): from rest it holds where it stands and says "unable, no room to turn around on
 /// {taxiway}, holding short of runway {runway}", once.
 /// </summary>
@@ -48,10 +48,10 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     /// <summary>How long (s) the restored aircraft is compared with the uninterrupted one.</summary>
     private const int RestoreCompareSeconds = 30;
 
-    /// <summary>How much farther back (ft) than holding short the C172 at KOAK bar 521 stands for the mirrored turn about.</summary>
+    /// <summary>How much farther back (ft) than holding short the C172 at KOAK bar 514 stands for the mirrored turn about.</summary>
     private const double MirrorExtraBackFt = 15.0;
 
-    /// <summary>How far right (ft) of F's centreline the C172 at KOAK bar 521 stands for the mirrored turn about.</summary>
+    /// <summary>How far right (ft) of F's centreline the C172 at KOAK bar 514 stands for the mirrored turn about.</summary>
     private const double MirrorRightOfCentrelineFt = 2.0;
 
     /// <summary>
@@ -62,10 +62,10 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     /// once.
     /// </summary>
     [Theory]
-    [InlineData("OAK", 517, "C172")]
-    [InlineData("OAK", 517, "C208")]
-    [InlineData("OAK", 521, "C172")]
-    [InlineData("OAK", 521, "C208")]
+    [InlineData("OAK", 353, "C172")]
+    [InlineData("OAK", 353, "C208")]
+    [InlineData("OAK", 514, "C172")]
+    [InlineData("OAK", 514, "C208")]
     [InlineData("SFO", 884, "C172")]
     [InlineData("SFO", 884, "C208")]
     public void AtRestHoldingShortOfARunwayBar_TaxiBackOverItsTaxiway_HoldsAndSaysUnable(string airport, int barNodeId, string type)
@@ -94,10 +94,10 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The C172 at rest exactly on KOAK node 353, the split node of C 19 ft short of bar 517, facing the bar with every part
-    /// short of the line. No taxi edge's perpendicular falls strictly inside an edge there, so it stands on no occupied edge
-    /// (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>). Cleared back over C, it has no room to turn about short of the
-    /// hold line, and its unable still names C, the taxiway of the edge adjoining the node along its heading.
+    /// The C172 at rest exactly on KOAK node 1128, the C1 node 24 ft short of bar 506, facing the bar with every part short of
+    /// the line. No taxi edge's perpendicular falls strictly inside an edge there, so it stands on no occupied edge
+    /// (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>). Cleared back over C1, it has no room to turn about short of the
+    /// hold line, and its unable still names C1, the taxiway of the edge adjoining the node along its heading.
     /// </summary>
     [Fact]
     public void AtRestOnTheNodeShortOfABar_TaxiBack_UnableNamesTheAdjoiningTaxiway()
@@ -108,10 +108,10 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        GroundNode bar = ground.Layout.Nodes[517];
+        GroundNode bar = ground.Layout.Nodes[506];
         RunwayInfo runway = BarRunway("OAK", bar);
         GroundNode node = TaxiwaySideNeighbour(ground.Layout, bar, runway);
-        Assert.Equal(353, node.Id);
+        Assert.Equal(1128, node.Id);
         double backFt = GeoMath.DistanceNm(bar.Position, node.Position) * GeoMath.FeetPerNm;
         Staged staged = StageFacingBar(ground, (bar, node), backFt, Type);
         AircraftState aircraft = staged.Aircraft;
@@ -136,7 +136,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     /// A B744's nose nearer KOAK runway 10L's centreline than the bars on its side, off the pavement: at the point a B744 turning
     /// back on C reaches with its left wingtip (37.730612, -122.220607), more than <see cref="HoldLineFootprint.MarkedBarReachFt"/>
     /// along the runway from every bar on that side, between bars over the grass, it is not past the hold line; 100 ft along
-    /// the runway from bar 513 and a foot inside its line, it is.
+    /// the runway from bar 506 and a foot inside its line, it is.
     /// </summary>
     [Fact]
     public void PartInsideARunwaysBarLine_CountsOnlyNearAMarkedBar()
@@ -162,7 +162,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
             ];
 
         var between = new LatLon(37.730612, -122.220607);
-        GroundNode bar = layout.Nodes[513];
+        GroundNode bar = layout.Nodes[506];
         bool towardBetween = GeoMath.AbsBearingDifference(GeoMath.BearingTo(bar.Position, between), alongDeg) < 90.0;
         var alongRunway = new TrueHeading(towardBetween ? alongDeg : (alongDeg + 180.0) % 360.0);
         LatLon abeamBar = GeoMath.ProjectPoint(bar.Position, alongRunway, 100.0 / GeoMath.FeetPerNm);
@@ -195,7 +195,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A C172 abeam KOAK bar 513, facing along runway 10L/28R, at the nearest pose out from the bar where its runway-side
+    /// A C172 abeam KOAK bar 506, facing along runway 10L/28R, at the nearest pose out from the bar where its runway-side
     /// wingtip alone is inside the runway's hold line (nose, tail and main gear outside it). A footprint begun there judges that
     /// wingtip only against the runway's pavement: carried farther in, until the nose reaches the line, it passes no line
     /// while it stays off the pavement, while the nose, judged as usual, passes the line there. A footprint begun with every
@@ -211,7 +211,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         var body = AircraftBody.Of("C172");
-        GroundNode bar = layout.Nodes[513];
+        GroundNode bar = layout.Nodes[506];
         RunwayInfo runway = BarRunway("OAK", bar);
         double headingDeg = GeoMath.BearingTo(new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2));
         TrueHeading outward = new[] { new TrueHeading((headingDeg + 90.0) % 360.0), new TrueHeading((headingDeg + 270.0) % 360.0) }.MaxBy(h =>
@@ -224,14 +224,14 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         double[] steps = [.. Enumerable.Range(0, (int)MaxBackOffFt).Select(ft => (double)ft)];
 
         double loneOutFt = steps.FirstOrDefault(ft => IsLoneWingtip(Inside(PoseAt(ft))), -1.0);
-        Assert.True(loneOutFt >= 0.0, $"no pose up to {MaxBackOffFt:F0} ft out from bar 513 has a lone wingtip inside the line");
+        Assert.True(loneOutFt >= 0.0, $"no pose up to {MaxBackOffFt:F0} ft out from bar 506 has a lone wingtip inside the line");
         LatLon start = PoseAt(loneOutFt);
         AircraftBodyPart wingtip = Assert.Single(Inside(start));
         double noseInFt = steps.FirstOrDefault(ft => IsInside(AircraftBodyPart.Nose, PoseAt(loneOutFt - ft)), -1.0);
-        Assert.True(noseInFt > 0.0, $"the nose never reaches bar 513's line in from the pose {loneOutFt:F0} ft out");
+        Assert.True(noseInFt > 0.0, $"the nose never reaches bar 506's line in from the pose {loneOutFt:F0} ft out");
         LatLon deeper = PoseAt(loneOutFt - noseInFt);
         double clearOutFt = steps.FirstOrDefault(ft => (ft > loneOutFt) && (Inside(PoseAt(ft)).Length == 0), -1.0);
-        Assert.True(clearOutFt > 0.0, $"no pose up to {MaxBackOffFt:F0} ft out from bar 513 has every part short of the line");
+        Assert.True(clearOutFt > 0.0, $"no pose up to {MaxBackOffFt:F0} ft out from bar 506 has every part short of the line");
         output.WriteLine(
             $"{AircraftBody.Describe(wingtip)} alone inside {loneOutFt:F0} ft out; nose inside {noseInFt:F0} ft farther in; "
                 + $"every part short {clearOutFt:F0} ft out"
@@ -247,7 +247,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The C172 at rest holding short of KOAK bar 517 with no room to turn about, snapshotted
+    /// The C172 at rest holding short of KOAK bar 353 with no room to turn about, snapshotted
     /// <paramref name="secondsBeforeSnapshot"/> into its hold and restored into a fresh engine: the snapshot carries the runway
     /// it holds short of, and the restored aircraft holds exactly where the uninterrupted one does. Its unable is said on the
     /// hold's first tick, once: a restore taken after that says nothing again (<paramref name="restoredUnableCalls"/> 0), one
@@ -263,7 +263,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
             return;
         }
 
-        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 517, "C172");
+        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 353, "C172");
         AircraftState aircraft = staged.Aircraft;
         List<string> unables = CollectUnables(ground, aircraft);
         Send(ground, aircraft, staged.Command);
@@ -309,7 +309,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A C172 at rest facing KOAK bar 521, where F meets runway 15/33 at an angle, <see cref="MirrorExtraBackFt"/> farther back
+    /// A C172 at rest facing KOAK bar 514, where F meets runway 15/33 at an angle, <see cref="MirrorExtraBackFt"/> farther back
     /// than the nearest pose with every part short of the line and <see cref="MirrorRightOfCentrelineFt"/> right of F's
     /// centreline. Cleared back over F, its turn about to the right would carry a wingtip past the hold line, the same turn
     /// about to the left keeps every part short of it: it turns about to the left, finishes the leg, and says nothing.
@@ -323,7 +323,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        GroundNode bar = ground.Layout.Nodes[521];
+        GroundNode bar = ground.Layout.Nodes[514];
         RunwayInfo runway = BarRunway("OAK", bar);
         GroundNode approach = TaxiwaySideNeighbour(ground.Layout, bar, runway);
         double backFt = HoldingShortBackFt(ground.Layout, (bar, approach), runway, Type) + MirrorExtraBackFt;
@@ -352,8 +352,8 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     /// from rest is <see cref="AtRestOffCentreShortOfAnAngledBar_OneWayCrosses_TurnsAboutTheOtherWay"/>.
     /// </summary>
     [Theory]
-    [InlineData("OAK", 517)]
-    [InlineData("OAK", 505)]
+    [InlineData("OAK", 353)]
+    [InlineData("OAK", 499)]
     public void StoppedShortByATaxiHoldShort_ClearedBackTheWayItCame_HoldsAndSaysUnable(string airport, int barNodeId)
     {
         if (Build(airport) is not { } ground)
@@ -411,15 +411,15 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
 
     /// <summary>
     /// A C172 holding short of a KOAK runway bar and cleared back over its taxiway refuses its turn about by one of two paths,
-    /// told apart by the navigator's log lines starting "from rest,". Standing on node 353, the split node of C short of bar
-    /// 517 (<paramref name="onTheNode"/>), on no occupied taxi edge, no taxiway turn about solves and the fallback entry arc
-    /// is refused, which logs only the warning that it holds and says unable. Holding short of bar 513 inside C1's edge,
-    /// clear of its ends, the turn about's jog and reversal are refused, which first logs which part would pass the line
-    /// turning about each way.
+    /// told apart by the navigator's log lines starting "from rest,". Standing on node 1128, the C1 node short of bar 506
+    /// (<paramref name="onTheNode"/>), on no occupied taxi edge, no taxiway turn about solves and the fallback entry arc is
+    /// refused, which logs only the warning that it holds and says unable. Holding short of bar 353 inside C's edge, 64 ft
+    /// past node 1118 and clear of its ends, the turn about's jog and reversal are refused, which first logs which part would
+    /// pass the line turning about each way.
     /// </summary>
     [Theory]
-    [InlineData(517, true)]
-    [InlineData(513, false)]
+    [InlineData(506, true)]
+    [InlineData(353, false)]
     public void AtRestShortOfABar_RefusedTurnAbout_LogsWhichPathTripped(int barNodeId, bool onTheNode)
     {
         if (Build("OAK") is not { } ground)
@@ -463,10 +463,10 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     private const string EachWayLog = "; the other way";
 
     /// <summary>
-    /// The C172 holding short of KOAK bar 517, turned <see cref="CornerTurnOffDeg"/> off the bar's bearing in place (every part
-    /// still short of the line), then cleared back over C: its entry is a corner of 110°, under the 135° of a reversal, so it
-    /// is never refused at the hold line, even though its outer wingtip sweeps inside the line through the corner. It
-    /// finishes the leg and says nothing.
+    /// The C172 holding short of KOAK bar 353, turned <see cref="CornerTurnOffDeg"/> off the bar's bearing in place, backed off
+    /// a foot at a time until every part of the turned body is still short of the line, then cleared back over C: its entry is
+    /// a corner of 110°, under the 135° of a reversal, so it is never refused at the hold line, even though its outer wingtip
+    /// sweeps inside the line through the corner. It finishes the leg and says nothing.
     /// </summary>
     [Fact]
     public void AtRestShortOfABar_CornerUnderAReversal_IsNeverRefused()
@@ -477,9 +477,25 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 517, Type);
+        GroundNode bar = ground.Layout.Nodes[353];
+        RunwayInfo runway = BarRunway("OAK", bar);
+        GroundNode approach = TaxiwaySideNeighbour(ground.Layout, bar, runway);
+        double barBearingDeg = GeoMath.BearingTo(approach.Position, bar.Position);
+        double turnedDeg = (barBearingDeg + CornerTurnOffDeg) % 360.0;
+        var backDeg = new TrueHeading((barBearingDeg + 180.0) % 360.0);
+        double backFt = HoldingShortBackFt(ground.Layout, (bar, approach), runway, Type);
+        while (
+            BodyPoints(GeoMath.ProjectPoint(bar.Position, backDeg, backFt / GeoMath.FeetPerNm), turnedDeg, Type)
+                .Any(p => FollowingPhase.IsInsideHoldLine(ground.Layout, runway, p.Point))
+        )
+        {
+            backFt += 1.0;
+            Assert.True(backFt < MaxBackOffFt, $"the turned {Type} is still inside the hold line of bar {bar.Id} {backFt:F0} ft back from it");
+        }
+
+        Staged staged = StageFacingBar(ground, (bar, approach), backFt, Type);
         AircraftState aircraft = staged.Aircraft;
-        aircraft.TrueHeading = new TrueHeading((aircraft.TrueHeading.Degrees + CornerTurnOffDeg) % 360.0);
+        aircraft.TrueHeading = new TrueHeading(turnedDeg);
         aircraft.TrueTrack = aircraft.TrueHeading;
         Assert.DoesNotContain(
             BodyPoints(aircraft.Position, aircraft.TrueHeading.Degrees, Type),
@@ -500,8 +516,9 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     private const double CornerTurnOffDeg = 70.0;
 
     /// <summary>
-    /// A C172 at rest on KOAK G between runways 28R and 28L, its tail just short of 28R's hold line at bar 508 and facing
-    /// away from 28R, cleared to taxi back across 28R (bar 514 and the node past it, 502). Without a crossing clearance its
+    /// A C172 at rest on KOAK G between runways 28R and 28L, its tail just short of 28R's hold line at bar 500 and facing
+    /// away from 28R, cleared to taxi back across 28R (G's bar on the far side of 28R and the G node past it,
+    /// <see cref="FarBarAcross"/>). Without a crossing clearance its
     /// turn about would carry a part past 28R's line: it holds and says unable, holding short of runway 28R. With
     /// <c>CROSS 28R</c> the route holds a cleared crossing of 28R, whose hold line no longer binds it: it turns about,
     /// finishes the leg and says nothing.
@@ -517,7 +534,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 508, Type);
+        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 500, Type);
         AircraftState aircraft = staged.Aircraft;
         aircraft.TrueHeading = new TrueHeading((aircraft.TrueHeading.Degrees + 180.0) % 360.0);
         aircraft.TrueTrack = aircraft.TrueHeading;
@@ -526,11 +543,13 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
             p => FollowingPhase.IsInsideHoldLine(ground.Layout, runway, p.Point)
         );
 
+        (GroundNode farBar, GroundNode pastFarBar) = FarBarAcross(ground.Layout, ground.Layout.Nodes[500], runway);
+        string taxi = $"TAXI #{farBar.Id} #{pastFarBar.Id}";
         List<string> unables = CollectUnables(ground, aircraft);
-        Send(ground, aircraft, cleared ? "TAXI #514 #502 CROSS 28R" : "TAXI #514 #502");
+        Send(ground, aircraft, cleared ? $"{taxi} CROSS 28R" : taxi);
         Assert.Contains(
             aircraft.Ground.AssignedTaxiRoute!.HoldShortPoints,
-            hs => (hs.NodeId == 508) && (hs.Reason == HoldShortReason.RunwayCrossing) && (hs.IsCleared == cleared)
+            hs => (hs.NodeId == 500) && (hs.Reason == HoldShortReason.RunwayCrossing) && (hs.IsCleared == cleared)
         );
         Watch watch = WatchAgainstTheLine(ground, aircraft, (ground.Layout, runway), AtRestWatchSeconds);
         output.WriteLine($"{watch}; said: {string.Join(" | ", unables)}");
@@ -547,7 +566,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The C172 holding short of KOAK bar 513 (C1, runway 10L/28R), moved <see cref="OffTheTaxiwayFt"/> right of C1 so it
+    /// The C172 holding short of KOAK bar 506 (C1, runway 10L/28R), moved <see cref="OffTheTaxiwayFt"/> right of C1 so it
     /// stands on no taxi edge and more than <see cref="AirportGroundLayout.OnTaxiEdgeMaxOffsetFt"/> from every node, every part
     /// still short of the line, is cleared back: its turn about would pass the hold line, so it holds and says unable,
     /// holding short of the runway, with no "on" taxiway clause.
@@ -561,7 +580,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 513, Type);
+        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 506, Type);
         AircraftState aircraft = staged.Aircraft;
         var right = new TrueHeading((aircraft.TrueHeading.Degrees + 90.0) % 360.0);
         aircraft.Position = GeoMath.ProjectPoint(aircraft.Position, right, OffTheTaxiwayFt / GeoMath.FeetPerNm);
@@ -578,7 +597,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         Watch watch = WatchAgainstTheLine(ground, aircraft, (ground.Layout, runway), AtRestWatchSeconds);
         output.WriteLine($"{watch}; said: {string.Join(" | ", unables)}");
 
-        Assert.True(watch.FirstInside is null, $"the {Type}'s {watch.FirstInside} passed runway {runway.Id} hold line at bar 513");
+        Assert.True(watch.FirstInside is null, $"the {Type}'s {watch.FirstInside} passed runway {runway.Id} hold line at bar 506");
         string expected = $"unable, no room to turn around, holding short of runway {ExpectedRunway(ground, aircraft, runway)}";
         Assert.Contains(expected, Assert.Single(unables), StringComparison.OrdinalIgnoreCase);
     }
@@ -587,7 +606,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     private const double OffTheTaxiwayFt = 30.0;
 
     /// <summary>
-    /// YAAT-509: the C172 standing on no taxiway beside KOAK bar 513, creeping at its pivot speed, whose firm-rate stop still
+    /// YAAT-509: the C172 standing on no taxiway beside KOAK bar 506, creeping at its pivot speed, whose firm-rate stop still
     /// carries a leading part past the bar's hold line. Its stop overruns, so its unable names no runway, and standing on no
     /// taxiway it names no taxiway either: it asks for a route ahead. The hold it plans carries neither through the snapshot.
     /// </summary>
@@ -600,7 +619,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 513, Type);
+        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 506, Type);
         AircraftState aircraft = staged.Aircraft;
         var right = new TrueHeading((aircraft.TrueHeading.Degrees + 90.0) % 360.0);
         aircraft.Position = GeoMath.ProjectPoint(aircraft.Position, right, OffTheTaxiwayFt / GeoMath.FeetPerNm);
@@ -659,7 +678,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The C172 holding short of KOAK bar 517 with no room to turn about, still creeping toward the bar at
+    /// The C172 holding short of KOAK bar 353 with no room to turn about, still creeping toward the bar at
     /// <see cref="CreepOverPivotKts"/> over its pivot speed when it is cleared back over C, placed so its nose and wingtips
     /// are past the line where its taxi-rate stop ends. Its stop is judged where it ends, as a rolling aircraft's is: when
     /// its firm-rate stop keeps them short of the line (<paramref name="overrun"/> false: the leading parts stand half-way
@@ -679,7 +698,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 517, Type);
+        (Staged staged, RunwayInfo runway) = StageHoldingShort(ground, "OAK", 353, Type);
         AircraftState aircraft = staged.Aircraft;
         AircraftCategory category = AircraftCategorization.Categorize(Type);
         double speedKts = CategoryPerformance.TurnAboutSpeedKts(category, TurnAboutFit.Evaluate(Type, category).RadiusFt) + CreepOverPivotKts;
@@ -730,7 +749,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.True(watch.FirstInside is null, $"the {Type}'s {watch.FirstInside} passed runway {runway.Id} hold line at bar 517");
+        Assert.True(watch.FirstInside is null, $"the {Type}'s {watch.FirstInside} passed runway {runway.Id} hold line at bar 353");
         string expected = $"unable, no room to turn around on {staged.Taxiway}, holding short of runway {ExpectedRunway(ground, aircraft, runway)}";
         Assert.Contains(expected, unable, StringComparison.OrdinalIgnoreCase);
     }
@@ -743,7 +762,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         (speedKts * speedKts) / (2.0 * rateKtsPerSec) * GeoMath.FeetPerNm / 3600.0;
 
     /// <summary>
-    /// The C172 standing on KOAK node 353, C's split node about 19 ft from bar 517 on the taxiway side, facing
+    /// The C172 standing on KOAK node 1118, C's split node about 19 ft from bar 353 on the taxiway side, facing
     /// <see cref="LineUpFacingDeg"/>, cleared to line up and wait on runway 33. Its line-up route starts at the node it stands
     /// on whatever its heading, so it opens with a reversal whose fallback arc, at its pivot speed, swings a part past runway
     /// 15/33's hold line; the runway its phase is cleared onto does not bind it: it lines up and says nothing.
@@ -757,8 +776,8 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         }
 
         const string Type = "C172";
-        GroundNode bar = ground.Layout.Nodes[517];
-        GroundNode node = ground.Layout.Nodes[353];
+        GroundNode bar = ground.Layout.Nodes[353];
+        GroundNode node = ground.Layout.Nodes[1118];
         Staged staged = StageFacingBar(ground, (bar, node), GeoMath.DistanceNm(bar.Position, node.Position) * GeoMath.FeetPerNm, Type);
         AircraftState aircraft = staged.Aircraft;
         aircraft.Position = node.Position;
@@ -783,7 +802,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
         Assert.IsType<LinedUpAndWaitingPhase>(aircraft.Phases?.CurrentPhase);
     }
 
-    /// <summary>The heading (deg true) the C172 on node 353 faces when cleared to line up.</summary>
+    /// <summary>The heading (deg true) the C172 on node 1118 faces when cleared to line up.</summary>
     private const double LineUpFacingDeg = 112.0;
 
     /// <summary>How long (s) the line-up is watched.</summary>
@@ -1030,6 +1049,33 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
             })
             .OrderBy(n => n.Id)
             .First();
+
+    /// <summary>
+    /// The bar of <paramref name="runway"/> on <paramref name="nearBar"/>'s taxiway on the other side of the runway, the nearest
+    /// to <paramref name="nearBar"/>, and its neighbour on that taxiway further from the runway's centreline.
+    /// </summary>
+    private (GroundNode Bar, GroundNode Past) FarBarAcross(AirportGroundLayout layout, GroundNode nearBar, RunwayInfo runway)
+    {
+        var threshold = new LatLon(runway.Lat1, runway.Lon1);
+        double Side(GroundNode n) => GeoMath.SignedCrossTrackDistanceNm(n.Position, threshold, runway.TrueHeading1);
+        string taxiway = nearBar.Edges.OfType<GroundEdge>().First(e => !e.IsRunwayCenterline).TaxiwayName;
+        GroundNode farBar = layout
+            .Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.RunwayHoldShort)
+                && (n.RunwayId is { } id)
+                && id.Overlaps(runway.Id)
+                && (Math.Sign(Side(n)) == -Math.Sign(Side(nearBar)))
+                && n.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway))
+            )
+            .MinBy(n => GeoMath.DistanceNm(n.Position, nearBar.Position))!;
+        GroundNode past = farBar
+            .Edges.OfType<GroundEdge>()
+            .Where(e => e.MatchesTaxiway(taxiway))
+            .Select(e => e.OtherNode(farBar))
+            .MaxBy(n => Math.Abs(Side(n)))!;
+        output.WriteLine($"far {runway.Id} bar on {taxiway}: {farBar.Id}, past it {past.Id}");
+        return (farBar, past);
+    }
 
     /// <summary>The runway <paramref name="bar"/> holds short of, from the airport's runways.</summary>
     private static RunwayInfo BarRunway(string airport, GroundNode bar) =>

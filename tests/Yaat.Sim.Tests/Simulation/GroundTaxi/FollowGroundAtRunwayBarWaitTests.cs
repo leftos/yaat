@@ -323,6 +323,12 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
         );
         Assert.True(pastAt > 0, $"{Leader} never stood past the merge with its tail not clear of it");
 
+        // One second on, the leader is far enough past the merge that, held from taxi speed, its tail stops with room for the
+        // follower beyond 1R's far marking: the far-side gate (AIM 4-3-18.b) does not take the hold, and the wait for the
+        // follow's lead does.
+        ground.Engine.TickOneSecond();
+        Assert.True(LeaderPastTheMergeTailNotClear(ground, follower, leader), $"{Leader} cleared the merge a second after it passed it");
+
         List<string> said = [];
         void Collect(string callsign, string warning)
         {

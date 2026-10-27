@@ -278,7 +278,8 @@ public class GroundSubmenuCharacterizationTests
     }
 
     // G crosses 10L/28R mid-runway on its way to 28L (the destination, the ladder's dimmed last row) and the room names
-    // no active runway, so the one runway stop names both ends and sends the lower-numbered one, which binds the same bar.
+    // no active runway, so the one runway stop in the ladder names both ends and sends the lower-numbered one, which binds
+    // the same bar; taxiway C, met at the bar by its fillets, and taxiway D are the ladder's other two stops.
     [AvaloniaFact]
     public void GroundMenu_Taxiing_HoldShortLaddersTheRouteLineAndOneStopPerBar_AndSendsHS()
     {
@@ -287,7 +288,8 @@ public class GroundSubmenuCharacterizationTests
         MenuItem holdShort = Item(CommandTree(built.Menu), "Hold short of…");
         Assert.Equal(new GroundTrafficFlyoutTitle(HoldShortLadder.Title, "route G · RWY 28L"), ((MenuItem)holdShort.Items[0]!).Header);
         Assert.Equal("Runway 28L · route ends here", ((MenuItem)holdShort.Items[^1]!).Header?.ToString());
-        MenuItem runway = Assert.Single(HoldShortRows(built.Menu));
+        Assert.Equal(3, HoldShortRows(built.Menu).Count);
+        MenuItem runway = Assert.Single(HoldShortRows(built.Menu), m => m.Header is HoldShortLadderStop { Badge: HoldShortChoice.RunwayBadge });
         Assert.Matches(@"^RW 10L/28R · crossing on G · ~\d[\d,]* ft — HS 10L$", AutomationProperties.GetName(runway));
 
         Click(runway);
@@ -305,7 +307,8 @@ public class GroundSubmenuCharacterizationTests
     {
         AircraftModel target = TaxiingAcrossOnG();
         Built built = BuildMenu(target, prevSelected: null);
-        MenuItem item = Assert.Single(HoldShortRows(built.Menu));
+        Assert.Equal(3, HoldShortRows(built.Menu).Count);
+        MenuItem item = Assert.Single(HoldShortRows(built.Menu), m => m.Header is HoldShortLadderStop { Badge: HoldShortChoice.RunwayBadge });
 
         RaisePointer(item, InputElement.PointerEnteredEvent);
 
@@ -388,7 +391,8 @@ public class GroundSubmenuCharacterizationTests
 
     /// <summary>
     /// A taxiing aircraft two G nodes north of runway 28R's northern bar on G, facing it, cleared along G to 28L: the route
-    /// crosses 10L/28R mid-runway on the way, so that runway is its one Hold short of… row (28L, its destination, is none).
+    /// crosses 10L/28R mid-runway on the way, so the ladder names that runway's bar, taxiway C met at the bar by its fillets
+    /// and taxiway D where the G/D fillet leaves G (28L, its destination, is no stop).
     /// </summary>
     private static AircraftModel TaxiingAcrossOnG()
     {
@@ -464,7 +468,10 @@ public class GroundSubmenuCharacterizationTests
             return Oak
                 .Edges.Where(e => (e.TaxiwayName == "W3") && ((e.FromNodeId == holdShort.Id) || (e.ToNodeId == holdShort.Id)))
                 .Select(e => NodeById((e.FromNodeId == holdShort.Id) ? e.ToNodeId : e.FromNodeId))
-                .Single(n => !LinkNamesOf(n.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)));
+                .MaxBy(n =>
+                    Oak.Nodes.Where(r => LinkNamesOf(r.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)))
+                        .Min(r => Math.Pow(r.Latitude - n.Latitude, 2) + Math.Pow(r.Longitude - n.Longitude, 2))
+                )!;
         }
     }
 

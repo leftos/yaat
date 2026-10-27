@@ -13,33 +13,41 @@ holds so it is clear of the runway (AIM 2-3-5.a.1: the marking identifies the **
 painted-hold-line feature type (only `parking`, `helipad`, `spot`, `taxiway`, `runway`), so the
 positions are computed geometrically, not read from data.
 
-Core code: `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` (`DetectRunwayCrossings`). The bars
+Core code: `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` (`PlanRunway`, `DetectRunwayCrossings`) and the rule itself in `HoldShortStandoff.cs`. The bars
 are drawn client-side by `GroundRenderer.DrawHoldShortBar` — a perpendicular tick through the node,
 oriented to the taxiway; the wire contract carries only the node point, never a line segment.
 
 ## The standoff distance
 
-The bar sits at a **constant perpendicular (cross-track) distance from the runway centerline**,
-`RunwayRectangle.HoldShortNm`, resolved in `BuildRunwayRectangle`:
+The bar is placed by the reviewed standoff rule (`HoldShortStandoff`; AIM 2-3-5.a.1, with the distances from AC 150/5300-13B, which is not in the local references). It has two parts: a **base separation S** per runway, and a **centerline point D** per crossing.
 
-1. **Authoritative**: the runway feature's `holdShortDistance` (feet from centerline) from the vNAS
-   map, when authored. Stored as `GroundRunway.HoldShortDistanceFt`. e.g. OAK authors 250/225/175 ft
-   for 28L·10R / 28R·10L / 15·33.
-2. **Fallback**: `HoldShortDistanceForWidth(widthFt)` — the FAA AC 150/5300-13B Table 3-2 setback
-   (125/150/200/250/280 ft) keyed on runway width as an ADG proxy, used only when the map authors no
-   value (e.g. OAK 30/12 → 250 ft).
+**S** is the distance from the runway centerline to the *nearest point* of the hold line, resolved once per runway by `HoldShortStandoff.BaseSeparationFt` (`RunwayCrossingDetector.PlanRunway`) and stored as `GroundRunway.HoldShortStandoffFt` (nullable, omitted from the JSON when null, so no layout format bump). `RunwayRectangle.HoldShortNm` and `MarkShortBars` hold S, never D. By first match:
 
-The distance is **the same regardless of the exit taxiway's angle** — the RSA boundary is a line
-parallel to the runway centerline, so an acute high-speed exit and a right-angle exit at the same
-runway hold at the same perpendicular distance. Nothing about exit geometry changes the standoff.
+1. **Paint calibration**: a `calibratedFt` input, reserved for the paint snap and always null for now.
+2. **Authored**: the runway feature's `holdShortDistance` (feet from centerline), stored as `GroundRunway.HoldShortDistanceFt`, unless it is more than 15 ft below the rule value for a runway in the 250 ft class (a rule value of 250 ft or more); then the rule value is used and `WarnWhenRuleOverAuthored` logs one warning per runway per parse naming the airport, runway, authored and rule values (OAK 28R authors 225 ft against a rule of 250).
+3. **Rule** (`RunwayStandoffInputs`: width, length, ILS category, elevation): width 200 ft or more, or 150 ft or more with an ILS CAT II or III, gives 280; a 100 ft or wider runway gives 250 when it is 5,000 ft long or longer or has any ILS, else 200; 75 ft or wider gives 150 (175 with an ILS); narrower gives 125 (175 with an ILS). A result of 250 or more adds 1 ft per 100 ft of the runway's higher threshold elevation.
+
+   The ILS category is the highest over the runway's two ends from the CIFP localizer records, and only an ILS moves a runway to the instrument rows; a LOC, LDA or LPV approach does not ([navigation-database.md](../navigation-database.md)). A runway with no navdata reads as 150 ft wide, at least 5,000 ft long, no ILS, elevation 0.
+
+**D** is where the taxiway's *centerline* meets the hold line: `D = S + (W_twy / 2) · |cos θ|` (`HoldShortStandoff.CenterlineStandoffFt`). The marking is painted square to the taxiway centerline with its nearest point at S, so on a taxiway at θ to the runway the centerline point sits farther out; a perpendicular taxiway adds nothing.
+
+θ is the bearing, against the runway heading, of the walk segment where the taxiway centerline reaches cross-track S (`MeasureCrossingAngleDeg`, measured at parse time before the fillets exist). W_twy is a proxy from the *crossed* runway's width, as the layout carries no taxiway width: 75 ft from a 150 ft runway up, 50 from 100, 35 from 75, else 25 (`TaxiwayWidthProxyFt`). D is threaded to the placement as a per-crossing target and never stored on the runway.
+
+D is not taken, and the bar is seated at S, when the taxiway path from the crossing to the D point, or the D point itself, comes within another runway's S plus 5 ft (`OtherRunwayAreaMarginFt`) of its centerline alongside its length (`TouchesHoldingArea`); a taxiway between two close runways keeps its bar out of the other's holding area.
+
+A **short bar** is a hold-short node inside S (a dead-end fallback), a **far bar** the crossed runway's bar on the side an aircraft leaves by (both in [CONTEXT.md](../../CONTEXT.md)). Because an angled bar is farther out than S, code that must reach a runway's bars bounds its walk by the largest cross-track among the runway's hold-line bars (`AirportGroundLayout.OutwardWalkBoundFt`), not by S.
+
+The RSA boundary's nearest point is a line parallel to the runway centerline, so S is the same for every taxiway at a runway; the stop point on the taxiway centerline is not. Both `HoldShortDistanceForWidth` and `AirplaneDesignGroup.FromRunwayWidth` still exist for their other callers; `HoldShortDistanceForWidth` is read only by `BuildRunwayRectangle(GroundRunway)` for a runway of a layout stored before S, which has neither S nor an authored value.
 (Tail clearance for a landing aircraft rolling *out* of the runway is a separate concern, handled by
 the aircraft-length setback in [`RunwayExitPhase`](../landing-and-runway-exit.md) via
 `VirtualNode.OffsetPast` — see below.)
 
+The precompute key carries a `StandoffInputHash` over the runway inputs the rule reads, so a navdata or CIFP change that moves S stales an airport's entry ([`PrecomputeCache/README.md`](../../src/Yaat.Sim/Data/PrecomputeCache/README.md)).
+
 ## How the node is placed on the taxiway
 
 For each boundary edge (one endpoint on the runway, one off), `ProcessBoundaryEdge` seats the node at
-exactly `HoldShortNm` cross-track:
+the crossing's ideal cross-track, D (S itself for a perpendicular taxiway or where D is not taken):
 
 - **Interpolate** on the boundary edge when its off-node lies beyond the ideal (the common case) — an
   exact linear interpolation at the target cross-track fraction.
@@ -60,7 +68,7 @@ exactly `HoldShortNm` cross-track:
 GeoJSON shape-point happens to sit nearby, scattering the standoff by up to the tolerance — which pulls
 **acute-exit** bars *inside* the RSA (their shape points fall short) and pushes **right-angle** bars
 out past it. Tightening to the coincident-node threshold forces a node at the exact standoff whenever
-no shape-point is essentially already there, making placement angle-independent.
+no shape-point is essentially already there, so the scatter is the standoff rule's (the angle term), not the data's.
 
 ## Stopping short of a taxiway — the wingtip-clearance floor
 
@@ -109,7 +117,7 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
 
 ## Hold line or short bar — `GroundNode.IsShortBar`
 
-`RunwayCrossingDetector.MarkShortBars` runs as the last build step (`GeoJsonParser.BuildLayout` step 9, after the fillets have settled every node's position) and sets `GroundNode.IsShortBar` on every `RunwayHoldShort` node whose runway is in the layout: false for the runway's hold line, true for a short fallback bar inside the holding distance. It decides by the bar's cross-track from the runway centerline against the holding distance, within `HoldingDistanceToleranceFt` (`AirportGroundLayout.IsAtHoldingDistanceByCrossTrack`). Every other node reads null.
+`RunwayCrossingDetector.MarkShortBars` runs as the last build step (`GeoJsonParser.BuildLayout` step 9, after the fillets have settled every node's position) and sets `GroundNode.IsShortBar` on every `RunwayHoldShort` node whose runway is in the layout: false for the runway's hold line, true for a short fallback bar inside the holding distance. It decides by the bar's cross-track from the runway centerline against the holding distance, within `HoldingDistanceToleranceFt` (`AirportGroundLayout.IsAtHoldingDistanceByCrossTrack`: at or beyond S less the tolerance, so an angled bar at D is a hold line). Every other node reads null.
 
 `AirportGroundLayout.IsAtRunwayHoldingDistance`, the short-bar resolution and the exit search's outward walk read the flag first, and fall back to the cross-track measurement only when it is null (a node whose runway is not in the layout, or a layout serialized before the field). The flag is serialized only when non-null, so it rides in the layout JSON of recording archives and the precompute store without a layout format bump ([snapshots-and-replay.md](../snapshots-and-replay.md)).
 
@@ -137,6 +145,18 @@ While approaching, the navigator's speed is clamped to a braking curve that reac
 With the nose already at or past the marking of an uncleared **runway** bar on the start node (a TAXI starts the route on a bar's node only once the aircraft is close to it, so this is common), the line is lost. `TaxiingPhase.TryHoldPastStartBar` takes that hold instead: the aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, never stopped dead from taxi speed, and holds once it is down to one sub-tick of that braking, wherever that leaves it.
 
 The finding is latched on the bar's node (`TaxiingPhaseDto.PassedStartBarNodeId`), so the stop is not let go part-way as it carries the aircraft away from the node; how the nose is judged past the line is in [navigator.md](./navigator.md) § Stopping at an uncleared bar. `HoldInsideStoppingDistanceOfBarTests` pins an `HS` that re-arms the start bar, live and after a rewind. A re-route with no `HS` that leaves the aircraft partway across that runway keeps the crossing cleared and finishes it, so it never reaches this stop ([navigator.md](./navigator.md) § A re-route mid-crossing keeps the crossing).
+
+**A start bar is a hold or a runway entry only for a route leading toward its runway.** The holding position marking stops traffic not cleared onto the runway; for traffic leaving the runway it marks the point where the aircraft is clear (AIM 2-3-5.a.1, 4-3-21.a). So a start bar whose route's first leg leads away from the runway (its far node farther from the runway centreline than the bar; `HoldShortAnnotator.FirstLegLeadsTowardRunway` is the test for the opposite) is neither a hold nor a crossing.
+
+An arrival's `TAXI` off the runway adds no "(cross 28R/10L)" for the exit bar it leaves by, and a second `TAXI` given off the pavement short of the far marking holds at no 28R point.
+
+The bar also has to be still ahead of the aircraft along that first leg (`StartBarIsAhead`): no part of the body (nose, tail, either wingtip, from `StartPose.PartPositions`) lies more than `HoldLineFoulToleranceFt` past the bar in the leg's direction, so an aircraft facing the bar and cleared back the other way, whose tail is furthest along the route, has the bar behind it.
+
+`HoldShortAnnotator.StartBarHolds` is the one test, shared by `AddImplicitRunwayHoldShorts` (as a hold) and `FollowingPhase.RunwayEntries` (as a runway entry). A layout with no ground runway of the bar's name leaves the bar a hold, the safe side, with one warning per airport and node.
+
+The caller passes the aircraft's `StartPose` (main gear position, heading, body from the type; `StartPose.Of(aircraft)` or `Of(position, heading, type)`); a route that starts elsewhere than at the aircraft, an extension past another route's end, passes none and its start bar is never a hold. `TaxiPathfinder.FindAdjacentRunwayRoute` requires a pose.
+
+The start-node hold is taken by the phase (`TaxiingPhase.FirstRunwayBarAhead` returns it with index -1 while the route has not advanced, so a crossing clearance the aircraft already holds carries over to a new `TAXI`), and when the navigator holds an unsaid turn-about unable, the unable is said before the hold.
 
 ## Full-length vs intersection entry — `RunwayEntryPoint`
 
@@ -249,7 +269,8 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --exits <RWY> --jso
 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --debug-fillets --dump
 ```
 
-Regression coverage: `tests/Yaat.Sim.Tests/RunwayCrossingDetectorTests.cs` —
-`DetectRunwayCrossings_Oak_Runway30_12_HoldShortsAreAngleIndependent` (every exit at the same standoff
-regardless of angle) and `BuildRunwayRectangle_Oak_UsesAuthoredHoldShortDistance_ElseWidthFallback`
-(authored value wins, width heuristic is the fallback).
+Regression coverage: `tests/Yaat.Sim.Tests/Data/Airport/HoldShortStandoffTests.cs` pins the rule (by width, length and ILS, the elevation term, calibrated and authored precedence, the 15 ft warning, the taxiway width proxy, the angle term).
+
+`tests/Yaat.Sim.Tests/RunwayCrossingDetectorTests.cs` pins it on real layouts: `DetectRunwayCrossings_Oak_AngledHoldShortsSitOutByTheAngleTerm` (perpendicular bars at S, angled bars at D), `BuildRunwayRectangle_Oak_UsesTheRuleOverAStaleAuthoredValue_ElseTheRule` (OAK 28R authors 225 ft, the rule gives 250 ft), `DetectRunwayCrossings_Oak_StoresTheResolvedStandoff` and `EveryCommittedLayout_NoAngledBarSitsInsideAnotherRunwaysHoldingArea`.
+
+`tests/Yaat.Sim.Tests/Data/Airport/RunwayHoldBarsMarkingTests.cs` pins the painted-segment depth ([runway-fouling.md](../runway-fouling.md)), and `LocalizerCategoryTests` the ILS category read.

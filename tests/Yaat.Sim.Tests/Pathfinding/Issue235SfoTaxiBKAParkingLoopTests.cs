@@ -74,6 +74,7 @@ public class Issue235SfoTaxiBKAParkingLoopTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

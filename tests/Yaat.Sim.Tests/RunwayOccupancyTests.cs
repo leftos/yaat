@@ -528,8 +528,9 @@ public class RunwayOccupancyTests
     // --- Past the holding position marking (KOAK, real layout) ----------------------------------
 
     /// <summary>
-    /// An aircraft on the ground square to <paramref name="runway"/>'s holding position marking at <paramref name="bar"/>, moved
-    /// <paramref name="alongFt"/> along the runway, with <paramref name="partPastFt"/> of it past the marking toward the centreline
+    /// An aircraft on the ground square to <paramref name="runway"/>'s holding position marking at <paramref name="bar"/> — on the
+    /// taxiway axis through the bar (<see cref="RunwayHoldBars.TaxiwayAxisBearingDeg(RunwayInfo, GroundNode)"/>) — moved
+    /// <paramref name="alongFt"/> along the runway, with <paramref name="partPastFt"/> of it past the marking toward the runway
     /// (negative: short of it). Facing the runway that part is its nose; facing away, its tail. No phases.
     /// </summary>
     public static AircraftState SquareToTheMarking(
@@ -545,8 +546,34 @@ public class RunwayOccupancyTests
         var end2 = new LatLon(runway.Lat2, runway.Lon2);
         var along = new TrueHeading(GeoMath.BearingTo(end1, end2));
         LatLon marking = Project(bar.Position, along, alongFt);
+        TrueHeading toward = new TrueHeading(RunwayHoldBars.TaxiwayAxisBearingDeg(runway, bar)).ToReciprocal();
+        return PlacedToward(runway, type, facingRunway, Project(marking, toward, partPastFt - (AircraftLength.ResolveFt(type) / 2.0)), toward);
+    }
+
+    /// <summary>
+    /// An aircraft on the ground square to <paramref name="runway"/> through <paramref name="bar"/> — on the perpendicular from the
+    /// bar to the centreline — moved <paramref name="alongFt"/> along the runway, with <paramref name="partPastFt"/> of it past the
+    /// bar's distance from the centreline toward it (negative: short of it), so a position relative to the centreline is
+    /// <c>barFt ± X</c> whatever the taxiway's angle. Facing the runway that part is its nose; facing away, its tail. No phases.
+    /// </summary>
+    public static AircraftState SquareToTheRunway(
+        RunwayInfo runway,
+        GroundNode bar,
+        string type,
+        bool facingRunway,
+        double partPastFt,
+        double alongFt
+    )
+    {
+        var end1 = new LatLon(runway.Lat1, runway.Lon1);
+        var end2 = new LatLon(runway.Lat2, runway.Lon2);
+        LatLon marking = Project(bar.Position, new TrueHeading(GeoMath.BearingTo(end1, end2)), alongFt);
         var toward = new TrueHeading(GeoMath.BearingTo(marking, GeoMath.FootOfPerpendicular(marking, end1, end2).Foot));
-        LatLon centre = Project(marking, toward, partPastFt - (AircraftLength.ResolveFt(type) / 2.0));
+        return PlacedToward(runway, type, facingRunway, Project(marking, toward, partPastFt - (AircraftLength.ResolveFt(type) / 2.0)), toward);
+    }
+
+    private static AircraftState PlacedToward(RunwayInfo runway, string type, bool facingRunway, LatLon centre, TrueHeading toward)
+    {
         TrueHeading heading = facingRunway ? toward : toward.ToReciprocal();
         return new AircraftState
         {
@@ -833,12 +860,12 @@ public class RunwayOccupancyTests
         ExitPose pose = Assert.IsType<ExitPose>(HighSpeedExitFixture.TailOverThePavementOnAHighSpeedExit("KSFO", "28R", "B77W"));
         AircraftState exiting = pose.Stopped();
 
-        // Measured on the layout: the exit to bar #834 leaves 28R heading 271.6° true; the main gear 131.1 ft from the centreline
-        // (half-width 100 ft plus the 30 ft slack), the tail 77.4 ft from it and 418.3 ft along the runway from the nearest bar.
-        Assert.Equal(834, pose.Bar.Id);
+        // Measured on the layout: the exit to bar #241 leaves 28R heading 271.6° true; the main gear 131.1 ft from the centreline
+        // (half-width 100 ft plus the 30 ft slack), the tail 76.0 ft from it and 476.2 ft along the runway from the nearest bar.
+        Assert.Equal(241, pose.Bar.Id);
         Assert.Equal(131.1, pose.CentreFt, 0.5);
-        Assert.Equal(77.4, pose.TailFt, 0.5);
-        Assert.Equal(418.3, pose.TailAlongBarFt, 0.5);
+        Assert.Equal(76.0, pose.TailFt, 0.5);
+        Assert.Equal(476.2, pose.TailAlongBarFt, 0.5);
         Assert.False(RunwayOccupancy.IsOnPavement(exiting, pose.Runway));
         Assert.Equal(RunwayUseKind.Fouling, Kind(exiting, pose.Runway, pose.Layout));
     }
@@ -993,7 +1020,8 @@ public class RunwayOccupancyTests
                         placements++;
                         Assert.True(
                             Kind(onParallel, runway, layout) is null,
-                            $"B738 stopped on the parallel from node {junction.Id}, {RunwayHoldBars.CentrelineFt(runway, position):F0} ft off the centreline, fouls runway {designator} (bar {bar.Id})"
+                            $"B738 stopped on the parallel from node {junction.Id}, {RunwayHoldBars.CentrelineFt(runway, position):F0} ft "
+                                + $"off the centreline, fouls runway {designator} (bar {bar.Id})"
                         );
                     }
                 }
@@ -1023,7 +1051,10 @@ public class RunwayOccupancyTests
         }
     }
 
-    /// <summary>A stopped <paramref name="type"/> on the ground with its main gear at <paramref name="position"/>, in <paramref name="phase"/>.</summary>
+    /// <summary>
+    /// A stopped <paramref name="type"/> on the ground with its main gear at <paramref name="position"/>, in
+    /// <paramref name="phase"/>.
+    /// </summary>
     private static AircraftState StoppedAt(RunwayInfo runway, string airport, string type, LatLon position, double headingDeg, Phase phase)
     {
         var heading = new TrueHeading(headingDeg);
@@ -1122,10 +1153,11 @@ public class RunwayOccupancyTests
                         bool leavingFirst =
                             (RunwayHoldBars.CentrelineFt(first, bar.Position) > RunwayHoldBars.CentrelineFt(first, from.Position))
                             && (AxisDeviationDeg(heading.Degrees, first) > RunwayOccupancy.DirectionlessAxisToleranceDeg);
-                        bool tailInside = RunwayHoldBars.IsInsideBarLine(layout, first, Project(bar.Position, heading, -(body.LengthFt - 20.0)));
-                        bool centredClear = AircraftBody.AllParts.All(part =>
-                            !RunwayHoldBars.IsInsideBarLine(layout, first, body.PointOf(part, bar.Position, heading.Degrees))
-                        );
+                        LatLon tail = Project(bar.Position, heading, -(body.LengthFt - 20.0));
+                        bool tailInside = RunwayHoldBars.IsInsideBarLine(layout, first, tail, tail);
+                        bool centredClear = AircraftBody
+                            .AllParts.Select(part => body.PointOf(part, bar.Position, heading.Degrees))
+                            .All(point => !RunwayHoldBars.IsInsideBarLine(layout, first, point, point));
                         if (leavingFirst && tailInside && centredClear)
                         {
                             return (first, next, from, bar);
@@ -1253,7 +1285,8 @@ public class RunwayOccupancyTests
                 .Edges.Select(e => OtherEnd(e, bar))
                 .First(n => GeoMath.AbsBearingDifference(GeoMath.BearingTo(n.Position, bar.Position), intoDeg) < 1.0);
             var away = new TrueHeading(GeoMath.BearingTo(bar.Position, end.Position));
-            bool tailInside = RunwayHoldBars.IsInsideBarLine(layout, runway, Project(end.Position, away, -(halfFt - 10.0)));
+            LatLon tail = Project(end.Position, away, -(halfFt - 10.0));
+            bool tailInside = RunwayHoldBars.IsInsideBarLine(layout, runway, tail, tail);
             if (tailInside && (end.Type != GroundNodeType.RunwayHoldShort))
             {
                 return (layout, runway, bar, end);

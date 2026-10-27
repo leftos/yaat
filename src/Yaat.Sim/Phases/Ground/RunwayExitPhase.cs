@@ -1559,7 +1559,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         var holdShorts = new List<HoldShortPoint>();
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(ctx.GroundLayout, segments, holdShorts);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(ctx.GroundLayout, segments, holdShorts, StartPose.Of(ctx.Aircraft));
 
         var route = new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);

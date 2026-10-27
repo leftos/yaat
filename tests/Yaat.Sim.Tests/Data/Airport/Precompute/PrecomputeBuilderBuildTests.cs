@@ -37,7 +37,8 @@ public class PrecomputeBuilderBuildTests
                 NavDataSerial,
                 AirportSidecarHash.For(ArtccsDir, "OAK"),
                 AirportSidecarHash.ForStandLeadIns(ArtccsDir, "OAK"),
-                string.Empty
+                string.Empty,
+                standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
             );
             Assert.Equal(current, built.Key);
             Assert.Equal("OAK", built.AirportId);

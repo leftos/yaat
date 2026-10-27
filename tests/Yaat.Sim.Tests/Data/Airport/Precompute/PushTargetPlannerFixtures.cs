@@ -19,8 +19,8 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 /// </summary>
 internal static class PushTargetPlannerFixtures
 {
-    /// <summary>KOAK's GA20, a stand whose aircraft park facing their way out (parking node 689 of the test layout).</summary>
-    internal const int Ga20NodeId = 689;
+    /// <summary>KOAK's GA20, a stand whose aircraft park facing their way out (parking node 681 of the test layout).</summary>
+    internal const int Ga20NodeId = 681;
 
     /// <summary>The ARTCCs folder both the sidecar catalog and <see cref="AirportSidecarHash.For"/> read.</summary>
     internal static readonly string ArtccsDir = Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");

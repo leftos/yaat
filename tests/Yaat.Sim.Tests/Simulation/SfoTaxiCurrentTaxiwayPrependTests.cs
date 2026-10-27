@@ -361,6 +361,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             out string? asClearedFailure,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

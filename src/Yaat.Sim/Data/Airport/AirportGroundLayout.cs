@@ -761,11 +761,22 @@ public sealed class GroundRunway
     public required double WidthFt { get; init; }
 
     /// <summary>
-    /// Author-specified runway holding-position standoff in feet from centerline (vNAS map
-    /// <c>holdShortDistance</c>). Null when unset, in which case the width-based FAA Table 3-2
-    /// heuristic is used. See <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/>.
+    /// Author-specified runway holding-position standoff in feet from centerline (vNAS map <c>holdShortDistance</c>). Null
+    /// when unset. One input of the resolved standoff (<see cref="HoldShortStandoffFt"/>, by
+    /// <see cref="HoldShortStandoff.BaseSeparationFt"/>), which uses it unless it is more than 15 ft below the rule value on
+    /// a runway in the 250 ft class.
     /// </summary>
     public double? HoldShortDistanceFt { get; init; }
+
+    /// <summary>
+    /// The runway's resolved base hold-short separation S in feet from centerline: the distance its hold-line bars were
+    /// seated at by the layout build (<see cref="HoldShortStandoff.BaseSeparationFt"/>, from the authored
+    /// <see cref="HoldShortDistanceFt"/> and the runway's width, length, ILS category and elevation). Null only in a layout
+    /// serialised before this field existed, where readers fall back to <see cref="HoldShortDistanceFt"/>, else
+    /// <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? HoldShortStandoffFt { get; init; }
 
     /// <summary>
     /// Canonical per-end identity parsed from <see cref="Name"/> (zero-pad-normalized ends, e.g.
@@ -2709,11 +2720,37 @@ public sealed class AirportGroundLayout
         return new OutwardWalk(
             runway.Rect,
             runway.Designator,
-            runway.Rect.HoldShortNm * GeoMath.FeetPerNm,
+            OutwardWalkBoundFt(runway.Rect),
             search.ExcludeHoldShortNodes,
             search.ForbiddenTaxiways,
             forbiddenMoves
         );
+    }
+
+    /// <summary>
+    /// How far the outward walk to <paramref name="rect"/>'s runway's hold line may reach, feet: in path length and in distance
+    /// from the centerline. An angled taxiway's bar sits beyond the base separation S, so the bound is the largest
+    /// cross-track among the runway's hold-line bars; with none flagged, S plus the angle term's ceiling (half the
+    /// taxiway width proxy, <see cref="HoldShortStandoff.TaxiwayWidthProxyFt"/>).
+    /// </summary>
+    internal double OutwardWalkBoundFt(in RunwayRectangle rect)
+    {
+        double? largestBarFt = null;
+        foreach (GroundNode node in Nodes.Values)
+        {
+            if (
+                (node.Type == GroundNodeType.RunwayHoldShort)
+                && (node.RunwayId is { } id)
+                && id.Equals(rect.CombinedId)
+                && (node.IsShortBar == false)
+            )
+            {
+                largestBarFt = Math.Max(largestBarFt ?? 0.0, CrossTrackFromCenterlineFt(rect, node));
+            }
+        }
+
+        return largestBarFt
+            ?? ((rect.HoldShortNm * GeoMath.FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(rect)) / 2.0));
     }
 
     /// <summary>
@@ -2739,11 +2776,15 @@ public sealed class AirportGroundLayout
     /// <summary>The nodes a continuation adds after its start, ending at the bar, and its length.</summary>
     private readonly record struct OutwardContinuation(List<GroundNode> Steps, double LengthFt);
 
-    /// <summary>What bounds the continuation from a branch end: the runway, its holding distance and the exclusions.</summary>
+    /// <summary>
+    /// What bounds the continuation from a branch end: the runway, the walk's bound and the exclusions.
+    /// <see cref="BoundFt"/> caps both the continuation's length and how far from the centerline a step may land
+    /// (<see cref="OutwardWalkBoundFt(in RunwayRectangle)"/>).
+    /// </summary>
     private readonly record struct OutwardWalk(
         RunwayRectangle Rect,
         string Designator,
-        double HoldingFt,
+        double BoundFt,
         HashSet<int>? ExcludeHoldShortNodes,
         HashSet<string>? ForbiddenTaxiways,
         IReadOnlySet<(int From, int To)> ForbiddenMoves
@@ -2783,7 +2824,7 @@ public sealed class AirportGroundLayout
                 }
 
                 double distFt = priority.DistFt + (edge.DistanceNm * GeoMath.FeetPerNm);
-                if ((distFt > walk.HoldingFt) || (bestFt.TryGetValue(next.Id, out double knownFt) && (knownFt <= distFt)))
+                if ((distFt > walk.BoundFt) || (bestFt.TryGetValue(next.Id, out double knownFt) && (knownFt <= distFt)))
                 {
                     continue;
                 }
@@ -2829,7 +2870,7 @@ public sealed class AirportGroundLayout
         }
 
         double nextFt = CrossTrackFromCenterlineFt(walk.Rect, next);
-        if ((nextFt < crossFt + MinOutwardProgressFt) || (nextFt > walk.HoldingFt + HoldingDistanceToleranceFt))
+        if ((nextFt < crossFt + MinOutwardProgressFt) || (nextFt > walk.BoundFt + HoldingDistanceToleranceFt))
         {
             return false;
         }
@@ -2877,7 +2918,8 @@ public sealed class AirportGroundLayout
         return IsAtHoldingDistance(walk.Rect, node) ? OutwardStep.Target : OutwardStep.PassThrough;
     }
 
-    private static double CrossTrackFromCenterlineFt(in RunwayRectangle rect, GroundNode node) =>
+    /// <summary>How far, feet, <paramref name="node"/> lies from <paramref name="rect"/>'s runway centerline, measured square to it.</summary>
+    internal static double CrossTrackFromCenterlineFt(in RunwayRectangle rect, GroundNode node) =>
         Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * GeoMath.FeetPerNm;
 
     /// <summary>
@@ -3851,15 +3893,23 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// Exit angle from the actual traversal direction: the bearing of the path's final hop into the
-    /// hold-short vs the runway heading (arc-aware — uses the arc's arrival tangent when the final
-    /// hop is a <see cref="GroundArc"/>). Unlike <see cref="ComputeExitAngle"/>, which inspects edge
-    /// orientations at the hold-short node and takes the smallest angle, this reflects the direction
-    /// the aircraft is actually traveling when it reaches the hold-short — a hold-short reached by
-    /// doubling back through a reverse corner scores as the back-exit it is (~140°), not as the
-    /// shallow angle of the taxiway's other direction. Null when the path has fewer than two nodes.
+    /// How far, in feet of path past the point where the exit's centerline crosses the runway edge, its direction still counts
+    /// toward the exit angle; bends beyond never do.
     /// </summary>
-    public static double? ComputePathExitAngle(IReadOnlyList<GroundNode> path, string exitTaxiway, TrueHeading runwayHeading)
+    private const double TurnOffWindowPastEdgeFt = 50.0;
+
+    /// <summary>How far, in feet of path, <see cref="ComputeExitAngle"/> searches back along the exit taxiway for the runway.</summary>
+    private const double ExitChainSearchFt = 1500.0;
+
+    /// <summary>
+    /// Exit angle along the path the aircraft takes: <see cref="TurnOffAngle"/> over the path from where it leaves the
+    /// runway centerline (the last node of its leading run of centerline edges) to the exit's first bar or where the path
+    /// leaves the exit taxiway. Unlike <see cref="ComputeExitAngle"/>, which searches the graph from the bar, this follows the
+    /// direction the aircraft actually travels — a hold-short reached by doubling back through a reverse corner scores as the
+    /// back-exit it is (~140°). Null when that stretch has fewer than two nodes, when the path does not start on a runway
+    /// centerline, or when its runway is not in the layout.
+    /// </summary>
+    public double? ComputePathExitAngle(IReadOnlyList<GroundNode> path, string exitTaxiway, TrueHeading runwayHeading)
     {
         if (path.Count < 2)
         {
@@ -3878,27 +3928,319 @@ public sealed class AirportGroundLayout
             endIndex++;
         }
 
-        GroundNode from = path[endIndex - 1];
-        GroundNode to = path[endIndex];
-        // Prefer the arc when both a preserved straight shortcut and a corner arc join the same node
-        // pair — the arc's arrival tangent is the real traversal direction; the chord would understate
-        // a reverse corner's sweep.
-        IGroundEdge? edge =
-            from.Edges.FirstOrDefault(e => (e is GroundArc) && (e.OtherNode(from).Id == to.Id))
-            ?? from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == to.Id);
-        double bearing = edge is GroundArc arc ? arc.TangentBearingAt(to, from) : GeoMath.BearingTo(from.Position, to.Position);
-        return runwayHeading.AbsAngleTo(new TrueHeading(bearing));
+        int startIndex = 0;
+        while ((startIndex < endIndex) && (EdgeBetween(path[startIndex], path[startIndex + 1]) is { IsRunwayCenterline: true }))
+        {
+            startIndex++;
+        }
+
+        if ((startIndex >= endIndex) || !HasRunwayCenterlineEdge(path[startIndex]))
+        {
+            return null;
+        }
+
+        var chain = new List<GroundNode>(endIndex - startIndex + 1);
+        for (int i = startIndex; i <= endIndex; i++)
+        {
+            chain.Add(path[i]);
+        }
+
+        // The runway the path rolled along names the width, not whichever runway's centreline a crossing node lists first.
+        GroundRunway? runway =
+            ((startIndex > 0) && (EdgeBetween(path[startIndex - 1], path[startIndex]) is { IsRunwayCenterline: true } leading))
+                ? RunwayOwning(leading, path[startIndex])
+                : RunwayOfCenterlineNode(path[startIndex]);
+        return (runway is null) ? null : TurnOffAngle(chain, runwayHeading, runway);
     }
 
     private static bool StepMatchesTaxiway(GroundNode from, GroundNode to, string taxiway) =>
         from.Edges.Any(e => (e.OtherNode(from).Id == to.Id) && e.MatchesTaxiway(taxiway));
 
     /// <summary>
-    /// Compute the angle between the runway heading and the exit taxiway at the given node.
-    /// Returns the absolute angle in degrees (0 = aligned with runway, 90 = perpendicular).
-    /// Returns null if no taxiway edge heading can be determined.
+    /// An exit's angle from the runway heading over <paramref name="chain"/>, the exit's nodes ordered from the runway
+    /// centerline node outward to its bar: the largest angle of the exit centerline's direction to the runway heading, from
+    /// the centerline until the exit has crossed the runway edge (cross-track from the centerline node, along the runway
+    /// heading, of half the runway's width) and run <see cref="TurnOffWindowPastEdgeFt"/> further along the path, or until the
+    /// bar if that comes first. A straight hop's direction is its bearing; an arc's tangent turns monotonically, so its two end
+    /// tangents bound it. Every hop starting before the window ends counts; bends beyond never do. A node pair with no edge
+    /// between them counts as one straight hop. The runway is the layout's runway whose centerline edge the first node
+    /// carries. Null when the chain has fewer than two nodes or no layout runway owns that edge.
     /// </summary>
-    public double? ComputeExitAngle(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
+    internal double? TurnOffAngle(IReadOnlyList<GroundNode> chain, TrueHeading runwayHeading) =>
+        ((chain.Count >= 2) && (RunwayOfCenterlineNode(chain[0]) is { } runway)) ? TurnOffAngle(chain, runwayHeading, runway) : null;
+
+    /// <summary><see cref="TurnOffAngle(IReadOnlyList{GroundNode}, TrueHeading)"/> measured on <paramref name="runway"/>'s width.</summary>
+    private static double TurnOffAngle(IReadOnlyList<GroundNode> chain, TrueHeading runwayHeading, GroundRunway runway)
+    {
+        double halfWidthFt = runway.WidthFt / 2.0;
+        double maxAngle = 0.0;
+        double pathFt = 0.0;
+        double? windowEndFt = null;
+        for (int i = 0; (i < chain.Count - 1) && ((windowEndFt is null) || (pathFt < windowEndFt.Value)); i++)
+        {
+            GroundNode from = chain[i];
+            GroundNode to = chain[i + 1];
+            IGroundEdge? edge = EdgeBetween(from, to);
+            maxAngle = Math.Max(maxAngle, HopMaxAngle(from, to, edge, runwayHeading));
+            double hopFt = (edge?.DistanceNm ?? GeoMath.DistanceNm(from.Position, to.Position)) * GeoMath.FeetPerNm;
+            if ((windowEndFt is null) && (EdgeCrossingFraction(chain[0], from, to, runwayHeading, halfWidthFt) is { } fraction))
+            {
+                windowEndFt = pathFt + (fraction * hopFt) + TurnOffWindowPastEdgeFt;
+            }
+
+            pathFt += hopFt;
+        }
+
+        return maxAngle;
+    }
+
+    /// <summary>
+    /// The layout runway owning a centerline edge of <paramref name="centerlineNode"/>, matched by either end's designator;
+    /// null (with a warning, once per node) when none does.
+    /// </summary>
+    private GroundRunway? RunwayOfCenterlineNode(GroundNode centerlineNode) =>
+        (centerlineNode.Edges.FirstOrDefault(e => e.IsRunwayCenterline) is { } centerline) ? RunwayOwning(centerline, centerlineNode) : null;
+
+    /// <summary>
+    /// The layout runway owning <paramref name="centerline"/>, a centerline edge at <paramref name="node"/>, matched by either
+    /// end's designator; null when none does, with a warning the first time a node of this airport asks.
+    /// </summary>
+    private GroundRunway? RunwayOwning(IGroundEdge centerline, GroundNode node)
+    {
+        GroundRunway? runway = Runways.FirstOrDefault(r => centerline.MatchesRunway(r.Id.End1) || centerline.MatchesRunway(r.Id.End2));
+        if ((runway is null) && UnownedCenterlineWarned.TryAdd((AirportId, node.Id), 0))
+        {
+            Log.LogWarning(
+                "No layout runway owns centerline edge {Taxiway} at node #{NodeId}; its exit angle is not measured on the turn-off",
+                centerline.TaxiwayName,
+                node.Id
+            );
+        }
+
+        return runway;
+    }
+
+    /// <summary>The airport and node ids <see cref="RunwayOwning"/> has already warned about.</summary>
+    private static readonly ConcurrentDictionary<(string AirportId, int NodeId), byte> UnownedCenterlineWarned = new();
+
+    /// <summary>The largest angle to <paramref name="runwayHeading"/> of the hop's direction: its bearing, or an arc's two end tangents.</summary>
+    private static double HopMaxAngle(GroundNode from, GroundNode to, IGroundEdge? edge, TrueHeading runwayHeading)
+    {
+        if (edge is GroundArc arc)
+        {
+            double leaving = runwayHeading.AbsAngleTo(new TrueHeading(arc.TangentBearingAt(from, from)));
+            double arriving = runwayHeading.AbsAngleTo(new TrueHeading(arc.TangentBearingAt(to, from)));
+            return Math.Max(leaving, arriving);
+        }
+
+        return runwayHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(from.Position, to.Position)));
+    }
+
+    /// <summary>
+    /// The fraction of the hop at which the cross-track from <paramref name="origin"/> (along <paramref name="runwayHeading"/>)
+    /// first reaches <paramref name="halfWidthFt"/>, interpolated linearly between the hop's ends; null when the hop ends inside it.
+    /// </summary>
+    private static double? EdgeCrossingFraction(GroundNode origin, GroundNode from, GroundNode to, TrueHeading runwayHeading, double halfWidthFt)
+    {
+        double fromFt = CrossTrackFromNodeFt(origin, from, runwayHeading);
+        double toFt = CrossTrackFromNodeFt(origin, to, runwayHeading);
+        if (fromFt >= halfWidthFt)
+        {
+            return 0.0;
+        }
+
+        return (toFt >= halfWidthFt) ? (halfWidthFt - fromFt) / (toFt - fromFt) : null;
+    }
+
+    /// <summary>
+    /// The perpendicular distance, in feet, of <paramref name="point"/> from the line through <paramref name="origin"/> along
+    /// <paramref name="heading"/>.
+    /// </summary>
+    private static double CrossTrackFromNodeFt(GroundNode origin, GroundNode point, TrueHeading heading)
+    {
+        double distanceFt = GeoMath.DistanceNm(origin.Position, point.Position) * GeoMath.FeetPerNm;
+        double relativeDeg = heading.SignedAngleTo(new TrueHeading(GeoMath.BearingTo(origin.Position, point.Position)));
+        return Math.Abs(distanceFt * Math.Sin(relativeDeg * Math.PI / 180.0));
+    }
+
+    /// <summary>
+    /// The edge joining two nodes, preferring the arc when both a preserved straight shortcut and a corner arc join the pair —
+    /// the arc's tangent is the real traversal direction; the chord would understate a reverse corner's sweep. Null when none.
+    /// </summary>
+    private static IGroundEdge? EdgeBetween(GroundNode from, GroundNode to) =>
+        from.Edges.FirstOrDefault(e => (e is GroundArc) && (e.OtherNode(from).Id == to.Id))
+        ?? from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == to.Id);
+
+    /// <summary>
+    /// The angle between the runway heading and the exit taxiway at <paramref name="exitNode"/> (0 = aligned with the runway,
+    /// 90 = perpendicular): <see cref="TurnOffAngle"/> over the exit's chain from the runway centerline to the node, found
+    /// by <see cref="ChainFromRunway"/>, measured on <see cref="ExitChainRunway"/>'s width. With no such chain, or no layout
+    /// runway owning its centerline node, the smallest angle of the node's taxiway edges leading away from the runway. Null if
+    /// no taxiway edge heading can be determined.
+    /// </summary>
+    public double? ComputeExitAngle(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading) =>
+        (ChainFromRunway(exitNode, taxiwayName, runwayHeading) is { Count: >= 2 } chain) && (ExitChainRunway(chain[0], exitNode) is { } runway)
+            ? TurnOffAngle(chain, runwayHeading, runway)
+            : SmallestOutwardEdgeAngle(exitNode, taxiwayName, runwayHeading);
+
+    /// <summary>
+    /// The layout runway an exit chain from <paramref name="centerlineNode"/> is measured on: the one owning the centerline
+    /// edge there of the runway <paramref name="exitNode"/> protects (the match <see cref="IsOwnRunwayNode"/> ranks first),
+    /// else, for a node that protects none or a chain ending on another runway, <see cref="RunwayOfCenterlineNode"/>'s.
+    /// </summary>
+    private GroundRunway? ExitChainRunway(GroundNode centerlineNode, GroundNode exitNode) =>
+        (exitNode.RunwayId is { } runwayId)
+        && (
+            centerlineNode.Edges.FirstOrDefault(e => e.IsRunwayCenterline && (e.MatchesRunway(runwayId.End1) || e.MatchesRunway(runwayId.End2))) is
+            { } own
+        )
+            ? RunwayOwning(own, centerlineNode)
+            : RunwayOfCenterlineNode(centerlineNode);
+
+    /// <summary>
+    /// The exit's nodes from the runway centerline to <paramref name="exitNode"/>, ordered runway first: of the shortest paths,
+    /// in feet, from the node over non-centerline edges of <paramref name="taxiwayName"/> (a junction arc matches by any of its
+    /// names) to each node carrying a runway centerline edge within <see cref="ExitChainSearchFt"/> of path, the one ending on
+    /// the centerline of the runway the bar protects (every runway, for a node that protects none), then leaving the centerline
+    /// forward along <paramref name="runwayHeading"/> before across it before back up it (<see cref="LeavingClass"/>), then the
+    /// shortest. A reversed fillet built for the other landing direction is ranked last, never dropped, so a bar reachable only
+    /// by doubling back reads as the back exit it is. Equal lengths break toward the lower node id (<see cref="ChainReach"/>), so
+    /// the chain does not depend on the order the layout lists a node's edges in. Null when the node itself carries a centerline
+    /// edge or the search finds none.
+    /// </summary>
+    private static List<GroundNode>? ChainFromRunway(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
+    {
+        if (HasRunwayCenterlineEdge(exitNode))
+        {
+            return null;
+        }
+
+        var best = new Dictionary<int, ChainReach> { [exitNode.Id] = new ChainReach(0.0, exitNode.Id, exitNode.Id) };
+        var cameFrom = new Dictionary<int, GroundNode>();
+        var settled = new HashSet<int>();
+        var queue = new PriorityQueue<GroundNode, ChainReach>();
+        queue.Enqueue(exitNode, best[exitNode.Id]);
+        List<GroundNode>? bestChain = null;
+        (int OtherRunway, int Leaving) bestRank = (int.MaxValue, int.MaxValue);
+        while (queue.TryDequeue(out GroundNode? node, out ChainReach reached))
+        {
+            if (!settled.Add(node.Id))
+            {
+                continue;
+            }
+
+            if ((node.Id != exitNode.Id) && HasRunwayCenterlineEdge(node))
+            {
+                // Nodes settle shortest first, so the first chain of each rank is that rank's shortest.
+                (int OtherRunway, int Leaving) rank = (IsOwnRunwayNode(node, exitNode) ? 0 : 1, LeavingClass(node, cameFrom[node.Id], runwayHeading));
+                if (rank.CompareTo(bestRank) < 0)
+                {
+                    bestRank = rank;
+                    bestChain = UnwindToExitNode(node, cameFrom);
+                }
+
+                continue;
+            }
+
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                GroundNode next = edge.OtherNode(node);
+                var nextReach = new ChainReach(reached.PathFt + (edge.DistanceNm * GeoMath.FeetPerNm), next.Id, node.Id);
+                if (
+                    edge.IsRunwayCenterline
+                    || !edge.MatchesTaxiway(taxiwayName)
+                    || settled.Contains(next.Id)
+                    || (nextReach.PathFt > ExitChainSearchFt)
+                )
+                {
+                    continue;
+                }
+
+                if (best.TryGetValue(next.Id, out ChainReach known) && (nextReach.CompareTo(known) >= 0))
+                {
+                    continue;
+                }
+
+                best[next.Id] = nextReach;
+                cameFrom[next.Id] = node;
+                queue.Enqueue(next, nextReach);
+            }
+        }
+
+        return bestChain;
+    }
+
+    /// <summary>
+    /// The angle, in degrees, from the runway heading within which an exit chain's first hop off the centerline runs forward
+    /// along the runway, and within which of the reciprocal it runs back up it.
+    /// </summary>
+    private const double ExitChainMinOffCenterlineDeg = 20.0;
+
+    /// <summary>The angle from the runway heading beyond which an exit chain's first hop off the centerline runs back up the runway.</summary>
+    private const double ExitChainReversedDeg = 180.0 - ExitChainMinOffCenterlineDeg;
+
+    /// <summary>
+    /// Whether <paramref name="centerlineNode"/> lies on the centerline of the runway <paramref name="exitNode"/> protects; every
+    /// centerline node counts when the exit node protects no runway.
+    /// </summary>
+    private static bool IsOwnRunwayNode(GroundNode centerlineNode, GroundNode exitNode) =>
+        (exitNode.RunwayId is not { } runwayId)
+        || centerlineNode.Edges.Any(e => e.IsRunwayCenterline && (e.MatchesRunway(runwayId.End1) || e.MatchesRunway(runwayId.End2)));
+
+    /// <summary>
+    /// How an exit chain's first hop, from <paramref name="centerlineNode"/> to <paramref name="next"/>, leaves the centerline
+    /// against <paramref name="runwayHeading"/>: 0 forward (within <see cref="ExitChainMinOffCenterlineDeg"/> of the heading),
+    /// 2 back up the runway (beyond <see cref="ExitChainReversedDeg"/>), 1 across it. An arc's direction is its tangent at the
+    /// centerline node, a straight hop's its bearing.
+    /// </summary>
+    private static int LeavingClass(GroundNode centerlineNode, GroundNode next, TrueHeading runwayHeading)
+    {
+        double bearing =
+            (EdgeBetween(centerlineNode, next) is GroundArc arc)
+                ? arc.TangentBearingAt(centerlineNode, centerlineNode)
+                : GeoMath.BearingTo(centerlineNode.Position, next.Position);
+        double leavingDeg = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
+        if (leavingDeg < ExitChainMinOffCenterlineDeg)
+        {
+            return 0;
+        }
+
+        return (leavingDeg > ExitChainReversedDeg) ? 2 : 1;
+    }
+
+    /// <summary>
+    /// How <see cref="ChainFromRunway"/> reached a node: shortest path first, then the lower node id, then from the lower node
+    /// id, so the search's order does not depend on the order the layout lists a node's edges in.
+    /// </summary>
+    private readonly record struct ChainReach(double PathFt, int NodeId, int FromNodeId) : IComparable<ChainReach>
+    {
+        public int CompareTo(ChainReach other)
+        {
+            int byPath = PathFt.CompareTo(other.PathFt);
+            if (byPath != 0)
+            {
+                return byPath;
+            }
+
+            int byNode = NodeId.CompareTo(other.NodeId);
+            return (byNode != 0) ? byNode : FromNodeId.CompareTo(other.FromNodeId);
+        }
+    }
+
+    /// <summary>The search's path from <paramref name="runwayNode"/> back to the node it started from, in that order.</summary>
+    private static List<GroundNode> UnwindToExitNode(GroundNode runwayNode, Dictionary<int, GroundNode> cameFrom)
+    {
+        List<GroundNode> chain = [runwayNode];
+        while (cameFrom.TryGetValue(chain[^1].Id, out GroundNode? previous))
+        {
+            chain.Add(previous);
+        }
+
+        return chain;
+    }
+
+    /// <summary>The smallest angle from the runway heading of <paramref name="exitNode"/>'s taxiway edges leading away from the runway.</summary>
+    private static double? SmallestOutwardEdgeAngle(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
     {
         // Find the edge that leads AWAY from the runway (neighbor is not on the
         // centerline) and return its angle from the runway heading. This is the

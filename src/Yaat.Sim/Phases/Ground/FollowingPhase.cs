@@ -616,8 +616,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         IEnumerable<GroundNode> crossedAhead = layout.Nodes.Values.Where(node => IsBarAhead(ctx, node, lookAheadFt) && IsCrossedBar(ctx, node));
         foreach (GroundNode node in BarsOnRestOfRoute(route, crossedAhead))
         {
-            BarAhead candidate = ToBarAhead(ctx, node, ApproachBearingDeg(node, ctx.Aircraft.Position), halfLengthFt);
-            if (IsClosingOnHoldLine(ctx, candidate, lookAheadFt) && ((nearest is null) || (candidate.ToStopFt < nearest.Value.ToStopFt)))
+            if (
+                (ReachedBarAhead(ctx, node, halfLengthFt) is { } candidate)
+                && IsClosingOnHoldLine(ctx, candidate, lookAheadFt)
+                && ((nearest is null) || (candidate.ToStopFt < nearest.Value.ToStopFt))
+            )
             {
                 nearest = candidate;
             }
@@ -664,7 +667,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         LatLon nose = NoseOf(ctx.Aircraft);
         return RunwayOccupancy
             .AirportRunways(layout.AirportId)
-            .FirstOrDefault(r => IsRunwayCrossingCleared(r) && IsInsideHoldLine(layout, r, nose) && !RunwayOccupancy.IsOnPavement(ctx.Aircraft, r));
+            .FirstOrDefault(r =>
+                IsRunwayCrossingCleared(r)
+                && IsInsideHoldLine(layout, r, nose, ctx.Aircraft.Position)
+                && !RunwayOccupancy.IsOnPavement(ctx.Aircraft, r)
+            );
     }
 
     /// <summary>A runway the crossing clearance covers whose pavement some part of the follower is on; null with none.</summary>
@@ -960,7 +967,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// </summary>
     private bool RefuseRunwayEntry(PhaseContext ctx, AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto, string way)
     {
-        if (RunwayEntries(layout, onto) is not { Count: > 0 } entries)
+        if (RunwayEntries(layout, onto, StartPose.Of(ctx.Aircraft)) is not { Count: > 0 } entries)
         {
             return false;
         }
@@ -982,10 +989,10 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// on a runway's pavement (<see cref="RunwayNodesEntered"/>), so a layout with no bar, or a way back starting on one, is
     /// caught too. Bars first.
     /// </summary>
-    internal static List<int> RunwayEntries(AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto)
+    internal static List<int> RunwayEntries(AirportGroundLayout layout, FollowRoutePlanner.RouteFromHere onto, StartPose? startPose)
     {
         List<HoldShortPoint> bars = [];
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, onto.Segments, bars);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, onto.Segments, bars, startPose);
         List<int> entries = [.. bars.Where(b => b.NodeId != onto.GoalNodeId).Select(b => b.NodeId)];
         if ((StartBarCrossed(layout, onto.Segments) is { } startBar) && !entries.Contains(startBar))
         {
@@ -1440,21 +1447,32 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// The runway the aircraft is inside the hold line of: its nose, centre or tail on the runway's pavement, or nearer the
-    /// centreline than the nearest of the runway's hold-short bars on that point's side. Null when clear of every runway.
+    /// The runway the aircraft is inside the hold line of: its nose, centre or tail on the runway's pavement, or past the marking
+    /// of the nearest of the runway's hold-short bars on that point's side, judged with the aircraft's position as its main gear
+    /// (<see cref="RunwayHoldBars.IsInsideBarLine"/>). Null when clear of every runway.
     /// </summary>
     public static RunwayInfo? RunwayInsideHoldLine(AircraftState aircraft, AirportGroundLayout layout)
     {
         LatLon[] points = [NoseOf(aircraft), aircraft.Position, TailOf(aircraft)];
-        return RunwayOccupancy.AirportRunways(layout.AirportId).FirstOrDefault(runway => points.Any(p => IsInsideHoldLine(layout, runway, p)));
+        return RunwayOccupancy
+            .AirportRunways(layout.AirportId)
+            .FirstOrDefault(runway => points.Any(p => IsInsideHoldLine(layout, runway, p, aircraft.Position)));
     }
 
     /// <summary>
-    /// Whether <paramref name="point"/> is on <paramref name="runway"/>'s pavement or nearer its centreline than the nearest of
-    /// the runway's hold-short bars on the point's side.
+    /// Whether <paramref name="point"/>, a part of an aircraft whose main gear is at <paramref name="gearPosition"/>, is on
+    /// <paramref name="runway"/>'s pavement or past the marking of the nearest of the runway's hold-short bars on the point's side.
+    /// </summary>
+    public static bool IsInsideHoldLine(AirportGroundLayout layout, RunwayInfo runway, LatLon point, LatLon gearPosition) =>
+        RunwayOccupancy.IsWithinPavement(point, runway) || IsInsideBarLine(layout, runway, point, gearPosition);
+
+    /// <summary>
+    /// Whether a bare <paramref name="point"/>, with no aircraft pose, is inside <paramref name="runway"/>'s hold line
+    /// (<see cref="IsInsideHoldLine(AirportGroundLayout, RunwayInfo, LatLon, LatLon)"/>), judged as an aircraft standing there:
+    /// the point is its own main-gear position.
     /// </summary>
     public static bool IsInsideHoldLine(AirportGroundLayout layout, RunwayInfo runway, LatLon point) =>
-        RunwayOccupancy.IsWithinPavement(point, runway) || IsInsideBarLine(layout, runway, point);
+        IsInsideHoldLine(layout, runway, point, point);
 
     /// <summary>A clearing route and the hold-short bar node it clears.</summary>
     private readonly record struct Clearing(TaxiRoute Route, int BarNodeId);
@@ -2994,8 +3012,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 continue;
             }
 
-            BarAhead candidate = ToBarAhead(ctx, node, ApproachBearingDeg(node, ctx.Aircraft.Position), halfLengthFt);
-            if (IsClosingOnHoldLine(ctx, candidate, lookAheadFt))
+            if ((ReachedBarAhead(ctx, node, halfLengthFt) is { } candidate) && IsClosingOnHoldLine(ctx, candidate, lookAheadFt))
             {
                 nearest = candidate;
                 nearestDistanceFt = distanceFt;
@@ -3119,27 +3136,48 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// The bearing (deg true) from <paramref name="bar"/> back up the edge leading into it: of the bar node's edges, the
-    /// one whose far end lies nearest in bearing to <paramref name="aircraftPosition"/>.
+    /// <paramref name="node"/> as a bar ahead of the follower (<see cref="ToBarAhead"/>), or null when the follower does not reach
+    /// it: a bar counts when it is on the rest of the follow route (<see cref="IsOnRestOfRoute"/>), or when the edge it is
+    /// approached by from the follower — of the bar's edges, the one whose far end lies nearest in bearing to the follower — is a
+    /// straight edge of the bar's own taxiway (<see cref="RunwayHoldBars.BarTaxiwayEdges"/>). A bar on a fillet tangent that the follower reaches
+    /// only through the arc from a taxiway it is passing is not ahead of it. The hold line is square to the bar's taxiway, never
+    /// to an arc (<see cref="ApproachBearingDeg"/>).
     /// </summary>
-    private static double ApproachBearingDeg(GroundNode bar, LatLon aircraftPosition)
+    private BarAhead? ReachedBarAhead(PhaseContext ctx, GroundNode node, double halfLengthFt)
     {
-        double towardAircraft = GeoMath.BearingTo(bar.Position, aircraftPosition);
-        double approachDeg = towardAircraft;
-        double nearestOffDeg = double.MaxValue;
-        foreach (IGroundEdge edge in bar.Edges)
+        List<GroundEdge> taxiwayEdges = RunwayHoldBars.BarTaxiwayEdges(node);
+        LatLon position = ctx.Aircraft.Position;
+        bool onRoute = (_followRoute is { } route) && IsOnRestOfRoute(route, node.Id);
+        bool overTaxiway = (NearestInBearing(node, node.Edges, position) is GroundEdge approach) && taxiwayEdges.Contains(approach);
+        if (!onRoute && !overTaxiway)
         {
-            double edgeDeg = GeoMath.BearingTo(bar.Position, FarNode(edge, bar).Position);
-            double offDeg = Math.Abs(GeoMath.SignedBearingDifference(towardAircraft, edgeDeg));
-            if (offDeg < nearestOffDeg)
-            {
-                nearestOffDeg = offDeg;
-                approachDeg = edgeDeg;
-            }
+            return null;
         }
 
-        return approachDeg;
+        return ToBarAhead(ctx, node, ApproachBearingDeg(node, taxiwayEdges, position), halfLengthFt);
     }
+
+    /// <summary>
+    /// Of <paramref name="edges"/> at <paramref name="bar"/>, the one whose far end lies nearest in bearing to
+    /// <paramref name="position"/>; null with none.
+    /// </summary>
+    private static IGroundEdge? NearestInBearing(GroundNode bar, IEnumerable<IGroundEdge> edges, LatLon position)
+    {
+        double towardPosition = GeoMath.BearingTo(bar.Position, position);
+        return edges.MinBy(edge =>
+            Math.Abs(GeoMath.SignedBearingDifference(towardPosition, GeoMath.BearingTo(bar.Position, FarNode(edge, bar).Position)))
+        );
+    }
+
+    /// <summary>
+    /// The bearing (deg true) from <paramref name="bar"/> back up the edge leading into it: of the bar's straight edges of its own
+    /// taxiway (<paramref name="taxiwayEdges"/>), the one whose far end lies nearest in bearing to <paramref name="aircraftPosition"/>;
+    /// the bearing to the aircraft when the bar has none.
+    /// </summary>
+    private static double ApproachBearingDeg(GroundNode bar, List<GroundEdge> taxiwayEdges, LatLon aircraftPosition) =>
+        NearestInBearing(bar, taxiwayEdges, aircraftPosition) is { } edge
+            ? GeoMath.BearingTo(bar.Position, FarNode(edge, bar).Position)
+            : GeoMath.BearingTo(bar.Position, aircraftPosition);
 
     private static GroundNode FarNode(IGroundEdge edge, GroundNode from) => edge.Nodes[0].Id == from.Id ? edge.Nodes[1] : edge.Nodes[0];
 
@@ -3428,9 +3466,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         return null;
     }
 
-    /// <summary>Whether the follower's nose, centre or tail is inside <paramref name="runway"/>'s hold line.</summary>
+    /// <summary>
+    /// Whether the follower's nose, centre or tail is inside <paramref name="runway"/>'s hold line, each part judged with the
+    /// centre as the main gear.
+    /// </summary>
     private static bool IsAnyPartInsideHoldLine(AirportGroundLayout layout, RunwayInfo runway, LatLon nose, LatLon centre, LatLon tail) =>
-        IsInsideHoldLine(layout, runway, nose) || IsInsideHoldLine(layout, runway, centre) || IsInsideHoldLine(layout, runway, tail);
+        IsInsideHoldLine(layout, runway, nose, centre)
+        || IsInsideHoldLine(layout, runway, centre, centre)
+        || IsInsideHoldLine(layout, runway, tail, centre);
 
     /// <summary>Whether any of <paramref name="runways"/> overlaps <paramref name="id"/>.</summary>
     private static bool AnyOverlaps(List<RunwayIdentifier> runways, RunwayIdentifier id)

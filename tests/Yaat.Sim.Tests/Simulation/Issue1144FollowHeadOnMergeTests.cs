@@ -89,7 +89,7 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         AircraftState ups = Assert.IsType<AircraftState>(engine.FindAircraft("UPS947"));
         AircraftState swa = Assert.IsType<AircraftState>(engine.FindAircraft("SWA6139"));
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(swa.Ground.Layout);
-        Assert.Contains(swa.Ground.TaxiEdgeTrail.Edges, e => ((e.NodeA == 725) && (e.NodeB == 159)) || ((e.NodeA == 159) && (e.NodeB == 725)));
+        Assert.Contains(swa.Ground.TaxiEdgeTrail.Edges, e => ((e.NodeA == 717) && (e.NodeB == 159)) || ((e.NodeA == 159) && (e.NodeB == 717)));
 
         IReadOnlyList<DirectionalEdge> path = Assert.IsAssignableFrom<IReadOnlyList<DirectionalEdge>>(
             FollowRoutePlanner.LeadPathOf(layout, swa, ups)
@@ -110,7 +110,8 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
 
     /// <summary>
     /// Replayed from t=1018 with the recorded <c>FOLLOWG SWA6139</c> through the recording's end, UPS947 turns from B onto T
-    /// behind SWA6139 and never swings past T's heading into a turn about.
+    /// behind SWA6139 and, at the end, heads along the edge of its follow route it is driving rather than swinging past it into
+    /// a turn about.
     /// </summary>
     [Fact]
     public void UPS947_FollowgHeadOnLead_TurnsOntoTWithoutTurningAbout()
@@ -147,9 +148,17 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         Assert.Equal("SWA6139", follow.TargetCallsign);
         Assert.Equal("T", ups.Ground.CurrentTaxiway);
         Assert.True(ups.GroundSpeed >= MovingKts, $"UPS947 is not moving at t={RecordingEnd}: {ups.GroundSpeed:F1} kt");
-        double offT = Math.Abs(GeoMath.SignedBearingDifference(ups.TrueHeading.Degrees, HeadingOnT));
-        Assert.True(offT <= 10.0, $"UPS947 heads {ups.TrueHeading.Degrees:F1}° at t={RecordingEnd}, {offT:F1}° off T's {HeadingOnT:F0}°");
+        // The recording ends on a stretch the lead itself drove at about 142°, so the pin is the follow route's own edge at
+        // UPS947's position, not T's nominal heading: the follower still tracks its route.
         TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
+        TaxiRouteSegment current = route.Segments[route.CurrentSegmentIndex];
+        double edgeDeg = GeoMath.BearingTo(ups.Position, current.Edge.ToNode.Position);
+        double offEdge = Math.Abs(GeoMath.SignedBearingDifference(ups.TrueHeading.Degrees, edgeDeg));
+        Assert.True(
+            offEdge <= 10.0,
+            $"UPS947 heads {ups.TrueHeading.Degrees:F1}° at t={RecordingEnd}, {offEdge:F1}° off its follow route's edge "
+                + $"#{current.FromNodeId}-#{current.ToNodeId} at {edgeDeg:F1}°"
+        );
         AircraftState swa = Assert.IsType<AircraftState>(engine.FindAircraft("SWA6139"));
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(ups.Ground.Layout);
         List<DirectionalEdge> ahead = [.. route.Segments.Skip(route.CurrentSegmentIndex).Select(s => s.Edge)];
@@ -158,9 +167,6 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
             $"SWA6139 is not ahead of UPS947 along its follow route {route.ToSummary()}"
         );
     }
-
-    /// <summary>Taxiway T's heading (degrees true) from B, the way SWA6139 and UPS947 drive it.</summary>
-    private const double HeadingOnT = 130.0;
 
     /// <summary>The ground speed (kt) at or above which UPS947 counts as moving.</summary>
     private const double MovingKts = 1.0;

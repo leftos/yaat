@@ -179,6 +179,7 @@ public class AirportSidecarCatalogTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -219,6 +220,7 @@ public class AirportSidecarCatalogTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

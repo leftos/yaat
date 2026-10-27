@@ -53,6 +53,7 @@ public sealed class HtmlRenderCommand : ICommand
                 out string? _,
                 new ExplicitPathOptions
                 {
+                    StartPose = null,
                     OccupiedTaxiway = null,
                     ImpliedLeadTaxiway = null,
                     AircraftLengthFt = QueryCommand.LongestFallbackLengthFt,

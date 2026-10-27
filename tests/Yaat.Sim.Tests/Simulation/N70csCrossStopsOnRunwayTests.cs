@@ -81,6 +81,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

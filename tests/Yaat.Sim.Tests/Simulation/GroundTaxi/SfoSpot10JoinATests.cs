@@ -103,6 +103,7 @@ public class SfoSpot10JoinATests
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

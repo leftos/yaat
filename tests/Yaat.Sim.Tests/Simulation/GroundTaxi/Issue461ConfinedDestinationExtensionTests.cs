@@ -5,7 +5,6 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -20,11 +19,6 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 [Collection("Acceptance")]
 public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
 {
-    private const string OakPostLandingBundlePath = "TestData/s2-oak3-follow-runaway-ias-recording.yaat-bug-report-bundle.zip";
-
-    /// <summary>OAK 28R hold-short on G, north side (node 508): where a 28R arrival exiting on G holds.</summary>
-    private const int OakGNorthOf28RHoldShortNode = 508;
-
     /// <summary>North along G, towards SIG1.</summary>
     private const double OakNorthAlongGHeadingDeg = 0.0;
 
@@ -99,7 +93,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A short implied lead-in: OAK <c>TAXI G @SIG1</c> from the 28R hold-short on G (node 508). SIG1 hangs off D, which the
+    /// A short implied lead-in: OAK <c>TAXI G @SIG1</c> from the 28R hold-short on G, north side. SIG1 hangs off D, which the
     /// clearance does not name, but after D the route drives only apron to SIG1 and the run on D is well under
     /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.SegmentExpander.MaxImpliedLeadInFt"/>, so D is driven silently: the
     /// route reaches SIG1, nothing is warned, and the readback is the clearance as issued.
@@ -113,7 +107,8 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode start = layout.Nodes[OakGNorthOf28RHoldShortNode];
+        // G meets 28R on both sides; the north bar is where a 28R arrival exiting on G holds.
+        GroundNode start = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "G").MaxBy(n => n.Position.Lat)!;
         AircraftState aircraft = MakeAircraft(layout, start.Position, new TrueHeading(OakNorthAlongGHeadingDeg), new HoldingInPositionPhase());
         var taxi = new TaxiCommand(Path: ["G"], HoldShorts: [], Expedite: false, DestinationParking: "SIG1");
 
@@ -138,7 +133,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     [Fact]
     public void ThroughTaxiway_HoldsAtRealMissingLink_N9225L()
     {
-        if (ReplayN9225LToEExit() is not { } engine)
+        if (N9225LHoldingAfterEExit() is not { } engine)
         {
             return;
         }
@@ -173,7 +168,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     [Fact]
     public void OffRoute_RefusalNamesMissingLink()
     {
-        if (ReplayN9225LToEExit() is not { } engine)
+        if (N9225LHoldingAfterEExit() is not { } engine)
         {
             return;
         }
@@ -306,7 +301,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     [Fact]
     public void NoDestination_StartLink_HoldsShortOfC_N9225L()
     {
-        if (ReplayN9225LToEExit() is not { } engine)
+        if (N9225LHoldingAfterEExit() is not { } engine)
         {
             return;
         }
@@ -389,7 +384,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     /// <summary>N9225L after <c>TAXI D @NEW1</c> from the E exit, stopped at the end of its route holding short of C.</summary>
     private SimulationEngine? HoldN9225LShortOfC()
     {
-        if (ReplayN9225LToEExit() is not { } engine)
+        if (N9225LHoldingAfterEExit() is not { } engine)
         {
             return null;
         }
@@ -413,35 +408,41 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The S2-OAK-3 bundle replayed to just before N9225L's recorded <c>TAXI D @NEW1</c> (t=423), then ticked until it
-    /// settles holding after its exit onto E — the setup of <c>OakPostLandingReversalsTests</c>. Null without navdata or
-    /// the bundle.
+    /// N9225L, a C172, holding after its exit off 28R onto E, just outside E's 28R bar
+    /// (<see cref="Issue1334OakDToFAcross33Tests.MakeHoldingAfterEExit"/>), alone in an OAK engine. Null without navdata or
+    /// the OAK layout.
     /// </summary>
-    private SimulationEngine? ReplayN9225LToEExit()
+    private SimulationEngine? N9225LHoldingAfterEExit()
     {
-        RecordingArchive? archive = RecordingLoader.OpenArchive(OakPostLandingBundlePath);
         TestVnasData.EnsureInitialized();
-        if ((archive is null) || (TestVnasData.NavigationDb is null))
+        if (TestVnasData.NavigationDb is null)
         {
-            archive?.Dispose();
             return null;
         }
 
-        using (archive)
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
+        if (groundData.GetLayout("OAK") is not { } layout)
         {
-            SimLogBuilder.CreateForTest(output).InitializeSimLog();
-            var engine = new SimulationEngine(new TestAirportGroundData(FilletMode.Standard), PushPlanStore.CreateShipped());
-            engine.Replay(archive.ToBaseSessionRecording(), 423);
-            for (int t = 0; (t < 120) && (engine.FindAircraft("N9225L")?.Phases?.CurrentPhase?.Name != "Holding After Exit"); t++)
-            {
-                engine.TickOneSecond();
-            }
-
-            AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft("N9225L"));
-            Assert.Equal("Holding After Exit", aircraft.Phases?.CurrentPhase?.Name);
-            Assert.Equal("E", aircraft.Ground.CurrentTaxiway);
-            return engine;
+            return null;
         }
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-issue461-n9225l-after-e-exit",
+                ScenarioName = "OAK N9225L after the E exit",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+            },
+        };
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeHoldingAfterEExit(layout, "N9225L", "C172");
+        engine.World.AddAircraft(aircraft);
+        Assert.Equal("Holding After Exit", aircraft.Phases?.CurrentPhase?.Name);
+        return engine;
     }
 
     private AirportGroundLayout? LoadOak()

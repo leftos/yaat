@@ -117,6 +117,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = "B",
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -561,6 +562,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

@@ -43,6 +43,12 @@ public sealed class ExplicitPathOptions
     public double? StartHeadingTrue { get; init; }
 
     /// <summary>
+    /// The aircraft's pose when the path starts at the aircraft (<see cref="Pathfinding.SearchContext.StartPose"/>);
+    /// null when it does not (a preview, a planner, a head route from elsewhere).
+    /// </summary>
+    public required StartPose? StartPose { get; init; }
+
+    /// <summary>
     /// The taxiway the aircraft occupies at the start node, or null when it occupies none or the caller does not
     /// track it. A route that follows it from the start onto the first cleared taxiway is not following a taxiway
     /// "not in the route issued": the aircraft is already on it.

@@ -147,6 +147,7 @@ public class ImplicitConnectorTests
             null,
             null,
             null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
 
@@ -169,6 +170,7 @@ public class ImplicitConnectorTests
             null,
             null,
             null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("B738")
         );
         Assert.NotNull(ctx2.AuthorizedTaxiways);

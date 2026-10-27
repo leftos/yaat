@@ -723,8 +723,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             MiddleCallsign,
             "C172",
-            run.Chain[2].Position,
-            FollowCornerGeometry.Facing(run.Chain[2], run.Chain[3])
+            run.Chain[1].Position,
+            FollowCornerGeometry.Facing(run.Chain[1], run.Chain[2])
         );
         middle.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(middle);
@@ -761,7 +761,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A C560 on B north of the 28R bar at <c>Chain[3]</c>, facing away from the runway, cleared <c>TAXI B C J</c> (along C to the
+    /// A C560 on B north of the 28R bar at <c>Chain[2]</c>, facing away from the runway, cleared <c>TAXI B C J</c> (along C to the
     /// C/J intersection, no runway on the way) and ticked until its trail holds at least two edges.
     /// </summary>
     private FollowCornerGeometry.LeadRun? StartTaxiingLeadAlongC()
@@ -772,7 +772,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
-        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[4]), "TAXI B C J");
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[2], chain[3]), "TAXI B C J");
         TaxiRoute route = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
         Assert.Empty(route.HoldShortPoints);
@@ -1433,7 +1433,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
-        AircraftState follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
+        AircraftState follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[4], chain[3]), "TAXI B W 30");
         AircraftState lead = FollowCornerGeometry.SpawnAtStand(setup.Layout, LeadCallsign);
         setup.Engine.World.AddAircraft(lead);
         CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}");
@@ -1767,12 +1767,12 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            chain[5].Position,
-            FollowCornerGeometry.Facing(chain[5], chain[6])
+            chain[4].Position,
+            FollowCornerGeometry.Facing(chain[4], chain[5])
         );
         int missing = layout.Nodes.Keys.Max() + 1;
         Assert.False(FollowingPhase.IsPastClearingBar(layout, missing, aircraft), $"past bar node #{missing}, which the layout does not have");
-        Assert.False(FollowingPhase.IsPastClearingBar(layout, chain[5].Id, aircraft), $"past B node #{chain[5].Id}, which is no runway bar");
+        Assert.False(FollowingPhase.IsPastClearingBar(layout, chain[4].Id, aircraft), $"past B node #{chain[4].Id}, which is no runway bar");
         Assert.True(FollowingPhase.IsPastClearingBar(layout, chain[0].Id, aircraft), "not past the 28R bar from well up B");
     }
 
@@ -1976,8 +1976,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
     /// <summary>
     /// The crossing <see cref="Following_LongAircraftOnClearingRoute_TailClearsAndBrakesWithinTheRoute"/> clears at
-    /// <paramref name="airportId"/>: OAK's 28R on B, as <see cref="RunRouteOutInsideHoldLine"/>; SFO's 01R/19L from bar #898 to
-    /// bar #897, the crossing a B744's clearing route ran out on.
+    /// <paramref name="airportId"/>: OAK's 28R on B, as <see cref="RunRouteOutInsideHoldLine"/>; SFO's 01R/19L from bar #899 to
+    /// bar #898, the crossing a B744's clearing route ran out on.
     /// </summary>
     private static ClearingCase LongClearingCase(string airportId, AirportGroundLayout layout, string type, bool withAssignedRoute)
     {
@@ -1992,11 +1992,11 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         RunwayInfo runway = RunwayOccupancy.AirportRunways(layout.AirportId).First(r => r.Id.Overlaps(RunwayIdentifier.Parse("01R")));
-        Assert.True(layout.Nodes.TryGetValue(898, out GroundNode? near), "SFO node #898 is no longer in the layout");
-        Assert.True(layout.Nodes.TryGetValue(897, out GroundNode? far), "SFO node #897 is no longer in the layout");
+        Assert.True(layout.Nodes.TryGetValue(899, out GroundNode? near), "SFO node #899 is no longer in the layout");
+        Assert.True(layout.Nodes.TryGetValue(898, out GroundNode? far), "SFO node #898 is no longer in the layout");
         Assert.True(
             (near.RunwayId is { } nearId) && nearId.Overlaps(runway.Id) && (far.RunwayId is { } farId) && farId.Overlaps(runway.Id),
-            "SFO nodes #898 and #897 are no longer bars of 01R/19L"
+            "SFO nodes #899 and #898 are no longer bars of 01R/19L"
         );
         return new ClearingCase(runway, near, far, type, withAssignedRoute);
     }
@@ -2046,7 +2046,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             (run.Engine, run.Layout),
             MiddleCallsign,
             "C172",
-            (run.Chain[4], run.Chain[3]),
+            (run.Chain[3], run.Chain[2]),
             "TAXI B W 30"
         );
         CommandResult follow = run.Engine.SendCommand(MiddleCallsign, $"FOLLOWG {run.Lead.Callsign}; CROSS 28R");
@@ -2055,8 +2055,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            FollowCornerGeometry.Between(run.Chain[5].Position, run.Chain[4].Position, 0.5),
-            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
+            FollowCornerGeometry.Between(run.Chain[4].Position, run.Chain[3].Position, 0.5),
+            FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
         );
         follower.Ground.Layout = run.Layout;
 
@@ -2469,7 +2469,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.True(onto.HasValue, $"no way back from 28R's bar #{chain[0].Id} onto B south of the runway");
         output.WriteLine($"way back {string.Join(" ", onto.Value.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}");
         Assert.Equal(chain[0].Id, onto.Value.Segments[0].FromNodeId);
-        Assert.Equal(chain[0].Id, FollowingPhase.RunwayEntries(layout, onto.Value)[0]);
+        Assert.Equal(chain[0].Id, FollowingPhase.RunwayEntries(layout, onto.Value, startPose: null)[0]);
     }
 
     /// <summary>
@@ -2513,8 +2513,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        GroundNode at = chain[5];
-        GroundNode next = chain[6];
+        GroundNode at = chain[4];
+        GroundNode next = chain[5];
         AircraftState aircraft = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
@@ -2560,7 +2560,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.Contains(leadIn.FarBar.Id, FollowingPhase.RunwayEntries(leadIn.Layout, leadIn.Onto));
+        Assert.Contains(leadIn.FarBar.Id, FollowingPhase.RunwayEntries(leadIn.Layout, leadIn.Onto, startPose: null));
     }
 
     /// <summary>
@@ -2588,7 +2588,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         ];
         output.WriteLine($"way back nodes on 28R: {string.Join(" ", onRunway.Select(id => $"#{id}"))}");
         Assert.NotEmpty(onRunway);
-        List<int> entries = FollowingPhase.RunwayEntries(leadIn.Layout, leadIn.Onto);
+        List<int> entries = FollowingPhase.RunwayEntries(leadIn.Layout, leadIn.Onto, startPose: null);
         Assert.All(onRunway, id => Assert.Contains(id, entries));
     }
 
@@ -2714,8 +2714,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The lead of <see cref="RunLeadLostOnB"/>, cleared to cross 28R, and a C172 behind it at <c>Chain[5]</c> told
-    /// <c>FOLLOWG</c> the lead with a <c>CROSS 28R</c> and given the taxi route along B from <c>Chain[4]</c> to <c>Chain[1]</c>.
+    /// The lead of <see cref="RunLeadLostOnB"/>, cleared to cross 28R, and a C172 behind it at <c>Chain[4]</c> told
+    /// <c>FOLLOWG</c> the lead with a <c>CROSS 28R</c> and given the taxi route along B from <c>Chain[3]</c> to <c>Chain[1]</c>.
     /// The second the follower, having been on 28R, rolls at 2 kt or more on its follow route inside no runway's hold line, the lead is deleted.
     /// </summary>
     private LeadLostRun? RunLeadLostPast28R()
@@ -2726,7 +2726,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
-        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[2], chain[1]), "TAXI B W 30");
         CommandResult cross = setup.Engine.SendCommand(LeadCallsign, "CROSS 28R");
         Assert.True(cross.Success, cross.Message);
         for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
@@ -2738,15 +2738,15 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            chain[5].Position,
-            FollowCornerGeometry.Facing(chain[5], chain[4])
+            chain[4].Position,
+            FollowCornerGeometry.Facing(chain[4], chain[3])
         );
         follower.Ground.Layout = setup.Layout;
         setup.Engine.World.AddAircraft(follower);
         CommandResult result = setup.Engine.SendCommand(FollowerCallsign, $"FOLLOWG {LeadCallsign}; CROSS 28R");
         Assert.True(result.Success, result.Message);
         WakeTurbulenceData.WakeClass wake = WakeTurbulenceData.WakeClassForType("C172", AircraftCategory.Piston);
-        follower.Ground.AssignedTaxiRoute = TaxiPathfinder.FindRoute(setup.Layout, chain[4].Id, chain[1].Id, AircraftCategory.Piston, wake);
+        follower.Ground.AssignedTaxiRoute = TaxiPathfinder.FindRoute(setup.Layout, chain[3].Id, chain[1].Id, AircraftCategory.Piston, wake);
         output.WriteLine($"follower assigned {follower.Ground.AssignedTaxiRoute?.ToSummary()}");
         RunwayInfo runway = Runway28R(setup.Layout);
         bool crossed = false;
@@ -2774,7 +2774,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     private sealed record LeadLostRun(SimulationEngine Engine, AircraftState Lead, AircraftState Follower, int LostAt);
 
     /// <summary>
-    /// A C560 lead at B <c>Chain[3]</c> cleared <c>TAXI B W 30</c> (no crossing cleared) and a C172 behind it at <c>Chain[5]</c>,
+    /// A C560 lead at B <c>Chain[2]</c> cleared <c>TAXI B W 30</c> (no crossing cleared) and a C172 behind it at <c>Chain[4]</c>,
     /// cleared <c>TAXI B W 30</c> too when <paramref name="withRoute"/>, then told to follow the lead. The second the follower
     /// rolls at 5 kt or more on its follow route, inside no runway's hold line, the lead is deleted, or with
     /// <paramref name="leadAirborne"/> taken off the ground. A solo room with the student on <paramref name="studentPosition"/>
@@ -2791,7 +2791,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         setup.Engine.Scenario.StudentPositionType = studentPosition;
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
-        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[2]), "TAXI B W 30");
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[2], chain[1]), "TAXI B W 30");
         CommandResult cross = setup.Engine.SendCommand(LeadCallsign, "CROSS 28R");
         Assert.True(cross.Success, cross.Message);
         for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
@@ -2802,7 +2802,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         AircraftState follower;
         if (withRoute)
         {
-            follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[5], chain[4]), "TAXI B W 30");
+            follower = FollowCornerGeometry.AddTaxiing(setup, FollowerCallsign, "C172", (chain[4], chain[3]), "TAXI B W 30");
         }
         else
         {
@@ -2810,8 +2810,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 FollowCornerGeometry.AirportId,
                 FollowerCallsign,
                 "C172",
-                chain[5].Position,
-                FollowCornerGeometry.Facing(chain[5], chain[4])
+                chain[4].Position,
+                FollowCornerGeometry.Facing(chain[4], chain[3])
             );
             follower.Ground.Layout = setup.Layout;
             setup.Engine.World.AddAircraft(follower);
@@ -2879,8 +2879,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A follower on 28R's pavement on G whose lead is deleted clears the runway past G's bar, where G bends some 30 ft beyond
-    /// the bar. Once its tail and wingtips are past the hold line it keeps steering along its clearing route while it brakes
+    /// A follower on 33's pavement on D whose lead is deleted clears the runway past D's bar, where D bends 16.7° just
+    /// beyond the bar. Once its tail and wingtips are past the hold line it keeps steering along its clearing route while it brakes
     /// (7110.65 §3-10-9.b NOTE 1; AIM 4-3-21.b): it comes to rest on the route's centreline through the bend, off the runway,
     /// short of the route's end node, with its tail past the bar.
     /// </summary>
@@ -2893,14 +2893,14 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         (SimulationEngine engine, AirportGroundLayout layout) = setup;
-        RunwayInfo runway = Runway28R(layout);
-        GroundNode bar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "G").MaxBy(b => BendPastBarDeg(runway, b))!;
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(layout.AirportId).First(r => r.Id.Overlaps(RunwayIdentifier.Parse("33")));
+        GroundNode bar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "33", "D").MaxBy(b => BendPastBarDeg(runway, b))!;
         (GroundNode start, GroundNode outward) = PavementStartToward(runway, bar);
         double bendDeg = BendPastBarDeg(runway, bar);
         output.WriteLine($"bar #{bar.Id} bends {bendDeg:F0} deg past it; follower at #{start.Id} facing #{outward.Id}");
         Assert.True(
             bendDeg >= 15.0,
-            $"G's sharpest bend past a 28R bar (#{bar.Id}) is only {bendDeg:F1} deg: no bend to steer the braking roll through"
+            $"D's sharpest bend past a 33 bar (#{bar.Id}) is only {bendDeg:F1} deg: no bend to steer the braking roll through"
         );
         AircraftState lead = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
@@ -3525,8 +3525,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
     /// <summary>
     /// A chained follow on KOAK's B: a C560 taxiing toward 28R (<see cref="FollowCornerGeometry.StartTaxiingLead"/>), a C172 behind
-    /// it at <c>Chain[4]</c> following it across 28R, and a C172 behind that, <paramref name="startFraction"/> along the straight B
-    /// edge from <c>Chain[5]</c> to the middle one,
+    /// it at <c>Chain[3]</c> following it across 28R, and a C172 behind that, <paramref name="startFraction"/> along the straight B
+    /// edge from <c>Chain[4]</c> to the middle one,
     /// told at <see cref="ChainFollowerStartSecond"/> to follow the middle one across 28R too. The middle aircraft's taxi route
     /// predates its <c>FOLLOWG</c> and is never read: the last follower's lead path is the middle aircraft's trail, the edge it is
     /// on, and then its own follow route. Ticked <paramref name="seconds"/> seconds; <c>Seconds[0]</c> is the pose before the first.
@@ -3539,14 +3539,14 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         // The follower's start is interpolated straight between two chain nodes, so the edge joining them must be straight: B
-        // leaves Chain[5] for Chain[6] by a fillet arc, whose chord runs over taxiway C's edge beside it.
-        Assert.Contains(run.Chain[5].Edges.OfType<GroundEdge>(), e => e.OtherNode(run.Chain[5]).Id == run.Chain[4].Id);
+        // leaves Chain[4] for Chain[5] by a fillet arc, whose chord runs over taxiway C's edge beside it.
+        Assert.Contains(run.Chain[4].Edges.OfType<GroundEdge>(), e => e.OtherNode(run.Chain[4]).Id == run.Chain[3].Id);
         AircraftState middle = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             MiddleCallsign,
             "C172",
-            run.Chain[4].Position,
-            FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
+            run.Chain[3].Position,
+            FollowCornerGeometry.Facing(run.Chain[3], run.Chain[2])
         );
         middle.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(middle);
@@ -3554,8 +3554,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            FollowCornerGeometry.Between(run.Chain[5].Position, run.Chain[4].Position, startFraction),
-            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
+            FollowCornerGeometry.Between(run.Chain[4].Position, run.Chain[3].Position, startFraction),
+            FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
         );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
@@ -3598,7 +3598,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
-        AircraftState scout = FollowCornerGeometry.AddTaxiing(setup, "N9SCT", "C560", (chain[3], chain[2]), "TAXI B W 30");
+        AircraftState scout = FollowCornerGeometry.AddTaxiing(setup, "N9SCT", "C560", (chain[2], chain[1]), "TAXI B W 30");
         List<TaxiRouteSegment> toThirty = Assert.IsType<TaxiRoute>(scout.Ground.AssignedTaxiRoute).Segments;
         setup.Engine.World.RemoveAircraft(scout.Callsign);
         List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(setup.Layout.AirportId)];
@@ -3741,7 +3741,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// A C172 on B behind a C560 taxiing <c>TAXI B W 30</c> across 28R (<see cref="FollowCornerGeometry.StartTaxiingLead"/>), told
     /// <c>FOLLOWG</c> it with a <c>CROSS 28R</c> armed behind the follow: the follow stops at the 28R bar, the armed crossing fires
     /// there, and the follower crosses 28R behind its lead rather than holding at the bar — alone, and with a third C172 behind it
-    /// at <c>Chain[5]</c> following it across too (<see cref="RunChain"/>'s pose).
+    /// at <c>Chain[4]</c> following it across too (<see cref="RunChain"/>'s pose).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -3759,8 +3759,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 FollowCornerGeometry.AirportId,
                 MiddleCallsign,
                 "C172",
-                run.Chain[5].Position,
-                FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
+                run.Chain[4].Position,
+                FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
             );
             behind.Ground.Layout = run.Layout;
             run.Engine.World.AddAircraft(behind);
@@ -3771,8 +3771,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            run.Chain[4].Position,
-            FollowCornerGeometry.Facing(run.Chain[4], run.Chain[3])
+            run.Chain[3].Position,
+            FollowCornerGeometry.Facing(run.Chain[3], run.Chain[2])
         );
         follower.Ground.Layout = run.Layout;
         run.Engine.World.AddAircraft(follower);
@@ -3782,7 +3782,6 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         var end1 = new LatLon(runway.Lat1, runway.Lon1);
         double alongDeg = GeoMath.BearingTo(end1, new LatLon(runway.Lat2, runway.Lon2));
         bool startSide = GeoMath.SignedBearingDifference(alongDeg, GeoMath.BearingTo(end1, follower.Position)) > 0.0;
-        int barHoldAt = -1;
         int crossingAt = -1;
         int onRunwayAt = -1;
         int leadClearAt = -1;
@@ -3801,7 +3800,6 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             bool onPavement = RunwayOccupancy.IsOnPavement(follower, runway);
             bool leadOnPavement = RunwayOccupancy.IsOnPavement(run.Lead, runway);
             bool farSide = (GeoMath.SignedBearingDifference(alongDeg, GeoMath.BearingTo(end1, follower.Position)) > 0.0) != startSide;
-            barHoldAt = (barHoldAt < 0) && (phase is HoldingShortPhase) ? second : barHoldAt;
             crossingAt = (crossingAt < 0) && (phase is CrossingRunwayPhase) ? second : crossingAt;
             onRunwayAt = (onRunwayAt < 0) && onPavement ? second : onRunwayAt;
             leadClearAt =
@@ -3817,11 +3815,16 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             );
         }
 
+        // The hold at the bar now lasts under a second, between the once-a-second samples: the phase list keeps it, completed.
+        bool stoppedAtTheBar = follower.Phases!.Phases.Any(p => (p is HoldingShortPhase hold) && (hold.HoldShort.NodeId == run.Chain[0].Id));
         output.WriteLine(
-            $"measured (follower behind: {withFollowerBehind}): bar hold at t={barHoldAt}, lead clear of 28R at t={leadClearAt}, "
-                + $"crossing phase at t={crossingAt}, on 28R at t={onRunwayAt}, crossed at t={crossedAt}"
+            $"measured (follower behind: {withFollowerBehind}): stopped at the 28R bar={stoppedAtTheBar}, "
+                + $"lead clear of 28R at t={leadClearAt}, crossing phase at t={crossingAt}, on 28R at t={onRunwayAt}, crossed at t={crossedAt}"
         );
-        Assert.True(barHoldAt > 0, "the follower never stopped at the 28R bar");
+        Assert.True(
+            stoppedAtTheBar,
+            $"the follower never stopped at the 28R bar {run.Chain[0].Id}: {string.Join(" > ", follower.Phases!.Phases.Select(p => p.Name))}"
+        );
         Assert.True(
             crossedAt > 0,
             $"the follower never crossed 28R within {ArmedCrossingBudgetSeconds}s; last phase {follower.Phases?.CurrentPhase?.Name}"

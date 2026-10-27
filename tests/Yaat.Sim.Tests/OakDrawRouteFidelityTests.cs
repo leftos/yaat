@@ -113,6 +113,7 @@ public class OakDrawRouteFidelityTests
             out string? fail,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -354,6 +355,7 @@ public class OakDrawRouteFidelityTests
                     out string? fail,
                     new ExplicitPathOptions
                     {
+                        StartPose = null,
                         OccupiedTaxiway = null,
                         ImpliedLeadTaxiway = null,
                         AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -419,6 +421,7 @@ public class OakDrawRouteFidelityTests
             out string? fail,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

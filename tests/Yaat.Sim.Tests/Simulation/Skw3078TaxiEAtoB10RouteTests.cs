@@ -63,6 +63,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -161,6 +162,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -261,6 +263,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

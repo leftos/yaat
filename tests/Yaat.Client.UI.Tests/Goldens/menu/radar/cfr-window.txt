@@ -20,7 +20,7 @@ All Commands
     Taxi to runway alias:TAXI
       Finding runway entries…
     Preset taxi route alias:TAXI
-      30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
+      30 to TERMINAL · via W V T · ~4,650 ft — TAXI W V T
     Follow… · no other aircraft on the ground [disabled]
     Give way to… · no other aircraft on the ground [disabled]
     Ignore ground conflicts (15 s) alias:BREAK

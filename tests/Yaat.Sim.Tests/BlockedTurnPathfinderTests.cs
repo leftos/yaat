@@ -56,6 +56,7 @@ public class BlockedTurnPathfinderTests
             null
         )
         {
+            StartPose = null,
             ImplicitConnectors = Connectors,
             BlockedTurnTriples = blocked.ForbiddenTurns,
             BlockedArcMoves = blocked.ForbiddenArcMoves,

@@ -47,7 +47,8 @@ public class PushTargetPlannerParallelTests
             12_345,
             AirportSidecarHash.For(ArtccsDir, airport),
             AirportSidecarHash.ForStandLeadIns(ArtccsDir, airport),
-            string.Empty
+            string.Empty,
+            standoffInputHash: string.Empty
         );
         string sequentialRoot = NewRoot();
         string[] parallelRoots = [NewRoot(), NewRoot()];

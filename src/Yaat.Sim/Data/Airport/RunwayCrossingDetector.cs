@@ -11,9 +11,6 @@ internal static class RunwayCrossingDetector
 {
     private static readonly ILogger Log = SimLog.CreateLogger("RunwayCrossingDetector");
 
-    /// <summary>Default runway width (ft) when navdata is unavailable.</summary>
-    private const double DefaultRunwayWidthFt = 150.0;
-
     /// <summary>Tolerance (nm) for runway boundary classification (~6ft).</summary>
     private const double RunwayTolerance = 0.001;
 
@@ -38,33 +35,42 @@ internal static class RunwayCrossingDetector
     private const double HoldShortFallbackBufferFt = 25.0;
 
     /// <summary>
-    /// Seats the runway's hold-short bars on every taxiway that crosses its edge and links its on-runway nodes. Returns
-    /// the runway width used and the bars the dead-end fallback placed short of the holding distance at a junction, for
-    /// <see cref="DropRedundantFallbackBars"/> once every runway's bars are in.
+    /// How far (ft) beyond another runway's base separation S a point still touches that runway's holding area
+    /// (<see cref="TouchesHoldingArea"/>), so a bar seated on that runway's hold line counts as touching it.
     /// </summary>
-    internal static RunwayCrossingResult DetectRunwayCrossings(
-        GeoJsonParser.RunwayFeature rwy,
-        AirportGroundLayout layout,
-        CoordinateIndex coordIndex,
-        ref int nextNodeId,
-        string? runwayAirportCode
-    )
+    private const double OtherRunwayAreaMarginFt = 5.0;
+
+    /// <summary>
+    /// The runway's parse-time facts: its navdata width, its base separation S (<see cref="ResolveStandoff"/>, warning
+    /// when the rule overrides the authored value) and its rectangle. Every runway is planned before any runway's bars are
+    /// seated, so each crossing can see every other runway's holding area.
+    /// </summary>
+    internal static RunwayPlan PlanRunway(GeoJsonParser.RunwayFeature rwy, string airportId, string? runwayAirportCode)
     {
         var combinedId = RunwayIdentifier.Parse(rwy.Name);
 
-        // Look up runway width from navdata; fall back to default
-        double widthFt = DefaultRunwayWidthFt;
-        if (runwayAirportCode is not null)
-        {
-            NavigationDatabase navDb = NavigationDatabase.Instance;
-            RunwayInfo? rwyInfo = navDb.GetRunway(runwayAirportCode, combinedId.End1) ?? navDb.GetRunway(runwayAirportCode, combinedId.End2);
-            if (rwyInfo is not null)
-            {
-                widthFt = rwyInfo.WidthFt;
-            }
-        }
+        // The rule's runway inputs from navdata; without navdata the width is the default and the length long.
+        var inputs = RunwayStandoffInputs.Lookup(NavigationDatabase.InstanceOrNull, runwayAirportCode, combinedId);
+        HoldShortStandoffResult standoff = ResolveStandoff(rwy, inputs);
+        HoldShortStandoff.WarnWhenRuleOverAuthored(airportId, rwy.Name, rwy.HoldShortDistanceFt, standoff);
+        return new RunwayPlan(rwy, BuildRunwayRectangle(rwy, inputs.WidthFt, standoff.Ft, combinedId), inputs.WidthFt, standoff.Ft);
+    }
 
-        RunwayRectangle rect = BuildRunwayRectangle(rwy, widthFt, combinedId);
+    /// <summary>
+    /// Seats the planned runway's hold-short bars on every taxiway that crosses its edge and links its on-runway nodes.
+    /// <paramref name="runways"/> is every runway of the layout, planned (<see cref="PlanRunway"/>), whose holding areas
+    /// an angled bar keeps out of. Returns the runway width used and the bars the dead-end fallback placed short of the
+    /// holding distance at a junction, for <see cref="DropRedundantFallbackBars"/> once every runway's bars are in.
+    /// </summary>
+    internal static RunwayCrossingResult DetectRunwayCrossings(
+        RunwayPlan plan,
+        IReadOnlyList<RunwayPlan> runways,
+        AirportGroundLayout layout,
+        CoordinateIndex coordIndex,
+        ref int nextNodeId
+    )
+    {
+        RunwayRectangle rect = plan.Rect;
 
         // Classify every node as on-runway or off-runway
         var onRunwayNodes = new HashSet<int>();
@@ -112,7 +118,10 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            if (ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId) is { } fallbackBar)
+            var crossing = new Crossing(edge, onNode, offNode);
+            double idealNm = CrossingStandoffNm(layout, crossing, rect, runways);
+            var target = new BarTarget(rect, idealNm);
+            if (ProcessBoundaryEdge(new CrossingContext(layout, coordIndex), crossing, target, ref nextNodeId) is { } fallbackBar)
             {
                 fallbackBars.Add(fallbackBar);
             }
@@ -123,15 +132,27 @@ internal static class RunwayCrossingDetector
         // 15/33 but have no GeoJSON edges between them).
         ConnectOnRunwayNodes(layout, rect, coordIndex, ref nextNodeId);
 
-        return new RunwayCrossingResult(widthFt, fallbackBars);
+        return new RunwayCrossingResult(plan.WidthFt, plan.StandoffFt, fallbackBars);
     }
 
-    internal static RunwayRectangle BuildRunwayRectangle(GeoJsonParser.RunwayFeature rwy, double widthFt, RunwayIdentifier combinedId)
+    /// <summary>
+    /// The runway's base hold-short separation S from its authored <c>holdShortDistance</c> and its navdata
+    /// <paramref name="inputs"/> (<see cref="HoldShortStandoff.BaseSeparationFt"/>), with no paint calibration.
+    /// </summary>
+    internal static HoldShortStandoffResult ResolveStandoff(GeoJsonParser.RunwayFeature rwy, RunwayStandoffInputs inputs) =>
+        HoldShortStandoff.BaseSeparationFt(null, rwy.HoldShortDistanceFt, inputs);
+
+    internal static RunwayRectangle BuildRunwayRectangle(
+        GeoJsonParser.RunwayFeature rwy,
+        double widthFt,
+        double holdShortFt,
+        RunwayIdentifier combinedId
+    )
     {
         double bearing = GeoMath.BearingTo(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double lengthNm = GeoMath.DistanceNm(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double halfWidthNm = (widthFt / 2.0) / GeoMath.FeetPerNm;
-        double holdShortNm = (rwy.HoldShortDistanceFt ?? HoldShortDistanceForWidth(widthFt)) / GeoMath.FeetPerNm;
+        double holdShortNm = holdShortFt / GeoMath.FeetPerNm;
 
         return new RunwayRectangle
         {
@@ -151,7 +172,7 @@ internal static class RunwayCrossingDetector
         double bearing = GeoMath.BearingTo(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
         double lengthNm = GeoMath.DistanceNm(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
         double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
-        double holdShortNm = (rwy.HoldShortDistanceFt ?? HoldShortDistanceForWidth(rwy.WidthFt)) / GeoMath.FeetPerNm;
+        double holdShortNm = (rwy.HoldShortStandoffFt ?? rwy.HoldShortDistanceFt ?? HoldShortDistanceForWidth(rwy.WidthFt)) / GeoMath.FeetPerNm;
 
         return new RunwayRectangle
         {
@@ -197,20 +218,175 @@ internal static class RunwayCrossingDetector
 
     internal static bool IsOnRunway(LatLon position, in RunwayRectangle rect) => IsOnRunway(position.Lat, position.Lon, rect);
 
-    private static FallbackBar? ProcessBoundaryEdge(
+    /// <summary>
+    /// Whether <paramref name="position"/> touches the runway's holding area: no farther from its centerline than its base
+    /// separation S plus <see cref="OtherRunwayAreaMarginFt"/>, alongside its length (within <see cref="RunwayTolerance"/>
+    /// of either end).
+    /// </summary>
+    internal static bool TouchesHoldingArea(LatLon position, in RunwayRectangle rect)
+    {
+        double crossNm = CrossTrackNm(rect, position);
+        double alongNm = GeoMath.AlongTrackDistanceNm(position.Lat, position.Lon, rect.RefLat, rect.RefLon, rect.TrueHeading);
+        bool alongside = (alongNm >= -RunwayTolerance) && (alongNm <= rect.LengthNm + RunwayTolerance);
+        return alongside && (crossNm <= rect.HoldShortNm + (OtherRunwayAreaMarginFt / GeoMath.FeetPerNm));
+    }
+
+    /// <summary>
+    /// Whether the straight segment <paramref name="from"/> → <paramref name="to"/> touches the runway's holding area
+    /// (<see cref="TouchesHoldingArea"/>) at its point nearest the runway centerline: where it crosses the centerline,
+    /// else its nearer end. Judging the segment rather than its nodes keeps the verdict the same whether or not another
+    /// runway's bar has split it yet.
+    /// </summary>
+    internal static bool SegmentTouchesHoldingArea(LatLon from, LatLon to, in RunwayRectangle rect) =>
+        TouchesHoldingArea(NearestToCenterline(from, to, rect), rect);
+
+    /// <summary>The segment's point nearest the runway centerline: where it crosses the centerline, else its nearer end.</summary>
+    private static LatLon NearestToCenterline(LatLon from, LatLon to, in RunwayRectangle rect)
+    {
+        var reference = new LatLon(rect.RefLat, rect.RefLon);
+        double fromCross = GeoMath.SignedCrossTrackDistanceNm(from, reference, rect.TrueHeading);
+        double toCross = GeoMath.SignedCrossTrackDistanceNm(to, reference, rect.TrueHeading);
+        if ((fromCross * toCross < 0.0) && (Math.Abs(fromCross - toCross) > 1e-12))
+        {
+            double fraction = fromCross / (fromCross - toCross);
+            return new LatLon(from.Lat + (fraction * (to.Lat - from.Lat)), from.Lon + (fraction * (to.Lon - from.Lon)));
+        }
+
+        return Math.Abs(fromCross) <= Math.Abs(toCross) ? from : to;
+    }
+
+    /// <summary>
+    /// The runway width the rectangle carries, feet, rounded to a micro-foot so the nm round trip cannot drop a width
+    /// on a bucket edge (150 ft) into the bucket below.
+    /// </summary>
+    internal static double RunwayWidthFt(in RunwayRectangle rect) => Math.Round(2.0 * rect.HalfWidthNm * GeoMath.FeetPerNm, 6);
+
+    /// <summary>
+    /// The angle θ (degrees, 0-180) between the runway centerline and the taxiway centerline at the hold line: the bearing
+    /// of the segment where the centerline reaches the runway's base separation S, found by following the walker's chain
+    /// outward (the boundary edge <paramref name="onNode"/> → <paramref name="offNode"/>, then
+    /// <see cref="PickWalkContinuation"/> hops). The hold line is painted perpendicular to the taxiway centerline there, so
+    /// that segment's direction is the one the term needs. When the chain ends short of S, the last segment it reached.
+    /// Measured at parse time, before fillet arcs exist.
+    /// </summary>
+    internal static double MeasureCrossingAngleDeg(
         AirportGroundLayout layout,
         GroundEdge edge,
         GroundNode onNode,
         GroundNode offNode,
-        in RunwayRectangle rect,
-        CoordinateIndex coordIndex,
-        ref int nextNodeId
+        in RunwayRectangle rect
     )
     {
+        GroundNode prev = onNode;
+        GroundNode current = offNode;
+        var visited = new HashSet<int> { onNode.Id, offNode.Id };
+        for (int hop = 0; hop < HoldShortWalkMaxHops; hop++)
+        {
+            if (CrossTrackNm(rect, current.Position) >= rect.HoldShortNm)
+            {
+                break;
+            }
+
+            if (PickWalkContinuation(layout, new WalkStep(edge.TaxiwayName, prev, current), visited, rect) is not { } next)
+            {
+                break;
+            }
+
+            prev = current;
+            current = next.Far;
+            visited.Add(current.Id);
+        }
+
+        double segmentBearing = GeoMath.BearingTo(prev.Position, current.Position);
+        return Math.Abs(NormalizeBearingDelta(segmentBearing - rect.TrueHeading.Degrees));
+    }
+
+    /// <summary>
+    /// The crossing's centerline standoff, nm: D, the runway's base separation S plus the angle term for the taxiway's
+    /// angle to the runway (<see cref="HoldShortStandoff.CenterlineStandoffFt"/>), unless the taxiway path from the crossing
+    /// to the D point touches another runway's holding area at a node or along a segment (<see cref="FirstTouch"/>); then S.
+    /// </summary>
+    private static double CrossingStandoffNm(
+        AirportGroundLayout layout,
+        Crossing crossing,
+        in RunwayRectangle rect,
+        IReadOnlyList<RunwayPlan> runways
+    )
+    {
+        double angleDeg = MeasureCrossingAngleDeg(layout, crossing.Edge, crossing.On, crossing.Off, rect);
+        double baseFt = rect.HoldShortNm * GeoMath.FeetPerNm;
+        double idealFt = HoldShortStandoff.CenterlineStandoffFt(baseFt, RunwayWidthFt(rect), angleDeg);
+        Log.LogDebug(
+            "Hold-short standoff for {Runway} on {Taxiway}: θ={Angle:F1}°, S={BaseFt:F1} ft, D={IdealFt:F1} ft",
+            rect.CombinedId,
+            crossing.Edge.TaxiwayName,
+            angleDeg,
+            baseFt,
+            idealFt
+        );
+        if (idealFt <= baseFt)
+        {
+            return rect.HoldShortNm;
+        }
+
+        (List<GroundNode> passed, LatLon? point) = ProbeStandoffPoint(layout, crossing, rect, idealFt / GeoMath.FeetPerNm);
+        List<(string Label, LatLon Position)> path = [.. passed.Select(node => ($"node {node.Id}", node.Position))];
+        if (point is { } dPoint)
+        {
+            path.Add(("the D point", dPoint));
+        }
+
+        foreach (RunwayPlan other in runways)
+        {
+            if (!other.Rect.CombinedId.Equals(rect.CombinedId) && (FirstTouch(path, other.Rect) is { } touch))
+            {
+                Log.LogDebug(
+                    "Hold-short standoff for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} holding area "
+                        + "({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
+                    rect.CombinedId,
+                    crossing.Edge.TaxiwayName,
+                    idealFt,
+                    touch.Label,
+                    other.Rect.CombinedId,
+                    touch.CrossFt,
+                    other.StandoffFt
+                );
+                return rect.HoldShortNm;
+            }
+        }
+
+        return idealFt / GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// The first part of <paramref name="path"/> that touches the runway's holding area, by the segment from a point to
+    /// the next (<see cref="SegmentTouchesHoldingArea"/>) or, for the last point alone, the point itself: its label and
+    /// the touching point's distance from the runway centerline, feet. Null when none does.
+    /// </summary>
+    private static (string Label, double CrossFt)? FirstTouch(List<(string Label, LatLon Position)> path, in RunwayRectangle rect)
+    {
+        for (int i = 0; i < path.Count; i++)
+        {
+            LatLon nearest = (i + 1 < path.Count) ? NearestToCenterline(path[i].Position, path[i + 1].Position, rect) : path[i].Position;
+            if (TouchesHoldingArea(nearest, rect))
+            {
+                string label = (i + 1 < path.Count) ? $"{path[i].Label} → {path[i + 1].Label}" : path[i].Label;
+                return (label, CrossTrackNm(rect, nearest) * GeoMath.FeetPerNm);
+            }
+        }
+
+        return null;
+    }
+
+    private static FallbackBar? ProcessBoundaryEdge(CrossingContext context, Crossing crossing, BarTarget target, ref int nextNodeId)
+    {
+        (AirportGroundLayout layout, CoordinateIndex coordIndex) = context;
+        (RunwayRectangle rect, double idealNm) = target;
+        (GroundEdge edge, GroundNode onNode, GroundNode offNode) = crossing;
         double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
         double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
 
-        double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm) * GeoMath.FeetPerNm;
+        double distOffToIdeal = Math.Abs(crossOff - idealNm) * GeoMath.FeetPerNm;
 
         // Don't reuse junction nodes (connected to multiple taxiways) as hold-short —
         // aircraft holding short would block other taxiways. Only reuse simple
@@ -227,13 +403,13 @@ internal static class RunwayCrossingDetector
             return null;
         }
 
-        if (crossOff < rect.HoldShortNm)
+        if (crossOff < idealNm)
         {
             // Off-node is still inside the ideal hold-short band. Walk outward
             // along the same taxiway to find a segment that straddles the ideal
             // distance, then interpolate on that segment. Only activates for
             // wide runways where the ideal exceeds typical boundary-edge length.
-            return FindHoldShortInsertionPoint(layout, coordIndex, onNode, offNode, edge, rect, ref nextNodeId);
+            return FindHoldShortInsertionPoint(context, crossing, target, ref nextNodeId);
         }
 
         // Interpolate a new HS node at the correct cross-track distance within
@@ -244,7 +420,7 @@ internal static class RunwayCrossingDetector
             return null;
         }
 
-        double fraction = (rect.HoldShortNm - crossOn) / denom;
+        double fraction = (idealNm - crossOn) / denom;
         fraction = Math.Clamp(fraction, 0.01, 0.99);
 
         double hsLat = onNode.Position.Lat + fraction * (offNode.Position.Lat - onNode.Position.Lat);
@@ -466,12 +642,11 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
-    /// Fallback hold-short distance from runway centerline (ft) per FAA AC 150/5300-13B
-    /// Table 3-2, used only when the vNAS map does not author an explicit per-runway
-    /// <c>holdShortDistance</c> (<see cref="GroundRunway.HoldShortDistanceFt"/>). Runway width is
-    /// used as a proxy for Aircraft Design Group (ADG), which determines the published hold position
-    /// setback. Values approximate the CAT I/II/III ILS rows of the table and do not apply the small
-    /// elevation correction (+1 ft per 100 ft MSL) since most US airports sit below a few hundred feet.
+    /// Width-only hold-short distance from runway centerline (ft), the runway width standing in for the Aircraft Design Group.
+    /// Read only by <see cref="BuildRunwayRectangle(GroundRunway)"/> for a runway with neither a stored resolved standoff
+    /// (<see cref="GroundRunway.HoldShortStandoffFt"/>) nor an authored <c>holdShortDistance</c>, as in a layout serialised
+    /// before the standoff was stored. The layout build resolves S by <see cref="HoldShortStandoff.BaseSeparationFt"/>,
+    /// which also reads the runway's length, ILS category and elevation.
     /// </summary>
     internal static double HoldShortDistanceForWidth(double runwayWidthFt)
     {
@@ -606,18 +781,14 @@ internal static class RunwayCrossingDetector
     /// straddles the ideal hold-short distance, then interpolates and inserts
     /// a hold-short node there. Used when the boundary edge's off-node is
     /// still inside the FAA hold-short band — common at wide CAT III runways
-    /// where the ideal distance is 250-280 ft from centerline.
+    /// where the ideal distance is 250-280 ft from centerline. <paramref name="target"/> carries the crossing's
+    /// centerline standoff D.
     /// </summary>
-    private static FallbackBar? FindHoldShortInsertionPoint(
-        AirportGroundLayout layout,
-        CoordinateIndex coordIndex,
-        GroundNode startOnNode,
-        GroundNode startOffNode,
-        GroundEdge boundaryEdge,
-        in RunwayRectangle rect,
-        ref int nextNodeId
-    )
+    private static FallbackBar? FindHoldShortInsertionPoint(CrossingContext context, Crossing crossing, BarTarget target, ref int nextNodeId)
     {
+        (AirportGroundLayout layout, _) = context;
+        (RunwayRectangle rect, double idealNm) = target;
+        (GroundEdge boundaryEdge, GroundNode startOnNode, GroundNode startOffNode) = crossing;
         string taxiwayName = boundaryEdge.TaxiwayName;
         GroundNode prevNode = startOnNode;
         GroundNode currentNode = startOffNode;
@@ -630,105 +801,151 @@ internal static class RunwayCrossingDetector
                 GeoMath.SignedCrossTrackDistanceNm(currentNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)
             );
 
-            if (currentCrossNm >= rect.HoldShortNm)
+            if (currentCrossNm >= idealNm)
             {
                 // lastEdge straddles the ideal band. Interpolate on it.
-                InterpolateAndInsert(layout, coordIndex, prevNode, currentNode, lastEdge, rect, ref nextNodeId);
+                InterpolateAndInsert(context, new Crossing(lastEdge, prevNode, currentNode), target, ref nextNodeId);
                 return null;
             }
 
-            // Pick the next edge: same taxiway, non-RWY, not visited, prefer straight continuation.
-            double incomingBearing = GeoMath.BearingTo(prevNode.Position, currentNode.Position);
-
-            GroundEdge? bestEdge = null;
-            GroundNode? bestFar = null;
-            double bestTurnDelta = double.MaxValue;
-            double bestFarCross = -1.0;
-
-            foreach (GroundEdge candidate in layout.Edges)
-            {
-                if (candidate.IsRunwayCenterline)
-                {
-                    continue;
-                }
-
-                if (!candidate.MatchesTaxiway(taxiwayName))
-                {
-                    continue;
-                }
-
-                if (!candidate.HasNode(currentNode.Id))
-                {
-                    continue;
-                }
-
-                int farId = candidate.OtherNodeId(currentNode.Id);
-                if (visited.Contains(farId))
-                {
-                    continue;
-                }
-
-                if (!layout.Nodes.TryGetValue(farId, out GroundNode? farNode))
-                {
-                    continue;
-                }
-
-                double outBearing = GeoMath.BearingTo(currentNode.Position, farNode.Position);
-                double turnDelta = Math.Abs(NormalizeBearingDelta(outBearing - incomingBearing));
-                double farCross = Math.Abs(
-                    GeoMath.SignedCrossTrackDistanceNm(farNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)
-                );
-
-                // Prefer straightest continuation; break ties by larger cross-track (more outward).
-                if (turnDelta < bestTurnDelta - 0.5 || (Math.Abs(turnDelta - bestTurnDelta) <= 0.5 && farCross > bestFarCross))
-                {
-                    bestTurnDelta = turnDelta;
-                    bestFarCross = farCross;
-                    bestEdge = candidate;
-                    bestFar = farNode;
-                }
-            }
-
-            if (bestEdge is null || bestFar is null)
+            if (PickWalkContinuation(layout, new WalkStep(taxiwayName, prevNode, currentNode), visited, rect) is not { } next)
             {
                 // Dead end: no same-taxiway continuation.
-                return DeadEndFallback(layout, coordIndex, new DeadEnd(prevNode, currentNode, lastEdge, taxiwayName), rect, ref nextNodeId);
+                return DeadEndFallback(context, new DeadEnd(prevNode, currentNode, lastEdge, taxiwayName), target, ref nextNodeId);
             }
 
             prevNode = currentNode;
-            currentNode = bestFar;
-            lastEdge = bestEdge;
-            visited.Add(bestFar.Id);
+            currentNode = next.Far;
+            lastEdge = next.Edge;
+            visited.Add(next.Far.Id);
         }
 
         // Exhausted hop budget — fall back at the last reached node.
-        return DeadEndFallback(layout, coordIndex, new DeadEnd(prevNode, currentNode, lastEdge, taxiwayName), rect, ref nextNodeId);
+        return DeadEndFallback(context, new DeadEnd(prevNode, currentNode, lastEdge, taxiwayName), target, ref nextNodeId);
     }
 
     /// <summary>
-    /// Interpolates a hold-short node on <paramref name="edge"/> between
-    /// <paramref name="nearNode"/> and <paramref name="farNode"/> at the ideal
-    /// cross-track distance. If the ideal lies within <see cref="HoldShortSnapFt"/>
-    /// of either endpoint, upgrades that endpoint in place instead of creating a
-    /// near-coincident HS that would collapse under later fillet coincident-node merge.
+    /// The walker's next edge out of the step's current node: same taxiway, not the runway centerline, to a node not yet
+    /// visited, the straightest continuation of the incoming hop, ties to the larger cross-track (more outward). Null at a
+    /// dead end.
     /// </summary>
-    private static void InterpolateAndInsert(
+    private static (GroundEdge Edge, GroundNode Far)? PickWalkContinuation(
         AirportGroundLayout layout,
-        CoordinateIndex coordIndex,
-        GroundNode nearNode,
-        GroundNode farNode,
-        GroundEdge edge,
-        in RunwayRectangle rect,
-        ref int nextNodeId
+        WalkStep step,
+        HashSet<int> visited,
+        in RunwayRectangle rect
     )
     {
+        double incomingBearing = GeoMath.BearingTo(step.Prev.Position, step.Current.Position);
+        (GroundEdge Edge, GroundNode Far)? best = null;
+        double bestTurnDelta = double.MaxValue;
+        double bestFarCross = -1.0;
+        foreach (GroundEdge candidate in layout.Edges)
+        {
+            if (candidate.IsRunwayCenterline || !candidate.MatchesTaxiway(step.Taxiway) || !candidate.HasNode(step.Current.Id))
+            {
+                continue;
+            }
+
+            int farId = candidate.OtherNodeId(step.Current.Id);
+            if (visited.Contains(farId) || !layout.Nodes.TryGetValue(farId, out GroundNode? farNode))
+            {
+                continue;
+            }
+
+            double turnDelta = Math.Abs(NormalizeBearingDelta(GeoMath.BearingTo(step.Current.Position, farNode.Position) - incomingBearing));
+            double farCross = CrossTrackNm(rect, farNode.Position);
+            if ((turnDelta < bestTurnDelta - 0.5) || ((Math.Abs(turnDelta - bestTurnDelta) <= 0.5) && (farCross > bestFarCross)))
+            {
+                bestTurnDelta = turnDelta;
+                bestFarCross = farCross;
+                best = (candidate, farNode);
+            }
+        }
+
+        return best;
+    }
+
+    private static double CrossTrackNm(in RunwayRectangle rect, LatLon position) =>
+        Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
+
+    /// <summary>
+    /// Where the placement would seat a bar at <paramref name="idealNm"/> for <paramref name="crossing"/>, without
+    /// changing the layout: the nodes the outward walk passes (the boundary edge's off-node when short of the ideal
+    /// distance, and every hop short of the
+    /// ideal distance) and the interpolated point, or a null point when the walk dead-ends first. Follows the same edges
+    /// as <see cref="ProcessBoundaryEdge"/> and <see cref="FindHoldShortInsertionPoint"/>.
+    /// </summary>
+    private static (List<GroundNode> Passed, LatLon? Point) ProbeStandoffPoint(
+        AirportGroundLayout layout,
+        Crossing crossing,
+        in RunwayRectangle rect,
+        double idealNm
+    )
+    {
+        var passed = new List<GroundNode>();
+        if (CrossTrackNm(rect, crossing.Off.Position) < idealNm)
+        {
+            passed.Add(crossing.Off);
+        }
+
+        GroundNode prev = crossing.On;
+        GroundNode current = crossing.Off;
+        var visited = new HashSet<int> { crossing.On.Id, crossing.Off.Id };
+        for (int hop = 0; hop < HoldShortWalkMaxHops; hop++)
+        {
+            if (CrossTrackNm(rect, current.Position) >= idealNm)
+            {
+                return (passed, InterpolateAtCrossTrack(rect, prev.Position, current.Position, idealNm));
+            }
+
+            if (PickWalkContinuation(layout, new WalkStep(crossing.Edge.TaxiwayName, prev, current), visited, rect) is not { } next)
+            {
+                return (passed, null);
+            }
+
+            prev = current;
+            current = next.Far;
+            visited.Add(current.Id);
+            if (CrossTrackNm(rect, current.Position) < idealNm)
+            {
+                passed.Add(current);
+            }
+        }
+
+        return (passed, null);
+    }
+
+    /// <summary>
+    /// The point between <paramref name="near"/> and <paramref name="far"/> at <paramref name="idealNm"/> from the
+    /// centerline, as the placement interpolates it.
+    /// </summary>
+    private static LatLon InterpolateAtCrossTrack(in RunwayRectangle rect, LatLon near, LatLon far, double idealNm)
+    {
+        double crossNear = CrossTrackNm(rect, near);
+        double denom = CrossTrackNm(rect, far) - crossNear;
+        double fraction = (Math.Abs(denom) < 1e-12) ? 0.99 : Math.Clamp((idealNm - crossNear) / denom, 0.01, 0.99);
+        return new LatLon(near.Lat + (fraction * (far.Lat - near.Lat)), near.Lon + (fraction * (far.Lon - near.Lon)));
+    }
+
+    /// <summary>
+    /// Interpolates a hold-short node on <paramref name="segment"/>'s edge between its near node (toward the runway) and
+    /// its far node at <paramref name="target"/>'s ideal cross-track distance. If the ideal lies within
+    /// <see cref="HoldShortSnapFt"/> of either endpoint, upgrades that endpoint in place instead of creating a
+    /// near-coincident HS that would collapse under later fillet coincident-node merge.
+    /// </summary>
+    private static void InterpolateAndInsert(CrossingContext context, Crossing segment, BarTarget target, ref int nextNodeId)
+    {
+        (AirportGroundLayout layout, CoordinateIndex coordIndex) = context;
+        (RunwayRectangle rect, double idealNm) = target;
+        (GroundEdge edge, GroundNode nearNode, GroundNode farNode) = segment;
         double crossNearFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(nearNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
         double crossFarFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(farNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
-        double idealFt = rect.HoldShortNm * GeoMath.FeetPerNm;
+        double idealFt = idealNm * GeoMath.FeetPerNm;
 
         // Prefer upgrading the nearest eligible endpoint when it sits within
         // reuse tolerance of ideal. This avoids the "1 ft interpolation inside
@@ -812,16 +1029,12 @@ internal static class RunwayCrossingDetector
     /// one is returned so <see cref="DropRedundantFallbackBars"/> can drop it when the
     /// junction's other routes all reach a bar of the runway.
     /// </summary>
-    private static FallbackBar? DeadEndFallback(
-        AirportGroundLayout layout,
-        CoordinateIndex coordIndex,
-        DeadEnd deadEnd,
-        in RunwayRectangle rect,
-        ref int nextNodeId
-    )
+    private static FallbackBar? DeadEndFallback(CrossingContext context, DeadEnd deadEnd, BarTarget target, ref int nextNodeId)
     {
+        (AirportGroundLayout layout, CoordinateIndex coordIndex) = context;
+        (RunwayRectangle rect, double idealNm) = target;
         (GroundNode prevNode, GroundNode currentNode, GroundEdge lastEdge, string taxiwayName) = deadEnd;
-        double idealFt = rect.HoldShortNm * GeoMath.FeetPerNm;
+        double idealFt = idealNm * GeoMath.FeetPerNm;
         double currentCrossFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(currentNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
@@ -1075,7 +1288,8 @@ internal static class RunwayCrossingDetector
         }
 
         // The budget binds before the bar: a bar farther along than the holding distance is not the junction's marking.
-        double holdingFt = rect.HoldShortNm * GeoMath.FeetPerNm;
+        // The holding distance here is the angle term's ceiling, S + W_twy / 2, since an angled bar sits out to it.
+        double holdingFt = (rect.HoldShortNm * GeoMath.FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayWidthFt(rect)) / 2.0);
         if (distFt > holdingFt)
         {
             return RouteNode.Escapes;
@@ -1089,6 +1303,7 @@ internal static class RunwayCrossingDetector
 
         double crossFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * GeoMath.FeetPerNm;
+        // A node between S and an angled bar at D is still inside the holding area along its taxiway, so it escapes only past the ceiling.
         return (crossFt >= holdingFt - AirportGroundLayout.HoldingDistanceToleranceFt) ? RouteNode.Escapes : RouteNode.Open;
     }
 
@@ -1189,8 +1404,11 @@ internal readonly struct RunwayRectangle
     public required RunwayIdentifier CombinedId { get; init; }
 }
 
-/// <summary>What <see cref="RunwayCrossingDetector.DetectRunwayCrossings"/> found for one runway: its width and its junction fallback bars.</summary>
-internal readonly record struct RunwayCrossingResult(double WidthFt, List<FallbackBar> FallbackBars);
+/// <summary>
+/// What <see cref="RunwayCrossingDetector.DetectRunwayCrossings"/> found for one runway: its width, the base hold-short
+/// separation S its bars were seated at (<see cref="HoldShortStandoff.BaseSeparationFt"/>) and its junction fallback bars.
+/// </summary>
+internal readonly record struct RunwayCrossingResult(double WidthFt, double HoldShortStandoffFt, List<FallbackBar> FallbackBars);
 
 /// <summary>
 /// A bar the dead-end fallback placed short of the holding distance on a taxiway that ends at a junction with another
@@ -1203,6 +1421,27 @@ internal readonly record struct FallbackBar(
     GroundNodeType PreviousType,
     SplitEdgeRecord? Split
 );
+
+/// <summary>
+/// A runway planned for bar placement (<see cref="RunwayCrossingDetector.PlanRunway"/>): its feature, its parse-time
+/// rectangle (carrying S), its navdata width and its base separation S in feet.
+/// </summary>
+internal readonly record struct RunwayPlan(GeoJsonParser.RunwayFeature Feature, RunwayRectangle Rect, double WidthFt, double StandoffFt);
+
+/// <summary>
+/// A taxiway edge and its two ends, the one nearer the runway first: a boundary edge crossing a runway's edge (its node
+/// on the runway, then its node off it), or a walk segment straddling the ideal distance.
+/// </summary>
+internal readonly record struct Crossing(GroundEdge Edge, GroundNode On, GroundNode Off);
+
+/// <summary>Where a crossing's bar goes: the runway's parse-time rectangle (carrying S) and the ideal distance, nm.</summary>
+internal readonly record struct BarTarget(RunwayRectangle Rect, double IdealNm);
+
+/// <summary>The layout a crossing's bar is seated in and its coordinate index.</summary>
+internal readonly record struct CrossingContext(AirportGroundLayout Layout, CoordinateIndex CoordIndex);
+
+/// <summary>One step of the hold-short walker: the taxiway it follows, the node it came from and the node it is at.</summary>
+internal readonly record struct WalkStep(string Taxiway, GroundNode Prev, GroundNode Current);
 
 /// <summary>Where the hold-short walker stopped short of the holding distance: the last two nodes, the edge between them and the taxiway.</summary>
 internal readonly record struct DeadEnd(GroundNode Prev, GroundNode Current, GroundEdge LastEdge, string Taxiway);

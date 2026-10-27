@@ -3640,6 +3640,22 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// Says the turn-about refusal of <see cref="_turnAboutHold"/> (<see cref="SayUnableToTurnAbout"/>) when it has not been
+    /// said yet, and marks it said: the first tick of the stop says it, and so does a hold that takes the aircraft over before
+    /// that tick (<see cref="TaxiingPhase"/>'s hold at the route's start node), which would otherwise drop it.
+    /// </summary>
+    internal void SayPendingTurnAboutUnable(PhaseContext ctx)
+    {
+        if (_turnAboutHold is not { UnableSaid: false } hold)
+        {
+            return;
+        }
+
+        SayUnableToTurnAbout(ctx, hold);
+        _turnAboutHold = hold with { UnableSaid = true };
+    }
+
+    /// <summary>
     /// One tick of an aircraft's stop when it has no room to turn about, rolling or at rest (<see cref="_turnAboutHold"/>): the heading held
     /// straight on the stop's bearing, the speed on the braking curve at the stop's rate that reaches zero at its stop point,
     /// read where this tick's travel leaves the aircraft, never above the speed it has. Once stopped it stays stopped: the
@@ -3648,12 +3664,7 @@ public sealed class GroundNavigator
     /// </summary>
     private NavigatorResult TickTurnAboutHold(PhaseContext ctx, TurnAboutHold hold)
     {
-        if (!hold.UnableSaid)
-        {
-            SayUnableToTurnAbout(ctx, hold);
-            _turnAboutHold = hold with { UnableSaid = true };
-        }
-
+        SayPendingTurnAboutUnable(ctx);
         var bearing = new TrueHeading(hold.BearingDeg);
         double toStopFt = GeoMath.AlongTrackDistanceNm(hold.StopPoint, ctx.Aircraft.Position, bearing) * GeoMath.FeetPerNm;
         double speedKts = ctx.Aircraft.IndicatedAirspeed;

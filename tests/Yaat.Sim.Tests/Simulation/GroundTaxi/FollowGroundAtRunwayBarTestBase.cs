@@ -462,14 +462,18 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Stages <see cref="StageRolling"/>'s crossing from the 1L bar under <c>CROSS 1L 1R</c> instead, and ticks until the follower
-    /// rolls on its follow route between 1L and 1R, inside neither's hold line, where braking at the taxi rate would carry its
-    /// nose inside 1R's hold line: with <paramref name="firmStopMakesTheLine"/> where the firm rate stops it short, else where
-    /// even the firm rate would not. Then re-routes the leader along F1 through it, losing the route.
+    /// Stages <see cref="StageRolling"/>'s crossing from the 1L bar under <c>CROSS 1L 1R</c> instead, the follower a
+    /// <paramref name="followerType"/>, and ticks until it rolls on its follow route between 1L and 1R, inside neither's hold
+    /// line, where braking at the taxi rate would carry its nose inside 1R's hold line: with
+    /// <paramref name="firmStopMakesTheLine"/> where the firm rate stops it short, else where even the firm rate would not.
+    /// Then re-routes the leader along F1 through it, losing the route.
     /// </summary>
-    private protected (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageLostApproachingOneRight(bool firmStopMakesTheLine)
+    private protected (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageLostApproachingOneRight(
+        bool firmStopMakesTheLine,
+        string followerType
+    )
     {
-        if (Stage(TaxiToOneLeftBar, "1L") is not { } staged)
+        if (StageBehind(TaxiToOneLeftBar, "1L", "TAXI A L F 28L", Type, followerType) is not { } staged)
         {
             return null;
         }
@@ -820,6 +824,15 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
         string barRunway,
         string leaderTaxi,
         string leaderType
+    ) => StageBehind(followerTaxi, barRunway, leaderTaxi, leaderType, Type);
+
+    /// <summary>As <see cref="StageBehind"/>, the follower a <paramref name="followerType"/> too.</summary>
+    private protected (SfoGround Ground, AircraftState Follower, AircraftState Leader)? StageBehind(
+        string followerTaxi,
+        string barRunway,
+        string leaderTaxi,
+        string leaderType,
+        string followerType
     )
     {
         if (SfoGroundHarness.Build(Output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
@@ -829,7 +842,7 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
         }
 
         AircraftState leader = SfoGroundHarness.SpawnAtSpot(ground, Leader, leaderType, "1");
-        AircraftState follower = SfoGroundHarness.SpawnAtSpot(ground, Follower, Type, "3");
+        AircraftState follower = SfoGroundHarness.SpawnAtSpot(ground, Follower, followerType, "3");
         AssertSent(ground, Follower, followerTaxi);
         ground.Engine.TickOneSecond();
         AssertSent(ground, Leader, leaderTaxi);

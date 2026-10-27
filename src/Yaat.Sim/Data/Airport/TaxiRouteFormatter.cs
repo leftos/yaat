@@ -48,6 +48,10 @@ public static class TaxiRouteFormatter
             {
                 walked.Add((new TaxiwayLeg(pick, IsRunwayName(pick), seg), i));
             }
+            else if ((i == route.Segments.Count - 1) && (FinalArcOtherTaxiway(seg.Edge.Edge, pick) is { } other))
+            {
+                walked.Add((new TaxiwayLeg(other, false, seg), i));
+            }
         }
 
         var legs = new List<TaxiwayLeg>(walked.Count);
@@ -66,6 +70,25 @@ public static class TaxiRouteFormatter
     }
 
     private static bool SameName(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The taxiway a route's final segment, a junction arc followed on <paramref name="current"/>, ends on: its one taxiway
+    /// name other than <paramref name="current"/> ("C - G" on C ends on G, e.g. at a runway bar on the arc's G tangent).
+    /// Null for a straight edge, or an arc naming no other taxiway or more than one.
+    /// </summary>
+    private static string? FinalArcOtherTaxiway(IGroundEdge edge, string current)
+    {
+        if (edge is not GroundArc)
+        {
+            return null;
+        }
+
+        List<string> others =
+        [
+            .. TaxiwayMembers(edge).Where(name => !IsRunwayName(name) && !SameName(name, current)).Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
+        return (others.Count == 1) ? others[0] : null;
+    }
 
     /// <summary>
     /// True when the runway leg <c>walked[k]</c> is a crossing of its runway, read from the route's own structure: the leg's

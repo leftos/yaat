@@ -298,11 +298,8 @@ public class GroundNavigatorArcRestoreTests(ITestOutputHelper output)
         List<GroundNode> bar28R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
         List<GroundNode> bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B");
         GroundNode nearBar28R = bar28R.OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L[0].Position)).First();
-        GroundNode start = nearBar28R
-            .Edges.Where(edge => string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
-            .Select(edge => edge.OtherNode(nearBar28R))
-            .OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L[0].Position))
-            .First();
+        GroundNode behindBar = FartherBNeighbour(nearBar28R, bar28L[0]);
+        GroundNode start = FartherBNeighbour(behindBar, bar28L[0]);
         var startHeading = new TrueHeading(GeoMath.BearingTo(start.Position, nearBar28R.Position) + 90.0);
 
         AircraftState aircraft = Spawn(start, startHeading, layout);
@@ -456,6 +453,14 @@ public class GroundNavigatorArcRestoreTests(ITestOutputHelper output)
             },
         };
     }
+
+    /// <summary>The B neighbour of <paramref name="node"/> farthest from <paramref name="away"/>.</summary>
+    private static GroundNode FartherBNeighbour(GroundNode node, GroundNode away) =>
+        node
+            .Edges.Where(edge => string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
+            .Select(edge => edge.OtherNode(node))
+            .OrderByDescending(other => GeoMath.DistanceNm(other.Position, away.Position))
+            .First();
 
     private static AircraftState Spawn(GroundNode node, TrueHeading heading, AirportGroundLayout layout)
     {

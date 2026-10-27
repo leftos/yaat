@@ -39,7 +39,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     private const int OakFJoinOn33Node = 481;
 
     /// <summary>KOAK F's 15/33 bar on the far side of the D→F crossing.</summary>
-    private const int OakFBar33Node = 521;
+    private const int OakFBar33Node = 514;
 
     /// <summary>KOAK's next F node past <see cref="OakFBar33Node"/>, away from 15/33.</summary>
     private const int OakFPastItsBarNode = 478;
@@ -48,7 +48,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     private const string RolloutArrival = "ARR1";
 
     /// <summary>KOAK's J hold short on D, passed before the 15/33 crossing on <c>TAXI D F HS J</c> from <see cref="OakDJJunctionNode"/>.</summary>
-    private const int OakJHoldShortOnDNode = 1181;
+    private const int OakJHoldShortOnDNode = 1171;
 
     private static double ClearFt(string aircraftType) => (AircraftLength.ResolveFt(aircraftType) / 2.0) + RunwayCrossingFarSideGate.MarginFt;
 

@@ -33,8 +33,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            run.Chain[6].Position,
-            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
+            run.Chain[5].Position,
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
 
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
@@ -67,7 +67,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(run.Layout, follower, requireAhead: true, () => []));
         output.WriteLine($"start #{start.Id}");
         Assert.NotEqual(ramp.CFar.Id, start.Id);
-        Assert.Equal(run.Chain[5].Id, start.Id);
+        Assert.Equal(run.Chain[4].Id, start.Id);
         Assert.Contains(start.Edges, e => e.MatchesTaxiway("B") && !e.IsRunwayCenterline);
         TrueHeading startHeading = follower.TrueHeading;
         Assert.True(startHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(follower.Position, start.Position))) <= 90.0, "the start is behind");
@@ -185,14 +185,14 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true, () => []));
         output.WriteLine($"start #{start.Node.Id}, lead-in {start.LeadIn?.FromNodeId}->{start.LeadIn?.ToNodeId}");
-        Assert.Equal(run.Chain[5].Id, start.Node.Id);
+        Assert.Equal(run.Chain[4].Id, start.Node.Id);
         Assert.Same(ramp.Fillet, start.LeadIn?.Edge.Edge);
         Assert.Equal(ramp.RampEnd.Id, start.LeadIn?.FromNodeId);
     }
 
     /// <summary>
-    /// A C172 the engine taxied (<c>TAXI B W 30</c>) off the ramp edge at <c>Chain[6]</c> and half-way round the fillet from
-    /// there to <c>Chain[5]</c> on B: the follower, the fillet, the ramp edge with its two nodes, and the far end of the C edge
+    /// A C172 the engine taxied (<c>TAXI B W 30</c>) off the ramp edge at <c>Chain[5]</c> and half-way round the fillet from
+    /// there to <c>Chain[4]</c> on B: the follower, the fillet, the ramp edge with its two nodes, and the far end of the C edge
     /// the fillet's chord runs over (the taxi start pick from the chord).
     /// </summary>
     private sealed record RampFillet(
@@ -207,10 +207,10 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     private RampFillet TaxiHalfwayRoundTheRampFillet(FollowCornerGeometry.LeadRun run)
     {
         FilletChord pose = PoseOnFilletChord(run);
-        GroundNode rampEnd = run.Chain[6];
+        GroundNode rampEnd = run.Chain[5];
         GroundNode rampNode = pose.RampEdge.OtherNode(rampEnd);
         Assert.True(pose.RampEdge.IsRamp, $"#{rampNode.Id}-#{rampEnd.Id} is not a ramp edge");
-        GroundArc fillet = rampEnd.Edges.OfType<GroundArc>().First(e => e.OtherNode(rampEnd).Id == run.Chain[5].Id);
+        GroundArc fillet = rampEnd.Edges.OfType<GroundArc>().First(e => e.OtherNode(rampEnd).Id == run.Chain[4].Id);
         AircraftState follower = FollowCornerGeometry.AddTaxiing((run.Engine, run.Layout), "N2FOL", "C172", (rampNode, rampEnd), "TAXI B W 30");
         output.WriteLine($"follower from #{rampNode.Id}: {follower.Ground.AssignedTaxiRoute?.ToSummary()}");
         double halfFilletFt = fillet.DistanceNm * GeoMath.FeetPerNm / 2.0;
@@ -380,8 +380,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         }
 
         List<GroundNode> chain = FollowCornerGeometry.BChain(setup.Layout);
-        AircraftState departure = FollowCornerGeometry.AddTaxiing(setup, "N3RTO", "C172", (chain[3], chain[2]), "TAXI B 28R");
-        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, "N1LED", "C172", (chain[6], chain[5]), "TAXI B 28R");
+        AircraftState departure = FollowCornerGeometry.AddTaxiing(setup, "N3RTO", "C172", (chain[2], chain[1]), "TAXI B 28R");
+        AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, "N1LED", "C172", (chain[5], chain[4]), "TAXI B 28R");
         Tick(setup.Engine, 120, () => departure.Phases?.CurrentPhase is HoldingShortPhase or HoldingInPositionPhase);
         CommandResult cto = setup.Engine.SendCommand(departure.Callsign, "CTO");
         Assert.True(cto.Success, cto.Message);
@@ -457,15 +457,15 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     private sealed record FilletChord(AircraftState Follower, GroundNode CFar, GroundEdge RampEdge);
 
     /// <summary>
-    /// A C172 half-way along the chord of the B/RAMP fillet from <c>Chain[6]</c> (on the ramp side of the B/C junction) to
-    /// <c>Chain[5]</c> (on B), facing <c>Chain[5]</c>: the chord runs over the C edge that leaves the junction toward the 28R
-    /// side, so a taxi from the pose starts at that C edge's far end. The ramp edge is <c>Chain[6]</c>'s straight edge away from
+    /// A C172 half-way along the chord of the B/RAMP fillet from <c>Chain[5]</c> (on the ramp side of the B/C junction) to
+    /// <c>Chain[4]</c> (on B), facing <c>Chain[4]</c>: the chord runs over the C edge that leaves the junction toward the 28R
+    /// side, so a taxi from the pose starts at that C edge's far end. The ramp edge is <c>Chain[5]</c>'s straight edge away from
     /// the junction.
     /// </summary>
     private FilletChord PoseOnFilletChord(FollowCornerGeometry.LeadRun run)
     {
-        GroundNode rampEnd = run.Chain[6];
-        GroundNode onB = run.Chain[5];
+        GroundNode rampEnd = run.Chain[5];
+        GroundNode onB = run.Chain[4];
         Assert.Contains(rampEnd.Edges, e => (e is GroundArc) && (e.OtherNode(rampEnd).Id == onB.Id));
         GroundNode junction = onB
             .Edges.OfType<GroundEdge>()
@@ -599,14 +599,14 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode node = run.Chain[3];
+        GroundNode node = run.Chain[2];
         Assert.Contains(node.Id, TrailNodeIds(run.Lead));
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
             node.Position,
-            FollowCornerGeometry.Facing(node, run.Chain[2])
+            FollowCornerGeometry.Facing(node, run.Chain[1])
         );
 
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
@@ -708,8 +708,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            run.Chain[6].Position,
-            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
+            run.Chain[5].Position,
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
 
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
@@ -861,18 +861,18 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N1LED",
             "C172",
-            FollowCornerGeometry.Between(chain[1].Position, chain[2].Position, 0.5),
-            FollowCornerGeometry.Facing(chain[1], chain[2])
+            FollowCornerGeometry.Between(chain[1].Position, chain[1].Position, 0.5),
+            FollowCornerGeometry.Facing(chain[1], chain[1])
         );
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            FollowCornerGeometry.Between(chain[4].Position, chain[5].Position, 0.5),
-            FollowCornerGeometry.Facing(chain[4], chain[5])
+            FollowCornerGeometry.Between(chain[3].Position, chain[4].Position, 0.5),
+            FollowCornerGeometry.Facing(chain[3], chain[4])
         );
+        follower.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[2], chain[3]), chain[2]);
         follower.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[3], chain[4]), chain[3]);
-        follower.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[4], chain[5]), chain[4]);
 
         FollowRoutePlan.Joinable joinable = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Replan(layout, follower, lead, () => []));
         List<(int From, int To)> moves =
@@ -881,8 +881,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             .. joinable.LeadPathFromMerge.Select(e => (e.FromNodeId, e.ToNodeId)),
         ];
         output.WriteLine($"re-plan: {string.Join(" ", moves.Select(m => $"#{m.From}>#{m.To}"))}");
-        (int From, int To) leaving = Assert.Single(moves.Where(m => m.From == chain[5].Id).Take(1));
-        Assert.NotEqual(chain[4].Id, leaving.To);
+        (int From, int To) leaving = Assert.Single(moves.Where(m => m.From == chain[4].Id).Take(1));
+        Assert.NotEqual(chain[3].Id, leaving.To);
 
         GroundEdge stub = layout
             .Edges.Where(e => !e.IsRamp && !e.IsRunwayCenterline && ((e.Nodes[0].Edges.Count == 1) || (e.Nodes[1].Edges.Count == 1)))
@@ -933,8 +933,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            chain[6].Position,
-            FollowCornerGeometry.Facing(chain[6], chain[5])
+            chain[5].Position,
+            FollowCornerGeometry.Facing(chain[5], chain[4])
         );
 
         Assert.IsType<FollowRoutePlan.WaitForLead>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
@@ -957,17 +957,17 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N1LED",
             "C560",
-            FollowCornerGeometry.Between(chain[2].Position, chain[1].Position, 0.5),
-            FollowCornerGeometry.Facing(chain[2], chain[1])
+            FollowCornerGeometry.Between(chain[1].Position, chain[0].Position, 0.5),
+            FollowCornerGeometry.Facing(chain[1], chain[0])
         );
-        lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[5], chain[4]), chain[5]);
-        lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[2], chain[1]), chain[2]);
+        lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[4], chain[3]), chain[4]);
+        lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[1], chain[0]), chain[1]);
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            chain[6].Position,
-            FollowCornerGeometry.Facing(chain[6], chain[5])
+            chain[5].Position,
+            FollowCornerGeometry.Facing(chain[5], chain[4])
         );
 
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
@@ -981,9 +981,9 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         }
 
         HashSet<int> pathNodes = [.. plan.LeadPathFromMerge.Select(e => e.ToNodeId)];
-        Assert.Contains(chain[3].Id, pathNodes);
         Assert.Contains(chain[2].Id, pathNodes);
         Assert.Contains(chain[1].Id, pathNodes);
+        Assert.Contains(chain[0].Id, pathNodes);
     }
 
     /// <summary>
@@ -1080,10 +1080,17 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         CornerFollow c = FollowRoundTheC_J_Corner(layout, "B738", followerType, leadDroveTheJunction: false);
 
+        // Which quadrant the corner falls in decides where the follower's plan drives the arc: on its way to the merge, or on
+        // the lead's own path from it. Either way the arc is driven, never the 26 ft stubs either side of the junction.
+        bool onTheWayToTheMerge = c.Plan.PathToMerge.Segments.Any(s => ReferenceEquals(s.Edge.Edge, c.Corner.Arc));
+        bool pastTheMerge = c.Plan.LeadPathFromMerge.Any(e => ReferenceEquals(e.Edge, c.Corner.Arc));
         Assert.True(
-            c.Plan.LeadPathFromMerge.Any(e => ReferenceEquals(e.Edge, c.Corner.Arc)),
-            $"the lead path {PathText(c.Plan.LeadPathFromMerge)} misses the {radiusFt:F1} ft radius arc at the {apexDeg:F1}° corner"
+            onTheWayToTheMerge || pastTheMerge,
+            $"neither the path to the merge {c.Plan.PathToMerge.ToSummary()} nor the lead path "
+                + $"{PathText(c.Plan.LeadPathFromMerge)} drives the {radiusFt:F1} ft radius arc at the {apexDeg:F1}° corner"
         );
+        Assert.DoesNotContain(c.Plan.PathToMerge.Segments, s => ReferenceEquals(s.Edge.Edge, c.Corner.StubOnC));
+        Assert.DoesNotContain(c.Plan.PathToMerge.Segments, s => ReferenceEquals(s.Edge.Edge, c.Corner.StubOnJ));
         Assert.DoesNotContain(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, c.Corner.StubOnC));
         Assert.DoesNotContain(c.Plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, c.Corner.StubOnJ));
     }
@@ -2212,8 +2219,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The along-path gap from a follower at B <c>Chain[6]</c>, joining at <c>Chain[5]</c>, to a lead part way along the
-    /// <c>Chain[2]</c>→<c>Chain[1]</c> edge is the follower's straight leg to the merge, the B edges from the merge to the lead's
+    /// The along-path gap from a follower at B <c>Chain[5]</c>, joining at <c>Chain[4]</c>, to a lead part way along the
+    /// <c>Chain[1]</c>→<c>Chain[0]</c> edge is the follower's straight leg to the merge, the B edges from the merge to the lead's
     /// edge and the lead's way along it, less half of each aircraft's length.
     /// </summary>
     [Fact]
@@ -2225,8 +2232,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         }
 
         BFollow b = FollowOnB(layout);
-        double edgesFt = Enumerable.Range(2, 3).Sum(i => FollowCornerGeometry.EdgeBetween(b.Chain[i + 1], b.Chain[i]).DistanceNm) * GeoMath.FeetPerNm;
-        double followerLegFt = GeoMath.DistanceNm(b.Chain[6].Position, b.Chain[5].Position) * GeoMath.FeetPerNm;
+        double edgesFt = Enumerable.Range(1, 3).Sum(i => FollowCornerGeometry.EdgeBetween(b.Chain[i + 1], b.Chain[i]).DistanceNm) * GeoMath.FeetPerNm;
+        double followerLegFt = GeoMath.DistanceNm(b.Chain[5].Position, b.Chain[4].Position) * GeoMath.FeetPerNm;
         double expectedFt =
             followerLegFt + edgesFt + b.LeadAlongFt - (AircraftLength.ResolveFt("C172") / 2.0) - (AircraftLength.ResolveFt("B738") / 2.0);
 
@@ -2285,7 +2292,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A follower at B <c>Chain[6]</c>, joining the trail of a lead taxiing on B a few B edges on, has a route of several
+    /// A follower at B <c>Chain[5]</c>, joining the trail of a lead taxiing on B a few B edges on, has a route of several
     /// segments to the merge: its distance to the merge is its straight leg to the first segment's end, then the rest of the
     /// route's edges by their lengths.
     /// </summary>
@@ -2303,11 +2310,11 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            run.Chain[6].Position,
-            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
+            run.Chain[5].Position,
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
         double expectedFt =
-            (GeoMath.DistanceNm(run.Chain[6].Position, segments[0].Edge.ToNode.Position) + segments.Skip(1).Sum(s => s.Edge.DistanceNm))
+            (GeoMath.DistanceNm(run.Chain[5].Position, segments[0].Edge.ToNode.Position) + segments.Skip(1).Sum(s => s.Edge.DistanceNm))
             * GeoMath.FeetPerNm;
 
         double? toMergeFt = FollowRoutePlanner.FollowerToMergeFt(run.Layout, plan, follower);
@@ -2349,7 +2356,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The plan of a follower at B <c>Chain[6]</c> facing the runway, behind a lead taxiing on B, with three segments or more
+    /// The plan of a follower at B <c>Chain[5]</c> facing the runway, behind a lead taxiing on B, with three segments or more
     /// to the merge.
     /// </summary>
     private FollowRoutePlan.Joinable TrailJoinFromChain6(FollowCornerGeometry.LeadRun run)
@@ -2358,8 +2365,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            run.Chain[6].Position,
-            FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
+            run.Chain[5].Position,
+            FollowCornerGeometry.Facing(run.Chain[5], run.Chain[4])
         );
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine(
@@ -2415,8 +2422,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A follower at B <c>Chain[6]</c> facing the runway, and its lead's plan on B: the lead part way along
-    /// <c>Chain[2]</c>→<c>Chain[1]</c>.
+    /// A follower at B <c>Chain[5]</c> facing the runway, and its lead's plan on B: the lead part way along
+    /// <c>Chain[1]</c>→<c>Chain[1]</c>.
     /// </summary>
     private sealed record BFollow(
         List<GroundNode> Chain,
@@ -2427,24 +2434,24 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
     );
 
     /// <summary>
-    /// A B738 lead half way along the first straight piece of the B edge <c>Chain[2]</c>→<c>Chain[1]</c>, its trail the B edges
-    /// from <c>Chain[5]</c> to it, and a C172 follower at <c>Chain[6]</c> facing <c>Chain[5]</c>, where it joins.
+    /// A B738 lead half way along the first straight piece of the B edge <c>Chain[1]</c>→<c>Chain[0]</c>, its trail the B edges
+    /// from <c>Chain[4]</c> to it, and a C172 follower at <c>Chain[5]</c> facing <c>Chain[4]</c>, where it joins.
     /// </summary>
     private BFollow FollowOnB(AirportGroundLayout layout)
     {
         List<GroundNode> chain = FollowCornerGeometry.BChain(layout);
-        GroundEdge leadEdge = FollowCornerGeometry.EdgeBetween(chain[2], chain[1]);
-        LatLon pieceEnd = EdgeGeometry.PointsFrom(leadEdge, chain[2])[1];
-        double leadAlongFt = GeoMath.DistanceNm(chain[2].Position, pieceEnd) * GeoMath.FeetPerNm / 2.0;
-        var heading = new TrueHeading(GeoMath.BearingTo(chain[2].Position, pieceEnd));
+        GroundEdge leadEdge = FollowCornerGeometry.EdgeBetween(chain[1], chain[0]);
+        LatLon pieceEnd = EdgeGeometry.PointsFrom(leadEdge, chain[1])[1];
+        double leadAlongFt = GeoMath.DistanceNm(chain[1].Position, pieceEnd) * GeoMath.FeetPerNm / 2.0;
+        var heading = new TrueHeading(GeoMath.BearingTo(chain[1].Position, pieceEnd));
         AircraftState lead = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             "N1LED",
             "B738",
-            GeoMath.ProjectPoint(chain[2].Position, heading, leadAlongFt / GeoMath.FeetPerNm),
+            GeoMath.ProjectPoint(chain[1].Position, heading, leadAlongFt / GeoMath.FeetPerNm),
             heading
         );
-        for (int i = 5; i >= 2; i--)
+        for (int i = 4; i >= 1; i--)
         {
             lead.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[i], chain[i - 1]), chain[i]);
         }
@@ -2453,13 +2460,13 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N2FOL",
             "C172",
-            chain[6].Position,
-            FollowCornerGeometry.Facing(chain[6], chain[5])
+            chain[5].Position,
+            FollowCornerGeometry.Facing(chain[5], chain[4])
         );
         FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
-        Assert.Equal(chain[5].Id, plan.MergeNode);
-        Assert.Equal(chain[1].Id, plan.LeadPathFromMerge[^1].ToNodeId);
+        Assert.Equal(chain[4].Id, plan.MergeNode);
+        Assert.Equal(chain[0].Id, plan.LeadPathFromMerge[^1].ToNodeId);
         return new BFollow(chain, lead, leadAlongFt, follower, plan);
     }
 

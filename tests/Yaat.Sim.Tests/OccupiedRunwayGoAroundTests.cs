@@ -239,7 +239,7 @@ public class OccupiedRunwayGoAroundTests
         // a bar that is short of 3,000 ft from one landing threshold and beyond it from the other. Behind it a C172 arrival goes
         // around from the near end and lands from the far one (3-10-3.a.1: Category I behind Category I, 3,000 ft).
         double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
-        AircraftState held = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "C172", facingRunway: false, barFt - 140.0, alongFt: 0);
+        AircraftState held = RunwayOccupancyTests.SquareToTheRunway(oak.Runway, oak.Bar, "C172", facingRunway: false, barFt - 140.0, alongFt: 0);
         held.Phases = new PhaseList { AssignedRunway = oak.Runway };
         held.Phases.Add(new HoldingAfterExitPhase(oak.Runway.Designator, exitTaxiway: null, oak.Bar.Id));
         held.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -267,7 +267,7 @@ public class OccupiedRunwayGoAroundTests
         // A landed B738 on its exit with its tail 60 ft from the centreline, held while still rolling: its exit plan alone would
         // read it clear before the arrival's threshold, but the hold keeps its tail inside the marking (3-10-6.a).
         double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
-        AircraftState exiting = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: false, barFt - 60.0, alongFt: 0);
+        AircraftState exiting = RunwayOccupancyTests.SquareToTheRunway(oak.Runway, oak.Bar, "B738", facingRunway: false, barFt - 60.0, alongFt: 0);
         exiting.IndicatedAirspeed = 10;
         exiting.Phases = new PhaseList { AssignedRunway = oak.Runway };
         exiting.Phases.Add(
@@ -298,7 +298,7 @@ public class OccupiedRunwayGoAroundTests
     private static AircraftState MidCrossing(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar)
     {
         double barFt = RunwayHoldBars.CentrelineFt(runway, bar.Position);
-        AircraftState crossing = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, barFt + 20.0, alongFt: 0);
+        AircraftState crossing = RunwayOccupancyTests.SquareToTheRunway(runway, bar, "B738", facingRunway: true, barFt + 20.0, alongFt: 0);
         crossing.IndicatedAirspeed = 15;
         crossing.Targets.TargetSpeed = 15;
         crossing.Phases = new PhaseList();
@@ -472,6 +472,35 @@ public class OccupiedRunwayGoAroundTests
         Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(large.Runway, large.Layout));
         Assert.Equal(75.0, medium.Runway.WidthFt);
         Assert.Equal(OccupiedRunwayGoAround.MediumRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium.Runway, medium.Layout));
+    }
+
+    [Fact]
+    public void EdgeBand_CapsAtTheStoredStandoff_NotAnOverriddenAuthoredDistance()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "28R") is not { } oak)
+        {
+            return;
+        }
+
+        // OAK 28R authors 225 ft, which the standoff rule overrides with its S (250 + E/100): the bars sit at S, so S is the
+        // hold line. Neither caps the 150 ft band, so a copy of the layout moves both inside it, keeping the override: authored
+        // 150 ft (cap 125) and stored S 160 ft (cap 135). The band follows S.
+        GroundRunway real = oak.Layout.Runways.Single(r => r.Id.Overlaps(oak.Runway.Id));
+        Assert.Equal(225.0, real.HoldShortDistanceFt);
+        Assert.True(real.HoldShortStandoffFt >= 250.0, $"OAK 28R stored S is {real.HoldShortStandoffFt} ft");
+
+        AirportGroundLayout layout = LayoutCloner.DeepClone(oak.Layout);
+        int index = layout.Runways.FindIndex(r => r.Id.Overlaps(oak.Runway.Id));
+        layout.Runways[index] = new GroundRunway
+        {
+            Name = real.Name,
+            Coordinates = [.. real.Coordinates],
+            WidthFt = real.WidthFt,
+            HoldShortDistanceFt = 150.0,
+            HoldShortStandoffFt = 160.0,
+        };
+
+        Assert.Equal(160.0 - OccupiedRunwayGoAround.EdgeBandHoldLineMarginFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(oak.Runway, layout));
     }
 
     [Fact]

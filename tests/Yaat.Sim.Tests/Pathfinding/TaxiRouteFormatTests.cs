@@ -95,6 +95,54 @@ public class TaxiRouteFormatTests
     }
 
     /// <summary>
+    /// A route whose last segment is the "C - G" junction arc ends on G (a runway bar on the arc's G tangent): the arc's one
+    /// other taxiway is its last leg, so the route reads "C G", not "C".
+    /// </summary>
+    [Fact]
+    public void FinalJunctionArc_AppendsItsOtherTaxiway()
+    {
+        GroundNode c1 = Node(0, 37.700, -122.200);
+        GroundNode c2 = Node(1, 37.701, -122.200);
+        GroundNode g1 = Node(2, 37.702, -122.199);
+
+        var route = new TaxiRoute { Segments = [Seg(Straight(c1, c2, "C"), c1, c2), Seg(Arc(c2, g1, "C", "G"), c2, g1)], HoldShortPoints = [] };
+
+        Assert.Equal("C G", route.FormatTaxiwaySequence());
+        Assert.Equal(["C", "G"], TaxiRouteFormatter.CleanTaxiwaySequence(route));
+    }
+
+    /// <summary>A "C - G" junction arc in the middle of a route along C is a corner clipped, not a leg: the route reads "C".</summary>
+    [Fact]
+    public void MidRouteJunctionArc_AddsNoLeg()
+    {
+        GroundNode c1 = Node(0, 37.700, -122.200);
+        GroundNode c2 = Node(1, 37.701, -122.200);
+        GroundNode c3 = Node(2, 37.702, -122.200);
+        GroundNode c4 = Node(3, 37.703, -122.200);
+
+        var route = new TaxiRoute
+        {
+            Segments = [Seg(Straight(c1, c2, "C"), c1, c2), Seg(Arc(c2, c3, "C", "G"), c2, c3), Seg(Straight(c3, c4, "C"), c3, c4)],
+            HoldShortPoints = [],
+        };
+
+        Assert.Equal(["C"], TaxiRouteFormatter.CleanTaxiwaySequence(route));
+    }
+
+    /// <summary>A final arc whose other name is the current leg's own ("C - C") names no other taxiway, so it adds nothing.</summary>
+    [Fact]
+    public void FinalArcNamingOnlyTheCurrentLeg_AddsNothing()
+    {
+        GroundNode c1 = Node(0, 37.700, -122.200);
+        GroundNode c2 = Node(1, 37.701, -122.200);
+        GroundNode c3 = Node(2, 37.702, -122.199);
+
+        var route = new TaxiRoute { Segments = [Seg(Straight(c1, c2, "C"), c1, c2), Seg(Arc(c2, c3, "C", "C"), c2, c3)], HoldShortPoints = [] };
+
+        Assert.Equal(["C"], TaxiRouteFormatter.CleanTaxiwaySequence(route));
+    }
+
+    /// <summary>
     /// A runway taxied ALONG reads as the end the aircraft is travelling toward. A drawn route names
     /// no runway in its path (every token is a node reference), so there is no cleared designator to
     /// match and the direction of travel is the only signal — it must not fall back to the internal

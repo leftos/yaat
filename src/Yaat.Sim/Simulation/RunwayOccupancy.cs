@@ -290,10 +290,10 @@ public static class RunwayOccupancy
     /// <summary>
     /// The prefilter of <see cref="IsVacating"/>: the tail lies half the body's length from the main gear at
     /// <paramref name="position"/>, so it can be over <paramref name="runway"/>'s strict pavement or inside one of its bars' line
-    /// only when the main gear lies within half that length of the farther of the paved half-width and the runway's farthest bar
-    /// (<see cref="RunwayReach.InsideFt"/>). Judged on a flat plane (<see cref="RunwayReach.FlatCentrelineFt"/>) with a margin far
-    /// wider than the plane's error over an airport, so it never rules out a runway the exact geometry would keep. False rules
-    /// the runway out; true decides nothing.
+    /// only when the main gear lies within half that length of the farther of the paved half-width and the outer end of the
+    /// runway's farthest bar's marking (<see cref="RunwayReach.InsideFt"/>). Judged on a flat plane
+    /// (<see cref="RunwayReach.FlatCentrelineFt"/>) with a margin far wider than the plane's error over an airport, so it never
+    /// rules out a runway the exact geometry would keep. False rules the runway out; true decides nothing.
     /// </summary>
     private static bool TailCanBeInside(AirportGroundLayout layout, RunwayInfo runway, AircraftBody body, LatLon position)
     {
@@ -315,7 +315,10 @@ public static class RunwayOccupancy
     /// How far a runway's inside reaches from its centreline, and its centreline on a flat plane about its first end, for
     /// <see cref="TailCanBeInside"/>.
     /// </summary>
-    /// <param name="InsideFt">The farther of the strict paved half-width and the runway's farthest bar from the centreline (ft).</param>
+    /// <param name="InsideFt">
+    /// The farther of the strict paved half-width and the runway's farthest bar from the centreline plus half the taxiway width
+    /// (<see cref="HoldShortStandoff.TaxiwayWidthProxyFt"/>), the farthest its marking can reach (ft).
+    /// </param>
     /// <param name="End1">The centreline's first end, the plane's origin.</param>
     /// <param name="FeetPerDegreeLon">Feet per degree of longitude at the runway's mid latitude.</param>
     /// <param name="AxisX">East component of the unit vector from the first end to the second.</param>
@@ -348,7 +351,7 @@ public static class RunwayOccupancy
             double lengthFt = Math.Sqrt((eastFt * eastFt) + (northFt * northFt));
             (double axisX, double axisY) = (lengthFt > 0.0) ? (eastFt / lengthFt, northFt / lengthFt) : (0.0, 0.0);
             return new RunwayReach(
-                Math.Max(runway.WidthFt / 2.0, farthestBarFt),
+                Math.Max(runway.WidthFt / 2.0, farthestBarFt + (HoldShortStandoff.TaxiwayWidthProxyFt(runway.WidthFt) / 2.0)),
                 new LatLon(runway.Lat1, runway.Lon1),
                 feetPerDegreeLon,
                 axisX,
@@ -532,7 +535,9 @@ public static class RunwayOccupancy
             return false;
         }
 
-        return parts.Any(part => DepthPastMarkingFt(runway, bar, body.PointOf(part, pose.Position, pose.HeadingDeg)) > HoldLineFoulToleranceFt);
+        return parts.Any(part =>
+            DepthPastMarkingFt(layout, runway, bar, body.PointOf(part, pose.Position, pose.HeadingDeg), pose.Position) > HoldLineFoulToleranceFt
+        );
     }
 
     /// <summary>
@@ -562,18 +567,18 @@ public static class RunwayOccupancy
 
     /// <summary>
     /// How far (ft) <paramref name="point"/> lies past <paramref name="runway"/>'s holding position marking toward the centreline
-    /// (negative short of it): the line of <paramref name="bar"/> (<see cref="RunwayHoldBars.CentrelineFt"/> of the bar). Null when
-    /// the bar is more than <see cref="HoldLineFootprint.MarkedBarReachFt"/> from the point along the runway — no marking is painted
-    /// over the grass between taxiways.
+    /// (negative short of it): the marking painted at <paramref name="bar"/> (<see cref="RunwayHoldBars.DepthPastMarkingFt"/>). Null
+    /// when the bar is more than <see cref="HoldLineFootprint.MarkedBarReachFt"/> from the point along the runway — no marking is
+    /// painted over the grass between taxiways.
     /// </summary>
-    private static double? DepthPastMarkingFt(RunwayInfo runway, GroundNode bar, LatLon point)
+    private static double? DepthPastMarkingFt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar, LatLon point, LatLon gearPosition)
     {
         if (AlongRunwayFt(runway, point, bar) > HoldLineFootprint.MarkedBarReachFt)
         {
             return null;
         }
 
-        return RunwayHoldBars.CentrelineFt(runway, bar.Position) - RunwayHoldBars.CentrelineFt(runway, point);
+        return RunwayHoldBars.DepthPastMarkingFt(layout, runway, bar, point, gearPosition);
     }
 
     /// <summary>
@@ -872,7 +877,10 @@ public static class RunwayOccupancy
         return (ac.GroundSpeed >= RollStartMinGroundSpeedKts) && (GroundAccelerationKtPerSec(ac) >= RollStartAccelerationKtPerSec);
     }
 
-    /// <summary>Measured ground acceleration (kt/s) from a shadow's sample history over <see cref="RollStartWindowSeconds"/>; null otherwise.</summary>
+    /// <summary>
+    /// Measured ground acceleration (kt/s) from a shadow's sample history over <see cref="RollStartWindowSeconds"/>; null
+    /// otherwise.
+    /// </summary>
     public static double? GroundAccelerationKtPerSec(AircraftState ac) =>
         ac.LiveTraffic is { } lt ? LiveTrafficKinematics.GroundAcceleration(lt, RollStartWindowSeconds) : null;
 

@@ -187,11 +187,15 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         HoldShortMenu holdShort = host.GetHoldShortChoices(Callsign);
 
-        // G crosses 10L/28R mid-runway on its way to 28L (the destination, the ladder's dimmed last row rather than a stop)
-        // and the room names no active runway: one stop naming both ends, sending the lower-numbered one, which binds the
-        // same bar.
+        // G crosses 10L/28R mid-runway on its way to 28L (the destination, the ladder's dimmed last row rather than a stop),
+        // and the room names no active runway: the runway stop names both ends and sends the lower-numbered one, which binds
+        // the same bar. D is where the G/D fillet leaves G, C where its fillets meet the bar.
         Assert.Equal("route G · RWY 28L", holdShort.RouteLine);
-        HoldShortChoice runway = Assert.Single(holdShort.Rows);
+        Assert.Equal(
+            [("TW", "D", "HS D"), ("RW", "10L/28R", "HS 10L"), ("TW", "C", "HS C")],
+            holdShort.Rows.Select(r => (r.Label.Badge, r.Label.Name, r.Command))
+        );
+        HoldShortChoice runway = Assert.Single(holdShort.Rows, r => r.Label.Badge == HoldShortChoice.RunwayBadge);
         Assert.Equal((HoldShortChoice.RunwayBadge, "10L/28R", "HS 10L"), (runway.Label.Badge, runway.Label.Name, runway.Command));
         Assert.Equal(Bar28ROnG.Id, runway.Preview.Segments[^1].ToNodeId);
         Assert.Equal("Runway 28L", holdShort.Destination?.Name);
@@ -206,7 +210,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28R"] });
         var host = new ClientMenuHost(main, target, new Border());
 
-        HoldShortChoice runway = Assert.Single(host.GetHoldShortChoices(Callsign).Rows);
+        HoldShortChoice runway = Assert.Single(host.GetHoldShortChoices(Callsign).Rows, r => r.Label.Badge == HoldShortChoice.RunwayBadge);
 
         Assert.Equal(("28R", "HS 28R"), (runway.Label.Name, runway.Command));
     }
@@ -1527,10 +1531,12 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.Equal(["Moving"], FollowListItems.Titles(Item(CommandTree(menu), "Follow…")));
         Assert.IsType<GroundTrafficFlyoutTitle>(Item(CommandTree(menu), "Give way to…").Items.OfType<MenuItem>().First().Header);
 
-        MenuItem holdShortRunway = Assert.Single(
-            Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>(),
-            m => m.Header is HoldShortLadderStop
-        );
+        List<MenuItem> ladderStops =
+        [
+            .. Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>().Where(m => m.Header is HoldShortLadderStop),
+        ];
+        Assert.Equal(3, ladderStops.Count);
+        MenuItem holdShortRunway = Assert.Single(ladderStops, m => m.Header is HoldShortLadderStop { Badge: HoldShortChoice.RunwayBadge });
         RaisePointerEntered(holdShortRunway);
         Assert.Null(main.Ground.PreviewRoute);
         ScopePreview preview = Assert.IsType<ScopePreview>(main.Ground.ScopePreview);
@@ -1575,7 +1581,8 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
     /// <summary>
     /// A taxiing aircraft two G nodes north of runway 28R's northern bar on G, facing it, cleared along G to 28L: the route
-    /// crosses 10L/28R mid-runway on the way, so that runway is its one Hold short of… row (28L, its destination, is none).
+    /// crosses 10L/28R mid-runway on the way, so the ladder names that runway's bar, taxiway C met at the bar by its fillets
+    /// and taxiway D where the G/D fillet leaves G (28L, its destination, is no stop).
     /// </summary>
     private static AircraftModel TaxiingAcrossOnG()
     {
@@ -1707,7 +1714,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
             return Oak
                 .Edges.Where(e => (e.TaxiwayName == "W3") && ((e.FromNodeId == holdShort.Id) || (e.ToNodeId == holdShort.Id)))
                 .Select(e => Oak.Nodes.First(n => n.Id == ((e.FromNodeId == holdShort.Id) ? e.ToNodeId : e.FromNodeId)))
-                .Single(n => !LinkNamesOf(n.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)));
+                .MaxBy(n =>
+                    Oak.Nodes.Where(r => LinkNamesOf(r.Id).Any(name => name.Contains("RWY", StringComparison.OrdinalIgnoreCase)))
+                        .Min(r => Math.Pow(r.Latitude - n.Latitude, 2) + Math.Pow(r.Longitude - n.Longitude, 2))
+                )!;
         }
     }
 

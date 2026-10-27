@@ -72,7 +72,10 @@ public class RouteMaterialiserTests
             WakeTurbulenceData.WakeClass.Large,
             null,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
     // ---------------------------------------------------------------------------
     // Empty route

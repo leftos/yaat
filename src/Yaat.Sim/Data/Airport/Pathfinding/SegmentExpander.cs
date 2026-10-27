@@ -1040,8 +1040,11 @@ public static class SegmentExpander
     /// </summary>
     private const double BendMaxTurnDeg = 90.0;
 
-    /// <summary>Farthest, in feet along the final taxiway from the crossing's far join, the walk looks for the far bar.</summary>
-    private const double FarBarSearchFt = 500.0;
+    /// <summary>
+    /// Feet beyond the crossed runway's outward walk bound (<see cref="AirportGroundLayout.OutwardWalkBoundFt(in RunwayRectangle)"/>,
+    /// its farthest hold-line bar from the centerline) the walk still looks for the far bar, measured from the centerline.
+    /// </summary>
+    private const double FarBarSearchMarginFt = 50.0;
 
     /// <summary>Most edges the walk past a crossed runway's far bar takes, a bound against a malformed layout.</summary>
     private const int MaxClearOfRunwayEdges = 64;
@@ -1332,8 +1335,11 @@ public static class SegmentExpander
 
     /// <summary>
     /// The walk from the crossing's far join to <paramref name="finalTaxiway"/>'s bar of <paramref name="crossed"/>: along the
-    /// final taxiway only, within <see cref="FarBarSearchFt"/> of the join, before the taxiway's first junction and before
-    /// another runway. Null when no such bar lies there.
+    /// final taxiway only, no farther from the crossed runway's centerline than its outward walk bound plus
+    /// <see cref="FarBarSearchMarginFt"/>, before the taxiway's first junction and before another runway. A taxiway meeting the
+    /// runway at a shallow angle reaches its bar far along from the join, so the search is bounded across the runway, not along
+    /// the taxiway. A fillet arc onto another taxiway is not a junction: a bar can sit on the arc's tangent node. Null when no
+    /// such bar lies there.
     /// </summary>
     private static (List<DirectionalEdge> Edges, PartialRoute Head)? FindFarBar(
         PartialRoute head,
@@ -1342,23 +1348,32 @@ public static class SegmentExpander
         SearchContext ctx
     )
     {
+        if (ctx.Layout.FindRunway(crossed.End1) is not { } runway)
+        {
+            return null;
+        }
+
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        double searchBoundFt = ctx.Layout.OutwardWalkBoundFt(rect) + FarBarSearchMarginFt;
         GroundNode node = ctx.Layout.Nodes[head.HeadNodeId];
         IGroundEdge? edge = StraightestEdgeOnto(node, finalTaxiway, head.ArrivalBearing);
         var edges = new List<DirectionalEdge>();
         PartialRoute current = head;
-        double walkedFt = 0.0;
-        while ((edge is not null) && (walkedFt < FarBarSearchFt))
+        while ((edge is not null) && (edges.Count < MaxClearOfRunwayEdges))
         {
             GroundNode next = edge.OtherNode(node);
             edges.Add(edge.Directed(node, next));
             current = Advance(current, node, edge, next, ctx);
-            walkedFt += edge.DistanceNm * GeoMath.FeetPerNm;
             if (IsBarOf(next, crossed))
             {
-                return walkedFt <= FarBarSearchFt ? (edges, current) : null;
+                return (edges, current);
             }
 
-            if (IsOtherRunway(next, crossed) || next.Edges.Any(e => !e.IsRunwayCenterline && !e.MatchesTaxiway(finalTaxiway)))
+            if (
+                (AirportGroundLayout.CrossTrackFromCenterlineFt(rect, next) > searchBoundFt)
+                || IsOtherRunway(next, crossed)
+                || next.Edges.Any(e => (e is not GroundArc) && !e.IsRunwayCenterline && !e.MatchesTaxiway(finalTaxiway))
+            )
             {
                 return null;
             }
@@ -3303,7 +3318,7 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// Centroid of the destination runway's hold-short nodes that lie on <paramref name="taxiway"/>,
+    /// Centroid of the destination runway's hold-short nodes that lie on a straight edge of <paramref name="taxiway"/>,
     /// used as the look-ahead anchor for the final named transition when the route ends at a runway
     /// (there is no next named taxiway). Steers junction selection toward the junction whose
     /// taxiway side leads to the runway's own hold-short, so the following terminus walk heads the
@@ -3313,7 +3328,7 @@ public static class SegmentExpander
     /// taxiway, which <see cref="TryRunwayConnectorFallback"/> handles once the whole walk has failed) — in
     /// which case junction selection keeps its prior cost-only behaviour.
     /// </summary>
-    private static (double Lat, double Lon)? ResolveRunwayHoldShortAnchorOnTaxiway(string taxiway, string runwayId, SearchContext ctx)
+    internal static (double Lat, double Lon)? ResolveRunwayHoldShortAnchorOnTaxiway(string taxiway, string runwayId, SearchContext ctx)
     {
         double sumLat = 0;
         double sumLon = 0;
@@ -3325,17 +3340,13 @@ public static class SegmentExpander
                 continue;
             }
 
-            bool onTaxiway = false;
-            foreach (IGroundEdge edge in node.Edges)
-            {
-                if (edge.MatchesTaxiway(taxiway))
-                {
-                    onTaxiway = true;
-                    break;
-                }
-            }
-
-            if (!onTaxiway)
+            // A straight edge of the taxiway at the bar, whichever of its straight taxiways that is: a bar on a fillet arc's
+            // tangent alone is the arc's other taxiway's bar, not this one's.
+            if (
+                !RunwayHoldBars
+                    .NamedStraightOffCentreline(node)
+                    .Exists(e => string.Equals(e.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            )
             {
                 continue;
             }

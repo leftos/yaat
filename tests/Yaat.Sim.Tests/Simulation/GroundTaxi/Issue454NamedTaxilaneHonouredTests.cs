@@ -208,6 +208,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
                 Destination = d1,
                 Options = new ExplicitPathOptions
                 {
+                    StartPose = null,
                     OccupiedTaxiway = "B",
                     ImpliedLeadTaxiway = null,
                     AircraftLengthFt = AircraftLength.ResolveFt("B738"),

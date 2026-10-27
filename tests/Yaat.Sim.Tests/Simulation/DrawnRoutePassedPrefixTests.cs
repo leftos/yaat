@@ -13,7 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-OAK-P (A) — N16390 (C182) taxiing north-west on OAK taxiway C after landing.
 /// At t=681 the controller finished drawing a route to stand GA14 and the client sent the dense
-/// node list <c>TAXI #1124 #352 #1126 #1127 #353 #517 … #683 @GA14, CROSS 15</c>. The drawn path
+/// node list <c>TAXI #1124 #352 #1126 #1127 #353 #517 … #675 @GA14, CROSS 15</c>. The drawn path
 /// is a simple <c>C → F → RAMP</c> taxi crossing 15/33 once.
 ///
 /// The aircraft kept taxiing while the route was being drawn, so by dispatch time its start node
@@ -41,7 +41,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
     private const int AssertAtSeconds = 690;
 
     /// <summary>Node id of stand GA14, the drawn route's terminus.</summary>
-    private const int Ga14NodeId = 683;
+    private const int Ga14NodeId = 675;
 
     /// <summary>
     /// Generous ceiling on the resolved segment count. The drawn path is 48 nodes, so a faithful

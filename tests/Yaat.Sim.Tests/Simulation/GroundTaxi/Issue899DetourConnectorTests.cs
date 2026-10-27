@@ -85,6 +85,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             out PathfindingFailure? failure,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -152,6 +153,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -287,7 +289,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// <summary>
     /// S1 (YAAT-899 R7): the search predicate and the post-hoc filter are one judgement with one set of inputs, the bridge's first
     /// move judged against the arrival edge of the head it leaves from. KCOS C2 ends on 17R/35L at #40: a head there, arrived
-    /// along C2 from #252, whose bridge opens with the straight same-side edge back toward #252, is turning at the uncleared
+    /// along C2 from #248, whose bridge opens with the straight same-side edge back toward #248, is turning at the uncleared
     /// runway for both judges. The filter once judged the first move with no arrival edge and let it pass.
     /// </summary>
     [Fact]
@@ -301,7 +303,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
         }
 
         GroundNode at40 = layout.Nodes[40];
-        GroundNode at252 = layout.Nodes[252];
+        GroundNode at252 = layout.Nodes[248];
         Assert.True(AirportGroundLayout.HasRunwayCenterlineEdge(at40), "#40 is not on 17R/35L");
         IGroundEdge c2 = Assert.Single(at40.Edges, e => (e is GroundEdge) && e.MatchesTaxiway("C2") && (e.OtherNode(at40).Id == at252.Id));
 
@@ -321,6 +323,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             diag.Add,
             null,
             null,
+            startPose: null,
             aircraftLengthFt: AircraftLength.ResolveFt("C172")
         );
         var start = PartialRoute.StartAt(at252.Id);
@@ -437,8 +440,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             case "SFO Z1 S2":
                 return OnTaxiway(layout, 649, 28.0, ["Z1", "S2"], diag);
             case "OAK exit J: C F K J A B W":
-                GroundNode jBar = layout.Nodes[374];
-                Assert.True((jBar.Type == GroundNodeType.RunwayHoldShort) && jBar.Edges.Any(e => e.MatchesTaxiway("J")), "#374 is not J's 28R bar");
+                GroundNode jBar = layout.Nodes[504];
+                Assert.True((jBar.Type == GroundNodeType.RunwayHoldShort) && jBar.Edges.Any(e => e.MatchesTaxiway("J")), "#504 is not J's 28R bar");
                 double offJ = GeoMath.BearingTo(jBar.Position, layout.Nodes[352].Position);
                 return OnTaxiway(layout, jBar.Id, offJ, ["C", "F", "K", "J", "A", "B", "W"], diag);
             case "OAK on C: C F K J C W":
@@ -449,6 +452,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                     ["C", "F", "K", "J", "C", "W"],
                     new ExplicitPathOptions
                     {
+                        StartPose = null,
                         OccupiedTaxiway = "C",
                         ImpliedLeadTaxiway = "C",
                         AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -464,6 +468,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                     ["A", "Q", "B", "F"],
                     new ExplicitPathOptions
                     {
+                        StartPose = null,
                         OccupiedTaxiway = null,
                         ImpliedLeadTaxiway = null,
                         AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -484,6 +489,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             path,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -501,8 +507,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// illegal; a legal bridge exists that reaches <paramref name="excluded"/> without touching it, and the search returns it.
     /// </summary>
     [Theory]
-    [InlineData(370, 893, "L", "M")]
-    [InlineData(859, 861, "Z", "R")]
+    [InlineData(370, 894, "L", "M")]
+    [InlineData(859, 860, "Z", "R")]
     public void BridgeSearch_CheaperArrivalThatTouchedFromTaxiway_DoesNotPruneTheLegalBridge(
         int startNodeId,
         int goalNodeId,
@@ -532,6 +538,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             null,
             null,
             null,
+            startPose: null,
             aircraftLengthFt: null
         );
         var rules = new BridgeRules(null, fromTaxiway, false, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { excluded });
@@ -667,8 +674,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// the search's pick passing the post-hoc filter (no dropped-bridge diagnostic).
     /// </summary>
     [Theory]
-    [InlineData("OAK", 1256, 164.0, "D", "G")]
-    [InlineData("MIA", 1156, 120.0, "Z", "M")]
+    [InlineData("OAK", 1246, 164.0, "D", "G")]
+    [InlineData("MIA", 1160, 120.0, "Z", "M")]
     public void StandingOnARunway_ABridgeMayLeaveItWithinTheAllowance(string airportId, int startNodeId, double heading, string from, string to)
     {
         TestVnasData.EnsureInitialized();
@@ -741,6 +748,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             out failure,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -795,13 +803,13 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// <summary>
     /// Case 2 (YAAT-899 R6): a pair whose junctions exist but none is reachable ahead is not "do not connect". LAX <c>TAXI E W</c>
     /// from #1822 heading 263 has both E/W junctions behind the aircraft; CMH <c>TAXI B B1</c> from #210 and <c>TAXI SR C1</c>
-    /// from #426 (both heading 094) walk their first taxiway to a dead end short of the junction ahead, so they say the same
+    /// from #425 (both heading 094) walk their first taxiway to a dead end short of the junction ahead, so they say the same
     /// without the turn-about note.
     /// </summary>
     [Theory]
     [InlineData("LAX", 1822, 263.0, "E", "W", true)]
     [InlineData("CMH", 210, 94.0, "B", "B1", false)]
-    [InlineData("CMH", 426, 94.0, "SR", "C1", false)]
+    [InlineData("CMH", 425, 94.0, "SR", "C1", false)]
     public void JunctionsExistButNoneAhead_IsRefusedAsNoRouteAhead(
         string airportId,
         int startNodeId,
@@ -1056,6 +1064,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("C172"),

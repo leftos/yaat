@@ -8,19 +8,19 @@ namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// A corner is turned over the fillet arc the generator painted there, never square through the junction
-/// centre node. S2-OAK-2 bundle, SWA2600 <c>TAXI TE U W W1 30</c>: the U→W turn resolved as 694→17→691, so
+/// centre node. S2-OAK-2 bundle, SWA2600 <c>TAXI TE U W W1 30</c>: the U→W turn resolved as 686→17→683, so
 /// the navigator rounded it at the main-gear turn radius at 3 kt and re-acquired W with a visible swing instead
-/// of flying the 75 ft fillet 694→691 at its arc speed. The reverse-arc cost was the cause: half of all
+/// of flying the 75 ft fillet 686→683 at its arc speed. The reverse-arc cost was the cause: half of all
 /// corner traversals run against an arc's stored node order, and that penalty made the square pivot cheaper.
 /// </summary>
 public class FilletCornerRoutingTests(ITestOutputHelper output)
 {
     /// <summary>SWA2600's pushback end on TE in the S2-OAK-2 bundle.</summary>
-    private const int OakTeStart = 904;
+    private const int OakTeStart = 896;
 
-    private const int OakUArcEntry = 694;
+    private const int OakUArcEntry = 686;
     private const int OakUwJunctionCentre = 17;
-    private const int OakWArcExit = 691;
+    private const int OakWArcExit = 683;
 
     /// <summary>UAL2164's stop on T after crossing 28L in the S1-SFO-2 bundle (#459), nosed south-west.</summary>
     private const int SfoTAfter28LCrossing = 855;
@@ -72,6 +72,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -88,7 +89,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == OakUArcEntry && s.ToNodeId == OakWArcExit);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
         Assert.DoesNotContain(route.Segments, s => s.FromNodeId == OakUwJunctionCentre || s.ToNodeId == OakUwJunctionCentre);
-        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "OAK 904 TE U W W1 -> 30");
+        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "OAK 896 TE U W W1 -> 30");
     }
 
     [Fact]
@@ -108,6 +109,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
@@ -144,6 +146,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = null,
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),

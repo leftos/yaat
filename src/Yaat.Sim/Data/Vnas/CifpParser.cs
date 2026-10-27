@@ -1062,8 +1062,48 @@ public static class CifpParser
     }
 
     /// <summary>
-    /// Parses landing threshold elevations (feet MSL) from the airport runway records
-    /// (section P, subsection G). Keyed by (ICAO airport, runway designator) — e.g. ("KSJC", "30L").
+    /// What the CIFP airport records give each runway end, keyed by (ICAO airport, runway designator), e.g. ("KSJC", "30L"):
+    /// its landing threshold elevation (feet MSL) and the ILS category (1, 2 or 3) of the localizer serving it.
+    /// </summary>
+    /// <param name="ThresholdElevationsFt">Each end's landing threshold elevation (<see cref="ReadThresholdElevation"/>).</param>
+    /// <param name="LocalizerCategories">Each end's ILS category (<see cref="ReadLocalizerCategory"/>).</param>
+    public sealed record CifpRunwayEnds(
+        IReadOnlyDictionary<(string Airport, string Runway), double> ThresholdElevationsFt,
+        IReadOnlyDictionary<(string Airport, string Runway), int> LocalizerCategories
+    );
+
+    /// <summary>
+    /// Reads every runway end's landing threshold elevation (airport runway records, section P subsection G) and ILS
+    /// category (airport localizer records, section P subsection I) in one pass over the CIFP file. Only primary records
+    /// (continuation 0 or 1) carry either field.
+    /// </summary>
+    public static CifpRunwayEnds ParseRunwayEnds(string cifpFilePath)
+    {
+        var elevations = new Dictionary<(string, string), double>();
+        var categories = new Dictionary<(string, string), int>();
+
+        foreach (string line in File.ReadLines(cifpFilePath))
+        {
+            if ((line.Length < 32) || (line[0] != 'S') || (line[4] != 'P') || (line[21] is not ('0' or '1')))
+            {
+                continue;
+            }
+
+            if (line[12] == 'G')
+            {
+                ReadThresholdElevation(line, elevations);
+            }
+            else if (line[12] == 'I')
+            {
+                ReadLocalizerCategory(line, categories);
+            }
+        }
+
+        return new CifpRunwayEnds(elevations, categories);
+    }
+
+    /// <summary>
+    /// Records the landing threshold elevation of an airport runway record's end.
     ///
     /// This is the elevation of each runway END, which is what a glidepath is referenced to (AIM
     /// 5-4-5.b.3 measures the TCH above the threshold). The vNAS nav data carries only one elevation per
@@ -1077,46 +1117,67 @@ public static class CifpParser
     /// displaced-threshold field (72-75) reproduces the airport map's own displacements exactly
     /// (KSJC 30L 2,537 ft, 12R 1,297 ft), which pins the offsets.
     /// </summary>
-    public static IReadOnlyDictionary<(string Airport, string Runway), double> ParseRunwayThresholdElevations(string cifpFilePath)
+    private static void ReadThresholdElevation(string line, Dictionary<(string, string), double> elevations)
     {
-        var elevations = new Dictionary<(string, string), double>();
-
-        foreach (string line in File.ReadLines(cifpFilePath))
+        if (line.Length < 71)
         {
-            if (line.Length < 71 || line[0] != 'S' || line[4] != 'P' || line[12] != 'G')
-            {
-                continue;
-            }
-
-            // Continuation records repeat the key with different payload fields; only the primary
-            // record (0 or 1) carries the threshold elevation.
-            if (line[21] is not ('0' or '1'))
-            {
-                continue;
-            }
-
-            string airport = line[6..10].Trim();
-            string runway = line[13..18].Trim();
-            if (!runway.StartsWith("RW", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            runway = RunwayIdentifier.NormalizeDesignator(runway[2..]);
-            if (airport.Length == 0 || runway.Length == 0)
-            {
-                continue;
-            }
-
-            if (!int.TryParse(line[66..71].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int elevationFt))
-            {
-                continue;
-            }
-
-            elevations.TryAdd((airport, runway), elevationFt);
+            return;
         }
 
-        return elevations;
+        string airport = line[6..10].Trim();
+        string runway = line[13..18].Trim();
+        if (!runway.StartsWith("RW", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        runway = RunwayIdentifier.NormalizeDesignator(runway[2..]);
+        if ((airport.Length == 0) || (runway.Length == 0))
+        {
+            return;
+        }
+
+        if (int.TryParse(line[66..71].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int elevationFt))
+        {
+            elevations.TryAdd((airport, runway), elevationFt);
+        }
+    }
+
+    /// <summary>
+    /// Records the ILS category of an airport localizer record's runway end. A localizer-only record (category 0) gives the
+    /// end no entry; an end served by more than one localizer takes the highest category.
+    ///
+    /// ARINC 424 localizer record, 1-based columns: 5 section (P), 7-10 airport, 13 subsection (I), 14-17 localizer
+    /// identifier, 18 ILS category, 22 continuation record number, 28-32 runway identifier ("RW30"), as cifparse's
+    /// <c>loc_gs/widths.py</c> has them.
+    /// </summary>
+    private static void ReadLocalizerCategory(string line, Dictionary<(string, string), int> categories)
+    {
+        if (line[17] is not ('1' or '2' or '3'))
+        {
+            return;
+        }
+
+        string airport = line[6..10].Trim();
+        string runway = line[27..32].Trim();
+        if (!runway.StartsWith("RW", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        runway = RunwayIdentifier.NormalizeDesignator(runway[2..]);
+        if ((airport.Length == 0) || (runway.Length == 0))
+        {
+            return;
+        }
+
+        int category = line[17] - '0';
+        if (categories.TryGetValue((airport, runway), out int existing))
+        {
+            category = Math.Max(existing, category);
+        }
+
+        categories[(airport, runway)] = category;
     }
 
     /// <summary>

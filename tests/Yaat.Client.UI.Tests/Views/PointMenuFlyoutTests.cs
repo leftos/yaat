@@ -441,7 +441,7 @@ public class PointMenuFlyoutTests
         TaxiToRunwayPanel panel = Panel(OpenStripFlyout(scope.Host, ac, surface, MenuIds.PointTaxiToRunway, out _));
 
         Assert.Equal(
-            ["RW At W3 · nearest, near click · via TE U W3 · ~3,050 ft [bold]", "RW At W1 · full length · via TE U W W1 · ~4,650 ft [bold]"],
+            ["RW At W3 · nearest, near click · via TE U W3 · ~3,000 ft [bold]", "RW At W1 · full length · via TE U W W1 · ~4,650 ft [bold]"],
             panel.Lines.Where(line => line.StartsWith("RW ", StringComparison.Ordinal))
         );
     }
@@ -462,7 +462,7 @@ public class PointMenuFlyoutTests
         var point = new MenuPoint(w3.Position, node, null, [], null);
         TaxiToRunwayPanel panel = Panel(OpenStripFlyout(scope.Host, ac, point, MenuIds.PointTaxiHere, out _));
 
-        Assert.Equal(["Taxi via TE U W3 · ~3,050 ft"], panel.Lines.Where(line => !line.Contains(" — ", StringComparison.Ordinal) && (line != "---")));
+        Assert.Equal(["Taxi via TE U W3 · ~3,000 ft"], panel.Lines.Where(line => !line.Contains(" — ", StringComparison.Ordinal) && (line != "---")));
     }
 
     // --- Push to and Custom taxi… ------------------------------------------------------------

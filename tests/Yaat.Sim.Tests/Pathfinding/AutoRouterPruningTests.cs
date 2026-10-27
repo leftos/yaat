@@ -43,7 +43,10 @@ public class AutoRouterPruningTests
             WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
-        );
+        )
+        {
+            StartPose = null,
+        };
 
         (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(ctx);
 

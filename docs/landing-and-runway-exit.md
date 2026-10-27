@@ -326,7 +326,7 @@ When an exit is found, it builds a **virtual segment**: a synthetic route segmen
 
 ### Exits whose bar sits inside the holding distance
 
-An exit is clear of the runway only when the whole aircraft is past the holding position marking, even if that means entering another taxiway (AIM 4-3-21.b, 2-3-5.a.1; 7110.65 §3-10-9.b NOTE 1). "Inside the holding distance" means short of `GroundRunway.HoldShortDistanceFt ?? HoldShortDistanceForWidth` by more than `AirportGroundLayout.HoldingDistanceToleranceFt` (5 ft); `AirportGroundLayout.IsAtRunwayHoldingDistance` is the one test; it reads the bar's `GroundNode.IsShortBar` flag, set when the layout is built, and measures the cross-track only when the flag is null ([ground/hold-short-placement.md](ground/hold-short-placement.md)). `FindAdjacentHoldShort` handles three shapes:
+An exit is clear of the runway only when the whole aircraft is past the holding position marking, even if that means entering another taxiway (AIM 4-3-21.b, 2-3-5.a.1; 7110.65 §3-10-9.b NOTE 1). "Inside the holding distance" means short of the runway's standoff S (`GroundRunway.HoldShortStandoffFt`, else its authored `HoldShortDistanceFt`; an angled taxiway's bar sits at D, beyond S, so it is never inside) by more than `AirportGroundLayout.HoldingDistanceToleranceFt` (5 ft); `AirportGroundLayout.IsAtRunwayHoldingDistance` is the one test; it reads the bar's `GroundNode.IsShortBar` flag, set when the layout is built, and measures the cross-track only when the flag is null ([ground/hold-short-placement.md](ground/hold-short-placement.md)). `FindAdjacentHoldShort` handles three shapes:
 
 - **A branch that dead-ends at a taxiway carrying the runway's bar** (OAK P at J, MIA T8 at S — their own fallback bars are dropped, see `docs/ground/hold-short-placement.md`): `HopToJoiningBar` walks outward onto the joining taxiway to that bar — a shortest-path search keyed on (length, node id), each step at least 1 ft farther from the centerline, capped at the holding distance, honouring one-way edges.
 
@@ -338,7 +338,23 @@ An exit is clear of the runway only when the whole aircraft is past the holding 
 
 A controller's side (`EL`/`ER`, `Phases.RequestedExit.Side`) is never overridden: when the named taxiway is available only on the other side, the aircraft takes the next exit ahead on the instructed side and the pilot says "unable P." (`RunwayExitPhase.ReportNamedExitOnlyOffSide` → `PilotResponder.BuildUnableToExit`).
 
-A plain `EXIT P` may still turn off P on the other side; an uninstructed rollout uses the off side only as a last resort. `ComputePathExitAngle(path, exitTaxiway, runwayHeading)` measures at the first bar or where the path leaves the exit taxiway.
+A plain `EXIT P` may still turn off P on the other side; an uninstructed rollout uses the off side only as a last resort. `ComputePathExitAngle(path, exitTaxiway, runwayHeading)` follows the path from the runway centreline to the first bar or to where the path leaves the exit taxiway; a path that doubles back still reads as a back exit (over 90°).
+
+### Exit angle and exit chain
+
+An exit's angle (`AirportGroundLayout.TurnOffAngle`, used by `ComputeExitAngle` and `ComputePathExitAngle`) is the largest angle to the runway heading of the exit centreline's direction, measured continuously from the runway centreline outward until the centreline is past the runway edge (cross-track from the centreline node of half the runway's width) and has then run `TurnOffWindowPastEdgeFt` (50 ft) further, or until the bar if that comes first. A straight hop's direction is its bearing; an arc's end tangents bound it.
+
+Any bend after that window is the navigator's turn, never the exit's class (P/CG "HIGH SPEED TAXIWAY", 7110.65 §3-4-15, AIM 2-1-5.f.3). It is never read at the bar, which moves with the standoff: OAK 28R E reads 74.2° (a standard exit) although its leg to the bar bends to 45°.
+
+`ChainFromRunway` finds the exit's nodes from the runway centreline to the bar (a shortest-path search over the exit taxiway's non-centreline edges, within `ExitChainSearchFt`, 1,500 ft; a junction arc matches by any of its names). Of the centreline nodes it reaches, it picks by, in order:
+
+1. The bar's own runway: a node on the centreline of the runway the bar protects, before any other runway's (every runway counts for a bar that protects none).
+2. The leaving tangent: the first hop's direction off the centreline, an arc by its tangent at the centreline node, against the runway heading (`LeavingClass`). Under 20° (`ExitChainMinOffCenterlineDeg`) leaves forward, 20° to 160° across, over 160° (`ExitChainReversedDeg`) back up the runway; forward ranks before across before back.
+3. The shorter path, then the lower node id (`ChainReach`), so the answer does not depend on the order a node lists its edges.
+
+A back chain is ranked last, never dropped, so a bar reachable only by doubling back reads as the back exit it is.
+
+Rank by the leaving tangent and the bar's own runway, never by hop count, length or chord: the corner built for the opposite landing direction is a short arc tangent to the centreline pointing against the landing, so it is the shortest and fewest-hop chain and a search that preferred either would take it, reading an exit as a reversed corner (OAK W5 once read a 35 ft fillet built for runway 12, tangent 130°, and some chains ended on another runway's centreline). The width in the angle is the bar's own runway's (`ExitChainRunway`), falling back to the runway owning the chain's first centreline node when the bar protects none or the chain ends on another runway.
 
 Two contracts of the handoff to the navigator (`StartExitNavigation`):
 
@@ -504,6 +520,8 @@ Helicopters are exempt (a wheeled pedal-turn holds the hover rate). Tight fillet
 | Standard exit min distance | 0.02 nm | Min distance to branch for standard exit handoff |
 
 ## Exit Angle Classification
+
+The angle is the one measured in "Exit angle and exit chain" above, so the class of an exit follows its turn off the runway, not where its bar stands.
 
 - **High-speed exits** (≤45°): shallow turns, higher turn-off speed (30 kts for jets). Tolerate shorter virtual segments since the turn angle is small.
 - **Standard exits** (>45°): steep turns, lower turn-off speed (15 kts for jets). Need more distance for the turn arc. Rejected if the aircraft is at/past the branch point — the virtual segment would be too short.

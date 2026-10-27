@@ -61,8 +61,15 @@ public class Issue409LuawTakeoffPassthroughTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to just before DAL802's CTO (t=877); N630LT received LUAW at t=853.
-        engine.Replay(recording, 875);
+        // N237RU holds at the E bar on C, 85.8 ft from C's centreline and inside the MD81 wingtip path, so the queue behind it
+        // stalls; this fixture is the CTO behind the LUAW occupant, so it is deleted before that queue forms.
+        engine.Replay(recording, 780);
+        engine.DeleteAircraft("N237RU", "DEL");
+        // Replay on to just before DAL802's CTO (t=877); N630LT received LUAW at t=853.
+        for (int t = 781; t <= 875; t++)
+        {
+            engine.ReplayOneSecond();
+        }
 
         AircraftState? dal = engine.FindAircraft("DAL802");
         AircraftState? luaw = engine.FindAircraft("N630LT");

@@ -171,7 +171,8 @@ public class PrecomputeBuilderTests
                         NavDataSerial,
                         AirportSidecarHash.For(artccs, "OAK"),
                         AirportSidecarHash.ForStandLeadIns(artccs, "OAK"),
-                        string.Empty
+                        string.Empty,
+                        standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
                     )
                 );
                 Assert.Equal(PrecomputeCheckStatus.Current, Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null)).Status);
@@ -211,7 +212,8 @@ public class PrecomputeBuilderTests
                         NavDataSerial,
                         AirportSidecarHash.For(artccs, "OAK"),
                         AirportSidecarHash.ForStandLeadIns(artccs, "OAK"),
-                        string.Empty
+                        string.Empty,
+                        standoffInputHash: HoldShortStandoff.InputHash(NavigationDatabase.InstanceOrNull, "OAK")
                     )
                 );
                 Assert.Equal(PrecomputeCheckStatus.Current, Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], artccs, null)).Status);
@@ -246,6 +248,26 @@ public class PrecomputeBuilderTests
             Assert.Equal(PrecomputeCheckStatus.LayoutStale, offline.Status);
             Assert.Contains("the videomap hash differs", offline.Describe(), StringComparison.Ordinal);
             Assert.Equal(PrecomputeCheckStatus.LayoutStale, online.Status);
+        });
+    }
+
+    /// <summary>
+    /// Online, the check hashes the runway inputs the standoff rule reads from the loaded navdata, so an entry written with
+    /// another standoff-input hash reports layout-stale; offline it keeps the entry's own hash, as it keeps its MD5 and serial.
+    /// </summary>
+    [Fact]
+    public void Check_EntryWithAnotherStandoffInputHash_ReportsStandoffStaleOnline()
+    {
+        WithStore(store =>
+        {
+            WriteOak(store, FreshKey() with { StandoffInputHash = "abc" });
+
+            PrecomputeCheckResult offline = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], ArtccsDir, null));
+            PrecomputeCheckResult online = Assert.Single(PrecomputeBuilder.Check(store, ["OAK"], ArtccsDir, Online(Md5(), NavDataSerial)));
+
+            Assert.Equal(PrecomputeCheckStatus.Current, offline.Status);
+            Assert.Equal(PrecomputeCheckStatus.LayoutStale, online.Status);
+            Assert.Contains("the standoff-input hash differs", online.Describe(), StringComparison.Ordinal);
         });
     }
 

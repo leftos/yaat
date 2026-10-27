@@ -1081,6 +1081,7 @@ public static class RampLaneReposition
     {
         var headOptions = new ExplicitPathOptions
         {
+            StartPose = null,
             OccupiedTaxiway = options.OccupiedTaxiway,
             ImpliedLeadTaxiway = null,
             AircraftLengthFt = options.AircraftLengthFt,

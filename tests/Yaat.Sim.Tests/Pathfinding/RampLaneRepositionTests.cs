@@ -32,6 +32,7 @@ public class RampLaneRepositionTests
     private static ExplicitPathOptions Options(string? destinationRunway) =>
         new()
         {
+            StartPose = null,
             DestinationRunway = destinationRunway,
             OccupiedTaxiway = null,
             ImpliedLeadTaxiway = null,

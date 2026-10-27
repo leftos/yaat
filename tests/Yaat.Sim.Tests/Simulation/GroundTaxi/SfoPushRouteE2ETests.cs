@@ -991,6 +991,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         var options = new ExplicitPathOptions
         {
+            StartPose = null,
             OccupiedTaxiway = null,
             ImpliedLeadTaxiway = null,
             AircraftLengthFt = AircraftLength.ResolveFt("B738"),

@@ -41,6 +41,15 @@ The AI callers of `Classify` are `ControllerAi/PositionJurisdiction.cs` and `Con
 - **Direction:** "approaching" versus "leaving" comes from the phase (RunwayExitPhase, HoldingAfterExitPhase, or the far side of a CrossingRunwayPhase means leaving), else from whether the heading points toward or away from the runway centreline.
 - **Placement:** the controller definition should arrive as a separate `RunwayUseKind` (e.g. `Fouling`), not as `OnSurface`. That keeps RejectedTakeoff and RunwayCrossingGate on their physical rules without special cases, and lets the advisor word its message "past the hold line" rather than "on the runway". The GCD needs its own "still vacating" predicate.
 
+## The marking is a painted segment (YAAT-1214)
+
+"The marking" in the rule below is not a line parallel to the centreline. `RunwayHoldBars.DepthPastMarkingFt` models the paint as a segment through the bar node, square to the bar's own taxiway axis there (`TaxiwayAxisBearingDeg`, straight edges only), half the taxiway width proxy (`HoldShortStandoff.TaxiwayWidthProxyFt`) each side of the node. Each part of the aircraft is judged against the real main gear's position (`aircraft.Position`, the gear), not the body as a whole:
+
+- **In front of the paint** (the part's offset along the line from the node, and the main gear's, are both within half the taxiway width): the part's depth is its perpendicular distance past the line toward the runway, along the taxiway axis.
+- **Beside the paint** (a wingtip over the stub's edge, or an aircraft on a parallel taxiway whose wing overhangs the stub): the part is judged against the standoff line parallel to the centreline, S for a bar seated by the rule and `min(S, the bar's distance)` for a bar inside S. A correctly held aircraft at an angled bar is clear (OAK 28L B: wingtip about 283 ft from the centreline, beside the paint), while a part 30 ft toward the runway from the bar fouls.
+
+The 5 ft tolerance, the approaching/leaving split and the restriction test are unchanged. The follower's runway-bar scan (`FollowingPhase`) and `HoldLineFootprint` judge their parts the same way, so a follower stopped at a bar fouls by the same measure as the advisory and the go-around.
+
 ## The rule (adopted by the owner, YAAT-402)
 
 An aircraft on the ground but off the runway pavement fouls that runway in two cases. (1) It is approaching the runway and any part of it (the nose, for one facing the runway) is more than about 5 ft past the runway's holding position marking (P/CG "Clear of the Runway" a; AIM 2-3-5.a.1). (2) It is leaving the runway (exiting or crossing) with part of it (the tail) still inside the marking, and it is stopped or restricted short of the marking: under a hold, hold-short, give-way or conflict yield, or its path past the marking is blocked.

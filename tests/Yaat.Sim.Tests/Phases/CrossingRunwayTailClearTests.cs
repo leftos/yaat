@@ -27,7 +27,7 @@ namespace Yaat.Sim.Tests.Phases;
 public class CrossingRunwayTailClearTests(ITestOutputHelper output)
 {
     /// <summary>SFO taxiway G, entry-side (east) hold-short of 01L/19R — where KLM605 starts its crossing.</summary>
-    private const int EntryHoldShortNodeId = 879;
+    private const int EntryHoldShortNodeId = 878;
 
     private const double TickSeconds = 0.25;
 
@@ -316,13 +316,13 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     }
 
     /// <summary>SFO taxiway M, west-side hold-short of 01L/19R — where the heavy starts its crossing.</summary>
-    private const int MEntryHoldShortNodeId = 882;
+    private const int MEntryHoldShortNodeId = 881;
 
     /// <summary>The far-side (east) hold-short of 01L/19R on M — the crossing's exit bar.</summary>
-    private const int MExitHoldShortNodeId = 883;
+    private const int MExitHoldShortNodeId = 882;
 
     /// <summary>The next runway holding position along M: 01R/19L, one 188 ft segment past the exit bar.</summary>
-    private const int MNextRunwayBarNodeId = 902;
+    private const int MNextRunwayBarNodeId = 903;
 
     /// <summary>A 777-300ER: at 242 ft it does not fit between SFO's 01L and 01R holding positions on M.</summary>
     private const string HeavyType = "B77W";

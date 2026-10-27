@@ -29,6 +29,8 @@ public class Oak577FollowBehindDepartingLeadReplayTests(ITestOutputHelper output
 
         (SimulationEngine engine, SessionRecording recording, AirportGroundLayout layout, int leadBarNodeId) = started;
         engine.Replay(recording, BeforeHoldSecond);
+        // QXE2225 now queues ahead of NKS2904 at the moved W1 bar; the fixture is about the follow.
+        engine.DeleteAircraft("QXE2225", "DEL");
         HoldingShortPhase hold = TickUntilFollowerHolds(engine, layout.Nodes[leadBarNodeId], (int)BeforeHoldSecond, live: true);
 
         Output.WriteLine($"hold: node={hold.HoldShort.NodeId} reason={hold.HoldShort.Reason} target={hold.HoldShort.TargetName}");
@@ -62,6 +64,8 @@ public class Oak577FollowBehindDepartingLeadReplayTests(ITestOutputHelper output
 
         (SimulationEngine engine, SessionRecording recording, AirportGroundLayout layout, int leadBarNodeId) = started;
         engine.Replay(recording, BeforeHoldSecond);
+        // QXE2225 now queues ahead of NKS2904 at the moved W1 bar; the fixture is about the follow.
+        engine.DeleteAircraft("QXE2225", "DEL");
         Assert.IsType<AircraftState>(engine.FindAircraft(Follower)).FlightPlan.Departure = "";
 
         HoldingShortPhase hold = TickUntilFollowerHolds(engine, layout.Nodes[leadBarNodeId], (int)BeforeHoldSecond, live: true);

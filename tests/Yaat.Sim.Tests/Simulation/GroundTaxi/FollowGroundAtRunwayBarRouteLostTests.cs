@@ -155,12 +155,13 @@ public class FollowGroundAtRunwayBarRouteLostTests(ITestOutputHelper output) : F
     /// <summary>
     /// A follower crossing 1L and 1R under <c>CROSS 1L 1R</c> loses its follow route between the two runways, where braking at
     /// the taxi rate would stop it inside 1R's hold line but the firm rate stops it short: it brakes at the firm rate, harder
-    /// than the taxi rate, and comes to rest short of 1R, no part of it ever at rest inside a runway's hold line.
+    /// than the taxi rate, and comes to rest short of 1R, no part of it ever at rest inside a runway's hold line. The follower
+    /// is an E170: a B738's longer body lies inside one of the two hold lines through nearly the whole gap between them.
     /// </summary>
     [Fact]
     public void Following_RouteLostShortOfACrossedBar_StopsShortAtTheFirmRate()
     {
-        if (StageLostApproachingOneRight(firmStopMakesTheLine: true) is not { } staged)
+        if (StageLostApproachingOneRight(firmStopMakesTheLine: true, followerType: "E170") is not { } staged)
         {
             return;
         }
@@ -198,7 +199,7 @@ public class FollowGroundAtRunwayBarRouteLostTests(ITestOutputHelper output) : F
     [Fact]
     public void Following_RouteLostTooCloseToACrossedBar_CrossesAndClearsBeyond()
     {
-        if (StageLostApproachingOneRight(firmStopMakesTheLine: false) is not { } staged)
+        if (StageLostApproachingOneRight(firmStopMakesTheLine: false, followerType: Type) is not { } staged)
         {
             return;
         }

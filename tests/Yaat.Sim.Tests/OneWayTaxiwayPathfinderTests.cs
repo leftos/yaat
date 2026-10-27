@@ -47,6 +47,7 @@ public class OneWayTaxiwayPathfinderTests
             null
         )
         {
+            StartPose = null,
             ForbiddenOneWayMoves = forbidden,
             OneWayMode = mode,
         };

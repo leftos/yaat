@@ -20,14 +20,11 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 [Collection("Acceptance")]
 public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
 {
-    /// <summary>N36936 at bundle t=1100: holding after exiting 28R on E, about 12 ft past E's 28R bar, nosed 337.7° true.</summary>
-    private static readonly (LatLon Position, TrueHeading Heading) N36936AfterExitPose = (
-        new LatLon(37.72709342524415, -122.20965286468001),
-        new TrueHeading(337.6650135475534)
-    );
+    /// <summary>N36936's heading at bundle t=1100, holding after exiting 28R on E: nosed 337.7° true.</summary>
+    private static readonly TrueHeading AfterEExitHeading = new(337.6650135475534);
 
-    /// <summary>OAK 28R hold-short on E, north side: the bar N36936 exited over.</summary>
-    private const int OakENorthOf28RHoldShortNode = 510;
+    /// <summary>How far past E's 28R bar, outside it along <see cref="AfterEExitHeading"/>, the aircraft holds after the exit.</summary>
+    private const double AfterEExitPastBarFt = 12.0;
 
     /// <summary>OAK D/J junction: D leaves it north toward 15/33.</summary>
     private const int OakDJJunctionNode = 375;
@@ -287,19 +284,28 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         }
 
         GroundNode old1 = Assert.IsType<GroundNode>(layout.FindParkingByName("OLD1"));
+
+        // The probe starts beyond E's 28R bar, on E's straight edge toward C, so the C→D segment it resolves begins at a node
+        // on C instead of reaching C only through the bar's C - E fillet arc.
+        GroundNode start = layout.Nodes[1091];
+        Assert.Contains(start.Edges, e => (e is not GroundArc) && (e.TaxiwayName == "E"));
+        Assert.Contains(start.Edges, e => e.TaxiwayName is "C" or "C - E");
+        GroundNode bar = OakE28RBar(layout);
+
         var diag = new List<string>();
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            OakENorthOf28RHoldShortNode,
+            start.Id,
             ["C", "D", "F"],
             out string? failReason,
             new ExplicitPathOptions
             {
+                StartPose = null,
                 OccupiedTaxiway = "E",
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DestinationHintNode = old1,
-                StartHeadingTrue = N36936AfterExitPose.Heading.Degrees,
+                StartHeadingTrue = GeoMath.BearingTo(bar.Position, start.Position),
                 DiagnosticLog = diag.Add,
             },
             AircraftCategory.Piston,
@@ -526,19 +532,29 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         && (node.RunwayId?.Contains("33") == true)
         && node.Edges.Any(e => e.MatchesTaxiway(taxiway));
 
-    private static AircraftState MakeN36936(AirportGroundLayout layout)
-    {
-        GroundNode bar = layout.Nodes[OakENorthOf28RHoldShortNode];
-        Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
-        Assert.True(bar.RunwayId?.Contains("28R") == true, $"node {bar.Id} is not a 28R bar");
-        Assert.Contains(bar.Edges, e => e.MatchesTaxiway("E"));
+    private static AircraftState MakeN36936(AirportGroundLayout layout) => MakeHoldingAfterEExit(layout, Callsign, "C150");
 
+    /// <summary>OAK 28R's hold-short bar on E, north side: the bar an aircraft exiting 28R on E crosses.</summary>
+    internal static GroundNode OakE28RBar(AirportGroundLayout layout)
+    {
+        GroundNode bar = Assert.IsType<GroundNode>(TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "28R", "E"));
+        Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
+        return bar;
+    }
+
+    /// <summary>
+    /// An aircraft holding after exiting 28R on E: <see cref="AfterEExitPastBarFt"/> past E's 28R bar along
+    /// <see cref="AfterEExitHeading"/>, outside the bar, on taxiway E.
+    /// </summary>
+    internal static AircraftState MakeHoldingAfterEExit(AirportGroundLayout layout, string callsign, string type)
+    {
+        GroundNode bar = OakE28RBar(layout);
         var aircraft = new AircraftState
         {
-            Callsign = Callsign,
-            AircraftType = "C150",
-            Position = N36936AfterExitPose.Position,
-            TrueHeading = N36936AfterExitPose.Heading,
+            Callsign = callsign,
+            AircraftType = type,
+            Position = GeoMath.ProjectPoint(bar.Position, AfterEExitHeading, AfterEExitPastBarFt / GeoMath.FeetPerNm),
+            TrueHeading = AfterEExitHeading,
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
