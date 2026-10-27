@@ -291,20 +291,32 @@ function Complete-TestJob {
 }
 
 # A crashing test host leaves its Mini dump and its JSON crash report in the folder the macOS
-# block below names. Printing them here is what carries that evidence into the routed run's log,
-# which is all a failed routed run returns.
+# block below names. Printing them here carries the report into the routed run's log, and copying
+# both into the checkout's .tmp/dumps lets the gate's failureOutputs glob bring them back to the PC.
 function Write-CrashEvidence {
-    param([Parameter(Mandatory)][string]$Folder, [Parameter(Mandatory)][datetime]$Since)
+    param(
+        [Parameter(Mandatory)][string]$Folder,
+        [Parameter(Mandatory)][datetime]$Since,
+        [Parameter(Mandatory)][string]$CopyTo
+    )
     if (-not (Test-Path $Folder)) {
         return
     }
     $evidence = @(Get-ChildItem -Path $Folder -File | Where-Object { $_.LastWriteTime -ge $Since })
+    if ($evidence.Count -gt 0) {
+        $null = New-Item -ItemType Directory -Path $CopyTo -Force
+    }
     foreach ($dump in @($evidence | Where-Object { $_.Name -like '*.dmp' })) {
         Write-Host "Crash dump: $($dump.FullName)" -ForegroundColor Red
     }
     foreach ($report in @($evidence | Where-Object { $_.Name -like '*.crashreport.json' })) {
         Write-Host "Crash report: $($report.FullName)" -ForegroundColor Red
         Get-Content -Raw $report.FullName | Out-Host
+    }
+    foreach ($file in $evidence) {
+        $copy = Join-Path $CopyTo $file.Name
+        Copy-Item -LiteralPath $file.FullName -Destination $copy -Force
+        Write-Host "Copied for the gate: $copy" -ForegroundColor Red
     }
 }
 
@@ -350,7 +362,8 @@ if ($BuildOnly) {
 # A rare test-host crash on the Mac builder (signal 11, once in about 590 routed runs) otherwise
 # leaves no evidence: a routed run returns only its log, never a dump. These runtime variables
 # make a crashing test host write a Mini dump and a JSON crash report to a folder outside the work
-# tree the builder prunes; Write-CrashEvidence prints both paths and the report into this log.
+# tree the builder prunes; Write-CrashEvidence prints both paths and the report into this log and
+# copies both into .tmp/dumps, which a failed routed run returns to the PC.
 $crashDumpDir = $null
 $crashScanStart = $null
 if ($IsMacOS) {
@@ -377,7 +390,7 @@ Complete-TestJob 'Test yaat' $yaatTests
 Complete-TestJob 'Test yaat-server' $serverTests
 
 if ($IsMacOS) {
-    Write-CrashEvidence -Folder $crashDumpDir -Since $crashScanStart
+    Write-CrashEvidence -Folder $crashDumpDir -Since $crashScanStart -CopyTo (Join-Path $yaatDir '.tmp/dumps')
 }
 
 Write-Host ''
