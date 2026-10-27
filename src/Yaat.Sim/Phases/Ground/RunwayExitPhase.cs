@@ -23,6 +23,13 @@ public sealed class RunwayExitPhase : Phase
     private const double LogIntervalSeconds = 3.0;
 
     /// <summary>
+    /// How far (ft) the route-end stop puts the tail past the hold-short marking: the stop aims at half the aircraft length plus
+    /// this past the hold-short node, so the planned rest pose has every part of the aircraft past the marking (AIM 4-3-21.b)
+    /// with a margin rather than the tail on the line itself.
+    /// </summary>
+    public const double TailClearMarginFt = 3.0;
+
+    /// <summary>
     /// Lead time (seconds) the aircraft must still have before the branch point for a late
     /// <c>EL</c>/<c>ER</c>/<c>EXIT</c> to be honored. Inside it the pilot is committed to the turn-off.
     ///
@@ -1255,12 +1262,12 @@ public sealed class RunwayExitPhase : Phase
         // clears the hold-short line. The virtual node is offset along the graph edge.
         GroundNode holdShortNode = _exitPath[^1];
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
-        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+        double tailClearNm = ((lengthFt / 2.0) + TailClearMarginFt) / GeoMath.FeetPerNm;
 
         GroundNode virtualTarget;
         if (_exitPath.Count >= 2)
         {
-            virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout!, holdShortNode, _exitPath[^2], halfLengthNm);
+            virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout!, holdShortNode, _exitPath[^2], tailClearNm);
         }
         else
         {
@@ -1269,7 +1276,7 @@ public sealed class RunwayExitPhase : Phase
                 holdShortNode,
                 ctx.Aircraft.Position.Lat,
                 ctx.Aircraft.Position.Lon,
-                halfLengthNm
+                tailClearNm
             );
         }
 
@@ -1284,18 +1291,9 @@ public sealed class RunwayExitPhase : Phase
             CurrentSegmentIndex = Math.Min(resumeSegmentIndex, segments.Count - 1),
         };
 
-        // Cap the exit maneuver at the exit's taxi ceiling (ExitTaxiCeilingKts), not the runway-rollout coast speed: once the
-        // aircraft turns off onto the exit taxiway it is taxiing, so it should not accelerate past taxi
-        // speed toward coast on the straight to the hold-short and then brake hard — the
-        // slow-turn-then-surge profile. The turn itself is governed by the junction arc's
-        // MaxSafeSpeedKts (a rapid exit is taken at its design speed).
-        double taxiCeiling = ExitTaxiCeilingKts(ctx.Category, ctx.Aircraft.AircraftType, ctx.Aircraft.Ground.IsExpeditingExit);
-        double maxSpeed = Math.Min(_coastSpeed, taxiCeiling);
-
         // The route rebuild after a restore takes the navigator from the snapshot, so the set-up below resumes the primitive
         // it was playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
         _navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
-        _navigator.MaxSpeedKts = maxSpeed;
         _restoredNavigator = null;
         ApplyExitDecelRate(ctx);
 
@@ -1330,7 +1328,7 @@ public sealed class RunwayExitPhase : Phase
             ctx.Aircraft.Callsign,
             segments.Count,
             _exitTaxiway,
-            maxSpeed,
+            ExitMaxSpeedKts(ctx),
             string.Join("→", _exitPath.Select(n => n.Id))
         );
         return true;
@@ -1352,9 +1350,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         // A stored taxi route the exit joins: the route end is not a stop, the aircraft rolls on into the route at taxi speed.
-        // With no layout the route cannot start (TryStartStoredTaxiRoute), so the exit brakes to its end as usual.
-        bool rollsOn = _rollsIntoStoredRoute && (ctx.Aircraft.Phases?.TaxiRoute is not null) && (ctx.GroundLayout is not null);
-        bool isLastSegment = (_exitRoute.CurrentSegmentIndex + 1 >= _exitRoute.Segments.Count) && !rollsOn;
+        bool isLastSegment = IsExitStopSegment(ctx);
         ApplyExitDecelRate(ctx);
         NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
@@ -1378,6 +1374,10 @@ public sealed class RunwayExitPhase : Phase
 
             ApplyExitDecelRate(ctx);
             _navigator.SetupSegment(_exitRoute, ctx, _ => true);
+
+            // The arrival sub-tick published nothing: fly it on the new segment's plan, or the sub-tick's braking is lost, and
+            // a stop planned at the full brake rate never makes it up.
+            _navigator.PublishSegmentSpeed(ctx, IsExitStopSegment(ctx), _ => true);
         }
 
         return false;
@@ -1390,7 +1390,10 @@ public sealed class RunwayExitPhase : Phase
     /// the rollout's braking: the approach leg down the runway at the rate the exit was chosen with
     /// (<see cref="TurnOffDecelRate"/>), the first exit edge, where the turn arc is flown, at that rate but no more than the
     /// category taxi rate, and the rest of the route at the taxi rate. The route-end stop — the tail-clear point past the bar,
-    /// not the bar itself — is planned in every mode, at the taxi rate unless expedited.
+    /// not the bar itself — is planned in every mode, at the taxi rate unless expedited, on the braking curve the sub-ticked
+    /// physics flies (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>), so the aircraft comes to rest there; an exit that rolls
+    /// on into a stored taxi route keeps the continuous curve. The speed ceiling is <see cref="ExitMaxSpeedKts"/>, re-read every
+    /// tick so an <c>EXP</c> raises it at once.
     /// </summary>
     private void ApplyExitDecelRate(PhaseContext ctx)
     {
@@ -1398,6 +1401,9 @@ public sealed class RunwayExitPhase : Phase
         {
             return;
         }
+
+        _navigator.PlansStopsOnSubTicks = !RollsOnIntoStoredRoute(ctx);
+        _navigator.MaxSpeedKts = ExitMaxSpeedKts(ctx);
 
         if (ctx.Aircraft.Ground.IsExpeditingExit)
         {
@@ -1425,6 +1431,30 @@ public sealed class RunwayExitPhase : Phase
     }
 
     private static bool IsTurnOffSegment(int segmentIndex) => segmentIndex <= TurnOffLastSegmentIndex;
+
+    /// <summary>
+    /// Whether the exit rolls on into a stored taxi route the exit joins rather than stopping at its route end. With no layout
+    /// the route cannot start (<c>TryStartStoredTaxiRoute</c>), so the exit brakes to its end as usual.
+    /// </summary>
+    private bool RollsOnIntoStoredRoute(PhaseContext ctx) =>
+        _rollsIntoStoredRoute && (ctx.Aircraft.Phases?.TaxiRoute is not null) && (ctx.GroundLayout is not null);
+
+    /// <summary>
+    /// Whether the exit route's current segment ends in the route-end stop: it is the last segment, and the exit does not roll
+    /// on into a stored taxi route (<see cref="RollsOnIntoStoredRoute"/>).
+    /// </summary>
+    private bool IsExitStopSegment(PhaseContext ctx) =>
+        (_exitRoute is { } route) && (route.CurrentSegmentIndex + 1 >= route.Segments.Count) && !RollsOnIntoStoredRoute(ctx);
+
+    /// <summary>
+    /// The exit maneuver's speed ceiling (kts): the exit's taxi ceiling (<see cref="ExitTaxiCeilingKts"/>), not the
+    /// runway-rollout coast speed, and never above the coast speed. Once the aircraft turns off onto the exit taxiway it is
+    /// taxiing, so it should not accelerate past taxi speed toward coast on the straight to the hold-short and then brake hard
+    /// (the slow-turn-then-surge profile). The turn itself is governed by the junction arc's cornering speed (a rapid exit is
+    /// taken at its design speed).
+    /// </summary>
+    private double ExitMaxSpeedKts(PhaseContext ctx) =>
+        Math.Min(_coastSpeed, ExitTaxiCeilingKts(ctx.Category, ctx.Aircraft.AircraftType, ctx.Aircraft.Ground.IsExpeditingExit));
 
     private bool CompleteExit(PhaseContext ctx)
     {

@@ -66,17 +66,28 @@ public class LandingExitDecelTests
         return ac;
     }
 
-    private static PhaseContext Ctx(AircraftState ac, RunwayInfo rwy, AirportGroundLayout? layout) => CtxFor(ac, rwy, layout, AircraftCategory.Jet);
+    private static PhaseContext Ctx(AircraftState ac, RunwayInfo rwy, AirportGroundLayout? layout) =>
+        CtxFor(ac, rwy, layout, AircraftCategory.Jet, 1.0);
 
-    private static PhaseContext CtxFor(AircraftState ac, RunwayInfo rwy, AirportGroundLayout? layout, AircraftCategory category) =>
+    /// <summary>
+    /// A phase context for <paramref name="ac"/> stepped every <paramref name="deltaSeconds"/>, at the field elevation navdata
+    /// gives <paramref name="rwy"/>'s airport, or the runway's own elevation for a synthetic runway navdata does not know.
+    /// </summary>
+    private static PhaseContext CtxFor(
+        AircraftState ac,
+        RunwayInfo rwy,
+        AirportGroundLayout? layout,
+        AircraftCategory category,
+        double deltaSeconds
+    ) =>
         new()
         {
             Aircraft = ac,
             Targets = ac.Targets,
             Category = category,
-            DeltaSeconds = 1.0,
+            DeltaSeconds = deltaSeconds,
             Runway = rwy,
-            FieldElevation = 9.0,
+            FieldElevation = NavigationDatabase.Instance.GetAirportElevation(rwy.AirportId) ?? rwy.ElevationFt,
             GroundLayout = layout,
             Logger = NullLogger.Instance,
         };
@@ -433,7 +444,7 @@ public class LandingExitDecelTests
         AircraftState aircraft = MakeLandedAircraftOfType(type.AircraftType, position.Lat, position.Lon, runway.TrueHeading.Degrees, groundSpeedKts);
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = layout;
-        return (phase, CtxFor(aircraft, runway, layout, category), aircraft);
+        return (phase, CtxFor(aircraft, runway, layout, category, 1.0), aircraft);
     }
 
     /// <summary>
@@ -657,7 +668,7 @@ public class LandingExitDecelTests
     /// <summary>
     /// A C172 told to exit at OAK 28R H: past the approach leg it never brakes above its 2.0 kt/s taxi rate, and it stops past
     /// the bar no more than 10 ft beyond half its length — the route-end stop is planned at the taxi rate whatever rate the
-    /// turn-off flew. (It stops 12.9 ft past the bar, 0.7 ft short of half its 27.2 ft length: YAAT-364.)
+    /// turn-off flew.
     /// </summary>
     [Fact]
     public void C172InstructedExit_BrakesAtTheTaxiRatePastTheApproachLeg_AndStopsJustPastTheBar()
@@ -792,83 +803,192 @@ public class LandingExitDecelTests
     // -- The stop past the bar on a two-node exit --
 
     /// <summary>
-    /// One run of <see cref="RunB738OnTwoNodeW5Exit"/>: the exit's bar, the rate the turn-off flew at, where the aircraft
-    /// stopped, the most it published and measured braking on the exit route, the speed its first tick planned beside the
-    /// taxi-rate stopping curve to the tail-clear point there, and — when the run expedited — the aircraft and exit-phase
-    /// snapshots taken just after the <c>EXP</c>.
+    /// One run of <see cref="RunB738OnAtl26LB2Exit"/>: the layout and runway it ran on, the exit's bar, the rate the turn-off
+    /// flew at, the exit as flown, the sub-ticked taxi-rate stopping curve to the tail-clear point from where it started, and —
+    /// when the run expedited — the aircraft and exit-phase snapshots taken just after the <c>EXP</c>.
     /// </summary>
     private sealed record TwoNodeExitRun(
+        AirportGroundLayout Layout,
+        RunwayInfo Runway,
         GroundNode HoldShort,
         double TurnOffRate,
-        LatLon StopPosition,
-        (double Published, double Measured) MaxBraking,
-        (double Target, double StopCurve) FirstTick,
+        ExitSubTickFlight Flight,
+        double StartStopCurveKts,
         (AircraftSnapshotDto Aircraft, RunwayExitPhaseDto Exit)? SnapshotAfterExpedite
     );
 
     /// <summary>
-    /// A B738 restored into <see cref="RunwayExitPhase"/> on the first exit edge of OAK 30 W5, a quarter of the way from the
-    /// branch to the bar on the two-node path (branch, bar), committed at its comfortable exit rate (a turn-off rate), and flown
-    /// until the exit completes. It starts at the speed from which the taxi rate stops it exactly at the tail-clear point past
-    /// the bar, so only a stop planned from the first exit edge on makes that point. With <paramref name="expedite"/>, a bare
-    /// <c>EXP</c> (<see cref="AircraftGroundOps.IsExpeditingExit"/>) goes in after the first tick — mid-way through the edge,
-    /// whose speed plan was built for the non-expedited turn-off. Null without navdata, the layout or W5.
+    /// One exit flown by <see cref="FlyExitOnSubTicks"/>: the target speed its first sub-tick planned, where the aircraft
+    /// stopped, the most the phase published and the most the aircraft measurably decelerated (kt/s) while the exit ran, and
+    /// its ground speed going into the sub-tick that completed the exit.
     /// </summary>
-    private static TwoNodeExitRun? RunB738OnTwoNodeW5Exit(bool expedite)
+    private sealed record ExitSubTickFlight(double FirstTargetKts, LatLon StopPosition, double MaxPublished, double MaxMeasured, double ArrivalKts);
+
+    /// <summary>A real exit to restore a <see cref="RunwayExitPhase"/> on: its layout, runway, taxiway and path (branch first, bar last).</summary>
+    private sealed record ExitStaging(AirportGroundLayout Layout, RunwayInfo Runway, string Taxiway, List<GroundNode> Path);
+
+    /// <summary>
+    /// ATL's 26L exit on taxiway B2 that is a two-node path: the branch on the runway centreline joined by a B2 edge straight to
+    /// the 26L bar <see cref="AirportGroundLayout.FindAdjacentHoldShort"/> finds from it. Fails when the layout no longer has one.
+    /// </summary>
+    private static (GroundNode Branch, GroundNode HoldShort) Atl26LB2(AirportGroundLayout layout, RunwayInfo runway)
     {
-        AirportGroundLayout? layout = LoadOakLayout();
-        RunwayInfo? runway = NavigationDatabase.InstanceOrNull?.GetRunway("OAK", "30");
-        if ((layout is null) || (runway is null) || (Oak30W5For(layout, runway, AircraftCategory.Jet) is not { } exit))
+        (GroundNode Branch, GroundNode HoldShort)? exit = layout
+            .GetRunwayHoldShortNodes("26L")
+            .SelectMany(bar =>
+                bar.Edges.Where(edge => edge.MatchesTaxiway("B2"))
+                    .Select(edge => edge.Nodes.FirstOrDefault(n => n.Id != bar.Id))
+                    .OfType<GroundNode>()
+                    .Where(branch => branch.Edges.Any(edge => edge.IsRunwayCenterline))
+                    .Select(branch => (Branch: branch, HoldShort: bar))
+            )
+            .Where(candidate =>
+                (layout.FindAdjacentHoldShort(candidate.Branch, "26L", runway.TrueHeading, null) is { } found)
+                && (found.Node.Id == candidate.HoldShort.Id)
+                && (found.Path.Count == 2)
+            )
+            .Select(candidate => ((GroundNode Branch, GroundNode HoldShort)?)candidate)
+            .FirstOrDefault();
+        Assert.NotNull(exit);
+        return exit.Value;
+    }
+
+    /// <summary>
+    /// The first exit onto <paramref name="taxiway"/> that <see cref="AirportGroundLayout.FindAdjacentHoldShort"/> finds from a
+    /// centreline node of <paramref name="runway"/> and whose path <paramref name="accept"/> takes. Fails when there is none.
+    /// </summary>
+    private static ExitStaging StageExit(AirportGroundLayout layout, RunwayInfo runway, string taxiway, Func<ExitStaging, bool> accept)
+    {
+        ExitStaging? exit = layout
+            .Nodes.Values.Where(node => node.Edges.Any(edge => edge.MatchesRunway(runway.Designator)))
+            .Select(node => layout.FindAdjacentHoldShort(node, runway.Designator, runway.TrueHeading, null))
+            .Select(found => ((found is { } f) && (f.Taxiway == taxiway)) ? new ExitStaging(layout, runway, taxiway, f.Path) : null)
+            .OfType<ExitStaging>()
+            .FirstOrDefault(accept);
+        Assert.NotNull(exit);
+        return exit;
+    }
+
+    /// <summary>
+    /// The OAK 28R H exit the C172 of
+    /// <see cref="C172InstructedExit_BrakesAtTheTaxiRatePastTheApproachLeg_AndStopsJustPastTheBar"/> flies, taken from the same
+    /// spawn, <c>EXIT H</c> and rollout that test flies: the committed exit's own hold-short node and path.
+    /// </summary>
+    private static ExitStaging FlyC172Exit(AirportGroundLayout layout, RunwayInfo runway)
+    {
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C172", "N172SE", 1.0);
+        if (spawned is not { } instance)
         {
-            return null;
+            throw new InvalidOperationException("the C172 exit's OAK 28R short-final spawn is unavailable");
         }
 
-        double turnOffRate = CategoryPerformance.ComfortableExitDecelRate(AircraftCategory.Jet);
-        var phase = RunwayExitPhase.FromSnapshot(
+        (SimulationEngine engine, AircraftState aircraft, RunwayInfo _) = instance;
+        CommandResult exitResult = engine.SendCommand(aircraft.Callsign, "EXIT H");
+        Assert.True(exitResult.Success, $"EXIT H failed: {exitResult.Message}");
+
+        ResolvedExitInfo? committed = null;
+        for (int t = 1; t <= 400; t++)
+        {
+            engine.TickOneSecond();
+            if (aircraft.Phases?.CurrentPhase is LandingPhase { CandidateExit: { } candidate })
+            {
+                committed = candidate;
+                continue;
+            }
+
+            if (aircraft.Phases?.CurrentPhase is RunwayExitPhase)
+            {
+                break;
+            }
+        }
+
+        ResolvedExitInfo flown = Assert.IsType<ResolvedExitInfo>(committed);
+        return new ExitStaging(layout, runway, flown.TaxiwayName, flown.Path);
+    }
+
+    /// <summary>The edge of <paramref name="exit"/>'s path from its branch to the node after it.</summary>
+    private static IGroundEdge FirstExitEdge(ExitStaging exit)
+    {
+        IGroundEdge? edge = exit.Path[0].Edges.FirstOrDefault(e => e.Nodes.Any(n => n.Id == exit.Path[1].Id));
+        Assert.NotNull(edge);
+        return edge;
+    }
+
+    /// <summary>
+    /// A <see cref="RunwayExitPhase"/> restored on <paramref name="exit"/>, committed at <paramref name="turnOffRate"/> and
+    /// resuming on the first exit edge, past the branch.
+    /// </summary>
+    private static RunwayExitPhase RestoreExitPhase(ExitStaging exit, AircraftCategory category, double turnOffRate) =>
+        RunwayExitPhase.FromSnapshot(
             new RunwayExitPhaseDto
             {
                 Status = (int)PhaseStatus.Active,
                 ElapsedSeconds = 4.0,
                 ReachedExitNode = true,
-                ExitNodeId = exit.HoldShort.Id,
-                ExitTaxiway = "W5",
-                RunwayId = runway.Designator,
-                ExitSpeed = CategoryPerformance.RolloutCoastSpeed(AircraftCategory.Jet),
+                ExitNodeId = exit.Path[^1].Id,
+                ExitTaxiway = exit.Taxiway,
+                RunwayId = exit.Runway.Designator,
+                ExitSpeed = CategoryPerformance.RolloutCoastSpeed(category),
                 TimeSinceLastLog = 0.0,
-                RunwayHeadingDeg = runway.TrueHeading.Degrees,
+                RunwayHeadingDeg = exit.Runway.TrueHeading.Degrees,
                 ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
                 TurnStarted = true,
                 TurnOffDecelRate = turnOffRate,
                 ExitWaypointIndex = 1,
-                ExitWaypointNodeIds = [exit.Branch.Id, exit.HoldShort.Id],
+                ExitWaypointNodeIds = [.. exit.Path.Select(n => n.Id)],
             },
-            layout
+            exit.Layout
         );
 
-        double edgeNm = GeoMath.DistanceNm(exit.Branch.Position, exit.HoldShort.Position);
-        double bearing = GeoMath.BearingTo(exit.Branch.Position, exit.HoldShort.Position);
-        LatLon start = GeoMath.ProjectPoint(exit.Branch.Position, new TrueHeading(bearing), 0.25 * edgeNm);
-        double toTailClearNm = (0.75 * edgeNm) + (AircraftLength.ResolveFt("B738") / 2.0 / GeoMath.FeetPerNm);
-        double stopCurveKts = Math.Sqrt(2.0 * CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet) * toTailClearNm * 3600.0);
+    /// <summary>
+    /// The speed (kts) from which braking at <paramref name="rateKtsPerSec"/> on the engine's physics sub-ticks comes to rest
+    /// <paramref name="distNm"/> ahead: v = (−a·dt + √(a²dt² + 8ad)) / 2, the curve <see cref="GroundNavigator.PlansStopsOnSubTicks"/>
+    /// plans a stop on.
+    /// </summary>
+    private static double SubTickStopCurveKts(double rateKtsPerSec, double distNm)
+    {
+        const double SubTickSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
+        double distKtSec = distNm * 3600.0;
+        double aDt = rateKtsPerSec * SubTickSeconds;
+        return (-aDt + Math.Sqrt((aDt * aDt) + (8.0 * rateKtsPerSec * distKtSec))) / 2.0;
+    }
+
+    /// <summary>
+    /// A B738 restored into <see cref="RunwayExitPhase"/> on the first exit edge of ATL 26L B2, a quarter of the way from the
+    /// branch to the bar on the two-node path (branch, bar), committed at its comfortable exit rate (a turn-off rate), and flown
+    /// on physics sub-ticks until the exit completes. It starts at the speed from which the taxi rate on sub-ticks stops it at
+    /// the tail-clear point past the bar (capped at the taxi speed), so only a stop planned from the first exit edge on makes
+    /// that point. With <paramref name="expedite"/>, a bare <c>EXP</c> (<see cref="AircraftGroundOps.IsExpeditingExit"/>) goes in
+    /// after the first sub-tick — mid-way through the edge, whose speed plan was built for the non-expedited turn-off.
+    /// </summary>
+    private static TwoNodeExitRun RunB738OnAtl26LB2Exit(bool expedite)
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("ATL");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("ATL", "26L");
+        Assert.NotNull(layout);
+        Assert.NotNull(runway);
+        (GroundNode branch, GroundNode bar) = Atl26LB2(layout, runway);
+
+        double turnOffRate = CategoryPerformance.ComfortableExitDecelRate(AircraftCategory.Jet);
+        RunwayExitPhase phase = RestoreExitPhase(new ExitStaging(layout, runway, "B2", [branch, bar]), AircraftCategory.Jet, turnOffRate);
+
+        double edgeNm = GeoMath.DistanceNm(branch.Position, bar.Position);
+        double bearing = GeoMath.BearingTo(branch.Position, bar.Position);
+        LatLon start = GeoMath.ProjectPoint(branch.Position, new TrueHeading(bearing), 0.25 * edgeNm);
+        double tailClearFt = (AircraftLength.ResolveFt("B738") / 2.0) + RunwayExitPhase.TailClearMarginFt;
+        double toTailClearNm = (0.75 * edgeNm) + (tailClearFt / GeoMath.FeetPerNm);
+        double stopCurveKts = SubTickStopCurveKts(CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet), toTailClearNm);
         double startKts = Math.Min(stopCurveKts, CategoryPerformance.TaxiSpeed(AircraftCategory.Jet));
         AircraftState aircraft = MakeLandedAircraftOfType("B738", start.Lat, start.Lon, bearing, startKts);
         aircraft.Ground.Layout = layout;
-        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Jet);
+        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Jet, 1.0 / SimulationEngine.PhysicsSubTickRate);
 
         (AircraftSnapshotDto, RunwayExitPhaseDto)? snapshot = null;
-        (double Target, double StopCurve)? firstTick = null;
-        (double Published, double Measured) maxBraking = FlyExitToCompletion(
+        ExitSubTickFlight flight = FlyExitOnSubTicks(
             phase,
             ctx,
             exitPhase =>
             {
-                if (firstTick is null)
-                {
-                    double toStopNm = GeoMath.DistanceNm(aircraft.Position, exit.HoldShort.Position) + (toTailClearNm - (0.75 * edgeNm));
-                    double curve = Math.Sqrt(2.0 * CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet) * toStopNm * 3600.0);
-                    firstTick = (ctx.Targets.TargetSpeed ?? double.PositiveInfinity, curve);
-                }
-
                 if (expedite && (snapshot is null))
                 {
                     aircraft.Ground.IsExpeditingExit = true;
@@ -877,107 +997,208 @@ public class LandingExitDecelTests
             }
         );
 
-        Assert.NotNull(firstTick);
-        return new TwoNodeExitRun(exit.HoldShort, turnOffRate, aircraft.Position, maxBraking, firstTick.Value, snapshot);
+        return new TwoNodeExitRun(layout, runway, bar, turnOffRate, flight, stopCurveKts, snapshot);
     }
 
     /// <summary>
-    /// Ticks <paramref name="phase"/> (physics, then the phase, as the engine does) until the exit completes, calling
-    /// <paramref name="afterTick"/> after every tick that leaves it running. Returns the most the phase published and the most
-    /// the aircraft measurably decelerated in one tick while the exit ran. The completing tick is left out, as in
-    /// <see cref="C172InstructedExit_BrakesAtTheTaxiRatePastTheApproachLeg_AndStopsJustPastTheBar"/>:
-    /// <c>RunwayExitPhase.CompleteExit</c> zeroes the speed on arrival, whatever is left of it at the one-second tick.
+    /// <paramref name="aircraftType"/> restored into <see cref="RunwayExitPhase"/> at the start of <paramref name="exit"/>'s first
+    /// exit edge, committed at its comfortable exit rate, and flown on physics sub-ticks until the exit completes. On an arc
+    /// it starts at the arc's start node on the runway heading at the arc's entry cornering speed (capped at the taxi speed);
+    /// on a straight, a quarter of the way along it on its bearing at the taxi speed.
     /// </summary>
-    private static (double Published, double Measured) FlyExitToCompletion(RunwayExitPhase phase, PhaseContext ctx, Action<RunwayExitPhase> afterTick)
+    private static ExitSubTickFlight FlyFromExitStart(ExitStaging exit, string aircraftType, AircraftCategory category)
+    {
+        GroundNode branch = exit.Path[0];
+        GroundNode next = exit.Path[1];
+        double taxiKts = CategoryPerformance.TaxiSpeed(category);
+        LatLon start;
+        double heading;
+        double startKts;
+        if (FirstExitEdge(exit) is GroundArc arc)
+        {
+            IReadOnlyList<GroundArc.SpeedSample> profile = arc.SpeedProfile(category);
+            GroundArc.SpeedSample entry = (arc.Nodes[0].Id == branch.Id) ? profile[0] : profile[^1];
+            start = branch.Position;
+            heading = exit.Runway.TrueHeading.Degrees;
+            startKts = Math.Min(taxiKts, entry.SpeedKts);
+        }
+        else
+        {
+            heading = GeoMath.BearingTo(branch.Position, next.Position);
+            start = GeoMath.ProjectPoint(branch.Position, new TrueHeading(heading), 0.25 * GeoMath.DistanceNm(branch.Position, next.Position));
+            startKts = taxiKts;
+        }
+
+        RunwayExitPhase phase = RestoreExitPhase(exit, category, CategoryPerformance.ComfortableExitDecelRate(category));
+        AircraftState aircraft = MakeLandedAircraftOfType(aircraftType, start.Lat, start.Lon, heading, startKts);
+        aircraft.Ground.Layout = exit.Layout;
+        PhaseContext ctx = CtxFor(aircraft, exit.Runway, exit.Layout, category, 1.0 / SimulationEngine.PhysicsSubTickRate);
+        return FlyExitOnSubTicks(phase, ctx, _ => { });
+    }
+
+    /// <summary>
+    /// Steps <paramref name="phase"/> on <paramref name="ctx"/>'s sub-ticks (the phase, then physics) for up to 1,200 sub-ticks
+    /// until the exit completes, calling <paramref name="afterSubTick"/> after every sub-tick that leaves it running. The
+    /// completing sub-tick is left out of the braking figures: <c>RunwayExitPhase.CompleteExit</c> zeroes whatever speed is
+    /// left, which <see cref="ExitSubTickFlight.ArrivalKts"/> reports.
+    /// </summary>
+    private static ExitSubTickFlight FlyExitOnSubTicks(RunwayExitPhase phase, PhaseContext ctx, Action<RunwayExitPhase> afterSubTick)
     {
         double taxiRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
         double maxPublished = 0;
         double maxMeasured = 0;
-        bool complete = false;
-        for (int t = 1; (t <= 300) && !complete; t++)
+        double firstTargetKts = double.NaN;
+        for (int subTick = 1; subTick <= 1200; subTick++)
         {
             double previousGs = ctx.Aircraft.GroundSpeed;
-            FlightPhysics.Update(ctx.Aircraft, ctx.DeltaSeconds);
-            complete = phase.OnTick(ctx);
-            if (!complete)
+            bool complete = phase.OnTick(ctx);
+            if (subTick == 1)
             {
-                maxMeasured = Math.Max(maxMeasured, previousGs - ctx.Aircraft.GroundSpeed);
-                maxPublished = Math.Max(maxPublished, ctx.Targets.DesiredDecelRate ?? taxiRate);
-                afterTick(phase);
+                firstTargetKts = ctx.Targets.TargetSpeed ?? double.PositiveInfinity;
             }
+
+            if (complete)
+            {
+                return new ExitSubTickFlight(firstTargetKts, ctx.Aircraft.Position, maxPublished, maxMeasured, previousGs);
+            }
+
+            maxPublished = Math.Max(maxPublished, ctx.Targets.DesiredDecelRate ?? taxiRate);
+            FlightPhysics.Update(ctx.Aircraft, ctx.DeltaSeconds);
+            maxMeasured = Math.Max(maxMeasured, (previousGs - ctx.Aircraft.GroundSpeed) / ctx.DeltaSeconds);
+            afterSubTick(phase);
         }
 
-        Assert.True(complete, "the exit never completed");
-        return (maxPublished, maxMeasured);
+        throw new InvalidOperationException("the exit never completed in 1,200 sub-ticks");
     }
 
-    private static double PastBarFt(TwoNodeExitRun run, LatLon stop) => GeoMath.DistanceNm(stop, run.HoldShort.Position) * GeoMath.FeetPerNm;
+    private static double PastBarFt(LatLon stop, GroundNode bar) => GeoMath.DistanceNm(stop, bar.Position) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Asserts a stop <paramref name="pastBarFt"/> past the bar is at the tail-clear point of <paramref name="aircraftType"/>:
+    /// the tail on or past the marking (at least half the length past the bar, no tolerance short of it), and no more than
+    /// <see cref="RunwayExitPhase.TailClearMarginFt"/> plus 0.5 ft beyond that.
+    /// </summary>
+    private static void AssertStopsAtTheTailClearPoint(string aircraftType, double pastBarFt)
+    {
+        double halfLengthFt = AircraftLength.ResolveFt(aircraftType) / 2.0;
+        double maxFt = halfLengthFt + RunwayExitPhase.TailClearMarginFt + 0.5;
+        Assert.True(pastBarFt <= maxFt, $"stopped {pastBarFt:F1} ft past the bar, more than {maxFt:F1} ft");
+        Assert.True(pastBarFt >= halfLengthFt, $"stopped {pastBarFt:F1} ft past the bar, the tail short of the marking ({halfLengthFt:F1} ft)");
+    }
+
+    /// <summary>
+    /// Asserts <paramref name="arrivalKts"/>, the speed going into the sub-tick that completes the exit, is no more than two
+    /// sub-ticks of braking at <paramref name="rateKtsPerSec"/>: on the sub-ticked stop curve the aircraft rides to the end, and
+    /// where the last sub-tick falls leaves at most that.
+    /// </summary>
+    private static void AssertArrivesAtRest(double arrivalKts, double rateKtsPerSec)
+    {
+        double arrivalLimit = 2.0 * rateKtsPerSec / SimulationEngine.PhysicsSubTickRate;
+        Assert.True(arrivalKts <= arrivalLimit, $"reached the stop at {arrivalKts:F2} kt, more than two sub-ticks of braking ({arrivalLimit:F2} kt)");
+    }
 
     /// <summary>
     /// On a two-node exit (branch, bar) the route-end stop past the bar is planned from the turn-off on, whatever rate the
-    /// turn-off flies at: a B738 committed to OAK 30 W5 at its comfortable exit rate plans its first tick on the first exit edge
-    /// no faster than the taxi rate's stopping curve to the tail-clear point, stops with its tail clear of the bar and no more
-    /// than 10 ft beyond, and never brakes harder than the larger of its turn-off rate and its taxi (stop) rate on the way.
+    /// turn-off flies at: a B738 committed to ATL 26L B2 at its comfortable exit rate plans its first sub-tick on the first exit
+    /// edge no faster than the sub-ticked taxi-rate stopping curve to the tail-clear point, stops there with its tail past the
+    /// marking, never brakes harder than the larger of its turn-off rate and its taxi (stop) rate on the way, and reaches the
+    /// stop at no more than two sub-ticks of braking.
     /// </summary>
-    // Booked as YAAT-1258: no layout's two-node exit stops inside this band; the stop placement is the open question.
-    [Fact(Skip = "YAAT-1258: no two-node exit at OAK; the ATL/HKY ones stop outside the band (owner ruling on YAAT-1214)")]
+    [Fact]
     public void TwoNodeExit_WithATurnOffRate_StopsAtTheTailClearPoint_NoHarderThanTheTurnOffOrStopRate()
     {
-        TwoNodeExitRun? run = RunB738OnTwoNodeW5Exit(expedite: false);
-        if (run is null)
-        {
-            return;
-        }
+        TwoNodeExitRun run = RunB738OnAtl26LB2Exit(expedite: false);
 
-        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2.0;
         double limit = Math.Max(run.TurnOffRate, CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet));
-        double pastBarFt = PastBarFt(run, run.StopPosition);
-
         Assert.True(
-            run.FirstTick.Target <= run.FirstTick.StopCurve + 0.5,
-            $"the first exit edge planned {run.FirstTick.Target:F1} kt, above the {run.FirstTick.StopCurve:F1} kt that stops at the tail-clear point"
+            run.Flight.FirstTargetKts <= run.StartStopCurveKts + 0.5,
+            $"first exit-edge target {run.Flight.FirstTargetKts:F1} kt, above the {run.StartStopCurveKts:F1} kt sub-ticked stop curve"
         );
-        Assert.True(pastBarFt <= halfLengthFt + 10.0, $"stopped {pastBarFt:F1} ft past the bar, tail-clear point {halfLengthFt:F1} ft");
-        Assert.True(pastBarFt >= halfLengthFt, $"stopped {pastBarFt:F1} ft past the bar, short of the {halfLengthFt:F1} ft tail-clear point");
+        AssertStopsAtTheTailClearPoint("B738", PastBarFt(run.Flight.StopPosition, run.HoldShort));
         Assert.True(
-            run.MaxBraking.Published <= limit + 1e-6,
-            $"braked at up to {run.MaxBraking.Published:F2} kt/s on the exit route, limit {limit:F2}"
+            run.Flight.MaxPublished <= limit + 1e-6,
+            $"braked at up to {run.Flight.MaxPublished:F2} kt/s on the exit route, limit {limit:F2}"
         );
         Assert.True(
-            run.MaxBraking.Measured <= limit + 0.05,
-            $"decelerated at up to {run.MaxBraking.Measured:F2} kt/s on the exit route, limit {limit:F2}"
+            run.Flight.MaxMeasured <= limit + 0.05,
+            $"decelerated at up to {run.Flight.MaxMeasured:F2} kt/s on the exit route, limit {limit:F2}"
         );
+        AssertArrivesAtRest(run.Flight.ArrivalKts, CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet));
     }
 
     /// <summary>
-    /// A bare <c>EXP</c> issued mid-way through the first exit edge of a two-node exit, whose speed plan was built for the
-    /// non-expedited turn-off, still stops at the tail-clear point past the bar; and the aircraft restored from snapshots taken
-    /// just after the <c>EXP</c> stops where the live run did.
+    /// A bare <c>EXP</c> issued mid-way through the first exit edge of ATL 26L B2, a two-node exit whose speed plan was built for
+    /// the non-expedited turn-off, still stops at the tail-clear point past the bar, braking no harder than the expedite rate and
+    /// reaching the stop at no more than two sub-ticks of it; and the aircraft restored from snapshots taken just after the
+    /// <c>EXP</c> stops where the live run did.
     /// </summary>
-    // Booked as YAAT-1258: no layout's two-node exit stops inside this band; the stop placement is the open question.
-    [Fact(Skip = "YAAT-1258: no two-node exit at OAK; the ATL/HKY ones stop outside the band (owner ruling on YAAT-1214)")]
+    [Fact]
     public void TwoNodeExit_ExpeditedMidTurnOff_StillStopsAtTheTailClearPoint_AndARestoreStopsThereToo()
     {
-        TwoNodeExitRun? run = RunB738OnTwoNodeW5Exit(expedite: true);
-        if (run is null)
-        {
-            return;
-        }
+        TwoNodeExitRun run = RunB738OnAtl26LB2Exit(expedite: true);
 
-        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2.0;
-        double pastBarFt = PastBarFt(run, run.StopPosition);
-        Assert.True(pastBarFt <= halfLengthFt + 10.0, $"stopped {pastBarFt:F1} ft past the bar, tail-clear point {halfLengthFt:F1} ft");
-        Assert.True(pastBarFt >= halfLengthFt, $"stopped {pastBarFt:F1} ft past the bar, short of the {halfLengthFt:F1} ft tail-clear point");
+        double expediteRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet);
+        AssertStopsAtTheTailClearPoint("B738", PastBarFt(run.Flight.StopPosition, run.HoldShort));
+        Assert.True(
+            run.Flight.MaxMeasured <= expediteRate + 0.05,
+            $"decelerated at up to {run.Flight.MaxMeasured:F2} kt/s on the exit route, limit {expediteRate:F2}"
+        );
+        AssertArrivesAtRest(run.Flight.ArrivalKts, expediteRate);
 
-        AirportGroundLayout layout = LoadOakLayout()!;
-        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
-        (AircraftSnapshotDto aircraftDto, RunwayExitPhaseDto exitDto) = run.SnapshotAfterExpedite!.Value;
-        var restored = AircraftState.FromSnapshot(aircraftDto, layout);
-        restored.Ground.Layout = layout;
-        FlyExitToCompletion(RunwayExitPhase.FromSnapshot(exitDto, layout), CtxFor(restored, runway, layout, AircraftCategory.Jet), _ => { });
+        Assert.NotNull(run.SnapshotAfterExpedite);
+        (AircraftSnapshotDto aircraftDto, RunwayExitPhaseDto exitDto) = run.SnapshotAfterExpedite.Value;
+        var restored = AircraftState.FromSnapshot(aircraftDto, run.Layout);
+        restored.Ground.Layout = run.Layout;
+        ExitSubTickFlight restoredFlight = FlyExitOnSubTicks(
+            RunwayExitPhase.FromSnapshot(exitDto, run.Layout),
+            CtxFor(restored, run.Runway, run.Layout, AircraftCategory.Jet, 1.0 / SimulationEngine.PhysicsSubTickRate),
+            _ => { }
+        );
 
-        double driftFt = GeoMath.DistanceNm(restored.Position, run.StopPosition) * GeoMath.FeetPerNm;
-        Assert.True(driftFt <= 1.0, $"the restored run stopped {driftFt:F1} ft from the live run's stop");
+        double driftFt = GeoMath.DistanceNm(restoredFlight.StopPosition, run.Flight.StopPosition) * GeoMath.FeetPerNm;
+        Assert.True(driftFt <= 1.0, $"the restored run stopped {driftFt:F2} ft from the live run's stop");
+    }
+
+    /// <summary>
+    /// A multi-segment exit that turns off on an arc: a B738 restored at the start of ATL 9R N10's turn-off arc and flown on
+    /// physics sub-ticks through the arc and the straights after it reaches the tail-clear point past the bar at no more than
+    /// two sub-ticks of taxi-rate braking, and stops there with its tail past the marking.
+    /// </summary>
+    [Fact]
+    public void ArcExit_OnSubTicks_ArrivesAtRestAtTheTailClearPoint()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("ATL");
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("ATL", "9R");
+        Assert.NotNull(layout);
+        Assert.NotNull(runway);
+        ExitStaging exit = StageExit(layout, runway, "N10", staging => (staging.Path.Count > 2) && (FirstExitEdge(staging) is GroundArc));
+
+        ExitSubTickFlight flight = FlyFromExitStart(exit, "B738", AircraftCategory.Jet);
+
+        AssertArrivesAtRest(flight.ArrivalKts, CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet));
+        AssertStopsAtTheTailClearPoint("B738", PastBarFt(flight.StopPosition, exit.Path[^1]));
+    }
+
+    /// <summary>
+    /// A piston exit on sub-ticks: a C172 restored on the first exit edge of the OAK 28R H exit
+    /// <see cref="C172InstructedExit_BrakesAtTheTaxiRatePastTheApproachLeg_AndStopsJustPastTheBar"/> flies — staged on that
+    /// landing's own hold-short node — reaches the tail-clear point past the bar at no more than two sub-ticks of its 2.0 kt/s
+    /// taxi brake rate, and stops there with its tail past the marking.
+    /// </summary>
+    [Fact]
+    public void PistonExit_OnSubTicks_ArrivesAtRestAtTheTailClearPoint()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        Assert.NotNull(layout);
+        Assert.NotNull(runway);
+        ExitStaging exit = FlyC172Exit(layout, runway);
+        Assert.Equal("H", exit.Taxiway);
+
+        ExitSubTickFlight flight = FlyFromExitStart(exit, "C172", AircraftCategory.Piston);
+
+        AssertArrivesAtRest(flight.ArrivalKts, CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston));
+        AssertStopsAtTheTailClearPoint("C172", PastBarFt(flight.StopPosition, exit.Path[^1]));
     }
 
     // -- Unable to make the exit the controller named --
@@ -1768,7 +1989,7 @@ public class LandingExitDecelTests
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = layout;
         GroundFrame.EnterGround(aircraft, 150);
-        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Jet);
+        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Jet, 1.0);
 
         var phase = new LandingPhase();
         phase.OnStart(ctx);
@@ -1847,7 +2068,7 @@ public class LandingExitDecelTests
         aircraft.Phases.RequestedExit = new ExitPreference { Taxiway = "W4" };
         aircraft.Phases.GivenUpExitTaxiways.Add("W4");
         aircraft.Ground.Layout = layout;
-        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Piston);
+        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Piston, 1.0);
 
         var phase = new RunwayExitPhase();
         phase.OnStart(ctx);
@@ -1954,7 +2175,7 @@ public class LandingExitDecelTests
         aircraft.Phases.RequestedExit = new ExitPreference { Taxiway = "W7" };
         aircraft.Phases.GivenUpExitTaxiways.Add("W7");
         aircraft.Ground.Layout = layout;
-        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Piston);
+        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Piston, 1.0);
 
         var phase = new RunwayExitPhase();
         phase.OnStart(ctx);

@@ -75,7 +75,7 @@ using the exit the occupant is already committed to (`LandingPhase.CandidateExit
 braking leg to the exit's branch point at the constant-deceleration mean of present ground speed and the exit's turn-off speed, then
 the exit path at that speed; for a leader already on its exit, the remainder at the exit route's taxi ceiling and then v²/2a of
 braking to the stop; then the tail-clearance term — AIM 2-3-5.a.1 / 4-3-21.b, an aircraft is not clear until **all parts** are past the holding position marking, so
-the target is the same `VirtualNode.OffsetPast` point `RunwayExitPhase` taxis to. `SameRunwayArrivalProtection` owns that arithmetic so
+the protection measures to the clear point (half the aircraft's length past the bar), and `RunwayExitPhase` stops `TailClearMarginFt` (3 ft) beyond it, so the phase is never short of what the protection assumed. `SameRunwayArrivalProtection` owns that arithmetic so
 the go-around and the spacing pass cannot disagree about when an aircraft is clear. The spacing pass itself now works from 20 NM on
 the expected approach and, inside 10 NM with the tower simulated, holds the follower at Vapp ("reduce to final approach speed") all the
 way to touchdown — see `docs/scenario-loading-and-generation.md` § `ApplySameRunwayArrivalProtection`.
@@ -160,7 +160,7 @@ Instructed exits (`ER`/`EL`/`EXIT`) use the firm rate and `EXP` the expedite rat
 
 `RunwayExitPhase.ApplyExitDecelRate` sets it as the navigator's `SlowdownDecelRateKts` before every tick and segment set-up: the approach leg down the runway to the branch (segment 0) brakes at that rate, the first exit edge, where the turn arc is flown, at min(that rate, the category's taxi decel rate), and the rest of the route at the taxi rate.
 
-The route-end stop — the tail-clear point past the bar, not the bar itself — is always planned at the taxi rate, on its own braking curve, so the turn-off rate never moves it. An exit this phase found on its own has no rate and uses the taxi rate throughout; under `EXP` the whole route, stop included, runs at the expedite rate (`DecelRateKts`).
+The route-end stop — the tail-clear point past the bar (half the aircraft's length plus `RunwayExitPhase.TailClearMarginFt`, 3 ft), not the bar itself — is always planned at the taxi rate, on its own braking curve, so the turn-off rate never moves it. The aircraft brakes to rest there: `GroundNavigator.PublishSegmentSpeed` / `StraightTargetSpeed` publish the stop segment's speed on the arrival sub-tick (`IsExitStopSegment`), so it does not reach the point at 10-13 kt and zero there. An exit this phase found on its own has no rate and uses the taxi rate throughout; under `EXP` the whole route, stop included, runs at the expedite rate (`DecelRateKts`).
 
 ### Side preference and the "later on-side beats earlier off-side" rule
 
