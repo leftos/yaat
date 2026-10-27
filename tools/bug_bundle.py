@@ -26,7 +26,8 @@ Subcommands:
               Either a local path, or --issue N to fetch the attachment from a GitHub issue.
               Then runs yaat-server's Yaat.RecordingUpgrader on it (snapshot schema +
               retired-canonical rewrite, in place) when the sibling checkout exists.
-    trim      Drop snapshots past --max-seconds (or keep first --max-snapshots) to shrink
+    trim      Drop snapshots past --max-seconds (or keep first --max-snapshots, or keep only
+              the first snapshot and the one a restore at each --keep-at T1,T2,... time reads) to shrink
               the bundle. Actions/scenario/logs preserved. Edits in place unless --out.
     validate  Check manifest schema and verify every declared entry decompresses.
 
@@ -2055,22 +2056,57 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
                 yield f"failed to decompress artcc-config.json.br: {e}"
 
 
+def _parse_keep_at(text: str) -> list[float]:
+    """Parse --keep-at's comma-separated list of times (seconds)."""
+    try:
+        times = [float(part) for part in text.split(",") if part.strip()]
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"--keep-at takes comma-separated seconds, e.g. 634,2098: {e}") from e
+    if not times:
+        raise argparse.ArgumentTypeError("--keep-at needs at least one time")
+    return times
+
+
+def _kept_snapshot_indices(args: argparse.Namespace, snapshots: list[dict[str, Any]]) -> list[int]:
+    """The indices of the snapshots trim keeps, ascending.
+
+    --max-seconds keeps every snapshot up to that time, --max-snapshots the first N, and --keep-at, for each listed time,
+    the latest snapshot at or before it (the one a restore at that time reads), plus always the first snapshot, which the
+    recording reads as the session's starting state. Raises ValueError for a --keep-at time before the first snapshot.
+    """
+    times = [float(s.get("ElapsedSeconds", 0)) for s in snapshots]
+    if args.max_seconds is not None:
+        return list(range(sum(1 for t in times if t <= args.max_seconds)))
+    if args.max_snapshots is not None:
+        return list(range(min(args.max_snapshots, len(snapshots))))
+
+    kept: set[int] = {0}
+    for target in args.keep_at:
+        at_or_before = [i for i, t in enumerate(times) if t <= target]
+        if not at_or_before:
+            raise ValueError(f"--keep-at {target:g}: no snapshot at or before it (the first is at t={times[0]:g}s)")
+        kept.add(at_or_before[-1])
+    return sorted(kept)
+
+
 def cmd_trim(args: argparse.Namespace) -> int:
-    """Drop snapshots past --max-seconds (or keep only first --max-snapshots) to shrink the bundle.
+    """Drop snapshots to shrink the bundle: past --max-seconds, beyond the first --max-snapshots, or all but --keep-at's.
 
     Actions, scenario, weather, ARTCC config, layouts, airport GeoJSON, and logs are preserved unchanged.
-    The manifest's Snapshots index is rewritten to match the surviving snapshot files.
+    The manifest's Snapshots index is rewritten to match the surviving snapshot files, which are renumbered from 000
+    in order, since a snapshot's file is named by its index.
     TotalElapsedSeconds is left alone — it reflects the original recording duration and
     is informational, not load-bearing for replay or snapshot lookup.
     """
     src: Path = args.bundle
     out: Path = args.out if args.out is not None else src
 
-    if args.max_seconds is None and args.max_snapshots is None:
-        print("error: trim requires --max-seconds or --max-snapshots", file=sys.stderr)
+    modes = [m for m in (args.max_seconds, args.max_snapshots, args.keep_at) if m is not None]
+    if not modes:
+        print("error: trim requires --max-seconds, --max-snapshots or --keep-at", file=sys.stderr)
         return 2
-    if args.max_seconds is not None and args.max_snapshots is not None:
-        print("error: pass only one of --max-seconds / --max-snapshots", file=sys.stderr)
+    if len(modes) > 1:
+        print("error: pass only one of --max-seconds / --max-snapshots / --keep-at", file=sys.stderr)
         return 2
 
     with zipfile.ZipFile(src, "r") as zin:
@@ -2085,10 +2121,12 @@ def cmd_trim(args: argparse.Namespace) -> int:
             print("error: bundle has no Snapshots — nothing to trim", file=sys.stderr)
             return 1
 
-        if args.max_seconds is not None:
-            keep_count = sum(1 for s in snapshots if float(s.get("ElapsedSeconds", 0)) <= args.max_seconds)
-        else:
-            keep_count = min(args.max_snapshots, len(snapshots))
+        try:
+            kept = _kept_snapshot_indices(args, snapshots)
+        except ValueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        keep_count = len(kept)
 
         if keep_count <= 0:
             print("error: trim would drop every snapshot; refusing", file=sys.stderr)
@@ -2098,15 +2136,16 @@ def cmd_trim(args: argparse.Namespace) -> int:
             return 0
 
         dropped = len(snapshots) - keep_count
-        cutoff_t = float(snapshots[keep_count - 1].get("ElapsedSeconds", 0))
-        print(f"keeping {keep_count}/{len(snapshots)} snapshots (through t={cutoff_t:.0f}s), dropping {dropped}")
+        kept_times = ", ".join(f"{float(snapshots[i].get('ElapsedSeconds', 0)):.0f}" for i in kept)
+        print(f"keeping {keep_count}/{len(snapshots)} snapshots (t={kept_times}s), dropping {dropped}")
+        renumbered = {old: new for new, old in enumerate(kept)}
 
         tmp_out = out.with_name(out.name + ".trim.tmp")
         with zipfile.ZipFile(tmp_out, "w", zipfile.ZIP_STORED) as zout:
             for info in zin.infolist():
                 if info.filename == "manifest.json":
                     new_manifest = dict(manifest)
-                    new_manifest["Snapshots"] = snapshots[:keep_count]
+                    new_manifest["Snapshots"] = [snapshots[i] for i in kept]
                     new_data = json.dumps(new_manifest, separators=(",", ":")).encode("utf-8")
                     ni = zipfile.ZipInfo(info.filename)
                     ni.compress_type = zipfile.ZIP_STORED
@@ -2121,9 +2160,12 @@ def cmd_trim(args: argparse.Namespace) -> int:
                         with zin.open(info) as fin:
                             zout.writestr(info, fin.read())
                         continue
-                    if idx < keep_count:
+                    if idx in renumbered:
+                        suffix = base.split(".", 1)[1] if "." in base else ""
+                        renamed = zipfile.ZipInfo(f"snapshots/{renumbered[idx]:03d}.{suffix}", date_time=info.date_time)
+                        renamed.compress_type = info.compress_type
                         with zin.open(info) as fin:
-                            zout.writestr(info, fin.read())
+                            zout.writestr(renamed, fin.read())
                 else:
                     with zin.open(info) as fin:
                         zout.writestr(info, fin.read())
@@ -2353,11 +2395,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_trim = sub.add_parser(
         "trim",
-        help="drop snapshots past --max-seconds (or keep first --max-snapshots) to shrink the bundle",
+        help="drop snapshots past --max-seconds (or keep first --max-snapshots, or only --keep-at's) to shrink the bundle",
     )
     _add_bundle_arg(p_trim)
     p_trim.add_argument("--max-seconds", type=float, default=None, help="keep only snapshots with ElapsedSeconds <= N")
     p_trim.add_argument("--max-snapshots", type=int, default=None, help="keep only the first N snapshots in index order")
+    p_trim.add_argument(
+        "--keep-at",
+        type=_parse_keep_at,
+        default=None,
+        help=(
+            "T1,T2,... seconds: keep only, for each, the latest snapshot at or before it (the one a restore at T reads), "
+            "plus always the first snapshot (the session's starting state)"
+        ),
+    )
     p_trim.add_argument("--out", type=Path, default=None, help="write to PATH instead of overwriting the input bundle")
     p_trim.set_defaults(func=cmd_trim)
 

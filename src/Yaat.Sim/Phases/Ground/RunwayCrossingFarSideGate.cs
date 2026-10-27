@@ -435,25 +435,40 @@ internal static class RunwayCrossingFarSideGate
         };
 
     /// <summary>
-    /// How far (ft) <paramref name="other"/> is from the stop its own clearance sets ahead of it: a GIVEWAY's give-way point, else
-    /// the painted stop of the first bar on its taxi route it stops at (<see cref="FirstStopBarAhead"/>), else the route's end.
-    /// Null with none of them.
+    /// How far (ft) <paramref name="other"/> is from the nearest stop its own clearance sets ahead of it, as its taxi brakes for
+    /// them (<see cref="TaxiingPhase"/>'s held speed): a GIVEWAY's give-way point, or the painted stop of the first bar on its
+    /// taxi route it stops at (<see cref="FirstStopBarAhead"/>), else the route's end, whichever is nearer. Null with none of them.
     /// </summary>
     private static double? KnownStopAheadFt(Judge judge, AircraftState other)
     {
         PhaseContext ctx = judge.Ctx;
         // A give-way given on the landing rollout sets no stop until the aircraft is off its landing runway and taxiing.
-        if (
-            (!other.HasGiveWayPendingOnLandingRunway)
-            && (other.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget })
-            && (ctx.AircraftLookup?.Invoke(yieldTarget) is { } target)
-            && (GroundConflictDetector.GiveWayStop(other, target, out _) is { } giveWay)
-        )
+        double? giveWayFt =
+            (
+                (!other.HasGiveWayPendingOnLandingRunway)
+                && (other.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget })
+                && (ctx.AircraftLookup?.Invoke(yieldTarget) is { } target)
+                && (GroundConflictDetector.GiveWayStop(other, target, out _) is { } giveWay)
+            )
+                ? giveWay.ToStopFt
+                : null;
+        double? routeStopFt = RouteStopAheadFt(judge, other);
+        return (giveWayFt, routeStopFt) switch
         {
-            return giveWay.ToStopFt;
-        }
+            ({ } giveWayStopFt, { } routeFt) => Math.Min(giveWayStopFt, routeFt),
+            _ => giveWayFt ?? routeStopFt,
+        };
+    }
 
-        if ((other.Ground.AssignedTaxiRoute is not { IsComplete: false } route) || ((other.Ground.Layout ?? ctx.GroundLayout) is not { } layout))
+    /// <summary>
+    /// How far (ft) <paramref name="other"/> is from the painted stop of the first bar on its taxi route it stops at
+    /// (<see cref="FirstStopBarAhead"/>), else from the route's end. Null without a route left or a layout.
+    /// </summary>
+    private static double? RouteStopAheadFt(Judge judge, AircraftState other)
+    {
+        if (
+            (other.Ground.AssignedTaxiRoute is not { IsComplete: false } route) || ((other.Ground.Layout ?? judge.Ctx.GroundLayout) is not { } layout)
+        )
         {
             return null;
         }

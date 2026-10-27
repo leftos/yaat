@@ -31,6 +31,8 @@ using var _ = TickRecorder.Attach(engine, ".tmp/scenario.json", "N152SP", "N569S
 
 Only record ticks matching a condition with `Filter = ac => ac.IsOnGround`.
 
+A test run routed by the gate to the remote builder leaves the recording's JSON on that builder, not in the local `.tmp/`. Run the test with `--local --reason "<why>"` to get the file locally, or read the values from the test's log instead.
+
 ## 2. Animate
 
 ```bash

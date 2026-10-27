@@ -50,6 +50,7 @@
 
 ### Fixed
 
+- `GIVEWAY` holds the aircraft short of where its route meets the traffic's, however far off or crossing at any angle, until the traffic has passed.
 - A solo student on Ground no longer gets tower calls; a simulated tower clears your transferred departures for takeoff and clears arrivals to land.
 - In solo sessions, a refused RPO-only command such as `CLANDF` shows only its terminal error; the pilot no longer reads the refusal back as "unable".
 - Right-click menus and flyouts open on top of a window pinned always on top, such as a pinned Ground View, instead of behind it.

@@ -4,8 +4,10 @@ namespace Yaat.Sim;
 /// Auto-release tuning for direct GIVEWAY holds, applied in
 /// <see cref="FlightPhysics.UpdateGiveWayResume"/>. These govern the safety-net
 /// release paths layered on top of the pure bearing/heading geometry in
-/// <see cref="FlightPhysics.IsGiveWayMet"/>; they do not affect deferred
-/// <c>BEHIND</c> conditions, which keep pure-geometry release.
+/// <see cref="FlightPhysics.IsGiveWayMet"/>, which apply only while the two taxi routes do not meet across
+/// each other: while they share such a node (<see cref="GroundConflictDetector.GiveWayJunctionOf"/>), neither the
+/// safety timeout nor the stationary bypass releases the hold, which lasts until the target's tail has cleared the
+/// node. They do not affect deferred <c>BEHIND</c> conditions, which keep pure-geometry release.
 /// </summary>
 internal static class GiveWayConstants
 {

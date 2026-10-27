@@ -119,8 +119,9 @@ python tools/bug_bundle.py logs <bundle.zip>
 ```bash
 python tools/bug_bundle.py trim <bundle.zip> --max-seconds 90
 python tools/bug_bundle.py trim <bundle.zip> --max-snapshots 60 --out .tmp/trimmed.zip
+python tools/bug_bundle.py trim <bundle.zip> --keep-at 634,2098 --out .tmp/trimmed.zip
 ```
-Drops snapshots past `--max-seconds N` (keeps snapshots whose `ElapsedSeconds <= N`) or keeps only the first `--max-snapshots N` in index order. Actions, scenario, weather, ARTCC config, layouts, and logs are preserved unchanged; the manifest's `Snapshots` index is rewritten to match. With `--out` writes a new file; without `--out` overwrites the input bundle. Use it to:
+Drops snapshots past `--max-seconds N` (keeps snapshots whose `ElapsedSeconds <= N`), keeps only the first `--max-snapshots N` in index order, or, with `--keep-at T1,T2,...`, keeps for each time the latest snapshot at or before it (the one a restore at that time reads), plus always the first snapshot (the session's starting state). `--keep-at` cuts the middle of a recording; a time before the first snapshot is an error. Exactly one of the three flags is allowed. The kept snapshots are renumbered from `000` in order, and the manifest matches; it prints `keeping N/M snapshots (t=…s), dropping K`. Actions, scenario, weather, ARTCC config, layouts, and logs are preserved unchanged; the manifest's `Snapshots` index is rewritten to match. With `--out` writes a new file; without `--out` overwrites the input bundle. Use it to:
 - Shrink a TestData fixture to just the snapshots needed to reproduce a bug, so the test starts replaying from the relevant time window faster.
 - Cut a large recording (50+ MB) into a focused fixture before committing it to `tests/Yaat.Sim.Tests/TestData/`.
 - Isolate "pre-bug" state when the recording captures minutes of unrelated taxi/cruise time before the moment of interest. Pair with `history --callsign X` to pick a cutoff just past the symptom.
@@ -180,7 +181,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `weather` | Print `weather.json` if present |
 | `layouts` | List airport IDs, `--airport X` to dump one, `--all --out-dir D` for all |
 | `logs` | Extract `yaat-client.log`, the previous client sessions `yaat-client.1.log`–`.3.log` (`.1` newest; the session being reported when the user relaunched YAAT before saving) and `yaat-server.log` to `.tmp/` |
-| `trim` | Shrink a bundle by dropping late snapshots (`--max-seconds N` or `--max-snapshots N`, optional `--out`); preserves actions/scenario/weather/logs and rewrites the manifest's snapshot index |
+| `trim` | Shrink a bundle by dropping late snapshots (`--max-seconds N`, `--max-snapshots N` or `--keep-at T1,T2,...`, optional `--out`; `--keep-at` keeps the latest snapshot at or before each time plus the first, renumbered from 000); preserves actions/scenario/weather/logs and rewrites the manifest's snapshot index |
 | `install` | Copy into TestData as `[issue{N}-]{desc}-recording[.yaat-bug-report-bundle].zip` — the bundle suffix is kept only when the input filename carries it (`--issue` optional for local installs), then run yaat-server's `Yaat.RecordingUpgrader` on it in place (current snapshot schema + retired-canonical rewrite such as `HSE` → `HSA`) |
 | `validate` | Manifest + Brotli decompression integrity check |
 

@@ -126,8 +126,8 @@ profiler already in `TickProcessor`) — free throughput instrumentation.
   only the archive — seed + scenario + AI version reproduce it by rerun.
 - Clean episodes delete `recording.zip` by default (`--keep-clean-recordings` overrides); the report
   line survives. `--max-disk-gb` aborts the matrix with exit 70.
-- No start-trim needed: `bug_bundle.py trim` is tail-only (`--max-seconds`/`--max-snapshots`,
-  preserves all actions), and v4 archives always replay from t=0 with snapshots making seeks cheap.
+- No start-trim needed: `bug_bundle.py trim` keeps a prefix (`--max-seconds`/`--max-snapshots`) or chosen moments (`--keep-at`) and
+  preserves all actions, and v4 archives always replay from t=0 with snapshots making seeks cheap.
   The runner emits a canned tail-trim command in `report.json` rather than auto-trimming in v1.
 - Estimate ~10–50 MB per 4-sim-hour episode with findings.
 

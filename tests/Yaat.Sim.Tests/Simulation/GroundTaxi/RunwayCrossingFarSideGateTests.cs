@@ -205,6 +205,113 @@ public class RunwayCrossingFarSideGateTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A leader beyond the 01L/19R far bar rolling toward the 01R/19L near line, that crossing not cleared, will stop at that
+    /// bar, too close to the 01L/19R far bar: the follower's gate closes. A GIVEWAY the leader holds to traffic whose route
+    /// crosses its own about 3,000 ft on sets a give-way stop out there, but the bar is nearer and still stops it first.
+    /// </summary>
+    [Fact]
+    public void LeaderGivingWayFarBeyondAnUnclearedBar_IsProjectedToStopAtTheBar()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
+        {
+            return;
+        }
+
+        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
+        var approach = new TrueHeading(GeoMath.BearingTo(crossing.ApproachNode.Position, crossing.ApproachBar.Position));
+        AircraftState self = SfoGroundHarness.SpawnAt(
+            ground,
+            "SKW402",
+            AircraftType,
+            (crossing.ApproachNode, approach),
+            new HoldingInPositionPhase()
+        );
+        Assert.True(ground.Engine.SendCommand(self.Callsign, NextTaxiCommand).Success, $"'{NextTaxiCommand}' was refused for {self.Callsign}");
+        var across = new TrueHeading(GeoMath.BearingTo(crossing.ApproachBar.Position, crossing.FarBar.Position));
+        AircraftState leader = SfoGroundHarness.SpawnAt(ground, "LED", AircraftType, (crossing.FarBar, across), new HoldingInPositionPhase());
+        Assert.True(ground.Engine.SendCommand(leader.Callsign, NextTaxiCommand).Success, $"'{NextTaxiCommand}' was refused for {leader.Callsign}");
+
+        TaxiRoute leaderRoute = Assert.IsType<TaxiRoute>(leader.Ground.AssignedTaxiRoute);
+        (int barIndex, HoldShortPoint nextBar, _) = NextCrossingOnRoute(ground.Layout, leaderRoute);
+        nextBar.IsCleared = false;
+        double halfLengthFt = AircraftLength.ResolveFt(AircraftType) / 2.0;
+        PlaceBackAlongRoute(leader, leaderRoute, barIndex, halfLengthFt + LeaderNoseShortFt);
+        leader.IndicatedAirspeed = LeaderKts;
+        leader.Targets.TargetSpeed = LeaderKts;
+
+        TaxiRoute selfRoute = Assert.IsType<TaxiRoute>(self.Ground.AssignedTaxiRoute);
+        int beyondStart = selfRoute.Segments.FindIndex(s => s.ToNodeId == crossing.FarBar.Id) + 1;
+        Assert.True(beyondStart > 0, $"{self.Callsign}'s route does not reach the {SfoGroundHarness.CrossingRunway} far bar");
+        bool Blocked(List<AircraftState> all) =>
+            RunwayCrossingFarSideGate.IsBlocked(
+                GateContext(ground.Layout, self, all),
+                (crossing.ApproachBar.Id, crossing.FarBar.Id),
+                (selfRoute, beyondStart),
+                resuming: false,
+                judgeLeadersGates: true
+            );
+        Assert.True(Blocked([self, leader]), "test setup: a leader rolling to an uncleared bar it stops at should close the gate");
+
+        AircraftState traffic = CrossingTrafficAbout(leader, leaderRoute, GiveWayJunctionAlongFt);
+        leader.Ground.Hold = HoldDirective.GiveWay(traffic.Callsign);
+        (int NodeId, double ToStopFt)? giveWay = GroundConflictDetector.GiveWayStop(leader, traffic, out string? noStopReason);
+        Assert.True(
+            giveWay is { ToStopFt: > 2500.0 },
+            $"test setup: the leader's give-way stop should be far beyond the bar: {giveWay} {noStopReason}"
+        );
+
+        Assert.True(Blocked([self, leader, traffic]), "a leader giving way far beyond an uncleared bar was projected to roll past the bar");
+    }
+
+    /// <summary>How far (ft) along the leader's route its give-way traffic's route crosses it.</summary>
+    private const double GiveWayJunctionAlongFt = 3000.0;
+
+    /// <summary>
+    /// An E75L whose route crosses <paramref name="leader"/>'s at the first node of <paramref name="route"/> at least
+    /// <paramref name="alongFt"/> along it, entering that node from a point 500 ft square off the route's leg into it.
+    /// </summary>
+    private static AircraftState CrossingTrafficAbout(AircraftState leader, TaxiRoute route, double alongFt)
+    {
+        double walkedFt = GeoMath.DistanceNm(leader.Position, route.Segments[route.CurrentSegmentIndex].Edge.ToNode.Position) * GeoMath.FeetPerNm;
+        int index = route.CurrentSegmentIndex;
+        while ((walkedFt < alongFt) && (index + 1 < route.Segments.Count))
+        {
+            index++;
+            walkedFt += route.Segments[index].Edge.DistanceNm * GeoMath.FeetPerNm;
+        }
+
+        Assert.True(walkedFt >= alongFt, $"the leader's route ends {walkedFt:F0} ft along, short of {alongFt:F0} ft");
+        DirectionalEdge leg = route.Segments[index].Edge;
+        double legBearing = GeoMath.BearingTo(leg.FromNode.Position, leg.ToNode.Position);
+        var side = new GroundNode
+        {
+            Id = -1,
+            Position = GeoMath.ProjectPoint(leg.ToNode.Position, new TrueHeading(legBearing + 90.0), 500.0 / GeoMath.FeetPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var edge = new GroundEdge
+        {
+            Nodes = [side, leg.ToNode],
+            TaxiwayName = "Z",
+            DistanceNm = GeoMath.DistanceNm(side.Position, leg.ToNode.Position),
+        };
+        var traffic = new AircraftState
+        {
+            Callsign = "GWT",
+            AircraftType = AircraftType,
+            Position = side.Position,
+            TrueHeading = new TrueHeading(legBearing + 270.0),
+            IsOnGround = true,
+        };
+        traffic.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = "Z", Edge = edge.Directed(side, leg.ToNode) }],
+            HoldShortPoints = [],
+        };
+        return traffic;
+    }
+
+    /// <summary>
     /// The first runway crossing on <paramref name="route"/> from its current segment: the index of the segment that ends at its
     /// near bar, that bar, and the far bar node, the next runway holding-position node after it.
     /// </summary>

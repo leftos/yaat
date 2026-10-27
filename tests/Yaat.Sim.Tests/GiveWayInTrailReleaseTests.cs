@@ -11,14 +11,16 @@ namespace Yaat.Sim.Tests;
 /// Issue #453: at SFO ASA826 (cleared <c>TAXI B H A M1 @B10</c>, stopped at E/B) was told <c>GIVEWAY ASA1187</c> at
 /// t=344, with ASA1187 coming along F1 to merge onto B ahead of it on the same B → H → A route. ASA826 stayed held
 /// after ASA1187 had passed until the instructor issued <c>RES</c> at t=368. The test restores the snapshot after the
-/// GIVEWAY and runs the live sim without the recorded <c>RES</c>: the hold must release on its own once ASA1187 is past.
+/// GIVEWAY and runs the live sim without the recorded <c>RES</c>: the hold must release on its own once ASA1187's tail
+/// has cleared the F1/B merge (node 152), with ASA1187 on B, and not wait for the later node 1265, where the two B → H → A
+/// routes split (the fillet against the square corner) and rejoin in the same direction.
 /// </summary>
 public class GiveWayInTrailReleaseTests(ITestOutputHelper output)
 {
     private const string BundlePath = "TestData/issue453-asa826-giveway-recording.yaat-bug-report-bundle.zip";
 
     [Fact]
-    public void GiveWayBehindTrafficMergingAhead_ReleasesOnItsOwn()
+    public void GiveWayBehindTrafficMergingAhead_ReleasesOnceTailClearsMerge_NotAtLaterRejoin()
     {
         // Pinned to the recorded layout: the restored snapshot's saved routes name layout node ids.
         var groundData = RecordingGroundData.VersionPinned(BundlePath, "a GIVEWAY hold releasing on its own once the traffic has passed");
@@ -42,6 +44,7 @@ public class GiveWayInTrailReleaseTests(ITestOutputHelper output)
             Assert.True(held.Ground.Hold?.IsGiveWayFor("ASA1187") == true, "test setup: ASA826 gives way to ASA1187 at the restore point");
 
             int? releasedAt = null;
+            string? targetTwyAtRelease = null;
             for (int t = (int)snapshot.ElapsedSeconds + 1; t <= 460; t++)
             {
                 engine.TickOneSecond();
@@ -54,19 +57,26 @@ public class GiveWayInTrailReleaseTests(ITestOutputHelper output)
                 if (held.Ground.Hold is null)
                 {
                     releasedAt = t;
-                    // Still on A, ASA1187 has yet to turn toward the merge: GIVEWAY must hold until it has.
-                    Assert.NotEqual("A", target?.Ground.CurrentTaxiway);
+                    targetTwyAtRelease = engine.FindAircraft("ASA1187")?.Ground.CurrentTaxiway;
                     break;
+                }
+
+                if (target is not null)
+                {
+                    Assert.True(
+                        GroundConflictDetector.GiveWayJunctionOf(held, target)?.NodeId != 1265,
+                        $"t={t}: ASA826 gives way to ASA1187 at node 1265, where their shared B-H-A routes split and rejoin in the same direction"
+                    );
                 }
             }
 
-            // ASA1187 was on F1 committed to the B merge well before the instructor's RES at t=368; the hold must let
-            // ASA826 go by then instead of waiting for ASA1187 to reach B (t=374).
-            Assert.True(releasedAt is not null, "ASA826 was still giving way to ASA1187 at t=460 — the hold never released on its own");
+            // Once ASA1187's tail has cleared the F1/B merge (node 152) the two run in trail on B → H → A: the hold ends there.
+            // Node 1265, where the held route's fillet and ASA1187's square corner off H rejoin onto A, is no crossing.
             Assert.True(
-                releasedAt <= 368,
-                $"ASA826 released at t={releasedAt}, only once ASA1187 had reached B — not when it was committed to the merge"
+                releasedAt is not null,
+                "ASA826 still gave way to ASA1187 at t=460: a later node where the shared B-H-A routes split and rejoin was judged a crossing"
             );
+            Assert.Equal("B", targetTwyAtRelease);
         }
     }
 }

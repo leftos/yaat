@@ -31,6 +31,12 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
     private const string Issue1144DegradedReason =
         "issue1144-folg-head-on — a KOAK ground recording that also bundles other airports' layouts; its tests assert only KOAK ground traffic.";
 
+    private const string SfoGc28rtDegradedReason =
+        "sfo-gc-28rt — a KSFO ground recording that also bundles the scenario's other airports' layouts; every taxi command in it is at "
+        + "KSFO and its test asserts only KSFO ground traffic.";
+
+    private const string Issue1144AndSfoGc28rtDegradedReason = Issue1144DegradedReason + " " + SfoGc28rtDegradedReason;
+
     /// <summary>
     /// Airports a recording's manifest declares a ground layout for, but whose fixture cannot support
     /// ground movement (missing entirely, or runway-only). Replay of any aircraft there runs against a
@@ -40,17 +46,21 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
     private static readonly Dictionary<string, string> DeclaredButDegraded = new(StringComparer.OrdinalIgnoreCase)
     {
         ["ASE"] = "issue195-ase-lindz1 — asserts the LINDZ1 departure turn altitude; no committed map, documented in that test.",
-        ["BUR"] = Issue1144DegradedReason,
+        ["BUR"] = Issue1144AndSfoGc28rtDegradedReason,
         ["BZN"] = Issue1144DegradedReason,
-        ["DEN"] = Issue1144DegradedReason,
+        ["CVG"] = SfoGc28rtDegradedReason,
+        ["DEN"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["GEG"] = SfoGc28rtDegradedReason,
         ["HOU"] = "issue187-star-dvia — IAH is primary; the KHOU traffic is asserted only on its departure altitude cap.",
-        ["LAS"] = Issue1144DegradedReason,
-        ["PDX"] = Issue1144DegradedReason,
-        ["PHX"] = Issue1144DegradedReason,
-        ["SAN"] = Issue1144DegradedReason,
+        ["LAS"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["OMA"] = SfoGc28rtDegradedReason,
+        ["PDX"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["PHX"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["SAN"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["SAT"] = SfoGc28rtDegradedReason,
         ["SJC"] = "issue216-auto-handoff and multi-cfix-preset — both assert handoff/queue state on airborne traffic.",
-        ["SLC"] = Issue1144DegradedReason,
-        ["SNA"] = Issue1144DegradedReason,
+        ["SLC"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["SNA"] = Issue1144AndSfoGc28rtDegradedReason,
     };
 
     /// <summary>

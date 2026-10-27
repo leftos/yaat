@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -1951,16 +1952,16 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Releases a direct GIVEWAY hold once the target is no longer in the way. The base
-    /// release is the bearing/heading geometry in <see cref="IsGiveWayMet"/>; layered on top
-    /// (direct holds only — deferred BEHIND conditions keep pure geometry) are three safety
-    /// nets: a route-intersection check that keeps holding while the two taxi routes still
-    /// cross ahead, a hold-age safety timeout, and a stalemate-bypass when the target has been
-    /// stationary and there is lateral room to pass it.
+    /// Releases a direct GIVEWAY hold once the target is no longer in the way. The release is decided by where the two taxi
+    /// routes meet: while they meet across each other at a node (<see cref="GroundConflictDetector.GiveWayJunctionOf"/>, over
+    /// the whole of both routes), the hold lasts until the target's tail has cleared it (<see cref="UpdateSharedNodeGiveWay"/>).
+    /// With no such node — the target drives no route, the routes do not meet across each other, or the target has cleared the
+    /// node but its route runs on head-on along ours toward us — the release is the bearing/heading geometry in
+    /// <see cref="IsGiveWayMet"/>, with its safety nets (<see cref="JudgeGiveWay"/>).
     /// </summary>
     internal static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup, double deltaSeconds)
     {
-        if (aircraft.Ground.Hold is not { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget } || !aircraft.IsOnGround)
+        if ((aircraft.Ground.Hold is not { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget }) || !aircraft.IsOnGround)
         {
             aircraft.Ground.HoldElapsedSeconds = 0;
             return;
@@ -1980,89 +1981,231 @@ public static class FlightPhysics
         }
 
         AircraftState? target = aircraftLookup(yieldTarget);
-        if (target is null || !target.IsOnGround)
+        if ((target is null) || !target.IsOnGround)
         {
-            // Target is gone or airborne — resume
+            Log.LogDebug("GIVEWAY released for {Callsign}: {Target} is gone or airborne", aircraft.Callsign, yieldTarget);
             ClearGiveWayHold(aircraft);
             return;
         }
 
-        // Safety timeout: a hold that has persisted far beyond any reasonable yield (e.g. a
-        // typo'd-but-real distant target that will never satisfy the geometry) auto-releases —
-        // but only when releasing won't drive straight into the target. A target still close and
-        // dead ahead keeps the hold (the conflict detector continues to manage proximity); a
-        // distant or laterally-clear target releases as intended.
+        JudgeGiveWay(aircraft, yieldTarget, target, aircraftLookup);
+    }
+
+    /// <summary>
+    /// The judgement of <paramref name="aircraft"/>'s GIVEWAY to <paramref name="target"/>, both on the ground. Routes that meet
+    /// across each other at a node the target has still to clear, or has cleared without then running head-on along ours, are
+    /// decided there (<see cref="UpdateSharedNodeGiveWay"/>), and nothing else releases the hold before it. Otherwise, in order:
+    /// a hold past its safety timeout (<see cref="UpdateGiveWaySafetyTimeout"/>); the pass geometry of <see cref="IsGiveWayMet"/>,
+    /// kept while head-on routes still share an upcoming node; and the stalemate bypass of a stationary target
+    /// (<see cref="UpdateStationaryTargetBypass"/>). The geometric judgement applies to direct holds only — deferred BEHIND
+    /// conditions keep pure geometry.
+    /// </summary>
+    private static void JudgeGiveWay(AircraftState aircraft, string yieldTarget, AircraftState target, Func<string, AircraftState?> aircraftLookup)
+    {
+        if ((GroundConflictDetector.GiveWayJunctionOf(aircraft, target) is { } junction) && !(junction.TrafficPast && junction.TrafficHeadOn))
+        {
+            UpdateSharedNodeGiveWay(aircraft, target, junction);
+            return;
+        }
+
         if (aircraft.Ground.HoldElapsedSeconds >= GiveWayConstants.SafetyTimeoutSeconds)
         {
-            bool clearToProceed =
-                GroundConflictDetector.HasWingspanLateralClearance(aircraft, target)
-                || GeoMath.DistanceNm(aircraft.Position, target.Position) > GiveWayConstants.SafetyTimeoutClearDistanceNm;
-            if (clearToProceed)
-            {
-                Log.LogInformation(
-                    "GIVEWAY safety timeout fired for {Callsign} after {Seconds:F0}s waiting on {Target}",
-                    aircraft.Callsign,
-                    aircraft.Ground.HoldElapsedSeconds,
-                    yieldTarget
-                );
-                ClearGiveWayHold(aircraft);
-            }
-
-            return;
-        }
-
-        // A target taxiing into the merge ahead of us will get there first: fall in behind it now rather than wait for
-        // it to reach our route. The conflict detector keeps the in-trail spacing from here.
-        if (GroundConflictDetector.TargetReachesMergeFirst(aircraft, target))
-        {
-            Log.LogInformation("GIVEWAY released for {Callsign}: {Target} reaches the merge first", aircraft.Callsign, yieldTarget);
-            ClearGiveWayHold(aircraft);
+            UpdateGiveWaySafetyTimeout(aircraft, yieldTarget, target);
             return;
         }
 
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = yieldTarget };
-
         if (IsGiveWayMet(aircraft, trigger, aircraftLookup))
         {
-            // Geometry says the target is past, but if the two routes still share an upcoming
-            // node the target is still in our way at that intersection — keep holding.
+            // Geometry says the target is past, but head-on traffic whose route still meets ours at an upcoming node is still in
+            // our way at that intersection — keep holding.
             if (GroundConflictDetector.ShareUpcomingNode(aircraft, target))
             {
+                if (LatchGiveWayKept(aircraft, KeptPastButRoutesMeetAhead, nodeId: null))
+                {
+                    Log.LogDebug(KeptPastButRoutesMeetAhead, aircraft.Callsign, yieldTarget);
+                }
+
                 return;
             }
 
+            Log.LogDebug("GIVEWAY released for {Callsign}: no shared node with {Target}, and it is past", aircraft.Callsign, yieldTarget);
             ClearGiveWayHold(aircraft);
             return;
         }
 
-        // Geometry says the target is still in the way. Break a stalemate: when the target has
-        // been stationary long enough and there is lateral room to bypass it, proceed. In a
-        // mutual yield (target is giving way to us) a deterministic callsign tie-break ensures
-        // only the lower-callsign aircraft releases first, so both never proceed on the same tick.
-        if (target.Ground.StationarySeconds < GiveWayConstants.TargetStationaryThresholdSeconds)
+        UpdateStationaryTargetBypass(aircraft, yieldTarget, target);
+    }
+
+    /// <summary>
+    /// A hold past <see cref="GiveWayConstants.SafetyTimeoutSeconds"/> that no shared node decides (e.g. a typo'd-but-real
+    /// distant target that will never satisfy the geometry) auto-releases — but only when releasing won't drive straight into
+    /// the target. A target still close and dead ahead keeps the hold (the conflict detector continues to manage proximity); a
+    /// distant or laterally-clear target releases as intended.
+    /// </summary>
+    private static void UpdateGiveWaySafetyTimeout(AircraftState aircraft, string yieldTarget, AircraftState target)
+    {
+        bool clearToProceed =
+            GroundConflictDetector.HasWingspanLateralClearance(aircraft, target)
+            || (GeoMath.DistanceNm(aircraft.Position, target.Position) > GiveWayConstants.SafetyTimeoutClearDistanceNm);
+        if (clearToProceed)
         {
+            Log.LogDebug(
+                "GIVEWAY safety timeout fired for {Callsign} after {Seconds:F0}s waiting on {Target}",
+                aircraft.Callsign,
+                aircraft.Ground.HoldElapsedSeconds,
+                yieldTarget
+            );
+            ClearGiveWayHold(aircraft);
             return;
         }
 
-        bool mutualYield =
-            target.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } targetYield }
-            && string.Equals(targetYield, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
-        if (mutualYield && string.CompareOrdinal(aircraft.Callsign, target.Callsign) >= 0)
+        if (LatchGiveWayKept(aircraft, KeptPastSafetyTimeout, nodeId: null))
         {
+            Log.LogDebug(KeptPastSafetyTimeout, aircraft.Callsign, yieldTarget);
+        }
+    }
+
+    /// <summary>
+    /// Geometry says the target is still in the way. Break a stalemate: when the target has been stationary long enough and
+    /// there is lateral room to bypass it, proceed. In a mutual yield (target is giving way to us) a deterministic callsign
+    /// tie-break ensures only the lower-callsign aircraft releases first, so both never proceed on the same tick.
+    /// </summary>
+    private static void UpdateStationaryTargetBypass(AircraftState aircraft, string yieldTarget, AircraftState target)
+    {
+        if (target.Ground.StationarySeconds < GiveWayConstants.TargetStationaryThresholdSeconds)
+        {
+            if (LatchGiveWayKept(aircraft, KeptStillInTheWay, nodeId: null))
+            {
+                Log.LogDebug(KeptStillInTheWay, aircraft.Callsign, yieldTarget);
+            }
+
+            return;
+        }
+
+        if (IsMutualGiveWay(aircraft, target) && (string.CompareOrdinal(aircraft.Callsign, target.Callsign) >= 0))
+        {
+            if (LatchGiveWayKept(aircraft, KeptLowerCallsignFirst, nodeId: null))
+            {
+                Log.LogDebug(KeptLowerCallsignFirst, aircraft.Callsign, yieldTarget);
+            }
+
             return;
         }
 
         if (GroundConflictDetector.HasWingspanLateralClearance(aircraft, target))
         {
-            Log.LogInformation(
+            Log.LogDebug(
                 "GIVEWAY target-stationary fallback fired for {Callsign} bypassing {Target} (stationary {Seconds:F0}s)",
                 aircraft.Callsign,
                 yieldTarget,
                 target.Ground.StationarySeconds
             );
             ClearGiveWayHold(aircraft);
+            return;
+        }
+
+        if (LatchGiveWayKept(aircraft, KeptNoRoomToPass, nodeId: null))
+        {
+            Log.LogDebug(KeptNoRoomToPass, aircraft.Callsign, yieldTarget);
         }
     }
+
+    /// <summary>
+    /// The GIVEWAY of <paramref name="aircraft"/> to <paramref name="target"/> while their routes meet across each other at
+    /// <paramref name="junction"/>'s node (<see cref="GroundConflictDetector.GiveWayJunctionOf"/>): it is met once the target's
+    /// tail has cleared the node (7110.65 3-7-2.a). A merge, where both routes leave the node the same way, is no exception: the
+    /// in-trail spacing of the shared taxiway takes over only once the tail has cleared it. Before that only a mutual give-way
+    /// releases the hold, which the lower callsign leaves first while the higher callsign is itself still short of a node
+    /// where it has to clear the lower (<see cref="GroundConflictDetector.GiveWayJunctionOf"/> from its side, whose node is
+    /// always one still ahead on its route), so the pair never deadlocks. Once the higher callsign is in the junction it goes
+    /// first and the lower keeps holding.
+    /// </summary>
+    private static void UpdateSharedNodeGiveWay(AircraftState aircraft, AircraftState target, GroundConflictDetector.GiveWayJunction junction)
+    {
+        if (junction.TrafficPast)
+        {
+            Log.LogDebug(
+                "GIVEWAY released for {Callsign}: {Target}'s tail is {TailPast:F0} ft past shared node {Node} (needs {Required:F0} ft)",
+                aircraft.Callsign,
+                target.Callsign,
+                junction.TailPastFt,
+                junction.NodeId,
+                junction.RequiredPastFt
+            );
+            ClearGiveWayHold(aircraft);
+            return;
+        }
+
+        if (
+            IsMutualGiveWay(aircraft, target)
+            && (string.CompareOrdinal(aircraft.Callsign, target.Callsign) < 0)
+            && (GroundConflictDetector.GiveWayJunctionOf(target, aircraft) is not null)
+        )
+        {
+            Log.LogDebug(
+                "GIVEWAY released for {Callsign}: {Target} gives way to it too at shared node {Node}, and the lower callsign goes first",
+                aircraft.Callsign,
+                target.Callsign,
+                junction.NodeId
+            );
+            ClearGiveWayHold(aircraft);
+            return;
+        }
+
+        if (LatchGiveWayKept(aircraft, KeptShortOfSharedNode, junction.NodeId))
+        {
+            Log.LogDebug(KeptShortOfSharedNode, aircraft.Callsign, target.Callsign, junction.TailPastFt, junction.NodeId, junction.RequiredPastFt);
+        }
+    }
+
+    private const string KeptPastButRoutesMeetAhead = "GIVEWAY kept for {Callsign}: {Target} is past, but their routes still meet ahead";
+
+    private const string KeptPastSafetyTimeout = "GIVEWAY kept for {Callsign} past its safety timeout: {Target} is close and dead ahead";
+
+    private const string KeptStillInTheWay = "GIVEWAY kept for {Callsign}: no shared node with {Target}, and it is still in the way";
+
+    private const string KeptLowerCallsignFirst = "GIVEWAY kept for {Callsign}: {Target} gives way to it too, and the lower callsign goes first";
+
+    private const string KeptNoRoomToPass = "GIVEWAY kept for {Callsign}: {Target} is stationary, but there is no room to pass it";
+
+    private const string KeptShortOfSharedNode =
+        "GIVEWAY kept for {Callsign}: {Target}'s tail is {TailPast:F0} ft past shared node {Node}, short of the {Required:F0} ft it needs";
+
+    /// <summary>
+    /// The "kept" line last logged for each GIVEWAY hold: its message and the shared node it named. The judgement runs every
+    /// tick, so a kept line is logged only when its reason changes (<see cref="LatchGiveWayKept"/>); keyed by the hold itself,
+    /// so a new GIVEWAY starts unlatched.
+    /// </summary>
+    private static readonly ConditionalWeakTable<HoldDirective, KeptGiveWayLog> LoggedGiveWayKept = [];
+
+    /// <summary>A "kept" line logged for a GIVEWAY hold: its message template and the shared node it named, if any.</summary>
+    private sealed record KeptGiveWayLog(string Message, int? NodeId);
+
+    /// <summary>
+    /// Whether the "kept" line <paramref name="message"/> at <paramref name="nodeId"/> differs from the last one logged for
+    /// <paramref name="aircraft"/>'s hold, latching it when it does.
+    /// </summary>
+    private static bool LatchGiveWayKept(AircraftState aircraft, string message, int? nodeId)
+    {
+        if (aircraft.Ground.Hold is not { } hold)
+        {
+            return false;
+        }
+
+        if (LoggedGiveWayKept.TryGetValue(hold, out KeptGiveWayLog? last) && (last.Message == message) && (last.NodeId == nodeId))
+        {
+            return false;
+        }
+
+        LoggedGiveWayKept.AddOrUpdate(hold, new KeptGiveWayLog(message, nodeId));
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="target"/> is itself giving way to <paramref name="aircraft"/>.</summary>
+    private static bool IsMutualGiveWay(AircraftState aircraft, AircraftState target) =>
+        (target.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } targetYield })
+        && string.Equals(targetYield, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
 
     private static void ClearGiveWayHold(AircraftState aircraft)
     {

@@ -1766,6 +1766,21 @@
     "Solo": false
   },
   {
+    "File": "sfo-gc-28rt-recording.yaat-bug-report-bundle.zip",
+    "Commands": 324,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 189,
+      "Delete": 3,
+      "SetActivePosition": 4,
+      "Strip": 127
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "sfo-gc-arrival-goarounds-recording.yaat-bug-report-bundle.zip",
     "Commands": 163,
     "ByKind": {
