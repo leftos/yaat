@@ -331,6 +331,9 @@ _Avoid_: U-turn (a U-turn reverses over a junction's fillets, not along the taxi
 The short arc that opens a turn about on a taxiway, turned against the reversal's sense at the type's turn-about radius (60° for an aircraft on the centreline), so that the reversal arc after it is centred on the centreline and the whole turn stays within about one radius either side of it (`PathPrimitiveBuilder.TurnAboutJogDeg`, docs/ground/navigator.md). A helicopter takes none, and nor does a reversal re-aimed past the bend.
 _Avoid_: S-turn, offset (the jog is a single arc, not a lateral shift)
 
+**Turn-entry point**:
+The point a standard runway exit's turn begins, short of its branch point by R·tan(min(Δ, 120°)/2) for the category's main-gear turn radius R and the exit angle Δ (`RolloutBraking.TurnEntryLeadNm`). The rollout judges, plans, hands off and declares an exit missed against it; a high-speed exit has none and is judged at the branch.
+
 **Offset line** (also *roll-out hold*):
 The straight after a turn about's reversal, held on the taxiway edge's bearing the reversal rolled out on, a turning radius off the centreline (a diameter for a helicopter) on the inside of the turn the route makes at the node, to abeam that node, instead of steering back out to the centreline first.
 `GroundNavigator.HoldsRollOutBearing` decides it and `TryLayTurnAboutRollOutLine` lays it (docs/ground/navigator.md). Among its conditions: a straight of at most six turning radii, no bar at the node, and the main gear inside the type's TDG half-width. The node turn from it is fitted to the offset so it exits on the outgoing centreline.

@@ -15,6 +15,44 @@ public static class RolloutBraking
     /// </summary>
     public const double TurnOffSpeedToleranceKts = 3.0;
 
+    /// <summary>The largest exit angle (degrees) <see cref="TurnEntryLeadNm"/> measures a turn-entry lead for.</summary>
+    public const double MaxTurnEntryAngleDeg = 120.0;
+
+    /// <summary>
+    /// True for an exit whose turn-off speed is below <see cref="CategoryPerformance.HighSpeedExitSpeed"/>: a standard exit,
+    /// turned onto from its turn-entry point short of the branch rather than at the branch itself.
+    /// </summary>
+    public static bool IsStandardExit(AircraftCategory category, double turnOffSpeed) =>
+        turnOffSpeed < CategoryPerformance.HighSpeedExitSpeed(category);
+
+    /// <summary>
+    /// How far before its branch point a standard exit's turn begins (nm): the tangent length R·tan(Δ/2) of the first corner the
+    /// ground navigator rounds, R the category's <see cref="CategoryPerformance.MainGearTurnRadiusFt"/> and Δ
+    /// <paramref name="exitAngleDeg"/>, the exit angle the turn-off speed was classified by, capped at
+    /// <see cref="MaxTurnEntryAngleDeg"/> so an exit doubling back near 180° keeps a bounded lead. Zero for a high-speed exit, whose
+    /// turn-off is judged at the branch point. The one turn-entry point the rollout judges, plans, hands off and misses an exit
+    /// against, and the one the runway exit brakes a re-target to.
+    /// </summary>
+    public static double TurnEntryLeadNm(AircraftCategory category, double turnOffSpeed, double exitAngleDeg)
+    {
+        if (!IsStandardExit(category, turnOffSpeed))
+        {
+            return 0;
+        }
+
+        double halfTan = Math.Tan(Math.Min(exitAngleDeg, MaxTurnEntryAngleDeg) * 0.5 * Math.PI / 180.0);
+        return CategoryPerformance.MainGearTurnRadiusFt(category) * halfTan / GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// The turn-off rate the runway exit keeps from an exit chosen at <paramref name="selectionRate"/>: capped at the category's
+    /// max-effort <see cref="CategoryPerformance.ExpediteExitDecelRate"/> (a <c>CLANDF</c> forced rollout commits its exit at
+    /// <see cref="Tower.ForcedLandingProfile.RolloutMaxDecelKtsPerSec"/>), and null — the taxi rate — for no rate or one that is
+    /// not positive.
+    /// </summary>
+    public static double? CaptureTurnOffRate(double? selectionRate, AircraftCategory category) =>
+        ((selectionRate is { } rate) && (rate > 0)) ? Math.Min(rate, CategoryPerformance.ExpediteExitDecelRate(category)) : null;
+
     /// <summary>
     /// Deceleration (kts/s) needed to go from <paramref name="currentGroundSpeedKts"/> to
     /// <paramref name="targetSpeedKts"/> over <paramref name="distanceNm"/>, from v_f² = v_i² - 2·a·d.

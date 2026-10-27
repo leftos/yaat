@@ -438,7 +438,7 @@ tailwind-vs-calm roll-distance ratio reads 1.07 instead of 1.14, which looks exa
 
 ## Debugging aircraft movement — `TickRecorder`
 
-To see what happens inside a second, step it by hand: `BeginSecond()`, `TickPrePhysics()`, four `RunPhysicsSubTick(0.25, i)`, then `TickPostPhysics()`, reading the aircraft after each sub-tick.
+To see what happens inside a second, step it by hand: `BeginSecond()`, `TickPrePhysics()`, four `RunPhysicsSubTick(0.25, i)`, then `TickPostPhysics()`, reading the aircraft after each sub-tick. `engine.TickPhysics(1.0 / SimulationEngine.PhysicsSubTickRate)` steps one sub-tick, phases included. A deceleration check made once per second can hide a single sub-tick at another rate, or catch it, depending on which sub-tick a phase change lands on, so sample each sub-tick when a rate matters.
 
 `GroundConflictDetector.DebugSink` receives the detector's `[Pair]` / `[SameEdgeTrailing]` / `[Convergence]` / `[ApplyMinLimit]` trace, which does not go through `ILogger`. It also fires while a recording replays, so `SimulationEngine.ReplayOneSubTick()` with the sink set shows the detector's view of a bug bundle one sub-tick at a time.
 

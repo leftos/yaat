@@ -257,7 +257,7 @@ public sealed class RunwayExitPhase : Phase
                 _holdShortNode = committed.HoldShortNode;
                 _exitTaxiway = committed.TaxiwayName;
                 _exitPath = committed.Path;
-                _turnOffDecelRate = CaptureTurnOffRate(committed.SelectionDecelRate, ctx.Category);
+                _turnOffDecelRate = RolloutBraking.CaptureTurnOffRate(committed.SelectionDecelRate, ctx.Category);
                 ctx.JoinExitSegmentOccupants?.Invoke();
 
                 Log.LogDebug(
@@ -1011,11 +1011,13 @@ public sealed class RunwayExitPhase : Phase
                 // ...and close enough to the aircraft's energy state to actually make. Without this the lead
                 // above would be silently doubling as the braking floor, and re-targeting a jet still at
                 // coast speed could send it to an exit it can only arrive at hot.
+                // The braking is measured to the exit's turn-entry point, where a standard exit's turn begins.
                 double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(category, candidate.ExitAngle);
+                double distToTurnEntryNm = distToBranchNm - RolloutBraking.TurnEntryLeadNm(category, turnOffSpeed, candidate.ExitAngle);
                 bool alreadySlowEnough = aircraft.GroundSpeed <= turnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
                 if (
                     !alreadySlowEnough
-                    && (RolloutBraking.RequiredDecelKtsPerSec(aircraft.GroundSpeed, turnOffSpeed, distToBranchNm, category) > brakingLimit)
+                    && (RolloutBraking.RequiredDecelKtsPerSec(aircraft.GroundSpeed, turnOffSpeed, distToTurnEntryNm, category) > brakingLimit)
                 )
                 {
                     return AirportGroundLayout.CandidateVerdict.Skip;
@@ -1156,7 +1158,7 @@ public sealed class RunwayExitPhase : Phase
         _holdShortNode = found.Value.HoldShort;
         _exitTaxiway = found.Value.Taxiway;
         _exitPath = found.Value.Path;
-        _turnOffDecelRate = CaptureTurnOffRate(RetargetBrakingLimit(ctx.Category, expedite), ctx.Category);
+        _turnOffDecelRate = RolloutBraking.CaptureTurnOffRate(RetargetBrakingLimit(ctx.Category, expedite), ctx.Category);
         ctx.JoinExitSegmentOccupants?.Invoke();
         return true;
     }
@@ -1423,15 +1425,6 @@ public sealed class RunwayExitPhase : Phase
     }
 
     private static bool IsTurnOffSegment(int segmentIndex) => segmentIndex <= TurnOffLastSegmentIndex;
-
-    /// <summary>
-    /// The turn-off rate to keep from an exit chosen at <paramref name="selectionRate"/>: capped at the category's max-effort
-    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> (a <c>CLANDF</c> forced rollout commits its exit at
-    /// <see cref="Tower.ForcedLandingProfile.RolloutMaxDecelKtsPerSec"/>), and null — the taxi rate — for no rate or one that is
-    /// not positive.
-    /// </summary>
-    private static double? CaptureTurnOffRate(double? selectionRate, AircraftCategory category) =>
-        ((selectionRate is { } rate) && (rate > 0)) ? Math.Min(rate, CategoryPerformance.ExpediteExitDecelRate(category)) : null;
 
     private bool CompleteExit(PhaseContext ctx)
     {

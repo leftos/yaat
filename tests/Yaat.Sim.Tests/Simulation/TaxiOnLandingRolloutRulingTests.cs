@@ -342,7 +342,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void TaxiAuto_Accepted_HoldsShortOfACrossingOnTheRoute()
     {
-        if (AcceptOnRolloutPastExit("OAK", "28R", "C172", "TAXIAUTO 30", ("E", ExitSide.Right)) is not { } accepted)
+        if (AcceptOnRollout("OAK", "28R", "C172", "TAXIAUTO 30") is not { } accepted)
         {
             return;
         }
@@ -360,7 +360,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
     [Fact]
     public void Cross_WhileTheRouteWaits_ClearsTheStoredCrossing()
     {
-        if (AcceptOnRolloutPastExit("OAK", "28R", "C172", "TAXIAUTO 30", ("E", ExitSide.Right)) is not { } accepted)
+        if (AcceptOnRollout("OAK", "28R", "C172", "TAXIAUTO 30") is not { } accepted)
         {
             return;
         }
@@ -375,6 +375,172 @@ public sealed class TaxiOnLandingRolloutRulingTests
         int started = SfoGroundHarness.TickUntil(accepted.Spawned.Engine, () => aircraft.Phases?.CurrentPhase is TaxiingPhase, 200, null);
         Assert.True(started > 0, $"the route never started: {aircraft.Phases?.CurrentPhase?.Name}");
         Assert.Contains(aircraft.Ground.AssignedTaxiRoute!.HoldShortPoints, h => (h.NodeId == bar.NodeId) && h.IsCleared);
+    }
+
+    /// <summary>
+    /// A standard exit the rollout accepts is one it takes: OAK 28R C172 <c>TAXIAUTO 30</c> at touchdown reads back an exit
+    /// right at E, the rollout hands off short of E's turn-entry point and the aircraft leaves the runway at E, with no
+    /// "missed exit" or "unable E." and the stored route via C B W W1 still the one it taxies.
+    /// </summary>
+    [Fact]
+    public void TaxiAuto_ImpliedStandardExit_Accepted_IsTheExitTaken()
+    {
+        if (AcceptOnRollout("OAK", "28R", "C172", "TAXIAUTO 30") is not { } accepted)
+        {
+            return;
+        }
+
+        SimulationEngine engine = accepted.Spawned.Engine;
+        AircraftState aircraft = accepted.Spawned.Aircraft;
+        ExitPreference implied = aircraft.Phases!.RequestedExit ?? throw new Xunit.Sdk.XunitException("no implied exit instructed");
+        Assert.Equal("E", implied.Taxiway, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(ExitSide.Right, implied.Side);
+        TaxiRoute stored = aircraft.Phases.TaxiRoute ?? throw new Xunit.Sdk.XunitException("no taxi route stored on the phase list");
+        List<string> storedTaxiways = RouteTaxiways(stored);
+        _output.WriteLine($"stored: {stored.ToSummary()}");
+        AssertInOrder(storedTaxiways, ["C", "B", "W", "W1"]);
+
+        List<string> messages = CaptureMessages(engine);
+
+        string? exitTaken = TickOffTheRunway(engine, aircraft);
+        foreach (string message in messages)
+        {
+            _output.WriteLine($"  said: {message}");
+        }
+
+        Assert.Equal("E", exitTaken, StringComparer.OrdinalIgnoreCase);
+        AssertNoMissedExit(messages);
+        TaxiRoute route = aircraft.Ground.AssignedTaxiRoute ?? aircraft.Phases?.TaxiRoute ?? throw new Xunit.Sdk.XunitException("taxi route dropped");
+        Assert.Equal(storedTaxiways, RouteTaxiways(route));
+    }
+
+    /// <summary>
+    /// The rollout hands a standard exit off at coast speed, not only once it is down to turn-off speed: OAK 28R C172
+    /// <c>TAXIAUTO 30</c>, implied exit E, ends at most one rollout second at or below coast (the phase sees the speed only the
+    /// second after physics takes it there) and is in the runway exit the next, still faster than E's turn-off speed plus the
+    /// tolerance.
+    /// </summary>
+    [Fact]
+    public void TaxiAuto_ImpliedStandardExit_HandsOffAtCoast()
+    {
+        if (AcceptOnRollout("OAK", "28R", "C172", "TAXIAUTO 30") is not { } accepted)
+        {
+            return;
+        }
+
+        AircraftState aircraft = accepted.Spawned.Aircraft;
+        double coast = CategoryPerformance.RolloutCoastSpeed(AircraftCategory.Piston);
+        double slowEnough = CategoryPerformance.StandardExitSpeed(AircraftCategory.Piston) + RolloutBraking.TurnOffSpeedToleranceKts;
+        int rolloutSecondsAtOrBelowCoast = 0;
+        int handedOff = SfoGroundHarness.TickUntil(
+            accepted.Spawned.Engine,
+            () =>
+            {
+                if ((aircraft.Phases?.CurrentPhase is LandingPhase) && (aircraft.IndicatedAirspeed <= coast))
+                {
+                    rolloutSecondsAtOrBelowCoast++;
+                }
+
+                return aircraft.Phases?.CurrentPhase is RunwayExitPhase;
+            },
+            120,
+            null
+        );
+
+        _output.WriteLine($"handed off after {handedOff} s: {rolloutSecondsAtOrBelowCoast} rollout s at or below coast");
+        _output.WriteLine($"now {aircraft.IndicatedAirspeed:F2} kt");
+        Assert.True(handedOff > 0, $"never handed off: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.True(
+            rolloutSecondsAtOrBelowCoast <= 1,
+            $"the rollout stayed in hand for {rolloutSecondsAtOrBelowCoast} s at or below coast {coast} kt"
+        );
+        Assert.InRange(aircraft.IndicatedAirspeed, slowEnough, coast);
+    }
+
+    /// <summary>
+    /// An aircraft already at a standard exit's turn-off speed between the exit's turn-entry point and its branch can still take
+    /// it: OAK 28R C172 told <c>EXIT E</c>, then placed 5 ft short of E's branch (inside its 11 ft turn-entry lead) at 12 kt, hands
+    /// off and turns off at E with no "missed exit" or "unable E.".
+    /// </summary>
+    [Fact]
+    public void ExitE_SlowBetweenTurnEntryAndBranch_IsTakenThere()
+    {
+        if (Touchdown("OAK", "28R", "C172") is not { } spawned)
+        {
+            return;
+        }
+
+        AircraftState aircraft = spawned.Aircraft;
+        CommandResult exit = spawned.Engine.SendCommand(Arrival, "EXIT E");
+        Assert.True(exit.Success, exit.Message);
+        spawned.Engine.TickOneSecond();
+        ResolvedExitInfo candidate =
+            Assert.IsType<LandingPhase>(aircraft.Phases?.CurrentPhase).CandidateExit
+            ?? throw new Xunit.Sdk.XunitException("no candidate exit after EXIT E");
+        Assert.Equal("E", candidate.TaxiwayName, StringComparer.OrdinalIgnoreCase);
+
+        TrueHeading heading = spawned.Runway.TrueHeading;
+        aircraft.Position = GeoMath.ProjectPoint(candidate.BranchPointNode.Position, heading.ToReciprocal(), 5.0 / GeoMath.FeetPerNm);
+        aircraft.IndicatedAirspeed = candidate.TurnOffSpeed;
+        List<string> messages = CaptureMessages(spawned.Engine);
+
+        string? exitTaken = TickOffTheRunway(spawned.Engine, aircraft);
+        Assert.Equal("E", exitTaken, StringComparer.OrdinalIgnoreCase);
+        AssertNoMissedExit(messages);
+    }
+
+    /// <summary>
+    /// A standard exit whose hand-off is held at coast speed is released once the aircraft is slow enough: OAK 28R C172 with the
+    /// rollout's own candidate exit, placed at 22 kt (below coast) where reaching the turn-off speed by the turn-entry point needs
+    /// a little more than the rate the exit was chosen at but no more than the rollout accepts. The hand-off waits while the
+    /// rollout brakes, then the aircraft turns off at that exit.
+    /// </summary>
+    [Fact]
+    public void StandardExit_HandOffHeldAtCoast_IsReleasedOnceSlow()
+    {
+        if (Touchdown("OAK", "28R", "C172") is not { } spawned)
+        {
+            return;
+        }
+
+        AircraftState aircraft = spawned.Aircraft;
+        spawned.Engine.TickOneSecond();
+        ResolvedExitInfo candidate =
+            Assert.IsType<LandingPhase>(aircraft.Phases?.CurrentPhase).CandidateExit
+            ?? throw new Xunit.Sdk.XunitException("no candidate exit after touchdown");
+        Assert.True(RolloutBraking.IsStandardExit(AircraftCategory.Piston, candidate.TurnOffSpeed), $"{candidate.TaxiwayName} is not standard");
+        double selectionRate = candidate.SelectionDecelRate ?? throw new Xunit.Sdk.XunitException("no selection rate");
+
+        TrueHeading heading = spawned.Runway.TrueHeading;
+        double angle = aircraft.Ground.Layout!.MeasureExitAngle(candidate.Path, candidate.HoldShortNode, candidate.TaxiwayName, heading);
+        double leadFt = RolloutBraking.TurnEntryLeadNm(AircraftCategory.Piston, candidate.TurnOffSpeed, angle) * GeoMath.FeetPerNm;
+        const double StartKts = 22.0;
+        double rateFps2 = (selectionRate + (LandingPhase.CommittedExitDecelToleranceKtsPerSec / 2.0)) * GeoMath.FeetPerNm / 3600.0;
+        double startFps = StartKts * GeoMath.FeetPerNm / 3600.0;
+        double turnOffFps = candidate.TurnOffSpeed * GeoMath.FeetPerNm / 3600.0;
+        double brakingFt = ((startFps * startFps) - (turnOffFps * turnOffFps)) / (2.0 * rateFps2);
+        aircraft.Position = GeoMath.ProjectPoint(
+            candidate.BranchPointNode.Position,
+            heading.ToReciprocal(),
+            (leadFt + brakingFt) / GeoMath.FeetPerNm
+        );
+        aircraft.IndicatedAirspeed = StartKts;
+        _output.WriteLine($"{candidate.TaxiwayName}: selection {selectionRate:F2} kt/s, placed {leadFt + brakingFt:F0} ft short of the branch");
+
+        spawned.Engine.TickOneSecond();
+        Assert.IsType<LandingPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.True(aircraft.IndicatedAirspeed <= CategoryPerformance.RolloutCoastSpeed(AircraftCategory.Piston));
+
+        int handedOff = SfoGroundHarness.TickUntil(spawned.Engine, () => aircraft.Phases?.CurrentPhase is RunwayExitPhase, 120, null);
+        Assert.True(handedOff > 0, $"never handed off: {aircraft.Phases?.CurrentPhase?.Name}");
+        double releasedAtMost = candidate.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
+        Assert.True(
+            aircraft.IndicatedAirspeed <= releasedAtMost,
+            $"handed off at {aircraft.IndicatedAirspeed:F2} kt, above {candidate.TurnOffSpeed} kt turn-off speed plus the tolerance"
+        );
+
+        string? exitTaken = TickOffTheRunway(spawned.Engine, aircraft);
+        Assert.Equal(candidate.TaxiwayName, exitTaken, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -2125,6 +2291,86 @@ public sealed class TaxiOnLandingRolloutRulingTests
 
     private static List<int> RouteNodes(TaxiRoute route) => [.. route.Segments.Select(s => s.FromNodeId), route.Segments[^1].ToNodeId];
 
+    /// <summary>Every warning and pilot terminal line the engine emits for the arrival from now on, in order.</summary>
+    private static List<string> CaptureMessages(SimulationEngine engine)
+    {
+        List<string> messages = [];
+        engine.WarningEmitted += (cs, text) =>
+        {
+            if (cs == Arrival)
+            {
+                messages.Add(text);
+            }
+        };
+        engine.PilotSpeechEmitted += (cs, text) =>
+        {
+            if (cs == Arrival)
+            {
+                messages.Add(text.Terminal);
+            }
+        };
+        return messages;
+    }
+
+    private static void AssertNoMissedExit(List<string> messages) =>
+        Assert.DoesNotContain(
+            messages,
+            m => m.Contains("missed exit", StringComparison.OrdinalIgnoreCase) || m.Contains("unable E.", StringComparison.Ordinal)
+        );
+
+    /// <summary>Ticks until the arrival is out of its rollout and runway exit; returns the taxiway the runway exit last committed to.</summary>
+    private string? TickOffTheRunway(SimulationEngine engine, AircraftState aircraft)
+    {
+        string? exitTaken = null;
+        int off = SfoGroundHarness.TickUntil(
+            engine,
+            () =>
+            {
+                if (aircraft.Phases?.CurrentPhase is RunwayExitPhase exit)
+                {
+                    exitTaken = exit.ExitTaxiway;
+                }
+
+                return aircraft.Phases?.CurrentPhase is not (LandingPhase or RunwayExitPhase);
+            },
+            300,
+            null
+        );
+        _output.WriteLine($"off the runway after {off} s at {exitTaken}, now {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.True(off > 0, $"never left the runway: {aircraft.Phases?.CurrentPhase?.Name}");
+        return exitTaken;
+    }
+
+    /// <summary>The taxiways <paramref name="route"/> runs along, in order, each run of segments on one taxiway named once.</summary>
+    private static List<string> RouteTaxiways(TaxiRoute route)
+    {
+        List<string> names = [];
+        foreach (string name in route.Segments.Select(s => s.TaxiwayName))
+        {
+            if ((names.Count == 0) || !string.Equals(names[^1], name, StringComparison.OrdinalIgnoreCase))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>Asserts <paramref name="expected"/> appears in <paramref name="actual"/> in order, other entries allowed between.</summary>
+    private static void AssertInOrder(List<string> actual, List<string> expected)
+    {
+        int next = 0;
+        foreach (string name in actual)
+        {
+            if ((next < expected.Count) && string.Equals(name, expected[next], StringComparison.OrdinalIgnoreCase))
+            {
+                next++;
+            }
+        }
+
+        Assert.True(next == expected.Count, $"expected {string.Join(" ", expected)} in order in {string.Join(" ", actual)}");
+    }
+
     private ShortFinalArrival.Spawned? Touchdown(string airport, string runway, string type)
     {
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
@@ -2146,67 +2392,6 @@ public sealed class TaxiOnLandingRolloutRulingTests
     /// <summary>Sends <paramref name="command"/> once a second from touchdown until the rollout accepts it; a refusal changes nothing.</summary>
     private Accepted? AcceptOnRollout(string airport, string runway, string type, string command) =>
         Touchdown(airport, runway, type) is { } spawned ? SendUntilAccepted(spawned, command) : null;
-
-    /// <summary>
-    /// Ticks the rollout from touchdown until the branch of <paramref name="taxiway"/>'s exit on <paramref name="side"/> of the
-    /// runway is behind the aircraft along the runway, then sends <paramref name="command"/> until accepted; the exit it implies
-    /// is never <paramref name="taxiway"/>.
-    /// </summary>
-    private Accepted? AcceptOnRolloutPastExit(string airport, string runway, string type, string command, (string Taxiway, ExitSide Side) passed)
-    {
-        if (Touchdown(airport, runway, type) is not { } spawned)
-        {
-            return null;
-        }
-
-        AircraftState aircraft = spawned.Aircraft;
-        RunwayInfo info = spawned.Runway;
-        GroundNode branch = ExitBranch(aircraft.Ground.Layout!, info, passed);
-        int past = SfoGroundHarness.TickUntil(
-            spawned.Engine,
-            () => GeoMath.AlongTrackDistanceNm(branch.Position, aircraft.Position, info.TrueHeading) <= 0,
-            120,
-            null
-        );
-        Assert.True(past > 0, $"never rolled past {passed.Taxiway}'s branch #{branch.Id}: {aircraft.Phases?.CurrentPhase?.Name}");
-
-        Accepted accepted = SendUntilAccepted(spawned, command);
-        Assert.NotEqual(passed.Taxiway, aircraft.Phases?.RequestedExit?.Taxiway, StringComparer.OrdinalIgnoreCase);
-        return accepted;
-    }
-
-    /// <summary>
-    /// The runway centerline node where <paramref name="exit"/>'s taxiway leaves <paramref name="runway"/> on its side: its hold-short
-    /// bar on that side, walked back along the taxiway to the first node with a centerline edge of the runway.
-    /// </summary>
-    private static GroundNode ExitBranch(AirportGroundLayout layout, RunwayInfo runway, (string Taxiway, ExitSide Side) exit)
-    {
-        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        GroundNode bar = TestLayoutNodes
-            .RunwayHoldShortsOnTaxiway(layout, runway.Designator, exit.Taxiway)
-            .Single(n => (GeoMath.SignedCrossTrackDistanceNm(n.Position, threshold, runway.TrueHeading) > 0) == (exit.Side == ExitSide.Right));
-
-        var seen = new HashSet<int> { bar.Id };
-        var frontier = new Queue<GroundNode>([bar]);
-        while (frontier.TryDequeue(out GroundNode? node))
-        {
-            if (node.Edges.Any(e => e.IsRunwayCenterline && e.MatchesRunway(runway.Designator)))
-            {
-                return node;
-            }
-
-            foreach (IGroundEdge edge in node.Edges.Where(e => e.MatchesTaxiway(exit.Taxiway) && !e.IsRunwayCenterline))
-            {
-                GroundNode next = edge.OtherNode(node);
-                if (seen.Add(next.Id))
-                {
-                    frontier.Enqueue(next);
-                }
-            }
-        }
-
-        throw new Xunit.Sdk.XunitException($"no {runway.Designator} centerline node on {exit.Taxiway} from bar #{bar.Id}");
-    }
 
     /// <summary>Sends <paramref name="command"/> to the arrival on its rollout once a second until it is accepted.</summary>
     private Accepted SendUntilAccepted(ShortFinalArrival.Spawned spawned, string command)
