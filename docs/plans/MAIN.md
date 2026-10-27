@@ -4,7 +4,8 @@
 
 ## Do first
 
-- [/] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-1255 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on main · release vNext — Urgent · Backlog
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -14,7 +15,6 @@
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
-  - [/] YAAT-1256 Judge a standard exit the rollout accepts by whether it can hand off for it (OAK 28R E read back, then missed) · release vNext
   - [ ] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
@@ -463,6 +463,7 @@
 - [ ] YAAT-1249 wait_until answers met:false when its final log read finds the match after the last poll
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
+- [!] YAAT-1295 Write Mac crash dumps into the worktree's .tmp/dumps and return them with gate failureOutputs (GATE-824)
 
 ## Singles
 
@@ -829,8 +830,7 @@
 - [ ] YAAT-1228 Fill missing airline telephonies (JSX Big Stripe) from JO 7340.2 ch. 3
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
-- [ ] YAAT-1255 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on main
-- [ ] YAAT-1258 Stop a landing on a two-node exit inside the tail-clear band (ATL #754, HKY #55/#91 miss it) · release vNext
+- [ ] YAAT-1258 Brake a runway exit to rest at its tail-clear point instead of zeroing 10-13 kt there (ATL 26L B2 two-node exit) · release vNext
 - [ ] YAAT-1260 Cover the annotator's wingtip-floor warning at an exit where the runway-bar clamp still engages
 - [ ] YAAT-1265 Client driver: 480 px screenshot preview with UTC-pid file names, and in-app baselines
 - [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
@@ -843,3 +843,10 @@
 - [ ] YAAT-1285 Name the intersection in TAXIAUTO's response when the route ends at a non-full-length bar
 - [ ] YAAT-1286 Give up a CLANDF forced exit once the aircraft is past its turn-entry point
 - [ ] YAAT-1289 Keep the rollout's brake rate on the hand-off sub-tick instead of falling back to the taxi rate
+- [ ] YAAT-1291 Keep the landing straight-line exit fallback from taking a near-parallel taxiway as a high-speed exit (OAK 30 W at 3°)
+- [ ] YAAT-1292 Imply no runway crossing from an ILS critical-area or approach hold (TAXI from a non-runway bar)
+- [ ] YAAT-1293 Refused standard exit says 'no exit ahead' while the branch is still ahead
+- [ ] YAAT-1294 Make the exit angle a plain double once every exit is measured (drop RunwayExitSpeed)
+- [ ] YAAT-1296 Harden the crossing stop curve: carry flag in the lead-chain exemption, zero-room floor, per-tick allocation
+- [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
+- [ ] YAAT-1298 A taxiing aircraft at rest behind stopped traffic speeds up, then is stopped in one pass (SFO C/J, 6.75 kt)
