@@ -10,14 +10,13 @@
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [/] YAAT-1214 Place unpaired hold-short points by the reviewed standoff rule (ILS category, elevation, angled taxiways) · release vNext
   - [ ] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
   - [ ] YAAT-1256 Judge a standard exit the rollout accepts by whether it can hand off for it (OAK 28R E read back, then missed) · release vNext
   - [ ] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
-  - [ ] YAAT-1259 Rank a bare TAXI's first step by heading: TAXI B from OAK's 28L bar facing west routes east across both runways · release vNext
+  - [ ] YAAT-1269 Make the full-length lineup bar pick side-aware (SFO 28R C: #545 beats far-side #839 by 8 ft) · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 
 ## Controller-AI coaching
@@ -86,8 +85,8 @@
   - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
-- [ ] YAAT-1262 SFO 28R exit onto Q stops past the 28R bar without pulling up to 28L, so CROSS answers 'No taxi route assigned' · release vNext
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
+- [ ] YAAT-1282 A bare TAXI from holding short of a runway implicitly clears the crossing (OAK B at 28L crosses)
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -315,7 +314,6 @@
 - [ ] YAAT-932 Stop a detour connector reusing a taxiway cleared before the transition
 - [ ] YAAT-933 Require a self-picked connector's runway crossing to be nearly perpendicular
 - [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
-- [ ] YAAT-1269 Make the full-length lineup bar pick side-aware (SFO 28R C: #545 beats far-side #839 by 8 ft) · release vNext
 - [ ] YAAT-1270 Weigh the named taxiway's own runway bars against its same-letter variants in TryVariantExtension
 - [ ] YAAT-1271 Let a variant-step ambiguity failure defer to the runway fallback from an off-taxiway head
 - [ ] YAAT-1273 Keep the off-taxiway runway fallback to the named taxiway's own letter (no unnamed different-letter connector)
@@ -834,3 +832,7 @@
 - [ ] YAAT-1260 Cover the annotator's wingtip-floor warning at an exit where the runway-bar clamp still engages
 - [ ] YAAT-1265 Client driver: 480 px screenshot preview with UTC-pid file names, and in-app baselines
 - [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
+- [ ] YAAT-1278 Move the follower hold-line tests to the gear-aware IsInsideHoldLine and delete the bare-point wrapper
+- [ ] YAAT-1279 Make the exit-angle chain's edge choice independent of edge order (parallel edges, per-node rank)
+- [ ] YAAT-1280 Keep named runway-crossing links out of a hold bar's taxiway axis (NamedStraightOffCentreline)
+- [ ] YAAT-1281 SFO exits list shows Q at K's 28R bar and H/A1 off 19L with no angle
