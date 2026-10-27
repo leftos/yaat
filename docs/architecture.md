@@ -399,7 +399,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Simulation/GroundTaxi/PushmHintE2ETests.cs` (`PUSHM`'s pass-through hints flown end to end on the real SFO ramp beyond the F8 reference case: a hint no arrival passes taken through on a move of its own, and a hint that is a graph node rather than a spot).
 
-    `Simulation/GroundTaxi/FollowGroundBarStopTests.cs` (the KOAK H1 clip: a `FOLLOWG` follower brakes into the runway 33 bar on C at the piston taxi brake rate, rests with its nose at the hold line, and reports holding short).
+    `Simulation/GroundTaxi/FollowGroundBarStopTests.cs` (the KOAK H1 clip: a `FOLLOWG` follower brakes into the runway 33 bar on C at the piston taxi brake rate, rests with its nose at the hold line, and reports holding short; plus an SFO 28R / D scene on `SfoGroundHarness`, where a B77W follower with its tail inside the exit bar turns back across 28R and stops at that bar).
 
     The same file covers the graph follow at bars: a follower far behind stays on the taxiways and stops at bar 518; one that exited 33 and turns back toward it stops at its bar, and drops the runway by position; closing on the bar behind a slower lead it brakes at the bar's rate; two B738s in trail keep the nose-to-tail stop gap along the path.
 
