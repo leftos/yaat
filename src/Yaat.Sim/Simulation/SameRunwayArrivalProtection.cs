@@ -24,8 +24,9 @@ namespace Yaat.Sim.Simulation;
 ///
 /// <para><b>Clear of the runway.</b> AIM 2-3-5.a.1 and AIM 4-3-21.b: an aircraft exiting is not clear until <i>all
 /// parts</i> of it have crossed the holding position marking. Both regimes therefore measure to
-/// <see cref="TailClearanceNm"/> past the hold-short node — the same virtual target <see cref="RunwayExitPhase"/>
-/// itself taxis to, so the prediction and the phase cannot disagree about where "clear" is. Each regime models the
+/// <see cref="TailClearanceNm"/> past the hold-short node — half a fuselage length, the clear point.
+/// <see cref="RunwayExitPhase"/> stops <see cref="RunwayExitPhase.TailClearMarginFt"/> beyond that point, so the phase is
+/// never predicted clear later than it is. Each regime models the
 /// speed profile its phase actually flies rather than the leader's present ground speed held to the end. A
 /// <see cref="LandingPhase"/> leader brakes the rollout to the exit's turn-off speed by the branch point — a leg
 /// covered at the constant-deceleration mean of the two — and then flies the exit at that turn-off speed. A
@@ -327,8 +328,9 @@ public static class SameRunwayArrivalProtection
 
     /// <summary>
     /// Path distance (nm) the leader must still cover past its hold-short node before <em>all parts</em> of it are
-    /// across the holding position marking (AIM 2-3-5.a.1, AIM 4-3-21.b): half a fuselage length, which is exactly
-    /// the offset <see cref="RunwayExitPhase"/> taxis to past that node. The fuselage length comes from
+    /// across the holding position marking (AIM 2-3-5.a.1, AIM 4-3-21.b): half a fuselage length, the clear point.
+    /// <see cref="RunwayExitPhase"/> stops <see cref="RunwayExitPhase.TailClearMarginFt"/> beyond that point, so the phase
+    /// is never predicted clear later than it is. The fuselage length comes from
     /// <see cref="AircraftLength.ResolveFt"/> — the resolver <see cref="RunwayExitPhase"/> uses, so the two agree on an
     /// unknown type too.
     /// </summary>

@@ -288,10 +288,11 @@ public sealed class GroundNavigator
     /// where the sub-tick began; the target is that distance's inverse, v = (−a·dt + √(a²dt² + 8ad)) / 2. The continuous
     /// curve read at the sub-tick's start asks a little more than a·dt of every sub-tick, which a plan at the hardest rate
     /// the aircraft has cannot give, so it falls further behind the curve each sub-tick and reaches the stop at speed.
-    /// <see cref="TaxiingPhase"/> sets it while an unable bar's moved stop is flown at the firm rate. It applies to the
-    /// single-rate plan only: with <see cref="SlowdownDecelRateKts"/> set, the split-rate plan keeps the continuous curve,
-    /// which is harmless because <see cref="TaxiingPhase"/> never sets <see cref="SlowdownDecelRateKts"/>. Not serialized:
-    /// the phase re-applies it before every tick.
+    /// <see cref="TaxiingPhase"/> sets it while an unable bar's moved stop is flown at the firm rate, and
+    /// <see cref="RunwayExitPhase"/> for the whole exit route (unless it rolls on into a stored taxi route, whose route-end
+    /// stop at the tail-clear point is otherwise reached at speed). With <see cref="SlowdownDecelRateKts"/> set it applies to the
+    /// stops of the split-rate plan; the slowdown curves stay continuous. Not serialized: the phase re-applies it before every
+    /// tick.
     /// </summary>
     public bool PlansStopsOnSubTicks { get; set; }
 
@@ -4262,51 +4263,8 @@ public sealed class GroundNavigator
         double maxTurnDeg = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
 
-        double targetSpeed = ComputeTargetSpeed(ctx, distNm, isHoldShortCleared);
-
-        // Establish-straight gate (Boeing FCTM "roll straight, then add thrust";
-        // AIM 4-3-19.4 positive control): while displaced off the segment
-        // centerline, hold a slow re-acquire speed instead of accelerating.
-        // Pure-pursuit at taxi speed onto an off-line segment overshoots the
-        // line and swings back (~40°+ of wasted rotation). Tangent-rounded
-        // corners exit on-line (offset ≈ 0) so this is a no-op there; it bites
-        // the from-rest spot-exit pivot, which has no incoming leg to round
-        // tangent and so unavoidably finishes off the outgoing centerline.
-        // The offset is measured from the segment's unclamped line, not the
-        // clamped foot: an early arrival at a node where the next segment
-        // continues on the same line leaves the aircraft on that line, only
-        // short of its start, which is not "off" it.
         double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
-        if (lineOffsetFt > ReacquireOffsetFt)
-        {
-            targetSpeed = Math.Min(targetSpeed, ReacquireSpeedKts);
-        }
-
-        // Safety backstop: cap target speed so the aircraft cannot cover more
-        // than ~80% of the remaining distance in a single tick. It applies only
-        // where the aircraft must arrive at the node PRECISELY rather than merely
-        // pass it:
-        //   - a stop target (the hold-short bar it has to come to rest on),
-        //   - the last segment of the route (same),
-        //   - an arc entry — TickBezier writes position from curve state at
-        //     engagement (invariant I2), so arriving late here teleports the
-        //     aircraft up to the arrival threshold onto the arc's start point.
-        // A pass-through node on a straight polyline needs none of that: the
-        // advance-on-pass rule above retires the segment as soon as the
-        // along-track projection passes the node, and the overshoot watchdog
-        // backstops the rest. Applying it there instead ratchets the speed down
-        // a chord chain — every chord of the SFO 28R taxiway-T exit is short
-        // enough to arrive on the tight 1.8 ft threshold, so the cap (~1.9 kt per
-        // remaining foot at Δt = 0.25 s) slashed the target over the last ~16 ft
-        // of each one, and physics could not recover the loss at the 1.0 kt/s
-        // taxi accel rate before the next node (SKW3398: 37 kt down to 17, 39 s
-        // of runway occupancy over 1,242 ft).
-        if (ctx.DeltaSeconds > 0 && distNm > 0 && (isStopTarget || isLastSegment || _nextSegmentIsArc))
-        {
-            double maxSpeedForDist = distNm * 0.8 / ctx.DeltaSeconds * 3600.0;
-            targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
-        }
-
+        double targetSpeed = StraightTargetSpeed(ctx, distNm, lineOffsetFt, isLastSegment, isHoldShortCleared);
         PublishSpeed(ctx, targetSpeed);
 
         PrevDistToTarget = distNm;
@@ -4344,6 +4302,63 @@ public sealed class GroundNavigator
         }
 
         return NavigatorResult.Navigating;
+    }
+
+    /// <summary>
+    /// The target speed (kts) on a straight <paramref name="distNm"/> short of its to-node: the braking-curve target
+    /// (<see cref="ComputeTargetSpeed"/>), held to <see cref="ReacquireSpeedKts"/> while <paramref name="lineOffsetFt"/> puts the
+    /// aircraft more than <see cref="ReacquireOffsetFt"/> off the segment line, and capped so one step covers no more than
+    /// 80 % of the remaining distance where the aircraft must arrive at the node precisely.
+    /// </summary>
+    private double StraightTargetSpeed(PhaseContext ctx, double distNm, double lineOffsetFt, bool isLastSegment, Func<int, bool> isHoldShortCleared)
+    {
+        double targetSpeed = ComputeTargetSpeed(ctx, distNm, isHoldShortCleared);
+
+        // Establish-straight gate (Boeing FCTM "roll straight, then add thrust";
+        // AIM 4-3-19.4 positive control): while displaced off the segment
+        // centerline, hold a slow re-acquire speed instead of accelerating.
+        // Pure-pursuit at taxi speed onto an off-line segment overshoots the
+        // line and swings back (~40°+ of wasted rotation). Tangent-rounded
+        // corners exit on-line (offset ≈ 0) so this is a no-op there; it bites
+        // the from-rest spot-exit pivot, which has no incoming leg to round
+        // tangent and so unavoidably finishes off the outgoing centerline.
+        // The offset is measured from the segment's unclamped line, not the
+        // clamped foot: an early arrival at a node where the next segment
+        // continues on the same line leaves the aircraft on that line, only
+        // short of its start, which is not "off" it.
+        if (lineOffsetFt > ReacquireOffsetFt)
+        {
+            targetSpeed = Math.Min(targetSpeed, ReacquireSpeedKts);
+        }
+
+        bool isStopTarget = _currentNodeRequiredSpeed <= 0.0;
+
+        // Safety backstop: cap target speed so the aircraft cannot cover more
+        // than ~80% of the remaining distance in a single tick. It applies only
+        // where the aircraft must arrive at the node PRECISELY rather than merely
+        // pass it:
+        //   - a stop target (the hold-short bar it has to come to rest on),
+        //   - the last segment of the route (same),
+        //   - an arc entry — TickBezier writes position from curve state at
+        //     engagement (invariant I2), so arriving late here teleports the
+        //     aircraft up to the arrival threshold onto the arc's start point.
+        // A pass-through node on a straight polyline needs none of that:
+        // TickStraight's advance-on-pass rule retires the segment as soon as the
+        // along-track projection passes the node, and the overshoot watchdog
+        // backstops the rest. Applying it there instead ratchets the speed down
+        // a chord chain — every chord of the SFO 28R taxiway-T exit is short
+        // enough to arrive on the tight 1.8 ft threshold, so the cap (~1.9 kt per
+        // remaining foot at Δt = 0.25 s) slashed the target over the last ~16 ft
+        // of each one, and physics could not recover the loss at the 1.0 kt/s
+        // taxi accel rate before the next node (SKW3398: 37 kt down to 17, 39 s
+        // of runway occupancy over 1,242 ft).
+        if (ctx.DeltaSeconds > 0 && distNm > 0 && (isStopTarget || isLastSegment || _nextSegmentIsArc))
+        {
+            double maxSpeedForDist = distNm * 0.8 / ctx.DeltaSeconds * 3600.0;
+            targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
+        }
+
+        return targetSpeed;
     }
 
     /// <summary>
@@ -4578,12 +4593,50 @@ public sealed class GroundNavigator
     /// </summary>
     private bool TakesEndOfArcNudge() => (_pendingTurnAboutArc is null) && !_turnAboutRollsOutAlongEdge && (_turnAboutRollOutOffsetFt <= 0.0);
 
+    /// <summary>
+    /// Publishes the speed plan of the segment just set up, without steering or moving: the braking-curve target to the current
+    /// straight's to-node or along the current arc's remaining length. A phase that sets up the next segment on an arrival calls
+    /// it so physics flies that sub-tick on the new segment's plan rather than on the plan the arrival sub-tick left behind.
+    /// A straight publishes what <see cref="TickStraight"/> would (<see cref="StraightTargetSpeed"/>), a slow turn its own
+    /// <see cref="PathPrimitiveSlowTurn.MaxSpeedKts"/> as <see cref="TickSlowTurn"/> does. Does nothing while a turn-about
+    /// hold or brake is playing, which publishes its own speed.
+    /// </summary>
+    public void PublishSegmentSpeed(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
+    {
+        if ((_turnAboutHold is not null) || (_turnAboutBrake is not null))
+        {
+            return;
+        }
+
+        switch (_currentPrimitive)
+        {
+            case PathPrimitiveBezier bezier:
+                PublishSpeed(ctx, ComputeTargetSpeed(ctx, BezierRemainingNm(bezier), isHoldShortCleared));
+                break;
+            case PathPrimitiveStraight:
+                double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
+                double edgeLengthNm = GeoMath.DistanceNm(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
+                double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
+                PublishSpeed(ctx, StraightTargetSpeed(ctx, distNm, lineOffsetFt, isLastSegment, isHoldShortCleared));
+                break;
+            case PathPrimitiveSlowTurn slowTurn:
+                PublishSpeed(ctx, slowTurn.MaxSpeedKts);
+                break;
+        }
+    }
+
     private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, Func<int, bool> isHoldShortCleared)
     {
         double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         bool stopCurveBinds = false;
         double brakingLimit = SlowdownDecelRateKts is { } slowdownRate
-            ? SplitRateBrakingLimit(distToEndpointNm, isHoldShortCleared, (decelRate, slowdownRate), out stopCurveBinds)
+            ? SplitRateBrakingLimit(
+                distToEndpointNm,
+                isHoldShortCleared,
+                (decelRate, slowdownRate),
+                PlansStopsOnSubTicks ? ctx.DeltaSeconds : null,
+                out stopCurveBinds
+            )
             : SingleRateBrakingLimit(distToEndpointNm, isHoldShortCleared, decelRate, PlansStopsOnSubTicks ? ctx.DeltaSeconds : null);
         decelRate = SlowdownDecelRateKts ?? decelRate;
 
@@ -4666,19 +4719,24 @@ public sealed class GroundNavigator
     /// The braking-curve ceiling (kts) with <see cref="SlowdownDecelRateKts"/> set: each stop (a zero required speed) on its own
     /// curve at <paramref name="rates"/>' stop rate and each slowdown on its own curve at its slowdown rate.
     /// <see cref="BuildSpeedConstraints"/> skips its back-propagation in this mode, so every constraint keeps its own speed and
-    /// the minimum over the individual curves is the plan. <paramref name="stopBinds"/> says whether a stop's curve set it.
+    /// the minimum over the individual curves is the plan. With <paramref name="subTickSeconds"/> set, each stop's curve is the
+    /// sub-ticked one (<see cref="PlansStopsOnSubTicks"/>); the slowdowns keep the continuous curve.
+    /// <paramref name="stopBinds"/> says whether a stop's curve set it.
     /// </summary>
     private double SplitRateBrakingLimit(
         double distToEndpointNm,
         Func<int, bool> isHoldShortCleared,
         (double Stop, double Slowdown) rates,
+        double? subTickSeconds,
         out bool stopBinds
     )
     {
-        double CurveKts(double reqSpeed, double distNm) =>
-            Math.Sqrt(reqSpeed * reqSpeed + 2.0 * (reqSpeed == 0 ? rates.Stop : rates.Slowdown) * Math.Max(0.0, distNm) * 3600.0);
+        double ConstraintCurveKts(double reqSpeed, double distNm) =>
+            reqSpeed == 0
+                ? CurveKts(0.0, Math.Max(0.0, distNm), rates.Stop, subTickSeconds)
+                : CurveKts(reqSpeed, Math.Max(0.0, distNm), rates.Slowdown, null);
 
-        double brakingLimit = CurveKts(_currentNodeRequiredSpeed, distToEndpointNm);
+        double brakingLimit = ConstraintCurveKts(_currentNodeRequiredSpeed, distToEndpointNm);
         stopBinds = _currentNodeRequiredSpeed <= 0.0;
 
         foreach ((double pathDist, double reqSpeed, int nodeId, bool isBarStop) in _speedConstraints)
@@ -4688,7 +4746,7 @@ public sealed class GroundNavigator
                 continue;
             }
 
-            double limit = CurveKts(reqSpeed, distToEndpointNm + pathDist);
+            double limit = ConstraintCurveKts(reqSpeed, distToEndpointNm + pathDist);
             if (limit < brakingLimit)
             {
                 brakingLimit = limit;

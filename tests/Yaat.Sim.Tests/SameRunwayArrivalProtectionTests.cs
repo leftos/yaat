@@ -410,10 +410,11 @@ public class SameRunwayArrivalProtectionTests
     }
 
     /// <summary>
-    /// The prediction and the phase must agree on where "clear" is for a type the FAA database does not carry too.
-    /// An A225 (CWT A) exiting OAK 28R is ticked until <see cref="RunwayExitPhase"/> ends; it must stop past the
-    /// hold-short node by the <see cref="SameRunwayArrivalProtection.TailClearanceNm"/> the protection measures to,
-    /// not by half of a flat 60 ft guess.
+    /// The exit stops at the protection's clear point plus the phase's own margin, for a type the FAA database does not
+    /// carry too: an A225 (CWT A) exiting OAK 28R is ticked until <see cref="RunwayExitPhase"/> ends, and must have
+    /// stopped between the <see cref="SameRunwayArrivalProtection.TailClearanceNm"/> past the hold-short node the
+    /// protection measures to and that point plus <see cref="RunwayExitPhase.TailClearMarginFt"/> — never short of the
+    /// clear point, and not by half of a flat 60 ft guess.
     /// </summary>
     [Fact]
     public void UnknownType_ExitStopMatchesProtectionTailClearance()
@@ -450,7 +451,7 @@ public class SameRunwayArrivalProtectionTests
         double pastBarFt = GeoMath.DistanceNm(holdShort.Position, leader.Position) * GeoMath.FeetPerNm;
         double expectedFt = SameRunwayArrivalProtection.TailClearanceNm("A225") * GeoMath.FeetPerNm;
         Assert.True(
-            Math.Abs(pastBarFt - expectedFt) <= 15.0,
+            (pastBarFt >= expectedFt) && (pastBarFt <= expectedFt + RunwayExitPhase.TailClearMarginFt + 0.5),
             $"the exit stopped {pastBarFt:F1} ft past the hold-short node; the protection clears it at {expectedFt:F1} ft"
         );
     }

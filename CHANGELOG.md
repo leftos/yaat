@@ -49,6 +49,7 @@
 
 - `TAXI` and `TAXIAUTO` to a runway, and `ATXI`, end at the full-length holding position on the aircraft's own side, never across the runway.
 - A landing aircraft that reads back a standard exit now takes it, instead of answering "unable" at the turn and rolling to a later exit.
+- A landing aircraft vacating the runway brakes smoothly to rest just past the hold-short line, instead of stopping dead from taxi speed there.
 - Right-click menus and flyouts open on top of a window pinned always on top, such as a pinned Ground View, instead of behind it.
 - One CRC, vEDST or Tower Cab client losing its network no longer freezes every room on the server; the stalled client is dropped instead.
 - A rewind no longer doubles a scenario's VFR arrival and overflight generators, so those aircraft keep spawning at their authored rate.
