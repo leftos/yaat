@@ -4,6 +4,7 @@
 
 ## Do first
 
+- [ ] YAAT-1264 Initialise navdata in every sim test class that ticks the engine without it · release vNext — Urgent · No project
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -14,6 +15,9 @@
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
+  - [ ] YAAT-1256 Judge a standard exit the rollout accepts by whether it can hand off for it (OAK 28R E read back, then missed) · release vNext
+  - [ ] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
+  - [ ] YAAT-1259 Rank a bare TAXI's first step by heading: TAXI B from OAK's 28L bar facing west routes east across both runways · release vNext
 
 ## Controller-AI coaching
 
@@ -81,6 +85,9 @@
   - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
+- [ ] YAAT-1261 TAXI C 28R at SFO routes onto C2 (582 ft up the runway) instead of C's own full-length 28R bar · release vNext
+- [ ] YAAT-1262 SFO 28R exit onto Q stops past the 28R bar without pulling up to 28L, so CROSS answers 'No taxi route assigned' · release vNext
+- [ ] YAAT-1263 GIVEWAY releases at once when the traffic crosses at 60-120 degrees beyond 1,500 ft (SFO UAL2237 on L, UAL926 on F) · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -814,6 +821,9 @@
 - [ ] YAAT-1228 Fill missing airline telephonies (JSX Big Stripe) from JO 7340.2 ch. 3
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
+- [ ] YAAT-1255 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on main
+- [ ] YAAT-1258 Stop a landing on a two-node exit inside the tail-clear band (ATL #754, HKY #55/#91 miss it)
+- [ ] YAAT-1260 Cover the annotator's wingtip-floor warning at an exit where the runway-bar clamp still engages
 
 ## No project
 
