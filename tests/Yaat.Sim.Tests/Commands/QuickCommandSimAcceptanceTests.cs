@@ -529,7 +529,7 @@ public sealed class QuickCommandSimAcceptanceTests
         (SimulationEngine engine, AircraftState heli) = HelicopterAtOak(onGround: true);
         AirportGroundLayout layout = heli.Ground.Layout!;
         GroundNode bar =
-            GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget("28R", null, false))
+            GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget("28R", null, false), heli.Position)
             ?? throw new Xunit.Sdk.XunitException("KOAK 28R has no holding position");
         Phase phase = situation switch
         {

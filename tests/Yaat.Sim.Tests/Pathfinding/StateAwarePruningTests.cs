@@ -142,7 +142,14 @@ public class StateAwarePruningTests
             return;
         }
 
-        GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway, holdShorts);
+        GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            holdShorts[0],
+            runway,
+            holdShorts,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         TaxiRoute? route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
 

@@ -892,18 +892,19 @@ public static class RouteMaterialiser
     }
 
     /// <summary>
-    /// Pick the full-length lineup hold-short on <paramref name="runwayId"/> — the one
-    /// geographically nearest to the requested designator's threshold (the departure end you line
-    /// up at for a full-length takeoff). The threshold is resolved authoritatively from
-    /// <see cref="NavigationDatabase"/> so the correct end is chosen for the named designator
-    /// (the 28R end, not the reciprocal 10L end). When the runway is unknown to nav-data, falls
-    /// back to the hold-short nearest <paramref name="startNode"/>.
+    /// Pick the full-length lineup hold-short on <paramref name="runwayId"/>: the first bar of
+    /// <see cref="OrderFullLengthLineupBars"/>, with <paramref name="startNode"/> giving the side of the runway
+    /// the aircraft is on and <paramref name="category"/> and <paramref name="wakeClass"/> the taxi routes the shadow
+    /// test searches (a bar with no ground route ranks with the shadowed bars). When the runway is unknown to nav-data,
+    /// falls back to the hold-short nearest <paramref name="startNode"/>.
     /// </summary>
     public static GroundNode FindFullLengthLineupHoldShort(
         AirportGroundLayout layout,
         GroundNode startNode,
         string runwayId,
-        List<GroundNode> holdShortNodes
+        List<GroundNode> holdShortNodes,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         if (holdShortNodes.Count == 0)
@@ -916,13 +917,18 @@ public static class RouteMaterialiser
             return holdShortNodes[0];
         }
 
-        LatLon reference = ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
+        Func<GroundNode, bool>? ShadowTest() =>
+            TaxiPathfinder.LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true);
+        if (OrderFullLengthLineupBars(layout.AirportId, runwayId, startNode.Position, holdShortNodes, ShadowTest) is [GroundNode first, ..])
+        {
+            return first;
+        }
 
         GroundNode best = holdShortNodes[0];
-        double bestDist = GeoMath.DistanceNm(reference, best.Position);
+        double bestDist = GeoMath.DistanceNm(startNode.Position, best.Position);
         for (int i = 1; i < holdShortNodes.Count; i++)
         {
-            double dist = GeoMath.DistanceNm(reference, holdShortNodes[i].Position);
+            double dist = GeoMath.DistanceNm(startNode.Position, holdShortNodes[i].Position);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -932,6 +938,125 @@ public static class RouteMaterialiser
 
         return best;
     }
+
+    /// <summary>How far along the runway past the bar nearest the threshold a bar still counts as full length.</summary>
+    private const double FullLengthBandFt = 200.0;
+
+    /// <summary>How far beyond the runway's edge a start must be before the side it is on counts.</summary>
+    private const double SideMarginFt = 50.0;
+
+    /// <summary>A candidate bar measured against the runway axis: feet along it from the threshold, and its side.</summary>
+    private readonly record struct MeasuredBar(GroundNode Bar, double AlongFt, int Side);
+
+    /// <summary>
+    /// Orders <paramref name="bars"/>, hold-short bars of <paramref name="runwayId"/>, by how well each serves as the
+    /// full-length lineup point for a departure from that end, best first.
+    ///
+    /// Each bar is measured along the runway centreline from the requested threshold toward the far end (negative
+    /// before the threshold) and by its side of the centreline. The bars within 200 ft along-track of the smallest
+    /// form the full-length band. The start's side is the side of the centreline <paramref name="start"/> is on; there
+    /// is none when the start is null, within half the runway width plus 50 ft of the centreline, or before the
+    /// threshold or past the far end along the runway.
+    ///
+    /// With no start side the order is along-track, then node id, except that, when the start is before the threshold
+    /// or within the centreline band, a bar the shadow test reports (one the start's taxi route meets another of the
+    /// runway's bars before) goes after every bar it does not. A null start or one past the far end gets no shadow
+    /// test. With a start side, the band's start-side bars come first; when the band has none, the start-side bar with
+    /// the smallest along-track stands in as the departure point, then the band follows; every other bar comes last;
+    /// each group by along-track, then node id. When no bar lies on the start's side, the order is straight-line
+    /// distance from the threshold, then node id.
+    /// </summary>
+    /// <param name="airportId">The airport whose nav data holds the runway.</param>
+    /// <param name="runwayId">The departure end, e.g. <c>28R</c>.</param>
+    /// <param name="start">Where the aircraft is, or null for no side preference.</param>
+    /// <param name="bars">The candidate bars.</param>
+    /// <param name="shadowTest">
+    /// Builds the test of whether a bar is shadowed, called only when the start has no side and is before the threshold
+    /// or within the centreline band, so a caller does no lookup or route search the order does not use. It or the test
+    /// it builds is null when the start is not on the ground graph.
+    /// </param>
+    /// <returns>The bars best first, or null when nav data cannot resolve the runway's threshold and far end.</returns>
+    public static List<GroundNode>? OrderFullLengthLineupBars(
+        string airportId,
+        string runwayId,
+        LatLon? start,
+        IReadOnlyList<GroundNode> bars,
+        Func<Func<GroundNode, bool>?>? shadowTest
+    )
+    {
+        RunwayInfo? runway = NavigationDatabase.InstanceOrNull?.GetRunway(airportId, runwayId);
+        if (runway is null)
+        {
+            return null;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var farEnd = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        var heading = new TrueHeading(GeoMath.BearingTo(threshold, farEnd));
+        List<MeasuredBar> measured =
+        [
+            .. bars.Select(bar => new MeasuredBar(bar, AlongFt(bar.Position, threshold, heading), SideOf(bar.Position, threshold, heading))),
+        ];
+        int startSide = StartSide(start, threshold, heading, runway.PavementLengthFt, runway.WidthFt);
+        if ((startSide != 0) && (!measured.Any(m => m.Side == startSide)))
+        {
+            return [.. bars.OrderBy(bar => GeoMath.DistanceNm(threshold, bar.Position)).ThenBy(bar => bar.Id)];
+        }
+
+        Func<GroundNode, bool>? isShadowed =
+            (startSide == 0) && (start is { } position) && (AlongFt(position, threshold, heading) <= runway.PavementLengthFt)
+                ? shadowTest?.Invoke()
+                : null;
+        return OrderBySideAndBand(measured, startSide, isShadowed);
+    }
+
+    /// <summary>
+    /// The ranked order of <paramref name="measured"/> once the start side is known (0: none); see
+    /// <see cref="OrderFullLengthLineupBars"/>.
+    /// </summary>
+    private static List<GroundNode> OrderBySideAndBand(List<MeasuredBar> measured, int startSide, Func<GroundNode, bool>? isShadowed)
+    {
+        List<MeasuredBar> sorted = [.. measured.OrderBy(m => m.AlongFt).ThenBy(m => m.Bar.Id)];
+        if (startSide == 0)
+        {
+            return isShadowed is null ? [.. sorted.Select(m => m.Bar)] : [.. sorted.Select(m => m.Bar).OrderBy(isShadowed)];
+        }
+
+        double bandEdgeFt = sorted[0].AlongFt + FullLengthBandFt;
+        List<MeasuredBar> head = [.. sorted.Where(m => (m.Side == startSide) && (m.AlongFt <= bandEdgeFt))];
+        if (head.Count == 0)
+        {
+            head.Add(sorted.First(m => m.Side == startSide));
+        }
+
+        IEnumerable<MeasuredBar> band = sorted.Where(m => (m.AlongFt <= bandEdgeFt) && (!head.Contains(m)));
+        IEnumerable<MeasuredBar> rest = sorted.Where(m => (m.AlongFt > bandEdgeFt) && (!head.Contains(m)));
+        return [.. head.Concat(band).Concat(rest).Select(m => m.Bar)];
+    }
+
+    /// <summary>The side of the runway <paramref name="start"/> is on (see <see cref="OrderFullLengthLineupBars"/>), or 0 for none.</summary>
+    private static int StartSide(LatLon? start, LatLon threshold, TrueHeading heading, double lengthFt, double widthFt)
+    {
+        if (start is not { } position)
+        {
+            return 0;
+        }
+
+        double alongFt = AlongFt(position, threshold, heading);
+        if ((alongFt < 0) || (alongFt > lengthFt))
+        {
+            return 0;
+        }
+
+        double crossFt = GeoMath.SignedCrossTrackDistanceNm(position, threshold, heading) * GeoMath.FeetPerNm;
+        return Math.Abs(crossFt) <= ((widthFt / 2) + SideMarginFt) ? 0 : Math.Sign(crossFt);
+    }
+
+    private static double AlongFt(LatLon position, LatLon threshold, TrueHeading heading) =>
+        GeoMath.AlongTrackDistanceNm(position, threshold, heading) * GeoMath.FeetPerNm;
+
+    private static int SideOf(LatLon position, LatLon threshold, TrueHeading heading) =>
+        Math.Sign(GeoMath.SignedCrossTrackDistanceNm(position, threshold, heading));
 
     /// <summary>
     /// The geographic threshold of <paramref name="runwayId"/>'s requested designator (e.g. the 28R

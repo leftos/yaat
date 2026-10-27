@@ -1611,7 +1611,7 @@ public partial class GroundViewModel : ObservableObject
     private AirTaxiDestination? AirTaxiRunwayRow(AirportGroundLayout layout, RunwayIdentifier runway, string end, string farEnd, AircraftModel ac)
     {
         string designator = RunwayIdentifier.NormalizeDesignator(end);
-        if (GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(designator, null, false)) is not { } bar)
+        if (GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(designator, null, false), ac.Position) is not { } bar)
         {
             return null;
         }
@@ -1669,8 +1669,10 @@ public partial class GroundViewModel : ObservableObject
         foreach (string taxiway in taxiways)
         {
             if (
-                (GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(designator, taxiway, false)) is not { } located)
-                || excluded.Contains(located.Id)
+                (
+                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(designator, taxiway, false), ac.Position)
+                    is not { } located
+                ) || excluded.Contains(located.Id)
             )
             {
                 continue;

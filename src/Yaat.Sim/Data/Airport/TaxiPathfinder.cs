@@ -243,8 +243,17 @@ public static class TaxiPathfinder
 
         SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass, startPose: null);
 
-        LatLon reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
-        var candidates = holdShortNodes.OrderBy(n => GeoMath.DistanceNm(reference, n.Position)).ToList();
+        Func<GroundNode, bool>? ShadowTest() => LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true);
+        List<GroundNode> candidates =
+            RouteMaterialiser.OrderFullLengthLineupBars(layout.AirportId, runwayId, startNode.Position, holdShortNodes, ShadowTest)
+            ?? [.. holdShortNodes.OrderBy(n => GeoMath.DistanceNm(startNode.Position, n.Position))];
+
+        // Already at the full-length bar on its own side: hold there, as a bare TAXI <rwy> from a bar does.
+        if ((candidates.Count > 0) && (candidates[0].Id == startNode.Id))
+        {
+            return HoldAtBarRoute(startNode, runwayId);
+        }
+
         TaxiRoute? fallbackRoute = null;
 
         foreach (GroundNode? targetHs in candidates)
@@ -265,6 +274,183 @@ public static class TaxiPathfinder
 
         return fallbackRoute;
     }
+
+    /// <summary>
+    /// The shadow test <see cref="RouteMaterialiser.OrderFullLengthLineupBars"/> takes for a start on the ground graph: a
+    /// bar is shadowed when the shortest taxi route from <paramref name="fromNodeId"/> to it (<see cref="FindRoute"/>)
+    /// passes through another of <paramref name="runwayId"/>'s hold-short nodes first, the start node included. A bar
+    /// with no route counts as shadowed when <paramref name="unreachableIsShadowed"/> (a ground taxi cannot reach it,
+    /// so it ranks last) and as clear otherwise (an air taxi needs no ground route). Each bar's result is cached per
+    /// layout (<see cref="LineupBarShadowCache"/>). Null when the start node is not in <paramref name="layout"/>.
+    /// </summary>
+    public static Func<GroundNode, bool>? LineupBarShadowTest(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        string runwayId,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass,
+        bool unreachableIsShadowed
+    )
+    {
+        if (!layout.Nodes.ContainsKey(fromNodeId))
+        {
+            return null;
+        }
+
+        var key = new LineupBarShadowCache.Key(fromNodeId, runwayId, category, wakeClass);
+        return bar => RanksAsShadowed(LineupBarShadowCache.Reach(layout, key, bar.Id), unreachableIsShadowed);
+    }
+
+    /// <summary>
+    /// Whether a bar whose route from the start finds <paramref name="reach"/> ranks with the shadowed bars: a shadowed
+    /// bar always does, an unreachable one when <paramref name="unreachableIsShadowed"/> (<see cref="LineupBarShadowTest"/>).
+    /// </summary>
+    public static bool RanksAsShadowed(LineupBarReach reach, bool unreachableIsShadowed) =>
+        reach switch
+        {
+            LineupBarReach.Shadowed => true,
+            LineupBarReach.Unreachable => unreachableIsShadowed,
+            _ => false,
+        };
+
+    /// <summary>What the shortest taxi route from a start to a runway bar finds on the way (<see cref="LineupBarShadowTest"/>).</summary>
+    public enum LineupBarReach
+    {
+        /// <summary>The route meets none of the runway's other bars, or the bar is the start.</summary>
+        Clear,
+
+        /// <summary>The route meets another of the runway's bars first.</summary>
+        Shadowed,
+
+        /// <summary>There is no taxi route to the bar.</summary>
+        Unreachable,
+    }
+
+    private static LineupBarReach SearchLineupBarReach(AirportGroundLayout layout, LineupBarShadowCache.Key key, int barId)
+    {
+        if (barId == key.StartNodeId)
+        {
+            return LineupBarReach.Clear;
+        }
+
+        LineupBarShadowCache.CountRouteSearch();
+        TaxiRoute? route = FindRoute(layout, key.StartNodeId, barId, key.Category, key.WakeClass);
+        if (route is null)
+        {
+            return LineupBarReach.Unreachable;
+        }
+
+        return route.Segments.Any(s => (s.FromNodeId != barId) && IsRunwayBar(layout, s.FromNodeId, key.RunwayId))
+            ? LineupBarReach.Shadowed
+            : LineupBarReach.Clear;
+    }
+
+    /// <summary>
+    /// The results of <see cref="LineupBarShadowTest"/>, per layout instance, keyed by start node, runway, category and wake
+    /// class, each holding every bar's result searched so far. A layout's graph never changes, so a result is a pure
+    /// function of its key; the most recent <see cref="Capacity"/> keys per layout are kept, the least recently used
+    /// evicted first. Safe to use from the client's UI thread and the sim at once.
+    /// </summary>
+    public static class LineupBarShadowCache
+    {
+        /// <summary>How many keys each layout keeps.</summary>
+        public const int Capacity = 256;
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<AirportGroundLayout, Store> Stores = [];
+
+        [ThreadStatic]
+        private static int _routeSearchesOnThread;
+
+        /// <summary>How many taxi route searches the shadow test has run on the calling thread: a cached result runs none.</summary>
+        public static int RouteSearchesOnThisThread => _routeSearchesOnThread;
+
+        internal readonly record struct Key(int StartNodeId, string RunwayId, AircraftCategory Category, WakeTurbulenceData.WakeClass WakeClass);
+
+        internal static void CountRouteSearch() => _routeSearchesOnThread++;
+
+        internal static LineupBarReach Reach(AirportGroundLayout layout, Key key, int barId)
+        {
+            Store store = Stores.GetValue(layout, static _ => new Store());
+            if (store.TryGet(key, barId, out LineupBarReach cached))
+            {
+                return cached;
+            }
+
+            LineupBarReach reach = SearchLineupBarReach(layout, key, barId);
+            store.Set(key, barId, reach);
+            return reach;
+        }
+
+        private sealed record Entry(Key Key, Dictionary<int, LineupBarReach> Bars);
+
+        private sealed class Store
+        {
+            private readonly Lock _gate = new();
+            private readonly Dictionary<Key, LinkedListNode<Entry>> _entries = [];
+            private readonly LinkedList<Entry> _recency = new();
+
+            public bool TryGet(Key key, int barId, out LineupBarReach reach)
+            {
+                lock (_gate)
+                {
+                    if (_entries.TryGetValue(key, out LinkedListNode<Entry>? node))
+                    {
+                        _recency.Remove(node);
+                        _recency.AddFirst(node);
+                        return node.Value.Bars.TryGetValue(barId, out reach);
+                    }
+
+                    reach = LineupBarReach.Clear;
+                    return false;
+                }
+            }
+
+            public void Set(Key key, int barId, LineupBarReach reach)
+            {
+                lock (_gate)
+                {
+                    if (!_entries.TryGetValue(key, out LinkedListNode<Entry>? node))
+                    {
+                        node = _recency.AddFirst(new Entry(key, []));
+                        _entries[key] = node;
+                        if ((_recency.Count > Capacity) && (_recency.Last is { } oldest))
+                        {
+                            _recency.RemoveLast();
+                            _entries.Remove(oldest.Value.Key);
+                        }
+                    }
+
+                    node.Value.Bars[barId] = reach;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The zero-segment route of an aircraft already at <paramref name="bar"/>: it holds short of
+    /// <paramref name="runwayId"/> there.
+    /// </summary>
+    private static TaxiRoute HoldAtBarRoute(GroundNode bar, string runwayId) =>
+        new()
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = bar.Id,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = runwayId,
+                },
+            ],
+            CurrentSegmentIndex = 0,
+        };
+
+    private static bool IsRunwayBar(AirportGroundLayout layout, int nodeId, string runwayId) =>
+        (layout.Nodes.TryGetValue(nodeId, out GroundNode? node))
+        && (node.Type == GroundNodeType.RunwayHoldShort)
+        && (node.RunwayId is { } nodeRunwayId)
+        && (nodeRunwayId.Contains(runwayId));
 
     private static bool EndsAtDestinationRunwayHoldShort(TaxiRoute route, AirportGroundLayout layout, string runwayId)
     {
@@ -291,7 +477,7 @@ public static class TaxiPathfinder
     /// the runway pavement), or one a short, turn-free run ahead on the taxiway it occupies — at most
     /// <see cref="AdjacentRunwayHoldShortMaxFt"/>, a single taxiway name, never across any runway, never behind
     /// the aircraft. Candidates are ordered by distance from the <em>aircraft</em>, unlike
-    /// <see cref="FindRunwayRoute"/> (TAXIAUTO), which orders by distance from the threshold to prefer full length:
+    /// <see cref="FindRunwayRoute"/> (TAXIAUTO), which orders by the full-length lineup order:
     /// here the clearance names no route, so the bar in front of the aircraft is the only one it can mean.
     /// Returns null when no bar qualifies; the caller rejects the command instead of guessing a route across the
     /// airport. When the aircraft is already at the bar the route has no segments and a single
@@ -316,20 +502,7 @@ public static class TaxiPathfinder
             .MinBy(n => GeoMath.DistanceNm(position, n.Position));
         if (atBar is not null)
         {
-            var route = new TaxiRoute
-            {
-                Segments = [],
-                HoldShortPoints =
-                [
-                    new HoldShortPoint
-                    {
-                        NodeId = atBar.Id,
-                        Reason = HoldShortReason.DestinationRunway,
-                        TargetName = runwayId,
-                    },
-                ],
-                CurrentSegmentIndex = 0,
-            };
+            TaxiRoute route = HoldAtBarRoute(atBar, runwayId);
             if (!IsAhead(position, heading, atBar))
             {
                 route.Warnings.Add(
@@ -554,17 +727,20 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Pick the canonical full-length lineup hold-short for a runway designator —
-    /// the hold-short geographically closest to the runway threshold.
-    /// Falls back to the hold-short nearest <paramref name="startNode"/> when
+    /// Pick the canonical full-length lineup hold-short for a runway designator on
+    /// <paramref name="startNode"/>'s side of the runway (<see cref="RouteMaterialiser.OrderFullLengthLineupBars"/>).
+    /// <paramref name="category"/> and <paramref name="wakeClass"/> are the aircraft's, for the taxi routes the order
+    /// searches. Falls back to the hold-short nearest <paramref name="startNode"/> when
     /// the runway is unknown to <see cref="NavigationDatabase"/>.
     /// </summary>
     public static GroundNode FindFullLengthLineupHoldShort(
         AirportGroundLayout layout,
         GroundNode startNode,
         string runwayId,
-        List<GroundNode> holdShortNodes
-    ) => RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes);
+        List<GroundNode> holdShortNodes,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
+    ) => RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes, category, wakeClass);
 
     /// <summary>
     /// Runs the A* auto-router with two-pass hard-gate semantics. Pass 1 hard-excludes avoided taxiways

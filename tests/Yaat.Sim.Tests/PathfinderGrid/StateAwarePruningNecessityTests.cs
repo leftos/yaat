@@ -254,7 +254,14 @@ public class StateAwarePruningNecessityTests
                     continue;
                 }
 
-                GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], desig, holdShorts);
+                GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(
+                    layout,
+                    holdShorts[0],
+                    desig,
+                    holdShorts,
+                    AircraftCategory.Jet,
+                    WakeTurbulenceData.WakeClass.Large
+                );
                 runwayEnds.Add((desig, lineup.Id));
             }
         }

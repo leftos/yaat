@@ -108,14 +108,14 @@ public class SingleDigitRunwayCommandTests
         // designator resolves to the full-length bar of the end the controller named. The zero-padded identity
         // "09" must pick the rwy-9 end (first-named), not silently fall through to the opposite "27" end —
         // FindRunway matches single-digit padded designators, so the end-selection compare must normalize too.
-        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "09", out GroundCommandHandler.AirTaxiDestination? bar09));
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "09", null, out GroundCommandHandler.AirTaxiDestination? bar09));
         Assert.Equal(GroundCommandHandler.AirTaxiDestinationKind.Runway, bar09.Kind);
         Assert.True(
             GeoMath.DistanceNm(bar09.Target, end9) < GeoMath.DistanceNm(bar09.Target, end27),
             "ATXI 09 must hold short at the runway 9 end, not the 27 end"
         );
 
-        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "27", out GroundCommandHandler.AirTaxiDestination? bar27));
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "27", null, out GroundCommandHandler.AirTaxiDestination? bar27));
         Assert.Equal(GroundCommandHandler.AirTaxiDestinationKind.Runway, bar27.Kind);
         Assert.True(
             GeoMath.DistanceNm(bar27.Target, end27) < GeoMath.DistanceNm(bar27.Target, end9),

@@ -382,7 +382,14 @@ public sealed class QueryCommand : ICommand
             return;
         }
 
-        GroundNode targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(analyzer.Layout, startNode, runwayId, holdShortNodes);
+        GroundNode targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(
+            analyzer.Layout,
+            startNode,
+            runwayId,
+            holdShortNodes,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         Console.WriteLine(
             $"start:       #{startNode.Id} {startNode.Type} {startNode.Name ?? ""} ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})"
