@@ -44,7 +44,7 @@ public class AirTaxiDestinationMarkerTests
         GroundNode? spot = layout.FindSpotNodeByName(token);
         Assert.NotNull(spot);
 
-        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, token, out GroundCommandHandler.AirTaxiDestination? resolved));
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, token, null, out GroundCommandHandler.AirTaxiDestination? resolved));
 
         Assert.Equal(GroundCommandHandler.AirTaxiDestinationKind.Runway, resolved.Kind);
         Assert.Equal(runwayId, resolved.RunwayId);
@@ -60,7 +60,9 @@ public class AirTaxiDestinationMarkerTests
         GroundNode? spot = layout.FindSpotNodeByName(name);
         Assert.NotNull(spot);
 
-        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "$" + name, out GroundCommandHandler.AirTaxiDestination? resolved));
+        Assert.True(
+            GroundCommandHandler.TryResolveAirTaxiDestination(layout, "$" + name, null, out GroundCommandHandler.AirTaxiDestination? resolved)
+        );
         Assert.Equal(GroundCommandHandler.AirTaxiDestinationKind.Spot, resolved.Kind);
         Assert.Equal(spot.Position, resolved.Target);
 

@@ -80,7 +80,14 @@ internal static class TaxiCoverageRunner
         {
             return holdShorts[0];
         }
-        return TaxiPathfinder.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway.Designator, holdShorts);
+        return TaxiPathfinder.FindFullLengthLineupHoldShort(
+            layout,
+            holdShorts[0],
+            runway.Designator,
+            holdShorts,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
     }
 
     private static GroundNode? ResolveRunwayExit(AirportGroundLayout layout, string name, GroundNode? tieBreakerToNode)

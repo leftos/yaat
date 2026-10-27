@@ -202,6 +202,9 @@ _Avoid_: determinism (determinism is the same-seed, same-world property of the s
 
 ## Ground movement
 
+**Full-length band**:
+The runway's hold-short bars within 200 ft along-track of the one nearest the requested threshold; the bars `RouteMaterialiser.OrderFullLengthLineupBars` treats as full-length lineup points, ranked by the aircraft's side of the runway (docs/ground/pathfinder.md, "Full-length lineup bar order").
+
 **Given-up exit**:
 A taxiway a landing aircraft has said "unable" to: it is skipped by every exit search while the aircraft rolls, for the rest of that landing, until an accepted `EXIT` names it again; once stopped on the runway the aircraft may still taxi to it (`PhaseList.GivenUpExitTaxiways`, docs/landing-and-runway-exit.md).
 _Avoid_: missed exit (an exit passed without an instruction is not given up)

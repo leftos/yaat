@@ -142,7 +142,14 @@ public static class AutoRouter
                 );
             }
 
-            destinationNode = RouteMaterialiser.FindFullLengthLineupHoldShort(ctx.Layout, startNode, ctx.Destination.RunwayId, holdShortNodes);
+            destinationNode = RouteMaterialiser.FindFullLengthLineupHoldShort(
+                ctx.Layout,
+                startNode,
+                ctx.Destination.RunwayId,
+                holdShortNodes,
+                ctx.Category,
+                ctx.WakeClass
+            );
         }
 
         if (destinationNode is null)

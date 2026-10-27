@@ -7379,7 +7379,7 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        if (!TryResolveAirTaxiDestination(groundLayout, destination, out AirTaxiDestination? resolved))
+        if (!TryResolveAirTaxiDestination(groundLayout, destination, aircraft.Position, out AirTaxiDestination? resolved))
         {
             return new CommandResult(false, DescribeUnresolvedAirTaxiDestination(groundLayout, destination));
         }
@@ -7644,11 +7644,14 @@ public static partial class GroundCommandHandler
     /// <see cref="HoldShortTarget"/>, the same <c>TARGET@TAXIWAY</c> grammar the located hold short uses. A runway
     /// resolves to its <em>holding position</em>, never the threshold, because an air taxi is a ground movement
     /// (AIM 4-3-17.b) that ends clear of the pavement. Returns false when the marked kind has no such name, or when
-    /// a located runway form names a taxiway with no bar on that runway.
+    /// a located runway form names a taxiway with no bar on that runway. <paramref name="start"/> is where the
+    /// helicopter is, which picks the runway's bar on its own side (<see cref="ResolveRunwayHoldShortNode"/>); null
+    /// gives no side preference.
     /// </summary>
     internal static bool TryResolveAirTaxiDestination(
         AirportGroundLayout layout,
         string destination,
+        LatLon? start,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AirTaxiDestination? resolved
     )
     {
@@ -7657,7 +7660,7 @@ public static partial class GroundCommandHandler
         {
             ['@', .. var name] => ResolveAirTaxiStand(layout, name),
             ['$', .. var name] => ResolveAirTaxiSpot(layout, name),
-            _ => HoldShortTarget.TryParse(token, out HoldShortTarget target, out _) ? ResolveAirTaxiRunway(layout, target) : null,
+            _ => HoldShortTarget.TryParse(token, out HoldShortTarget target, out _) ? ResolveAirTaxiRunway(layout, target, start) : null,
         };
         return resolved is not null;
     }
@@ -7704,9 +7707,9 @@ public static partial class GroundCommandHandler
     /// The runway holding position <paramref name="target"/> names, or null when the layout has no such runway or
     /// no bar on the named taxiway.
     /// </summary>
-    private static AirTaxiDestination? ResolveAirTaxiRunway(AirportGroundLayout layout, HoldShortTarget target)
+    private static AirTaxiDestination? ResolveAirTaxiRunway(AirportGroundLayout layout, HoldShortTarget target, LatLon? start)
     {
-        if (layout.FindRunway(target.Target) is null || ResolveRunwayHoldShortNode(layout, target) is not { } bar)
+        if (layout.FindRunway(target.Target) is null || ResolveRunwayHoldShortNode(layout, target, start) is not { } bar)
         {
             return null;
         }
@@ -7718,12 +7721,13 @@ public static partial class GroundCommandHandler
     }
 
     /// <summary>
-    /// The holding-position node an air taxi to a runway ends at: the bar nearest the named end's threshold — the
-    /// full-length entrance — narrowed for the located <c>28L@J</c> form to the bars incident to that taxiway, the
-    /// same node-incidence test a located hold short (<c>HS 28R@J</c>) binds with. Null when the runway has no
-    /// hold-short node at all, or none on the named taxiway.
+    /// The holding-position node an air taxi to a runway ends at: the full-length entrance on the side of the runway
+    /// <paramref name="start"/> is on (<see cref="RouteMaterialiser.OrderFullLengthLineupBars"/>; null gives no side
+    /// preference), narrowed for the located <c>28L@J</c> form to the bars incident to that taxiway, the same
+    /// node-incidence test a located hold short (<c>HS 28R@J</c>) binds with. Null when the runway has no hold-short
+    /// node at all, or none on the named taxiway.
     /// </summary>
-    public static GroundNode? ResolveRunwayHoldShortNode(AirportGroundLayout layout, HoldShortTarget target)
+    public static GroundNode? ResolveRunwayHoldShortNode(AirportGroundLayout layout, HoldShortTarget target, LatLon? start)
     {
         List<GroundNode> candidates = layout.GetRunwayHoldShortNodes(target.Target);
         if (target.OnTaxiway is { } taxiway)
@@ -7736,11 +7740,22 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        // The same threshold reference TAXIAUTO's runway routing measures from, so both pick the same bar even on
-        // a displaced threshold. Node id breaks a tie only when the airport has no resolvable threshold.
-        LatLon? threshold = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, target.Target);
-        return threshold is { } reference
-            ? candidates.MinBy(node => GeoMath.DistanceNm(reference, node.Position))
+        // The same order TAXIAUTO's runway routing tries bars in, so both pick the same bar even on a displaced
+        // threshold. Node id decides only when the airport has no resolvable runway.
+        // A helicopter needs no ground route, so a bar it cannot taxi to is not shadowed.
+        Func<GroundNode, bool>? ShadowTest() =>
+            (start is { } position) && (layout.FindNearestNode(position) is { } startNode)
+                ? TaxiPathfinder.LineupBarShadowTest(
+                    layout,
+                    startNode.Id,
+                    target.Target,
+                    AircraftCategory.Helicopter,
+                    WakeTurbulenceData.WakeClass.Small,
+                    unreachableIsShadowed: false
+                )
+                : null;
+        return RouteMaterialiser.OrderFullLengthLineupBars(layout.AirportId, target.Target, start, candidates, ShadowTest) is [GroundNode first, ..]
+            ? first
             : candidates.OrderBy(node => node.Id).First();
     }
 

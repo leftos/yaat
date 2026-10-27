@@ -4430,28 +4430,32 @@ public static class SegmentExpander
         if (distinctVariants.Count > 1)
         {
             // Multiple numbered variants of the base taxiway serve the destination runway (e.g.
-            // W1..W7 off W to rwy 30). Auto-pick the one whose hold-short is nearest the requested
-            // runway's threshold — the full-length lineup connector. Only fall back to a TransitionAmbiguous failure
-            // when the threshold is unavailable (no navdata), so the controller is never asked to
+            // W1..W7 off W to rwy 30). Auto-pick the one whose hold-short is the full-length lineup bar on the
+            // side the route has reached when it picks (RouteMaterialiser.OrderFullLengthLineupBars). Only fall back to a
+            // TransitionAmbiguous failure when the runway is unavailable (no navdata), so the controller is never asked to
             // disambiguate a resolvable clearance and we never silently guess without a reference.
-            LatLon? threshold = RouteMaterialiser.ResolveRunwayThreshold(ctx.Layout.AirportId, destinationRunway);
-            if (threshold is { } thresholdPos)
+            LatLon? start = ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out GroundNode? headNode) ? headNode.Position : null;
+            List<GroundNode>? ordered = RouteMaterialiser.OrderFullLengthLineupBars(
+                ctx.Layout.AirportId,
+                destinationRunway,
+                start,
+                [.. variants.Select(v => v.HsNode)],
+                () =>
+                    TaxiPathfinder.LineupBarShadowTest(
+                        ctx.Layout,
+                        head.HeadNodeId,
+                        destinationRunway,
+                        ctx.Category,
+                        ctx.WakeClass,
+                        unreachableIsShadowed: true
+                    )
+            );
+            if (ordered is [GroundNode bestHs, ..])
             {
-                string bestVariant = variants[0].Name;
-                double bestDist = double.MaxValue;
-                foreach ((GroundNode? hsNode, string? name) in variants)
-                {
-                    double dist = GeoMath.DistanceNm(hsNode.Position, thresholdPos);
-                    if (dist < bestDist)
-                    {
-                        bestDist = dist;
-                        bestVariant = name;
-                    }
-                }
-
+                string bestVariant = variants.First(v => v.HsNode.Id == bestHs.Id).Name;
                 var bestHsNodes = variants.Where(v => v.Name.Equals(bestVariant, StringComparison.OrdinalIgnoreCase)).Select(v => v.HsNode).ToList();
                 ctx.DiagnosticLog?.Invoke(
-                    $"[variant] auto-picked {bestVariant} (nearest {destinationRunway} threshold) from {distinctVariants.Count} variants"
+                    $"[variant] auto-picked {bestVariant} (full-length {destinationRunway} lineup bar) from {distinctVariants.Count} variants"
                 );
                 return ExtendToVariant(head, lastTaxiwayName, bestVariant, bestHsNodes, ctx);
             }

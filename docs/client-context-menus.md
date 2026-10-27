@@ -534,7 +534,7 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   Pads · parking lists the true helipad nodes first (a HELI-named parking position stays under parking), then the nearest eight parking positions (`AirTaxiFlyout.ParkingShown`) and an "n more" line. Rows read name, kind, distance and the command: `ATXI @NAME` or `LAND @NAME` for pads and parking, `ATXI $NAME` or `LAND $NAME` for spots. A destination the helicopter stands at on the ground is left out.
 
-  A runway end is one row sending the bare designator (`ATXI 28R`, the bar the sim resolves it to), naming that bar's taxiway in its note (`full length at J`), with the end's other bars as chips under it (`ATXI 28R@E`). Two taxiways reaching one bar give one chip, and every chip is one the sim resolves (`GroundCommandHandler.ResolveRunwayHoldShortNode`).
+  A runway end is one row sending the bare designator (`ATXI 28R`, the full-length bar on the helicopter's side of the runway, which the sim resolves it to), naming that bar's taxiway in its note (`full length at J`), with the end's other bars as chips under it (`ATXI 28R@E`). Two taxiways reaching one bar give one chip, and every chip is one the sim resolves (`GroundCommandHandler.ResolveRunwayHoldShortNode`).
 
   A bar within 300 ft of the far threshold is left out. A bar the helicopter holds at has no chip; a row whose own bar it holds at reads `RWY 28R · full length at T · holding short here` and sends nothing, only its chips send, and with no chips the row is gone.
 

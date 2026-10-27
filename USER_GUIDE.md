@@ -395,7 +395,7 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
 Both open one flyout of destinations with the tabs **Pads · parking**, **Spots** and, for Air taxi, **Runways**, nearest first, refreshed every second. Type in the box (**Air taxi to** / **Land at {airport}**) to filter every tab by name, exact names first, then nearest; Enter sends the top match and sends nothing on an empty or unmatched box. Pads and parking send `@NAME`, spots `$NAME`.
 
-Pads · parking shows the helipads, the nearest eight parking positions and a line counting the rest (the filter reaches them). A runway row sends the bare runway (`ATXI 28R`, the holding position nearest the threshold) and offers its other holding positions as chips (`ATXI 28R@E`); a row for the position the helicopter already holds at only sends through its chips.
+Pads · parking shows the helipads, the nearest eight parking positions and a line counting the rest (the filter reaches them). A runway row sends the bare runway (`ATXI 28R`, the full-length holding position on the helicopter's own side of the runway) and offers its other holding positions as chips (`ATXI 28R@E`); a row for the position the helicopter already holds at only sends through its chips.
 
 Land's flyout lists the airport the helicopter is bound for (the one the ground view shows when the client has no layout for it) and sends `APT {airport}, LAND …` when that is not its filed destination; its **Keep NODEL** box appends `NODEL` to what it sends.
 

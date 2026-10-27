@@ -493,7 +493,14 @@ public class RouteMaterialiserTests
         GroundNode n0 = Node(0, 37.700, -122.200);
         AirportGroundLayout layout = Layout(n0);
 
-        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", []);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            n0,
+            "28R",
+            [],
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.Equal(n0.Id, result.Id);
     }
 
@@ -505,7 +512,14 @@ public class RouteMaterialiserTests
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
         AirportGroundLayout layout = Layout(n0, n1);
 
-        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            n0,
+            "28R",
+            [n1],
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.Equal(n1.Id, result.Id);
     }
 
@@ -541,7 +555,14 @@ public class RouteMaterialiserTests
         };
         using IDisposable scope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [nWest, nEast]);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            n0,
+            "28R",
+            [nWest, nEast],
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.Equal(nEast.Id, result.Id);
     }
 }

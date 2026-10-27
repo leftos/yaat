@@ -579,11 +579,14 @@ public class AirTaxiFlyoutTests
         foreach (AirTaxiDestination runway in menu.Runways)
         {
             GroundNode bar = Assert.IsType<GroundNode>(
-                GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, null, false))
+                GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, null, false), heli.Position)
             );
             if (runway.BarTaxiway is { } taxiway)
             {
-                Assert.Equal(bar.Id, GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, taxiway, false))?.Id);
+                Assert.Equal(
+                    bar.Id,
+                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, taxiway, false), heli.Position)?.Id
+                );
             }
 
             HashSet<int> chipBars = [];
@@ -591,7 +594,7 @@ public class AirTaxiFlyoutTests
             {
                 Assert.Equal($"{runway.Token}@{chip.Taxiway}", chip.Token);
                 GroundNode located = Assert.IsType<GroundNode>(
-                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, chip.Taxiway, false))
+                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, chip.Taxiway, false), heli.Position)
                 );
                 Assert.NotEqual(bar.Id, located.Id);
                 Assert.True(chipBars.Add(located.Id), $"{chip.Token} names a bar another chip of {runway.Name} already names");
@@ -634,14 +637,17 @@ public class AirTaxiFlyoutTests
         {
             if (!runway.IsHeldAt)
             {
-                Assert.NotEqual(held.Id, GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, null, false))?.Id);
+                Assert.NotEqual(
+                    held.Id,
+                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, null, false), heli.Position)?.Id
+                );
             }
 
             foreach (AirTaxiChip chip in runway.Chips)
             {
                 Assert.NotEqual(
                     held.Id,
-                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, chip.Taxiway, false))?.Id
+                    GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget(runway.Token, chip.Taxiway, false), heli.Position)?.Id
                 );
             }
         }

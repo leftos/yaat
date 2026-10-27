@@ -472,7 +472,14 @@ public class AutoRouterTests
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
         AirportGroundLayout layout = Layout(n0, n1);
 
-        GroundNode result = TaxiPathfinder.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
+        GroundNode result = TaxiPathfinder.FindFullLengthLineupHoldShort(
+            layout,
+            n0,
+            "28R",
+            [n1],
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         Assert.Equal(n1.Id, result.Id);
     }
