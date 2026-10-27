@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-1264 Initialise navdata in every sim test class that ticks the engine without it · release vNext — Urgent · No project
+- [ ] YAAT-1268 Give the Client test projects the lazy navdata loader; fix the stale navdata test docs · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -85,9 +85,10 @@
   - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
-- [ ] YAAT-1261 TAXI C 28R at SFO routes onto C2 (582 ft up the runway) instead of C's own full-length 28R bar · release vNext
+- [/] YAAT-1261 TAXI C 28R at SFO routes onto C2 (582 ft up the runway) instead of C's own full-length 28R bar · release vNext
 - [ ] YAAT-1262 SFO 28R exit onto Q stops past the 28R bar without pulling up to 28L, so CROSS answers 'No taxi route assigned' · release vNext
-- [ ] YAAT-1263 GIVEWAY releases at once when the traffic crosses at 60-120 degrees beyond 1,500 ft (SFO UAL2237 on L, UAL926 on F) · release vNext
+- [/] YAAT-1263 GIVEWAY releases at once when the traffic crosses at 60-120 degrees beyond 1,500 ft (SFO UAL2237 on L, UAL926 on F) · release vNext
+- [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -313,6 +314,7 @@
 - [ ] YAAT-932 Stop a detour connector reusing a taxiway cleared before the transition
 - [ ] YAAT-933 Require a self-picked connector's runway crossing to be nearly perpendicular
 - [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
+- [ ] YAAT-1269 Make the full-length lineup bar pick side-aware (SFO 28R C: #545 beats far-side #839 by 8 ft)
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -379,6 +381,7 @@
 
 - [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
 - [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
+- [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
 - [ ] YAAT-909 Route the collection-weights TRX run now that gate brings TRX back
 - [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params
 - [ ] YAAT-112 Move developer docs from the repo root into docs/
@@ -462,6 +465,7 @@
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
 - [ ] YAAT-1197 Simulated tower: remaining separation rules and crossing approvals
+- [ ] YAAT-1253 Offer an optional guided first-use tutorial: views, aliases, macros, favorites, aircraft grid, setup settings · release vNext+1
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
 - [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request
 - [ ] YAAT-1084 Clear the approach clearance on a bare go-around that re-enters the traffic pattern
@@ -824,8 +828,5 @@
 - [ ] YAAT-1255 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on main
 - [ ] YAAT-1258 Stop a landing on a two-node exit inside the tail-clear band (ATL #754, HKY #55/#91 miss it)
 - [ ] YAAT-1260 Cover the annotator's wingtip-floor warning at an exit where the runway-bar clamp still engages
-
-## No project
-
-- [ ] YAAT-1253 Offer an optional guided first-use tutorial: views, aliases, macros, favorites, aircraft grid, setup settings · release vNext+1
-- [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
+- [ ] YAAT-1265 Client driver: 480 px screenshot preview with UTC-pid file names, and in-app baselines
+- [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
