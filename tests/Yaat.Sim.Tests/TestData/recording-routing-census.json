@@ -1980,5 +1980,20 @@
     "ReactionDelayed": 0,
     "AsPrefixed": 27,
     "Solo": false
+  },
+  {
+    "File": "yaat1262-sfo-28r-exit-q-recording.yaat-bug-report-bundle.zip",
+    "Commands": 324,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 189,
+      "Delete": 3,
+      "SetActivePosition": 4,
+      "Strip": 127
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
   }
 ]

@@ -450,6 +450,8 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 
 - **Trigger** (`AirportGroundLayout.FindParallelRunwayCrossing`): walk the same exit taxiway forward from the landing-runway hold-short. If the next runway hold-short reached belongs to a *different, (anti-)parallel* runway with **no intervening taxiway intersection** in between, return its near-side and far-side hold-shorts plus the node paths.
 
+  The walk across the parallel runway (`WalkAcrossToFarHoldShort`) is capped by distance walked (`MaxRunwayCrossingWalkFt`, 1500 ft), not by node count: a node count depends on how many points the GeoJSON line has (SFO Q across 28L is 11 edges for 617 ft). The near-side walk (`WalkToParallelNearHoldShort`) is still capped at 10 hops.
+
   An intervening intersection (a node carrying a different taxiway) aborts the search — the controller may want to route the aircraft down that taxiway, so the aircraft stops at the landing exit (today's behavior). Forward direction comes from the exit path's tail node, so an outer-side exit (pointing back across the landing runway) finds nothing.
 - **Reuse, not new geometry**: `CompleteExit` synthesizes a normal `AssignedTaxiRoute` of **real nodes** `[landing-HS → parallel-near-HS → … → parallel-far-HS]`, annotates it with `HoldShortAnnotator.AddImplicitRunwayHoldShorts` + `ComputeHoldShortPositions` (which stops the nose *at* the parallel hold-short line, not past it), and hands off to a `TaxiingPhase`.
 

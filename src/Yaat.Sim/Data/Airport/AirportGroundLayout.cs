@@ -2955,12 +2955,12 @@ public sealed class AirportGroundLayout
 
         for (int hop = 0; hop < maxHops; hop++)
         {
-            GroundNode? next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
-            if (next is null)
+            if (StepForwardOnTaxiway(current, prevId, exitTaxiwayName) is not { } step)
             {
                 return null;
             }
 
+            GroundNode next = step.Node;
             path.Add(next);
 
             if (next.Type == GroundNodeType.RunwayHoldShort && next.RunwayId is { } rid)
@@ -2982,9 +2982,16 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// The longest walk <see cref="WalkAcrossToFarHoldShort"/> takes from the near bar before giving up. A crossing walk
+    /// longer than this is not one runway's width plus its two bars' setbacks; it also bounds a walk round a cycle.
+    /// </summary>
+    private const double MaxRunwayCrossingWalkFt = 1500.0;
+
+    /// <summary>
     /// Walk the exit taxiway forward from the parallel runway's near-side hold-short across the
     /// runway to its far-side hold-short (same <see cref="RunwayIdentifier"/>, different node).
-    /// Returns the path [nearHS, …, farHS] or null.
+    /// Returns the path [nearHS, …, farHS], or null at a dead end, a fork, or once the walk passes
+    /// <see cref="MaxRunwayCrossingWalkFt"/>.
     /// </summary>
     private List<GroundNode>? WalkAcrossToFarHoldShort(
         GroundNode nearHoldShort,
@@ -2993,19 +3000,25 @@ public sealed class AirportGroundLayout
         RunwayIdentifier parallelRunway
     )
     {
-        const int maxHops = 10;
         var path = new List<GroundNode> { nearHoldShort };
         GroundNode current = nearHoldShort;
         int prevId = comeFromId;
+        double walkedFt = 0.0;
 
-        for (int hop = 0; hop < maxHops; hop++)
+        while (true)
         {
-            GroundNode? next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
-            if (next is null)
+            if (StepForwardOnTaxiway(current, prevId, exitTaxiwayName) is not { } step)
             {
                 return null;
             }
 
+            walkedFt += step.Edge.DistanceNm * GeoMath.FeetPerNm;
+            if (walkedFt > MaxRunwayCrossingWalkFt)
+            {
+                return null;
+            }
+
+            GroundNode next = step.Node;
             path.Add(next);
 
             if (next.Type == GroundNodeType.RunwayHoldShort && next.RunwayId is { } rid && rid.Equals(parallelRunway) && next.Id != nearHoldShort.Id)
@@ -3016,21 +3029,20 @@ public sealed class AirportGroundLayout
             prevId = current.Id;
             current = next;
         }
-
-        return null;
     }
 
     /// <summary>
     /// Step to the single same-taxiway node ahead of <paramref name="current"/>, excluding the
-    /// node we came from (<paramref name="prevId"/>). Straight edges are preferred over fillet
-    /// arcs (the arcs are corner cuts onto the runway; the straight edge is the through-line).
-    /// Returns null at a dead end (no forward edge) or an ambiguous fork (more than one).
+    /// node we came from (<paramref name="prevId"/>), with the edge that reaches it. Straight edges
+    /// are preferred over fillet arcs (the arcs are corner cuts onto the runway; the straight edge
+    /// is the through-line). Returns null at a dead end (no forward edge) or an ambiguous fork
+    /// (more than one).
     /// </summary>
-    private static GroundNode? StepForwardOnTaxiway(GroundNode current, int prevId, string taxiwayName)
+    private static (GroundNode Node, IGroundEdge Edge)? StepForwardOnTaxiway(GroundNode current, int prevId, string taxiwayName)
     {
-        GroundNode? straight = null;
+        (GroundNode Node, IGroundEdge Edge)? straight = null;
         int straightCount = 0;
-        GroundNode? arc = null;
+        (GroundNode Node, IGroundEdge Edge)? arc = null;
         int arcCount = 0;
 
         foreach (IGroundEdge edge in current.Edges)
@@ -3048,12 +3060,12 @@ public sealed class AirportGroundLayout
 
             if (edge is GroundArc)
             {
-                arc = other;
+                arc = (other, edge);
                 arcCount++;
             }
             else
             {
-                straight = other;
+                straight = (other, edge);
                 straightCount++;
             }
         }
