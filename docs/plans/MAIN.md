@@ -5,17 +5,19 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-1255 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on main · release vNext — Urgent · Backlog
+- [ ] YAAT-1321 Fix flaky CrcJoinSessionTests.JoinSession_AnsweredWhileThePrimaryActivates: SetSessionActive(false) · release vNext — Urgent · No project
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [ ] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
+  - [/] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
-  - [ ] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
+  - [/] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
+  - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
+  - [ ] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -88,7 +90,7 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [ ] YAAT-1282 A bare TAXI from holding short of a runway implicitly clears the crossing (OAK B at 28L crosses) · release vNext
+- [/] YAAT-1282 A bare TAXI from holding short of a runway implicitly clears the crossing (OAK B at 28L crosses) · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -464,6 +466,7 @@
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
 - [!] YAAT-1295 Write Mac crash dumps into the worktree's .tmp/dumps and return them with gate failureOutputs (GATE-824)
+- [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
 
 ## Singles
 
@@ -564,6 +567,7 @@
 - [ ] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext+1
 - [ ] YAAT-1176 Stop stop_process killing the launched client's whole process tree
 - [ ] YAAT-1206 Name the Windows-only test projects test-all skips on a non-Windows host
+- [ ] YAAT-1299 Put functional work before hardening in yaat-server's CLAUDE.md; drop its hardening priorities
 
 ## Backlog
 
@@ -830,7 +834,6 @@
 - [ ] YAAT-1228 Fill missing airline telephonies (JSX Big Stripe) from JO 7340.2 ch. 3
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
-- [ ] YAAT-1258 Brake a runway exit to rest at its tail-clear point instead of zeroing 10-13 kt there (ATL 26L B2 two-node exit) · release vNext
 - [ ] YAAT-1260 Cover the annotator's wingtip-floor warning at an exit where the runway-bar clamp still engages
 - [ ] YAAT-1265 Client driver: 480 px screenshot preview with UTC-pid file names, and in-app baselines
 - [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
@@ -850,3 +853,24 @@
 - [ ] YAAT-1296 Harden the crossing stop curve: carry flag in the lead-chain exemption, zero-room floor, per-tick allocation
 - [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
 - [ ] YAAT-1298 A taxiing aircraft at rest behind stopped traffic speeds up, then is stopped in one pass (SFO C/J, 6.75 kt)
+- [ ] YAAT-1312 Use one 10 ft tail-clear margin for exits, crossings and ClearRunwayPhase · release vNext
+- [ ] YAAT-1313 Test PublishSegmentSpeed's turn-about and slow-turn paths on exit arrival
+- [ ] YAAT-1314 Stop a bare TAXI to a crossing taxiway short of it instead of in the intersection (OAK TAXI B from C) · release vNext
+- [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
+- [ ] YAAT-1316 Close the ground-conflict carry and trail-stop gaps the YAAT-1257 invariant pass found
+- [ ] YAAT-1318 Keep a block's TAXI readback and run order the same whichever of TAXI and CROSS comes first
+- [ ] YAAT-1319 Read a multi-runway CROSS's crossings before the continued taxi route
+- [ ] YAAT-1320 Harden the videomap paint pairing: bar length cap, 450 ft cap, solid vs dashed line, marking direction
+
+## No project
+
+- [ ] YAAT-1301 Pick the next hold short in route order in TryCrossNextHoldShort's rolling branch
+- [ ] YAAT-1302 Bring a runway exit's tail-clear arrival to one sub-tick of braking before CompleteExit
+- [ ] YAAT-1303 Stop an expedited runway exit at the taxi rate once its tail is clear
+- [ ] YAAT-1304 Break an exact 180-degree reversal's turn direction deterministically across platforms
+- [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
+- [ ] YAAT-1306 Get SFO's real hold-line positions; unskip the E75L-on-T exit test
+- [ ] YAAT-1307 Build precompute cache entries with the tower-cab videomap the server uses
+- [ ] YAAT-1308 Keep corner limits above the setup ceiling when a ground phase raises its ceiling mid-segment
+- [ ] YAAT-1310 Read a taxi readback's crossings before its 'to parking' destination
+- [ ] YAAT-1311 Brake a FOLLOWG follower that turns back with its nose at an exit bar instead of stopping dead
