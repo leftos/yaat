@@ -419,7 +419,6 @@
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-526 Update yaat's skills and docs for land going straight to Done (no Landed state)
 - [ ] YAAT-531 Re-read the four drifted docs the 2026-10-08 scan found outside YAAT-126
-- [ ] YAAT-555 Add ck hybrid_search's threshold caveat to aviation-sim-expert and CLAUDE.md
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
 - [ ] YAAT-579 Write yaat's agent overlays (docs/agents/implementer.md and siblings)
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
@@ -819,3 +818,4 @@
 ## No project
 
 - [ ] YAAT-1253 Offer an optional guided first-use tutorial: views, aliases, macros, favorites, aircraft grid, setup settings · release vNext+1
+- [ ] YAAT-1254 Cut the ck search guidance from CLAUDE.md and aviation-sim-expert
