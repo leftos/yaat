@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-1268 Give the Client test projects the lazy navdata loader; fix the stale navdata test docs · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -18,6 +18,7 @@
   - [ ] YAAT-1256 Judge a standard exit the rollout accepts by whether it can hand off for it (OAK 28R E read back, then missed) · release vNext
   - [ ] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
   - [ ] YAAT-1259 Rank a bare TAXI's first step by heading: TAXI B from OAK's 28L bar facing west routes east across both runways · release vNext
+- [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 
 ## Controller-AI coaching
 
@@ -85,9 +86,7 @@
   - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
-- [/] YAAT-1261 TAXI C 28R at SFO routes onto C2 (582 ft up the runway) instead of C's own full-length 28R bar · release vNext
 - [ ] YAAT-1262 SFO 28R exit onto Q stops past the 28R bar without pulling up to 28L, so CROSS answers 'No taxi route assigned' · release vNext
-- [/] YAAT-1263 GIVEWAY releases at once when the traffic crosses at 60-120 degrees beyond 1,500 ft (SFO UAL2237 on L, UAL926 on F) · release vNext
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
@@ -240,6 +239,8 @@
 - [ ] YAAT-869 Read back a bare CROSS EXP with "without delay"
 - [ ] YAAT-870 Keep a rollout exit expedite only when its EXP came from the exit
 - [ ] YAAT-944 Add the 10 ft margin to every runway crossing's tail clearance
+- [ ] YAAT-1272 Treat a split-and-rejoin node as in-trail in FindSharedUpcomingNode (false crossing at fillet vs corner)
+- [ ] YAAT-1276 Rule on the GIVEWAY rejoin rule's unbounded detour; test the bug_bundle trim tail paths
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -314,7 +315,10 @@
 - [ ] YAAT-932 Stop a detour connector reusing a taxiway cleared before the transition
 - [ ] YAAT-933 Require a self-picked connector's runway crossing to be nearly perpendicular
 - [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
-- [ ] YAAT-1269 Make the full-length lineup bar pick side-aware (SFO 28R C: #545 beats far-side #839 by 8 ft)
+- [ ] YAAT-1269 Make the full-length lineup bar pick side-aware (SFO 28R C: #545 beats far-side #839 by 8 ft) · release vNext
+- [ ] YAAT-1270 Weigh the named taxiway's own runway bars against its same-letter variants in TryVariantExtension
+- [ ] YAAT-1271 Let a variant-step ambiguity failure defer to the runway fallback from an off-taxiway head
+- [ ] YAAT-1273 Keep the off-taxiway runway fallback to the named taxiway's own letter (no unnamed different-letter connector)
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -387,7 +391,6 @@
 - [ ] YAAT-112 Move developer docs from the repo root into docs/
 - [ ] YAAT-113 Make claude-guard-bash.sh check the gate/timeout wrappers per segment
 - [ ] YAAT-114 Client-driver MCP follow-ups: CRC live check, SendInput click, scroll, dialogs
-- [ ] YAAT-1231 Add .gate/windows.toml so Windows-only changes stay off the Mac builder
 - [ ] YAAT-115 Scan for nullable-annotated locals with non-nullable initializers; fix hits
 - [ ] YAAT-1232 crc_launch: stop pwsh inheriting the MCP's JSON-RPC stdin
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI
@@ -459,6 +462,7 @@
 - [ ] YAAT-1248 Move the remaining wall-clock automation wait tests onto the injected clock
 - [ ] YAAT-1249 wait_until answers met:false when its final log read finds the match after the last poll
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
+- [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
 
 ## Singles
 
@@ -826,7 +830,7 @@
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1251 Solo VFR departures at a Class B primary ask the student for their Class B clearance before taxi
 - [ ] YAAT-1255 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on main
-- [ ] YAAT-1258 Stop a landing on a two-node exit inside the tail-clear band (ATL #754, HKY #55/#91 miss it)
+- [ ] YAAT-1258 Stop a landing on a two-node exit inside the tail-clear band (ATL #754, HKY #55/#91 miss it) · release vNext
 - [ ] YAAT-1260 Cover the annotator's wingtip-floor warning at an exit where the runway-bar clamp still engages
 - [ ] YAAT-1265 Client driver: 480 px screenshot preview with UTC-pid file names, and in-app baselines
 - [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
