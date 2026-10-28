@@ -18,7 +18,6 @@
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
 - [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs
-- [/] YAAT-1328 Stop a runway exit or CLRWY with the nose short of another runway's hold line (SFO 28R-28L crossovers) · release vNext
 - [ ] YAAT-1344 Pin the painted-bar dedupe of the hold-short standoff planning pass on a layout that exercises it
 
 ## Controller-AI coaching
@@ -88,6 +87,9 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
+- [ ] YAAT-1356 DVIA and CVIA keep a speed assigned before them instead of resuming published speeds (7110.65 5-7-1) · release vNext
+- [ ] YAAT-1358 SPD above what the aircraft can fly at altitude reads back the speed but flies less (DAL334 SPD 350 flew 295) · release vNext
+- [ ] YAAT-1359 Save Bug Report Bundle fails with an ExportRecording server error on a locally built server · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -249,9 +251,16 @@
 - [ ] YAAT-1276 Rule on the GIVEWAY rejoin rule's unbounded detour; test the bug_bundle trim tail paths
 - [ ] YAAT-1333 Pick a same-runway separation category for types missing from the FAA table (DA62 gets Category III)
 - [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
-- [ ] YAAT-1335 Count an airborne touch-and-go as a departure, not a landed occupant · release vNext
+- [/] YAAT-1335 Count an airborne touch-and-go as a departure, not a landed occupant · release vNext
 - [ ] YAAT-1336 Check a departure between 400 ft and the runway end still counts as a preceding departure
 - [ ] YAAT-1337 Score solo runway users on the runway their current phase runs on
+- [ ] YAAT-1349 Measure a reverse exit's remaining run along the exit path for the arrival clear-time prediction
+- [ ] YAAT-1350 Keep a CLRWY hold's runway right on ClearRunwayPhase's no-route and no-navdata paths
+- [ ] YAAT-1351 Run the exit tail-clear walk only for the chosen candidate during rollout searches
+- [ ] YAAT-1352 Pin the too-short exit skip in FindExitBehind and ResolveForcedCandidate
+- [ ] YAAT-1353 Skip only the too-short side of a crossover in the automatic exit choice (SFO 28R N Left drops N Right)
+- [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
+- [ ] YAAT-1355 Judge touch-and-gos and low approaches as departures in the solo evaluator; one CTO departing-ahead policy
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -482,6 +491,7 @@
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
 - [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
+- [ ] YAAT-1357 Give ci.yml a timeout and concurrency group in yaat and yaat-server; drop the stale LFS notes
 
 ## Singles
 
@@ -869,7 +879,7 @@
 - [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
 - [ ] YAAT-1298 A taxiing aircraft at rest behind stopped traffic speeds up, then is stopped in one pass (SFO C/J, 6.75 kt)
 - [ ] YAAT-1313 Test PublishSegmentSpeed's turn-about and slow-turn paths on exit arrival
-- [ ] YAAT-1314 Stop a bare TAXI to a crossing taxiway short of it instead of in the intersection (OAK TAXI B from C) · release vNext
+- [/] YAAT-1314 Stop a bare TAXI to a crossing taxiway short of it instead of in the intersection (OAK TAXI B from C) · release vNext
 - [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
 - [ ] YAAT-1316 Close the ground-conflict carry and trail-stop gaps the YAAT-1257 invariant pass found
 - [ ] YAAT-1318 Keep a block's TAXI readback and run order the same whichever of TAXI and CROSS comes first
