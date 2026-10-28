@@ -2977,7 +2977,8 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
-    /// <see cref="ComputeRank"/> at the pass airport, by phase: a LAHSO hold or a stop inside the holding distance is vacating when
+    /// <see cref="ComputeRank"/> at the pass airport, by phase: a LAHSO hold, a stop inside the holding distance or a <c>CLRWY</c>
+    /// hold with its tail inside the runway (<see cref="HoldingInPositionPhase.TailInsideRunway"/>) is vacating when
     /// the aircraft's own runway is here (else the floor); a line-up before its own runway's strict pavement is vacating or the
     /// rest; a generic hold in position over any runway's strict pavement is vacating; a runway user by phase stays one; anyone
     /// else is vacating or the rest (<see cref="VacatingOrRest"/>).
@@ -2988,7 +2989,9 @@ public static class GroundConflictDetector
         RunwayInfo? ownHere = ((own is not null) && RunwayOccupancy.IsLayoutOf(layout, own)) ? own : null;
         return ac.Phases?.CurrentPhase switch
         {
-            RunwayHoldingPhase or HoldingAfterExitPhase { StoppedInsideHoldingDistance: true } => (ownHere is not null) ? RunwayRank.Vacating : floor,
+            RunwayHoldingPhase
+            or HoldingAfterExitPhase { StoppedInsideHoldingDistance: true }
+            or HoldingInPositionPhase { TailInsideRunway: not null } => (ownHere is not null) ? RunwayRank.Vacating : floor,
             LineUpPhase when (ownHere is { } lineUpRunway) && !RunwayOccupancy.IsOverStrictPavement(ac.Position, lineUpRunway) => VacatingOrRest(
                 ac,
                 layout,

@@ -126,6 +126,12 @@ public static class AircraftStatusDescriber
         public string LineupRunway { get; init; } = "";
         public string? CrossingRunwayId { get; init; }
         public string? ExitingRunwayId { get; init; }
+
+        /// <summary>
+        /// The other runway an aircraft that has not cleared <see cref="ExitingRunwayId"/> holds short of (an exit or a <c>CLRWY</c>
+        /// stopped with the nose at that runway's line and the tail inside this one's), or null.
+        /// </summary>
+        public string? HeldShortOfRunway { get; init; }
         public string CurrentTaxiway { get; init; } = "";
         public string TaxiRoute { get; init; } = "";
         public string ParkingSpot { get; init; } = "";
@@ -198,6 +204,7 @@ public static class AircraftStatusDescriber
                 ),
                 CrossingRunwayId = ExtractCrossingRunwayId(ac.Phases) is { } crossing ? RunwayIdentifier.ToDisplayDesignator(crossing) : null,
                 ExitingRunwayId = ExtractExitingRunwayId(ac.Phases) is { } exiting ? RunwayIdentifier.ToDisplayDesignator(exiting) : null,
+                HeldShortOfRunway = ExtractHeldShortOfRunway(ac.Phases) is { } other ? RunwayIdentifier.ToDisplayDesignator(other) : null,
                 CurrentTaxiway = ac.Ground.CurrentTaxiway ?? "",
                 TaxiRoute = ac.ActiveOrStoredTaxiRoute?.FormatTaxiwaySequence() ?? "",
                 ParkingSpot = ac.Ground.ParkingSpot ?? "",
@@ -272,6 +279,8 @@ public static class AircraftStatusDescriber
         {
             "At Parking" => string.IsNullOrEmpty(i.ParkingSpot) ? "at parking" : $"at parking {i.ParkingSpot}",
             "Pushback" => "pushing back",
+            "Holding In Position" when (!string.IsNullOrEmpty(i.HeldShortOfRunway)) || (!string.IsNullOrEmpty(i.ExitingRunwayId)) =>
+                FormatHeldShortNotClearStatus(i),
             "Holding After Pushback" or "Holding In Position" => "holding position",
             "Holding After Exit" => FormatHoldingAfterExitStatus(i),
             "Taxiing" => FormatTaxiStatus(i),
@@ -337,8 +346,27 @@ public static class AircraftStatusDescriber
         return string.IsNullOrEmpty(rwy) ? "crossing runway" : $"crossing runway {rwy}";
     }
 
+    /// <summary>
+    /// "holding short of 28L on K, not clear of 28R": stopped with the nose at another runway's line, the tail inside this one's;
+    /// "on K, not clear of 28R" when no other runway is held short of (the nose already past its line).
+    /// </summary>
+    private static string FormatHeldShortNotClearStatus(AircraftStatusView i)
+    {
+        string rwy = string.IsNullOrEmpty(i.ExitingRunwayId) ? i.AssignedRunway : i.ExitingRunwayId;
+        string notClear = string.IsNullOrEmpty(rwy) ? "not clear of the runway" : $"not clear of {rwy}";
+        string? where = string.IsNullOrEmpty(i.CurrentTaxiway) ? null : $"on {i.CurrentTaxiway}";
+        string? heldShort = string.IsNullOrEmpty(i.HeldShortOfRunway) ? null : $"holding short of {i.HeldShortOfRunway}";
+        string place = JoinNonEmpty(heldShort, where);
+        return string.IsNullOrEmpty(place) ? notClear : $"{place}, {notClear}";
+    }
+
     private static string FormatHoldingAfterExitStatus(AircraftStatusView i)
     {
+        if (!string.IsNullOrEmpty(i.HeldShortOfRunway))
+        {
+            return FormatHeldShortNotClearStatus(i);
+        }
+
         string rwy = string.IsNullOrEmpty(i.ExitingRunwayId) ? i.AssignedRunway : i.ExitingRunwayId;
         if (string.IsNullOrEmpty(rwy))
         {
@@ -650,6 +678,18 @@ public static class AircraftStatusDescriber
         {
             return holding.RunwayId;
         }
+        if (current is HoldingInPositionPhase { TailInsideRunway: { } tailInside })
+        {
+            return tailInside;
+        }
         return null;
     }
+
+    private static string? ExtractHeldShortOfRunway(PhaseList? phases) =>
+        phases?.CurrentPhase switch
+        {
+            HoldingAfterExitPhase holding => holding.HeldShortOfRunway,
+            HoldingInPositionPhase holding => holding.HeldShortOfRunway,
+            _ => null,
+        };
 }

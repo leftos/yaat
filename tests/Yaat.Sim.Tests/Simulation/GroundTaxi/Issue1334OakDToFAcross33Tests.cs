@@ -561,7 +561,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
             Phases = new PhaseList(),
         };
-        aircraft.Phases.Add(new HoldingAfterExitPhase("28R", "E", bar.Id));
+        aircraft.Phases.Add(new HoldingAfterExitPhase("28R", "E", bar.Id, heldShortOfRunway: null));
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         aircraft.Ground.Layout = layout;
         aircraft.Ground.CurrentTaxiway = "E";

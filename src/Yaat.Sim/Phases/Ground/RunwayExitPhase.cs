@@ -105,6 +105,12 @@ public sealed class RunwayExitPhase : Phase
 
     // Exit path navigation (FollowingExitPath state)
     private TaxiRoute? _exitRoute;
+
+    /// <summary>The other runway's bar the exit's stop holds the nose short of; null when the stop was not cut back. Set with the route.</summary>
+    private GroundNode? _stopHeldShortOfBar;
+
+    /// <summary>The cut-back stop leaves the tail inside the landing runway's marking. Set with the route.</summary>
+    private bool _stopTailInsideLine;
     private GroundNavigator? _navigator;
 
     // Latched once the turn-off is physically under way — see TurnStarted.
@@ -153,6 +159,21 @@ public sealed class RunwayExitPhase : Phase
     /// vacate from here.
     /// </summary>
     public GroundNode? TargetHoldShortNode => _holdShortNode;
+
+    /// <summary>
+    /// The exit's stop was cut back to keep the nose at another runway's holding position marking and leaves the tail inside the
+    /// landing runway's (<see cref="RunwayTailClearance.Stop.TailInsideLine"/>): the aircraft will not clear the landing runway.
+    /// False until the exit route is built.
+    /// </summary>
+    public bool StopsTailInsideRunwayLine => _stopTailInsideLine;
+
+    /// <summary>
+    /// The bearing of the exit path's last edge, from the node before the hold-short to the hold-short
+    /// (<see cref="TargetHoldShortNode"/>): the direction the aircraft crosses the cleared runway's holding position marking in.
+    /// Null while no exit is committed or the path has no edge.
+    /// </summary>
+    public TrueHeading? HoldShortApproachHeading =>
+        (_exitPath is { Count: >= 2 } path) ? new TrueHeading(GeoMath.BearingTo(path[^2].Position, path[^1].Position)) : null;
 
     /// <summary>
     /// The hold-short node ID this aircraft is targeting (or null if still searching).
@@ -538,12 +559,26 @@ public sealed class RunwayExitPhase : Phase
     /// <summary>
     /// The exit <see cref="TryFindExitAhead"/> would take ahead of the aircraft with <paramref name="occupied"/> excluded,
     /// with the preference it was found under and whether it came from the inferred-side tiebreaker. Null when the
-    /// relaxation (taxiway → side → any) finds nothing.
+    /// relaxation (taxiway → side → any) finds nothing. An exit the aircraft fits comes first under every preference of the
+    /// relaxation; only when none fits under any does the relaxation run again taking the best one anyway (it stops short of the
+    /// other runway, not clear), so a too-short exit on the preferred side never wins over one that fits under a relaxed preference.
     /// </summary>
     private (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? SearchExitAhead(
         PhaseContext ctx,
         HashSet<int>? occupied,
         HashSet<string> refusedOffSide
+    ) => SearchExitAhead(ctx, occupied, refusedOffSide, skipTooShort: true) ?? SearchExitAhead(ctx, occupied, refusedOffSide, skipTooShort: false);
+
+    /// <summary>
+    /// One pass of <see cref="SearchExitAhead(PhaseContext, HashSet{int}?, HashSet{string})"/>'s relaxation: with
+    /// <paramref name="skipTooShort"/> every search passes by an exit too short for the aircraft
+    /// (<see cref="RunwayTailClearance.IsTooShortForAutomaticExit"/>) that the controller did not name.
+    /// </summary>
+    private (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? SearchExitAhead(
+        PhaseContext ctx,
+        HashSet<int>? occupied,
+        HashSet<string> refusedOffSide,
+        bool skipTooShort
     )
     {
         if (ctx.GroundLayout is null || _runwayId is null)
@@ -557,7 +592,7 @@ public sealed class RunwayExitPhase : Phase
         if ((_lastResolvedPreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
         {
             var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
-            if (RunSearchWithLookahead(ctx, tiebreakerPref, occupied, _inferredSide, refusedOffSide) is { } tiebreak)
+            if (RunSearchWithLookahead(ctx, tiebreakerPref, occupied, refusedOffSide, skipTooShort) is { } tiebreak)
             {
                 return (tiebreak, tiebreakerPref, true);
             }
@@ -567,8 +602,7 @@ public sealed class RunwayExitPhase : Phase
         ExitPreference? preference = _lastResolvedPreference;
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            ExitSide? sidePref = preference?.Side ?? _inferredSide;
-            if (RunSearchWithLookahead(ctx, preference, occupied, sidePref, refusedOffSide) is { } found)
+            if (RunSearchWithLookahead(ctx, preference, occupied, refusedOffSide, skipTooShort) is { } found)
             {
                 return (found, preference, false);
             }
@@ -701,22 +735,29 @@ public sealed class RunwayExitPhase : Phase
         }
         designators.Add(_runwayId);
 
-        foreach (string designator in designators)
+        // An exit the aircraft fits comes first; when none does, the best one anyway (it stops short of the other runway, not clear).
+        foreach (bool skipTooShort in (bool[])[true, false])
         {
-            AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
-                ctx.Aircraft.Position.Lat,
-                ctx.Aircraft.Position.Lon,
-                backtrackHeading,
-                designator,
-                preference: null,
-                sidePref: null,
-                excludeBranchPoints: null,
-                excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
-                filter: null
-            );
-            if (found is { } exit)
+            foreach (string designator in designators)
             {
-                return exit;
+                AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
+                    ctx.Aircraft.Position.Lat,
+                    ctx.Aircraft.Position.Lon,
+                    backtrackHeading,
+                    designator,
+                    preference: null,
+                    sidePref: null,
+                    excludeBranchPoints: null,
+                    excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
+                    filter: candidate =>
+                        (skipTooShort && RunwayTailClearance.IsTooShortForAutomaticExit(candidate, ctx.Aircraft))
+                            ? AirportGroundLayout.CandidateVerdict.Skip
+                            : AirportGroundLayout.CandidateVerdict.Accept
+                );
+                if (found is { } exit)
+                {
+                    return exit;
+                }
             }
         }
 
@@ -755,14 +796,16 @@ public sealed class RunwayExitPhase : Phase
     /// option, falling back to the deferred off-side if none is found — unless
     /// the controller instructed the side, when an off-side candidate is never
     /// taken and its taxiway is added to <paramref name="refusedOffSide"/>.
+    /// The side preferred is <paramref name="preference"/>'s, else the inferred one. With <paramref name="skipTooShort"/> an exit
+    /// too short for the aircraft is passed by unless the controller named its taxiway.
     /// Returns the exit found, or null.
     /// </summary>
     private AirportGroundLayout.CenterlineExitResult? RunSearchWithLookahead(
         PhaseContext ctx,
         ExitPreference? preference,
         HashSet<int>? occupied,
-        ExitSide? sidePref,
-        HashSet<string> refusedOffSide
+        HashSet<string> refusedOffSide,
+        bool skipTooShort
     )
     {
         if (ctx.GroundLayout is null || _runwayId is null)
@@ -772,19 +815,25 @@ public sealed class RunwayExitPhase : Phase
 
         bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
         ExitSide? instructedSide = ctx.Aircraft.Phases?.RequestedExit?.Side;
-
         return ctx.GroundLayout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             _runwayHeading,
             _runwayId,
             preference,
-            sidePref,
+            preference?.Side ?? _inferredSide,
             excludeBranchPoints: null,
             excludeHoldShortNodes: occupied,
             filter: candidate =>
             {
-                if (IsGivenUp(ctx.Aircraft, candidate.Taxiway))
+                if (
+                    IsGivenUp(ctx.Aircraft, candidate.Taxiway)
+                    || (
+                        skipTooShort
+                        && !string.Equals(preference?.Taxiway, candidate.Taxiway, StringComparison.OrdinalIgnoreCase)
+                        && RunwayTailClearance.IsTooShortForAutomaticExit(candidate, ctx.Aircraft)
+                    )
+                )
                 {
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
@@ -1252,28 +1301,15 @@ public sealed class RunwayExitPhase : Phase
         }
 
         // Append a virtual segment past the hold-short node so the aircraft's tail clears the hold-short line by
-        // RunwayTailClearance.MarginFt. The virtual node is offset along the graph edge.
+        // RunwayTailClearance.MarginFt, cut back so the nose stays short of any other runway's line ahead. The virtual node is
+        // offset along the graph edge.
         GroundNode holdShortNode = _exitPath[^1];
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
-        double tailClearNm = RunwayTailClearance.PastBarFt(lengthFt) / GeoMath.FeetPerNm;
+        RunwayTailClearance.Stop stop = RunwayTailClearance.StopPastBar(ctx.GroundLayout, holdShortNode, _exitPath[^2], lengthFt);
+        _stopHeldShortOfBar = stop.HeldShortOfBar;
+        _stopTailInsideLine = stop.TailInsideLine;
 
-        GroundNode virtualTarget;
-        if (_exitPath.Count >= 2)
-        {
-            virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout!, holdShortNode, _exitPath[^2], tailClearNm);
-        }
-        else
-        {
-            virtualTarget = VirtualNode.OffsetPast(
-                ctx.GroundLayout!,
-                holdShortNode,
-                ctx.Aircraft.Position.Lat,
-                ctx.Aircraft.Position.Lon,
-                tailClearNm
-            );
-        }
-
-        segments.Add(VirtualNode.CreateSegment(holdShortNode, virtualTarget, segments[^1].TaxiwayName));
+        segments.Add(VirtualNode.CreateSegment(holdShortNode, stop.Target, segments[^1].TaxiwayName));
 
         // Never resume onto the past-the-end index: that reads as "route complete" and would end the phase without
         // CompleteExit's cleanup. An aircraft that really is at the last node completes on the coming tick anyway.
@@ -1468,7 +1504,13 @@ public sealed class RunwayExitPhase : Phase
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
-        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+
+        // The taxi-in call is made once clear of the landing runway (AIM 4-3-21.c); an aircraft stopped short of clearing it owes none.
+        bool stoppedNotClear = IsStoppedInsideHoldingDistance(ctx);
+        if (!stoppedNotClear)
+        {
+            ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+        }
 
         // No position snap — the GroundNavigator already brakes to 0 at the
         // final node (FinalNodeArrivalThresholdNm ≈ 1.8ft). The aircraft is
@@ -1479,7 +1521,7 @@ public sealed class RunwayExitPhase : Phase
         // auto-pull-up there (and hold short pending an explicit CROSS) instead of stopping at
         // the landing runway's exit hold-short. An aircraft stopped at a bar inside the landing
         // runway's holding distance has not vacated it, so it holds there instead.
-        if (!IsStoppedInsideHoldingDistance(ctx) && TryStartParallelCrossing(ctx))
+        if (!stoppedNotClear && TryStartParallelCrossing(ctx))
         {
             return true;
         }
@@ -1490,8 +1532,13 @@ public sealed class RunwayExitPhase : Phase
             ctx.MarkHoldShortNodeOccupied?.Invoke(_holdShortNode.Id);
         }
 
-        // Insert HoldingAfterExitPhase
-        ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway, _holdShortNode?.Id));
+        // Insert HoldingAfterExitPhase; a stop with the nose at another runway's line and the tail still inside this one's holds
+        // short of that runway, not clear of this one.
+        string? heldShortOfRunway =
+            (_stopTailInsideLine && (_stopHeldShortOfBar is { } otherBar) && (ctx.GroundLayout is { } stopLayout))
+                ? RunwayTailClearance.HeldShortRunwayEnd(stopLayout, otherBar, ctx.Aircraft.Phases?.AssignedRunway, ctx.Aircraft)
+                : null;
+        ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway, _holdShortNode?.Id, heldShortOfRunway));
 
         Log.LogDebug(
             "[Exit] {Callsign}: exit complete on {Twy}, holding at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
@@ -1517,12 +1564,19 @@ public sealed class RunwayExitPhase : Phase
         return new Commands.GroundCommandHandler.StoredRouteJoin(_holdShortNode ?? path[^1], path[^2], holdTaxiway, _runwayId);
     }
 
-    /// <summary>The exit ends at a bar inside the landing runway's holding distance (a named exit whose bar is short of it).</summary>
+    /// <summary>
+    /// The exit ends without clearing the landing runway: at a bar inside its holding distance (a named exit whose bar is short
+    /// of it), or with the nose at another runway's holding position marking and the tail still inside the landing runway's
+    /// (<see cref="StopsTailInsideRunwayLine"/>).
+    /// </summary>
     private bool IsStoppedInsideHoldingDistance(PhaseContext ctx) =>
-        (ctx.GroundLayout is { } layout)
-        && (_holdShortNode is not null)
-        && (_runwayId is not null)
-        && !layout.IsAtRunwayHoldingDistance(_holdShortNode, _runwayId);
+        _stopTailInsideLine
+        || (
+            (ctx.GroundLayout is { } layout)
+            && (_holdShortNode is not null)
+            && (_runwayId is not null)
+            && !layout.IsAtRunwayHoldingDistance(_holdShortNode, _runwayId)
+        );
 
     /// <summary>
     /// When the aircraft vacated between two parallel runways and the parallel runway's hold-short
@@ -1710,6 +1764,8 @@ public sealed class RunwayExitPhase : Phase
             TurnOffDecelRate = _turnOffDecelRate,
             BacktrackPending = _backtrackPending,
             ReportedNoExitAhead = _reportedNoExitAhead,
+            StopTailInsideLine = _stopTailInsideLine,
+            StopHeldShortOfBarNodeId = _stopHeldShortOfBar?.Id,
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
         };
 
@@ -1760,6 +1816,7 @@ public sealed class RunwayExitPhase : Phase
             _turnOffDecelRate = dto.TurnOffDecelRate,
             _backtrackPending = dto.BacktrackPending,
             _reportedNoExitAhead = dto.ReportedNoExitAhead,
+            _stopTailInsideLine = dto.StopTailInsideLine ?? false,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
@@ -1771,6 +1828,10 @@ public sealed class RunwayExitPhase : Phase
             if (dto.ExitNodeId.HasValue)
             {
                 phase._holdShortNode = groundLayout.Nodes.GetValueOrDefault(dto.ExitNodeId.Value);
+            }
+            if (dto.StopHeldShortOfBarNodeId is { } heldShortOfBarId)
+            {
+                phase._stopHeldShortOfBar = groundLayout.Nodes.GetValueOrDefault(heldShortOfBarId);
             }
             if (dto.ExitWaypointNodeIds is not null)
             {

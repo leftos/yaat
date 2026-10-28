@@ -333,7 +333,10 @@ public static class SameRunwayArrivalProtection
     /// <see cref="RunwayExitPhase"/> stops <see cref="RunwayTailClearance.MarginFt"/> beyond that point. A
     /// <see cref="LandingPhase"/> leader is never predicted clear later than it is. A leader on its exit is
     /// modelled braking to rest at the clear point, though it brakes to rest the margin beyond it and passes the clear
-    /// point sooner, so it is predicted clear later than it is: the safe side. The fuselage length comes from
+    /// point sooner, so it is predicted clear later than it is: the safe side. A leader whose exit stop is cut back at another
+    /// runway's holding position marking keeps at least this much past its bar unless its tail stays inside the line
+    /// (<see cref="RunwayExitPhase.StopsTailInsideRunwayLine"/>), when it never clears and <see cref="TryBuildRollout"/> has no
+    /// rollout for it. The fuselage length comes from
     /// <see cref="AircraftLength.ResolveFt"/> — the resolver <see cref="RunwayExitPhase"/> uses, so the two agree on an
     /// unknown type too.
     /// </summary>
@@ -351,7 +354,10 @@ public static class SameRunwayArrivalProtection
     /// the tail clearance at that turn-off speed. A <see cref="RunwayExitPhase"/> aircraft is already on that exit:
     /// the rollout leg is behind it and what remains is the run to the hold-short node and past it, which its
     /// navigator flies at the exit route's taxi ceiling until the braking point and then brakes to the stop — see
-    /// <see cref="ExitRollout"/>. A stopped aircraft reads as never clearing in either shape.</para>
+    /// <see cref="ExitRollout"/>; that run is signed along the exit path's last edge (<see cref="PastHoldShortNm"/>), so a centre
+    /// already past the node has only the rest of its half length to go. A stopped aircraft reads as never clearing in either
+    /// shape, and an exit whose stop leaves the tail inside the runway's line gives null in either shape: it never clears
+    /// (<see cref="RunwayExitPhase.StopsTailInsideRunwayLine"/>, <see cref="ResolvedExitInfo.StopsTailInsideRunwayLine"/>).</para>
     /// </summary>
     /// <param name="aircraft">The landed aircraft whose vacate is being predicted.</param>
     /// <param name="elapsedSinceThresholdSeconds">
@@ -370,6 +376,7 @@ public static class SameRunwayArrivalProtection
         double tailClearance = TailClearanceNm(aircraft.AircraftType);
         return aircraft.Phases?.CurrentPhase switch
         {
+            LandingPhase { CandidateExit.StopsTailInsideRunwayLine: true } => null,
             LandingPhase { CandidateExit: { } exit } => new LeaderRollout(
                 BrakingLegNm: GeoMath.DistanceNm(aircraft.Position, exit.BranchPointNode.Position),
                 BrakingEntrySpeedKts: aircraft.GroundSpeed,
@@ -378,13 +385,36 @@ public static class SameRunwayArrivalProtection
                 SteadySpeedKts: exit.TurnOffSpeed,
                 ElapsedSinceThresholdSeconds: elapsed
             ),
-            RunwayExitPhase { TargetHoldShortNode: { } holdShort } => ExitRollout(
+            RunwayExitPhase { StopsTailInsideRunwayLine: true } => null,
+            RunwayExitPhase { TargetHoldShortNode: { } holdShort } exit => ExitRollout(
                 aircraft,
-                GeoMath.DistanceNm(aircraft.Position, holdShort.Position) + tailClearance,
+                Math.Max(0.0, tailClearance - PastHoldShortNm(aircraft, holdShort, exit.HoldShortApproachHeading)),
                 elapsed
             ),
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// How far (nm) the aircraft's centre is past the exit's hold-short <paramref name="holdShort"/>, signed along the exit path's
+    /// last edge (<paramref name="approachHeading"/>, <see cref="RunwayExitPhase.HoldShortApproachHeading"/>): negative while the
+    /// bar is still ahead on the exit, whatever the aircraft's heading — on a reverse exit or a backtrack the bar starts behind
+    /// it. With no last edge (an exit path of one node), signed along the aircraft's heading (<see cref="SignedPastNodeNm"/>).
+    /// </summary>
+    private static double PastHoldShortNm(AircraftState aircraft, GroundNode holdShort, TrueHeading? approachHeading) =>
+        approachHeading is { } heading
+            ? GeoMath.AlongTrackDistanceNm(aircraft.Position, holdShort.Position, heading)
+            : SignedPastNodeNm(aircraft, holdShort);
+
+    /// <summary>
+    /// How far (nm) the aircraft's centre is past <paramref name="node"/>: the distance to it, positive once the node is behind the
+    /// aircraft along its heading and negative while it is still ahead (a node to the side, as at the turn off the runway, counts
+    /// as ahead).
+    /// </summary>
+    private static double SignedPastNodeNm(AircraftState aircraft, GroundNode node)
+    {
+        double distanceNm = GeoMath.DistanceNm(aircraft.Position, node.Position);
+        return GeoMath.AlongTrackDistanceNm(aircraft.Position, node.Position, aircraft.TrueHeading) > 0.0 ? distanceNm : -distanceNm;
     }
 
     /// <summary>

@@ -1110,7 +1110,7 @@ public class RunwayOccupancyTests
                     intoDeg,
                     new HoldingShortPhase(holdShort)
                 );
-                var exitStop = new HoldingAfterExitPhase(runway.Designator, exitTaxiway: null, bar.Id);
+                var exitStop = new HoldingAfterExitPhase(runway.Designator, exitTaxiway: null, bar.Id, heldShortOfRunway: null);
                 AircraftState exited = StoppedAt(runway, airport, type, Project(bar.Position, into, -halfFt), into.ToReciprocal().Degrees, exitStop);
                 placements += 2;
                 foreach ((string pose, AircraftState ac) in new[] { ("holding short", holding), ("stopped after exit", exited) })

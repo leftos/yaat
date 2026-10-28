@@ -215,6 +215,96 @@ public static class VirtualNode
         double offsetNm
     ) => OffsetPastCore(layout, node, approachFromLat, approachFromLon, offsetNm);
 
+    /// <summary>The runway an aircraft is clearing and its length, which <see cref="OffsetPastShortOfOtherRunways"/> stops the nose by.</summary>
+    /// <param name="ClearedRunway">The runway the aircraft is pulling clear of; its own bars never stop the walk.</param>
+    /// <param name="AircraftLengthFt">The aircraft's length (ft); its nose is half of it ahead of the reference point.</param>
+    public readonly record struct NoseClamp(RunwayIdentifier ClearedRunway, double AircraftLengthFt);
+
+    /// <summary>Where <see cref="OffsetPastShortOfOtherRunways"/> put the reference point.</summary>
+    /// <param name="Target">The virtual node the reference point stops at.</param>
+    /// <param name="OffsetNm">How far past the start node it stops, along the graph (nm): the offset asked for, or less when clamped.</param>
+    /// <param name="HeldShortOfBar">The other runway's hold-short node the nose stops at; null when the offset asked for fits.</param>
+    public readonly record struct ClampedOffset(GroundNode Target, double OffsetNm, GroundNode? HeldShortOfBar);
+
+    /// <summary>
+    /// <see cref="OffsetPast(AirportGroundLayout, GroundNode, GroundNode, double)"/> for a runway exit or a <c>CLRWY</c> stop: the
+    /// offset is cut back so the aircraft's nose stays at or short of the holding position marking of any runway other than
+    /// <see cref="NoseClamp.ClearedRunway"/> met on the walk, hold line or short bar (AIM 4-3-21.a/b; 7110.65 3-10-9.b NOTE 1). The
+    /// marking is square to the taxiway axis through the bar node (<see cref="RunwayHoldBars.DepthPastMarkingFt"/>), so a nose on the
+    /// axis is at the marking when it reaches the node; the stop is aimed <see cref="Phases.Ground.GroundNavigator.SetBackStopMarginFt"/>
+    /// short of it, as the navigator aims a set-back bar's stop, so the aircraft comes to rest with its nose at or behind the
+    /// marking. The nose comes first: the offset is cut whatever that leaves behind the tail.
+    /// </summary>
+    public static ClampedOffset OffsetPastShortOfOtherRunways(
+        AirportGroundLayout layout,
+        GroundNode node,
+        GroundNode approachFrom,
+        double offsetNm,
+        NoseClamp clamp
+    )
+    {
+        double noseReachNm = ((clamp.AircraftLengthFt / 2.0) + Phases.Ground.GroundNavigator.SetBackStopMarginFt) / GeoMath.FeetPerNm;
+        double allowedNm = offsetNm;
+        GroundNode? heldShortOf = null;
+        if (
+            (FirstOtherRunwayBarAhead(node, approachFrom.Position, offsetNm + noseReachNm, clamp.ClearedRunway) is { } ahead)
+            && ((ahead.DistanceNm - noseReachNm) < offsetNm)
+        )
+        {
+            allowedNm = Math.Max(0.0, ahead.DistanceNm - noseReachNm);
+            heldShortOf = ahead.Bar;
+        }
+
+        GroundNode target = OffsetPastCore(layout, node, approachFrom.Position.Lat, approachFrom.Position.Lon, allowedNm);
+        return new ClampedOffset(target, allowedNm, heldShortOf);
+    }
+
+    /// <summary>
+    /// The first hold-short node of a runway other than <paramref name="clearedRunway"/> on the walk forward from
+    /// <paramref name="node"/> (the walk <see cref="OffsetPastCore"/> takes), with its distance along the graph; null when none lies
+    /// within <paramref name="maxNm"/> or the walk ends first.
+    /// </summary>
+    /// <param name="node">The node the walk starts from.</param>
+    /// <param name="approach">Where the walk comes from (defines "forward").</param>
+    /// <param name="maxNm">How far to walk (nm).</param>
+    /// <param name="clearedRunway">The runway whose own bars never end the walk.</param>
+    /// <returns>The bar and its distance along the graph (nm), or null.</returns>
+    public static (GroundNode Bar, double DistanceNm)? FirstOtherRunwayBarAhead(
+        GroundNode node,
+        LatLon approach,
+        double maxNm,
+        RunwayIdentifier clearedRunway
+    )
+    {
+        const int maxSteps = 64;
+        GroundNode currentNode = node;
+        LatLon previous = approach;
+        double walkedNm = 0.0;
+        for (int step = 0; (step < maxSteps) && (walkedNm <= maxNm); step++)
+        {
+            if (FindContinuationNode(currentNode, previous.Lat, previous.Lon) is not { } nextNode)
+            {
+                return null;
+            }
+
+            walkedNm += GeoMath.DistanceNm(currentNode.Position, nextNode.Position);
+            if (
+                (walkedNm <= maxNm)
+                && (nextNode.Type == GroundNodeType.RunwayHoldShort)
+                && (nextNode.RunwayId is { } runway)
+                && !runway.Overlaps(clearedRunway)
+            )
+            {
+                return (nextNode, walkedNm);
+            }
+
+            previous = currentNode.Position;
+            currentNode = nextNode;
+        }
+
+        return null;
+    }
+
     private static GroundNode OffsetPastCore(AirportGroundLayout _, GroundNode node, double approachLat, double approachLon, double offsetNm)
     {
         double remaining = offsetNm;

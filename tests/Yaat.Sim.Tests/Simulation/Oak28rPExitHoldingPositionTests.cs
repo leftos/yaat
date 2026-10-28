@@ -281,7 +281,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         holder.Ground.Layout = layout;
-        holder.Phases.Add(new HoldingAfterExitPhase("28R", "J", bar.Id));
+        holder.Phases.Add(new HoldingAfterExitPhase("28R", "J", bar.Id, heldShortOfRunway: null));
         holder.Phases.Start(CommandDispatcher.BuildMinimalContext(holder, layout));
         return holder;
     }

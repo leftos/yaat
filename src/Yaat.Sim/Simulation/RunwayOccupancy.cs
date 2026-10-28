@@ -610,6 +610,20 @@ public static class RunwayOccupancy
     private static bool IsLeavingByPhase(AircraftState ac, RunwayInfo runway) =>
         (ac.Phases is { CurrentPhase: RunwayExitPhase or HoldingAfterExitPhase } phases) && PhaseRunwayIs(phases, runway);
 
+    /// <summary>
+    /// The phase keeps the tail inside its runway's holding position marking: an exit whose stop leaves it there
+    /// (<see cref="RunwayExitPhase.StopsTailInsideRunwayLine"/>, moving or stopped), a hold after an exit stopped inside the
+    /// holding distance or held short of another runway, or a <c>CLRWY</c> hold clamped short of another runway
+    /// (<see cref="HoldingInPositionPhase.TailInsideRunway"/>). Which runway it is inside is the phase's own;
+    /// <see cref="ClassifyByPhase"/> judges that.
+    /// </summary>
+    public static bool IsTailInsideRunwayState(AircraftState ac) =>
+        ac.Phases?.CurrentPhase
+            is RunwayExitPhase { StopsTailInsideRunwayLine: true }
+                or HoldingAfterExitPhase { StoppedInsideHoldingDistance: true }
+                or HoldingAfterExitPhase { HeldShortOfRunway: not null }
+                or HoldingInPositionPhase { TailInsideRunway: not null };
+
     /// <summary>Whether node <paramref name="nodeId"/> is a hold-short bar protecting <paramref name="runway"/>.</summary>
     internal static bool IsBarOf(AirportGroundLayout layout, int nodeId, RunwayInfo runway) =>
         layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
@@ -741,8 +755,10 @@ public static class RunwayOccupancy
     /// <summary>
     /// What the aircraft's current phase says about its runway use, or null when the phase is not a runway phase.
     /// When <paramref name="runway"/> is given the phase's own runway (departure, else assigned) must name the same
-    /// pavement; with null the phase alone decides — except <see cref="HoldingInPositionPhase"/>, which YAAT also uses as
-    /// a generic ground-idle hold and therefore only counts when it is physically on the given runway's pavement, and
+    /// pavement; with null the phase alone decides. An aircraft whose tail stays inside its runway's holding position marking
+    /// (<see cref="IsTailInsideRunwayState"/>) is on that runway wherever its centre is (AIM 4-3-21.b; 7110.65 3-10-3.a.1: not
+    /// clear of the runway). <see cref="HoldingInPositionPhase"/> otherwise, which YAAT also uses as
+    /// a generic ground-idle hold, only counts when it is physically on the given runway's pavement, and
     /// <see cref="AirTaxiPhase"/>, a relocation with no runway of its own that is a surface movement (§3-11-3 NOTE) on
     /// whichever pavement it is over.
     /// </summary>
@@ -772,7 +788,10 @@ public static class RunwayOccupancy
             LineUpPhase or LinedUpAndWaitingPhase or StopAndGoPhase or TouchAndGoPhase => RunwayUseKind.OnSurface,
             RejectedTakeoffPhase => RunwayUseKind.OnSurface,
             RunwayExitPhase { IsOnCenterline: true } => RunwayUseKind.OnSurface,
+            RunwayExitPhase { StopsTailInsideRunwayLine: true } => RunwayUseKind.OnSurface,
             HoldingAfterExitPhase { StoppedInsideHoldingDistance: true } => RunwayUseKind.OnSurface,
+            HoldingInPositionPhase { TailInsideRunway: { } inside } when (runway is null) || RunwayIdentifier.Parse(inside).Overlaps(runway.Id) =>
+                RunwayUseKind.OnSurface,
             HoldingInPositionPhase when (runway is not null) && IsOnPavement(ac, runway) => RunwayUseKind.OnSurface,
             _ => null,
         };

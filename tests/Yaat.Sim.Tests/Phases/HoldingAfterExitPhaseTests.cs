@@ -39,7 +39,7 @@ public class HoldingAfterExitPhaseTests
     public void OnStart_SoloTowerStudent_QueuesDelayedSayAndTts()
     {
         AircraftState ac = MakeAircraft();
-        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
+        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null, heldShortOfRunway: null);
 
         phase.OnStart(MakeContext(ac, "TWR"));
 
@@ -54,7 +54,7 @@ public class HoldingAfterExitPhaseTests
     public void OnStart_SoloGroundStudent_TerminalWarningOnly_NoTts()
     {
         AircraftState ac = MakeAircraft();
-        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
+        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null, heldShortOfRunway: null);
 
         phase.OnStart(MakeContext(ac, "GND"));
 
@@ -69,7 +69,7 @@ public class HoldingAfterExitPhaseTests
     public void OnStart_RpoMode_NoTtsByDefault()
     {
         AircraftState ac = MakeAircraft();
-        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null);
+        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null, heldShortOfRunway: null);
         var ctx = new PhaseContext
         {
             Aircraft = ac,

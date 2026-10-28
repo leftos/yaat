@@ -886,7 +886,8 @@ public static partial class PilotResponder
 
         return new PilotSpeechText(
             $"cleared to {PhraseologyVerbalizer.FixDisplayTextUpper(cmd.Destination)} from {designator}{terminalVia}{terminalAlt}",
-            $"cleared to {PhraseologyVerbalizer.SpellFix(cmd.Destination)} from {PhraseologyVerbalizer.SpellMilitaryRoute(designator)}{spokenVia}{spokenAlt}"
+            $"cleared to {PhraseologyVerbalizer.SpellFix(cmd.Destination)} "
+                + $"from {PhraseologyVerbalizer.SpellMilitaryRoute(designator)}{spokenVia}{spokenAlt}"
         );
     }
 
@@ -1860,7 +1861,8 @@ public static partial class PilotResponder
         int reportedAltitude = (int)(Math.Round(altitudeFt / 100.0) * 100);
         return new PilotSpeechText(
             $"{facility}, {distMiles} miles {direction} at {PhraseologyVerbalizer.CompactAltitude(reportedAltitude)}, request closed traffic{info}.",
-            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} at {AtcNumberParser.AltitudeToWords(reportedAltitude)}, request closed traffic{info}."
+            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} "
+                + $"at {AtcNumberParser.AltitudeToWords(reportedAltitude)}, request closed traffic{info}."
         );
     }
 
@@ -2532,6 +2534,28 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission in place of <see cref="BuildClearOfRunwayText"/> when the aircraft stopped with its nose at another
+    /// runway's holding position marking and its tail still inside the runway it was clearing (a crossover shorter than the
+    /// aircraft): it reports where it holds and that it has not cleared. Terminal and TTS forms are built independently.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingShortNotClearOfRunwayText(
+        AircraftState aircraft,
+        string otherRunway,
+        string taxiway,
+        string clearingRunway
+    )
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string otherCompact = PhraseologyVerbalizer.CompactRunway(otherRunway);
+        string clearingCompact = PhraseologyVerbalizer.CompactRunway(clearingRunway);
+        string otherSpelled = PhraseologyVerbalizer.SpellRunway(otherRunway);
+        string clearingSpelled = PhraseologyVerbalizer.SpellRunway(clearingRunway);
+        string terminal = $"holding short of runway {otherCompact} at {taxiway}, not clear of runway {clearingCompact}.";
+        string tts = $"{spoken}, holding short of runway {otherSpelled} at {taxiway}, not clear of runway {clearingSpelled}.";
+        return new PilotSpeechText(terminal, tts);
+    }
+
+    /// <summary>
     /// The arrival's call to ground after clearing the landing runway (AIM 4-3-21.c: change to ground control and obtain a
     /// taxi clearance) — who is calling, where it is, and the parking it wants. Output:
     /// <c>"Oakland Ground, clear of runway 28R at W, taxi to gate 29."</c> (terminal) /
@@ -2577,8 +2601,10 @@ public static partial class PilotResponder
     {
         string spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
-            $"unable {PhraseologyVerbalizer.CompactAltitude(assignedFt)}, that'd put us in the {airspaceName} — we can do {PhraseologyVerbalizer.CompactAltitude(levelOffFt)}.",
-            $"{spoken}, unable {PhraseologyVerbalizer.AltitudeWords(assignedFt)}, that'd put us in the {airspaceName}; we can do {PhraseologyVerbalizer.AltitudeWords(levelOffFt)}."
+            $"unable {PhraseologyVerbalizer.CompactAltitude(assignedFt)}, that'd put us in the {airspaceName} — "
+                + $"we can do {PhraseologyVerbalizer.CompactAltitude(levelOffFt)}.",
+            $"{spoken}, unable {PhraseologyVerbalizer.AltitudeWords(assignedFt)}, that'd put us in the {airspaceName}; "
+                + $"we can do {PhraseologyVerbalizer.AltitudeWords(levelOffFt)}."
         );
     }
 
