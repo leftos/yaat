@@ -1772,7 +1772,7 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
 | `RFAS` / `FAS` / `SPD RFAS` / `SPD FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts). `SPD RFAS` is the same command as bare `RFAS` (normal deceleration, "unable" inside 5nm final); a trailing token (`SPD RFAS SUNOL`) is a parse error. `SPEEDF RFAS` is rejected: use `SPD RFAS`, or `SPDN RFAS` to set it instantly |
 | `MACH .82` / `M .82` | Maintain Mach number (also accepts `0.82` or `82`); IAS adjusts with altitude |
-| `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
+| `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints; the aircraft resumes its normal speed schedule, so the next altitude command flies the type's schedule |
 | `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
 | `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |
 | `SPD 210 UNTIL 10; SPD 180 UNTIL 5` | Chained: maintain 210, at 10nm final slow to 180, at 5nm final cancel |
@@ -1790,6 +1790,8 @@ The protected corridor either side of the centerline is drawn on the radar under
 It is mutually exclusive with `EXP` (issuing either clears the other, and a crossing's expedite too); the cap applies to a runway crossing as well as the taxi, and an expedited taxi or crossing under `SPD` accelerates at the normal rate. It persists across `HOLD`/`RES`. `SPD 0` (resume normal speed) restores the category default, as does a new `TAXI` clearance. Also fires from a conditional block, e.g. `AT B SPD 10` slows to 10 kts on reaching taxiway B.
 
 **VFR altitude floor/ceiling (`CM A` / `CM B`)** — alongside the hard `CM 240` assignment, `CM A{altitude}` clears the aircraft to maintain VFR at or above the given altitude (floor) and `CM B{altitude}` at or below (ceiling). The altitude accepts shorthand or full notation via `AltitudeResolver` (`CM A025` = `CM A2500` = at or above 2,500 ft). The aircraft is free to drift inside the band; the boundary is what the controller assigns.
+
+**Altitude clearances keep an assigned speed** — `CM`, `DM` and the VFR `CM A`/`CM B` forms do not end an ATC speed assignment (AIM 4-4-12.f). Only `RNS`, `RPS`, `DSR`, `DVIA`/`CVIA`, an approach clearance or a new speed does. An assigned speed above 250 kts kept into a descent below 10,000 ft is still capped at 250 (14 CFR 91.117).
 
 **VFR aircraft** — an IFR aircraft gets it only when [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft) is set to **All VFR commands**, and it is not realistic there: the codified IFR forms are `MAINTAIN VFR CONDITIONS ABOVE/BELOW (altitude)` (7110.65 §7-1-2, only on pilot request) and VFR-on-top (§7-3-1), and a drift band conflicts with the IFR separation still owed. A plain `CM {altitude}` (or any other hard altitude assignment) clears any active floor or ceiling.
 

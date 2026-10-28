@@ -162,7 +162,7 @@ public sealed class ClimbSpeedScheduleTests
     }
 
     [Fact]
-    public void HasExplicitSpeedCommand_ClearedByAltitudeCommand()
+    public void HasExplicitSpeedCommand_KeptByAltitudeCommand()
     {
         AircraftState ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
         ac.Targets.HasExplicitSpeedCommand = true;
@@ -171,7 +171,8 @@ public sealed class ClimbSpeedScheduleTests
         var cmd = new ClimbMaintainCommand(40000);
         CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(42)));
 
-        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+        // CM keeps an ATC speed (AIM 4-4-12.f)
+        Assert.True(ac.Targets.HasExplicitSpeedCommand);
     }
 
     [Fact]

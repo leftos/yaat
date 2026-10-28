@@ -72,7 +72,7 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | `AssignedMagneticHeading` | `MagneticHeading?` | `FH`/`TL`/`TR`/`FPH`/`PTAC` | (UI/autopilot only — not consumed by the integrator) | Persists for the UI until the aircraft leaves the vector (direct, route and procedure joins, approach clearances, hold start) or is re-vectored |
 | `AssignedAltitude` | `double?` ft MSL | `CM`/`DM`, `FA`, `CFIX`, `CAPP`/`PTAC` (crossing altitude, except a CFIX whose bound the assigned altitude already lies strictly beyond, which keeps it; PTAC always), `CTO`, military-route clearances, `WARP`, live-traffic assume | (UI/autopilot only) | Persists for the UI |
 | `AssignedSpeed` | `double?` KIAS | `SPD`/`SLOW`/`RFAS` | (UI/autopilot only) | Persists for the UI |
-| `HasExplicitSpeedCommand` | `bool` | `SPD` handler | guards the auto speed schedule + planner + `AutoCancelSpeedAtFinal` | Cleared on bare altitude commands |
+| `HasExplicitSpeedCommand` | `bool` | `SPD`, `MACH`, `RFAS`, `SPDN` handlers | guards the auto speed schedule + planner + `AutoCancelSpeedAtFinal` | Cleared by `RNS`, `RPS`, `DSR`, `DVIA`/`CVIA`, an approach clearance and the §5-7-1.b.4 auto-cancel on final; a new speed replaces it; an altitude clearance (`CM`, `DM`, VFR at-or-above/below) keeps it |
 | `HasExplicitTurnRate` | `bool` | `TRATE` handler | prevents pattern phases overwriting `TurnRateOverride` | Cleared on `TRATE` (no arg), Warp, phase-clear |
 | `TargetMach` | `double?` | Mach handlers | `UpdateSpeed` (recomputes equiv. IAS) | Persists until a new speed command |
 | `NavigationRoute` | `List<NavigationTarget>` | nav handlers, approach phases | `UpdateNavigation` and the planners | Front-popped on sequencing |

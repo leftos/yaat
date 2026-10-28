@@ -15,10 +15,11 @@ namespace Yaat.Sim.Tests;
 /// <para>Every command that sets the explicit flag must carry the provenance with it, and every
 /// <em>command</em> that clears the explicit flag must clear the provenance too — a stale
 /// <see langword="true"/> disables every consumer that reads it, the same-runway arrival protection among
-/// them, for the rest of that aircraft's life. The one deliberate exception is a <em>phase</em> borrowing
-/// speed authority: <see cref="MakeTurnPhase"/> and its siblings hand the speed back at the end of the
-/// maneuver, which neither grants nor revokes a controller's ownership (§5-7-4 retains an assignment until
-/// it is deleted). All four rules are pinned below.</para>
+/// them, for the rest of that aircraft's life. An altitude clearance (CM, DM, VFR restriction) keeps both
+/// (AIM 4-4-12.f), and delete-speed-restrictions clears both. The one deliberate exception is a <em>phase</em>
+/// borrowing speed authority: <see cref="MakeTurnPhase"/> and its siblings hand the speed back at the end of
+/// the maneuver, which neither grants nor revokes a controller's ownership (§5-7-4 retains an assignment
+/// until it is deleted). All five rules are pinned below.</para>
 /// </summary>
 public class ControlTargetsSpeedProvenanceTests
 {
@@ -141,40 +142,54 @@ public class ControlTargetsSpeedProvenanceTests
         Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
     }
 
+    // ---- Commands that keep it ---------------------------------------------------------
+
     [Fact]
-    public void ClimbMaintain_ClearsBothFlags()
+    public void DeleteSpeedRestrictions_ClearsBothFlags()
+    {
+        AircraftState aircraft = WithControllerIssuedSpeed();
+
+        CommandResult result = Dispatch(aircraft, new DeleteSpeedRestrictionsCommand(), isScenarioScripted: false);
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
+    }
+
+    [Fact]
+    public void ClimbMaintain_KeepsBothFlags()
     {
         AircraftState aircraft = WithControllerIssuedSpeed();
 
         CommandResult result = Dispatch(aircraft, new ClimbMaintainCommand(10000, AltitudeAssignmentModifier.None), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
-        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
-        Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
     }
 
     [Fact]
-    public void DescendMaintain_ClearsBothFlags()
+    public void DescendMaintain_KeepsBothFlags()
     {
         AircraftState aircraft = WithControllerIssuedSpeed();
 
         CommandResult result = Dispatch(aircraft, new DescendMaintainCommand(4000), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
-        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
-        Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
     }
 
     [Fact]
-    public void VfrAltitudeRestriction_ClearsBothFlags()
+    public void VfrAltitudeRestriction_KeepsBothFlags()
     {
         AircraftState aircraft = WithControllerIssuedSpeed();
 
         CommandResult result = Dispatch(aircraft, new ClimbMaintainCommand(8000, AltitudeAssignmentModifier.AtOrBelow), isScenarioScripted: false);
 
         Assert.True(result.Success, result.Message);
-        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
-        Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.True(aircraft.Targets.SpeedCommandIsControllerIssued);
     }
 
     // ---- The phase-borrow exception ---------------------------------------------------

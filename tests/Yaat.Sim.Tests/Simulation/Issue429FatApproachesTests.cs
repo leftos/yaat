@@ -31,7 +31,9 @@ public class Issue429FatApproachesTests
     private const string RecordingPath = "TestData/issue429-fat-approaches-recording.zip";
     private const string Callsign = "ASA1054";
     private const int ReplayStartSeconds = 3010;
-    private const int WatchEndSeconds = 3100;
+
+    // SPD 210 stands through DM 40 until the t=3017 CAPP (AIM 4-4-12.f), so ASA1054 reaches the localizer later; it joins final at t=3107.
+    private const int WatchEndSeconds = 3114;
     private const string LandingCallsign = "N200WM";
     private const int LandingReplayStartSeconds = 1390;
     private const int LandingWatchSeconds = 240;

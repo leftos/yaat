@@ -124,8 +124,6 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
-        aircraft.Targets.HasExplicitSpeedCommand = false;
-        aircraft.Targets.SpeedCommandIsControllerIssued = false;
         SetPatternAltitudeOverride(aircraft, cmd.Altitude);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
@@ -168,8 +166,6 @@ internal static class FlightCommandHandler
         CancelViaClearances(aircraft);
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
-        aircraft.Targets.HasExplicitSpeedCommand = false;
-        aircraft.Targets.SpeedCommandIsControllerIssued = false;
 
         switch (cmd.Modifier)
         {
@@ -197,8 +193,6 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
-        aircraft.Targets.HasExplicitSpeedCommand = false;
-        aircraft.Targets.SpeedCommandIsControllerIssued = false;
         SetPatternAltitudeOverride(aircraft, cmd.Altitude);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
@@ -529,6 +523,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
+        aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.SpeedRestrictionsDeleted = true;
         aircraft.Procedure.LastProcedureSpeedKts = null;

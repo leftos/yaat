@@ -103,10 +103,10 @@ public class ControlTargets
     public double? AssignedSpeed { get; set; }
 
     /// <summary>
-    /// True when the controller has issued an explicit SPD command.
-    /// Prevents altitude-based auto speed scheduling from overriding
-    /// the controller's instruction. Cleared on altitude commands
-    /// without an accompanying speed.
+    /// True while an ATC speed assignment stands. Prevents altitude-based auto speed scheduling
+    /// from overriding it. Cleared when ATC ends the assignment (RNS, RPS, DSR, DVIA/CVIA, an
+    /// approach clearance; AIM 4-4-12.f, 7110.65 §5-7-1.d) and by <see cref="FlightPhysics"/>'s
+    /// §5-7-1.b.4 auto-cancel; a new speed replaces it; an altitude clearance keeps it.
     /// </summary>
     public bool HasExplicitSpeedCommand { get; set; }
 
@@ -116,7 +116,8 @@ public class ControlTargets
     /// whose <see cref="Commands.DispatchContext.IsScenarioScripted"/> is false.
     ///
     /// <para>Cleared wherever a <em>command</em> clears <see cref="HasExplicitSpeedCommand"/> — resume-normal-speed,
-    /// a bare altitude assignment, and <see cref="FlightPhysics"/>'s §5-7-1.b.4 auto-cancel at the final gate — but
+    /// resume-published-speed, delete-speed-restrictions, a descend or climb via, an approach clearance, and
+    /// <see cref="FlightPhysics"/>'s §5-7-1.b.4 auto-cancel at the final gate — but
     /// deliberately <em>not</em> where a phase does. <see cref="Phases.Tower.ManeuverSpeedController"/> borrows speed
     /// authority for the length of a 360/270/S-turn and hands it back, which neither grants nor revokes a
     /// controller's ownership: the controller's assignment outlives the borrow (§5-7-4 retains an assignment until it
