@@ -13,7 +13,7 @@ The test projects:
 
 | Project | Tests | Notable harness wiring |
 |---|---|---|
-| `tests/Yaat.Sim.Tests` | Simulation, commands, physics, phases, navdata, parsers, ground/pathfinder | `ModuleInit` warms CIFP/NavData, registers the lazy `NavigationDatabase` test default loader + `GroundNavigator.ThrowOnOrbit`; `xunit.runner.json` parallelizes collections |
+| `tests/Yaat.Sim.Tests` | Simulation, commands, physics, phases, navdata, parsers, ground/pathfinder | `ModuleInit` loads the aircraft tables, warms CIFP/NavData, registers the lazy `NavigationDatabase` test default loader + `GroundNavigator.ThrowOnOrbit`; `xunit.runner.json` parallelizes collections |
 | `tests/Yaat.Client.UI.Tests` | Avalonia headless UI / `MainViewModel` / `UserPreferences` | `ModuleInit` redirects `YAAT_APPDATA_DIR` and registers the lazy `NavigationDatabase` test default loader; `xunit.runner.json` *disables* collection parallelism |
 | `tests/Yaat.LayoutInspector.Tests` | LayoutInspector CLI parsing and tick-recording merge | None — plain unit tests over the tool project |
 | yaat-server tests (`../yaat-server`) | Server rooms, hub, broadcast | Reached only via `tools/test-all.ps1` — bare `dotnet test` from yaat never builds them |
@@ -119,8 +119,7 @@ right one for a new test project.
 - Sets `GroundNavigator.ThrowOnOrbit = true`. A pure-pursuit *orbit* (the navigator circling a node it can't converge on) becomes a hard
   test failure instead of the graceful recovery the shipping app does (the app leaves `ThrowOnOrbit` false to avoid crashing a live
   session). This turns a class of silent ground-following bugs into loud test failures.
-- Calls `TestVnasData.SetTestDataDir(<BaseDirectory>/TestData)`, then warms CIFP and NavData once (`CifpPathResolver.EnsureCurrentCycle`
-  / `NavDataPathResolver.EnsureCurrent` with the bundled fallbacks) so the first test touching `NavigationDb` doesn't pay the resolve.
+- Calls `TestVnasData.SetTestDataDir(<BaseDirectory>/TestData)` and loads the aircraft tables (`TestVnasData.EnsureAircraftDataInitialized`), so no test reads a category, CWT or profile from an empty table. Then it warms CIFP and NavData once (`CifpPathResolver.EnsureCurrentCycle` / `NavDataPathResolver.EnsureCurrent` with the bundled fallbacks), so the first test touching `NavigationDb` doesn't pay the resolve.
 - Warms `AirspaceDatabase.Default` and `MilitaryRouteDatabase.Default` on a background task, as the server does at startup —
   otherwise the first test to tick physics pays the airspace GeoJSON parse inside its own timing.
 
@@ -574,6 +573,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **Static-singleton race.** A class reading a `TestVnasData`-populated singleton (`AircraftProfileDatabase`, `AircraftSiblingMap`,
   `NavigationDatabase`, …) can race a class mid-init. Symptom: `Expected 98 / Actual 96.5` (default-fallback), passes alone, flakes in the
   suite. **Fix: `TestVnasData.EnsureInitialized()` in the class *constructor*.**
+- **A type staged with the wrong category's rates.** `AircraftCategorization.Categorize` returns `Jet` for an empty table, so a test that read a category before the aircraft tables loaded staged a piston as a jet whenever its case was the first table reader in the process (`FirmRateHoldShortTests`' C172 case). Sim's `ModuleInit` now loads the tables before any test. A test project without that, or a rig whose header rates differ from the rates it reads later, is the place to look.
 - **A yaat-server test room's aircraft CIDs are random unless the seed is pinned.** Rooms seed their RNG from `Random.Shared` (`ScenarioSeedSource.RngSeed()`; `RoomEngineTestHarness` never pins it), so each aircraft draws a random 3-digit CID.
 
   A test that types a 3-digit flight ID can collide with a drawn CID and flake. Pin the seed with `harness.SeedSource.Pin(...)`, as `EramConformance.BuildAsync` does, or type a CID no aircraft holds (and assert that precondition). `EramConformanceQaTests` and `EramFlidResolutionTests.FreeCid` flaked this way.
