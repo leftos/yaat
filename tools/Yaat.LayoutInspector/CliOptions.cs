@@ -28,6 +28,13 @@ public sealed record CliOptions
     public string? AirportCode { get; init; }
     public string? NavDataDir { get; init; }
 
+    /// <summary>
+    /// Path to the airport's tower-cab videomap GeoJSON, read with
+    /// <see cref="TowerCabVideoMap.Read"/> and handed to the layout build, so the parsed graph is the one the server builds
+    /// (painted hold-short bars snapped onto the paint). Null when absent, which parses with no map. Set via <c>--videomap</c>.
+    /// </summary>
+    public string? VideoMapPath { get; init; }
+
     public List<string> Taxiways { get; init; } = [];
     public List<string> Runways { get; init; } = [];
     public List<int> NodeIds { get; init; } = [];
@@ -223,6 +230,7 @@ public sealed record CliOptions
         bool jsonOutput = false;
         bool dumpAll = false;
         FilletMode filletMode = FilletMode.Standard;
+        string? videoMapPath = null;
         bool debugFillets = false;
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
@@ -352,6 +360,9 @@ public sealed record CliOptions
                     break;
                 case "--fillet-mode" when i + 1 < args.Length:
                     filletMode = ParseFilletMode(args[++i]);
+                    break;
+                case "--videomap" when i + 1 < args.Length:
+                    videoMapPath = args[++i];
                     break;
                 case "--debug-fillets":
                     debugFillets = true;
@@ -548,6 +559,7 @@ public sealed record CliOptions
             JsonOutput = jsonOutput,
             DumpAll = dumpAll,
             FilletMode = filletMode,
+            VideoMapPath = videoMapPath,
             DebugFillets = debugFillets,
             DebugExits = debugExits,
             ExitQueries = exitQueries,

@@ -50,6 +50,11 @@ pwsh tools/gate.ps1 -Log .tmp/li-621-d1.log -TimeoutSeconds 120 -Slot heavy -- d
 # Useful for dumping a fillet cluster without listing every member id by hand.
 ```
 
+**Parse with the tower-cab videomap (the graph the server and the map-built harness use, with snapped hold-short bars):**
+```bash
+pwsh tools/gate.ps1 -Log .tmp/li-videomap.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <OAK geojson> --videomap tests/Yaat.Sim.Tests/TestData/TowerCabMaps/oak.geojson --validate
+```
+
 **Diagnose junction corners — fan/turn angle of every edge pair + the bridging taxiway (`--node-angles`):**
 ```bash
 pwsh tools/gate.ps1 -Log .tmp/li-angles.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --fillet-mode none --node 349 --node-angles
@@ -105,6 +110,7 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--dump` | flag | Full airport JSON |
 | `--json` | flag | JSON output mode |
 | `--no-fillets` | flag | Parse without fillet arcs |
+| `--videomap <path>` | no | Parse with this tower-cab videomap GeoJSON (the snapped hold-short bars the server builds) |
 | `--debug-fillets` / `--debug-exits` | flag | Enable subsystem debug logging |
 | `--validate` | flag | Run graph validation checks |
 | `--html <path>` | no | Interactive HTML render (pan/zoom, URL-persisted view) |
