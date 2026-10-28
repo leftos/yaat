@@ -5,8 +5,6 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [/] YAAT-1372 Fix flaky ScenarioLoadProgressTests.ConcurrentLayoutFetches_ShowWhatIsStillRunning_AsEachFinishes (misses '1 of 3: SQL, SFO' under load) · release vNext — Urgent · No project
-- [/] YAAT-1373 Fix flaky LiveTrafficDvrTests.Seek_DropsEveryAircraft_AndStandsTheRoomAtTheInstant ('replay never became ready' under load) · release vNext — Urgent · No project
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -16,6 +14,10 @@
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
   - [/] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
+  - [ ] YAAT-1380 Stop an OAK HOLD near a snapped bar from running the aircraft past the hold line · release vNext
+  - [ ] YAAT-1381 Route straight across 28R on B between OAK's snapped bars instead of looping via C, RAMP and A · release vNext
+  - [ ] YAAT-1382 Give OAK's C route onto 15/33 a hold-short bar at the snapped 33 threshold · release vNext
+  - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -95,6 +97,7 @@
 - [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
 - [ ] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP
+- [ ] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -902,6 +905,7 @@
 - [ ] YAAT-1370 Release the controller-AI runway crossing gate once airborne traffic has passed the crossing point
 - [ ] YAAT-1371 Project a braking stop-and-go to its stop before judging the go-around (late go-around behind it)
 - [ ] YAAT-1376 Stop OakPreferLaterOnsideExitTests counting P's south-side bar as an on-side exit
+- [ ] YAAT-1384 Refuse a TAXI that needs a turn-about with the turn-about reason, not 'unreachable'
 
 ## No project
 
