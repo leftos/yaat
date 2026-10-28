@@ -133,6 +133,18 @@ public sealed record AircraftProfileOverride
     public double? StandardTurnRateOverride { get; init; }
 
     /// <summary>
+    /// Maximum operating speed (KCAS) from a type certificate or OpenAP. Not merged by <see cref="ApplyTo"/>:
+    /// <see cref="AircraftProfileDatabase"/> keeps it in its own per-type map, so an entry carrying only Vmo/Mmo
+    /// creates or alters no profile.
+    /// </summary>
+    [JsonPropertyName("vmo")]
+    public double? Vmo { get; init; }
+
+    /// <summary>Maximum operating Mach number. Kept beside <see cref="Vmo"/>, outside the profile merge.</summary>
+    [JsonPropertyName("mmo")]
+    public double? Mmo { get; init; }
+
+    /// <summary>
     /// Merge this override onto <paramref name="baseProfile"/>. Returns the merged profile and
     /// the set of <see cref="AircraftProfile"/> property names that were overridden (so the
     /// correction adapter can treat exactly those fields as authoritative).

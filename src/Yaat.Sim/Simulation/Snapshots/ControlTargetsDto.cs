@@ -22,6 +22,11 @@ public sealed class ControlTargetsDto
     public required bool HasExplicitSpeedCommand { get; init; }
     public bool SpeedCommandIsControllerIssued { get; init; }
     public bool SpeedOverridesFinalGate { get; init; }
+
+    // Additive, no schema bump: written only when true, so older snapshots (and their hashes) are unchanged and restore false.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SpeedLimitsLifted { get; init; }
+
     public bool HasExplicitTurnRate { get; init; }
     public double? TargetMach { get; init; }
     public List<NavigationTargetDto>? NavigationRoute { get; init; }

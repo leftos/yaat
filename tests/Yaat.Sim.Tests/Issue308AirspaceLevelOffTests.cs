@@ -326,7 +326,7 @@ public sealed class Issue308AirspaceLevelOffTests
         Assert.Equal(220, ac.IndicatedAirspeed, 0.5);
         Assert.Equal(280, Assert.IsType<double>(ac.Targets.TargetSpeed), 0.5);
         // A chained SPD is finished in this state: the aircraft is flying the fastest speed allowed it here.
-        Assert.True(FlightPhysics.IsSpeedAssignmentHeldAtRegulatoryLimit(ac), "the held assignment must read as complete at the clamped speed");
+        Assert.True(FlightPhysics.IsSpeedAssignmentHeldAtSpeedLimit(ac), "the held assignment must read as complete at the clamped speed");
 
         ac.Targets.SpeedCeiling = null;
         Tick(ac, seconds: 60);

@@ -165,7 +165,7 @@ squawk note (7700/7600) → coasting note → `SeedState`:
    warning.
 6. **Speed** (after lateral, so a STAR speed restriction cannot clobber it): below 10 000 ft the seed is clamped between
    the type's approach speed and 250 KIAS (§5-7-1.b.4 — an arrival slowed for the approach is never sped back up;
-   §91.117); above, 0.75–1.25× the type's default (no Vmo data). Feed `ClearedSpeedKts` overrides; `TargetMach` from the
+   §91.117); above, 0.75–1.25× the type's default (the seed itself applies no Vmo/Mmo; once assumed, physics holds the aircraft to them like any other). Feed `ClearedSpeedKts` overrides; `TargetMach` from the
    air vector at/above FL240.
 7. **Vertical** (skipped when an approach was installed — the approach owns the vertical path): level when the last 3
    samples span ≤ 200 ft and |VS| ≤ 400 fpm (Mode C is 100-ft quantised), or while coasting → altitude to the 100 ft

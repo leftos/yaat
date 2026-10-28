@@ -41,6 +41,13 @@ public class ControlTargetsSpeedProvenanceTests
     {
         TestVnasData.EnsureInitialized();
         AircraftState aircraft = Arrival();
+
+        // A Mach hold is flown at altitude: at 6,000 ft M0.78 is past the CRJ2's Vmo and a controller's is refused.
+        if (command is MachCommand)
+        {
+            aircraft.Altitude = 33_000;
+        }
+
         CommandResult result = Dispatch(aircraft, command, isScenarioScripted);
         Assert.True(result.Success, result.Message);
         return aircraft;
@@ -117,6 +124,14 @@ public class ControlTargetsSpeedProvenanceTests
 
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.False(aircraft.Targets.SpeedCommandIsControllerIssued);
+    }
+
+    [Fact]
+    public void ScriptedForceSpeed_SetsSpeedLimitsLifted()
+    {
+        AircraftState aircraft = AfterDispatch(new ForceSpeedCommand(180), isScenarioScripted: true);
+
+        Assert.True(aircraft.Targets.SpeedLimitsLifted);
     }
 
     [Fact]

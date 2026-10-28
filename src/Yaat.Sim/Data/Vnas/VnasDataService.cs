@@ -362,6 +362,26 @@ public sealed class VnasDataService : IDisposable
 
         try
         {
+            string envelopeClassPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftSpeedEnvelopeClasses.json");
+            if (File.Exists(envelopeClassPath))
+            {
+                AircraftSpeedEnvelope.Initialize(AircraftSpeedEnvelope.LoadFromFile(envelopeClassPath));
+            }
+            else
+            {
+                Log.LogWarning(
+                    "AircraftSpeedEnvelopeClasses.json not found at {Path}; only override Vmo/Mmo figures will limit speeds",
+                    envelopeClassPath
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to load aircraft speed envelope classes; only override Vmo/Mmo figures will limit speeds");
+        }
+
+        try
+        {
             string path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
             if (!File.Exists(path))
             {

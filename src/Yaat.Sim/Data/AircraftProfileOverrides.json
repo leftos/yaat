@@ -32,5 +32,219 @@
     "typeCode": "MD81",
     "note": "The MD81's base profile carries no landing distance (0), so every runway counted as landable for it. Set to the MD82's 5,200 ft landing distance, the same airframe and the closest sourced figure. Source: AircraftProfiles.json MD82 row. Validated by aviation-sim-expert.",
     "landingDistance": 5200
+  },
+  {
+    "typeCode": "A19N",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A20N",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A21N",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A318",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A319",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A320",
+    "note": "Vmo 350 KCAS / Mmo 0.82 from EASA TCDS A.064 (Airbus A318/A319/A320/A321), section III.10.",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A321",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "A332",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 330,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "A333",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 330,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "A343",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 330,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "A359",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.89
+  },
+  {
+    "typeCode": "A388",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.89
+  },
+  {
+    "typeCode": "B37M",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B38M",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B39M",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B3XM",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B734",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B737",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B738",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B739",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 340,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "B744",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 365,
+    "mmo": 0.92
+  },
+  {
+    "typeCode": "B748",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 365,
+    "mmo": 0.92
+  },
+  {
+    "typeCode": "B752",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 350,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "B763",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 360,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "B772",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 330,
+    "mmo": 0.89
+  },
+  {
+    "typeCode": "B773",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 330,
+    "mmo": 0.89
+  },
+  {
+    "typeCode": "B77W",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 330,
+    "mmo": 0.89
+  },
+  {
+    "typeCode": "B788",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0). OpenAP's Vmo of 515 is outside 15% of the J2H category figure (335) and is dropped, so Vmo comes from the category.",
+    "mmo": 0.9
+  },
+  {
+    "typeCode": "B789",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0). OpenAP's Vmo of 515 is outside 15% of the J2H category figure (335) and is dropped, so Vmo comes from the category.",
+    "mmo": 0.9
+  },
+  {
+    "typeCode": "C550",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 270,
+    "mmo": 0.7
+  },
+  {
+    "typeCode": "CRJ9",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 320,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "E145",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 320,
+    "mmo": 0.78
+  },
+  {
+    "typeCode": "E170",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 320,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "E190",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 320,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "E195",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 320,
+    "mmo": 0.82
+  },
+  {
+    "typeCode": "E75L",
+    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "vmo": 320,
+    "mmo": 0.82
   }
 ]

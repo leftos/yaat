@@ -97,6 +97,8 @@ All fields are nullable. The full set mirrors `AircraftProfile`:
 
 `isProp`, `isHelo`, `isHeavy`, `isSpeedLimitWaived`, `airborneAccelRate`, `airborneDecelRate`, `groundAccelRate`, `takeoffDistance`, `rotateSpeed`.
 
+Two more fields are not profile fields: `vmo` (KCAS) and `mmo` (Mach) give the type's maximum operating speeds ([Speed limits](#speed-limits-vmo-and-mmo)). `ApplyTo` ignores them.
+
 One field corrects the FAA aircraft characteristics record instead of the profile: `mainGearWidthFt` replaces the record's main-gear width (BT36's 12.8 ft is the BE36's 9.6). `AircraftProfileDatabase.Initialize` hands the overrides to `FaaAircraftDatabase.ApplyOverrides`, which keeps the corrections and applies them again on every `FaaAircraftDatabase.Initialize`, so either load order keeps them. An override with a blank type, a width of zero or less, or a type with no FAA record of its own is logged and not applied. `ApplyTo` ignores the field, and an override that sets nothing else adds no profile entry (the type keeps its sibling fallback).
 
 The climb and cruise fields are `climbSpeedInitial`, `climbSpeedFl150`, `climbSpeedFl240`, `climbSpeedFinal`, `climbRateInitial`, `climbRateFl150`, `climbRateFl240`, `climbRateFinal`, `cruiseSpeed`, `cruiseAltitude`, `ceiling`.
@@ -111,11 +113,28 @@ whereas `climbRateInitial` is ground level. `AircraftPerformance.DescentRate` in
 `descentRateFl100` at 10,000 ft → `descentRateInitial` at `ceiling`. Anchoring "Initial" at 0 ft (a copy of the climb
 ladder) inverts both tails of every jet baseline.
 
+## Speed limits (Vmo and Mmo)
+
+`AircraftPerformance.MaxOperatingIasKts(type, altitude)` is the fastest the type may be flown: the lower of Vmo and Mmo's IAS equivalent at that altitude, or Vmo alone where the type has no Mmo (a helicopter). It is null for a type with neither figure, and then nothing is refused or capped for it. `MaxOperatingMach(type)` is Mmo alone, and `MinOperatingIasKts(type, category)` is the type's final approach speed at every altitude (a helicopter has no minimum).
+
+The physics cap and the unable refusal both read these ([flight-physics.md](flight-physics.md), COMMANDS.md).
+
+Vmo and Mmo come from two sources, an override figure first:
+
+1. **An override entry's `vmo` (KCAS) and `mmo`** in `AircraftProfileOverrides.json`, from the type certificate data sheet or OpenAP. They are per exact type with no sibling fallback, and an entry carrying only `vmo`/`mmo` creates or alters no profile.
+2. **The type's speed envelope class** from `Data/AircraftSpeedEnvelopeClasses.json`, a flat `{ "A320": "J2M" }` table over the profile types (a type with no entry takes its sibling's class).
+
+   The class figures live in `AircraftSpeedEnvelope` and are the dummy aircraft models shipped with EUROCONTROL's pybada: BZJT 292 kt / M0.755, J2M 340 / M0.82, J2H 335 / M0.82, J4H 365 / M0.92, TP2M 250 / M0.55, GA 126 / M0.24, DUMH (helicopters) 150 kt and no Mmo. A class code that names no class fails the load.
+
+Either figure is then raised to the highest IAS and Mach the type's own profile schedule flies (`ProfileScheduleFloor`), sampled every 100 ft from the ground to the ceiling and at the schedule's band altitudes (10,000 ft, FL150, FL240, cruise altitude, ceiling), so the limit never falls below a speed the profile itself uses. The result is cached per type and cleared whenever the profiles, the envelope classes, the categorization or the correction adapter is replaced.
+
 ## Files
 
 | File | Role |
 |------|------|
 | `Data/AircraftProfiles.json` | BADA-derived base profiles (bulk). |
+| `Data/AircraftSpeedEnvelopeClasses.json` | Type → speed envelope class code (Vmo/Mmo source). |
+| `AircraftSpeedEnvelope.cs` | The class figures and `ClassFor` (own entry, else sibling's). |
 | `Data/AircraftProfileSiblings.json` | Type → nearest-sibling fallback map. |
 | `Data/AircraftProfileOverrides.json` | **Authoritative partial corrections (edit this to fix a type).** |
 | `Data/AircraftProfileOverride.cs` | Override DTO + `ApplyTo` partial-merge. |

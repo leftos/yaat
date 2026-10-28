@@ -1723,11 +1723,13 @@ When the assigned altitude already lies beyond an at-or-above or at-or-below bou
 
 While it is still on the wrong side of the bound it climbs or descends fast enough to make the crossing (never slower than its normal rate, at most twice it), then at its normal rate (`DM 120` then `CFIX X A110` stays at 12,000; `CM 140` then `CFIX PORTE A120` climbs straight to 14,000). A plain "at" crossing, `DVIA`/`CVIA` and an aircraft with no assigned altitude behave as before. The flight planners treat any non-via bound on the route the same way.
 
-The speed given with a CFIX always reverts after the fix.
+The speed given with a CFIX always reverts after the fix. A CFIX speed the type can fly neither now nor at the crossing altitude is refused as unable and changes nothing (see "Unable: a speed the type cannot fly" under Speed Management); an accepted one ends an `SPDN`'s lift of the speed limits, an altitude-only CFIX does not.
 
 **Constrained DCTF** — `DCTF FIX1/A080 FIX2/050 FIX3` attaches altitude constraints inline. The `/` suffix uses the same CFIX altitude format. All constraints are visible to the planner simultaneously, so the aircraft plans descent across multiple waypoints at once.
 
 Past the last constrained fix the altitude revert follows the same rule as CFIX: it applies only when it continues the aircraft's direction of flight, otherwise the last crossing altitude stays assigned, except that an assigned altitude already meeting the last constraint's at-or-above, at-or-below or window bound is kept, as with CFIX.
+
+A constrained DCTF crossing speed the type can fly neither now nor at that fix's crossing altitude (its assigned altitude when the fix has none) is refused as unable before anything changes, as for CFIX; an accepted one ends an `SPDN`'s lift of the speed limits.
 
 A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` and earlier crossing restrictions** below), unless the crossing is given in the same transmission as the `DVIA`.
 
@@ -1816,6 +1818,15 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `SPD 180 AXMUL` | ATCTrainer alias for `SPD 180 UNTIL AXMUL` |
 
 **Speed limits (14 CFR 91.117)** — an assigned speed above the limit (250 knots below 10,000 ft, 200 knots beneath a Class B shelf) is flown at the limit and taken up when the limit no longer applies — climbing through 10,000 ft or leaving the shelf — without a new instruction. A chained command behind it (`SPD 280; H 090`) advances once the aircraft has settled at the limit.
+
+The same holds for the type's own maximum: every speed, whether assigned, a Mach hold, published or the automatic climb and descent schedule, is also held to the type's Vmo and Mmo, recomputed each tick, and an assignment held there is kept rather than cancelled.
+
+**Unable: a speed the type cannot fly** — `SPD`, `SPEEDF`, `MACH`, a `CFIX` crossing speed and a constrained `DCTF` crossing speed are refused with an "unable" that names the speed the aircraft can fly, and change nothing (the aircraft keeps its speed and any earlier assignment):
+
+- Past the maximum: `unable, 290 knots is the fastest we can do`; above the altitude where Mmo is the governing limit the pilot names a Mach number instead, `unable, Mach point eight two is the fastest we can do`. The figure is floored (to ten knots, or to the hundredth of a Mach) so it is always a speed the aircraft can fly.
+- Below the minimum: the type's final approach speed, at every altitude, `unable, 140 knots is the slowest we can do`. A helicopter has no minimum, and a type whose minimum sits above its maximum is told only the fastest.
+- A speed is refused only when the type can fly it neither at its present altitude nor at the altitude it is assigned (the cleared altitude, or the crossing altitude for a `CFIX`/`DCTF` fix). A speed it can fly at the assigned altitude is accepted and held at the limit until it gets there. A `MACH` is checked the same way, and any Mach number past Mmo is refused whatever the altitude.
+- `SPD n+` is checked against the maximum only and `SPD n-` against the minimum only. A type with no known limits refuses nothing, an aircraft on the ground is not checked, and a speed in a scenario preset is capped at the limit rather than refused.
 
 **Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
 
@@ -2421,6 +2432,10 @@ When you need to immediately correct an aircraft's state (rather than waiting fo
 These commands set the aircraft's state immediately — no gradual transition. Useful for RPO corrections when an aircraft is in the wrong state. `TRATE` overrides the category-based turn rate for fine control over vectoring behavior.
 
 Note: a force speed (`SPDN`, `SPDN RFAS`) never cancels an approach clearance, on any leg, inside 5nm final or in a procedure turn or hold included. A force altitude (`CMN`/`DMN`) follows the altitude rule under [Approach Control Commands](#approach-control-commands).
+
+Note: `SPDN` and `SPDN RFAS` also lift every speed cap on the aircraft: the type's Vmo/Mmo and 14 CFR 91.117, the 200-knot Class B shelf included, so the aircraft flies the speed whatever it is.
+
+The lift ends at the aircraft's next controller speed act: `SPD`, `SPEEDF`, `MACH`, `RFAS`, `DSR`, `RNS`, `RPS`, `DVIA`, `CVIA`, an approach clearance (the relaxed lateral-intercept `CAPP` included), a `CFIX` or constrained `DCTF` with a speed, or `WARP`. A refused speed, an altitude-only `CFIX`, `CM`/`DM`, a phase change and landing leave it in place. `SPEEDF` lifts nothing: it is refused past the limits like `SPD`.
 
 Note: `SPDN` teleports IAS instantly. To assign a speed that overrides the 5nm-final restriction but still converges *gradually* via physics (the realistic controller instruction), use `SPEEDF` instead (see the Speed commands above).
 

@@ -69,7 +69,7 @@ public static class LiveTrafficAssumer
 {
     private static readonly ILogger Log = SimLog.CreateLogger("LiveTrafficAssumer");
 
-    /// <summary>Above 10 000 ft the speed seed is clamped to this band around the type's default (no Vmo data is available).</summary>
+    /// <summary>Above 10 000 ft the speed seed is clamped to this band around the type's default; physics then holds it to Vmo/Mmo.</summary>
     public const double SpeedClampLowRatio = 0.75;
     public const double SpeedClampHighRatio = 1.25;
 

@@ -412,6 +412,12 @@ public static class TestVnasData
             AircraftSiblingMap.Initialize(siblings);
         }
 
+        string envelopeClassPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftSpeedEnvelopeClasses.json");
+        if (File.Exists(envelopeClassPath))
+        {
+            AircraftSpeedEnvelope.Initialize(AircraftSpeedEnvelope.LoadFromFile(envelopeClassPath));
+        }
+
         Dictionary<string, AircraftProfile> profiles = AircraftProfileDatabase.LoadFromFile(path);
         string overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
         IReadOnlyList<AircraftProfileOverride> overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);

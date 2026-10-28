@@ -77,8 +77,11 @@ public class HelicopterSpeedFloorTests
             Altitude = 3000,
         };
 
-        _ = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
+        CommandResult result = FlightCommandHandler.ApplySpeed(new SpeedCommand(30), jet, TestDispatch.Context(Random.Shared));
 
-        Assert.Equal(30, jet.Targets.TargetSpeed);
+        // Not floored to the helicopter's 60: a fixed-wing type is refused below its final approach speed instead (YAAT-1362).
+        Assert.False(result.Success, result.Message);
+        Assert.Contains("is the slowest we can do", result.Message);
+        Assert.Null(jet.Targets.TargetSpeed);
     }
 }

@@ -426,9 +426,9 @@ public class DescendViaSpeedResumeTests
             return;
         }
 
-        SendOk(harness, "MACH 78, DVIA");
+        SendOk(harness, "MACH 62, DVIA");
 
-        Assert.Equal(0.78, harness.Aircraft.Targets.TargetMach);
+        Assert.Equal(0.62, harness.Aircraft.Targets.TargetMach);
     }
 
     [Fact]

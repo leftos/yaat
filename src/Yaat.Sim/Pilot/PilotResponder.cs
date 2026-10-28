@@ -2435,6 +2435,51 @@ public static partial class PilotResponder
         return new PilotSpeechText($"unable, {cleanedReason}.", $"{spoken}, unable, {cleanedReason}.");
     }
 
+    /// <summary>Which end of the type's speed envelope a refused speed fell past, and the frame its figure is named in.</summary>
+    public enum SpeedLimitKind
+    {
+        /// <summary>Past the maximum where Vmo governs: the fastest speed, in knots.</summary>
+        FastestKnots,
+
+        /// <summary>Past the maximum where Mmo governs (above the IAS/Mach crossover): the fastest Mach number.</summary>
+        FastestMach,
+
+        /// <summary>Below the type's final approach speed: the slowest speed, in knots.</summary>
+        SlowestKnots,
+    }
+
+    /// <summary>
+    /// Pilot refusal of a speed the type cannot fly, naming the speed it can: "unable, 290 knots is the fastest we can do",
+    /// "unable, Mach .82 is the fastest we can do", "unable, 140 knots is the slowest we can do". The pilot keeps its
+    /// current speed and offers the limit instead (AIM 4-4-12.h and 7110.65 §5-7-3.a NOTE 2: a pilot unable to comply with a speed adjustment advises
+    /// ATC). The terminal line carries the figure as numerals; the spoken line reads knots as digits
+    /// (<see cref="PhraseologyVerbalizer.SpeedWords"/>) and a Mach number as "point eight two"
+    /// (<see cref="PhraseologyVerbalizer.MachWords"/>).
+    /// </summary>
+    /// <param name="aircraft">The refusing aircraft, for its spoken callsign.</param>
+    /// <param name="kind">Which limit the refused speed fell past, and so the frame the figure is named in.</param>
+    /// <param name="figure">The named speed: knots for the knots kinds, a Mach number for <see cref="SpeedLimitKind.FastestMach"/>.</param>
+    public static PilotSpeechText BuildUnableSpeedLimit(AircraftState aircraft, SpeedLimitKind kind, double figure)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string bound = kind == SpeedLimitKind.SlowestKnots ? "slowest" : "fastest";
+        if (kind == SpeedLimitKind.FastestMach)
+        {
+            string machText = figure.ToString(".00", System.Globalization.CultureInfo.InvariantCulture);
+            string machWords = PhraseologyVerbalizer.MachWords(figure);
+            return new PilotSpeechText(
+                $"unable, Mach {machText} is the {bound} we can do.",
+                $"{spoken}, unable, Mach {machWords} is the {bound} we can do."
+            );
+        }
+
+        int knots = (int)Math.Round(figure);
+        return new PilotSpeechText(
+            $"unable, {knots} knots is the {bound} we can do.",
+            $"{spoken}, unable, {PhraseologyVerbalizer.SpeedWords(knots)} knots is the {bound} we can do."
+        );
+    }
+
     private static string CleanUnableReason(string? reason)
     {
         if (string.IsNullOrWhiteSpace(reason))

@@ -572,6 +572,28 @@ public class SnapshotRoundTripTests
         Assert.Null(restored.DesiredAccelRate);
     }
 
+    /// <summary>
+    /// The SPDN flag survives JSON when set, is not written when clear (so a snapshot without it hashes as before), and
+    /// a snapshot without the member restores it clear.
+    /// </summary>
+    [Fact]
+    public void ControlTargets_SpeedLimitsLifted_RoundTrips()
+    {
+        string liftedJson = JsonSerializer.Serialize(new ControlTargets { SpeedLimitsLifted = true }.ToSnapshot(), RecordingJsonOptions.Default);
+        var lifted = new ControlTargets();
+        ControlTargets.RestoreFrom(JsonSerializer.Deserialize<ControlTargetsDto>(liftedJson, RecordingJsonOptions.Default)!, lifted);
+
+        Assert.Contains("SpeedLimitsLifted", liftedJson, StringComparison.OrdinalIgnoreCase);
+        Assert.True(lifted.SpeedLimitsLifted);
+
+        string clearJson = JsonSerializer.Serialize(new ControlTargets().ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.DoesNotContain("SpeedLimitsLifted", clearJson, StringComparison.OrdinalIgnoreCase);
+
+        var restored = new ControlTargets { SpeedLimitsLifted = true };
+        ControlTargets.RestoreFrom(JsonSerializer.Deserialize<ControlTargetsDto>(clearJson, RecordingJsonOptions.Default)!, restored);
+        Assert.False(restored.SpeedLimitsLifted);
+    }
+
     [Fact]
     public void SituationState_ExitsAhead_TurnOffAngle_RoundTrips()
     {

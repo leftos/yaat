@@ -258,8 +258,22 @@ public sealed class AircraftProfileOverrideTests
         foreach (AircraftProfileOverride ov in overrides)
         {
             Assert.False(string.IsNullOrWhiteSpace(ov.TypeCode), "every override needs a typeCode");
-            Assert.NotNull(AircraftProfileDatabase.Get(ov.TypeCode));
 
+            // An entry carrying Vmo/Mmo may name a type with no profile (e.g. the A388): those figures create none.
+            bool carriesSpeedEnvelope = (ov.Vmo is not null) || (ov.Mmo is not null);
+            if (!carriesSpeedEnvelope)
+            {
+                Assert.NotNull(AircraftProfileDatabase.Get(ov.TypeCode));
+            }
+
+            if (ov.Vmo is { } vmo)
+            {
+                Assert.InRange(vmo, 100, 500);
+            }
+            if (ov.Mmo is { } mmo)
+            {
+                Assert.InRange(mmo, 0.2, 1.0);
+            }
             if (ov.ClimbSpeedInitial is { } cs)
             {
                 Assert.InRange(cs, 40, 350);

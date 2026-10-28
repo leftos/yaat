@@ -508,6 +508,17 @@ A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the
 **Inside the FAF**:
 Established on the final and no further out than a limit measured to the landing threshold. For the speed gate and the FOLLOW refusal the limit is the published FAF capped at 5 NM (`FinalApproachFix.IsInside`); for the altitude hold and the bare-go-around refusal it is the published FAF uncapped (`FinalApproachFix.IsInsidePublishedFaf`, docs/approach-and-pattern-geometry.md).
 
+## Aircraft performance
+
+**Crossover** (IAS/Mach crossover):
+The altitude at which a constant Mach number and a constant indicated airspeed coincide. Above it the Mach number is the lower limit of the two, so a type's Mmo, not its Vmo, is the fastest it may fly; below it Vmo governs. It moves with the figures, so a refused speed names a Mach number above it and knots below.
+
+**Mmo**:
+A type's maximum operating Mach number (`AircraftPerformance.MaxOperatingMach`), null for a helicopter. With Vmo it is the fastest the type may be flown: a speed past it is refused as unable and physics holds every speed to it.
+
+**Vmo**:
+A type's maximum operating indicated airspeed in KCAS, from a type-certificate or OpenAP override figure or its pybada speed envelope class, raised to what the type's own profile schedule flies. See `docs/aircraft-performance.md`, Speed limits.
+
 ## Pilot speech
 
 **Aviation floor**:

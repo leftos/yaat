@@ -927,10 +927,12 @@ public static class CommandDispatcher
         // Authorize the descent on the join already in progress. The glideslope still gates on the
         // aircraft's lateral establishment (5°/0.15nm) — a relaxed join is not a PTACF forced
         // intercept, so ForcedInterceptCapture stays false and the gate is not bypassed even from a
-        // steep cut. Cancel speed adjustments per 7110.65 §5-7-1.d (approach clearances cancel
-        // previously assigned speeds).
+        // steep cut. An intercept-only join upgraded in place keeps the assigned speed and its flags:
+        // only the target speed and the SPDN lift are dropped (the full approach-clearance cancel is
+        // booked as YAAT-1429).
         clearance.LateralInterceptOnly = false;
         aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.SpeedLimitsLifted = false;
 
         return Ok($"Cleared {clearance.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(clearance.RunwayId)}");
     }
@@ -1297,7 +1299,7 @@ public static class CommandDispatcher
             case ForceDirectToCommand cmd:
                 return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft);
             case ConstrainedForceDirectToCommand cmd:
-                return FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft, ctx.TransmissionId);
+                return FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft, ctx);
             case AppendDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, validateDctFixes);
             case AppendForceDirectToCommand cmd:
@@ -1390,7 +1392,7 @@ public static class CommandDispatcher
             case DepartFixCommand cmd:
                 return NavigationCommandHandler.DispatchDepartFix(cmd, aircraft);
             case CrossFixCommand cmd:
-                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft, ctx.TransmissionId);
+                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft, ctx);
             case ClimbViaCommand cmd:
                 return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft, ctx);
             case DescendViaCommand cmd:

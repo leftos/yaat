@@ -14,6 +14,7 @@ public static class AircraftProfileDatabase
 
     private static Dictionary<string, AircraftProfile> _lookup = new(StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, IReadOnlySet<string>> _overriddenFields = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, (double? VmoKts, double? Mmo)> _speedEnvelopeOverrides = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> _siblingFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Lock SiblingFallbackWarnedLock = new();
 
@@ -40,6 +41,7 @@ public static class AircraftProfileDatabase
     {
         var lookup = new Dictionary<string, AircraftProfile>(baseProfiles, StringComparer.OrdinalIgnoreCase);
         var overriddenFields = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
+        var speedEnvelopeOverrides = new Dictionary<string, (double? VmoKts, double? Mmo)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (AircraftProfileOverride ov in overrides)
         {
@@ -50,6 +52,11 @@ public static class AircraftProfileDatabase
             }
 
             string type = ov.TypeCode.Trim().ToUpperInvariant();
+
+            if ((ov.Vmo is not null) || (ov.Mmo is not null))
+            {
+                speedEnvelopeOverrides[type] = (ov.Vmo, ov.Mmo);
+            }
 
             AircraftProfile baseProfile;
             if (lookup.TryGetValue(type, out AircraftProfile? direct))
@@ -80,6 +87,8 @@ public static class AircraftProfileDatabase
 
         _lookup = lookup;
         _overriddenFields = overriddenFields;
+        _speedEnvelopeOverrides = speedEnvelopeOverrides;
+        AircraftPerformance.ClearSpeedEnvelopeCache();
         FaaAircraftDatabase.ApplyOverrides(overrides);
         ClearSiblingFallbackWarnings();
         Log.LogInformation("Loaded {Count} aircraft profiles ({OverrideCount} with overrides)", _lookup.Count, overriddenFields.Count);
@@ -99,6 +108,21 @@ public static class AircraftProfileDatabase
 
         string baseType = AircraftState.NormalizedBaseType(aircraftType);
         return _overriddenFields.TryGetValue(baseType, out IReadOnlySet<string>? set) && set.Contains(fieldName);
+    }
+
+    /// <summary>
+    /// The Vmo (KCAS) and Mmo an override entry gives this exact type (TCDS or OpenAP figures), each null when the
+    /// entry leaves it out; both null when the type has no such entry. No sibling fallback: the figures are per type.
+    /// </summary>
+    public static (double? VmoKts, double? Mmo) SpeedEnvelopeOverride(string? aircraftType)
+    {
+        if (string.IsNullOrEmpty(aircraftType))
+        {
+            return (null, null);
+        }
+
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
+        return _speedEnvelopeOverrides.GetValueOrDefault(baseType);
     }
 
     /// <summary>

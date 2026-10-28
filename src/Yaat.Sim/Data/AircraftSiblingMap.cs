@@ -29,6 +29,7 @@ public static class AircraftSiblingMap
     {
         _lookup = new Dictionary<string, string>(lookup, StringComparer.OrdinalIgnoreCase);
         AircraftProfileDatabase.ClearSiblingFallbackWarnings();
+        AircraftPerformance.ClearSpeedEnvelopeCache();
         Log.LogInformation("Aircraft sibling map loaded: {Count} entries", _lookup.Count);
     }
 

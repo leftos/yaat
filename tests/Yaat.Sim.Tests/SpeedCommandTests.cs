@@ -70,7 +70,7 @@ public class SpeedCommandTests
     }
 
     [Fact]
-    public void SpeedZero_SetsTargetSpeedZero()
+    public void SpeedZero_Airborne_IsUnableNamingTheSlowest()
     {
         AircraftState ac = CreateAircraft();
         ac.Targets.TargetSpeed = 210;
@@ -79,10 +79,12 @@ public class SpeedCommandTests
 
         CommandResult result = CommandDispatcher.Dispatch(new SpeedCommand(0), ac, TestDispatch.Context(Random.Shared));
 
-        Assert.True(result.Success);
-        Assert.Equal(0, ac.Targets.TargetSpeed);
-        Assert.Null(ac.Targets.SpeedFloor);
-        Assert.Null(ac.Targets.SpeedCeiling);
+        // YAAT-1362: nothing below the type's final approach speed is flyable, so the pilot refuses and keeps its speed.
+        Assert.False(result.Success, result.Message);
+        Assert.Contains("is the slowest we can do", result.Message);
+        Assert.Equal(210, ac.Targets.TargetSpeed);
+        Assert.Equal(200, ac.Targets.SpeedFloor);
+        Assert.Equal(250, ac.Targets.SpeedCeiling);
     }
 
     // --- RNS ---

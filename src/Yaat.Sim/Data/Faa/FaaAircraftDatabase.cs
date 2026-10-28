@@ -26,6 +26,7 @@ public static class FaaAircraftDatabase
     {
         _lookup = new Dictionary<string, FaaAircraftRecord>(lookup, StringComparer.OrdinalIgnoreCase);
         ApplyStoredCorrections();
+        AircraftPerformance.ClearSpeedEnvelopeCache();
     }
 
     /// <summary>

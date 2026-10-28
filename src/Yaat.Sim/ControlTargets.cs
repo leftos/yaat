@@ -137,6 +137,16 @@ public class ControlTargets
     public bool SpeedOverridesFinalGate { get; set; }
 
     /// <summary>
+    /// True when SPDN or SPDN RFAS set the speed. While set, <see cref="FlightPhysics"/> flies the assigned speed past
+    /// 14 CFR 91.117 and the type's Vmo/Mmo: SPDN is a debug and forced-RPO command, so neither cap applies to it. SPEEDF
+    /// does not set it. Cleared by every other controller speed act (SPD, SPEEDF, MACH, RFAS, DSR, CFIX or a constrained DCTF with a speed,
+    /// WARP, and every act that cancels the assigned speed); an altitude clearance, a phase change and a refused speed
+    /// keep it. It is only ever set together with <see cref="SpeedOverridesFinalGate"/>, which
+    /// <see cref="FlightPhysics"/>'s auto-cancel at the final gate (<c>AutoCancelSpeedAtFinal</c>) relies on to exempt it.
+    /// </summary>
+    public bool SpeedLimitsLifted { get; set; }
+
+    /// <summary>
     /// True when the user has issued an explicit TRATE command.
     /// Prevents pattern phases from overwriting TurnRateOverride.
     /// Cleared on TRATE (no arg), Warp, WarpGround, and phase-clear.
@@ -177,6 +187,7 @@ public class ControlTargets
             HasExplicitSpeedCommand = HasExplicitSpeedCommand,
             SpeedCommandIsControllerIssued = SpeedCommandIsControllerIssued,
             SpeedOverridesFinalGate = SpeedOverridesFinalGate,
+            SpeedLimitsLifted = SpeedLimitsLifted,
             HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
             NavigationRoute = NavigationRoute.Count > 0 ? [.. NavigationRoute.Select(n => n.ToSnapshot())] : null,
@@ -202,6 +213,7 @@ public class ControlTargets
         targets.HasExplicitSpeedCommand = dto.HasExplicitSpeedCommand;
         targets.SpeedCommandIsControllerIssued = dto.SpeedCommandIsControllerIssued;
         targets.SpeedOverridesFinalGate = dto.SpeedOverridesFinalGate;
+        targets.SpeedLimitsLifted = dto.SpeedLimitsLifted;
         targets.HasExplicitTurnRate = dto.HasExplicitTurnRate;
         targets.TargetMach = dto.TargetMach;
         targets.NavigationRoute.Clear();

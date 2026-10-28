@@ -61,6 +61,8 @@ The table lists only the steps with a data *transform*; the authoritative full c
 
 No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. The same additive, no-bump pattern covers `LandingPhaseDto.UnableBroadcast` and `OriginalPreferenceIsRequestedExit` (false when absent) and `RunwayExitPhaseDto.TurnOffDecelRate` (null when absent: the taxi rate older builds turned off at) and `RunwayExitPhaseDto.InferredSideValue` (the default exit side `ArrivalExitSide` resolved; null when absent, which restores no side).
 
+`ControlTargetsDto.SpeedLimitsLifted` (`bool`, `WhenWritingDefault`) carries `ControlTargets.SpeedLimitsLifted`, the SPDN lift of 91.117 and Vmo/Mmo ([flight-physics.md](flight-physics.md)). It is written only when true, so every older snapshot and its hash are unchanged and restore false; no schema bump.
+
 `StateSnapshotDto.FrequencyTransmissionTimes` (`List<double>?`, `WhenWritingNull`) carries the active frequency's `FrequencyActivityMeter` times, oldest first, so a rewind or restore resumes in the load band the run was in ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) § the activity meter).
 
 `CaptureSnapshot` writes it only when the meter holds a time, so a snapshot of a quiet frequency is byte-identical to one written before the field existed, and the pinned snapshot-zero hash stays put; no schema bump.

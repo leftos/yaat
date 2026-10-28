@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Faa;
 
@@ -21,8 +22,11 @@ public static class AircraftPerformance
     /// Install a profile correction adapter. Call once at startup before any performance
     /// lookups. Pass null to revert to the default pass-through adapter.
     /// </summary>
-    public static void SetProfileCorrectionAdapter(IProfileCorrectionAdapter? adapter) =>
+    public static void SetProfileCorrectionAdapter(IProfileCorrectionAdapter? adapter)
+    {
         _correctionAdapter = adapter ?? new PassthroughProfileCorrectionAdapter();
+        ClearSpeedEnvelopeCache();
+    }
 
     /// <summary>
     /// Resolve a speed value that may be Mach (values &lt; 1.0) to IAS at the given altitude.
@@ -471,6 +475,108 @@ public static class AircraftPerformance
     /// exceed the ordinary limit. A controller <c>SPD</c> assignment overrides it.
     /// </summary>
     public static double MilitaryRouteSpeedKts(AircraftCategory category) => category == AircraftCategory.Jet ? 400 : 250;
+
+    /// <summary>
+    /// Maximum operating indicated airspeed (KIAS) at <paramref name="altitudeFt"/>: the lower of Vmo and Mmo's IAS
+    /// equivalent there, or Vmo alone where the type has no Mmo. Null when the type has neither a speed envelope class
+    /// nor an override figure, so nothing is refused for a type whose limit is unknown.
+    /// </summary>
+    public static double? MaxOperatingIasKts(string aircraftType, double altitudeFt)
+    {
+        (double? vmo, double? mmo) = ResolveSpeedEnvelope(aircraftType);
+        if ((vmo is null) && (mmo is null))
+        {
+            return null;
+        }
+
+        double max = vmo ?? double.PositiveInfinity;
+        if (mmo is { } mach)
+        {
+            max = Math.Min(max, WindInterpolator.MachToIas(mach, altitudeFt));
+        }
+
+        return max;
+    }
+
+    /// <summary>Maximum operating Mach number, or null when the type has none (helicopters, unknown types).</summary>
+    public static double? MaxOperatingMach(string aircraftType) => ResolveSpeedEnvelope(aircraftType).Mmo;
+
+    /// <summary>The slowest speed the type is flown at: its final approach speed, at every altitude.</summary>
+    public static double MinOperatingIasKts(string aircraftType, AircraftCategory cat) => ApproachSpeed(aircraftType, cat);
+
+    private const double ScheduleFloorStepFt = 100;
+
+    private static readonly ConcurrentDictionary<string, (double? Vmo, double? Mmo)> _speedEnvelopeCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Forget every resolved Vmo/Mmo. Called whenever a table the resolution reads is replaced (the profiles, the
+    /// envelope classes, the correction adapter), so the next lookup resolves against the new one.
+    /// </summary>
+    internal static void ClearSpeedEnvelopeCache() => _speedEnvelopeCache.Clear();
+
+    /// <summary>
+    /// Vmo and Mmo for the type, resolved once and remembered until a table they come from is replaced
+    /// (<see cref="ClearSpeedEnvelopeCache"/>).
+    /// </summary>
+    private static (double? Vmo, double? Mmo) ResolveSpeedEnvelope(string aircraftType) =>
+        _speedEnvelopeCache.GetOrAdd(aircraftType, static type => ComputeSpeedEnvelope(type));
+
+    /// <summary>
+    /// Vmo and Mmo for the type: an override figure (TCDS or OpenAP) first, then the class figure, each then raised to
+    /// the type's profile schedule so the limit never falls below a speed the profile itself flies
+    /// (<see cref="ProfileScheduleFloor"/>).
+    /// </summary>
+    private static (double? Vmo, double? Mmo) ComputeSpeedEnvelope(string aircraftType)
+    {
+        (double? overrideVmo, double? overrideMmo) = AircraftProfileDatabase.SpeedEnvelopeOverride(aircraftType);
+        SpeedEnvelopeClass? cls = AircraftSpeedEnvelope.ClassFor(aircraftType);
+        double? vmo = overrideVmo ?? cls?.VmoKts;
+        double? mmo = overrideMmo ?? cls?.Mmo;
+
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
+        if ((p is null) || ((vmo is null) && (mmo is null)))
+        {
+            return (vmo, mmo);
+        }
+
+        (double floorIas, double floorMach) = ProfileScheduleFloor(aircraftType, p);
+        return (vmo is { } v ? Math.Max(v, floorIas) : null, mmo is { } m ? Math.Max(m, floorMach) : null);
+    }
+
+    /// <summary>
+    /// The highest IAS and the highest Mach the profile's schedule flies: the climb and descent schedules at every
+    /// 100 ft from the ground to the ceiling and at each altitude the schedule changes band at (10,000, FL150, FL240, the
+    /// cruise altitude and the ceiling), and level cruise up to the profile's cruise altitude. The fine grid catches a
+    /// Mach peak between band points, where a constant IAS climbs toward Mmo as the air thins.
+    /// </summary>
+    private static (double Ias, double Mach) ProfileScheduleFloor(string aircraftType, AircraftProfile p)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraftType);
+        double highestIas = 0;
+        double highestMach = 0;
+        SortedSet<double> altitudes = [10_000, 15_000, 24_000, p.CruiseAltitude, p.Ceiling];
+        for (double grid = 0; grid <= p.Ceiling; grid += ScheduleFloorStepFt)
+        {
+            altitudes.Add(grid);
+        }
+
+        foreach (double alt in altitudes.Where(a => a <= p.Ceiling))
+        {
+            double flown = Math.Max(ClimbSpeed(aircraftType, cat, alt), DescentSpeed(aircraftType, cat, alt));
+
+            // Above its cruise altitude the profile defines no cruise: the constant-IAS cruise there is an extrapolation
+            // the cap holds, not a speed the type flies.
+            if (alt <= p.CruiseAltitude)
+            {
+                flown = Math.Max(flown, DefaultSpeed(aircraftType, cat, alt, targetAltitude: null));
+            }
+
+            highestIas = Math.Max(highestIas, flown);
+            highestMach = Math.Max(highestMach, WindInterpolator.IasToMach(flown, alt));
+        }
+
+        return (highestIas, highestMach);
+    }
 
     /// <summary>
     /// Service ceiling (ft). Returns null if no profile exists.

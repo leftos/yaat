@@ -235,6 +235,21 @@ internal static class FlightCommandHandler
             }
         }
 
+        // ATC can't assign a helicopter below the radar-speed minimum; floor a plain SPD to it.
+        // Only airborne — ground taxi speed is governed separately. SPEEDF bypasses this floor but is still refused past
+        // the type's limits beneath, by RefuseUnflyableSpeed; SPDN (ApplyForceSpeed) bypasses both and may command any speed.
+        AircraftCategory spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        bool flooredForHeli =
+            !cmd.Force && spdCat == AircraftCategory.Helicopter && !aircraft.IsOnGround && cmd.Speed > 0 && cmd.Speed < HelicopterMinRadarSpeedKts;
+        int effectiveSpeed = flooredForHeli ? HelicopterMinRadarSpeedKts : cmd.Speed;
+
+        // A speed the type can fly neither here nor at its assigned altitude is refused before anything changes, so the
+        // aircraft keeps its current speed. One it can fly at the assigned altitude is accepted, and the cap holds it there.
+        if (RefuseUnflyableSpeed(aircraft, ctx, effectiveSpeed, cmd.Modifier, aircraft.Targets.AssignedAltitude) is { } unflyable)
+        {
+            return unflyable;
+        }
+
         // Any SPD command clears DSR flag and Mach hold
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Targets.TargetMach = null;
@@ -245,17 +260,10 @@ internal static class FlightCommandHandler
         // A forced assignment (SPEEDF) persists past the §5-7-1.b.4 auto-cancel gate;
         // a plain SPD clears the override so the gate resumes governing.
         aircraft.Targets.SpeedOverridesFinalGate = cmd.Force;
+        aircraft.Targets.SpeedLimitsLifted = false;
 
         // ATC speed supersedes the procedural last-published-speed memory.
         aircraft.Procedure.LastProcedureSpeedKts = null;
-
-        // ATC can't assign a helicopter below the radar-speed minimum; floor a plain SPD to it.
-        // Only airborne — ground taxi speed is governed separately. Forced assignments
-        // (SPEEDF here, or SPEEDN -> ApplyForceSpeed) bypass this and may command any speed.
-        AircraftCategory spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        bool flooredForHeli =
-            !cmd.Force && spdCat == AircraftCategory.Helicopter && !aircraft.IsOnGround && cmd.Speed > 0 && cmd.Speed < HelicopterMinRadarSpeedKts;
-        int effectiveSpeed = flooredForHeli ? HelicopterMinRadarSpeedKts : cmd.Speed;
 
         aircraft.Targets.AssignedSpeed = effectiveSpeed;
 
@@ -291,6 +299,94 @@ internal static class FlightCommandHandler
             SpeedModifier.Ceiling => CommandDispatcher.Ok($"Do not exceed {effectiveSpeed} knots"),
             _ => CommandDispatcher.Ok($"Speed {effectiveSpeed}"),
         };
+    }
+
+    /// <summary>
+    /// The unable for a controller speed (IAS, knots) the type can fly neither at its present altitude nor at
+    /// <paramref name="otherAltitudeFt"/> (the altitude it is cleared to, or a crossing's), or null when it can fly it at
+    /// either. The maximum is <see cref="AircraftPerformance.MaxOperatingIasKts"/> (the lower of Vmo and Mmo's IAS
+    /// equivalent), and the figure named is the one at the present altitude. The minimum is the type's final approach
+    /// speed (<see cref="AircraftPerformance.MinOperatingIasKts"/>), except for a helicopter, which has none.
+    ///
+    /// A type with no known maximum refuses nothing, neither end. A floor (<see cref="SpeedModifier.Floor"/>) only
+    /// reaches up and a ceiling only reaches down, so each is checked against its own end alone. A scenario preset is
+    /// never refused: the physics cap holds it at the limit instead. Only an airborne aircraft is checked, the same
+    /// scope as the physics cap.
+    /// </summary>
+    internal static CommandResult? RefuseUnflyableSpeed(
+        AircraftState aircraft,
+        DispatchContext ctx,
+        double iasKts,
+        SpeedModifier modifier,
+        double? otherAltitudeFt
+    )
+    {
+        if (ctx.IsScenarioScripted || aircraft.IsOnGround)
+        {
+            return null;
+        }
+
+        if (AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, aircraft.Altitude) is not { } maxHere)
+        {
+            return null;
+        }
+
+        double maxAnywhere = otherAltitudeFt is { } other
+            ? Math.Max(maxHere, AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, other) ?? maxHere)
+            : maxHere;
+        if ((modifier != SpeedModifier.Ceiling) && (iasKts > maxAnywhere))
+        {
+            return RefuseAsFastest(aircraft, maxHere);
+        }
+
+        return modifier != SpeedModifier.Floor ? RefuseBelowMinimum(aircraft, iasKts, maxAnywhere) : null;
+    }
+
+    /// <summary>
+    /// The unable for a speed below the type's final approach speed, or null. A helicopter can fly any slow speed (the
+    /// radar-speed floor in ApplySpeed is its only minimum), and a type whose minimum sits above its maximum
+    /// (<paramref name="maxIasKts"/>) at every altitude checked is told only the fastest.
+    /// </summary>
+    private static CommandResult? RefuseBelowMinimum(AircraftState aircraft, double iasKts, double maxIasKts)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if (cat == AircraftCategory.Helicopter)
+        {
+            return null;
+        }
+
+        double min = AircraftPerformance.MinOperatingIasKts(aircraft.AircraftType, cat);
+        if ((min > maxIasKts) || (iasKts >= min))
+        {
+            return null;
+        }
+
+        return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.SlowestKnots, Math.Ceiling(min / 10) * 10);
+    }
+
+    /// <summary>
+    /// The unable naming the fastest speed the type can fly at its present altitude, <paramref name="maxIasKts"/>. Named
+    /// as a Mach number when Mmo is the term that governs there (the aircraft is above its IAS/Mach crossover), floored to
+    /// the hundredth; otherwise in knots, floored to a multiple of ten, so the named figure is always one it can fly.
+    /// </summary>
+    private static CommandResult RefuseAsFastest(AircraftState aircraft, double maxIasKts)
+    {
+        if (
+            (AircraftPerformance.MaxOperatingMach(aircraft.AircraftType) is { } mmo)
+            && (WindInterpolator.MachToIas(mmo, aircraft.Altitude) <= maxIasKts)
+        )
+        {
+            // The epsilon keeps a figure already on the hundredth (0.82) from flooring to the one below through float error.
+            return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.FastestMach, Math.Floor((mmo * 100) + 1e-9) / 100);
+        }
+
+        return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.FastestKnots, Math.Floor(maxIasKts / 10) * 10);
+    }
+
+    private static CommandResult SpeedLimitRefusal(AircraftState aircraft, PilotResponder.SpeedLimitKind kind, double figure)
+    {
+        PilotSpeechText unable = PilotResponder.BuildUnableSpeedLimit(aircraft, kind, figure);
+        return new CommandResult(false, char.ToUpperInvariant(unable.Terminal[0]) + unable.Terminal[1..]) { PilotUnable = unable };
     }
 
     /// <summary>
@@ -333,6 +429,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
+        aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
 
@@ -346,6 +443,7 @@ internal static class FlightCommandHandler
         bool HasExplicitSpeedCommand,
         bool SpeedCommandIsControllerIssued,
         bool SpeedOverridesFinalGate,
+        bool SpeedLimitsLifted,
         double? LastProcedureSpeedKts
     )
     {
@@ -359,6 +457,7 @@ internal static class FlightCommandHandler
                 aircraft.Targets.HasExplicitSpeedCommand,
                 aircraft.Targets.SpeedCommandIsControllerIssued,
                 aircraft.Targets.SpeedOverridesFinalGate,
+                aircraft.Targets.SpeedLimitsLifted,
                 aircraft.Procedure.LastProcedureSpeedKts
             );
 
@@ -372,6 +471,7 @@ internal static class FlightCommandHandler
             aircraft.Targets.HasExplicitSpeedCommand = HasExplicitSpeedCommand;
             aircraft.Targets.SpeedCommandIsControllerIssued = SpeedCommandIsControllerIssued;
             aircraft.Targets.SpeedOverridesFinalGate = SpeedOverridesFinalGate;
+            aircraft.Targets.SpeedLimitsLifted = SpeedLimitsLifted;
             aircraft.Procedure.LastProcedureSpeedKts = LastProcedureSpeedKts;
         }
     }
@@ -508,6 +608,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         aircraft.Targets.SpeedOverridesFinalGate = false;
+        aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
     }
@@ -526,6 +627,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
+        aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Procedure.SpeedRestrictionsDeleted = true;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Speed restrictions deleted");
@@ -635,6 +737,30 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyMach(MachCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        // Past Mmo is past the maximum whatever the altitude; otherwise the Mach number's IAS equivalent here is checked
+        // against both ends, since a Mach hold low down can run past Vmo or sit below the final approach speed.
+        // A Mach number is checked at the present altitude alone: its IAS equivalent changes with the altitude.
+        if (
+            !ctx.IsScenarioScripted
+            && !aircraft.IsOnGround
+            && (AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, aircraft.Altitude) is { } max)
+            && (AircraftPerformance.MaxOperatingMach(aircraft.AircraftType) is { } mmo)
+            && (cmd.MachNumber > mmo)
+        )
+        {
+            return RefuseAsFastest(aircraft, max);
+        }
+
+        // As with SPD, a Mach number the type can fly at its assigned altitude is accepted even when it cannot fly it here.
+        double machIas = WindInterpolator.MachToIas(cmd.MachNumber, aircraft.Altitude);
+        if (
+            (RefuseUnflyableSpeed(aircraft, ctx, machIas, SpeedModifier.None, otherAltitudeFt: null) is { } unflyable)
+            && !IsMachFlyableAt(aircraft, cmd.MachNumber, aircraft.Targets.AssignedAltitude)
+        )
+        {
+            return unflyable;
+        }
+
         aircraft.Targets.TargetMach = cmd.MachNumber;
         aircraft.Targets.TargetSpeed = null;
         aircraft.Targets.AssignedSpeed = null;
@@ -643,8 +769,27 @@ internal static class FlightCommandHandler
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         aircraft.Targets.SpeedOverridesFinalGate = false;
+        aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Maintain Mach {cmd.MachNumber:F2}");
+    }
+
+    /// <summary>
+    /// True when <paramref name="mach"/>'s IAS equivalent at <paramref name="altitudeFt"/> is within the type's limits
+    /// there: no faster than <see cref="AircraftPerformance.MaxOperatingIasKts"/> and, except for a helicopter, no slower
+    /// than its final approach speed. False with no altitude or no known maximum.
+    /// </summary>
+    private static bool IsMachFlyableAt(AircraftState aircraft, double mach, double? altitudeFt)
+    {
+        if ((altitudeFt is not { } altitude) || (AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, altitude) is not { } max))
+        {
+            return false;
+        }
+
+        double ias = WindInterpolator.MachToIas(mach, altitude);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double min = cat == AircraftCategory.Helicopter ? 0 : AircraftPerformance.MinOperatingIasKts(aircraft.AircraftType, cat);
+        return (ias <= max) && (ias >= min);
     }
 
     internal static CommandResult ApplyForceSpeed(ForceSpeedCommand cmd, AircraftState aircraft, DispatchContext ctx)
@@ -672,8 +817,10 @@ internal static class FlightCommandHandler
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
         aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
-        // A forced speed survives the §5-7-1.b.4 auto-cancel gate, same as SPEEDF.
+        // A forced speed survives the §5-7-1.b.4 auto-cancel gate, same as SPEEDF. Unlike SPEEDF it is also flown past
+        // 14 CFR 91.117 and the type's Vmo/Mmo, scripted or not.
         aircraft.Targets.SpeedOverridesFinalGate = true;
+        aircraft.Targets.SpeedLimitsLifted = true;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
@@ -900,10 +1047,19 @@ internal static class FlightCommandHandler
     /// <summary>
     /// Flies direct to <paramref name="cmd"/>'s fixes with its crossing restrictions. Every constrained fix is stamped
     /// with <paramref name="transmissionId"/>, so a DVIA in the same transmission keeps the crossing and a later one
-    /// supersedes it.
+    /// supersedes it. A crossing speed the type can fly neither at its present altitude nor at that fix's crossing altitude
+    /// (or, with none, its assigned altitude) is refused before anything changes, as CFIX's is
+    /// (<see cref="RefuseUnflyableSpeed"/>); an accepted crossing speed is a controller speed act and ends an SPDN's lift
+    /// (<see cref="ControlTargets.SpeedLimitsLifted"/>).
     /// </summary>
-    internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, int transmissionId)
+    internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        if (RefuseUnflyableCrossingSpeed(cmd, aircraft, ctx) is { } unflyable)
+        {
+            return unflyable;
+        }
+
+        int transmissionId = ctx.TransmissionId;
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -999,8 +1155,38 @@ internal static class FlightCommandHandler
             );
         }
 
+        if (cmd.SpeedConstraints is { Count: > 0 })
+        {
+            aircraft.Targets.SpeedLimitsLifted = false;
+        }
+
         string fixNames = FixListSpaced(cmd.Fixes);
         return CommandDispatcher.Ok($"Proceed direct {fixNames}");
+    }
+
+    /// <summary>
+    /// The unable for the first crossing speed in <paramref name="cmd"/> the type can fly neither here nor at the fix's
+    /// crossing altitude (its assigned altitude when the fix has none), or null when every one is flyable.
+    /// </summary>
+    private static CommandResult? RefuseUnflyableCrossingSpeed(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (cmd.SpeedConstraints is null)
+        {
+            return null;
+        }
+
+        foreach ((int index, int speed) in cmd.SpeedConstraints)
+        {
+            double? otherAltitude = cmd.AltitudeConstraints.TryGetValue(index, out ConstrainedFixAltitude? crossing)
+                ? crossing.AltitudeFt
+                : aircraft.Targets.AssignedAltitude;
+            if (RefuseUnflyableSpeed(aircraft, ctx, speed, SpeedModifier.None, otherAltitude) is { } unflyable)
+            {
+                return unflyable;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The crossing restriction a CFIX or a constrained DCTF fix stamps for <paramref name="altType"/>.</summary>
@@ -1136,6 +1322,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedSpeed = speed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
+        aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         aircraft.IsOnGround = false;
         aircraft.Situation.WasOnGround = false;

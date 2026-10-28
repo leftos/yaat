@@ -220,10 +220,21 @@ internal static class NavigationCommandHandler
     /// An altitude revert that would reverse the direction of flight is not captured either: the aircraft keeps the crossing
     /// altitude past the fix (<see cref="AltitudeRevertReversesTravel"/>). Every CFIX takes the transmission's crossing stamp;
     /// only one carrying a speed takes its speed stamp, so an altitude-only CFIX leaves the fix's speed, and the
-    /// transmission that set it, as they were.
+    /// transmission that set it, as they were. A crossing speed the type can fly neither at its present altitude nor at the
+    /// crossing altitude is refused before anything changes, as SPD is (<see cref="FlightCommandHandler.RefuseUnflyableSpeed"/>).
     /// </summary>
-    internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, int transmissionId)
+    internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        if (
+            (cmd.Speed is { } crossingSpeed)
+            && (FlightCommandHandler.RefuseUnflyableSpeed(aircraft, ctx, crossingSpeed, SpeedModifier.None, cmd.Altitude) is { } unflyable)
+        )
+        {
+            return unflyable;
+        }
+
+        int transmissionId = ctx.TransmissionId;
+
         // Capture current altitude/speed for revert after fix passage
         bool restatedWithVia = ViaAppliedInTransmission(aircraft, transmissionId);
         bool revertsAltitude = !restatedWithVia && !AltitudeRevertReversesTravel(aircraft.Altitude, cmd.Altitude, aircraft.Targets.TargetAltitude);
@@ -291,6 +302,7 @@ internal static class NavigationCommandHandler
         if (cmd.Speed is { } spdVal)
         {
             aircraft.Targets.AssignedSpeed = spdVal;
+            aircraft.Targets.SpeedLimitsLifted = false;
 
             // For acceleration, set TargetSpeed immediately so the aircraft starts
             // accelerating toward the CFIX speed right away. For deceleration,
