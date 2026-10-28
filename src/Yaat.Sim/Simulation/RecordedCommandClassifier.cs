@@ -414,6 +414,7 @@ public static class RecordedCommandClassifier
                 or ReportTrafficRelativeCommand
                 or ResumeCommand
                 or ResumeNormalSpeedCommand
+                or ResumePublishedSpeedCommand
                 or RightTurnCommand
                 or SafetyAlertCommand
                 or SayExitFixEstimateCommand

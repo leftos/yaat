@@ -165,6 +165,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -190,6 +191,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -210,6 +212,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "VIS28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -230,6 +233,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -277,6 +281,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -312,6 +317,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -346,6 +352,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -378,6 +385,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -410,6 +418,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -476,6 +485,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -506,6 +516,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
@@ -533,6 +544,7 @@ public class MissedApproachTests
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",

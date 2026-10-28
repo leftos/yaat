@@ -225,7 +225,7 @@ public static class PhraseologyRules
             new(["maintain", "speed", "{spd}"], "SPD {spd}", Speed),
             new(["speed", "{spd}"], "SPD {spd}", Speed),
             new(["slow", "to?", "{spd}"], "SPD {spd}", Speed),
-            // A busy "wilco" reads back resume normal speed and reduce to final approach speed, which carry no number
+            // A busy "wilco" reads back resume normal speed, resume published speed and reduce to final approach speed, which carry no number
             // (7110.65 2-4-3 NOTE 1.a); delete speed restrictions keeps its words (7110.65 5-7-4.a NOTE vs 5-7-4.d).
             new(
                 ["resume", "normal", "speed"],
@@ -233,6 +233,16 @@ public static class PhraseologyRules
                 ResumeNormalSpeed,
                 PilotVariants: new PilotVariantSet(
                     [new PilotVariant("resuming normal speed", PilotVariantTags.None)],
+                    [],
+                    [new PilotVariant("wilco", PilotVariantTags.None)]
+                )
+            ),
+            new(
+                ["resume", "published", "speed"],
+                "RPS",
+                ResumePublishedSpeed,
+                PilotVariants: new PilotVariantSet(
+                    [new PilotVariant("resuming published speed", PilotVariantTags.None)],
                     [],
                     [new PilotVariant("wilco", PilotVariantTags.None)]
                 )

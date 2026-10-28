@@ -252,6 +252,7 @@ public static class CommandRegistry
                 [O(null, [R("speed", "knots IAS (+/- ok)")], "Maintain speed, overriding the 5nm-final restriction")]
             ),
             Bare(ResumeNormalSpeed, "Resume Normal Speed", "Altitude / Speed", CommandDimension.Speed, false, ["RNS", "NS"]),
+            Bare(ResumePublishedSpeed, "Resume Published Speed", "Altitude / Speed", CommandDimension.Speed, false, ["RPS"]),
             Bare(ReduceToFinalApproachSpeed, "Reduce to Final Approach Speed", "Altitude / Speed", CommandDimension.Speed, false, ["RFAS", "FAS"]),
             Bare(DeleteSpeedRestrictions, "Delete Speed Restrictions", "Altitude / Speed", CommandDimension.Speed, false, ["DSR"]),
             Cmd(

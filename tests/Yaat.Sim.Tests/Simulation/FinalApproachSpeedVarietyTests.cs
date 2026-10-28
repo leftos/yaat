@@ -188,6 +188,7 @@ public class FinalApproachSpeedVarietyTests(ITestOutputHelper output)
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",

@@ -76,6 +76,7 @@ public class FinalApproachGenuineOffsetTests(ITestOutputHelper output)
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "S19R",
             AirportCode = "CCR",
             RunwayId = "19R",

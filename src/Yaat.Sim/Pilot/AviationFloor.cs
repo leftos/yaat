@@ -225,6 +225,7 @@ public static class AviationFloor
     private static readonly HashSet<CanonicalCommandType> WilcoTypes =
     [
         CanonicalCommandType.ResumeNormalSpeed,
+        CanonicalCommandType.ResumePublishedSpeed,
         CanonicalCommandType.ReduceToFinalApproachSpeed,
     ];
 

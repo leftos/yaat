@@ -27,6 +27,7 @@ public class PhaseAcceptanceAuditTests
             CanonicalCommandType.Mach,
             CanonicalCommandType.ReduceToFinalApproachSpeed,
             CanonicalCommandType.ResumeNormalSpeed,
+            CanonicalCommandType.ResumePublishedSpeed,
             CanonicalCommandType.DeleteSpeedRestrictions,
         ];
 
@@ -40,6 +41,7 @@ public class PhaseAcceptanceAuditTests
             CanonicalCommandType.Mach,
             CanonicalCommandType.ReduceToFinalApproachSpeed,
             CanonicalCommandType.ResumeNormalSpeed,
+            CanonicalCommandType.ResumePublishedSpeed,
             CanonicalCommandType.DeleteSpeedRestrictions,
             CanonicalCommandType.ForceSpeed,
         ];

@@ -43,6 +43,10 @@ public sealed class NavigationTargetDto
     // Additive, no schema bump: absent in older snapshots, which restore as "no CFIX stamp".
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? CrossingTransmissionId { get; init; }
+
+    // Schema 37: a schema-36 snapshot has none; the migrator copies CrossingTransmissionId onto each fix that carries a speed.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SpeedTransmissionId { get; set; }
 }
 
 public sealed class AltitudeRestrictionDto

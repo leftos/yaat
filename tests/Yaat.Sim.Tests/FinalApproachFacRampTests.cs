@@ -73,6 +73,7 @@ public class FinalApproachFacRampTests(ITestOutputHelper output)
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "R10L",
             AirportCode = "SFO",
             RunwayId = "10L",

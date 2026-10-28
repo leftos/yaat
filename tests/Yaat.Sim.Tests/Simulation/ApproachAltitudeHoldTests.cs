@@ -27,6 +27,7 @@ public class ApproachAltitudeHoldTests(ITestOutputHelper output)
     private static ApproachClearance Clearance(bool held) =>
         new()
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "KOAK",
             RunwayId = "28R",

@@ -190,6 +190,7 @@ public class InterceptDetectionTests
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28L",
             AirportCode = "OAK",
             RunwayId = "28L",

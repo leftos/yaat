@@ -2092,7 +2092,7 @@ SPD 180 AXMUL
 
 Both forms mean maintain 180 knots until AXMUL, then resume normal speed. The second form is the ATCTrainer-style alias.
 
-YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected. Use `RNS` when you want to cancel a speed assignment earlier.
+YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected. Use `RNS` when you want to cancel a speed assignment earlier; on a STAR the aircraft then holds the last published speed it crossed until the next published restriction, and `RPS` does the same and also undoes `DSR`. A `DVIA`, `CVIA` or approach clearance cancels a speed you assigned before it too, unless you restate the speed in the same transmission (`SPD 250, DVIA`).
 
 #### Queue and phase clearing
 
@@ -2104,7 +2104,7 @@ When a new command replaces queued work, YAAT clears only conflicting control su
 |-------------|----------------|-------------------|
 | Heading, turn, `DCT`, hold | Lateral blocks | Altitude and speed blocks |
 | `CM`, `DM`, `CVIA`, `DVIA` | Vertical blocks | Lateral and speed blocks |
-| `SPD`, `RNS`, `RFAS`, `MACH` | Speed blocks | Lateral and altitude blocks |
+| `SPD`, `RNS`, `RPS`, `RFAS`, `MACH` | Speed blocks | Lateral and altitude blocks |
 | Tower/ground phase commands | Usually all flight-control dimensions | Status/display commands |
 
 This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. If a queued block is dropped, YAAT adds a terminal warning naming the lost block. Note that the supersede-on-conflict behavior applies only to **immediate** commands; commands gated by a precondition (`AT`/`ONHO`/`WAIT`/`BEHIND`/…) are additive and never cancel each other (see below).

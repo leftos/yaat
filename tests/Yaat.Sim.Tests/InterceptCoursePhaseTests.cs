@@ -68,6 +68,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -144,6 +145,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -192,6 +194,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -235,6 +238,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -272,6 +276,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -312,6 +317,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -351,6 +357,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -389,6 +396,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -431,6 +439,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -470,6 +479,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "ILS10R",
                 AirportCode = "OAK",
                 RunwayId = "10R",
@@ -511,6 +521,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -554,6 +565,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -637,6 +649,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = approachId,
                 AirportCode = "OAK",
                 RunwayId = runwayId,
@@ -667,6 +680,7 @@ public class InterceptCoursePhaseTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = FatApproachId,
                 AirportCode = "FAT",
                 RunwayId = "29R",

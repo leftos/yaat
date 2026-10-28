@@ -596,6 +596,7 @@ public sealed class SoloTrainingEvaluatorTests
             AssignedRunway = runway,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "VIS28R",
                 AirportCode = "KOAK",
                 RunwayId = "28R",
@@ -635,6 +636,7 @@ public sealed class SoloTrainingEvaluatorTests
             AssignedRunway = runway,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "VIS28R",
                 AirportCode = "KOAK",
                 RunwayId = "28R",
@@ -669,6 +671,7 @@ public sealed class SoloTrainingEvaluatorTests
             AssignedRunway = runway,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "VIS28R",
                 AirportCode = "KOAK",
                 RunwayId = "28R",

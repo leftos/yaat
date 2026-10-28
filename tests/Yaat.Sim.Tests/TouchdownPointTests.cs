@@ -90,6 +90,7 @@ public class TouchdownPointTests(ITestOutputHelper output)
                 AssignedRunway = rwy,
                 ActiveApproach = new ApproachClearance
                 {
+                    TransitionName = null,
                     ApproachId = "I28R",
                     AirportCode = "OAK",
                     RunwayId = "28R",

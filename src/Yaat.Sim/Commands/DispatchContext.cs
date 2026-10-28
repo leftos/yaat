@@ -131,9 +131,11 @@ public sealed record DispatchContext
     public int TransmissionId { get; internal init; }
 
     /// <summary>
-    /// True once a speed assignment (SPD, SPEEDN) earlier in the block being applied has applied: a DVIA after it in
-    /// the block leaves that speed assigned, since a speed still required is restated with the descend via
-    /// (7110.65 5-7-1.c). Set by the block's apply action only.
+    /// True once a speed assignment earlier in the block being applied has applied: SPD, SPEEDF, the forced final-approach
+    /// speed, MACH or RFAS (<c>CommandDispatcher.AssignsSpeed</c>). A DVIA, CVIA or approach clearance after it in the block
+    /// leaves that speed assigned, since a speed still required is restated with the clearance (7110.65 5-7-1.c). A crossing
+    /// speed (a CFIX or constrained DCTF carrying one, DVIA SPD n FIX) does not count: it restates only its own fix's
+    /// restriction, which the fix's speed stamp keeps. Set by the block's apply action only.
     /// </summary>
     public bool SpeedAssignedInBlock { get; internal init; }
 

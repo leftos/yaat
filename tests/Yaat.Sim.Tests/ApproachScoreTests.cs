@@ -78,6 +78,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -109,6 +110,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -148,6 +150,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -178,6 +181,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -209,6 +213,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -234,6 +239,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -261,6 +267,7 @@ public class ApproachScoreTests
             TrafficDirection = PatternDirection.Left,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -286,6 +293,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -312,6 +320,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -342,6 +351,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -373,6 +383,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -405,6 +416,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -431,6 +443,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -457,6 +470,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -483,6 +497,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -670,6 +685,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -742,6 +758,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "VIS28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -768,6 +785,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "VIS28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -801,6 +819,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -827,6 +846,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -855,6 +875,7 @@ public class ApproachScoreTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",

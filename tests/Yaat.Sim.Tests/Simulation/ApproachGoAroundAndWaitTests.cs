@@ -69,6 +69,7 @@ public class ApproachGoAroundAndWaitTests(ITestOutputHelper output)
         ac.FlightPlan.FlightRules = "IFR";
         ac.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "KOAK",
             RunwayId = "28R",
@@ -490,6 +491,7 @@ public class ApproachGoAroundAndWaitTests(ITestOutputHelper output)
         RunwayInfo rwy = Oak28R();
         ac.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = $"VIS{rwy.Designator}",
             AirportCode = rwy.AirportId,
             RunwayId = rwy.Designator,

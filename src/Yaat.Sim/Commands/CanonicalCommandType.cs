@@ -236,6 +236,7 @@ public enum CanonicalCommandType
     SafetyAlert,
     WakeAdvisory,
     ResumeNormalSpeed,
+    ResumePublishedSpeed,
     ReduceToFinalApproachSpeed,
     DeleteSpeedRestrictions,
     Expedite,

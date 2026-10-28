@@ -73,6 +73,7 @@ public class TowerPhaseTests
             AssignedRunway = rwy,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28",
                 AirportCode = "KTEST",
                 RunwayId = rwy.Designator,

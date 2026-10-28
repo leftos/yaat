@@ -19,6 +19,7 @@ public class PhaseListEstablishedOnApproachTests
     private static ApproachClearance Clearance(bool lateralOnly) =>
         new()
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",

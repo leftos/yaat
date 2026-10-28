@@ -1109,6 +1109,7 @@ public class AirborneFollowTests : IDisposable
     private static ApproachClearance MakeVisualClearance() =>
         new()
         {
+            TransitionName = null,
             ApproachId = "VIS28",
             AirportCode = "KTEST",
             RunwayId = "28",

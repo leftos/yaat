@@ -801,6 +801,7 @@ public static class CommandParser
             Speed => ParseSpeed(arg),
             ForceSpeedFinal => ParseSpeed(arg, force: true),
             ResumeNormalSpeed when arg is null => PR.Ok(new ResumeNormalSpeedCommand()),
+            ResumePublishedSpeed when arg is null => PR.Ok(new ResumePublishedSpeedCommand()),
             ReduceToFinalApproachSpeed when arg is null => PR.Ok(new ReduceToFinalApproachSpeedCommand()),
             DeleteSpeedRestrictions when arg is null => PR.Ok(new DeleteSpeedRestrictionsCommand()),
             Expedite => ParseExpedite(arg),

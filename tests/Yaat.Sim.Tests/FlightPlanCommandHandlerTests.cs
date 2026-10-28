@@ -184,6 +184,7 @@ public class FlightPlanCommandHandlerTests
         {
             Clearance = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "H28R",
                 AirportCode = "KSFO",
                 RunwayId = "28R",

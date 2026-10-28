@@ -20,6 +20,7 @@
 - `PTAC L240 030 ILS28R` and `PTACF R180 …` force the turn direction, and the pilot reads back "turn left heading two four zero".
 - The Favorites Editor's Duplicate to... copies the selected favorites into another set as independent copies, and Duplicate set... copies a whole set.
 - The favorites bar's Sets menu orders Global, airport, scenario and named sets with ▲/▼ arrows, and layouts and favorites exports keep that order.
+- `RPS` resumes published speeds, also undoing a `DSR`, and on a STAR holds the last published speed crossed until the next restriction.
 
 ### Changed
 
@@ -89,6 +90,9 @@
 - CRC's ASDE-X display shows the green hold bars at the loaded airport, lit while an arrival inside 1 NM or a rolling departure uses the runway.
 - Warp… no longer sends an aircraft at 800 ft to 80,000 ft.
 - Solo pilots read back approach clearances with their approach and runway, such as `cleared ILS runway two eight right approach`, for CAPP, CAPPSI, JAPP, PTAC and EAPP.
+- `DVIA` and `CVIA` cancel a speed assigned earlier, crossing speeds included, and resume published speeds; a speed given with them, such as `SPD 250, DVIA`, stands.
+- An approach clearance cancels a speed assigned earlier, crossing speeds included, unless restated with it, such as `SPD 210, CAPP I30`, and flies the approach's published speeds.
+- `RNS` on a STAR holds the last published speed crossed until near the next restriction, instead of speeding up to the default.
 
 ## v0.17.0-beta [2026/10/22]
 

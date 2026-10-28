@@ -59,6 +59,7 @@ public class FinalApproachGlideslopeEstablishedTests
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = approachId,
             AirportCode = "OAK",
             RunwayId = "28R",

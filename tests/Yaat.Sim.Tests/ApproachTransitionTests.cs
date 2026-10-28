@@ -527,6 +527,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "H12-Z",
             AirportCode = "KOAK",
             RunwayId = "12",

@@ -2395,6 +2395,7 @@ public class GroundCommandHandlerTests
         {
             Clearance = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "H12-Z",
                 AirportCode = "KOAK",
                 RunwayId = "12",

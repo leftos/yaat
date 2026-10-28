@@ -237,12 +237,16 @@ public static class CommandDispatcher
             return RejectChainedCommand(chainedVerb);
         }
 
-        // One id per transmission that carries a crossing restriction (CFIX or constrained DCTF), shared by every block
-        // it queues, so a DVIA can tell a crossing restated on its own line from an earlier one, and a CFIX can tell a
-        // DVIA or CVIA of its own transmission that has applied. Every other transmission keeps id 0 and leaves the
-        // counter alone, and a refused one hands its id back, so neither changes a snapshot.
+        // One id per transmission that carries a crossing restriction (CFIX, constrained DCTF, or DVIA SPD n FIX), shared
+        // by every block it queues, so a DVIA can tell a crossing restated on its own line from an earlier one, and a CFIX
+        // can tell a DVIA or CVIA of its own transmission that has applied. Every other transmission keeps id 0 and leaves
+        // the counter alone, and a refused one hands its id back, so neither changes a snapshot.
         int lastTransmissionId = aircraft.Queue.LastTransmissionId;
-        if (compound.Blocks.Exists(b => b.Commands.Exists(c => c is CrossFixCommand or ConstrainedForceDirectToCommand)))
+        if (
+            compound.Blocks.Exists(b =>
+                b.Commands.Exists(c => c is CrossFixCommand or ConstrainedForceDirectToCommand or DescendViaCommand { Speed: not null })
+            )
+        )
         {
             ctx = ctx with { TransmissionId = aircraft.Queue.NextTransmissionId() };
         }
@@ -1246,6 +1250,8 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplySpeed(cmd, aircraft, ctx);
             case ResumeNormalSpeedCommand:
                 return FlightCommandHandler.ApplyResumeNormalSpeed(aircraft);
+            case ResumePublishedSpeedCommand:
+                return FlightCommandHandler.ApplyResumePublishedSpeed(aircraft);
             case ReduceToFinalApproachSpeedCommand:
                 return FlightCommandHandler.ApplyReduceToFinalApproachSpeed(aircraft, ctx);
             case DeleteSpeedRestrictionsCommand:
@@ -1448,10 +1454,15 @@ public static class CommandDispatcher
             case ClearedApproachCommand { ApproachId: null, AtFix: null, DctFix: null, CrossFixAltitude: null } bareCapp
                 when ApproachIds.TryParseVisual(aircraft.Approach.Expected, out string? expectedVisualRunway):
             {
-                CommandResult visual = ApproachCommandHandler.TryClearedVisualApproach(
-                    new ClearedVisualApproachCommand(expectedVisualRunway, bareCapp.AirportCode, null, null, Force: false),
+                CommandResult visual = ApplyApproachClearance(
                     aircraft,
-                    ctx
+                    ctx,
+                    () =>
+                        ApproachCommandHandler.TryClearedVisualApproach(
+                            new ClearedVisualApproachCommand(expectedVisualRunway, bareCapp.AirportCode, null, null, Force: false),
+                            aircraft,
+                            ctx
+                        )
                 );
                 return visual.PilotReadback is { } readback
                     ? visual with
@@ -1461,13 +1472,13 @@ public static class CommandDispatcher
                     : visual;
             }
             case ClearedApproachCommand cmd:
-                return ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+                return ApplyApproachClearance(aircraft, ctx, () => ApproachCommandHandler.TryClearedApproach(cmd, aircraft));
             case JoinApproachCommand or ClearedApproachStraightInCommand or JoinApproachStraightInCommand:
-                return ApproachCommandHandler.TryJoinApproach(command, aircraft);
+                return ApplyApproachClearance(aircraft, ctx, () => ApproachCommandHandler.TryJoinApproach(command, aircraft));
             case PositionTurnAltitudeClearanceCommand cmd:
-                return ApproachCommandHandler.TryPtac(cmd, aircraft);
+                return ApplyApproachClearance(aircraft, ctx, () => ApproachCommandHandler.TryPtac(cmd, aircraft));
             case ClearedVisualApproachCommand cmd:
-                return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, ctx);
+                return ApplyApproachClearance(aircraft, ctx, () => ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, ctx));
             case ReportFieldInSightCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSight(aircraft, ctx);
             case ReportFieldAdvisoryCommand cmd:
@@ -4265,7 +4276,7 @@ public static class CommandDispatcher
                     current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
                 }
 
-                if (cmd is SpeedCommand or ForceSpeedCommand or ForceFinalApproachSpeedCommand)
+                if (AssignsSpeed(cmd))
                 {
                     current = current with { SpeedAssignedInBlock = true };
                 }
@@ -4275,6 +4286,51 @@ public static class CommandDispatcher
             string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
             return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac) };
         };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="cmd"/> replaces the whole ATC speed assignment, so a via or approach clearance later in its
+    /// block finds that speed restated with it (7110.65 5-7-1.c) and leaves it standing: a speed or Mach, or "reduce to
+    /// final approach speed". A crossing speed (a CFIX or constrained direct-to carrying one, or "DVIA SPD n FIX") restates
+    /// only its own fix's restriction, which the fix's speed stamp keeps, so the clearance still cancels the speed
+    /// assigned before it (7110.65 5-7-1.c, d).
+    /// </summary>
+    private static bool AssignsSpeed(ParsedCommand cmd) =>
+        cmd is SpeedCommand or ForceSpeedCommand or ForceFinalApproachSpeedCommand or MachCommand or ReduceToFinalApproachSpeedCommand;
+
+    /// <summary>
+    /// Runs an approach clearance (<paramref name="clear"/>), which cancels any speed assigned before it
+    /// (7110.65 5-7-1.d; AIM 4-4-12.g), and puts that speed back when it was restated in the clearance's own block
+    /// (7110.65 5-7-1.c, "maintain 180 until the final approach fix, cleared ILS") or the clearance is refused. A clearance that
+    /// applies leaves no crossing restriction able to revert to an earlier speed past its fix
+    /// (<see cref="NavigationCommandHandler.DropSpeedReverts"/>) and gives each fix whose crossing speed an earlier
+    /// transmission set its published speed back, whether or not a speed is restated with it
+    /// (<see cref="NavigationCommandHandler.RestorePublishedSpeedsForApproach"/>); a pending approach does so when it is
+    /// cleared. When its cancel stands a crossing speed of its own transmission stays in force
+    /// (<see cref="NavigationCommandHandler.KeepTransmissionCrossingSpeed"/>).
+    /// </summary>
+    private static CommandResult ApplyApproachClearance(AircraftState aircraft, DispatchContext ctx, Func<CommandResult> clear)
+    {
+        var before = FlightCommandHandler.AssignedSpeedState.Capture(aircraft);
+        CommandResult result = clear();
+        if (!result.Success)
+        {
+            before.Restore(aircraft);
+            return result;
+        }
+
+        NavigationCommandHandler.DropSpeedReverts(aircraft);
+        NavigationCommandHandler.RestorePublishedSpeedsForApproach(aircraft, ctx.TransmissionId);
+        if (ctx.SpeedAssignedInBlock)
+        {
+            before.Restore(aircraft);
+        }
+        else
+        {
+            NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, ctx.TransmissionId);
+        }
+
+        return result;
     }
 
     private static CommandResult WithRejectedCommand(CommandResult result, ParsedCommand command)

@@ -148,6 +148,71 @@ public class SnapshotRoundTripTests
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }
 
+    /// <summary>The last crossed published speed round-trips both ways: a value after a crossing, and null before any.</summary>
+    [Fact]
+    public void AircraftProcedure_LastCrossedPublishedSpeed_RoundTrips()
+    {
+        var crossed = new AircraftProcedure { LastCrossedPublishedSpeedKts = 260 };
+
+        Assert.Equal(260, AircraftProcedure.FromSnapshot(crossed.ToSnapshot()).LastCrossedPublishedSpeedKts);
+        Assert.Null(AircraftProcedure.FromSnapshot(new AircraftProcedure().ToSnapshot()).LastCrossedPublishedSpeedKts);
+    }
+
+    /// <summary>
+    /// A fix's speed stamp round-trips through the recording serializer apart from its crossing stamp, and a published speed
+    /// with no stamp comes back unstamped.
+    /// </summary>
+    [Fact]
+    public void NavigationTarget_SpeedTransmissionId_RoundTrips()
+    {
+        var stamped = new NavigationTarget
+        {
+            Name = "GRUDG",
+            Position = new LatLon(37.6, -121.9),
+            SpeedRestriction = new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrBelow),
+            CrossingTransmissionId = 3,
+            SpeedTransmissionId = 2,
+        };
+        var published = new NavigationTarget
+        {
+            Name = "GRUDG",
+            Position = new LatLon(37.6, -121.9),
+            SpeedRestriction = new CifpSpeedRestriction(260, CifpSpeedRestrictionType.AtOrBelow),
+        };
+
+        NavigationTarget restoredStamped = RoundTripThroughJson(stamped);
+
+        Assert.Equal(2, restoredStamped.SpeedTransmissionId);
+        Assert.Equal(3, restoredStamped.CrossingTransmissionId);
+        Assert.Null(RoundTripThroughJson(published).SpeedTransmissionId);
+    }
+
+    /// <summary>
+    /// The transition an approach clearance selected round-trips through the recording serializer, and a clearance that
+    /// selected none writes no transition and comes back with none.
+    /// </summary>
+    [Fact]
+    public void ApproachClearance_TransitionName_RoundTrips()
+    {
+        static ApproachClearance Cleared(string? transitionName) =>
+            new()
+            {
+                TransitionName = transitionName,
+                ApproachId = "I30",
+                AirportCode = "KOAK",
+                RunwayId = "30",
+                FinalApproachCourse = new TrueHeading(294),
+            };
+
+        Assert.Equal("MYSHN", RoundTripThroughJson(Cleared("MYSHN")).TransitionName);
+        Assert.Null(RoundTripThroughJson(Cleared(null)).TransitionName);
+        Assert.DoesNotContain(
+            "TransitionName",
+            JsonSerializer.Serialize(Cleared(null).ToSnapshot(), RecordingJsonOptions.Default),
+            StringComparison.Ordinal
+        );
+    }
+
     /// <summary>
     /// The towbar heading — from the nose gear out along the towbar to the tug — round-trips both ways: a value while
     /// a tug is attached, and null once it is gone.
@@ -346,6 +411,75 @@ public class SnapshotRoundTripTests
         Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
         // The legacy key is read once and dropped, so a rewritten snapshot no longer carries it.
         Assert.DoesNotContain("\"Radial\"", JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Schema 37 splits a fix's speed stamp off its crossing stamp. Through schema 36 the crossing stamp also marked the
+    /// fix's speed, so a fix carrying both a crossing stamp and a speed restriction takes that stamp as its speed stamp; a
+    /// fix stamped with an altitude only, and a published speed with no stamp, get none. The departure clearance's route
+    /// and every route a phase keeps to fly or resume later (an airspace boundary hold's, an initial climb's, a departure
+    /// procedure's) migrate the same way as the live route.
+    /// </summary>
+    [Fact]
+    public void NavigationTarget_V36CrossingStamp_MigratesToTheSpeedStampOfAFixWithASpeed()
+    {
+        string position = JsonSerializer.Serialize(new LatLon(37.6, -121.9), RecordingJsonOptions.Default);
+        int atOrBelow = SpeedRestrictionDto.ToTypeCode(CifpSpeedRestrictionType.AtOrBelow);
+        int atOrAbove = (int)CifpAltitudeRestrictionType.AtOrAbove;
+        string Fix(string name, string restrictions) => $"{{ \"Name\": \"{name}\", \"Position\": {position}, \"IsFlyOver\": false{restrictions} }}";
+        string StampedSpeed(int stamp) => $", \"SpeedRestriction\": {{ \"Type\": {atOrBelow}, \"Speed\": 230 }}, \"CrossingTransmissionId\": {stamp}";
+        string json =
+            "{ \"SchemaVersion\": 36, \"ElapsedSeconds\": 10, \"Rng\": { \"S0\": 1, \"S1\": 2, \"S2\": 3, \"S3\": 4 },"
+            + " \"Aircraft\": [ { \"Callsign\": \"AAL1\", \"AircraftType\": \"B738\", \"Targets\": { \"HasExplicitSpeedCommand\": false,"
+            + " \"NavigationRoute\": [ "
+            + Fix("GRUDG", StampedSpeed(4))
+            + ", "
+            + Fix("BANND", $", \"AltitudeRestriction\": {{ \"Type\": {atOrAbove}, \"Altitude1\": 11000 }}, \"CrossingTransmissionId\": 4")
+            + ", "
+            + Fix("FFIST", $", \"SpeedRestriction\": {{ \"Type\": {atOrBelow}, \"Speed\": 200 }}")
+            + " ] }, \"Phases\": { \"CurrentIndex\": 0, \"DepartureClearance\": { \"Type\": 0, \"Departure\": { \"$type\": \"Default\" },"
+            + " \"DepartureRoute\": [ "
+            + Fix("WESLA", StampedSpeed(6))
+            + " ] }, \"Phases\": [ { \"$type\": \"AirspaceBoundaryHold\", \"Status\": 1, \"ElapsedSeconds\": 3,"
+            + " \"AirspaceClass\": 0, \"Ident\": \"SFO\", \"NameText\": \"SFO\", \"ReferenceLat\": 37.6, \"ReferenceLon\": -122.4,"
+            + " \"OrbitDirection\": 1, \"CumulativeTurn\": 0, \"LastHeadingDeg\": 0, \"OriginalRoute\": [ "
+            + Fix("GRUDG", StampedSpeed(5))
+            + " ] }, { \"$type\": \"InitialClimb\", \"Status\": 0, \"ElapsedSeconds\": 0, \"DepartureRoute\": [ "
+            + Fix("PORTE", StampedSpeed(7))
+            + " ] }, { \"$type\": \"DepartureProcedure\", \"Status\": 0, \"ElapsedSeconds\": 0, \"Legs\": [], \"PostRoute\": [ "
+            + Fix("MCKEY", StampedSpeed(8))
+            + " ] } ] } } ],"
+            + " \"Scenario\": { \"ScenarioId\": \"t\", \"ScenarioName\": \"T\", \"RngSeed\": 1, \"ElapsedSeconds\": 10, \"SimRate\": 1 } }";
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        AircraftSnapshotDto aircraft = Assert.Single(snapshot.Aircraft);
+        List<NavigationTargetDto> route = aircraft.Targets.NavigationRoute!;
+        Assert.Equal(4, route[0].SpeedTransmissionId);
+        Assert.Null(route[1].SpeedTransmissionId);
+        Assert.Null(route[2].SpeedTransmissionId);
+        PhaseListDto phases = aircraft.Phases!;
+        Assert.Equal(6, Assert.Single(phases.DepartureClearance!.DepartureRoute!).SpeedTransmissionId);
+        AirspaceBoundaryHoldPhaseDto hold = Assert.IsType<AirspaceBoundaryHoldPhaseDto>(phases.Phases[0]);
+        Assert.Equal(5, Assert.Single(hold.OriginalRoute!).SpeedTransmissionId);
+        InitialClimbPhaseDto climb = Assert.IsType<InitialClimbPhaseDto>(phases.Phases[1]);
+        Assert.Equal(7, Assert.Single(climb.DepartureRoute!).SpeedTransmissionId);
+        DepartureProcedurePhaseDto procedure = Assert.IsType<DepartureProcedurePhaseDto>(phases.Phases[2]);
+        Assert.Equal(8, Assert.Single(procedure.PostRoute).SpeedTransmissionId);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+    }
+
+    private static NavigationTarget RoundTripThroughJson(NavigationTarget target)
+    {
+        string json = JsonSerializer.Serialize(target.ToSnapshot(), RecordingJsonOptions.Default);
+        return NavigationTarget.FromSnapshot(JsonSerializer.Deserialize<NavigationTargetDto>(json, RecordingJsonOptions.Default)!);
+    }
+
+    private static ApproachClearance RoundTripThroughJson(ApproachClearance clearance)
+    {
+        string json = JsonSerializer.Serialize(clearance.ToSnapshot(), RecordingJsonOptions.Default);
+        return ApproachClearance.FromSnapshot(JsonSerializer.Deserialize<ApproachClearanceDto>(json, RecordingJsonOptions.Default)!);
     }
 
     private static AircraftHoldAnnotation RoundTripThroughJson(AircraftHoldAnnotation annotation)

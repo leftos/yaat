@@ -445,7 +445,7 @@ public static partial class PilotResponder
 
         return (compound.Blocks.Count == 1)
             || (compound.Blocks[1] is not { Condition: not null } next)
-            || !next.Commands.Any(cmd => cmd is SpeedCommand or ResumeNormalSpeedCommand);
+            || !next.Commands.Any(cmd => cmd is SpeedCommand or ResumeNormalSpeedCommand or ResumePublishedSpeedCommand);
     }
 
     /// <summary>

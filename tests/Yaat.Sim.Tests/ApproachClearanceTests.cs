@@ -80,6 +80,7 @@ public class ApproachClearanceTests
     {
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
@@ -99,6 +100,7 @@ public class ApproachClearanceTests
     {
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
@@ -323,6 +325,7 @@ public class ApproachClearanceTests
         {
             Clearance = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "H12-Z",
                 AirportCode = "KOAK",
                 RunwayId = "12",

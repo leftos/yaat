@@ -550,6 +550,7 @@ public class M101GroundSpawnCheckInTests
         ac.IndicatedAirspeed = 140;
         ac.Phases!.ActiveApproach = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "KTEST",
             RunwayId = "28R",

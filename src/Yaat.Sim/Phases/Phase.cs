@@ -67,6 +67,7 @@ public abstract class Phase
                 or CanonicalCommandType.Mach
                 or CanonicalCommandType.ReduceToFinalApproachSpeed
                 or CanonicalCommandType.ResumeNormalSpeed
+                or CanonicalCommandType.ResumePublishedSpeed
                 or CanonicalCommandType.DeleteSpeedRestrictions;
 
     /// <summary>

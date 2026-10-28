@@ -255,6 +255,8 @@ procedure speed restriction at the constrained fix rather than reacting after it
 when within 10% of the change time (accel starts immediately). It is fully suppressed when `HasExplicitSpeedCommand`, `SpeedRestrictionsDeleted`,
 or `TargetMach` is set.
 
+**A published speed never outranks an assigned one, and the last one crossed is remembered** (7110.65 §5-7-1.c, §5-7-4; AIM 4-4-12.f, 5-4-1 NOTE 2). `ApplyFixSpeedConstraint` skips a fix's speed while `HasExplicitSpeedCommand` is set unless a controller set that fix's speed (`NavigationTarget.SpeedTransmissionId` or a speed revert, `IsControllerSetSpeed`: a CFIX with a speed, a constrained DCTF, `DVIA SPD n FIX`), the rule `UpdateSpeedPlanning` keeps. At fix sequencing `RecordCrossedPublishedSpeed` stores the fix's "at" or "at or below" published speed in `AircraftProcedure.LastCrossedPublishedSpeedKts` whatever speed the aircraft was flying; an "at or above" speed is a minimum and leaves it alone, and so does a controller-set speed. The memory ends with the procedure (a vector or `ClearActiveProcedure`, joining a STAR, a SID becoming active, an approach clearance). `RNS`, `RPS`, `DVIA`, `CVIA` and an approach clearance cancel the assigned speed; on a STAR (not for the approach clearance) the remembered speed becomes the `SpeedCeiling` again (`FlightCommandHandler.RestoreCrossedPublishedCeiling`), so the aircraft does not speed up before the next restricted fix. `RNS` and `RPS` also call `FlightPhysics.ApplyNextPublishedSpeed`, which targets the first route fix's speed at once only when it is above the present speed or an "at or above" minimum (the minimum becomes the floor); a lower speed is left to the planner's deceleration timing.
+
 A `CFIX <fix> <speed>` "cross at" restriction is an ATC-assigned speed that **persists past the fix** (7110.65 §5-7-1.d): the
 crossed restriction is published as a `ControlTargets.SpeedCeiling` (in `UpdateNavigation` at fix sequencing, and in the `DEPART`
 block's `ApplyAction`), so a bare vector does not cancel it — only an approach / climb-via / descend-via clearance does. Fix-derived
@@ -424,7 +426,7 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
 
   `FinalApproachPhase` writes none before its deceleration stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`).
 
-  `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1).
+  `RNS` and `RPS` close it for themselves: `FlightCommandHandler.ResumeSpeed` (behind `ApplyResumeNormalSpeed` and `ApplyResumePublishedSpeed`) writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1).
 
   When the aircraft is on that profile and either test fails, nothing is handed back, and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`).
 

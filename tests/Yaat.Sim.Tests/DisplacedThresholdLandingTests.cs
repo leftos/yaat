@@ -70,6 +70,7 @@ public class DisplacedThresholdLandingTests
             AssignedRunway = rwy,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = $"I{designator}",
                 AirportCode = airportId,
                 RunwayId = designator,

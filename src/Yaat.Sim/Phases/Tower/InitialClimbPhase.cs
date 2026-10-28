@@ -237,6 +237,7 @@ public sealed class InitialClimbPhase : Phase
         {
             ctx.Aircraft.Procedure.ActiveSidId = DepartureSidId;
             ctx.Aircraft.Procedure.SidViaMode = true;
+            ctx.Aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
         }
 
         Log.LogDebug(

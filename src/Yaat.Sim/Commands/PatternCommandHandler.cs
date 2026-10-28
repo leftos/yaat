@@ -3888,6 +3888,7 @@ internal static class PatternCommandHandler
 
         return new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = $"VIS{runway.Designator}",
             AirportCode = runway.AirportId,
             RunwayId = runway.Designator,

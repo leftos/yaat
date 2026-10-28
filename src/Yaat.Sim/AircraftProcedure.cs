@@ -28,7 +28,7 @@ public class AircraftProcedure
     public int? SidViaCeiling { get; set; }
     public int? StarViaFloor { get; set; }
 
-    /// <summary>DSR flag: when true, suppresses via-mode speed constraints at waypoints. Cleared by new SPD, CVIA, or DVIA.</summary>
+    /// <summary>DSR flag: when true, suppresses via-mode speed constraints at waypoints. Cleared by new SPD, CVIA, DVIA, or RPS.</summary>
     public bool SpeedRestrictionsDeleted { get; set; }
 
     /// <summary>When true, climb/descent rate is multiplied by 1.5. Cleared on altitude reached or by NORM/CM/DM.</summary>
@@ -43,6 +43,15 @@ public class AircraftProcedure
     /// explicit ATC speed command, DRS, RFAS, or when procedure state is reset.
     /// </summary>
     public double? LastProcedureSpeedKts { get; set; }
+
+    /// <summary>
+    /// IAS (knots) of the "at" or "at or below" speed published on the last procedure fix the aircraft crossed, recorded
+    /// whatever speed it was flying. "Resume normal speed" and "resume published speed" given on a STAR hold it as
+    /// <see cref="ControlTargets.SpeedCeiling"/> until the next published speed restriction (AIM 5-4-1 NOTE 2). Null
+    /// before the first such crossing; it ends with the procedure: cleared when procedure state is reset, by a vector
+    /// off the procedure, by joining a STAR, when a SID becomes active, and by an approach clearance.
+    /// </summary>
+    public double? LastCrossedPublishedSpeedKts { get; set; }
 
     /// <summary>
     /// Published initial ("maintain") altitude in feet for this aircraft's departure SID transition,
@@ -93,6 +102,7 @@ public class AircraftProcedure
             SpeedRestrictionsDeleted = SpeedRestrictionsDeleted,
             IsExpediting = IsExpediting,
             LastProcedureSpeedKts = LastProcedureSpeedKts,
+            LastCrossedPublishedSpeedKts = LastCrossedPublishedSpeedKts,
             SidInitialAltitudeFt = SidInitialAltitudeFt,
             ClimbViaTargetFt = ClimbViaTargetFt,
             StarViaTransmissionId = StarViaTransmissionId,
@@ -113,6 +123,7 @@ public class AircraftProcedure
             SpeedRestrictionsDeleted = dto.SpeedRestrictionsDeleted,
             IsExpediting = dto.IsExpediting,
             LastProcedureSpeedKts = dto.LastProcedureSpeedKts,
+            LastCrossedPublishedSpeedKts = dto.LastCrossedPublishedSpeedKts,
             SidInitialAltitudeFt = dto.SidInitialAltitudeFt,
             ClimbViaTargetFt = dto.ClimbViaTargetFt,
             StarViaTransmissionId = dto.StarViaTransmissionId,

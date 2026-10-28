@@ -16,6 +16,13 @@ public sealed class ApproachClearance
     public required TrueHeading FinalApproachCourse { get; init; }
 
     /// <summary>
+    /// The name of the procedure transition the clearance selected (<see cref="Procedure"/>'s
+    /// <see cref="CifpApproachProcedure.Transitions"/> key), recorded when the clearance is issued; null when it selected
+    /// none, as for a clearance flown from the common legs, a lateral intercept or a visual approach.
+    /// </summary>
+    public required string? TransitionName { get; init; }
+
+    /// <summary>
     /// Optional lateral anchor (latitude) for parallel-offset approaches whose published
     /// MAP is laterally offset from the runway threshold (e.g. KDCA LDA-X 19). When set,
     /// FinalApproachPhase uses this point as the cross-track reference instead of the
@@ -113,6 +120,7 @@ public sealed class ApproachClearance
             AirportCode = AirportCode,
             RunwayId = RunwayId,
             FinalApproachCourseDeg = FinalApproachCourse.Degrees,
+            TransitionName = TransitionName,
             FinalApproachAnchorLat = FinalApproachAnchorLat,
             FinalApproachAnchorLon = FinalApproachAnchorLon,
             StraightIn = StraightIn,
@@ -135,6 +143,7 @@ public sealed class ApproachClearance
             AirportCode = dto.AirportCode,
             RunwayId = dto.RunwayId,
             FinalApproachCourse = new TrueHeading(dto.FinalApproachCourseDeg),
+            TransitionName = dto.TransitionName,
             FinalApproachAnchorLat = dto.FinalApproachAnchorLat,
             FinalApproachAnchorLon = dto.FinalApproachAnchorLon,
             StraightIn = dto.StraightIn,

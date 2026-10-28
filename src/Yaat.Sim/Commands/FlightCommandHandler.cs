@@ -323,7 +323,110 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Taxi at {clamped:F0} knots{suffix}");
     }
 
-    internal static CommandResult ApplyResumeNormalSpeed(AircraftState aircraft)
+    /// <summary>
+    /// Ends the ATC speed assignment in force: the assigned and target speed, floor, ceiling and Mach, and the
+    /// procedural last-published-speed memory, so the procedure's published speeds and the default schedule take the
+    /// speed back. "Resume normal speed" does it (AIM 4-4-12.f.1), and so do a climb via or descend via clearance and an
+    /// approach clearance, which cancel any previously assigned speed (7110.65 5-7-1; AIM 4-4-12).
+    /// </summary>
+    internal static void CancelAssignedSpeed(AircraftState aircraft)
+    {
+        aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
+        aircraft.Targets.SpeedFloor = null;
+        aircraft.Targets.SpeedCeiling = null;
+        aircraft.Targets.TargetMach = null;
+        aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedCommandIsControllerIssued = false;
+        aircraft.Targets.SpeedOverridesFinalGate = false;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
+    }
+
+    /// <summary>The ATC speed fields <see cref="CancelAssignedSpeed"/> clears, captured so a speed restated with a clearance can stand.</summary>
+    internal readonly record struct AssignedSpeedState(
+        double? TargetSpeed,
+        double? AssignedSpeed,
+        double? SpeedFloor,
+        double? SpeedCeiling,
+        double? TargetMach,
+        bool HasExplicitSpeedCommand,
+        bool SpeedCommandIsControllerIssued,
+        bool SpeedOverridesFinalGate,
+        double? LastProcedureSpeedKts
+    )
+    {
+        internal static AssignedSpeedState Capture(AircraftState aircraft) =>
+            new(
+                aircraft.Targets.TargetSpeed,
+                aircraft.Targets.AssignedSpeed,
+                aircraft.Targets.SpeedFloor,
+                aircraft.Targets.SpeedCeiling,
+                aircraft.Targets.TargetMach,
+                aircraft.Targets.HasExplicitSpeedCommand,
+                aircraft.Targets.SpeedCommandIsControllerIssued,
+                aircraft.Targets.SpeedOverridesFinalGate,
+                aircraft.Procedure.LastProcedureSpeedKts
+            );
+
+        internal void Restore(AircraftState aircraft)
+        {
+            aircraft.Targets.TargetSpeed = TargetSpeed;
+            aircraft.Targets.AssignedSpeed = AssignedSpeed;
+            aircraft.Targets.SpeedFloor = SpeedFloor;
+            aircraft.Targets.SpeedCeiling = SpeedCeiling;
+            aircraft.Targets.TargetMach = TargetMach;
+            aircraft.Targets.HasExplicitSpeedCommand = HasExplicitSpeedCommand;
+            aircraft.Targets.SpeedCommandIsControllerIssued = SpeedCommandIsControllerIssued;
+            aircraft.Targets.SpeedOverridesFinalGate = SpeedOverridesFinalGate;
+            aircraft.Procedure.LastProcedureSpeedKts = LastProcedureSpeedKts;
+        }
+    }
+
+    /// <summary>
+    /// On a STAR, past a fix with a published "at" or "at or below" speed the pilot keeps that speed until the next
+    /// published speed restriction (AIM 5-4-1.a, NOTE 2; 7110.65 5-7-1.g NOTE 3), so once an ATC speed is cancelled the
+    /// last crossed published speed (<see cref="AircraftProcedure.LastCrossedPublishedSpeedKts"/>) becomes the ceiling
+    /// again. 14 CFR 91.117 still caps it in the physics. Nothing off a STAR or before the first such crossing.
+    /// </summary>
+    internal static void RestoreCrossedPublishedCeiling(AircraftState aircraft)
+    {
+        if ((aircraft.Procedure.ActiveStarId is not null) && (aircraft.Procedure.LastCrossedPublishedSpeedKts is { } crossedKts))
+        {
+            aircraft.Targets.SpeedCeiling = crossedKts;
+        }
+    }
+
+    /// <summary>
+    /// On a STAR, a resumed speed goes back to the published one: "resume normal speed" does not cancel a procedure's
+    /// published restrictions (AIM 4-4-12.f), so the last crossed published speed is the ceiling again
+    /// (<see cref="RestoreCrossedPublishedCeiling"/>). A next published speed above the present one, or an "at or above"
+    /// minimum, is targeted at once; a lower one is left to the planner's deceleration timing
+    /// (<see cref="FlightPhysics.ApplyNextPublishedSpeed"/>). Nothing is held while the published speeds are deleted (DSR).
+    /// </summary>
+    private static void ResumePublishedStarSpeeds(AircraftState aircraft)
+    {
+        if ((aircraft.Procedure.ActiveStarId is null) || aircraft.Procedure.SpeedRestrictionsDeleted)
+        {
+            return;
+        }
+
+        RestoreCrossedPublishedCeiling(aircraft);
+        FlightPhysics.ApplyNextPublishedSpeed(aircraft);
+    }
+
+    internal static CommandResult ApplyResumeNormalSpeed(AircraftState aircraft) => ResumeSpeed(aircraft, "Resume normal speed");
+
+    /// <summary>
+    /// RPS, "resume published speed": everything "resume normal speed" does, and it also undoes a DSR, so the
+    /// procedure's published speeds apply again and the last crossed one is held as the ceiling.
+    /// </summary>
+    internal static CommandResult ApplyResumePublishedSpeed(AircraftState aircraft)
+    {
+        aircraft.Procedure.SpeedRestrictionsDeleted = false;
+        return ResumeSpeed(aircraft, "Resume published speed");
+    }
+
+    private static CommandResult ResumeSpeed(AircraftState aircraft, string readback)
     {
         // On a taxiing aircraft, resume the category-default taxi speed (clear the cap/expedite);
         // the airborne speed targets below are navigator-owned on the ground and left untouched.
@@ -334,23 +437,14 @@ internal static class FlightCommandHandler
             return CommandDispatcher.Ok("Resume normal taxi speed");
         }
 
-        aircraft.Targets.TargetSpeed = null;
-        aircraft.Targets.AssignedSpeed = null;
-        aircraft.Targets.SpeedFloor = null;
-        aircraft.Targets.SpeedCeiling = null;
-        aircraft.Targets.TargetMach = null;
-        aircraft.Targets.HasExplicitSpeedCommand = false;
-        aircraft.Targets.SpeedCommandIsControllerIssued = false;
-        aircraft.Targets.SpeedOverridesFinalGate = false;
-        aircraft.Procedure.LastProcedureSpeedKts = null;
+        CancelAssignedSpeed(aircraft);
+        ResumePublishedStarSpeeds(aircraft);
 
         // Clearing the fields above is the whole command in most cases, but on a final approach it can leave the
         // arrival flying exactly what it already was — and an answer of "Resume normal speed" then reads as a speed
         // change the instructor never gets. Say which of the two happened.
         bool alreadyOnProfile = RestoreFinalApproachProfileSpeed(aircraft);
-        return CommandDispatcher.Ok(
-            alreadyOnProfile ? "Resume normal speed — already on its final approach speed profile, no change" : "Resume normal speed"
-        );
+        return CommandDispatcher.Ok(alreadyOnProfile ? $"{readback} — already on its final approach speed profile, no change" : readback);
     }
 
     /// <summary>
@@ -904,6 +998,7 @@ internal static class FlightCommandHandler
                     // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
                     CrossingTransmissionId =
                         (((altRestriction is not null) || (speedRestriction is not null)) && (transmissionId != 0)) ? transmissionId : null,
+                    SpeedTransmissionId = ((speedRestriction is not null) && (transmissionId != 0)) ? transmissionId : null,
                 }
             );
         }
@@ -1227,6 +1322,7 @@ internal static class FlightCommandHandler
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
         aircraft.Procedure.DestinationRunway = null;
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
     }
 
     private static string AltitudeVerb(AircraftState aircraft, int targetAltitude) =>

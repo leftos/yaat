@@ -1116,6 +1116,7 @@ public class SituationFlagCalculatorTests
             AircraftState ac = OnApproachPhase(phase, runway, position);
             ac.Phases!.ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
@@ -1261,6 +1262,7 @@ public class SituationFlagCalculatorTests
     private static ApproachClearance ClearanceFor28R(bool lateralInterceptOnly) =>
         new()
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",

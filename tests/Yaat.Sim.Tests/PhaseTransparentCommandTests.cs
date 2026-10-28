@@ -459,6 +459,7 @@ public class PhaseTransparentCommandTests
             AssignedRunway = rwy,
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = rwy.Designator,

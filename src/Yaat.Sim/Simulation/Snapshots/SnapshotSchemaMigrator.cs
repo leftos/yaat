@@ -28,7 +28,7 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 36;
+    public const int CurrentSchemaVersion = 37;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -279,7 +279,69 @@ public static class SnapshotSchemaMigrator
             MigrateLegacyAsdexSafetyLogic(snapshot.Scenario);
         }
 
+        // V36→V37: NavigationTargetDto.SpeedTransmissionId added, the transmission that set a fix's speed restriction, apart
+        //   from CrossingTransmissionId, which now answers for the crossing altitude only. Through V36 the crossing stamp also
+        //   marked the speed, so it is copied onto every fix that carries both it and a speed restriction, in the live route and
+        //   every route a phase keeps, and those replays keep or restore the speeds they did.
+        if (snapshot.SchemaVersion < 37)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                MigrateLegacySpeedStamps(ac);
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    /// <summary>Gives each fix a pre-V37 aircraft carries with a crossing stamp and a speed restriction that stamp as its speed stamp.</summary>
+    private static void MigrateLegacySpeedStamps(AircraftSnapshotDto ac)
+    {
+        foreach (NavigationTargetDto fix in LegacyRoutes(ac).SelectMany(route => route))
+        {
+            if ((fix.CrossingTransmissionId is { } stamp) && (fix.SpeedRestriction is not null))
+            {
+                fix.SpeedTransmissionId = stamp;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The navigation routes a snapshot carries for <paramref name="ac"/>: the live route, the departure clearance's, and the
+    /// routes its phases keep to fly or resume later. A legacy snapshot can carry a null Targets or Phases (the lenient
+    /// resolver permits it), which has none.
+    /// </summary>
+    private static IEnumerable<List<NavigationTargetDto>> LegacyRoutes(AircraftSnapshotDto ac)
+    {
+        if (ac.Targets is { NavigationRoute: { } live })
+        {
+            yield return live;
+        }
+
+        if (ac.Phases is not { } phases)
+        {
+            yield break;
+        }
+
+        if (phases.DepartureClearance is { DepartureRoute: { } cleared })
+        {
+            yield return cleared;
+        }
+
+        foreach (PhaseDto phase in phases.Phases ?? [])
+        {
+            List<NavigationTargetDto>? kept = phase switch
+            {
+                AirspaceBoundaryHoldPhaseDto hold => hold.OriginalRoute,
+                InitialClimbPhaseDto climb => climb.DepartureRoute,
+                DepartureProcedurePhaseDto procedure => procedure.PostRoute,
+                _ => null,
+            };
+            if (kept is not null)
+            {
+                yield return kept;
+            }
+        }
     }
 
     /// <summary>Files a pre-V36 snapshot's single safety-logic configuration and its alerts under the primary airport's facility.</summary>

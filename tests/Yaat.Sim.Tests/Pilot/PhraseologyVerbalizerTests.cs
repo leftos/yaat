@@ -163,6 +163,7 @@ public class PhraseologyVerbalizerTests
     [InlineData("ADCT", "when able direct {fix}")]
     [InlineData("TAXI", "taxi runway one left")]
     [InlineData("RNS", "wilco")]
+    [InlineData("RPS", "wilco")]
     [InlineData("RFAS", "wilco")]
     public void Verbalize_VariedBusy_EveryShortcutRuleSpeaksABusyRow(string rule, string expected)
     {
@@ -185,6 +186,7 @@ public class PhraseologyVerbalizerTests
             "ADCT" => new AppendDirectToCommand(fixes, []),
             "TAXI" => new TaxiCommand([], [], Expedite: false, "1L"),
             "RNS" => new ResumeNormalSpeedCommand(),
+            "RPS" => new ResumePublishedSpeedCommand(),
             "RFAS" => new ReduceToFinalApproachSpeedCommand(),
             _ => throw new ArgumentOutOfRangeException(nameof(rule), rule, "No representative command for this rule."),
         };
@@ -205,8 +207,8 @@ public class PhraseologyVerbalizerTests
         );
 
         Assert.True(
-            shortcutRules == 17,
-            $"PhraseologyRules has {shortcutRules} rules with PilotVariants rows, the wiring theory covers 17: add a row to "
+            shortcutRules == 18,
+            $"PhraseologyRules has {shortcutRules} rules with PilotVariants rows, the wiring theory covers 18: add a row to "
                 + $"{nameof(Verbalize_VariedBusy_EveryShortcutRuleSpeaksABusyRow)} for each new rule and update this count."
         );
     }

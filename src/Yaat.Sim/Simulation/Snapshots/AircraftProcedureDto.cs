@@ -17,6 +17,11 @@ public sealed class AircraftProcedureDto
     public double? LastProcedureSpeedKts { get; init; }
     public int? SidInitialAltitudeFt { get; init; }
 
+    // The last crossed published speed. Additive, no schema bump: omitted while null, and absent in older snapshots
+    // restores no memory, so a resume holds no ceiling until the next published speed is crossed.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? LastCrossedPublishedSpeedKts { get; init; }
+
     // The climb via target. Additive, no schema bump: omitted while null, so snapshots without a CVIA in force stay
     // byte-identical, and absent in older snapshots restores no climb via target.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

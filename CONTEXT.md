@@ -173,12 +173,16 @@ _Avoid_: target, addressee
 A typed verb the desktop client sends with an empty callsign whatever aircraft is selected, because the room or the issuing position (or, for GHOST and TIMER, its own argument) addresses it: `CommandScopes.SendsWithoutSelection`. A malformed one is refused with the parser's reason, never as a missing aircraft.
 _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: the pilot never answers Unable)
 
+**Speed stamp**:
+The transmission id (`NavigationTarget.SpeedTransmissionId`) of the transmission that set a fix's crossing speed: a CFIX carrying a speed, a constrained DCTF's speed constraint, or a `DVIA SPD n FIX`. Null when the speed is the procedure's or there is none, so an altitude-only CFIX leaves it alone. A DVIA, CVIA or approach clearance in the same transmission keeps the speed; a later one gives the fix its published speed back, and crossing a stamped fix is never remembered as a published speed. The fix's crossing altitude has its own stamp, `CrossingTransmissionId`.
+_Avoid_: crossing stamp (that one answers for the altitude only)
+
 **Top altitude** (of a SID):
 The altitude a bare `CVIA` climbs to, held in `AircraftProcedure.ClimbViaTargetFt`: the SID's ARTCC TDLS "EXC MAINT" altitude, else its TDLS initial altitude, else the highest altitude the SID publishes on the legs flown (CIFP does not code the charted top). `CVIA nnn` names it directly. An ATC-assigned one (`CVIA nnn`, a TDLS EXC MAINT) is what the check-in reports ("for nnn").
 _Avoid_: ceiling (`SidViaCeiling` is only the assigned "except maintain" altitude, and a restriction ahead can lower the target below the top)
 
 **Transmission id**:
-The per-aircraft number (`CommandQueue.LastTransmissionId`) one transmission takes when it carries a CFIX or a constrained DCTF, shared by every block that transmission queues and stamped on the fixes it constrains. A descend via compares it to tell a crossing restated in its own transmission, which it keeps, from an earlier one, which it supersedes. A DVIA or CVIA stamps it on the aircraft (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`) so a CFIX of the same transmission knows the via clearance has applied. Other transmissions take none.
+The per-aircraft number (`CommandQueue.LastTransmissionId`) one transmission takes when it carries a CFIX, a constrained DCTF or a `DVIA SPD n FIX`, shared by every block that transmission queues and stamped on the fixes it constrains. A descend via compares it to tell a crossing restated in its own transmission, which it keeps, from an earlier one, which it supersedes. A DVIA or CVIA stamps it on the aircraft (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`) so a CFIX of the same transmission knows the via clearance has applied. Other transmissions take none.
 _Avoid_: command id, sequence number (a transmission is the whole `;`/`,` text sent to one aircraft at once)
 
 **Baked draw**:

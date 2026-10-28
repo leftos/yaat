@@ -260,11 +260,21 @@ public class NavigationTarget
     public double? RevertAssignedSpeed { get; set; }
 
     /// <summary>
-    /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose CFIX or constrained DCTF stamped
-    /// this fix's crossing restriction, or null when neither did. A DVIA in the same transmission keeps that
-    /// restriction; a later one replaces it with the published restriction.
+    /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose CFIX or constrained DCTF stamped a
+    /// crossing restriction on this fix, or null when neither did. It answers for the crossing altitude: a DVIA or CVIA in
+    /// the same transmission keeps the fix's altitude restriction, a later one gives it the published restriction back.
+    /// Which transmission set the fix's speed is <see cref="SpeedTransmissionId"/>.
     /// </summary>
     public int? CrossingTransmissionId { get; set; }
+
+    /// <summary>
+    /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) that set this fix's speed restriction: a
+    /// CFIX carrying a speed, a constrained DCTF's speed constraint or a "DVIA SPD n FIX". Null when the speed is the
+    /// procedure's or there is none, an altitude-only CFIX included. A via or approach clearance in the same transmission
+    /// keeps that speed; a later one gives the fix its published speed back, and crossing it is not remembered as a
+    /// published speed.
+    /// </summary>
+    public int? SpeedTransmissionId { get; set; }
 
     public NavigationTargetDto ToSnapshot() =>
         new()
@@ -289,6 +299,7 @@ public class NavigationTarget
             RevertAssignedSpeed = RevertAssignedSpeed,
             TerminalCourseMagnetic = TerminalCourseMagnetic,
             CrossingTransmissionId = CrossingTransmissionId,
+            SpeedTransmissionId = SpeedTransmissionId,
         };
 
     public static NavigationTarget FromSnapshot(NavigationTargetDto dto) =>
@@ -313,5 +324,6 @@ public class NavigationTarget
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
             TerminalCourseMagnetic = dto.TerminalCourseMagnetic,
             CrossingTransmissionId = dto.CrossingTransmissionId,
+            SpeedTransmissionId = dto.SpeedTransmissionId,
         };
 }

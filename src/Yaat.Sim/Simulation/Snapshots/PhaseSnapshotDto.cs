@@ -102,6 +102,10 @@ public sealed class ApproachClearanceDto
     public required string RunwayId { get; init; }
     public required double FinalApproachCourseDeg { get; init; }
 
+    /// <summary>The transition the clearance selected; written only when it selected one, so older snapshots omit it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TransitionName { get; init; }
+
     /// <summary>
     /// Optional lateral anchor (lat/lon) for parallel-offset approaches whose published MAP
     /// is offset from the runway threshold. Null for ordinary approaches; pre-FAC-extractor

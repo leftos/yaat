@@ -27,6 +27,7 @@ public static class CommandDescriber
             DescendMaintainCommand => CanonicalCommandType.DescendMaintain,
             SpeedCommand cmd => cmd.Force ? CanonicalCommandType.ForceSpeedFinal : CanonicalCommandType.Speed,
             ResumeNormalSpeedCommand => CanonicalCommandType.ResumeNormalSpeed,
+            ResumePublishedSpeedCommand => CanonicalCommandType.ResumePublishedSpeed,
             ReduceToFinalApproachSpeedCommand => CanonicalCommandType.ReduceToFinalApproachSpeed,
             DeleteSpeedRestrictionsCommand => CanonicalCommandType.DeleteSpeedRestrictions,
             ExpediteCommand => CanonicalCommandType.Expedite,
@@ -586,6 +587,7 @@ public static class CommandDescriber
             DescendMaintainCommand => TrackedCommandType.Altitude,
             SpeedCommand => TrackedCommandType.Speed,
             ResumeNormalSpeedCommand => TrackedCommandType.Speed,
+            ResumePublishedSpeedCommand => TrackedCommandType.Speed,
             ReduceToFinalApproachSpeedCommand => TrackedCommandType.Speed,
             DeleteSpeedRestrictionsCommand => TrackedCommandType.Speed,
             // EXP <alt> assigns an altitude, so it occupies the vertical axis exactly like
@@ -666,6 +668,7 @@ public static class CommandDescriber
             DescendMaintainCommand cmd => $"DM {cmd.Altitude}",
             SpeedCommand cmd => FormatSpeedCanonical(cmd),
             ResumeNormalSpeedCommand => "RNS",
+            ResumePublishedSpeedCommand => "RPS",
             ReduceToFinalApproachSpeedCommand => "RFAS",
             DeleteSpeedRestrictionsCommand => "DSR",
             ExpediteCommand exp => exp.Altitude is not null ? $"EXP {exp.Altitude / 100}" : "EXP",
@@ -1165,6 +1168,7 @@ public static class CommandDescriber
             DescendMaintainCommand cmd => $"Descend and maintain {cmd.Altitude:N0}",
             SpeedCommand cmd => FormatSpeedNatural(cmd),
             ResumeNormalSpeedCommand => "Resume normal speed",
+            ResumePublishedSpeedCommand => "Resume published speed",
             ReduceToFinalApproachSpeedCommand => "Reduce to final approach speed",
             DeleteSpeedRestrictionsCommand => "Delete speed restrictions",
             // No AircraftState here, so the direction cannot be resolved — keep the slash form

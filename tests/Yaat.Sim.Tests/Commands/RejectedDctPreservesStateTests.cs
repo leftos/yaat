@@ -83,6 +83,7 @@ public sealed class RejectedDctPreservesStateTests
         {
             ActiveApproach = new ApproachClearance
             {
+                TransitionName = null,
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",

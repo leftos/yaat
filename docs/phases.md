@@ -40,7 +40,7 @@ A phase whose responsibility is **lateral** guidance (turns, S-turns, holds, pro
 
 Don't hand-roll the per-command list in each `CanAcceptCommand` (that drift is exactly how `RFAS`/`RNS`/`DSR` ended up cancelling turns while `SPD`/`Mach` didn't). Use the shared predicates on `Phase`:
 
-- `Phase.IsSpeedFamilyCommand(cmd)` — `Speed`, `Mach`, `ReduceToFinalApproachSpeed`, `ResumeNormalSpeed`, `DeleteSpeedRestrictions`, and the forced speeds `ForceSpeedFinal` (SPEEDF) and `ForceSpeed` (SPDN, `SPDN RFAS`): a forced speed retargets speed like any other and must not cancel a maneuver or an approach.
+- `Phase.IsSpeedFamilyCommand(cmd)` — `Speed`, `Mach`, `ReduceToFinalApproachSpeed`, `ResumeNormalSpeed`, `ResumePublishedSpeed`, `DeleteSpeedRestrictions`, and the forced speeds `ForceSpeedFinal` (SPEEDF) and `ForceSpeed` (SPDN, `SPDN RFAS`): a forced speed retargets speed like any other and must not cancel a maneuver or an approach.
 - `Phase.IsAltitudeFamilyCommand(cmd)` — `ClimbMaintain`, `DescendMaintain`.
 - `Phase.IsAdditiveAirborneAdjustment(cmd)` — either of the above.
 

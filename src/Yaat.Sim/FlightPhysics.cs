@@ -213,6 +213,8 @@ public static class FlightPhysics
                 aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
             }
 
+            RecordCrossedPublishedSpeed(aircraft, sequenced);
+
             // AIM 5-4-1 NOTE 2 / 7110.65 §5-7-1.g NOTE 3: once at a "cross at" speed the
             // pilot maintains it until ATC reassigns or the approach speed takes over.
             // Publish the crossed restriction as a ceiling so the auto altitude-band schedule
@@ -755,7 +757,42 @@ public static class FlightPhysics
             ApplyFixAltitudeConstraint(aircraft, alt);
         }
 
-        if (target.SpeedRestriction is { } spd && !aircraft.Procedure.SpeedRestrictionsDeleted)
+        ApplyFixSpeedConstraint(aircraft, target);
+    }
+
+    /// <summary>
+    /// Targets the speed on the first route fix that has one when reaching it means speeding up: a speed above the
+    /// present one, or an "at or above" minimum, which becomes the floor. A resume on a STAR then starts toward it at once
+    /// rather than waiting for the planner, which only times slowdowns. A lower speed is left to the planner's
+    /// deceleration timing, so the aircraft keeps its present speed until it has to slow (7110.65 5-7-1.g NOTE 3;
+    /// AIM 4-4-12.f.3 NOTE). Nothing while the published speeds are deleted or an ATC speed is assigned.
+    /// </summary>
+    internal static void ApplyNextPublishedSpeed(AircraftState aircraft)
+    {
+        if (
+            (aircraft.Targets.NavigationRoute.Find(f => f.SpeedRestriction is not null) is { SpeedRestriction: { } spd } next)
+            && ((spd.Type == CifpSpeedRestrictionType.AtOrAbove) || (spd.SpeedKts > aircraft.IndicatedAirspeed))
+        )
+        {
+            ApplyFixSpeedConstraint(aircraft, next);
+        }
+    }
+
+    /// <summary>
+    /// Whether a controller set <paramref name="fix"/>'s speed restriction (a CFIX carrying a speed, a constrained
+    /// direct-to's speed constraint or a "DVIA SPD n FIX"), which stamps the fix's speed with its transmission or leaves a
+    /// speed revert on it, rather than the procedure publishing it. An altitude-only crossing leaves the speed the
+    /// procedure's.
+    /// </summary>
+    private static bool IsControllerSetSpeed(NavigationTarget fix) => (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null);
+
+    private static void ApplyFixSpeedConstraint(AircraftState aircraft, NavigationTarget target)
+    {
+        // An ATC-assigned speed outranks a published one until ATC ends it (7110.65 5-7-1.c, 5-7-4; AIM 4-4-12.f), the
+        // same rule UpdateSpeedPlanning and the speed stamp (SpeedTransmissionId) keep. A crossing speed a controller set is itself an ATC
+        // assignment, issued after the speed in force, and still applies.
+        bool publishedUnderAssignedSpeed = aircraft.Targets.HasExplicitSpeedCommand && !IsControllerSetSpeed(target);
+        if ((target.SpeedRestriction is { } spd) && !aircraft.Procedure.SpeedRestrictionsDeleted && !publishedUnderAssignedSpeed)
         {
             if (spd.Type == CifpSpeedRestrictionType.AtOrAbove)
             {
@@ -1016,6 +1053,27 @@ public static class FlightPhysics
         return true;
     }
 
+    /// <summary>
+    /// Remembers the "at" or "at or below" speed published on a procedure fix the aircraft just crossed, whatever speed
+    /// it was flying, so a later "resume normal speed" or "resume published speed" holds it as the ceiling until the next
+    /// published speed restriction (AIM 5-4-1 NOTE 2). A crossing speed a controller set
+    /// (<see cref="IsControllerSetSpeed"/>) is not a published one and is not remembered. An "at or above" speed is a
+    /// minimum, never a ceiling, and leaves the memory as it was.
+    /// </summary>
+    private static void RecordCrossedPublishedSpeed(AircraftState aircraft, NavigationTarget sequenced)
+    {
+        if (
+            (sequenced.SpeedRestriction is not { } crossed)
+            || (crossed.Type == CifpSpeedRestrictionType.AtOrAbove)
+            || IsControllerSetSpeed(sequenced)
+        )
+        {
+            return;
+        }
+
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = ClampFixSpeedToApproachFloor(aircraft, crossed.SpeedKts);
+    }
+
     private static void ClearProcedureState(AircraftState aircraft)
     {
         aircraft.Procedure.ActiveSidId = null;
@@ -1037,6 +1095,7 @@ public static class FlightPhysics
             aircraft.Procedure.DestinationRunway = null;
         }
         aircraft.Procedure.LastProcedureSpeedKts = null;
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
     }
 
     /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009156.</summary>

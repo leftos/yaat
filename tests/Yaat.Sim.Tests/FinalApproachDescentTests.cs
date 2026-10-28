@@ -49,6 +49,7 @@ public class FinalApproachDescentTests(ITestOutputHelper output)
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
@@ -292,6 +293,7 @@ public class FinalApproachDescentTests(ITestOutputHelper output)
                 AssignedRunway = rwy,
                 ActiveApproach = new ApproachClearance
                 {
+                    TransitionName = null,
                     ApproachId = "I28R",
                     AirportCode = "OAK",
                     RunwayId = "28R",

@@ -400,7 +400,7 @@ public static class ApproachCommandHandler
         (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.d
-        aircraft.Targets.TargetSpeed = null;
+        CancelSpeedsForApproachClearance(aircraft);
         RestateStandingInTrailReduction(aircraft);
 
         FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
@@ -474,7 +474,7 @@ public static class ApproachCommandHandler
 
             if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
             {
-                ApproachClearance clearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
+                ApproachClearance clearance = BuildClearance(procedure, transition, airport, facResult, approachRunway, cmd.Force);
                 aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
                 aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
@@ -494,7 +494,7 @@ public static class ApproachCommandHandler
         // Clear existing phases
         ClearExistingPhases(aircraft);
 
-        ApproachClearance immClearance = BuildClearance(procedure, airport, facResult, approachRunway, cmd.Force);
+        ApproachClearance immClearance = BuildClearance(procedure, transition, airport, facResult, approachRunway, cmd.Force);
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = immClearance };
         aircraft.Procedure.DestinationRunway = approachRunway.Designator;
@@ -647,7 +647,7 @@ public static class ApproachCommandHandler
         (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.d
-        aircraft.Targets.TargetSpeed = null;
+        CancelSpeedsForApproachClearance(aircraft);
         RestateStandingInTrailReduction(aircraft);
 
         FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
@@ -693,6 +693,7 @@ public static class ApproachCommandHandler
 
         var clearance = new ApproachClearance
         {
+            TransitionName = transition?.Name,
             ApproachId = procedure.ApproachId,
             AirportCode = airport,
             RunwayId = procedure.Runway!,
@@ -818,6 +819,7 @@ public static class ApproachCommandHandler
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = procedure.ApproachId,
             AirportCode = airport,
             RunwayId = procedure.Runway!,
@@ -881,7 +883,7 @@ public static class ApproachCommandHandler
     /// </summary>
     private static void ApplyPtacTargets(AircraftState aircraft, PtacHeading resolvedHeading, int altitude)
     {
-        aircraft.Targets.TargetSpeed = null;
+        CancelSpeedsForApproachClearance(aircraft);
         RestateStandingInTrailReduction(aircraft);
 
         aircraft.Targets.NavigationRoute.Clear();
@@ -1159,7 +1161,7 @@ public static class ApproachCommandHandler
         }
 
         // Cancel speed restrictions per 7110.65 §5-7-1.d
-        aircraft.Targets.TargetSpeed = null;
+        CancelSpeedsForApproachClearance(aircraft);
         RestateStandingInTrailReduction(aircraft);
 
         // Clear assigned heading — approach takes over steering
@@ -1181,6 +1183,7 @@ public static class ApproachCommandHandler
 
         var clearance = new ApproachClearance
         {
+            TransitionName = null,
             ApproachId = ApproachIds.Visual(runwayId),
             AirportCode = airport,
             RunwayId = runwayId,
@@ -2741,6 +2744,7 @@ public static class ApproachCommandHandler
 
     private static ApproachClearance BuildClearance(
         CifpApproachProcedure procedure,
+        CifpTransition? transition,
         string airport,
         FinalApproachCourseResult fac,
         RunwayInfo approachRunway,
@@ -2749,6 +2753,7 @@ public static class ApproachCommandHandler
     {
         return new ApproachClearance
         {
+            TransitionName = transition?.Name,
             ApproachId = procedure.ApproachId,
             AirportCode = airport,
             RunwayId = procedure.Runway!,
@@ -3038,6 +3043,24 @@ public static class ApproachCommandHandler
         }
 
         return phases.LandingClearance is not null || phases.ActiveApproach is not null || IsArrivalApproachPhase(phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// An approach clearance cancels any previously assigned speed (7110.65 5-7-1.d; AIM 4-4-12.g) and ends the STAR's
+    /// last-crossed published speed with the STAR (7110.65 5-7-1.e and NOTE). The dispatcher puts back a speed restated
+    /// in the clearance's own block (7110.65 5-7-1.c). The same-runway in-trail reduction's ceiling is not a speed the
+    /// clearance cancels: it belongs to that pass and is restated with the clearance (<see cref="RestateStandingInTrailReduction"/>).
+    /// </summary>
+    private static void CancelSpeedsForApproachClearance(AircraftState aircraft)
+    {
+        double? ceiling = aircraft.Targets.SpeedCeiling;
+        FlightCommandHandler.CancelAssignedSpeed(aircraft);
+        if ((aircraft.Approach.SameRunwayProtectionCeilingKts is { } standingReductionKts) && (ceiling == standingReductionKts))
+        {
+            aircraft.Targets.SpeedCeiling = ceiling;
+        }
+
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
     }
 
     /// <summary>
