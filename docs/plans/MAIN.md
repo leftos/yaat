@@ -92,11 +92,13 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [/] YAAT-1362 Refuse a speed past the type's Vmo/Mmo or below its minimum as unable, naming the speed it can fly · release vNext
 - [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
-- [ ] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
+- [/] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
+- [ ] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E)
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP
 - [ ] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance
+- [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query)
+- [ ] YAAT-1432 Make a CTO at a taxiway hold short wait for traffic standing on that taxiway (OAK N314WN on E)
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -234,7 +236,6 @@
 - [ ] YAAT-779 Check exit-capacity free length against the detector's straight-line stop ring on bent crossovers
 - [ ] YAAT-806 Cap a normal runway crossing near 20 kt for jets and turboprops
 - [ ] YAAT-808 Decide whether a ramp fillet arc counts as a hold-short junction leg
-- [ ] YAAT-809 Apply the shallow-merge hold-short fallback at the other hold-short arming sites
 - [ ] YAAT-810 Judge a runway crosser for the go-around from the hold line, using its route's speed profile
 - [ ] YAAT-812 Test the merge-hold ready-to-taxi and route-incomplete calls through HoldingShortPhase
 - [ ] YAAT-816 Judge only the nose on the approach to an uncleared hold within 30° of the runway axis
@@ -891,7 +892,6 @@
 - [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
 - [ ] YAAT-1298 A taxiing aircraft at rest behind stopped traffic speeds up, then is stopped in one pass (SFO C/J, 6.75 kt)
 - [ ] YAAT-1313 Test PublishSegmentSpeed's turn-about and slow-turn paths on exit arrival
-- [/] YAAT-1314 Stop a bare TAXI to a crossing taxiway short of it instead of in the intersection (OAK TAXI B from C) · release vNext
 - [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
 - [ ] YAAT-1316 Close the ground-conflict carry and trail-stop gaps the YAAT-1257 invariant pass found
 - [ ] YAAT-1318 Keep a block's TAXI readback and run order the same whichever of TAXI and CROSS comes first
@@ -950,3 +950,8 @@
 - [ ] YAAT-1411 Slow to 250 before crossing 10,000 ft in a descent, not a few hundred feet below it
 - [ ] YAAT-1412 In solo sessions, a pilot checking in states an assigned speed or vector (AIM 4-4-12.l) · release vNext+1
 - [ ] YAAT-1413 Keep a slower assigned speed in a hold instead of accelerating to the maximum holding speed
+- [ ] YAAT-1426 Score an intersection departure whose CTO did not state the intersection (7110.65 3-9-10.b)
+- [ ] YAAT-1427 Refuse an intersection departure when the type's takeoff distance exceeds the length remaining
+- [ ] YAAT-1429 Make the relaxed lateral-intercept CAPP cancel assigned speeds like every other approach clearance
+- [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude
+- [ ] YAAT-1431 Check the profile schedule floor's Mach above the crossover against each type's Mmo
