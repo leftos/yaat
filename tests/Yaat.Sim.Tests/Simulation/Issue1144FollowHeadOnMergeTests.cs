@@ -35,6 +35,12 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     private const double LowestHeadingOntoT = 115.0;
 
     /// <summary>
+    /// Length (ft) of the stub the no-op staging splits off a bar, well under
+    /// <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/>.
+    /// </summary>
+    private const double StagedNoOpFt = 0.5;
+
+    /// <summary>
     /// At t=1018 the plan joins SWA6139's path where UPS947 can turn onto it within its category's junction limit: the B→T fillet
     /// start (#724), not the B node past the junction (#725), where the lead's path leaves back the way UPS947 arrives.
     /// </summary>
@@ -336,20 +342,24 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A zero-length no-op edge out of a merge candidate turns nothing: on a lead path through KHKY's no-op edge, the turn a
+    /// A zero-length no-op edge out of a merge candidate turns nothing: on a lead path through a no-op edge, the turn a
     /// follower must make at the node before it is judged onto the first edge past it that moves, and a path that ends in the
-    /// no-op edge keeps it.
+    /// no-op edge keeps it. The bar mint keeps bars clear of edge ends, so KHKY has no zero-length edge of its own; the test
+    /// stages one.
     /// </summary>
     [Fact]
     public void OnwardEdges_SkipAZeroLengthEdgeToTheNextEdgeThatMoves()
     {
         TestVnasData.EnsureInitialized();
-        (GroundNode Before, GroundNode Goal, IGroundEdge NoOp, GroundNode Past, GroundNode Beyond, IGroundEdge In, IGroundEdge Out)? found = null;
-        if (new TestAirportGroundData().GetLayout("HKY") is not { } hky)
+        // A fresh parse: the staging splits an edge, and the shared HKY layout must stay as parsed for every other test.
+        if (TestAirportGroundData.LoadUncached("HKY") is not { } hky)
         {
             return;
         }
 
+        StageNoOpEdgeBesideABar(hky);
+
+        (GroundNode Before, GroundNode Goal, IGroundEdge NoOp, GroundNode Past, GroundNode Beyond, IGroundEdge In, IGroundEdge Out)? found = null;
         IEnumerable<IGroundEdge> noOps = hky
             .Nodes.Values.OrderBy(n => n.Id)
             .SelectMany(n => n.Edges)
@@ -369,7 +379,7 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
             }
         }
 
-        Assert.True(found is not null, "KHKY's layout has no zero-length edge between two edges that move");
+        Assert.True(found is not null, "the staged no-op edge is not between two edges that move");
         (GroundNode before, GroundNode at, IGroundEdge zero, GroundNode pastNode, GroundNode beyond, IGroundEdge inEdge, IGroundEdge outEdge) =
             found.Value;
         var first = new DirectionalEdge
@@ -400,6 +410,75 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         Assert.Same(moving, onwardEdges[pastNode.Id]);
         Assert.False(onwardEdges.ContainsKey(beyond.Id));
         Assert.Same(noOpEdge, FollowRoutePlanner.OnwardEdges([first, noOpEdge], [at.Id])[at.Id]);
+    }
+
+    /// <summary>
+    /// Stages a zero-length no-op edge between two edges that move: splits the longest edge off a hold-short bar whose other
+    /// edges all move, <see cref="StagedNoOpFt"/> from the bar, with the build's own
+    /// <see cref="RunwayCrossingDetector.SplitEdgeAtOneNode"/>. Asserts the stub is under the threshold and both edges around
+    /// it are over it.
+    /// </summary>
+    private static void StageNoOpEdgeBesideABar(AirportGroundLayout layout)
+    {
+        double thresholdFt = GeometricAdmissibility.NoOpEdgeThresholdNm * GeoMath.FeetPerNm;
+        List<string> bars = [];
+        foreach (GroundNode bar in layout.Nodes.Values.OrderBy(node => node.Id))
+        {
+            if (bar.Origin?.StartsWith("RunwayCrossing:hold-short@", StringComparison.Ordinal) != true)
+            {
+                continue;
+            }
+
+            List<GroundEdge> edges = [.. bar.Edges.OfType<GroundEdge>()];
+            bars.Add($"#{bar.Id}: {string.Join(", ", edges.Select(edge => $"{edge.DistanceNm * GeoMath.FeetPerNm:F3} ft"))}");
+            if ((edges.Count < 2) || edges.Any(GeometricAdmissibility.IsNoOpEdge))
+            {
+                continue;
+            }
+
+            GroundEdge longest = edges.MaxBy(edge => edge.DistanceNm)!;
+            if ((longest.DistanceNm * GeoMath.FeetPerNm) < (StagedNoOpFt + thresholdFt))
+            {
+                continue;
+            }
+
+            GroundNode far = longest.OtherNode(bar);
+            double fraction = StagedNoOpFt / longest.DistanceNm / GeoMath.FeetPerNm;
+            var stubNode = new GroundNode
+            {
+                Id = layout.Nodes.Keys.Max() + 1,
+                Position = new LatLon(
+                    bar.Position.Lat + (fraction * (far.Position.Lat - bar.Position.Lat)),
+                    bar.Position.Lon + (fraction * (far.Position.Lon - bar.Position.Lon))
+                ),
+                Type = GroundNodeType.TaxiwayIntersection,
+                Origin = "test:staged no-op node (YAAT-1381)",
+            };
+            layout.Nodes[stubNode.Id] = stubNode;
+            RunwayCrossingDetector.SplitEdgeAtOneNode(layout, longest, stubNode);
+            layout.RebuildAdjacencyLists();
+
+            List<GroundEdge> pieces = [.. layout.Edges.Where(edge => edge.HasNode(stubNode.Id))];
+            string pieceFt = string.Join(", ", pieces.Select(edge => $"{edge.DistanceNm * GeoMath.FeetPerNm:F3} ft"));
+            List<GroundEdge> staged = [.. pieces.Where(GeometricAdmissibility.IsNoOpEdge)];
+            Assert.True(staged.Count == 1, $"the staged split made {staged.Count} no-op edges, not 1: {pieceFt}");
+
+            List<IGroundEdge> around =
+            [
+                .. bar.Edges.Where(edge => !ReferenceEquals(edge, staged[0])),
+                .. stubNode.Edges.Where(edge => !ReferenceEquals(edge, staged[0])),
+            ];
+            string aroundFt = string.Join(", ", around.Select(edge => $"{edge.DistanceNm * GeoMath.FeetPerNm:F3} ft"));
+            Assert.True(
+                around.All(edge => !GeometricAdmissibility.IsNoOpEdge(edge)),
+                $"the staged no-op edge is not between two edges that move: {aroundFt}"
+            );
+            return;
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            $"KHKY has no hold-short bar with two edges that move to stage a no-op edge beside: {string.Join("; ", bars)}"
+        );
     }
 
     /// <summary>

@@ -37,8 +37,9 @@ public static class GeometricAdmissibility
     ///
     /// <para>
     /// The fillet generator removes zero-distance pairs at the source (guarded by
-    /// <c>FilletCornerSpanGuardTests.EdgeSplit_NoZeroDistanceEdges</c>), but zero-distance edges can still occur in a layout
-    /// (KHKY has one), and the pathfinder and the follow planner handle them as no-ops.
+    /// <c>FilletCornerSpanGuardTests.EdgeSplit_NoZeroDistanceEdges</c>). The bar mint keeps bars clear of edge ends, except on
+    /// an edge too short to hold a point clear of both ends. The pathfinder and the follow planner still handle a zero-length
+    /// edge as a no-op.
     /// </para>
     /// </summary>
     public const double NoOpEdgeThresholdNm = 0.0002; // ≈ 1.2 ft
