@@ -87,10 +87,12 @@ public static class RunwaySafetyAdvisor
     /// pre-issued against a queued pattern entry, or armed on a following aircraft). The airport is
     /// taken from the cleared aircraft's flight-plan destination; when that is blank the airport
     /// filter is skipped — the occupant's runway identity alone decides. A
-    /// <see cref="HoldingInPositionPhase"/> occupant counts only when its own assigned runway both
-    /// names the cleared runway and geometrically contains its position. The stopped-traffic and
-    /// live-traffic checks need real geometry, so they run only when the destination resolves the
-    /// designator to a runway. The past-the-hold-line check runs at every airport, as in the other overload.
+    /// <see cref="HoldingInPositionPhase"/> occupant counts when, with the cleared runway resolved, one of its runways
+    /// (<see cref="PhaseList.RunsOn"/>) names the cleared runway and the cleared runway's pavement contains its position;
+    /// with the cleared runway unresolved, when either of its own runways matches the designator and that runway's
+    /// pavement contains its position. The stopped-traffic and live-traffic checks need real geometry, so they run only
+    /// when the destination resolves the designator to a runway. The past-the-hold-line check runs at every airport, as in
+    /// the other overload.
     /// </summary>
     public static void WarnIfRunwayOccupied(AircraftState aircraft, string runwayDesignator, DispatchContext ctx)
     {
@@ -110,15 +112,14 @@ public static class RunwaySafetyAdvisor
             return;
         }
 
+        string airport = aircraft.FlightPlan.Destination;
         var occupants = ctx.ListAircraft!()
             .Where(other =>
                 (!ReferenceEquals(other, aircraft))
-                && (OccupiedRunwayOf(other) is { } occupied)
-                && SameAirportOrUnknown(occupied.AirportId, aircraft.FlightPlan.Destination)
-                && occupied.Id.Contains(runwayDesignator)
                 && (
-                    AwaitsTakeoffClearanceOnRunway(other)
-                    || (other.Phases?.CurrentPhase is HoldingInPositionPhase && RunwayOccupancy.IsOnPavement(other, occupied))
+                    (namedRunway is not null)
+                        ? OccupiesResolvedRunway(other, namedRunway)
+                        : OccupiesUnresolvedRunway(other, airport, runwayDesignator)
                 )
             )
             .Select(other => other.Callsign)
@@ -562,11 +563,51 @@ public static class RunwaySafetyAdvisor
         (phases.CurrentIndex + 1) < phases.Phases.Count ? phases.Phases[phases.CurrentIndex + 1] : null;
 
     /// <summary>
-    /// The runway a ground aircraft in a line-up-family phase is claiming: the departure runway for
-    /// cross-runway closed traffic (where <see cref="PhaseList.AssignedRunway"/> holds the pattern
-    /// runway instead), otherwise the assigned runway.
+    /// The runway the occupant's current phase runs on (<see cref="PhaseList.CurrentPhaseRunway"/>): for a line-up-family
+    /// phase, the departure runway of cross-runway closed traffic, otherwise the assigned runway.
     /// </summary>
-    private static RunwayInfo? OccupiedRunwayOf(AircraftState occupant) => occupant.Phases?.DepartureRunway ?? occupant.Phases?.AssignedRunway;
+    private static RunwayInfo? OccupiedRunwayOf(AircraftState occupant) => occupant.Phases?.CurrentPhaseRunway;
+
+    /// <summary>
+    /// The designator path's occupant test once the designator resolves to <paramref name="runway"/>: a line-up-family aircraft
+    /// awaiting its takeoff clearance there, or a <see cref="HoldingInPositionPhase"/> aircraft whose phase runs on it
+    /// (<see cref="PhaseList.RunsOn"/>, departure or assigned runway) and that is on its pavement.
+    /// </summary>
+    private static bool OccupiesResolvedRunway(AircraftState other, RunwayInfo runway) =>
+        (
+            AwaitsTakeoffClearanceOnRunway(other)
+            && (OccupiedRunwayOf(other) is { } occupied)
+            && SameAirport(occupied.AirportId, runway.AirportId)
+            && occupied.Id.Overlaps(runway.Id)
+        )
+        || (
+            (other.Phases is { CurrentPhase: HoldingInPositionPhase } phases) && phases.RunsOn(runway) && RunwayOccupancy.IsOnPavement(other, runway)
+        );
+
+    /// <summary>
+    /// The designator path's occupant test when no runway geometry resolves: by runway identity alone, with a
+    /// <see cref="HoldingInPositionPhase"/> aircraft counting on either its departure or its assigned runway when it is on that
+    /// runway's pavement.
+    /// </summary>
+    private static bool OccupiesUnresolvedRunway(AircraftState other, string airport, string designator)
+    {
+        if (AwaitsTakeoffClearanceOnRunway(other))
+        {
+            return (OccupiedRunwayOf(other) is { } occupied) && SameAirportOrUnknown(occupied.AirportId, airport) && occupied.Id.Contains(designator);
+        }
+
+        if (other.Phases is not { CurrentPhase: HoldingInPositionPhase } phases)
+        {
+            return false;
+        }
+
+        return new[] { phases.DepartureRunway, phases.AssignedRunway }.Any(own =>
+            (own is not null)
+            && SameAirportOrUnknown(own.AirportId, airport)
+            && own.Id.Contains(designator)
+            && RunwayOccupancy.IsOnPavement(other, own)
+        );
+    }
 
     private static bool HoldsLandingClearanceFor(AircraftState other, RunwayInfo runway)
     {

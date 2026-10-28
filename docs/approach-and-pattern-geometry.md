@@ -204,7 +204,7 @@ picks one of two shapes by `RunwayGeometry.AreCloseParallels` (same airport, hea
   AIM 4-3-2 the departure/upwind leg belongs to the departure runway; downwind/base/final belong to the landing runway.
 
 For a takeoff clearance the departure runway is carried on `PhaseList.DepartureRunway` (read by
-`LineUpPhase`/`LinedUpAndWaitingPhase`/`TakeoffPhase`), while `AssignedRunway`/`PatternRunway` hold the pattern
+`LineUpPhase`/`LinedUpAndWaitingPhase`/`TakeoffPhase`; it outlives the takeoff, so a reader asking which runway the aircraft is on now uses `PhaseList.CurrentPhaseRunway`, the departure runway only during lineup, lined-up-and-waiting, takeoff and rejected takeoff and the assigned runway in every later phase), while `AssignedRunway`/`PatternRunway` hold the pattern
 runway (read by the circuit/final/landing phases). Subsequent circuits auto-cycle entirely on the pattern runway
 (`BuildNextCircuit`, which reads `PatternRunway ?? AssignedRunway`) — which is why every writer of `AssignedRunway`
 that changes the runway (`TryChangePatternDirection`, `ApplyRebuiltPatternChain`) writes `PatternRunway` too; a stale

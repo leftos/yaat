@@ -416,4 +416,73 @@ public class RunwaySafetyAdvisorTests
         Assert.Single(arrival.PendingWarnings);
         Assert.Contains("XNG1", arrival.PendingWarnings[0]);
     }
+
+    [Fact]
+    public void DesignatorOverload_CrossRunwayClosedTrafficHoldingInPositionOnItsDepartureRunway_Warns()
+    {
+        // CTO MLT 28L from 28R, then stopped on 28R in a generic hold: assigned 28L (the pattern runway), departure 28R.
+        RunwayInfo? oak28R = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"))?.ForApproach("28R");
+        RunwayInfo? oak28L = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28L"))?.ForApproach("28L");
+        if ((oak28R is null) || (oak28L is null))
+        {
+            return;
+        }
+
+        var threshold = new LatLon(oak28R.ThresholdLatitude, oak28R.ThresholdLongitude);
+        var occupant = new AircraftState
+        {
+            Callsign = "N342T",
+            AircraftType = "C172",
+            Position = GeoMath.ProjectPoint(threshold, oak28R.TrueHeading, 500 / GeoMath.FeetPerNm),
+            TrueHeading = oak28R.TrueHeading,
+            TrueTrack = oak28R.TrueHeading,
+            Altitude = oak28R.ElevationFt,
+            IsOnGround = true,
+            Phases = new PhaseList { AssignedRunway = oak28L, DepartureRunway = oak28R },
+        };
+        occupant.Phases.Add(new HoldingInPositionPhase());
+        occupant.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        AircraftState arrival = Arrival();
+        arrival.FlightPlan.Destination = "OAK";
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
+
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28R", ctx);
+
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("N342T", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DesignatorOverload_CrossRunwayClosedTrafficHoldingInPositionOnItsPatternRunway_DoesNotWarn()
+    {
+        // Same aircraft as above (assigned 28L, departure 28R) but stopped on 28L's pavement: its departure
+        // runway names the cleared 28R, and only the cleared runway's pavement test keeps it out of the warning.
+        RunwayInfo? oak28R = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28R"))?.ForApproach("28R");
+        RunwayInfo? oak28L = RunwayOccupancy.AirportRunways("OAK").FirstOrDefault(r => r.Id.Contains("28L"))?.ForApproach("28L");
+        if ((oak28R is null) || (oak28L is null))
+        {
+            return;
+        }
+
+        var threshold = new LatLon(oak28L.ThresholdLatitude, oak28L.ThresholdLongitude);
+        var occupant = new AircraftState
+        {
+            Callsign = "N342T",
+            AircraftType = "C172",
+            Position = GeoMath.ProjectPoint(threshold, oak28L.TrueHeading, 500 / GeoMath.FeetPerNm),
+            TrueHeading = oak28L.TrueHeading,
+            TrueTrack = oak28L.TrueHeading,
+            Altitude = oak28L.ElevationFt,
+            IsOnGround = true,
+            Phases = new PhaseList { AssignedRunway = oak28L, DepartureRunway = oak28R },
+        };
+        occupant.Phases.Add(new HoldingInPositionPhase());
+        occupant.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        AircraftState arrival = Arrival();
+        arrival.FlightPlan.Destination = "OAK";
+        DispatchContext ctx = TestDispatch.Context(new Random(1), listAircraft: () => [arrival, occupant]);
+
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(arrival, "28R", ctx);
+
+        Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N342T", StringComparison.Ordinal));
+    }
 }

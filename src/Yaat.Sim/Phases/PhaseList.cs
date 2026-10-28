@@ -258,9 +258,37 @@ public sealed class PhaseList
     /// takeoff runway differs from the pattern runway (e.g., takeoff 33, pattern for 28R):
     /// <see cref="AssignedRunway"/> is the pattern runway (28R) while this is the departure
     /// runway (33). Null for same-runway operations, where lineup/takeoff fall back to
-    /// <see cref="AssignedRunway"/>. Read by LineUpPhase/LinedUpAndWaitingPhase/TakeoffPhase.
+    /// <see cref="AssignedRunway"/>. Read by the four takeoff-family phases (LineUpPhase, LinedUpAndWaitingPhase,
+    /// TakeoffPhase, RejectedTakeoffPhase); occupancy readers use <see cref="CurrentPhaseRunway"/> or <see cref="RunsOn"/>
+    /// instead, since this field outlives the takeoff.
     /// </summary>
     public RunwayInfo? DepartureRunway { get; set; }
+
+    /// <summary>
+    /// The runway the current phase runs on: <see cref="DepartureRunway"/> (else <see cref="AssignedRunway"/>) while the
+    /// aircraft is lining up, lined up and waiting, taking off or rejecting a takeoff, <see cref="AssignedRunway"/> otherwise.
+    /// <see cref="DepartureRunway"/> outlives the takeoff (follow and training readers need it afterwards), so an aircraft
+    /// cleared for cross-runway closed traffic is judged on its departure runway only while it is still on it, and on its pattern
+    /// runway for every circuit after.
+    /// </summary>
+    public RunwayInfo? CurrentPhaseRunway =>
+        (CurrentPhase is LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase or RejectedTakeoffPhase)
+            ? DepartureRunway ?? AssignedRunway
+            : AssignedRunway;
+
+    /// <summary>
+    /// The current phase runs on the same pavement as <paramref name="runway"/>: <see cref="CurrentPhaseRunway"/> names it, or
+    /// the current phase is a <see cref="HoldingInPositionPhase"/>, which runs on no runway of its own, and either
+    /// <see cref="DepartureRunway"/> or <see cref="AssignedRunway"/> names it. A caller judging a holding aircraft adds its own
+    /// pavement test.
+    /// </summary>
+    public bool RunsOn(RunwayInfo runway) =>
+        (CurrentPhase is HoldingInPositionPhase)
+            ? NamesSamePavement(DepartureRunway, runway) || NamesSamePavement(AssignedRunway, runway)
+            : NamesSamePavement(CurrentPhaseRunway, runway);
+
+    private static bool NamesSamePavement(RunwayInfo? own, RunwayInfo runway) =>
+        (own is not null) && Data.NavigationDatabase.AirportIdsMatch(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
 
     /// <summary>
     /// Controller-requested exit preference. Set by EL/ER/EXIT commands,

@@ -624,6 +624,20 @@
     "Solo": false
   },
   {
+    "File": "issue1357-oak-cto-mlt-28l-occupancy-recording.zip",
+    "Commands": 71,
+    "ByKind": {
+      "Compound": 59,
+      "Delete": 7,
+      "GhostTrack": 2,
+      "TrackOwnership": 3
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "issue154-vfr-cold-calls-recording.zip",
     "Commands": 37,
     "ByKind": {

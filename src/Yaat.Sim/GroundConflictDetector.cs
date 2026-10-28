@@ -2866,7 +2866,7 @@ public static class GroundConflictDetector
     /// </summary>
     private static RunwayRank PassAirportRank(AircraftState ac, RunwayRank floor, AirportGroundLayout layout, IReadOnlyList<RunwayInfo> runways)
     {
-        RunwayInfo? own = ac.Phases?.DepartureRunway ?? ac.Phases?.AssignedRunway;
+        RunwayInfo? own = ac.Phases?.CurrentPhaseRunway;
         RunwayInfo? ownHere = ((own is not null) && RunwayOccupancy.IsLayoutOf(layout, own)) ? own : null;
         return ac.Phases?.CurrentPhase switch
         {

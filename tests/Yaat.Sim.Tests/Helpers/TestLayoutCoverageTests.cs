@@ -35,6 +35,10 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
         "sfo-gc-28rt — a KSFO ground recording that also bundles the scenario's other airports' layouts; every taxi command in it is at "
         + "KSFO and its test asserts only KSFO ground traffic.";
 
+    private const string Issue1357DegradedReason =
+        "issue1357-oak-cto-mlt-28l-occupancy — a KOAK pattern recording whose scenario also declares other airports' layouts; its tests "
+        + "assert only KOAK runway occupancy.";
+
     private const string Issue1144AndSfoGc28rtDegradedReason = Issue1144DegradedReason + " " + SfoGc28rtDegradedReason;
 
     /// <summary>
@@ -50,12 +54,15 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
         ["BZN"] = Issue1144DegradedReason,
         ["CVG"] = SfoGc28rtDegradedReason,
         ["DEN"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["FAT"] = "runway-only layout. " + Issue1357DegradedReason,
         ["GEG"] = SfoGc28rtDegradedReason,
         ["HOU"] = "issue187-star-dvia — IAH is primary; the KHOU traffic is asserted only on its departure altitude cap.",
+        ["KOA"] = "no committed geojson. " + Issue1357DegradedReason,
         ["LAS"] = Issue1144AndSfoGc28rtDegradedReason,
         ["OMA"] = SfoGc28rtDegradedReason,
         ["PDX"] = Issue1144AndSfoGc28rtDegradedReason,
         ["PHX"] = Issue1144AndSfoGc28rtDegradedReason,
+        ["RNO"] = "runway-only layout. " + Issue1357DegradedReason,
         ["SAN"] = Issue1144AndSfoGc28rtDegradedReason,
         ["SAT"] = SfoGc28rtDegradedReason,
         ["SJC"] = "issue216-auto-handoff and multi-cfix-preset — both assert handoff/queue state on airborne traffic.",

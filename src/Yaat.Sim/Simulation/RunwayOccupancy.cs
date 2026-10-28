@@ -603,7 +603,7 @@ public static class RunwayOccupancy
 
     /// <summary>The phase is an exit from <paramref name="runway"/> or a hold after it: the aircraft is leaving this runway.</summary>
     private static bool IsLeavingByPhase(AircraftState ac, RunwayInfo runway) =>
-        (ac.Phases is { CurrentPhase: RunwayExitPhase or HoldingAfterExitPhase } phases) && PhaseRunwayIs(phases, runway);
+        (ac.Phases is { CurrentPhase: RunwayExitPhase or HoldingAfterExitPhase } phases) && phases.RunsOn(runway);
 
     /// <summary>Whether node <paramref name="nodeId"/> is a hold-short bar protecting <paramref name="runway"/>.</summary>
     internal static bool IsBarOf(AirportGroundLayout layout, int nodeId, RunwayInfo runway) =>
@@ -726,16 +726,9 @@ public static class RunwayOccupancy
     private static LatLon NoseAt(LatLon stop, double headingDeg, AircraftBody body) =>
         GeoMath.ProjectPoint(stop, new TrueHeading(headingDeg).ToReciprocal(), body.LengthFt / 2.0 / GeoMath.FeetPerNm);
 
-    /// <summary>The phase list's own runway (departure, else assigned) names the same pavement as <paramref name="runway"/>.</summary>
-    private static bool PhaseRunwayIs(PhaseList phases, RunwayInfo runway)
-    {
-        RunwayInfo? own = phases.DepartureRunway ?? phases.AssignedRunway;
-        return (own is not null) && SameAirport(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
-    }
-
     /// <summary>
     /// What the aircraft's current phase says about its runway use, or null when the phase is not a runway phase.
-    /// When <paramref name="runway"/> is given the phase's own runway (departure, else assigned) must name the same
+    /// When <paramref name="runway"/> is given the runway the current phase runs on must name the same
     /// pavement; with null the phase alone decides — except <see cref="HoldingInPositionPhase"/>, which YAAT also uses as
     /// a generic ground-idle hold and therefore only counts when it is physically on the given runway's pavement, and
     /// <see cref="AirTaxiPhase"/>, a relocation with no runway of its own that is a surface movement (§3-11-3 NOTE) on
@@ -755,7 +748,7 @@ public static class RunwayOccupancy
             return (runway is not null) && IsOverOrOnPavement(ac, runway) ? RunwayUseKind.OnSurface : null;
         }
 
-        if ((runway is not null) && !PhaseRunwayIs(phases, runway))
+        if ((runway is not null) && !phases.RunsOn(runway))
         {
             return null;
         }

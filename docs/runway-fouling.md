@@ -33,6 +33,14 @@ The published entry, from the reviewer's own knowledge and not checked against a
 
 The AI callers of `Classify` are `ControllerAi/PositionJurisdiction.cs` and `ControllerAi/Rules/RunwayCrossingGate.cs`; `ControllerAi/RunwayInUse.cs`, `PrecedingDepartureBlock.cs`, `FinalApproachExitForecast.cs` and `Training/SameRunwaySeparation.cs` do not call it. Both callers leave a fouler out: `PositionJurisdiction` does not hand a holder to Tower merely for overrunning the line, and the crossing gate does not close a crossing for one.
 
+## Which runway a phase-driven aircraft is judged against
+
+`RunwayOccupancy.ClassifyByPhase` (and through it `RunwayOccupancy.Classify`, which `RunwaySafetyAdvisor`'s takeoff "traffic on runway" warning calls), `OccupiedRunwayGoAround.UsesThisRunway`, `RunwaySafetyAdvisor.OccupiedRunwayOf` (which feeds its lined-up and line-up-and-wait warnings) and `GroundConflictDetector.PassAirportRank` read `PhaseList.CurrentPhaseRunway`: the departure runway (else the assigned runway) during `LineUpPhase`, `LinedUpAndWaitingPhase`, `TakeoffPhase` and `RejectedTakeoffPhase`, the assigned runway in every other phase.
+
+`PhaseList.DepartureRunway` outlives the takeoff, so an aircraft that took off on 28R for closed traffic on 28L is judged on 28R only while it is lining up, rolling or rejecting, and on its pattern runway 28L once it flies the circuit: it draws no go-around for an arrival on 28R and trips no 28R takeoff warning, and ground-conflict ranking sees it on 28L.
+
+A `HoldingInPositionPhase` runs on no runway of its own (YAAT also uses it as a generic ground-idle hold), so it counts on either its departure or its assigned runway (`PhaseList.RunsOn`) and a pavement test decides: the one in `ClassifyByPhase`, and in `RunwaySafetyAdvisor`'s designator overload the cleared runway's pavement when the designator resolves, else the pavement of whichever of its own runways matches.
+
 ## Implementation notes for the brief
 
 - **Tolerance:** about 5 ft past the marking, measured at the solid (hold-side) line. It has to clear the 2 ft `SetBackStopMarginFt` and nose-on-marking stop noise with margin, so that a correct hold never fouls.

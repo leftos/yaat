@@ -448,12 +448,12 @@ public static class OccupiedRunwayGoAround
         && ((occupant.Phases is null) || UsesThisRunway(occupant, runway));
 
     /// <summary>
-    /// The occupant's phase runway (departure, else assigned) is this pavement — an exit from a crossing runway earns no credit
+    /// The runway the occupant's current phase runs on is this pavement — an exit from a crossing runway earns no credit
     /// here.
     /// </summary>
     private static bool UsesThisRunway(AircraftState occupant, RunwayInfo runway)
     {
-        RunwayInfo? own = occupant.Phases?.DepartureRunway ?? occupant.Phases?.AssignedRunway;
+        RunwayInfo? own = occupant.Phases?.CurrentPhaseRunway;
         return (own is not null) && Data.NavigationDatabase.AirportIdsMatch(own.AirportId, runway.AirportId) && own.Id.Overlaps(runway.Id);
     }
 }
