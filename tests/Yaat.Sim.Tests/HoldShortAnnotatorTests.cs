@@ -1110,13 +1110,15 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         Assert.DoesNotContain(route.Warnings, w => w.Contains("wingtip clearance", StringComparison.Ordinal));
     }
 
-    /// <summary>OAK's 28R bar #188 on B, north of the runway, and its B neighbours toward and away from the runway.</summary>
+    /// <summary>
+    /// OAK's 28R bar on B, north of the runway (the one on the C/A side), and its B neighbours toward and away from the runway.
+    /// </summary>
     private static (GroundNode Bar, GroundNode TowardRunway, GroundNode AwayFromRunway) Oak28RBarOnB()
     {
         AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
-        GroundNode bar = layout.Nodes[188];
+        GroundNode bar = GroundNodeLookup.HoldShortBar(layout, "28R", "B", GroundNodeLookup.Junction(layout, "C", "A"));
         Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
-        Assert.True((bar.RunwayId is { } id) && id.Contains("28R"), $"node 188 is no 28R bar: {bar.RunwayId}");
+        Assert.True((bar.RunwayId is { } id) && id.Contains("28R"), $"node {bar.Id} is no 28R bar: {bar.RunwayId}");
         List<GroundNode> onB = [.. bar.Edges.OfType<GroundEdge>().Where(e => e.TaxiwayName == "B").Select(e => e.OtherNode(bar))];
         return (bar, onB.MinBy(n => n.Position.Lat)!, onB.MaxBy(n => n.Position.Lat)!);
     }

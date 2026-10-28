@@ -127,14 +127,8 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// <summary>The taxi rig's starting conditions: parked at GA16.</summary>
     private const string ParkedAtGa16 = """{ "type": "Parking", "parking": "GA16" }""";
 
-    /// <summary>Standing on taxiway C at KOAK spot I8R (node 4), heading down C toward the C/A junction.</summary>
+    /// <summary>Standing on taxiway C at KOAK spot I8R, heading down C toward the C/A junction.</summary>
     private const string OnCAtSpotI8R = """{ "type": "Coordinates", "coordinates": { "lat": 37.725692, "lon": -122.204250 }, "heading": 112 }""";
-
-    /// <summary>KOAK spot I8R on taxiway C, west of the C/A junction.</summary>
-    private const int SpotI8RNodeId = 4;
-
-    /// <summary>The KOAK node where taxiway C meets taxiway A.</summary>
-    private const int CAJunctionNodeId = 337;
 
     /// <summary>The taxi from spot I8R down C onto A.</summary>
     private const string TaxiCToA = "TAXI C A B RWY 28R";
@@ -668,8 +662,9 @@ public class HoldInsideStoppingDistanceOfBarTests
         Assert.True(engine.SendCommand(Callsign, TaxiCToA).Success, $"{TaxiCToA} was rejected");
         engine.TickOneSecond();
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
-        GroundNode junction = layout.Nodes[CAJunctionNodeId];
-        var line = new HoldLine(junction, GeoMath.BearingTo(junction.Position, layout.Nodes[SpotI8RNodeId].Position));
+        GroundNode junction = GroundNodeLookup.Junction(layout, "C", "A");
+        GroundNode spotI8R = layout.FindSpotNodeByName("I8R") ?? throw new InvalidOperationException("OAK: no spot I8R");
+        var line = new HoldLine(junction, GeoMath.BearingTo(junction.Position, spotI8R.Position));
 
         bool reRouted = false;
         var losses = new LossTracker();
@@ -693,7 +688,7 @@ public class HoldInsideStoppingDistanceOfBarTests
                 Assert.True(reRoute.Success, $"{TaxiCToAHoldShortA} was rejected: {reRoute.Message}");
                 TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
                 _output.WriteLine(
-                    $"{TaxiCToAHoldShortA} at {speedKts:F1} kt, nose {line.NosePastFt(aircraft):F1} ft past node {CAJunctionNodeId}: "
+                    $"{TaxiCToAHoldShortA} at {speedKts:F1} kt, nose {line.NosePastFt(aircraft):F1} ft past node {junction.Id}: "
                         + $"{route.ToSummary()}, holds short at "
                         + $"[{string.Join(", ", route.HoldShortPoints.Select(hs => $"{hs.NodeId}:{hs.TargetName}"))}]"
                 );

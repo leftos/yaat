@@ -125,7 +125,9 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = MakeAt(layout, layout.Nodes[508], new TrueHeading(0.0));
+        // On 28R's H holding position south of the runway, facing north.
+        GroundNode bar = GroundNodeLookup.HoldShortBar(layout, "28R", "H", GroundNodeLookup.Junction(layout, "H", "RWY28L/10R"));
+        AircraftState aircraft = MakeAt(layout, bar, new TrueHeading(0.0));
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
             new TaxiCommand(Path: ["G"], HoldShorts: [], Expedite: false, DestinationParking: "SIG1"),

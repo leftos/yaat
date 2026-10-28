@@ -72,9 +72,9 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
         Assert.NotNull(holdPhase);
-        // Node 188 = the B/28R-10L hold-short (graph-dependent; regenerate via
-        // `Yaat.LayoutInspector --exits 28R` if the ground graph changes).
-        Assert.Equal(188, holdPhase.HoldShort.NodeId);
+        // The B/28R-10L hold-short on the C/A side of the runway.
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(ac.Ground.Layout);
+        Assert.Equal(GroundNodeLookup.HoldShortBar(layout, "28R", "B", GroundNodeLookup.Junction(layout, "C", "A")).Id, holdPhase.HoldShort.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, holdPhase.HoldShort.Reason);
 
         CommandResult result = engine.SendCommand("N7LJ", "RES");

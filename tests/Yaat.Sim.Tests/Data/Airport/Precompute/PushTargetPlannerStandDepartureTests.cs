@@ -66,7 +66,7 @@ public class PushTargetPlannerStandDepartureTests
     public void Ga20_IsTaxiOutStand_HasNoTargets()
     {
         AirportGroundLayout layout = Oak();
-        GroundNode ga20 = layout.Nodes[Ga20NodeId];
+        GroundNode ga20 = GroundNodeLookup.Parking(layout, "GA20");
         Assert.Equal((GroundNodeType.Parking, "GA20"), (ga20.Type, ga20.Name));
 
         IReadOnlyList<PushTargetEntry> entries = PushTargetPlanner.ComputeStands(
@@ -178,7 +178,7 @@ public class PushTargetPlannerStandDepartureTests
         ]);
 
         Assert.Equal(StandDeparture.TaxiOut, StandDepartures.StandDepartureOf(layout, Stand(layout, "26"), flipped));
-        Assert.Equal(StandDeparture.PushBack, StandDepartures.StandDepartureOf(layout, layout.Nodes[Ga20NodeId], flipped));
+        Assert.Equal(StandDeparture.PushBack, StandDepartures.StandDepartureOf(layout, GroundNodeLookup.Parking(layout, "GA20"), flipped));
         IReadOnlyList<PushTargetEntry> gate26 = PushTargetPlanner.ComputeStands(
             layout,
             DesignGroupEnvelopes.LoadShipped(),
