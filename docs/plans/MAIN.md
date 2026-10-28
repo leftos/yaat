@@ -5,7 +5,7 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-1321 Fix flaky CrcJoinSessionTests.JoinSession_AnsweredWhileThePrimaryActivates: SetSessionActive(false) · release vNext — Urgent · No project
+- [ ] YAAT-1329 Fix flaky DataGridContextMenuStateTests.AirborneVfrOnFinal_ShowsOptionClearances: NavigationDatabase not initialized · release vNext — Urgent · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -22,6 +22,7 @@
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
 - [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs
+- [ ] YAAT-1328 Stop a runway exit or CLRWY with the nose short of another runway's hold line (SFO 28R-28L crossovers) · release vNext
 
 ## Controller-AI coaching
 
@@ -66,6 +67,9 @@
 
 ## Bug reports and feature requests
 
+- [ ] YAAT-1326 Add Category "All" for favorites · release vNext
+- [ ] YAAT-1325 Auto delete closes open favorites editor window · release vNext
+- [ ] YAAT-1327 N7LJ stuck at the far-side runway hold-short bar at OAK; RES, CROSS and BREAK do not free it · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -465,7 +469,6 @@
 - [ ] YAAT-1249 wait_until answers met:false when its final log read finds the match after the last poll
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
-- [!] YAAT-1295 Write Mac crash dumps into the worktree's .tmp/dumps and return them with gate failureOutputs (GATE-824)
 - [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
 
 ## Singles
@@ -853,7 +856,7 @@
 - [ ] YAAT-1296 Harden the crossing stop curve: carry flag in the lead-chain exemption, zero-room floor, per-tick allocation
 - [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
 - [ ] YAAT-1298 A taxiing aircraft at rest behind stopped traffic speeds up, then is stopped in one pass (SFO C/J, 6.75 kt)
-- [ ] YAAT-1312 Use one 10 ft tail-clear margin for exits, crossings and ClearRunwayPhase · release vNext
+- [/] YAAT-1312 Use one 10 ft tail-clear margin for exits, crossings and ClearRunwayPhase · release vNext
 - [ ] YAAT-1313 Test PublishSegmentSpeed's turn-about and slow-turn paths on exit arrival
 - [ ] YAAT-1314 Stop a bare TAXI to a crossing taxiway short of it instead of in the intersection (OAK TAXI B from C) · release vNext
 - [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
@@ -861,6 +864,8 @@
 - [ ] YAAT-1318 Keep a block's TAXI readback and run order the same whichever of TAXI and CROSS comes first
 - [ ] YAAT-1319 Read a multi-runway CROSS's crossings before the continued taxi route
 - [ ] YAAT-1320 Harden the videomap paint pairing: bar length cap, 450 ft cap, solid vs dashed line, marking direction
+- [ ] YAAT-1323 Pin the taxi readback cover rule's edge cases: shared stop node, same runway twice, same-type uncovered readback
+- [ ] YAAT-1324 Tell joined vEDST clients the session went inactive on a repeated StartSession
 
 ## No project
 
