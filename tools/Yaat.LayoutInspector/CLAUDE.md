@@ -65,6 +65,7 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 | `--dump` | Full airport JSON (pipe to file for grepping) |
 | `--no-fillets` | Parse without fillet arcs for comparison |
 | `--fillet-mode <m>` | Fillet generator: `standard` (default) or `none` (alias for `--no-fillets`) |
+| `--videomap <path>` | Parse with this tower-cab videomap GeoJSON (the snapped hold-short bars the server builds), so the graph matches the server's; e.g. `tests/Yaat.Sim.Tests/TestData/TowerCabMaps/oak.geojson` |
 
 ### HTML render
 | Flag | Purpose |

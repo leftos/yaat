@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Yaat.LayoutInspector.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -65,10 +66,15 @@ public static class Program
         Bootstrap.TryLoadNavData(options.NavDataDir);
         Bootstrap.ConfigureDebugLogging(options);
 
+        if (!TryReadVideoMap(options.VideoMapPath, out TowerCabVideoMap? videoMap))
+        {
+            return 1;
+        }
+
         LayoutAnalyzer analyzer;
         try
         {
-            analyzer = LayoutAnalyzer.Load(geoJsonPath, options.AirportCode, options.FilletMode);
+            analyzer = LayoutAnalyzer.Load(geoJsonPath, options.AirportCode, options.FilletMode, videoMap);
         }
         catch (Exception ex)
         {
@@ -85,5 +91,39 @@ public static class Program
         };
 
         return command.Execute(analyzer, options);
+    }
+
+    /// <summary>
+    /// Reads the tower-cab videomap named by <c>--videomap</c>, which the layout build seats hold-short bars on. A null path
+    /// parses with no map. A path that cannot be read or parsed prints why and fails the run: falling back to no map would
+    /// silently show a graph the server does not build. Reads after the debug logger is wired, so the map reader's warnings
+    /// reach it.
+    /// </summary>
+    private static bool TryReadVideoMap(string? path, out TowerCabVideoMap? map)
+    {
+        map = null;
+        if (path is null)
+        {
+            return true;
+        }
+
+        if (!File.Exists(path))
+        {
+            Console.Error.WriteLine($"Videomap file not found: {path}");
+            return false;
+        }
+
+        try
+        {
+            map = TowerCabVideoMap.Read(File.ReadAllText(path));
+        }
+        catch (Exception ex) when ((ex is JsonException) || (ex is IOException) || (ex is UnauthorizedAccessException))
+        {
+            Console.Error.WriteLine($"Failed to read videomap {path}: {ex.Message}");
+            return false;
+        }
+
+        Console.Error.WriteLine($"Loaded videomap from {path}");
+        return true;
     }
 }

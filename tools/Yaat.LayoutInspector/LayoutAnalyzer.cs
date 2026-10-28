@@ -11,7 +11,7 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
     public AirportGroundLayout Layout { get; } = layout;
     public string AirportId { get; } = layout.AirportId;
 
-    public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode, FilletMode filletMode)
+    public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode, FilletMode filletMode, TowerCabVideoMap? videoMap)
     {
         string geoJson = File.ReadAllText(geoJsonPath);
         string airportId = Path.GetFileNameWithoutExtension(geoJsonPath).ToUpperInvariant();
@@ -21,7 +21,7 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
             airportCode,
             new LayoutInputs(
                 (NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty).GetStandLeadIns(airportId),
-                VideoMap: null
+                VideoMap: videoMap
             ),
             filletMode
         );
