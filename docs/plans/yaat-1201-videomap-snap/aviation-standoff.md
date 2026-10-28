@@ -81,7 +81,7 @@ Neither should become the runway hold point; the pairing correctly left them unp
 
 **Step A: base separation S** (feet from the runway centerline to the *nearest point* of the hold line), by first match:
 
-1. **Per-runway paint calibration**: if the runway has ≥ 3 paint-paired bars, S = the median of their **near-end** cross-track distances (min of the two end distances, not the midpoint). This is data, it beats any table, and it fixes stale authored values. OAK gives 28R ≈ 252, 28L ≈ 257, 30 ≈ 281, 15/33 ≈ 165.
+1. **Per-runway paint calibration**: if the runway has ≥ 3 paint-paired bars, S = the median of their **near-end** cross-track distances (min of the two end distances, not the midpoint). This is data, it beats any table, and it fixes stale authored values. OAK gives 28R/10L 252.1, 28L/10R 258.5, 30/12 280.8, 15/33 164.9.
 2. **Authored `holdShortDistance`** when present. Log a data warning when it is more than 15 ft below the step-3 value for a runway in the ≥ 250 class (OAK 28R: authored 225 vs rule 250).
 3. **Rule**, using width W_rwy, length L_rwy, ILS category from CIFP (max over both ends) and elevation E_ft:
    - W ≥ 200 → 280

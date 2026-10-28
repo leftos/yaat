@@ -45,14 +45,18 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         ref int nextNodeId
     )
     {
-        RunwayPlan plan = RunwayCrossingDetector.PlanRunway(rwy, layout.AirportId, null);
-        return RunwayCrossingDetector.DetectRunwayCrossings(plan, [plan], layout, coordIndex, videoMap: null, ref nextNodeId);
+        RunwayPlan plan = RunwayCrossingDetector.PlanRunway(rwy, layout.AirportId, null, calibratedFt: null);
+        return RunwayCrossingDetector.DetectRunwayCrossings(plan, [plan], layout, coordIndex, ref nextNodeId);
     }
 
     /// <summary>The parse-time rectangle of <paramref name="rwy"/> as the detector builds it with no navdata for the runway.</summary>
     private static RunwayRectangle RectWithoutNavData(GeoJsonParser.RunwayFeature rwy, double widthFt, RunwayIdentifier combinedId)
     {
-        HoldShortStandoffResult standoff = RunwayCrossingDetector.ResolveStandoff(rwy, RunwayStandoffInputs.WithoutNavData(widthFt));
+        HoldShortStandoffResult standoff = RunwayCrossingDetector.ResolveStandoff(
+            rwy,
+            RunwayStandoffInputs.WithoutNavData(widthFt),
+            calibratedFt: null
+        );
         return RunwayCrossingDetector.BuildRunwayRectangle(rwy, widthFt, standoff.Ft, combinedId);
     }
 

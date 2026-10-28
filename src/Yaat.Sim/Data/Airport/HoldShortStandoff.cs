@@ -115,6 +115,9 @@ public static class HoldShortStandoff
     /// <summary>How far an authored value may sit below a 250 ft class rule value before the rule is used instead.</summary>
     private const double AuthoredToleranceFt = 15.0;
 
+    /// <summary>The fewest paint-paired bars a runway needs for its separation to be calibrated from paint (<see cref="CalibratedFt"/>).</summary>
+    public const int MinCalibrationBars = 3;
+
     /// <summary>The runway length from which a 100 ft or wider runway is in the 250 ft row without an ILS.</summary>
     private const double LongRunwayFt = 5_000.0;
 
@@ -139,6 +142,26 @@ public static class HoldShortStandoff
         return (ruleFt >= ClassFloorFt) && (authored < ruleFt - AuthoredToleranceFt)
             ? new HoldShortStandoffResult(ruleFt, HoldShortStandoffSource.RuleOverAuthored, ruleFt)
             : new HoldShortStandoffResult(authored, HoldShortStandoffSource.Authored, ruleFt);
+    }
+
+    /// <summary>
+    /// A runway's paint-calibrated separation from the near ends of its paint-paired bars (each bar's drawn end nearer the
+    /// runway centerline, feet from it): their median, the mean of the middle two for an even count, rounded to 0.1 ft. Null
+    /// when the runway has fewer than <see cref="MinCalibrationBars"/> paired bars. No elevation term: the paint is measured.
+    /// </summary>
+    /// <param name="nearEndsFt">The near-end cross-track distance of each paired bar, feet.</param>
+    /// <returns>The calibrated separation, feet, or null.</returns>
+    public static double? CalibratedFt(IReadOnlyCollection<double> nearEndsFt)
+    {
+        if (nearEndsFt.Count < MinCalibrationBars)
+        {
+            return null;
+        }
+
+        double[] sorted = [.. nearEndsFt.Order()];
+        int middle = sorted.Length / 2;
+        double median = (sorted.Length % 2 == 1) ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0;
+        return Math.Round(median, 1, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

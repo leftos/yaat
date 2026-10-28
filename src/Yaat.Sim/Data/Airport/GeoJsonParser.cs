@@ -348,21 +348,15 @@ public static class GeoJsonParser
         RemoveOverlappingEdges(layout);
 
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
-        // Every runway's S and rectangle come first, so each crossing sees every other runway's holding area whatever the order.
+        // Every runway's S (paint-calibrated where the map pairs enough bars) and rectangle come first, so each crossing sees
+        // every other runway's holding area whatever the order.
         var fallbackBars = new List<FallbackBar>();
         var snappedBars = new List<SnappedBar>();
-        List<RunwayPlan> plans = [.. runways.Select(rwy => RunwayCrossingDetector.PlanRunway(rwy, layout.AirportId, runwayAirportCode))];
+        List<RunwayPlan> plans = RunwayCrossingDetector.PlanRunways(runways, layout, runwayAirportCode, source.Inputs.VideoMap);
         foreach (RunwayPlan plan in plans)
         {
             RunwayFeature rwy = plan.Feature;
-            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(
-                plan,
-                plans,
-                layout,
-                coordIndex,
-                source.Inputs.VideoMap,
-                ref nextNodeId
-            );
+            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(plan, plans, layout, coordIndex, ref nextNodeId);
             double rwyWidthFt = crossings.WidthFt;
             fallbackBars.AddRange(crossings.FallbackBars);
             snappedBars.AddRange(crossings.SnappedBars);
@@ -375,6 +369,7 @@ public static class GeoJsonParser
                     WidthFt = rwyWidthFt,
                     HoldShortDistanceFt = rwy.HoldShortDistanceFt,
                     HoldShortStandoffFt = crossings.HoldShortStandoffFt,
+                    UnplannedPaintCrossings = crossings.UnplannedPaintCrossings,
                     TurnoffByEnd = rwy.TurnoffByEnd,
                     PatternAltitudeAglFt = rwy.PatternAltitudeAglFt,
                     PatternSizeNm = rwy.PatternSizeNm,
