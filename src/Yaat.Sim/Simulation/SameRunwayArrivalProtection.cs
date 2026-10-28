@@ -25,8 +25,9 @@ namespace Yaat.Sim.Simulation;
 /// <para><b>Clear of the runway.</b> AIM 2-3-5.a.1 and AIM 4-3-21.b: an aircraft exiting is not clear until <i>all
 /// parts</i> of it have crossed the holding position marking. Both regimes therefore measure to
 /// <see cref="TailClearanceNm"/> past the hold-short node — half a fuselage length, the clear point.
-/// <see cref="RunwayExitPhase"/> stops <see cref="RunwayExitPhase.TailClearMarginFt"/> beyond that point, so the phase is
-/// never predicted clear later than it is. Each regime models the
+/// <see cref="RunwayExitPhase"/> stops <see cref="RunwayTailClearance.MarginFt"/> beyond that point. A leader on its exit is modelled
+/// braking to rest at the clear point, though it brakes to rest the margin beyond it and passes the clear point sooner,
+/// so it is predicted clear later than it is: the safe side. Each regime models the
 /// speed profile its phase actually flies rather than the leader's present ground speed held to the end. A
 /// <see cref="LandingPhase"/> leader brakes the rollout to the exit's turn-off speed by the branch point — a leg
 /// covered at the constant-deceleration mean of the two — and then flies the exit at that turn-off speed. A
@@ -329,8 +330,10 @@ public static class SameRunwayArrivalProtection
     /// <summary>
     /// Path distance (nm) the leader must still cover past its hold-short node before <em>all parts</em> of it are
     /// across the holding position marking (AIM 2-3-5.a.1, AIM 4-3-21.b): half a fuselage length, the clear point.
-    /// <see cref="RunwayExitPhase"/> stops <see cref="RunwayExitPhase.TailClearMarginFt"/> beyond that point, so the phase
-    /// is never predicted clear later than it is. The fuselage length comes from
+    /// <see cref="RunwayExitPhase"/> stops <see cref="RunwayTailClearance.MarginFt"/> beyond that point. A
+    /// <see cref="LandingPhase"/> leader is never predicted clear later than it is. A leader on its exit is
+    /// modelled braking to rest at the clear point, though it brakes to rest the margin beyond it and passes the clear
+    /// point sooner, so it is predicted clear later than it is: the safe side. The fuselage length comes from
     /// <see cref="AircraftLength.ResolveFt"/> — the resolver <see cref="RunwayExitPhase"/> uses, so the two agree on an
     /// unknown type too.
     /// </summary>

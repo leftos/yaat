@@ -748,11 +748,10 @@ public class LandingExitDecelTests
         Assert.True(ticksAfterApproachLeg > 0, "the C172 never left the approach leg of its exit route");
         Assert.True(measuredSeconds > 0, "no whole second past the approach leg was measured");
 
-        double halfLengthFt = AircraftLength.ResolveFt("C172") / 2.0;
         double pastBarFt = GeoMath.DistanceNm(aircraft.Position, committed.HoldShortNode.Position) * GeoMath.FeetPerNm;
 
         Assert.True(aircraft.GroundSpeed < 1.0, $"the C172 should have stopped at the bar, gs={aircraft.GroundSpeed:F1}");
-        Assert.True(pastBarFt <= halfLengthFt + 10.0, $"stopped {pastBarFt:F1} ft past the bar, half its length {halfLengthFt:F1} ft");
+        AssertStopsAtTheTailClearPoint("C172", pastBarFt);
         Assert.True(maxRateAfterApproachLeg <= taxiRate + 1e-6, $"braked at up to {maxRateAfterApproachLeg:F2} kt/s past the approach leg");
         Assert.True(
             maxMeasuredAfterApproachLeg <= taxiRate + 0.05,
@@ -975,7 +974,7 @@ public class LandingExitDecelTests
         double edgeNm = GeoMath.DistanceNm(branch.Position, bar.Position);
         double bearing = GeoMath.BearingTo(branch.Position, bar.Position);
         LatLon start = GeoMath.ProjectPoint(branch.Position, new TrueHeading(bearing), 0.25 * edgeNm);
-        double tailClearFt = (AircraftLength.ResolveFt("B738") / 2.0) + RunwayExitPhase.TailClearMarginFt;
+        double tailClearFt = RunwayTailClearance.PastBarFt(AircraftLength.ResolveFt("B738"));
         double toTailClearNm = (0.75 * edgeNm) + (tailClearFt / GeoMath.FeetPerNm);
         double stopCurveKts = SubTickStopCurveKts(CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet), toTailClearNm);
         double startKts = Math.Min(stopCurveKts, CategoryPerformance.TaxiSpeed(AircraftCategory.Jet));
@@ -1076,12 +1075,12 @@ public class LandingExitDecelTests
     /// <summary>
     /// Asserts a stop <paramref name="pastBarFt"/> past the bar is at the tail-clear point of <paramref name="aircraftType"/>:
     /// the tail on or past the marking (at least half the length past the bar, no tolerance short of it), and no more than
-    /// <see cref="RunwayExitPhase.TailClearMarginFt"/> plus 0.5 ft beyond that.
+    /// <see cref="RunwayTailClearance.MarginFt"/> plus 0.5 ft beyond that.
     /// </summary>
     private static void AssertStopsAtTheTailClearPoint(string aircraftType, double pastBarFt)
     {
         double halfLengthFt = AircraftLength.ResolveFt(aircraftType) / 2.0;
-        double maxFt = halfLengthFt + RunwayExitPhase.TailClearMarginFt + 0.5;
+        double maxFt = halfLengthFt + RunwayTailClearance.MarginFt + 0.5;
         Assert.True(pastBarFt <= maxFt, $"stopped {pastBarFt:F1} ft past the bar, more than {maxFt:F1} ft");
         Assert.True(pastBarFt >= halfLengthFt, $"stopped {pastBarFt:F1} ft past the bar, the tail short of the marking ({halfLengthFt:F1} ft)");
     }

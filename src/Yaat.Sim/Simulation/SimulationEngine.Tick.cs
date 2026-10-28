@@ -1684,7 +1684,8 @@ public sealed partial class SimulationEngine
     /// is full at the rule's maximum for the CWTs involved, or when the pavement free from the exit bar to the tail of the
     /// nearest occupant, where it stands (its position projected onto the walked path, less half its length), is shorter
     /// than the arrival plus the ground conflict detector's stop gap to that occupant
-    /// (<see cref="GroundConflictDetector.StopGapFt"/>; <see cref="AircraftLength.ResolveFt"/> for every aircraft). The
+    /// (<see cref="GroundConflictDetector.StopGapFt"/>; <see cref="AircraftLength.ResolveFt"/> for every aircraft) plus
+    /// <see cref="RunwayTailClearance.MarginFt"/>, the margin past the exit bar its exit stops its tail at. The
     /// gap is a sim convention, the trail ring <see cref="GroundConflictDetector"/> stops the arrival at; the rule it
     /// serves is AIM 4-3-21.a/b, that the whole aircraft must clear the hold line.
     /// </summary>
@@ -1717,7 +1718,8 @@ public sealed partial class SimulationEngine
         }
 
         double arrivalFt = AircraftLength.ResolveFt(arrivalType);
-        double neededFt = arrivalFt + GroundConflictDetector.StopGapFt(AircraftLength.ResolveFt(nearest.AircraftType), arrivalFt);
+        double neededFt =
+            arrivalFt + GroundConflictDetector.StopGapFt(AircraftLength.ResolveFt(nearest.AircraftType), arrivalFt) + RunwayTailClearance.MarginFt;
         return (freeFt < neededFt) ? $"{Math.Max(freeFt, 0):F0} ft free from the exit bar to the nearest tail, {neededFt:F0} ft needed" : null;
     }
 

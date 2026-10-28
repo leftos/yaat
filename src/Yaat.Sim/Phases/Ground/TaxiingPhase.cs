@@ -1523,14 +1523,14 @@ public sealed class TaxiingPhase : Phase
 
     /// <summary>
     /// How far (ft) ahead the near-line gate starts judging a crossing bar: the taxi-rate stopping distance,
-    /// <see cref="FarSideReachSeconds"/> of travel and <see cref="RunwayCrossingFarSideGate.MarginFt"/>.
+    /// <see cref="FarSideReachSeconds"/> of travel and <see cref="RunwayTailClearance.MarginFt"/>.
     /// </summary>
     private static double FarSideReachFt(PhaseContext ctx)
     {
         double speedKts = ctx.Aircraft.GroundSpeed;
         return GroundStopBraking.StoppingDistanceFt(speedKts, CategoryPerformance.TaxiDecelRate(ctx.Category))
             + (speedKts * GroundStopBraking.FeetPerSecondPerKt * FarSideReachSeconds)
-            + RunwayCrossingFarSideGate.MarginFt;
+            + RunwayTailClearance.MarginFt;
     }
 
     /// <summary>

@@ -20,7 +20,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// YAAT-905: a bare taxi whose two taxiways meet only across a runway (KCOS A2/C2 across 17R/35L, declared in-test as a
 /// sidecar <c>crossingPairs</c> entry; KOAK D/F across 15/33, YAAT-850's offset crossing) ends on the far taxiway with the
 /// whole aircraft past its holding-position bar: half the aircraft's length plus
-/// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far bar, straight ahead, never on the runway centreline. The
+/// <see cref="RunwayTailClearance.MarginFt"/> past the far bar, straight ahead, never on the runway centreline. The
 /// readback names the crossing, never "on 17R", "RWY" or "intersection".
 /// </summary>
 [Collection("Acceptance")]
@@ -50,7 +50,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     /// <summary>KOAK's J hold short on D, passed before the 15/33 crossing on <c>TAXI D F HS J</c> from <see cref="OakDJJunctionNode"/>.</summary>
     private const int OakJHoldShortOnDNode = 1171;
 
-    private static double ClearFt(string aircraftType) => (AircraftLength.ResolveFt(aircraftType) / 2.0) + RunwayCrossingFarSideGate.MarginFt;
+    private static double ClearFt(string aircraftType) => (AircraftLength.ResolveFt(aircraftType) / 2.0) + RunwayTailClearance.MarginFt;
 
     /// <summary>
     /// R1/R2: KCOS <c>TAXI A2 C2</c> and <c>TAXI C2 A2</c> for a C172, the pair declared: the route ends on the far taxiway at
@@ -505,8 +505,8 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.False(SegmentExpander.EndClearsAt(bar28L, crossed, wellPastFt), $"a 15/33 crossing clears at 28L's bar #{bar28L.Id}");
         Assert.False(SegmentExpander.EndClearsAt(layout.Nodes[OakFJoinOn33Node], crossed, wellPastFt));
-        Assert.True(SegmentExpander.EndClearsAt(fNode, crossed, RunwayCrossingFarSideGate.MarginFt));
-        Assert.False(SegmentExpander.EndClearsAt(fNode, crossed, RunwayCrossingFarSideGate.MarginFt - 0.01));
+        Assert.True(SegmentExpander.EndClearsAt(fNode, crossed, RunwayTailClearance.MarginFt));
+        Assert.False(SegmentExpander.EndClearsAt(fNode, crossed, RunwayTailClearance.MarginFt - 0.01));
     }
 
     /// <summary>
@@ -536,7 +536,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.Equal(20.0 - (lengthFt / 2.0), straightFt, 0.1);
         Assert.Equal(20.0 - (lengthFt / 4.0), turnedBackFt, 0.1);
-        Assert.True(turnedBackFt < RunwayCrossingFarSideGate.MarginFt, $"a B738 nosed back over the line counts as {turnedBackFt:F1} ft past it");
+        Assert.True(turnedBackFt < RunwayTailClearance.MarginFt, $"a B738 nosed back over the line counts as {turnedBackFt:F1} ft past it");
     }
 
     /// <summary>
@@ -581,7 +581,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         );
 
         Assert.False(AirportGroundLayout.HasRunwayCenterlineEdge(end), $"the route ends on the runway at #{end.Id}");
-        Assert.True(tailFt >= RunwayCrossingFarSideGate.MarginFt - 0.01, $"the tail ends only {tailFt:F2} ft past {farTaxiway}'s {runway} hold line");
+        Assert.True(tailFt >= RunwayTailClearance.MarginFt - 0.01, $"the tail ends only {tailFt:F2} ft past {farTaxiway}'s {runway} hold line");
         double arcAllowanceFt = route
             .Segments.Skip(farBarIdx + 1)
             .Where(s => s.Edge.Edge is GroundArc)
@@ -589,7 +589,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             .DefaultIfEmpty(0.0)
             .Max();
         Assert.True(
-            tailFt <= RunwayCrossingFarSideGate.MarginFt + arcAllowanceFt + 1.0,
+            tailFt <= RunwayTailClearance.MarginFt + arcAllowanceFt + 1.0,
             $"the tail ends {tailFt:F2} ft past {farTaxiway}'s {runway} hold line, beyond the margin (plus {arcAllowanceFt:F0} ft of arc)"
         );
         double bendDeg = Math.Abs(
@@ -602,7 +602,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         );
         if (VirtualNode.IsVirtualNode(end))
         {
-            Assert.InRange(tailFt, RunwayCrossingFarSideGate.MarginFt - 0.01, RunwayCrossingFarSideGate.MarginFt + 0.01);
+            Assert.InRange(tailFt, RunwayTailClearance.MarginFt - 0.01, RunwayTailClearance.MarginFt + 0.01);
         }
 
         Assert.Equal(farTaxiway, route.Segments[^1].TaxiwayName);

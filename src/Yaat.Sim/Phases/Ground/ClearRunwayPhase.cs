@@ -9,12 +9,11 @@ namespace Yaat.Sim.Phases.Ground;
 /// <summary>
 /// Pull-forward-to-clear-runway phase (issue #172 W5, the <c>CLRWY</c> command). An aircraft holding short
 /// of a taxiway with its tail over a runway drives forward along its taxiway to a virtual node ½ aircraft
-/// length past the runway's far hold-short bars — the same tail-clearance point a runway crossing with no
-/// trailing hold-short stops at (the append that <c>CrossingRunwayPhase</c> suppresses when a binding taxiway
-/// hold-short is in the way) — then completes into <see cref="HoldingInPositionPhase"/>, just clear of the
-/// runway. The runway hold-short node and the approach (runway-side) node are kept so the route can be rebuilt
-/// after a snapshot restore, and the snapshot carries the navigator, which resumes the primitive it was playing
-/// (an entry-alignment turn part-way round), like <see cref="CrossingRunwayPhase"/>.
+/// length plus <see cref="RunwayTailClearance.MarginFt"/> past the runway's far hold-short bars
+/// (<see cref="RunwayTailClearance.PastBarFt"/>), so its tail stops that margin past the marking, then completes into
+/// <see cref="HoldingInPositionPhase"/>, just clear of the runway. The runway hold-short node and the approach
+/// (runway-side) node are kept so the route can be rebuilt after a snapshot restore, and the snapshot carries the
+/// navigator, which resumes the primitive it was playing (an entry-alignment turn part-way round), like <see cref="CrossingRunwayPhase"/>.
 /// </summary>
 public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Phase
 {
@@ -35,7 +34,9 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
 
     public override string Name => "Clearing Runway";
 
-    /// <summary>The one-segment clearance route (runway hold-short → ½ aircraft length past it). Null until built.</summary>
+    /// <summary>
+    /// The one-segment clearance route (runway hold-short → <see cref="RunwayTailClearance.PastBarFt"/> past it). Null until built.
+    /// </summary>
     public TaxiRoute? ClearanceRoute => _route;
 
     public override void OnStart(PhaseContext ctx)
@@ -111,11 +112,11 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         }
 
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
-        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+        double pastBarFt = RunwayTailClearance.PastBarFt(lengthFt);
 
-        // The clearance target: ½ aircraft length past the runway hold-short, away from the runway —
-        // the tail just clears the bars (identical to the crossing tail-clearance offset).
-        GroundNode target = VirtualNode.OffsetPast(layout, runwayNode, approachNode, halfLengthNm);
+        // The clearance target: ½ aircraft length plus the tail-clear margin past the runway hold-short, away from the
+        // runway, so the tail stops the margin past the bars.
+        GroundNode target = VirtualNode.OffsetPast(layout, runwayNode, approachNode, pastBarFt / GeoMath.FeetPerNm);
         TaxiRouteSegment segment = VirtualNode.CreateSegment(runwayNode, target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
         _route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
 
@@ -127,12 +128,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         _navigator.SetupSegment(_route, ctx, _ => true);
         _initialized = true;
 
-        Log.LogDebug(
-            "[ClearRunway] {Callsign}: pulling forward {Half:F0}ft past RWY node {Rwy}",
-            ctx.Aircraft.Callsign,
-            (lengthFt / 2.0),
-            _runwayNodeId
-        );
+        Log.LogDebug("[ClearRunway] {Callsign}: pulling forward {PastBar:F0}ft past RWY node {Rwy}", ctx.Aircraft.Callsign, pastBarFt, _runwayNodeId);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) =>
