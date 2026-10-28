@@ -10,17 +10,16 @@
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
+  - [/] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
-  - [/] YAAT-1257 Keep the crosser's braking curve when a runway crossing completes behind stopped traffic (one-pass stop) · release vNext
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
   - [ ] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
 - [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs
-- [ ] YAAT-1328 Stop a runway exit or CLRWY with the nose short of another runway's hold line (SFO 28R-28L crossovers) · release vNext
+- [/] YAAT-1328 Stop a runway exit or CLRWY with the nose short of another runway's hold line (SFO 28R-28L crossovers) · release vNext
 
 ## Controller-AI coaching
 
@@ -66,7 +65,7 @@
 ## Bug reports and feature requests
 
 - [ ] YAAT-1327 N7LJ stuck at the far-side runway hold-short bar at OAK; RES, CROSS and BREAK do not free it · release vNext
-- [ ] YAAT-1330 N80ZU goes around for N342T, which took off from 28R with CTO MLT 28L and is still treated as on 28R · release vNext
+- [/] YAAT-1330 N80ZU goes around for N342T, which took off from 28R with CTO MLT 28L and is still treated as on 28R · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -250,6 +249,11 @@
 - [ ] YAAT-944 Add the 10 ft margin to every runway crossing's tail clearance
 - [ ] YAAT-1272 Treat a split-and-rejoin node as in-trail in FindSharedUpcomingNode (false crossing at fillet vs corner)
 - [ ] YAAT-1276 Rule on the GIVEWAY rejoin rule's unbounded detour; test the bug_bundle trim tail paths
+- [ ] YAAT-1333 Pick a same-runway separation category for types missing from the FAA table (DA62 gets Category III)
+- [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
+- [ ] YAAT-1335 Count an airborne touch-and-go as a departure, not a landed occupant · release vNext
+- [ ] YAAT-1336 Check a departure between 400 ft and the runway end still counts as a preceding departure
+- [ ] YAAT-1337 Score solo runway users on the runway their current phase runs on
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -332,6 +336,8 @@
 - [ ] YAAT-1270 Weigh the named taxiway's own runway bars against its same-letter variants in TryVariantExtension
 - [ ] YAAT-1271 Let a variant-step ambiguity failure defer to the runway fallback from an off-taxiway head
 - [ ] YAAT-1273 Keep the off-taxiway runway fallback to the named taxiway's own letter (no unnamed different-letter connector)
+- [ ] YAAT-1339 Guard hold-short paint calibration against ILS lines, low medians and hidden data warnings
+- [ ] YAAT-1340 Check whether runway seating hands a crossing an edge an earlier crossing already split
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -478,6 +484,7 @@
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
 - [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
+- [ ] YAAT-1338 Restyle LayoutInspector HTML so the unhighlighted layout reads clearly · release vNext
 
 ## Singles
 
