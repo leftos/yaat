@@ -5,6 +5,8 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-1372 Fix flaky ScenarioLoadProgressTests.ConcurrentLayoutFetches_ShowWhatIsStillRunning_AsEachFinishes (misses '1 of 3: SQL, SFO' under load) · release vNext — Urgent · No project
+- [ ] YAAT-1373 Fix flaky LiveTrafficDvrTests.Seek_DropsEveryAircraft_AndStandsTheRoomAtTheInstant ('replay never became ready' under load) · release vNext — Urgent · No project
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -13,7 +15,9 @@
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
-  - [ ] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
+  - [/] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
+  - [/] YAAT-1360 Find ground-test nodes by meaning instead of node number (runway bar on a taxiway, junction, stand) · release vNext
+  - [ ] YAAT-1375 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on feat/yaat-1201-videomap-snap · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -87,9 +91,11 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [ ] YAAT-1356 DVIA and CVIA keep a speed assigned before them instead of resuming published speeds (7110.65 5-7-1) · release vNext
-- [ ] YAAT-1358 SPD above what the aircraft can fly at altitude reads back the speed but flies less (DAL334 SPD 350 flew 295) · release vNext
-- [ ] YAAT-1359 Save Bug Report Bundle fails with an ExportRecording server error on a locally built server · release vNext
+- [/] YAAT-1356 DVIA and CVIA keep a speed assigned before them instead of resuming published speeds (7110.65 5-7-1) · release vNext
+- [ ] YAAT-1358 CM/DM silently end an assigned speed: DAL334 SPD 350 then DM 290 flew its default 297 · release vNext
+- [ ] YAAT-1362 Refuse a speed past the type's Vmo/Mmo or below its minimum as unable, naming the speed it can fly · release vNext
+- [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
+- [ ] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -604,6 +610,7 @@
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-913 Read charted enroute holds from CIFP
+- [ ] YAAT-1361 Derive generated ground-node IDs from their position so unmoved nodes keep their IDs across parses
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
@@ -887,6 +894,14 @@
 - [ ] YAAT-1320 Harden the videomap paint pairing: bar length cap, 450 ft cap, solid vs dashed line, marking direction
 - [ ] YAAT-1323 Pin the taxi readback cover rule's edge cases: shared stop node, same runway twice, same-type uncovered readback
 - [ ] YAAT-1324 Tell joined vEDST clients the session went inactive on a repeated StartSession
+- [ ] YAAT-1364 Warn when the server is older than the client instead of a bare 'Failed to invoke' hub error
+- [ ] YAAT-1365 Cancel a previously assigned speed on an approach clearance (7110.65 5-7-1; CAPP after SPD 210 keeps 210) · release vNext
+- [ ] YAAT-1366 Fly a STAR's published speeds without DVIA (OAKES3 arrival crosses GRUDG..FFIST at 280 kt)
+- [ ] YAAT-1367 Leave published-speed slowdowns to the planner: DVIA/CVIA slow at once; planner decels late from 290 kt
+- [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
+- [ ] YAAT-1369 Keep an airborne departure a runway user until it crosses the runway end or turns off, not 400 ft AGL (3-9-6.a)
+- [ ] YAAT-1370 Release the controller-AI runway crossing gate once airborne traffic has passed the crossing point
+- [ ] YAAT-1371 Project a braking stop-and-go to its stop before judging the go-around (late go-around behind it)
 
 ## No project
 
