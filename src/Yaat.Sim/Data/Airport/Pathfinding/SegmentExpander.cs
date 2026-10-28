@@ -1049,11 +1049,40 @@ public static class SegmentExpander
             }
         }
 
-        ctx.ResolutionAdvisories.Add(
-            $"holding at the {precedingTaxiway}/{finalTaxiway} intersection — route ends at {finalTaxiway}, no destination given"
-        );
+        ctx.ResolutionAdvisories.Add(NoDestinationTerminusAdvisory(finalTaxiway));
         ctx.DiagnosticLog?.Invoke($"[terminus-junction] {precedingTaxiway}/{finalTaxiway} stop={junctionHead.HeadNodeId} edges={edges.Count}");
         return (edges, junctionHead, null);
+    }
+
+    /// <summary>
+    /// The controller's advisory for a clearance with no destination that ends where it meets its last taxiway
+    /// <paramref name="taxiway"/>: <c>holding short of B: route ends at B, no destination given</c>.
+    /// </summary>
+    public static string NoDestinationTerminusAdvisory(string taxiway) =>
+        $"holding short of {taxiway}: route ends at {taxiway}, no destination given";
+
+    /// <summary>
+    /// The last taxiway of a clearance with no destination when <paramref name="route"/> stops where it meets that taxiway
+    /// without driving it: the transition-junction stop (<c>TAXI C B</c>), or a bridge from the occupied taxiway onto it that
+    /// the walk along it does not leave (<c>TAXI B</c> given on C). Null for any other route: one with a destination, one
+    /// whose last taxiway is a node reference or a runway, or one that drives its last taxiway.
+    /// </summary>
+    public static string? NoDestinationTerminusTaxiway(TaxiRoute route, SearchContext ctx)
+    {
+        if ((ctx.Destination.Kind != DestinationKind.EndOfLastTaxiway) || (ctx.WaypointSequence.Count == 0) || (route.Segments.Count == 0))
+        {
+            return null;
+        }
+
+        string final = ctx.WaypointSequence[^1];
+        if (!IsPlainTaxiwayToken(ctx.Layout, final))
+        {
+            return null;
+        }
+
+        TaxiRouteSegment last = route.Segments[^1];
+        bool endsOnFinal = last.Edge.ToNode.Edges.Any(e => e.MatchesTaxiway(final));
+        return (endsOnFinal && !last.Edge.Edge.MatchesTaxiway(final)) ? final : null;
     }
 
     /// <summary>

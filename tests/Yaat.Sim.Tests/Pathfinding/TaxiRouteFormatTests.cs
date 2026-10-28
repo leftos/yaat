@@ -95,6 +95,41 @@ public class TaxiRouteFormatTests
     }
 
     /// <summary>
+    /// A route that ends holding short of a taxiway it does not drive names that hold, so the client knows where it ends: OAK
+    /// <c>TAXI S HS B</c> (folded to <c>S B</c> and cut short of B) reads <c>"S HS B"</c>. The no-destination terminus hold
+    /// and an explicit taxiway hold read alike; a hold of a taxiway the route drives, or one already released, names nothing.
+    /// </summary>
+    [Fact]
+    public void FormatTaxiwaySequence_RouteEndingShortOfATaxiway_NamesTheHold()
+    {
+        GroundNode s1 = Node(0, 37.700, -122.200);
+        GroundNode s2 = Node(1, 37.701, -122.200);
+        GroundNode sb = Node(2, 37.702, -122.200);
+        List<TaxiRouteSegment> segments = [Seg(Straight(s1, s2, "S"), s1, s2), Seg(Straight(s2, sb, "S"), s2, sb)];
+        TaxiRoute Ending(HoldShortReason reason, string target, bool cleared = false) =>
+            new()
+            {
+                Segments = segments,
+                HoldShortPoints =
+                [
+                    new HoldShortPoint
+                    {
+                        NodeId = sb.Id,
+                        Reason = reason,
+                        TargetName = target,
+                        IsCleared = cleared,
+                    },
+                ],
+            };
+
+        Assert.Equal("S HS B", Ending(HoldShortReason.RouteIncomplete, "B").FormatTaxiwaySequence());
+        Assert.Equal("S HS B", Ending(HoldShortReason.ExplicitHoldShort, "B").FormatTaxiwaySequence());
+        Assert.Equal("S", Ending(HoldShortReason.ExplicitHoldShort, "S").FormatTaxiwaySequence());
+        Assert.Equal("S", Ending(HoldShortReason.ExplicitHoldShort, "B", cleared: true).FormatTaxiwaySequence());
+        Assert.Equal(["S"], TaxiRouteFormatter.CleanTaxiwaySequence(Ending(HoldShortReason.RouteIncomplete, "B")));
+    }
+
+    /// <summary>
     /// A runway taxied ALONG reads as the end the aircraft is travelling toward. A drawn route names
     /// no runway in its path (every token is a node reference), so there is no cleared designator to
     /// match and the direction of travel is the only signal — it must not fall back to the internal

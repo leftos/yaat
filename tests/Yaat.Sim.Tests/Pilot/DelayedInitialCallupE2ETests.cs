@@ -165,7 +165,8 @@ public class DelayedInitialCallupE2ETests
         CommandResult redirect = run.Engine.SendCommand("AFR83", "TAXI M4 M1");
         Assert.True(redirect.Success, redirect.Message);
 
-        Assert.True(TickUntil(run.Engine, () => PhaseOf(run, "AFR83") is HoldingInPositionPhase, 1200) >= 0, "the redirected taxi should end");
+        // M4 M1 names no destination, so the redirected taxi ends holding short of M1.
+        Assert.True(TickUntil(run.Engine, () => PhaseOf(run, "AFR83") is HoldingShortPhase, 1200) >= 0, "the redirected taxi should end");
         Tick(run.Engine, 30);
 
         Assert.Empty(ReadyToTaxiLines(run.Said, "AFR83"));

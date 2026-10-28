@@ -173,7 +173,9 @@ Type a message prefixed with `'`, `/`, or `>` to send a text chat to all RPOs in
 
 #### Resizing and Pop Out
 
-Drag the splitter bar between the aircraft grid and terminal panel to resize them (the terminal keeps between 15% and 85% of the height, and snaps back if you drag past that). The size is remembered across restarts and across popping the terminal out and back in, and [layouts](#interface-overview) save it. Check **View > Windows > Terminal** (or press **Ctrl+Shift+E**) to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
+Drag the splitter bar between the aircraft grid and terminal panel to resize them (the terminal keeps between 15% and 85% of the height, and snaps back if you drag past that). The size is remembered across restarts and across popping the terminal out and back in, and [layouts](#interface-overview) save it.
+
+Check **View > Windows > Terminal** (or press **Ctrl+Shift+E**) to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
 
 #### Warnings
 
@@ -292,16 +294,22 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
   The **state line** says what the aircraft is doing right now. Airborne it reads phase, altitude (to the nearest 100 ft), speed and runway, the airport being the departure airport while taking off or departing and the destination otherwise: `Approach · 3,000 ft · 180 kt · KOAK rwy 30`.
 
   On the ground it reads phase, taxiway (else parking spot) and airport, `Taxiing · C · KOAK`, and on a landing roll phase, runway and ground speed, `Landing · runway 28R · 62 kt`. A part with no value is left out, and an aircraft with nothing to show has no state line.
-- The **icon strip**: one icon per quick command that has an icon, with no limit, six to a row and grouped by category. Each group sits under a small upper-case label (RUNWAY, TAXI, VECTORS, APPROACH, PATTERN, PILOT REPORTS, TRACK AND COORDINATION, LIVE TRAFFIC, SIM; a label too long for its group ends in "…"), the groups in the order the list first names them. Neighbouring groups share a row when they fit, a thin vertical rule between them; a group of more than six wraps to further unlabelled rows. **Release (HFR)** (an open padlock) and **Check release window** (a clock) are in Track and coordination when they apply. A live-traffic shadow's Assume, Assume and track, Assume selected and Unassume are a LIVE TRAFFIC group, and Warp and Delete a SIM group.
+- The **icon strip**: one icon per quick command that has an icon, with no limit, six to a row and grouped by category. Each group sits under a small upper-case label (RUNWAY, TAXI, VECTORS, APPROACH, PATTERN, PILOT REPORTS, TRACK AND COORDINATION, LIVE TRAFFIC, SIM; a label too long for its group ends in "…"), the groups in the order the list first names them.
 
-  The icon under the pointer is named in place of the state line while you point at it: its name, the text it sends (`Hold position — HOLD`) and "›" when it opens choices. A name too long for the line scrolls slowly and back, and an aircraft with no state line has a blank line there for it. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Cleared for takeoff's options) in a flyout beside the menu, and the icon stays lit while it is open. The flyout stays open when the pointer moves off the menu; click the icon again, click another icon or press **Escape** (which leaves the menu open) to close it. Choosing a command closes the menu.
+  Neighbouring groups share a row when they fit, a thin vertical rule between them; a group of more than six wraps to further unlabelled rows. **Release (HFR)** (an open padlock) and **Check release window** (a clock) are in Track and coordination when they apply. A live-traffic shadow's Assume, Assume and track, Assume selected and Unassume are a LIVE TRAFFIC group, and Warp and Delete a SIM group.
+
+  The icon under the pointer is named in place of the state line while you point at it: its name, the text it sends (`Hold position — HOLD`) and "›" when it opens choices. A name too long for the line scrolls slowly and back, and an aircraft with no state line has a blank line there for it.
+
+  A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Cleared for takeoff's options) in a flyout beside the menu, and the icon stays lit while it is open. The flyout stays open when the pointer moves off the menu; click the icon again, click another icon or press **Escape** (which leaves the menu open) to close it. Choosing a command closes the menu.
 - The remaining quick commands as text, below the strip (those with no icon).
 
   With **Show quick command icons** off (Settings › Quick commands, on by default) there is no strip: the quick commands are text rows with their commands at the right, under a bold label for each group (Live traffic, Runway, Taxi, Vectors, Approach, Pattern, Pilot reports, Track and coordination, Sim; Release (HFR) and Check release window are in Track and coordination), then your custom commands after a separator.
 
   The radar's map-point menu lists its Fly heading, Direct to, Append direct to and Hold left / right icons as text rows too, with Warp here after a separator; the ground's point menu simply drops its icons, its commands already being listed as text.
 
-  Each command row, here and under All Commands, shows at its right the command you would type for it, in your own command scheme's first alias for that command (`HOLD`, `CTO`, `CAPP`), so it follows any aliases you have changed: a row that can send two commands shows both (`A / B`) and one that can send three or more shows the first followed by `…`. Warp here shows `WARPG` at a taxi node and `WARP` at a map point. Rows that send no command of their own (Command…, Note…, Edit flight plan…, Favorite Commands) show none.
+  Each command row, here and under All Commands, shows at its right the command you would type for it, in your own command scheme's first alias for that command (`HOLD`, `CTO`, `CAPP`), so it follows any aliases you have changed: a row that can send two commands shows both (`A / B`) and one that can send three or more shows the first followed by `…`.
+
+  Warp here shows `WARPG` at a taxi node and `WARP` at a map point. Rows that send no command of their own (Command…, Note…, Edit flight plan…, Favorite Commands) show none.
 - **Command…** (a focused free-text command popup) and **Note…**, then **All Commands** and **Favorite Commands**, then Delete and the RPO items.
 
   **Cleared approach** and **Expect approach** (the strip icon, and All Commands › Approach) open one flyout with a tab for every runway of the destination, labelled with its number of approaches (`28R 3`): the room's arrival runways first, in the room's order, then the rest, and a **Circling** tab last.
@@ -314,7 +322,9 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 
   An IFR aircraft airborne below FL180 also has a **Cancel IFR…** row, which asks for confirmation inline and sends `CIFR`. Reopening the flyout resets Force, the box and the tab.
 
-  The other approach commands (**Join approach**, **Cleared straight-in**, **Join straight-in**, **Cleared approach (force)**, **Join approach (force)** and **Join final approach course**, under All Commands › Approach, or as strip buttons in a custom quick list) open the same kind of flyout, titled with the command's name. Its default row names the likely approach (`Join ILS 30`, `Cleared straight-in ILS 30`, `Join final course ILS 30`): the expected approach, else the assigned runway's ILS, else its first published approach. Below it are one tab per runway with an instrument approach, then **Circling**, and the **Approach** box, which sends the command with the id you type.
+  The other approach commands (**Join approach**, **Cleared straight-in**, **Join straight-in**, **Cleared approach (force)**, **Join approach (force)** and **Join final approach course**, under All Commands › Approach, or as strip buttons in a custom quick list) open the same kind of flyout, titled with the command's name.
+
+  Its default row names the likely approach (`Join ILS 30`, `Cleared straight-in ILS 30`, `Join final course ILS 30`): the expected approach, else the assigned runway's ILS, else its first published approach. Below it are one tab per runway with an instrument approach, then **Circling**, and the **Approach** box, which sends the command with the id you type.
 
   These flyouts have no visual rows, no airport row, no Force toggle and no Cancel IFR. The two (force) commands send the forced forms (`CAPPF`, `JAPPF`) on every row, and their title and rows carry an amber "!" force mark. A destination with no published approaches shows the Approach box alone. Every approach flyout, **Expect approach** included, has a title line naming its command.
 
@@ -344,7 +354,11 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
   Typing filters the rows by the start of the code, the name or a word of it, the callsign or the frequency, and outlines the first match; Enter sends it, and a click sends any row. The list is read when the flyout opens and does not move while it is open.
 
   The track's owner stays in the list, greyed and marked "owns the track", and cannot be picked. **Point out…** lists only positions with a STARS TCP. A code that matches no staffed position shows "Not a staffed position: sent as typed", and Enter sends what you typed for the sim to answer. Point out has a pointing-hand icon, so you can add it to the quick-command strip in **Settings › Input › Quick commands**.
-- **All Commands**: every command for the aircraft, grouped by task. A live-traffic aircraft you can assume starts with its assume items. Then come **Runway** (the tower's clearances), **Taxi** (the ground items, then Draw taxi route…), **Vectors** (labelled blocks Heading…, Altitude…, Speed… and Route, which holds Direct to, Append direct to, Proceed on course, Cross fix, Depart fix, Join airway, Join radial and Climb via SID), **Approach** (the approach commands, Join STAR, Descend via STAR, PTAC and the holds), **Pattern** (also Make left / right closed traffic and Follow traffic…), **Pilot reports** (Report field / traffic in sight, Report when…, Ask pilot to say…) and **Track and coordination** (labelled blocks Track, Data block, Squawk and Coordination, then Edit flight plan). Last come **Warp…** (airborne aircraft only) and **Release to live feed**. A group with nothing to offer is left out; while the aircraft is on the ground or rolling on the runway, Vectors, Approach and Pattern are left out and Pilot reports keeps only Ask pilot to say….
+- **All Commands**: every command for the aircraft, grouped by task. A live-traffic aircraft you can assume starts with its assume items.
+
+  Then come **Runway** (the tower's clearances), **Taxi** (the ground items, then Draw taxi route…), **Vectors** (labelled blocks Heading…, Altitude…, Speed… and Route, which holds Direct to, Append direct to, Proceed on course, Cross fix, Depart fix, Join airway, Join radial and Climb via SID), **Approach** (the approach commands, Join STAR, Descend via STAR, PTAC and the holds), **Pattern** (also Make left / right closed traffic and Follow traffic…), **Pilot reports** (Report field / traffic in sight, Report when…, Ask pilot to say…) and **Track and coordination** (labelled blocks Track, Data block, Squawk and Coordination, then Edit flight plan).
+
+  Last come **Warp…** (airborne aircraft only) and **Release to live feed**. A group with nothing to offer is left out; while the aircraft is on the ground or rolling on the runway, Vectors, Approach and Pattern are left out and Pilot reports keeps only Ask pilot to say….
 - **Delete** and the RPO assignment items.
 
 **Quick commands by situation.** YAAT sorts each aircraft into a situation and shows that situation's quick commands, most used first:
@@ -371,9 +385,13 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | VFR arrival | Enter left / right downwind, Enter left / right base, Make straight-in, Report when…, Cleared to land, Follow traffic…, Land (helicopter) |
 | VFR departure | Fly heading, Proceed on course, Maintain altitude, Report when…, Make left / right closed traffic, Land (helicopter) |
 
-**Squawk shortcuts.** Two squawk commands lead a list when they apply, and are not repeated in the table. **Squawk normal** (`SQNORM`, a transponder box with a check mark) leads the ground lists (At parking through Lined up, and Rollout / exit) while the aircraft sits on the ground with its transponder in standby. **Squawk assigned code** (`SQ`, a box with a return arrow) leads every list except Live traffic whenever the datablock flags a [squawk mismatch](#squawk-beacon-code-mismatch). The same two commands are in the Squawk submenu (Squawk assigned code follows Squawk…) and under All Commands, and can be added to any situation in Settings › Quick commands.
+**Squawk shortcuts.** Two squawk commands lead a list when they apply, and are not repeated in the table. **Squawk normal** (`SQNORM`, a transponder box with a check mark) leads the ground lists (At parking through Lined up, and Rollout / exit) while the aircraft sits on the ground with its transponder in standby.
 
-**Helicopters.** The entries marked (helicopter) appear only for a helicopter, never for a fixed-wing aircraft. **Air taxi** is offered on the ground (at parking, holding on the ground, holding short, rollout / exit, where it waits until the helicopter is settled: after the landing rollout decelerates, at or below 30 kt in a rejected takeoff, and always while clearing or exiting the runway) and **Land** to a helicopter in the air, last in each list; a helicopter's quick list leaves out Push back and Push back to… (All Commands keeps them).
+**Squawk assigned code** (`SQ`, a box with a return arrow) leads every list except Live traffic whenever the datablock flags a [squawk mismatch](#squawk-beacon-code-mismatch). The same two commands are in the Squawk submenu (Squawk assigned code follows Squawk…) and under All Commands, and can be added to any situation in Settings › Quick commands.
+
+**Helicopters.** The entries marked (helicopter) appear only for a helicopter, never for a fixed-wing aircraft.
+
+**Air taxi** is offered on the ground (at parking, holding on the ground, holding short, rollout / exit, where it waits until the helicopter is settled: after the landing rollout decelerates, at or below 30 kt in a rejected takeoff, and always while clearing or exiting the runway) and **Land** to a helicopter in the air, last in each list; a helicopter's quick list leaves out Push back and Push back to… (All Commands keeps them).
 
 Both open one flyout of destinations with the tabs **Pads · parking**, **Spots** and, for Air taxi, **Runways**, nearest first, refreshed every second. Type in the box (**Air taxi to** / **Land at {airport}**) to filter every tab by name, exact names first, then nearest; Enter sends the top match and sends nothing on an empty or unmatched box. Pads and parking send `@NAME`, spots `$NAME`.
 
@@ -389,14 +407,24 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Cross {runway}** names the runway to cross ("Cross 28R"): the one the aircraft holds short of, or the next runway on its taxi route. It shows only when a runway is the next hold-short on the route, and never while the aircraft is still crossing another runway or a runway it is already cleared to cross still lies ahead: one crossing at a time.
 
   On the landing rollout it waits until the aircraft is clearly slowing, as Exit left / right do; after a rejected takeoff it waits until the aircraft has slowed to taxi speed.
-- **Exit left / Exit right** open a list of the named exits the aircraft can still make on that side, each with a glyph showing how sharply it turns off, its distance and the command it sends (`ER W3`), the exit the aircraft means to take marked "planned", and the pilot's-choice row (bare `EL` / `ER`); hover a row for the full command and its turn-off angle. On the landing roll the distances are from the aircraft; on final the list is a forecast of where the aircraft will touch down, with distances "from thr" (the threshold), and appears between 5 and 1 nm from the threshold. On final the flyout also has an "Exit at" box: type a taxiway and Enter sends the best match, ranked exact name first, then the forecast exits, then the rest of the runway's exits on that side nearest the threshold first. With no exit forecast on a side it reads "none forecast" above the box, which lists every exit of the runway on that side; the entry is absent when the runway has none there. The box suggests nothing for an aircraft not landing at the airport of the ground view. A row the aircraft can no longer make stays greyed while the flyout is open, reading "can't make" (or "passed" once the aircraft has rolled past it); clicking it sends nothing.
+- **Exit left / Exit right** open a list of the named exits the aircraft can still make on that side, each with a glyph showing how sharply it turns off, its distance and the command it sends (`ER W3`), the exit the aircraft means to take marked "planned", and the pilot's-choice row (bare `EL` / `ER`); hover a row for the full command and its turn-off angle.
+
+  On the landing roll the distances are from the aircraft; on final the list is a forecast of where the aircraft will touch down, with distances "from thr" (the threshold), and appears between 5 and 1 nm from the threshold.
+
+  On final the flyout also has an "Exit at" box: type a taxiway and Enter sends the best match, ranked exact name first, then the forecast exits, then the rest of the runway's exits on that side nearest the threshold first. With no exit forecast on a side it reads "none forecast" above the box, which lists every exit of the runway on that side; the entry is absent when the runway has none there.
+
+  The box suggests nothing for an aircraft not landing at the airport of the ground view. A row the aircraft can no longer make stays greyed while the flyout is open, reading "can't make" (or "passed" once the aircraft has rolled past it); clicking it sends nothing.
 
   A side with no exit it can make is not offered. An aircraft on a short pattern final is usually already inside 1 nm, so it rarely shows the list until the landing roll.
 - **Cleared for takeoff** shows while taxiing only near the departure runway, and at a hold-short only at the departure runway (there **Line up and wait** too, but not Resume taxi); neither shows while the aircraft is held for release.
 - **Resume taxi** on a moving aircraft shows only while the next hold-short on its route is a taxiway or spot bar (a runway bar takes **Cross**, and the pilot refuses `RES` there; at the departure runway the refusal says to issue CTO or LUAW). It does not show for an aircraft following another, whose route carries no hold-short. At a hold-short bar itself it still releases the aircraft as before.
-- **Cleared for takeoff** opens a flyout (the strip icon's, and All Commands › Runway › Cleared for takeoff). A VFR departure's flyout starts with an **Initial altitude** box (filled from a filed `VFR/045`, else "default climb"); every row below that takes an altitude appends it when the box is not blank. The rows: Cleared for takeoff, Make left / right closed traffic, Straight out, Left / right crosswind departure, Left / right downwind departure, Left / right turnout (45°), Fly heading, On course (off with no destination, or a destination equal to the departure airport), Turn left / right direct, then a separator and a **Custom** box (the fixed `CTO` is drawn inside it; blank sends `CTO`, `28R` sends `CTO 28R`, and spaces are allowed, as in `RH 3000`).
+- **Cleared for takeoff** opens a flyout (the strip icon's, and All Commands › Runway › Cleared for takeoff). A VFR departure's flyout starts with an **Initial altitude** box (filled from a filed `VFR/045`, else "default climb"); every row below that takes an altitude appends it when the box is not blank.
 
-  An IFR departure's flyout is Cleared for takeoff, Fly heading, Fly runway heading and the Custom box; with "VFR commands for IFR aircraft" set to All, the VFR rows follow the altitude box under the IFR rows. Each row shows the command it sends, updating as you type; a row whose heading or fix box is empty or unreadable shows "···", fades and sends nothing, and Enter in a heading or fix box sends that row (fix boxes suggest fixes as the command bar does). Glyphs are pattern purple, turned to the departure runway.
+  The rows: Cleared for takeoff, Make left / right closed traffic, Straight out, Left / right crosswind departure, Left / right downwind departure, Left / right turnout (45°), Fly heading, On course (off with no destination, or a destination equal to the departure airport), Turn left / right direct, then a separator and a **Custom** box (the fixed `CTO` is drawn inside it; blank sends `CTO`, `28R` sends `CTO 28R`, and spaces are allowed, as in `RH 3000`).
+
+  An IFR departure's flyout is Cleared for takeoff, Fly heading, Fly runway heading and the Custom box; with "VFR commands for IFR aircraft" set to All, the VFR rows follow the altitude box under the IFR rows.
+
+  Each row shows the command it sends, updating as you type; a row whose heading or fix box is empty or unreadable shows "···", fades and sends nothing, and Enter in a heading or fix box sends that row (fix boxes suggest fixes as the command bar does). Glyphs are pattern purple, turned to the departure runway.
 - **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1.
 - **Cleared approach** hides once the aircraft is cleared for an approach; after a go-around or missed approach it comes back once you assign an altitude.
 - **Report field in sight…** hides for an IFR aircraft once the pilot has reported the field in sight, and comes back if the pilot loses sight of the field, goes around or the approach is reset. It opens a flyout (the strip icon's, and All Commands › Pilot reports) where you give the field advisory, in RPO and in solo training alike; with no destination field for the aircraft the entry is disabled (`· no destination field`) and the strip icon is faded.
@@ -420,9 +448,13 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
   The last group lists up to 6 points, each as `{NAME} · {d.d} NM · {bbb}°` (magnetic bearing), and a click sends `REPORT {NAME}`: **Reporting points · nearest first** (visual points within 10 NM) for a VFR aircraft, **Route fixes · in order** (the programmed route from the next fix) for an IFR one.
 - **Cleared to land** hides on final once the aircraft is cleared to land.
-- **Cleared visual** is offered to IFR aircraft only (it is hidden, not greyed, for a VFR one), and shows only after an IFR aircraft reports the field or the preceding traffic in sight. It opens the **Cleared visual approach** flyout: a list of `Visual RWY n` rows, each sending `CVA n`, with no runway tabs, instrument approaches or Approach box. The room's landing runways come first, in the room's order; below them **Non-arrival runways… · N** unfolds the other runway ends in place, and a second click folds them (short ends are dimmed `· short` but clickable). A room with no landing runways set shows only that row, which unfolds every end.
+- **Cleared visual** is offered to IFR aircraft only (it is hidden, not greyed, for a VFR one), and shows only after an IFR aircraft reports the field or the preceding traffic in sight. It opens the **Cleared visual approach** flyout: a list of `Visual RWY n` rows, each sending `CVA n`, with no runway tabs, instrument approaches or Approach box.
 
-  The Force toggle sends `CVAF n` and makes every row live; the untowered **Visual approach to {airport}** row and **Cancel IFR…** stay. The default runway's row is always first, above the landing runways even when the room isn't landing on it, and is not repeated below; once the aircraft has reported the field in sight it has the focus, so Enter clears the visual to the runway the aircraft expects. With no default runway, the first landing runway's row has the focus. Before the field is reported no row has it and Enter sends nothing. The default runway is the assigned runway, else the runway of the active or expected approach, even when that approach is written in shorthand (an expected `R28L` at KOAK gives runway 28L; an expected visual, `VIS28R` from `EAPP VIS28R`, gives 28R). The entry is greyed with its reason when there is no destination or no runway data.
+  The room's landing runways come first, in the room's order; below them **Non-arrival runways… · N** unfolds the other runway ends in place, and a second click folds them (short ends are dimmed `· short` but clickable). A room with no landing runways set shows only that row, which unfolds every end.
+
+  The Force toggle sends `CVAF n` and makes every row live; the untowered **Visual approach to {airport}** row and **Cancel IFR…** stay. The default runway's row is always first, above the landing runways even when the room isn't landing on it, and is not repeated below; once the aircraft has reported the field in sight it has the focus, so Enter clears the visual to the runway the aircraft expects. With no default runway, the first landing runway's row has the focus.
+
+  Before the field is reported no row has it and Enter sends nothing. The default runway is the assigned runway, else the runway of the active or expected approach, even when that approach is written in shorthand (an expected `R28L` at KOAK gives runway 28L; an expected visual, `VIS28R` from `EAPP VIS28R`, gives 28R). The entry is greyed with its reason when there is no destination or no runway data.
 
   Typing `CVA <airport>` without a runway clears a visual to an untowered field and the pilot picks the runway (most headwind within the tailwind limit, else the end aligned with its track); at a towered field it is refused unless a visual is expected (`EAPP VIS28R`), which a bare `CVA` then clears.
 - **Fly heading** (the strip icon, and All Commands › Vectors › Heading › Fly heading, Turn left, Turn right, Turn left (degrees) and Turn right (degrees)) opens one flyout beside the menu, titled `Fly heading · now 270`. Turn left and Turn right open it with the toggle on that verb; the two degree entries open on Fly heading with focus on their side's 30° chip. **Present heading** stays a plain entry under All Commands › Vectors › Heading.
@@ -457,7 +489,9 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
 Text that is not a valid code, `8888` for one, keeps the box's frame with a red bar under it, the line "Not a valid squawk code (0000-7777)" and "can't send" in the command column. Enter or a click sends nothing until it is four octal digits, and a blank box sends nothing.
 
-The Data block block's Scratchpad… opens a flyout with a Scratchpad box, `SP` drawn inside it, focused as the flyout opens and holding the aircraft's present Scratchpad 1 (never the destination the scope shows in its place), all selected, so typing replaces it. Enter or a click on the row sends the text trimmed and upper-cased; a blank box, or the present value again, sends nothing. Text longer than the room's scratchpad limit (3 characters, or 4 where the student's facility allows four-character scratchpads) keeps the box's frame with a red bar under it, a reason line and "can't send", and sends nothing.
+The Data block block's Scratchpad… opens a flyout with a Scratchpad box, `SP` drawn inside it, focused as the flyout opens and holding the aircraft's present Scratchpad 1 (never the destination the scope shows in its place), all selected, so typing replaces it.
+
+Enter or a click on the row sends the text trimmed and upper-cased; a blank box, or the present value again, sends nothing. Text longer than the room's scratchpad limit (3 characters, or 4 where the student's facility allows four-character scratchpads) keeps the box's frame with a red bar under it, a reason line and "can't send", and sends nothing.
 
 After a separator, Clear Scratchpad 1 and Clear Scratchpad 2 clear that slot; each shows only while its slot holds a value, and with neither there is no separator.
 
@@ -532,7 +566,9 @@ Drag column headers to rearrange. **Right-click any column header** to open the 
 
 **Right-click context menu:** The same [aircraft menu](#aircraft-right-click-menu) the [Radar View](#radar-view-1) and the [Ground View](#ground-view-1) show for that aircraft — quick commands and icon strip first, everything else under **All Commands** — so you can act on any aircraft without finding it on a scope.
 
-Only the scopes' own **Display** items and **Draw route** are missing, since the list has nothing to draw them on. Pickers such as Direct to, Hold at fix or Initiate handoff… open at the pointer, as on the scopes. Right-clicking a row other than the selected one keeps your selection and opens that aircraft's menu with a **For** section on top holding the traffic actions for the selected aircraft (report in sight, follow, give way). A delayed aircraft's menu has only **Spawn now**, **Change spawn delay** and **Delete**.
+Only the scopes' own **Display** items and **Draw route** are missing, since the list has nothing to draw them on. Pickers such as Direct to, Hold at fix or Initiate handoff… open at the pointer, as on the scopes.
+
+Right-clicking a row other than the selected one keeps your selection and opens that aircraft's menu with a **For** section on top holding the traffic actions for the selected aircraft (report in sight, follow, give way). A delayed aircraft's menu has only **Spawn now**, **Change spawn delay** and **Delete**.
 
 **Zoom:** Use **Ctrl+Plus** / **Ctrl+Minus** to adjust font size. **Ctrl+0** resets to default (12pt). Also configurable in **Settings › Appearance**. Range: 8-24pt.
 
@@ -615,7 +651,9 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
   *With an aircraft selected* the menu's bold title names the aircraft and the place you clicked: `UAL238 · B738 → parking A5`, `→ spot 3`, `→ B / C` (the taxiways meeting at that node), or `→ runway 28R` on a runway.
 
-  *With an aircraft on the ground selected* it opens that aircraft's point menu, which starts, under the title, with an icon strip of the taxi items that apply (Taxi here, Taxi to runway, Push to, Custom taxi…) and then the text items, starting with "Taxi here": the one route found, or a flyout of up to 3 ("Taxi via T U W": the fewest-turns, shortest and fastest routes, duplicates dropped), each row a route's label over its whole taxi command with its distance at the right, routes that cross runways automatically appending crossing commands (a route with variants is a bold title, e.g. "Taxi T S C · crosses 28L, 15", over them), each previewed on hover or when arrowed onto with Up, Down or Tab. With no route found the strip button is faded and reads "Taxi here — No route found". The taxi ends at the node you clicked: a spot or parking node by name, any other node by its node number (`TAXI W B #1234`).
+  *With an aircraft on the ground selected* it opens that aircraft's point menu, which starts, under the title, with an icon strip of the taxi items that apply (Taxi here, Taxi to runway, Push to, Custom taxi…) and then the text items, starting with "Taxi here": the one route found, or a flyout of up to 3 ("Taxi via T U W": the fewest-turns, shortest and fastest routes, duplicates dropped), each row a route's label over its whole taxi command with its distance at the right, routes that cross runways automatically appending crossing commands (a route with variants is a bold title, e.g. "Taxi T S C · crosses 28L, 15", over them), each previewed on hover or when arrowed onto with Up, Down or Tab.
+
+  With no route found the strip button is faded and reads "Taxi here — No route found". The taxi ends at the node you clicked: a spot or parking node by name, any other node by its node number (`TAXI W B #1234`).
 
   Then come "Push to {spot}" (on a parking or spot node, when the selected aircraft is at a stand or resting after a push and a tug can move it there), "Custom taxi…" (a taxi command box pre-filled from the node) and "Warp here". Below them come "Measure from here", "Draw taxi route…" (from that node) and "Push route…" (start a multi-point tug move at that node), offered only when the aircraft can push back and a tug can move it from where it stands to that node.
 
@@ -624,7 +662,9 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
   An airborne aircraft selected gets the airborne point items as text rows ("Fly heading", "Direct to", "Hold at") instead of the taxi items. *With nothing selected* it carries only the [measuring](#measuring-distance-and-bearing) items.
 - **On a runway** — with a selected aircraft that can taxi, a right-click anywhere on a runway's surface or on a node of its centerline (away from its hold-short bars and threshold marker) opens the same icon strip and offers one "Taxi to runway" whose flyout has a tab for each end of every runway under the click, in runway order.
 
-  Each tab lists up to three hold shorts, named by their taxiway: the nearest one by taxi route ("At B (nearest)"), the one nearest where you clicked ("At E (near click)"), and the one at that end's threshold ("Full length (at W)"); one hold short that fits two of these shows once with both tags. They run from where you clicked along the runway, not by tag. Each shows its routes, the first in bold, with the variants under them; a hold short with no route is dimmed over "No route found", and a tab where none has a route reads "none". Left and Right change tabs.
+  Each tab lists up to three hold shorts, named by their taxiway: the nearest one by taxi route ("At B (nearest)"), the one nearest where you clicked ("At E (near click)"), and the one at that end's threshold ("Full length (at W)"); one hold short that fits two of these shows once with both tags.
+
+  They run from where you clicked along the runway, not by tag. Each shows its routes, the first in bold, with the variants under them; a hold short with no route is dimmed over "No route found", and a tab where none has a route reads "none". Left and Right change tabs.
 
   Choosing a route sends the taxi, and the route previews on the map while you point at or arrow onto it. "Warp here" warps to the node nearest the click, and "Draw taxi route…" starts from that node.
 - **On an aircraft** — the same [aircraft menu](#aircraft-right-click-menu) the [Radar View](#radar-view-1) and the Aircraft List show, so every command is reachable from any view: the quick commands and icon strip for the aircraft's situation, then Command… and Note…, **All Commands**, Favorite Commands and the ground's own **Display** (Taxi route, Show/Hide datablock, Reset datablock position once you have dragged it, Measure from {callsign}).
@@ -634,7 +674,9 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     Then a "Push back to…" submenu of the places a tug push can take the aircraft, in two sections sorted by distance: "Behind the aircraft" (badge TL or TW) and "Taxi spots" (badge S). A target with two or more facings shows "then face" under its name and one chip per direction (N, S, …) that picks which way the aircraft ends up facing; a target with one facing shows a dim "faces E" note. The strip button's flyout shows the same list and follows it as it fills.
 
-    Each row shows a distance hint such as ~250 ft; a target a parked neighbour blocks is faded, does nothing when clicked, names that aircraft ("blocked by SWA919") and carries a "push anyway" chip that sends the forced push (`PUSHF`); a target the tug cannot fly is left out. The submenu fills in as it is computed ("Computing targets…" until a first list shows, then a "Refining targets…" row above the sections until the live plan lands). Below it come "Push route…" (a multi-point tug move — see below) and a "Follow…" submenu — the aircraft starts up and falls in behind the chosen leader without needing a taxi route first.
+    Each row shows a distance hint such as ~250 ft; a target a parked neighbour blocks is faded, does nothing when clicked, names that aircraft ("blocked by SWA919") and carries a "push anyway" chip that sends the forced push (`PUSHF`); a target the tug cannot fly is left out.
+
+    The submenu fills in as it is computed ("Computing targets…" until a first list shows, then a "Refining targets…" row above the sections until the live plan lands). Below it come "Push route…" (a multi-point tug move — see below) and a "Follow…" submenu — the aircraft starts up and falls in behind the chosen leader without needing a taxi route first.
 
     At a taxi-out stand (one its aircraft park facing their way out of, such as a GA tie-down, every helipad, and Oakland's whole North Field) none of the push items appear, in any view, in the quick list or on a node's "Push to": taxi the aircraft out instead. A typed `PUSH` or `PUSHM` there is still flown, with a note on the terminal (below). Where an airport marks a stand as either way (Oakland's MTN stands), the push items appear and a push carries no note.
 
@@ -653,15 +695,25 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     "Follow…" and "Give way to…" flyouts listing the other ground aircraft. A row shows the callsign with the type beside it, the state under it (`pushing back · gate 24`, `taxiing on W · ahead`, `holding short of 30 at W3 · behind`; "ahead" is within 90° of the aircraft's heading), the distance in feet (to the nearest 50 ft under 1,000, else 100) and the command it sends.
 
-    "Give way to…" is headed **Nearest first**: one list, nearest first, each row marked ▶ (moving) or ■ (parked). Eight rows show; **Show n more** shows the rest in place and stays open until you choose **Show fewer** or the flyout closes. "Follow…" opens with a filter box: type part of a callsign or type to narrow the list, press Down to move into it (Down and Up skip rows the filter hides) and Enter to send the top match, or the highlighted row. With no match, Enter sends `FOLLOWG` with the first word you typed, as the hint line says. The list scrolls under **Moving** and **Parked or holding** titles, the current one staying at the top.
+    "Give way to…" is headed **Nearest first**: one list, nearest first, each row marked ▶ (moving) or ■ (parked). Eight rows show; **Show n more** shows the rest in place and stays open until you choose **Show fewer** or the flyout closes.
 
-    An open strip flyout stays current: once a second the list follows the ground traffic (and, for "Hold short of…", the route). While the pointer is outside the flyout, aircraft join and leave and the order follows distance. While the pointer is over it the order holds so a row does not move under you: an aircraft that leaves stays as a dimmed row reading "gone" that cannot be chosen, and a new aircraft joins at the bottom with a teal left edge until the pointer leaves, when the list catches up.
+    "Follow…" opens with a filter box: type part of a callsign or type to narrow the list, press Down to move into it (Down and Up skip rows the filter hides) and Enter to send the top match, or the highlighted row. With no match, Enter sends `FOLLOWG` with the first word you typed, as the hint line says. The list scrolls under **Moving** and **Parked or holding** titles, the current one staying at the top.
 
-    In "Hold short of…" a stop the route has passed or left reads "gone" the same way and a new stop joins at the bottom. "Give way to…" and "Hold short of…" put the keyboard on the first row when they open, and the keyboard skips a gone row (and the "Hold short of…" aircraft and destination rows). If the row you reached with the keyboard leaves, the keyboard moves to the row now at that place (in "Follow…" the next row the filter shows, and the filter box when none is left; in "Give way to…" **Show n more** when only hidden rows remain).
+    An open strip flyout stays current: once a second the list follows the ground traffic (and, for "Hold short of…", the route). While the pointer is outside the flyout, aircraft join and leave and the order follows distance.
+
+    While the pointer is over it the order holds so a row does not move under you: an aircraft that leaves stays as a dimmed row reading "gone" that cannot be chosen, and a new aircraft joins at the bottom with a teal left edge until the pointer leaves, when the list catches up.
+
+    In "Hold short of…" a stop the route has passed or left reads "gone" the same way and a new stop joins at the bottom. "Give way to…" and "Hold short of…" put the keyboard on the first row when they open, and the keyboard skips a gone row (and the "Hold short of…" aircraft and destination rows).
+
+    If the row you reached with the keyboard leaves, the keyboard moves to the row now at that place (in "Follow…" the next row the filter shows, and the filter box when none is left; in "Give way to…" **Show n more** when only hidden rows remain).
 
     Pointing at a "Hold short of…" stop, or moving the keyboard to it, boxes that bar on the ground view and draws your aircraft's route to it solid, without ringing an aircraft; a stop at the very start of the route boxes the bar with no route line. Leaving the stop falls back to the keyboard's stop, and closing the flyout or the menu clears it. The same ladder fills All Commands, without the live refill.
 
-    Pointing at a row, or moving the keyboard to it, highlights that aircraft on the ground view with a ring (and lights its datablock on the radar) and draws a preview on the ground view: your aircraft's route solid, the row aircraft's route dashed and, for "Give way to…", an amber ring where the two routes meet. A "Give way to…" row whose aircraft is not predicted to meet your aircraft's route says "no conflict predicted" under its state (shown only while your aircraft has a taxi route). The preview follows the traffic as the open flyout refreshes. Leaving the row falls back to the keyboard's row, and closing the flyout or the menu clears the ring and the preview. With no other aircraft on the ground, the icons stay in the strip but do nothing and the header line says why, the flyouts read "No other aircraft on the ground.", and under All Commands the entries are disabled with the reason beside them ("Follow… · no other aircraft on the ground"). "Give way to…" leaves out live-traffic aircraft on the surface
+    Pointing at a row, or moving the keyboard to it, highlights that aircraft on the ground view with a ring (and lights its datablock on the radar) and draws a preview on the ground view: your aircraft's route solid, the row aircraft's route dashed and, for "Give way to…", an amber ring where the two routes meet. A "Give way to…" row whose aircraft is not predicted to meet your aircraft's route says "no conflict predicted" under its state (shown only while your aircraft has a taxi route).
+
+    The preview follows the traffic as the open flyout refreshes. Leaving the row falls back to the keyboard's row, and closing the flyout or the menu clears the ring and the preview.
+
+    With no other aircraft on the ground, the icons stay in the strip but do nothing and the header line says why, the flyouts read "No other aircraft on the ground.", and under All Commands the entries are disabled with the reason beside them ("Follow… · no other aircraft on the ground"). "Give way to…" leaves out live-traffic aircraft on the surface
   - *Holding In Position*: "Resume taxi" (when the aircraft is actually held — `RES` only lifts a `HOLD`/`GIVEWAY` directive, and this phase is also where a `WARPG` or a completed taxi to a spot leaves an aircraft that is free to move), plus the same "Follow…" and "Give way to…" submenus
   - *Holding Short*: "Resume taxi", "Cross {rwy}", "Hold short of…" (the ladder above, from after the bar the aircraft is held at), and under **Runway** "Line up and wait" and "Cleared for takeoff" — all for the runway the aircraft is holding short of
   - *Holding After Exit / Holding After Pushback*: "Resume taxi" (when the aircraft is held), "Follow…" submenu ("Give way to…" when a route exists). *Holding After Pushback* — where a completed push leaves the aircraft — also carries the same "Push back" / "Push back, face {taxiway}" / "Push back to…" / "Push route…" items as *At Parking*, so an aircraft resting where a push left it can be repositioned without taxiing first.
@@ -673,7 +725,9 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     Any other runway is searched the first time you choose one of its tabs: both of that runway's tabs show a small spinner and the panel reads "Finding runway entries…" until the rows appear. A runway end with no entry is dimmed with "none" and its panel reads "No runway entry found"; a tab whose search failed stays "none" when you arrow onto it or reopen the flyout on it, and clicking it, or pressing Enter while it is selected, searches again.
 
-    The focus starts on the first row, so Enter right after opening sends it. Up and Down (or Tab and Shift+Tab) move between the rows, and Left and Right change tab and focus its first row; the tabs themselves are for the mouse (Enter on a selected tab whose search failed searches it again). Pointing at a row, or moving to it with the keyboard, previews its route; choosing another tab or closing the flyout clears the preview. A tab list wider than the flyout wraps to a second row, and a tall tab scrolls below the tabs.
+    The focus starts on the first row, so Enter right after opening sends it. Up and Down (or Tab and Shift+Tab) move between the rows, and Left and Right change tab and focus its first row; the tabs themselves are for the mouse (Enter on a selected tab whose search failed searches it again).
+
+    Pointing at a row, or moving to it with the keyboard, previews its route; choosing another tab or closing the flyout clears the preview. A tab list wider than the flyout wraps to a second row, and a tall tab scrolls below the tabs.
 
     A tab lists the runway end's entries, each as a title line and its variants under it. The entries run full-length first, then every intersection long enough for the aircraft's type to take off from, most runway left first; the full-length entry and the nearest usable one are bold.
 
@@ -713,11 +767,15 @@ Once it is actually turning — or close enough that it could no longer brake fo
 
 The aircraft then takes a later exit, and does not use W3 for the rest of that landing — a bare `EXP` does not bring it back; a new `EXIT W3` does, if it can still be made. If the aircraft ends up stopped on the runway with W3 still ahead, it may taxi forward to it.
 
-**Taxiing while the aircraft is still rolling out.** `TAXI` and `TAXIAUTO` work on the landing rollout, so you need not wait for "clear of the runway". The aircraft takes the exit the route implies (the first taxiway you name, or for `TAXIAUTO` the first exit it can make, on either side) and rolls from it into the route without stopping. The pilot reads the exit back first: "exit right at J, taxi to runway 30 via C B W W1". The route shows on the strip, in the status "via" text and on the route overlay as soon as the pilot reads it back, and `CROSS` already applies to its next runway.
+**Taxiing while the aircraft is still rolling out.** `TAXI` and `TAXIAUTO` work on the landing rollout, so you need not wait for "clear of the runway". The aircraft takes the exit the route implies (the first taxiway you name, or for `TAXIAUTO` the first exit it can make, on either side) and rolls from it into the route without stopping.
+
+The pilot reads the exit back first: "exit right at J, taxi to runway 30 via C B W W1". The route shows on the strip, in the status "via" text and on the route overlay as soon as the pilot reads it back, and `CROSS` already applies to its next runway.
 
 Add `EXP` (`TAXI J C B EXP`, `TAXIAUTO 30 EXP`) to exit and taxi without delay: the pilot picks from the exits the expedite braking limit makes, and then taxis the route expedited.
 
-When the first taxiway you name is not on the runway, the aircraft tries the exits it can make nearest first, those on the side of an `EL`/`ER` you already gave first, then those on the side of the route. A bare `EL`/`ER` on the side of the exit the `TAXI` implied, given while the route waits, confirms that exit; an exit naming another taxiway cancels the stored route. `GIVEWAY` works once the route is stored: it waits without slowing or stopping the aircraft on the runway and takes effect when the aircraft is taxiing.
+When the first taxiway you name is not on the runway, the aircraft tries the exits it can make nearest first, those on the side of an `EL`/`ER` you already gave first, then those on the side of the route.
+
+A bare `EL`/`ER` on the side of the exit the `TAXI` implied, given while the route waits, confirms that exit; an exit naming another taxiway cancels the stored route. `GIVEWAY` works once the route is stored: it waits without slowing or stopping the aircraft on the runway and takes effect when the aircraft is taxiing.
 
 If the exit is too close to make you get *"unable {taxiway}."*, and if it is already behind the aircraft *"Unable, no {taxiway} ahead"*. A `TAXI` whose first taxiway is not on the runway is joined from the first makeable exit that leads straight to it; if none does, the pilot says "unable" to that taxiway. A route that only runs along the landing runway is refused.
 
@@ -727,11 +785,13 @@ With scenario auto-cross on (All runways, or Inactive runways only for the runwa
 
 The aircraft is never warned about the taxiway it is already on, and a `TAXI` issued just after a runway exit also clears finishing the crossing of that same runway. See [Command Reference](COMMANDS.md) for details and the across-a-runway exception.
 
-**Where an open-ended taxi stops.** A `TAXI` clearance that ends on a taxiway with no destination and no turn hint (e.g. `TAXI C D`) taxis to where the route meets that final taxiway and **holds at the intersection** — the clearance gave no onward direction, so the aircraft doesn't commit down the taxiway in a guessed direction.
+**Where an open-ended taxi stops.** A `TAXI` clearance that ends on a taxiway with no destination and no turn hint (e.g. `TAXI C D`) taxis to where the route meets that final taxiway and **holds short of it**, not in the intersection — the clearance gave no onward direction, so the aircraft doesn't commit down the taxiway in a guessed direction. A bare `TAXI B` to an aircraft on C does the same: it stays on C and holds short of B.
 
-The echo tells you where it will hold (`[holding at the C/D intersection — route ends at D, no destination given]`); continue it with a follow-up `TAXI`, a destination (`RWY 28R`, `@GA1`), or a turn hint on the last taxiway (`TAXI C >D`).
+The echo tells you where it will hold (`[holding short of D: route ends at D, no destination given]`); continue it with a follow-up `TAXI`, a destination (`RWY 28R`, `@GA1`), or a turn hint on the last taxiway (`TAXI C >D`). `RES` and `CROSS` don't release this hold. An aircraft rolling too fast to stop short of it answers `Unable to hold short of D — stopping` and brakes hard.
 
-**Where a taxi across a runway stops.** When such a clearance crosses a runway on the way (KOAK `TAXI D F`, or KCOS `TAXI A2 C2` where the airport declares it a crossing), the aircraft does not stop on the runway centreline: it ends on the far taxiway with the whole aircraft clear of the runway, its tail and nose both 10 ft past the far hold line. The echo says so (`[holding short of 17R/35L at A2 — route ends on C2 clear of 17R/35L, no destination given]`, `crossing 17R/35L at A2 — …` once you `CROSS` it).
+**Where a taxi across a runway stops.** When such a clearance crosses a runway on the way (KOAK `TAXI D F`, or KCOS `TAXI A2 C2` where the airport declares it a crossing), the aircraft does not stop on the runway centreline: it ends on the far taxiway with the whole aircraft clear of the runway, its tail and nose both 10 ft past the far hold line.
+
+The echo says so (`[holding short of 17R/35L at A2 — route ends on C2 clear of 17R/35L, no destination given]`, `crossing 17R/35L at A2 — …` once you `CROSS` it).
 
 If the taxiway has no room to clear the runway (a T, a runway centreline or another runway's hold line comes first) the pilot refuses `Unable, no room on C2 to clear 17R/35L, request taxi instructions` and stays put. A destination, a further taxiway or `HS` of the runway keeps the route as you gave it.
 
@@ -745,7 +805,9 @@ When the route you gave falls one taxiway short — `TAXI D @NEW1` to an aircraf
 
 `RES` and `CROSS` don't move it on from there; issue a new `TAXI` that includes the missing taxiway (`TAXI C D @NEW1`). A hold that would land on a runway is moved back to that runway's holding position. When no hold can be placed at all, the `TAXI` is refused with the taxiway it needs (`Unable, route to G from E needs C, not in clearance`).
 
-A `TAXI` that names only the taxiway the aircraft is already on (`TAXI B` on B, with at most `EXP`) gives it nowhere to go and is refused: `TAXI B rejected: already on B; give a destination or a further taxiway`. The aircraft stays where it is and the pilot says nothing. An aircraft holding short of a runway that gets a directed `TAXI` (`TAXI B C` from the 28L bar) is cleared across that runway by it, and the pilot reads the crossing back; the readback stops at the first hold short that stops the aircraft, and says nothing past it.
+A `TAXI` that names only the taxiway the aircraft is already on (`TAXI B` on B, with at most `EXP`) gives it nowhere to go and is refused: `TAXI B rejected: already on B; give a destination or a further taxiway`. The aircraft stays where it is and the pilot says nothing.
+
+A bare `TAXI B` to an aircraft holding short of B at the end of an open-ended taxi is refused the same way (`holding short of B: give a direction (>B or <B) or a destination`). An aircraft holding short of a runway that gets a directed `TAXI` (`TAXI B C` from the 28L bar) is cleared across that runway by it, and the pilot reads the crossing back; the readback stops at the first hold short that stops the aircraft, and says nothing past it.
 
 **The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named. Nor is a runway the route only crosses: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33".
 
@@ -812,9 +874,13 @@ To resolve it, issue `CLRWY` (alias `CLEARRWY`): the aircraft pulls forward just
 
 **Automatic ground yields.** When the simulator slows one ground aircraft for another — a converging path or an in-trail follow — the slowed aircraft's ground datablock shows a **→{callsign} (auto)** badge naming the traffic it is yielding to, so an automatic slowdown is never unexplained.
 
-An aircraft that is still leaving a runway (exiting, crossing, or holding in position with any part over the pavement, or stopped with its tail inside the hold line) has right of way over taxiing traffic while it moves, and the taxiing aircraft stops for it unless it lies in the leaving aircraft's path. Once it is held, it keeps that right only against traffic coming head-on into its way out; other taxiing aircraft pass when clear, brake to the stop ring, or stop at their own bar. A departing, landing or lined-up aircraft outranks both.
+An aircraft that is still leaving a runway (exiting, crossing, or holding in position with any part over the pavement, or stopped with its tail inside the hold line) has right of way over taxiing traffic while it moves, and the taxiing aircraft stops for it unless it lies in the leaving aircraft's path.
 
-Its right-click menu spells it out as **Yielding to** (converging) or **Following** (in trail). A give-way you issue yourself still takes precedence over the automatic one. The same badge appears on a pushback held on its stand for traffic already rolling past, and on a taxiing aircraft holding for a pushback whose tail is already in its lane. A taxiing aircraft slowed or stopped beside a parked or held aircraft shows it too, once the slowdown is more than a couple of knots under the speed the aircraft would otherwise taxi at.
+Once it is held, it keeps that right only against traffic coming head-on into its way out; other taxiing aircraft pass when clear, brake to the stop ring, or stop at their own bar. A departing, landing or lined-up aircraft outranks both.
+
+Its right-click menu spells it out as **Yielding to** (converging) or **Following** (in trail). A give-way you issue yourself still takes precedence over the automatic one. The same badge appears on a pushback held on its stand for traffic already rolling past, and on a taxiing aircraft holding for a pushback whose tail is already in its lane.
+
+A taxiing aircraft slowed or stopped beside a parked or held aircraft shows it too, once the slowdown is more than a couple of knots under the speed the aircraft would otherwise taxi at.
 
 **Departure-queue numbers.** A departure waiting for a runway shows the **runway and its place in line** on its ground datablock callsign — `UAL123 28R #1` for the aircraft next up, `28R #2`, `28R #3`, and so on for those behind it — so you can see at a glance which runway a clumped departure is waiting on and who goes next, even zoomed out.
 
@@ -848,7 +914,9 @@ Behind a leader waiting at a runway's departure bar, a follower with no departur
 
 If the leader is deleted or departs, the follower never stops on a runway: on one, or inside its hold line, it taxis clear past the hold line, brakes to a stop on the taxiway, and holds in position; elsewhere it brakes to a stop where it is.
 
-If the way back onto its assigned route would enter a runway, or the clearing route runs out with its tail still over the runway it was leaving, it holds in position and says so once: "Lost sight of traffic, holding position, request taxi instructions" (the RPO terminal names the leader), or "Holding short of runway 28R, not clear of runway 28L" when another runway lies ahead, else "Holding position, not clear of runway 28L". It says nothing when it has no assigned route left to lose. Give it a new `TAXI`, `CLRWY` or `FOLLOWG` to move it on.
+If the way back onto its assigned route would enter a runway, or the clearing route runs out with its tail still over the runway it was leaving, it holds in position and says so once: "Lost sight of traffic, holding position, request taxi instructions" (the RPO terminal names the leader), or "Holding short of runway 28R, not clear of runway 28L" when another runway lies ahead, else "Holding position, not clear of runway 28L".
+
+It says nothing when it has no assigned route left to lose. Give it a new `TAXI`, `CLRWY` or `FOLLOWG` to move it on.
 
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route…" to enter draw mode. The aircraft's menu offers it on the Radar View and in the Aircraft List too: picking it there switches to the Ground View (or brings its window forward) and starts drawing on it.
 
@@ -901,7 +969,11 @@ Right-click an aircraft on the Ground View and open **Display > Taxi route** to 
 
 A drawn route starts at the aircraft. When the aircraft is not yet on a painted taxiway line — just pushed back onto the apron, cutting across a ramp between parallel lanes, or rolling out on a runway toward its exit — the first leg is the straight free-space drive it will make to reach the route, drawn in the same color as the rest.
 
-**Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click; each flat two-line row shows the preset's name over its taxiways, the distance (nearest first) and the `TAXI` command, and previews the route as a dashed line when you point at it or move to it with the keyboard (Up/Down, Enter sends); a row too long for the flyout is cut with an ellipsis and its tooltip shows the whole row. In the quick-command strip's flyout the rows refresh every second: the order holds while the pointer is inside, a preset that is no longer available greys out as "gone", and the list re-sorts nearest first when the pointer leaves. With no preset from where the aircraft stands the entry is hidden, and a flyout whose presets all go reads "No preset taxi routes from here." Closing any aircraft menu clears the route preview. A route that ends at a runway also appears under that runway in "Taxi to runway".
+**Preset taxi routes:** Right-click an aircraft on the ground and select "Preset taxi route" to issue an SOP-aligned taxi command in one click; each flat two-line row shows the preset's name over its taxiways, the distance (nearest first) and the `TAXI` command, and previews the route as a dashed line when you point at it or move to it with the keyboard (Up/Down, Enter sends); a row too long for the flyout is cut with an ellipsis and its tooltip shows the whole row.
+
+In the quick-command strip's flyout the rows refresh every second: the order holds while the pointer is inside, a preset that is no longer available greys out as "gone", and the list re-sorts nearest first when the pointer leaves.
+
+With no preset from where the aircraft stands the entry is hidden, and a flyout whose presets all go reads "No preset taxi routes from here." Closing any aircraft menu clears the route preview. A route that ends at a runway also appears under that runway in "Taxi to runway".
 
 A preset that ends where the aircraft already stands is hidden. Routes are loaded from per-airport JSON files bundled with YAAT under `Data/TaxiRoutes/{ARTCC}/{airport}-routes.json` — for example, FLL's "DEP 10R via T-T3-B" lives at `Data/TaxiRoutes/ZMA/kfll-routes.json`.
 
@@ -996,7 +1068,9 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   **Direct to…** and **Append direct to…** (Vectors › Route; also strip icons, each with its own glyph) open one flyout, titled "Direct to" or "Append direct to" with "→ {next fix}" while the aircraft navigates to a fix. While it does, a toggle switches between Direct to (`DCT`) and Append to route (`ADCT`); Append direct to is only offered then. The Fix box (placeholder "Fix name or FRD") shows the command Enter sends, or a red "Not a known fix".
 
-  Under the box, "Remaining route" lists the aircraft's route from the fix it is navigating to on (● marks the next fix): the fixes it is navigating through, then the filed route's fixes after them, then the destination, each once, with the distance and magnetic bearing from the aircraft ("31 NM · 184°", the heading it would fly) and the command. A fix the aircraft has passed greys to "passed" for as long as the flyout stays open but still sends; with no navigating-to fix the list is the whole route. Typing narrows the route rows and adds "All fixes · nearest first": the 50 nearest other fixes starting with your text, however far; an FRD (`RBL184031`) gets its own row with its distance and bearing.
+  Under the box, "Remaining route" lists the aircraft's route from the fix it is navigating to on (● marks the next fix): the fixes it is navigating through, then the filed route's fixes after them, then the destination, each once, with the distance and magnetic bearing from the aircraft ("31 NM · 184°", the heading it would fly) and the command.
+
+  A fix the aircraft has passed greys to "passed" for as long as the flyout stays open but still sends; with no navigating-to fix the list is the whole route. Typing narrows the route rows and adds "All fixes · nearest first": the 50 nearest other fixes starting with your text, however far; an FRD (`RBL184031`) gets its own row with its distance and bearing.
 
   The box has focus when the flyout opens. Typing outlines the first row, and Enter sends it (with no row, Enter sends the typed fix). Down moves from the box into the rows (onto the ● row when it shows), Up and Down walk them, Up from the top row returns to the box, Enter sends the focused row, and Escape goes back to the strip.
 
@@ -1012,19 +1086,29 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   Down from a box goes into the rows (the ● row first), Up from the top row returns to the Fix box, Tab moves between the boxes, Enter sends the outlined or focused row, and Escape goes back to the strip. The menu never sends `CFIX {fix}` or `DEPART {fix}` without its values.
 
-  **Hold at fix…** (a quick command for an airborne IFR aircraft, and the first entry of the holds block of All Commands › Approach for one; it sends `HOLDP`) opens a flyout titled "Hold at fix" with "→ {next fix}" while the aircraft navigates to a fix. The Fix box takes a fix's own name; an FRD is "Not a known fix". Under it are the "Inbound course (empty: default)" box, with the direction of holding beside it and, at a VOR, VORTAC or TACAN, the radial; the Legs chips 1 min, 1½ min, 5 NM and 10 NM; and the Turns toggle, Right or Left.
+  **Hold at fix…** (a quick command for an airborne IFR aircraft, and the first entry of the holds block of All Commands › Approach for one; it sends `HOLDP`) opens a flyout titled "Hold at fix" with "→ {next fix}" while the aircraft navigates to a fix.
 
-  The Legs chips open on 1 min at or below 14,000 ft MSL and on 1½ min above it (from the assigned altitude, else the present one), and follow the altitude each second until you pick a chip. A caption says the hold as a controller would, such as "Hold north of SUNOL on the 184 course inbound" or, at a VOR, "Hold north of SFO on the 004 radial", adding ", 1½-minute leg" for a picked or non-standard leg and ", left turns" for left. The command is always the four tokens, `HOLDP SUNOL 184 1M R` (legs `1M`, `1.5M`, `5`, `10`).
+  The Fix box takes a fix's own name; an FRD is "Not a known fix". Under it are the "Inbound course (empty: default)" box, with the direction of holding beside it and, at a VOR, VORTAC or TACAN, the radial; the Legs chips 1 min, 1½ min, 5 NM and 10 NM; and the Turns toggle, Right or Left.
 
-  With the course box empty, a fix further along the aircraft's navigation route is held on the course of the leg from the route fix before it, arriving at the fix. Every other row (the next fix, fixes already passed, the filed route's tail, the destination or departure, and any fix with the aircraft off its route) is held on the course arriving from the aircraft. The course is magnetic, using the fix's published declination, and follows the aircraft each second and a re-route. A course that is empty with no default shows "Course required", and one that is not 001 to 360 "Not a valid course".
+  The Legs chips open on 1 min at or below 14,000 ft MSL and on 1½ min above it (from the assigned altitude, else the present one), and follow the altitude each second until you pick a chip.
+
+  A caption says the hold as a controller would, such as "Hold north of SUNOL on the 184 course inbound" or, at a VOR, "Hold north of SFO on the 004 radial", adding ", 1½-minute leg" for a picked or non-standard leg and ", left turns" for left. The command is always the four tokens, `HOLDP SUNOL 184 1M R` (legs `1M`, `1.5M`, `5`, `10`).
+
+  With the course box empty, a fix further along the aircraft's navigation route is held on the course of the leg from the route fix before it, arriving at the fix. Every other row (the next fix, fixes already passed, the filed route's tail, the destination or departure, and any fix with the aircraft off its route) is held on the course arriving from the aircraft.
+
+  The course is magnetic, using the fix's published declination, and follows the aircraft each second and a re-route. A course that is empty with no default shows "Course required", and one that is not 001 to 360 "Not a valid course".
 
   The list under the form is the Cross fix list: the route's fixes with a ● on the next one, then, as you type, the nearest other fixes starting with your text. Each row shows the whole `HOLDP` it would send and sends it on a click or Enter.
 
   **Left 360s at fix…** and **Right 360s at fix…** (the holds block of All Commands › Approach; VFR aircraft in the air, and an IFR aircraft only with VFR commands for IFR set to All) open a flyout titled "Left 360s at fix" or "Right 360s at fix" with a Left 360s / Right 360s toggle. The Fix box takes a fix or an FRD and the command is `HFIXL SUNOL` or `HFIXR SUNOL`.
 
-  **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
+  **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt.
 
-  Vectors › Route offers the Cross fix and Depart fix flyouts, Join airway… and Join radial outbound… / inbound…; Approach offers a Join STAR flyout (one tab per STAR at the destination, the filed STAR first and marked ◆; each tab has Join, Join at {fix} and For runway {rwy} rows, and Descend via STAR sits under the tabs, in Approach itself only while Join STAR is disabled) and PTAC…, all described next. The Runway group's runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
+  At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
+
+  Vectors › Route offers the Cross fix and Depart fix flyouts, Join airway… and Join radial outbound… / inbound…; Approach offers a Join STAR flyout (one tab per STAR at the destination, the filed STAR first and marked ◆; each tab has Join, Join at {fix} and For runway {rwy} rows, and Descend via STAR sits under the tabs, in Approach itself only while Join STAR is disabled) and PTAC…, all described next.
+
+  The Runway group's runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label.
 
   **Join airway…** (All Commands › Vectors › Route) opens a flyout titled "Join airway" with an Airway box (focused on open; it filters the rows by what you type). The box says "unknown airway" in red for a name the navigation data lacks and "military route: use CMTR" for a military training route such as IR149.
 
@@ -1057,7 +1141,9 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
   Squawk gains a "Squawk random" one-click. "Ask pilot to say…" submenu issues SAY-class commands (altitude, heading, speed, mach, position, expected approach, custom).
 - **On a *different* aircraft (with one already selected)**: a **For** section opens the menu, with traffic actions issued to the **selected** aircraft, on the radar and the ground view alike. Its first line reads **For {selected} (selected)**, and the clicked aircraft's own items follow under **For {clicked}**.
 
-  When both are airborne: a dimmed line says where the clicked aircraft is from the selected one ("AAL601 is at its 2 o'clock, 4 nm, 1,500 ft below"; the clock is read from the selected aircraft's heading, and "same altitude" shows within 100 ft), then "Report in sight" (RTIS), and once it has reported that traffic in sight, "Follow". When both are on the ground: "Follow {clicked}" (FOLLOWG) and "Give way to {clicked}" (GW). One airborne and one on the ground gets neither, and a live-traffic shadow you have not assumed or a delayed spawn that has not appeared yet cannot be the selected aircraft. Right-clicking a different aircraft keeps your current selection.
+  When both are airborne: a dimmed line says where the clicked aircraft is from the selected one ("AAL601 is at its 2 o'clock, 4 nm, 1,500 ft below"; the clock is read from the selected aircraft's heading, and "same altitude" shows within 100 ft), then "Report in sight" (RTIS), and once it has reported that traffic in sight, "Follow".
+
+  When both are on the ground: "Follow {clicked}" (FOLLOWG) and "Give way to {clicked}" (GW). One airborne and one on the ground gets neither, and a live-traffic shadow you have not assumed or a delayed spawn that has not appeared yet cannot be the selected aircraft. Right-clicking a different aircraft keeps your current selection.
 - **Report traffic in sight…** and **Follow traffic…** (on an airborne aircraft) open one flyout layout. The title (`Report traffic in sight` or `Follow traffic`) has the aircraft's `callsign · altitude · hdg heading` on the right, and Follow adds a **Force** toggle (`FOLLOWF`, RPO only, not shown in solo training).
 
   A **Traffic** box (`Filter or type a callsign`) shows the command Enter sends, and the list below it, `Airborne · nearest first`, holds the 8 nearest airborne aircraft within 10 NM. Typing a callsign or type searches every airborne aircraft at any distance.
@@ -1070,26 +1156,36 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   With no other aircraft airborne, the strip's buttons are faded and the All Commands entries are disabled (`· no other aircraft airborne`); with traffic airborne but none within 10 NM the list says `No other aircraft within 10 NM.` Follow traffic… is in All Commands › Pattern and is offered to any VFR aircraft aloft.
 
-  In solo training, Report traffic in sight… opens the **solo advisory flyout** instead: you say the advisory and Enter sends the structured `RTIS`; there is no "any traffic" or callsign entry. The title carries a `solo` badge, and the **Advisory** box (`2 4 w sr22 35, or a callsign`) takes the call as you would say it: radar clock, miles, direction, type and an optional altitude (`2 4 w sr22 35`), or a pattern (`base l 2 28l c152`), nose (`nr 2 c172`) or reporting-point (`over vpcol sr22`) form. The command column previews the `RTIS` being built.
+  In solo training, Report traffic in sight… opens the **solo advisory flyout** instead: you say the advisory and Enter sends the structured `RTIS`; there is no "any traffic" or callsign entry.
+
+  The title carries a `solo` badge, and the **Advisory** box (`2 4 w sr22 35, or a callsign`) takes the call as you would say it: radar clock, miles, direction, type and an optional altitude (`2 4 w sr22 35`), or a pattern (`base l 2 28l c152`), nose (`nr 2 c172`) or reporting-point (`over vpcol sr22`) form. The command column previews the `RTIS` being built.
 
   ![The solo advisory flyout for a PA28 at 4,500 ft, with 9 3 SE SR22 055 typed for the pointed SR22, the live check line, the Builder unfolded on the radar clock form, and the SR22 ringed on the radar with its bearing line](docs/user-guide/img/whats-new-solo-advisory-flyout.png)
 
   A grey hint under the box names the next part (`Tab 2 clock`, `Tab 035 altitude (optional)`, `next: ‹clock›`), and Tab takes it from the aircraft you are pointing at (`Tab picks N22RX` when a typed callsign or type picks one). A first word that is not a form filters the list by callsign or type, reaching aircraft beyond the 8 nearest. A complete call shows the line the pilot will hear (`Traffic, 2 o'clock, 4 miles, westbound, …, report it in sight.`).
 
-  The list is the other airborne aircraft. Pointing at a row marks it `●` and rings it on the radar with the bearing line; a click pins it as the seed for the Tab hints and the Builder, and never sends. The row your call resolves to reads `◎ your call` and gets a dashed ring on the radar. With **Pre-fill traffic advisories** set to **Left for the student**, rows drop the clock, miles and direction (`1,500 above · find it on the scope`) and the radar bearing label is hidden. When nothing matches the list says `No aircraft matches {text}. In solo a callsign is not a call: pick an aircraft, or type the advisory.`
+  The list is the other airborne aircraft. Pointing at a row marks it `●` and rings it on the radar with the bearing line; a click pins it as the seed for the Tab hints and the Builder, and never sends. The row your call resolves to reads `◎ your call` and gets a dashed ring on the radar.
+
+  With **Pre-fill traffic advisories** set to **Left for the student**, rows drop the clock, miles and direction (`1,500 above · find it on the scope`) and the radar bearing label is hidden. When nothing matches the list says `No aircraft matches {text}. In solo a callsign is not a call: pick an aircraft, or type the advisory.`
 
   The folded **Builder** sets the call by part: tabs for **Radar clock**, **Nose**, **Pattern** and **Over fix** (greyed with the reason, such as `{callsign} is in no pattern leg` or `{callsign} is not within 2 NM of a reporting point`), a clock dial, a miles stepper (1-20), a direction pad, Type, Altitude with an **unknown** box (unchecking it takes the aircraft's own altitude), the pattern Side and Runway, and the reporting points within 2 NM of the aircraft (nearest first, up to 6).
 
-  With **Live advisory check** on, a line under the box names the aircraft the call resolves to and grades each part as you type (`→ N22RX clock ✓ ±1 h miles ≈ 2 NM off direction ≈ 1 octant off altitude ✓ type ≈ is SR22 · imprecise`, or `· scores clean`; `✗ no traffic fits the sim would answer “…”` when nothing fits). It updates 300 ms after you stop typing and once after each burst of aircraft updates, flashing when an update changes it. It checks the same aircraft list the client shows, leaving out delayed spawns.
+  With **Live advisory check** on, a line under the box names the aircraft the call resolves to and grades each part as you type (`→ N22RX clock ✓ ±1 h miles ≈ 2 NM off direction ≈ 1 octant off altitude ✓ type ≈ is SR22 · imprecise`, or `· scores clean`; `✗ no traffic fits the sim would answer “…”` when nothing fits).
+
+  It updates 300 ms after you stop typing and once after each burst of aircraft updates, flashing when an update changes it. It checks the same aircraft list the client shows, leaving out delayed spawns.
 
   A refusal keeps the flyout open: `Refused: “{sim reply}”. The values are kept; fix a part and press Enter again.` An incomplete call sends nothing (`Set the direction, type first; Enter sends nothing.`), and a send that never reached the sim reads `Not sent: connection error (see status line)` with the flyout still open. A second Enter while a send is in flight does nothing.
-- **On the map**: shows the point's [FRD](COMMANDS.md#fix-radial-distance-frd) (nearest fix + radial + distance) and "Copy FRD"; **Pin marker here** (drops a scope marker at that FRD — see *Scope markers* below), plus **Remove marker** when the cursor is near an existing pin and **Clear pinned markers** when any exist; and a dimmed **MVA** line giving the charted Minimum Vectoring Altitude floor and sector at the clicked point (`MVA 2,000 ft (sector 9)`). Outside charted MVA coverage there is no MVA line.
+- **On the map**: shows the point's [FRD](COMMANDS.md#fix-radial-distance-frd) (nearest fix + radial + distance) and "Copy FRD"; **Pin marker here** (drops a scope marker at that FRD — see *Scope markers* below), plus **Remove marker** when the cursor is near an existing pin and **Clear pinned markers** when any exist; and a dimmed **MVA** line giving the charted Minimum Vectoring Altitude floor and sector at the clicked point (`MVA 2,000 ft (sector 9)`).
+
+  Outside charted MVA coverage there is no MVA line.
 
   A copied FRD pastes straight into the `ADD` command's at-fix variant to spawn an aircraft at that point — `ADD V S P @{FRD} {alt}` (e.g. `ADD V S P @AAAME093002 035`).
 
   With an aircraft selected, the menu opens with a bold title naming the aircraft and the point, `UAL238 · B738 → this point`, and a dimmed line under it giving the point's FRD, distance and magnetic bearing from the aircraft (`SJC090010 · 12 nm, bearing 245 from the aircraft`). Since that line carries the FRD, the separate FRD line further down is left out.
 
-  For an airborne aircraft an icon strip follows: **Fly heading**, **Direct to**, **Hold left**, **Hold right** and **Warp here**; pointing at an icon names what it sends, such as "Direct to {FRD}". Under the strip come "Fly heading {hdg}" (the magnetic heading to the point, to the nearest 5°), a dimmed line saying which way and how far the aircraft turns to fly it (`FH 270 · left turn, 40°`, left out when it is already on that heading), and "Append direct to {FRD}" (while it is navigating to a fix).
+  For an airborne aircraft an icon strip follows: **Fly heading**, **Direct to**, **Hold left**, **Hold right** and **Warp here**; pointing at an icon names what it sends, such as "Direct to {FRD}".
+
+  Under the strip come "Fly heading {hdg}" (the magnetic heading to the point, to the nearest 5°), a dimmed line saying which way and how far the aircraft turns to fly it (`FH 270 · left turn, 40°`, left out when it is already on that heading), and "Append direct to {FRD}" (while it is navigating to a fix).
 
   An aircraft on the ground gets no "Warp here" at a map point, since a warp to a fix leaves the aircraft airborne; its taxi items and its ground warp ("Warp here" at a taxi node) are on the Ground View's node menu.
 
@@ -1565,7 +1661,9 @@ If the aircraft the editor shows is deleted while it is open (auto-delete on par
 
 ### Session Report
 
-**Scenario > Session Report** opens the Session Report in its own window, which stays open while you keep working the radar. It scores separation, wake and advisory handling and lists coaching notes, an event timeline, approach outcomes, runway statistics and a per-aircraft debrief. See [Session Report](SOLO_TRAINING.md#session-report) in the Solo Training guide for what each part shows and how it is scored. If the window cannot open, the status bar shows "Session report error" and the cause is written to the client log.
+**Scenario > Session Report** opens the Session Report in its own window, which stays open while you keep working the radar. It scores separation, wake and advisory handling and lists coaching notes, an event timeline, approach outcomes, runway statistics and a per-aircraft debrief.
+
+See [Session Report](SOLO_TRAINING.md#session-report) in the Solo Training guide for what each part shows and how it is scored. If the window cannot open, the status bar shows "Session report error" and the cause is written to the client log.
 
 ### Applying a Layout or Another Scenario's Views
 
@@ -1624,7 +1722,9 @@ The section opens by saying what the list is for: YAAT's aircraft menus use the 
 
 Under the rows, one line per airport says how this scenario stands, for example `OAK: 2 departures and 6 arrivals in this scenario already have a runway and keep it; the rest are offered these.`, or that no aircraft the scenario places has a runway yet. When the scenario's arrival generators feed the airport, the line ends by naming the runways those arrivals land on.
 
-Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none. Further notes name any airport where the guess has no arrival end, or no runway at all. An airport whose guess has only arrival runways is offered them both ways, since nothing in the scenario says where it departs. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
+Type the runways separated by commas, spaces or new lines: `D28L` is departures only, `A28R` arrivals only, and a bare `30` is both. Leave a row empty to make every runway at that airport active, or type `NONE` for none.
+
+Further notes name any airport where the guess has no arrival end, or no runway at all. An airport whose guess has only arrival runways is offered them both ways, since nothing in the scenario says where it departs. A row YAAT cannot read shows why under it, and nothing is sent until you fix it.
 
 **OK** sets each airport as an `ARWY` command would, and the server's replies appear in the terminal. **Cancel** keeps the room's current runways and prints a reminder to set them later with `ARWY`. Solo training, live sessions, other members, joining a room and restarting never ask about runways; a restart keeps the runways in use.
 
@@ -1650,7 +1750,9 @@ Arrivals are cleared to land by the simulated tower and sent around when the run
 
 #### Changing the active runways mid-session
 
-**Scenario › Active Runways…** opens a window with the room's current runways, one row per airport, in any room that has a scenario loaded — solo and live sessions included, and for any member, not only the mentor who loaded it. Type the runways the way the prompt takes them, and **Apply** sends one `ARWY` per airport whose text you changed, with the server's replies in the terminal. The window stays open so you can set several airports in a row, and a row the text cannot be read for shows why under it and sends nothing.
+**Scenario › Active Runways…** opens a window with the room's current runways, one row per airport, in any room that has a scenario loaded — solo and live sessions included, and for any member, not only the mentor who loaded it.
+
+Type the runways the way the prompt takes them, and **Apply** sends one `ARWY` per airport whose text you changed, with the server's replies in the terminal. The window stays open so you can set several airports in a row, and a row the text cannot be read for shows why under it and sends nothing.
 
 The window follows the room's list as anyone changes it: a row you have not typed in updates itself, and a row you are part-way through keeps what you typed until you apply it. Leave a row empty for every runway, or type `NONE` to make none of that airport's runways active. Aircraft already assigned a runway are not retargeted; the change sets the runways in use for what comes next.
 
@@ -1746,15 +1848,25 @@ The reported observation reflects the conditions at the moment it was issued and
 
 ### Loading Live Weather
 
-**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata. Navdata loads in the background at startup — the menu item stays disabled until it finishes, and the status bar reports when it is ready. The airports fetched are the underlying airports of every STARS facility in your ARTCC's vNAS configuration; when the load finishes the status bar reports the result, for example `Loaded: Live Weather (15:52Z) · winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast`.
+**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata. Navdata loads in the background at startup — the menu item stays disabled until it finishes, and the status bar reports when it is ready.
+
+The airports fetched are the underlying airports of every STARS facility in your ARTCC's vNAS configuration; when the load finishes the status bar reports the result, for example `Loaded: Live Weather (15:52Z) · winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast`.
 
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. Wind directions are converted from true to magnetic heading automatically.
 
-Load Live Weather also downloads a NOAA GFS wind grid (0.25° forecast, newest posted cycle, the forecast hour nearest now) covering your ARTCC from NOMADS and sends it to the room, so winds aloft vary across the ARTCC instead of being one set of layers. The status bar shows the download while it runs, and the METAR window's **Winds aloft:** line names the grid's run afterwards (see [Viewing METARs](#viewing-metars)). If the grid cannot be had (NOMADS down or slow, no cycle posted, the ARTCC box too large, or the server refusing the grid), the weather still loads with the FD winds aloft and a warning appears in the terminal giving the reason, for example `Live weather: GFS winds unavailable — no GFS cycle posted; using FD winds aloft only.` Weather with no FD winds aloft gets `Live weather: GFS winds unavailable — no GFS cycle posted; METAR surface winds only.` instead. If the FD winds aloft cannot be fetched either, the weather loads with METAR surface winds only and the terminal says `Live weather: FD winds aloft unavailable; METAR surface winds only.`
+Load Live Weather also downloads a NOAA GFS wind grid (0.25° forecast, newest posted cycle, the forecast hour nearest now) covering your ARTCC from NOMADS and sends it to the room, so winds aloft vary across the ARTCC instead of being one set of layers. The status bar shows the download while it runs, and the METAR window's **Winds aloft:** line names the grid's run afterwards (see [Viewing METARs](#viewing-metars)).
+
+If the grid cannot be had (NOMADS down or slow, no cycle posted, the ARTCC box too large, or the server refusing the grid), the weather still loads with the FD winds aloft and a warning appears in the terminal giving the reason, for example `Live weather: GFS winds unavailable — no GFS cycle posted; using FD winds aloft only.` Weather with no FD winds aloft gets `Live weather: GFS winds unavailable — no GFS cycle posted; METAR surface winds only.` instead.
+
+If the FD winds aloft cannot be fetched either, the weather loads with METAR surface winds only and the terminal says `Live weather: FD winds aloft unavailable; METAR surface winds only.`
 
 **Clear weather:** **Scenario > Clear Weather** removes the active weather profile. All aircraft return to IAS = GS behavior.
 
-**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file. Live weather saved this way carries its GFS wind grid inside the file, whichever room member saves it (a member who did not load the weather fetches the grid from the server while saving), so loading it later sends the same grid to the room and the same winds come back on any server. If the server cannot supply the grid at save time, the file is saved without it and the status bar and terminal say `Saved without its GFS grid: <reason>`; that file loads on FD winds aloft like any file without a grid. A file whose grid is not in the file (`grid not in the saved file`), or whose grid the server could not take, loads on its FD winds aloft with the same warning; a file with no FD winds aloft loads on METAR surface winds only, and the warning says so. Loading a saved file that carries a grid reports `Weather loaded: <name> · winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast (saved file)` in the status bar.
+**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file. Live weather saved this way carries its GFS wind grid inside the file, whichever room member saves it (a member who did not load the weather fetches the grid from the server while saving), so loading it later sends the same grid to the room and the same winds come back on any server.
+
+If the server cannot supply the grid at save time, the file is saved without it and the status bar and terminal say `Saved without its GFS grid: <reason>`; that file loads on FD winds aloft like any file without a grid.
+
+A file whose grid is not in the file (`grid not in the saved file`), or whose grid the server could not take, loads on its FD winds aloft with the same warning; a file with no FD winds aloft loads on METAR surface winds only, and the warning says so. Loading a saved file that carries a grid reports `Weather loaded: <name> · winds aloft: NOAA GFS 12Z 16 Oct, +4 h forecast (saved file)` in the status bar.
 
 ### Weather Editor
 
@@ -2291,7 +2403,9 @@ Two mentor/instructor actions under the **Tools** menu manage it:
 
 ### Traffic Feed
 
-Every room's traffic is also served as a JSON feed in the shape of the public VATSIM datafeed, so a tool built to read VATSIM traffic (vTBFM, for one) can watch a YAAT room instead. While you are connected and in a room, **Tools → Copy traffic feed URL** puts that room's feed address on the clipboard; the status line confirms **Traffic feed URL copied**, or says **Failed to copy the traffic feed URL**. The item is greyed out until you are connected and in a room. Point the other tool's datafeed setting at the URL.
+Every room's traffic is also served as a JSON feed in the shape of the public VATSIM datafeed, so a tool built to read VATSIM traffic (vTBFM, for one) can watch a YAAT room instead.
+
+While you are connected and in a room, **Tools → Copy traffic feed URL** puts that room's feed address on the clipboard; the status line confirms **Traffic feed URL copied**, or says **Failed to copy the traffic feed URL**. The item is greyed out until you are connected and in a room. Point the other tool's datafeed setting at the URL.
 
 The feed lists every aircraft in the room, ground and air, and its timestamp is the room's simulation time, not the real clock: it holds still while the room is paused and follows the sim rate and rewinds. A room with no scenario loaded has no simulation time, so the feed answers 503 until one loads (vTBFM idles until it sees a valid timestamp). The feed needs no login, so anyone holding the URL can read that room's traffic while the room exists; the room id in the URL is the only secret.
 
@@ -2395,13 +2509,17 @@ Your scenarios normally come from your home ARTCC, which YAAT resolves from your
 
 Once granted, the room list shows an ARTCC picker next to **Create Room**: pick the ARTCC for the session and the room is created for it — the scenario list, live-session picker, weather, and CRC alias file all follow the room's ARTCC, and switch back to your home ARTCC when you leave. Without a grant there is no picker and nothing changes. A grant only widens which scenarios you can load; whether you can run sessions at all still comes from your VATUSA mentor role or instructor rating.
 
-The room list shows only the rooms of your own ARTCC and of any ARTCC you have been granted, plus any room you are already in; rooms of other facilities are not listed. Each room is labelled with its scenario's ARTCC, or its creator's while no scenario is loaded, and once you have joined, the room's title follows that label: it changes when a scenario, a recording or a live session is loaded into the room, by you or another member, and when the scenario is unloaded. Joining is still never restricted by ARTCC: a room you cannot see in the list can be joined by its id or an invite, and a mentor's pull works as before. As a visitor you can join another facility's room (mentors and instructors) or be pulled into one from the lobby (everyone else) exactly as at home, whether or not you hold a grant there — you just can't load that ARTCC's catalog scenarios yourself; the room's host does.
+The room list shows only the rooms of your own ARTCC and of any ARTCC you have been granted, plus any room you are already in; rooms of other facilities are not listed. Each room is labelled with its scenario's ARTCC, or its creator's while no scenario is loaded, and once you have joined, the room's title follows that label: it changes when a scenario, a recording or a live session is loaded into the room, by you or another member, and when the scenario is unloaded.
+
+Joining is still never restricted by ARTCC: a room you cannot see in the list can be joined by its id or an invite, and a mentor's pull works as before. As a visitor you can join another facility's room (mentors and instructors) or be pulled into one from the lobby (everyone else) exactly as at home, whether or not you hold a grant there — you just can't load that ARTCC's catalog scenarios yourself; the room's host does.
 
 ### Room Members
 
 Open **Room > Members...** for one window that shows everyone in the current training room and everyone available to pull into it. It has four sections:
 
-- **Members** — everyone connected to the room over YAAT: instructors, any RPOs you've pulled in, and any [vStrips](#flight-strips) or [vTDLS](#vtdls) browser tabs, plus any [Tower Cab 3D](#tower-cab-3d) viewer. Each row shows initials (the CID when Tower Cab 3D's user has no YAAT connection in the room), a badge naming which app that connection is running (**YAAT Client**, **Flight Strips**, **vTDLS**, **Tower Cab 3D**), CID, ARTCC, and the time it joined. Click **Kick** to remove. A kick on any row removes the whole person from the room: their desktop client, [vStrips](#flight-strips) and [vTDLS](#vtdls) tabs, CRC clients and Tower Cab 3D viewer all leave it, and that CID cannot rejoin until an instructor pulls it back in, which holds across a [planned server restart](#planned-server-maintenance). Kicking yourself or the room's creator does nothing. The list reads "No members in room" when empty.
+- **Members** — everyone connected to the room over YAAT: instructors, any RPOs you've pulled in, and any [vStrips](#flight-strips) or [vTDLS](#vtdls) browser tabs, plus any [Tower Cab 3D](#tower-cab-3d) viewer. Each row shows initials (the CID when Tower Cab 3D's user has no YAAT connection in the room), a badge naming which app that connection is running (**YAAT Client**, **Flight Strips**, **vTDLS**, **Tower Cab 3D**), CID, ARTCC, and the time it joined.
+
+  Click **Kick** to remove. A kick on any row removes the whole person from the room: their desktop client, [vStrips](#flight-strips) and [vTDLS](#vtdls) tabs, CRC clients and Tower Cab 3D viewer all leave it, and that CID cannot rejoin until an instructor pulls it back in, which holds across a [planned server restart](#planned-server-maintenance). Kicking yourself or the room's creator does nothing. The list reads "No members in room" when empty.
 - **CRC Students** — CRC clients bound to the room (display name, position, active status). Click **Kick** to remove (they return to the lobby, and their CRC shows a server message: "You were kicked from this room. Wait for an instructor to pull you back in."). Like any kick it removes everything of that CID from the room and keeps it out until pulled back in; **Pull** from the **YAAT Lobby** or **CRC Lobby** lifts the ban. Only instructors and mentors can kick or pull.
 - **YAAT Lobby** — signed-in controllers connected as RPOs who are waiting for a room (name, CID, rating). Click **Pull** to bring one into your room; they immediately start working the position.
 - **CRC Lobby** — CRC clients not in any room (display name, ARTCC, position). Click **Pull** to bring one into your room.
@@ -2410,7 +2528,9 @@ Open **Room > Members...** for one window that shows everyone in the current tra
 - A CRC client whose CID matches a YAAT client already in a room is bound to that room automatically.
 - If all YAAT clients leave a room, its CRC clients return to the lobby.
 - The window updates in real time as people join, leave, or connect; use **Refresh** to re-fetch on demand.
-- One person can appear more than once. Opening vStrips or vTDLS in a browser joins the room as its own connection, so a controller running the desktop client alongside a strips tab shows as two members with the same initials — the badge is what tells them apart, and the room's member count on the room list counts both. A Tower Cab 3D viewer is listed too, but it never counts as an attendee or opens a position. The terminal shows `<initials> joined the room (Tower Cab 3D)` and `<initials> left the room (Tower Cab 3D)` when one attaches or detaches; a kick is announced once, as `<initials> was kicked from the room`.
+- One person can appear more than once. Opening vStrips or vTDLS in a browser joins the room as its own connection, so a controller running the desktop client alongside a strips tab shows as two members with the same initials — the badge is what tells them apart, and the room's member count on the room list counts both.
+
+  A Tower Cab 3D viewer is listed too, but it never counts as an attendee or opens a position. The terminal shows `<initials> joined the room (Tower Cab 3D)` and `<initials> left the room (Tower Cab 3D)` when one attaches or detaches; a kick is announced once, as `<initials> was kicked from the room`.
 - A room whose only remaining members are vStrips/vTDLS tabs, with no CRC student connected, **pauses automatically** — nobody left can work the traffic. It stays paused until someone resumes it, the same as a room everyone has left.
 
 ### Controllers
@@ -2612,7 +2732,9 @@ The favorites bar sits below the command input and provides quick-access buttons
   Buttons fill the grid edge to edge from the top-left, and the tallest favorite's height sets the row height for its tab. The panel's status bar shows which aircraft a favorite will act on (your current selection) and the result of your last click. Because favorites act on the selected aircraft, select one in the main window first; the panel floats freely, so you can bring the main window forward to change your selection.
 - In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot.
 
-  Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/sets/height, or delete. A blank slot can be set to **All** too. For an **All** favorite, **Move Left/Right** and **Blank Before/After** act on the tab that was showing when you opened its menu. The same drag and move controls are available from the main favorites bar.
+  Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/sets/height, or delete.
+
+  A blank slot can be set to **All** too. For an **All** favorite, **Move Left/Right** and **Blank Before/After** act on the tab that was showing when you opened its menu. The same drag and move controls are available from the main favorites bar.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 
 ![Favorites panel](docs/user-guide/img/favorites-panel.png)
@@ -2628,7 +2750,9 @@ Every favorite lives in one or more **sets**, and every container is a set on th
 - **Scenario (Name)** — one set per scenario; visible only while that scenario is loaded.
 - **Named sets** you create (for example "S1 Training") — visible while **loaded**. Click **Sets** (in the favorites bar or the pop-out panel header) to check/uncheck which are loaded, or pick **Manage sets…** to open the **Favorites Editor**.
 
-The bar and panel show each visible set's buttons in one order that you set. The **Sets** button is always on the bar, even with no named sets; its flyout lists, in bar order, **Global**, **Airport (XXX)** (only when that airport has a set), **Scenario** (only when the active scenario has a set), then every named set, loaded or not. Each row has a check, the label and **▲**/**▼** buttons that move the set earlier or later on the bar (the top row's ▲ and the bottom row's ▼ are disabled); the flyout stays open and redraws as you move. Clicking a named set's row loads or unloads it; the Global, airport and scenario rows show a dimmed check and do nothing on click.
+The bar and panel show each visible set's buttons in one order that you set. The **Sets** button is always on the bar, even with no named sets; its flyout lists, in bar order, **Global**, **Airport (XXX)** (only when that airport has a set), **Scenario** (only when the active scenario has a set), then every named set, loaded or not.
+
+Each row has a check, the label and **▲**/**▼** buttons that move the set earlier or later on the bar (the top row's ▲ and the bottom row's ▼ are disabled); the flyout stays open and redraws as you move. Clicking a named set's row loads or unloads it; the Global, airport and scenario rows show a dimmed check and do nothing on click.
 
 The airport and scenario rows are slots: they keep their place when the active airport or scenario changes, and a slot with no set is hidden but keeps its place. A set that is new, duplicated or imported starts last. Until you move anything, the bar shows Global, the active airport, the active scenario, then loaded named sets in the order you loaded them.
 
@@ -2638,7 +2762,9 @@ Airport sets are useful for airport- or position-specific presets that don't app
 
 - The **Favorites Editor** lists every set on the left (named sets have a **Loaded** checkbox) plus **Not in any set**, which holds favorites you removed from their last set — nothing is lost until you explicitly delete it.
 
-  The right pane lists the selected set's favorites with multi-select: **Move Up/Down** reorders within the set, **Link to…** shows the selection in another set as well (the same favorite in both, so an edit changes both), **Duplicate to…** copies it into another set as new favorites (an edit changes only that copy), **Move to…** transfers it, **Remove** takes it out of the current set only, and **Delete** destroys it everywhere. Link, Duplicate and Move each open a list of every other set plus **New set…**.
+  The right pane lists the selected set's favorites with multi-select: **Move Up/Down** reorders within the set, **Link to…** shows the selection in another set as well (the same favorite in both, so an edit changes both), **Duplicate to…** copies it into another set as new favorites (an edit changes only that copy), **Move to…** transfers it, **Remove** takes it out of the current set only, and **Delete** destroys it everywhere.
+
+  Link, Duplicate and Move each open a list of every other set plus **New set…**.
 
   **Duplicate set...** in the left pane (between **Rename...** and **Delete**) copies the selected set and every favorite in it into a new named set you name (prefilled "Copy of …"); the copy is selected afterwards and is not loaded.
 - **Layouts remember which named sets are loaded and their bar order**: saving a layout captures the loaded sets and the order, and applying it loads exactly those sets again in that order (see **Layouts** in the Interface section). A layout also records whether the favorites bar is shown and whether the pop-out Favorites Panel is open, and the panel reopens on the next launch if you left it open.
@@ -2649,7 +2775,9 @@ Airport sets are useful for airport- or position-specific presets that don't app
 Favorites are shared with the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Bars > Favorites panel…** or the **Panel** button). Both open the [Import / Export](#importing-and-exporting-settings) window with Favorites ticked, and an import from there applies at once.
 
 - **Export** — **Favorites to export** offers **All sets**, which saves every set and every favorite (including ones not in any set) as a `.yaat-favlibrary.zip`, or one set by name, which saves the set plus one JSON per favorite it references as a `.yaat-favset.zip`.
-- **Import** — load either zip, or a single favorite/set `.json` taken from one, as **Merge** or **Replace**. With **Back up all settings first** ticked (the default), every import first saves all your settings, favorites included, to a backup (see [Importing and exporting settings](#importing-and-exporting-settings)). Replace deletes every favorite and set you have and imports, loading exactly the sets the library had loaded (or the imported set, for a set export) and restoring the library's bar order. Merge keeps your current bar order and puts new sets last.
+- **Import** — load either zip, or a single favorite/set `.json` taken from one, as **Merge** or **Replace**. With **Back up all settings first** ticked (the default), every import first saves all your settings, favorites included, to a backup (see [Importing and exporting settings](#importing-and-exporting-settings)).
+
+  Replace deletes every favorite and set you have and imports, loading exactly the sets the library had loaded (or the imported set, for a set export) and restoring the library's bar order. Merge keeps your current bar order and puts new sets last.
 
   Merge goes by the favorite's id: a favorite you already have is updated in place and new ones are added. A named set with the same name as one of yours, or with the id of one of yours under another name, is listed with **Skip**, **Overwrite** or **Rename**. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately.
 
@@ -2758,7 +2886,9 @@ Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** w
 
 These are your **defaults** for new rooms, applied when *you* load a scenario. The room's live values, which affect every RPO in it, are in the session-settings (⚙) flyout on the command bar.
 
-A number you type into one of the flyout's boxes is sent to the room about a second after you stop typing, so "15" never goes out as "1". Pressing **Enter**, moving to another control or closing the flyout sends it at once, and a spinner arrow, arrow key or mouse wheel step sends after a fifth of a second, so holding an arrow sends one value. **Delete departures beyond (nm)** is the exception: it is destructive, so it never sends while you pause, only on Enter, leaving the box or closing the flyout, and a blank box (off) sends the same way. While a typed value is waiting, a change another RPO makes to that setting does not overwrite your box. Leaving the room, disconnecting, or loading a scenario or recording drops a value that was never sent.
+A number you type into one of the flyout's boxes is sent to the room about a second after you stop typing, so "15" never goes out as "1". Pressing **Enter**, moving to another control or closing the flyout sends it at once, and a spinner arrow, arrow key or mouse wheel step sends after a fifth of a second, so holding an arrow sends one value.
+
+**Delete departures beyond (nm)** is the exception: it is destructive, so it never sends while you pause, only on Enter, leaving the box or closing the flyout, and a blank box (off) sends the same way. While a typed value is waiting, a change another RPO makes to that setting does not overwrite your box. Leaving the room, disconnecting, or loading a scenario or recording drops a value that was never sent.
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
@@ -2904,7 +3034,9 @@ Links at the top: **Font size → Appearance**, **Always on top → General**.
 | **SAY (controller)** | `#32CD32` | **vTDLS (PDC)** | `#FFB000` |
 | **Pilot Speech** | `#32CD32` | **Flight strips** | `#C586C0` |
 
-**Terminal History** — one checkbox, **Clear the terminal when a scenario loads or restarts** (off by default). On, each run starts with an empty terminal: the lines are cleared when any member starts a scenario load or a live session in the room (the load's own warnings and "loaded scenario" lines that follow are kept), and when the scenario restarts, which leaves one local System line, "Scenario restarted with new traffic". Joining a room, reconnecting and loading or unloading a recording keep the lines. Your Up/Down command history is not affected.
+**Terminal History** — one checkbox, **Clear the terminal when a scenario loads or restarts** (off by default). On, each run starts with an empty terminal: the lines are cleared when any member starts a scenario load or a live session in the room (the load's own warnings and "loaded scenario" lines that follow are kept), and when the scenario restarts, which leaves one local System line, "Scenario restarted with new traffic".
+
+Joining a room, reconnecting and loading or unloading a recording keep the lines. Your Up/Down command history is not affected.
 
 #### Command input
 
@@ -3034,7 +3166,9 @@ Optional shortcuts in **Settings › Scenario defaults › Simulation Shortcuts*
 The room has one auto cleared-to-land switch and one auto arrival spacing switch, loaded from your default for the student's position type, so the flyout labels them with it: **Auto cleared-to-land (TWR)**, **Auto arrival spacing (TWR)**. With no GND, TWR, APP or CTR student position the labels carry no suffix.
 
 - **Auto-clear aircraft to land** — Aircraft on final are automatically cleared to land without requiring a CLAND command. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances.
-- **Aircraft cross runways automatically** — A three-way choice (the session flyout calls it **Auto Cross-Runway**): **Off**, **All runways** (taxiing aircraft cross every runway without stopping for a CROSS command) or **Inactive runways only** (crossings of runways in the active-runway list still need a CROSS; with none set, every runway counts as inactive). Explicit hold-short commands and destination runway hold-shorts still apply. Inactive runways only is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c). A saved setting that was on becomes All runways.
+- **Aircraft cross runways automatically** — A three-way choice (the session flyout calls it **Auto Cross-Runway**): **Off**, **All runways** (taxiing aircraft cross every runway without stopping for a CROSS command) or **Inactive runways only** (crossings of runways in the active-runway list still need a CROSS; with none set, every runway counts as inactive).
+
+  Explicit hold-short commands and destination runway hold-shorts still apply. Inactive runways only is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c). A saved setting that was on becomes All runways.
 - **Live Traffic (SWIM)** *(session flyout only)* — Mirrors real aircraft from the server's live-traffic feed into the room as read-only shadow targets (they follow the feed, coast when it drops out, and disappear when they leave the room's airspace); `DEL` hides one, **Assume control** makes one yours. See [Live Traffic](#live-traffic).
 
   Only shown when the server you are connected to has live traffic enabled (each deployment carries its own `LiveTraffic:Enabled` flag; servers run from source have it on). Off by default; cannot be combined with `WARP` above 1×, and shows nothing until the server's SWIM feed is connected. **Live Traffic Ceiling** below it caps the mirrored altitude (0 = automatic).
@@ -3100,7 +3234,9 @@ A local flight filed back to the primary airport (closed traffic, practice appro
 
 If push-to-talk recognition is misbehaving for you, opt-in capture saves the audio plus a per-stage trace locally so you can review what happened — and, when you find a bad one, send it to the devs as a small bundle.
 
-**Share recordings automatically.** The first time you turn speech recognition on, YAAT asks whether to send your push-to-talk recordings to the YAAT developers to improve recognition. If you agree, each recording is sent to the official YAAT server (yaat1.leftos.dev) after you release the push-to-talk key. It goes with the transcript at each recognition stage and the scenario context (callsigns, fixes, runways), and is tagged with your VATSIM CID. The server keeps shared recordings for 12 months and then deletes them; to have yours deleted sooner, ask the YAAT developers and give your CID.
+**Share recordings automatically.** The first time you turn speech recognition on, YAAT asks whether to send your push-to-talk recordings to the YAAT developers to improve recognition. If you agree, each recording is sent to the official YAAT server (yaat1.leftos.dev) after you release the push-to-talk key.
+
+It goes with the transcript at each recognition stage and the scenario context (callsigns, fixes, runways), and is tagged with your VATSIM CID. The server keeps shared recordings for 12 months and then deletes them; to have yours deleted sooner, ask the YAAT developers and give your CID.
 
 Recordings made while you're offline or connected to another server are sent the next time you connect to the official one. Sharing keeps local capture (below) on, since recordings are sent from the local store. Change it at any time with **"Automatically send my push-to-talk recordings to the YAAT developers"** in **Settings › Speech**. Turning it off stops sending and drops anything not yet sent.
 

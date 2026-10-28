@@ -598,22 +598,6 @@ public static partial class PilotResponder
             ),
             _ when HasNoReadbackClause(cmd) => null,
             HoldShortCommand hsc when IsUnmakeableHoldShort(aircraft, hsc) => BuildUnableHoldShortClause(hsc),
-            HoldShortCommand hsc when ArmedHoldShort(aircraft, hsc.Target) is { MergeHold: { } merge } => new PilotSpeechText(
-                PhraseologyVerbalizer.RenderMergeHoldShort(hsc.Target, merge, spoken: false),
-                PhraseologyVerbalizer.RenderMergeHoldShort(hsc.Target, merge, spoken: true)
-            ),
-            TaxiCommand taxi when HasMergeHold(aircraft, taxi.HoldShorts) => new PilotSpeechText(
-                PhraseologyVerbalizer.RenderTaxiWithMergeHolds(taxi, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: false),
-                PhraseologyVerbalizer.RenderTaxiWithMergeHolds(taxi, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: true)
-            ),
-            ResumeCommand resume when HasMergeHold(aircraft, resume.HoldShorts) => new PilotSpeechText(
-                PhraseologyVerbalizer.RenderResumeWithMergeHolds(resume, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: false),
-                PhraseologyVerbalizer.RenderResumeWithMergeHolds(resume, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: true)
-            ),
-            CrossRunwayCommand cross when HasMergeHold(aircraft, cross.HoldShorts) => new PilotSpeechText(
-                PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: false),
-                PhraseologyVerbalizer.RenderCrossWithMergeHolds(cross, t => ArmedHoldShort(aircraft, t)?.MergeHold, spoken: true)
-            ),
             ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, aircraft.Callsign, speechContext, trace),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
@@ -770,10 +754,6 @@ public static partial class PilotResponder
     /// aircraft has all the room in the world for — must not answer for the one just armed.</para>
     /// </summary>
     private static bool IsUnmakeableHoldShort(AircraftState aircraft, HoldShortCommand cmd) => ArmedHoldShort(aircraft, cmd.Target)?.Unable == true;
-
-    /// <summary>True when one of <paramref name="targets"/> armed a bar the route placed as a shallow-merge hold.</summary>
-    private static bool HasMergeHold(AircraftState aircraft, IReadOnlyList<HoldShortTarget> targets) =>
-        targets.Any(t => ArmedHoldShort(aircraft, t) is { MergeHold: not null });
 
     /// <summary>
     /// The bar a hold-short of <paramref name="target"/> armed on the aircraft's assigned route: the first uncleared one
@@ -1716,8 +1696,6 @@ public static partial class PilotResponder
                 );
             case ReadyToTaxiLocationKind.Taxiway:
                 return ($"on taxiway {location.Name}", $"on taxiway {PhraseologyVerbalizer.SpellTaxiway(location.Name)}");
-            case ReadyToTaxiLocationKind.HoldingShort when location.MergeHold is { } merge:
-                return DescribeMergeHold(location.Name, merge);
             case ReadyToTaxiLocationKind.HoldingShort:
                 string spokenTarget = CommandParser.IsRunwayArg(location.Name)
                     ? PhraseologyVerbalizer.SpellRunway(location.Name)
@@ -2491,27 +2469,6 @@ public static partial class PilotResponder
         string request = requestFurtherTaxi ? ", request further taxi" : "";
         return new PilotSpeechText($"{label} at {taxiway}{request}.", $"{spoken}, {label} at {taxiway}{request}.");
     }
-
-    /// <summary>
-    /// The hold report from a shallow-merge hold (<see cref="HoldShortPoint.MergeHold"/>), which stands before the intersection
-    /// that capped the stop rather than at the merge: "holding short of C on D before G" (spoken "holding short of charlie on
-    /// delta before golf"), ending "request further taxi" like <see cref="BuildHoldingShortTaxi"/>. "On" names the taxiway the
-    /// aircraft is on and "before" the intersection it stops short of; G is never said as a hold-short of its own.
-    /// </summary>
-    public static PilotSpeechText BuildHoldingShortBeforeTaxiway(AircraftState aircraft, string target, MergeHold merge, bool requestFurtherTaxi)
-    {
-        (string place, string placeSpoken) = DescribeMergeHold(target, merge);
-        string request = requestFurtherTaxi ? ", request further taxi" : "";
-        return new PilotSpeechText($"{place}{request}.", $"{SpokenOwnCallsign(aircraft)}, {placeSpoken}{request}.");
-    }
-
-    /// <summary>"holding short of C on D before G", terminal and spoken.</summary>
-    private static (string Terminal, string Spoken) DescribeMergeHold(string target, MergeHold merge) =>
-        (
-            $"holding short of {HoldShortTarget.Describe(target)} on {merge.OnTaxiway} before {merge.BeforeTaxiway}",
-            $"holding short of {PhraseologyVerbalizer.SpellTaxiway(target)} on {PhraseologyVerbalizer.SpellTaxiway(merge.OnTaxiway)} "
-                + $"before {PhraseologyVerbalizer.SpellTaxiway(merge.BeforeTaxiway)}"
-        );
 
     /// <summary>
     /// Pilot transmission when the aircraft is holding short of a runway prior to a runway crossing.

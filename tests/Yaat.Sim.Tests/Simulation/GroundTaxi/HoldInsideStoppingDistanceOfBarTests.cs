@@ -1731,7 +1731,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, probe, target);
         Assert.Equal(ExplicitHoldShortOutcome.Add, plan.Outcome);
         HoldShortAnnotator.ApplyExplicitHoldShort(probe, plan, target);
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, probe, AircraftLength.ResolveFt(aircraft.AircraftType));
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, probe, AircraftLength.ResolveFt(aircraft.AircraftType), null);
         HoldShortPoint bar = Assert.IsType<HoldShortPoint>(probe.GetHoldShortAt(plan.NodeId));
         int barSegment = probe.Segments.FindIndex(segment => segment.ToNodeId == bar.NodeId);
         Assert.True(barSegment >= 0, $"no segment of {route.ToSummary()} ends at taxiway {TaxiwayTarget}'s bar node {bar.NodeId}");

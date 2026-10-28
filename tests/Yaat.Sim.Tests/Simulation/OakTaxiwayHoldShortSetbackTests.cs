@@ -55,8 +55,13 @@ public sealed class OakTaxiwayHoldShortSetbackTests
         );
     }
 
+    /// <summary>
+    /// Spot E staging: <c>TAXI TE T U HS T</c> holds short of T on its own segment, at the stop set back from the junction
+    /// the issued route ends at. That hold ends the route, so <c>RES</c> there is refused with the route-incomplete reason
+    /// and the aircraft stays held rather than drive on into the junction.
+    /// </summary>
     [Fact]
-    public void TaxiTeTUHsT_Released_DrivesFromTheStopToTheJunction()
+    public void TaxiTeTUHsT_Res_IsRefusedAndStaysHeld()
     {
         if (SpawnAtSpotE() is not { } world)
         {
@@ -76,24 +81,23 @@ public sealed class OakTaxiwayHoldShortSetbackTests
             $"held {heldFromJunctionFt:F0} ft from junction {bar.NodeId}, not short of its own segment"
         );
 
-        // The issued route ends at the junction ("route ends at U, no destination given"), so the release drives the
-        // segments left between the stop and the junction and the taxi ends there.
+        // The issued route ends at the junction ("route ends at U, no destination given"), so the hold of T on its last node
+        // goes nowhere past it: RES is refused with the route-incomplete reason and the aircraft stays held, never driving on
+        // into the junction.
         Assert.Equal(route.Segments.Count - 1, barSegmentIndex);
+        LatLon held = ac.Position;
         CommandResult res = engine.SendCommand(Callsign, "RES");
-        Assert.True(res.Success, res.Message);
-        int arrived = SfoGroundHarness.TickUntil(
-            engine,
-            () => route.IsComplete && (ac.GroundSpeed < SfoGroundHarness.StationarySpeedKts) && (ac.Phases?.CurrentPhase is HoldingInPositionPhase),
-            120,
-            null
-        );
-        Assert.True(
-            arrived > 0,
-            $"never drove on to junction {bar.NodeId} after RES (segment {route.CurrentSegmentIndex}, phase {ac.Phases?.CurrentPhase?.Name})"
-        );
-        Assert.True(bar.IsCleared);
-        double endFromJunctionFt = GeoMath.DistanceNm(ac.Position, layout.Nodes[bar.NodeId].Position) * GeoMath.FeetPerNm;
-        Assert.True(endFromJunctionFt <= 10.0, $"released taxi ended {endFromJunctionFt:F0} ft from junction {bar.NodeId}");
+        Assert.False(res.Success, $"RES was accepted: {res.Message}");
+        Assert.Equal(HoldingShortPhase.RouteIncompleteMessage("T"), res.Message);
+        for (int second = 0; second < 30; second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        double movedFt = GeoMath.DistanceNm(ac.Position, held) * GeoMath.FeetPerNm;
+        Assert.IsType<HoldingShortPhase>(ac.Phases?.CurrentPhase);
+        Assert.False(bar.IsCleared);
+        Assert.True(movedFt <= 1.0, $"moved {movedFt:F1} ft after the refused RES");
     }
 
     [Fact]
@@ -172,26 +176,14 @@ public sealed class OakTaxiwayHoldShortSetbackTests
             SfoGroundHarness.DistanceToTaxiwayFt(layout, "TC", nose)
         );
         double floorFt = HoldShortAnnotator.WingtipClearanceFloorFt(layout.Runways.Max(r => r.WidthFt));
-        const string prefix = "holding short of TWY T — wingtip clearance from TC/U not assured (";
-        string? warning = route.Warnings.SingleOrDefault(w =>
-            w.StartsWith("holding short of TWY T — wingtip clearance from ", StringComparison.Ordinal)
-        );
         _output.WriteLine($"nose {noseToBranchesFt:F1} ft from U/TC, floor {floorFt:F0} ft");
 
-        // OAK's widest runway is 150 ft (ADG V): the floor is 132 ft nose to U/TC. The walk-back clamps at the previous
-        // junction on TE before reaching it, so the stop falls short of the floor and the route warns, naming U and TC.
+        // OAK's widest runway is 150 ft (ADG V): the floor is 132 ft nose to U/TC. No junction behind caps the walk-back,
+        // so the stop walks back along TE past the previous junction until the nose meets the floor, and the route has no
+        // wingtip warning.
         Assert.Equal(132.0, floorFt);
-        Assert.NotNull(warning);
-        Assert.StartsWith(prefix, warning);
-        int reportedFt = int.Parse(warning[prefix.Length..^" ft)".Length], System.Globalization.CultureInfo.InvariantCulture);
-        Assert.True(
-            Math.Abs(reportedFt - noseToBranchesFt) <= 1.0,
-            $"warning reports {reportedFt} ft; the nose is {noseToBranchesFt:F1} ft from U/TC"
-        );
-        Assert.True(
-            noseToBranchesFt < floorFt,
-            $"nose is {noseToBranchesFt:F0} ft from U/TC, clear of the {floorFt:F0} ft floor, yet the route warns"
-        );
+        Assert.DoesNotContain(route.Warnings, w => w.StartsWith("holding short of TWY T — wingtip clearance from ", StringComparison.Ordinal));
+        Assert.True(noseToBranchesFt >= floorFt - 1.0, $"nose is {noseToBranchesFt:F1} ft from U/TC, short of the {floorFt:F0} ft floor");
     }
 
     [Fact]
@@ -251,12 +243,13 @@ public sealed class OakTaxiwayHoldShortSetbackTests
 
         HoldShortPoint bar = Assert.Single(route.HoldShortPoints, h => h.TargetName == "Z");
         Assert.Equal(fork.Id, bar.NodeId);
-        // The floor is held against the B fork and Q, measured from their own edges: the nose is well clear of them, not
-        // 0 ft from the B line it arrives on.
+        // The floor is held against the B fork and Q, measured from their own edges: the nose is clear of them, not 0 ft
+        // from the B line it arrives on.
         const string prefix = "holding short of TWY Z — wingtip clearance from B/Q not assured (";
         string warning = Assert.Single(route.Warnings, w => w.StartsWith(prefix, StringComparison.Ordinal));
         int reportedFt = int.Parse(warning[prefix.Length..^" ft)".Length], System.Globalization.CultureInfo.InvariantCulture);
-        Assert.True(reportedFt >= 50, $"nose reported {reportedFt} ft from B/Q: measured against the aircraft's own line");
+        // The stop is where the aircraft stands, so the warning reads the nose's real clearance.
+        Assert.InRange(reportedFt, 10, 14);
     }
 
     [Fact]

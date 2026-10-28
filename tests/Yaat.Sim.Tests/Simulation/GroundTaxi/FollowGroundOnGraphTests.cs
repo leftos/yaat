@@ -761,8 +761,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A C560 on B north of the 28R bar at <c>Chain[3]</c>, facing away from the runway, cleared <c>TAXI B C J</c> (along C to the
-    /// C/J intersection, no runway on the way) and ticked until its trail holds at least two edges.
+    /// A C560 on B north of the 28R bar at <c>Chain[3]</c>, facing away from the runway, cleared <c>TAXI B C J</c> (along C to hold
+    /// short of J, its route's only hold, no runway on the way) and ticked until its trail holds at least two edges.
     /// </summary>
     private FollowCornerGeometry.LeadRun? StartTaxiingLeadAlongC()
     {
@@ -775,7 +775,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, LeadCallsign, "C560", (chain[3], chain[4]), "TAXI B C J");
         TaxiRoute route = Assert.IsType<TaxiRoute>(lead.Ground.AssignedTaxiRoute);
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
-        Assert.Empty(route.HoldShortPoints);
+        HoldShortPoint endHold = Assert.Single(route.HoldShortPoints);
+        Assert.Equal((route.Segments[^1].ToNodeId, HoldShortReason.RouteIncomplete, "J"), (endHold.NodeId, endHold.Reason, endHold.TargetName));
         for (int second = 0; (second < 120) && (lead.Ground.TaxiEdgeTrail.Edges.Count < 2); second++)
         {
             setup.Engine.TickOneSecond();
@@ -1021,8 +1022,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A follower standing at a junction on its lead's route ahead of the lead, away from a runway bar (a C172 <see cref="AtJunctionFt"/>
-    /// from it on the taxiway that meets the lead's route there), with the lead re-routed to end at that junction: the
+    /// A follower standing where its lead's route ends, ahead of the lead, away from a runway bar (a C172 <see cref="AtJunctionFt"/>
+    /// past the node the lead's re-route ends at, held short of the side taxiway, facing on toward the junction): the
     /// <c>FOLLOWG</c> command's plan refuses it as ahead of the lead (<see cref="FollowRoutePlan.FollowerAhead"/>), while the
     /// follow's own plans — its first plan (an armed follow's release, a re-follow after braking past a bar) and a re-plan — join
     /// the lead's path where it stands with nothing to drive, which the follow holds on, planning again, never held for good.
@@ -1035,17 +1036,17 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             return;
         }
 
-        (TurnOff turnOff, _, string endAtJunction) = FindConvergingJunction(run);
-        double edgeFt = FollowCornerGeometry.EdgeBetween(turnOff.Junction, turnOff.Far).DistanceNm * GeoMath.FeetPerNm;
+        (TurnOff turnOff, _, string endAtJunction, GroundNode leadEnd) = FindConvergingJunction(run);
+        double endToJunctionFt = GeoMath.DistanceNm(leadEnd.Position, turnOff.Junction.Position) * GeoMath.FeetPerNm;
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
             FollowerCallsign,
             "C172",
-            FollowCornerGeometry.Between(turnOff.Junction.Position, turnOff.Far.Position, AtJunctionFt / edgeFt),
-            FollowCornerGeometry.Facing(turnOff.Far, turnOff.Junction)
+            FollowCornerGeometry.Between(leadEnd.Position, turnOff.Junction.Position, AtJunctionFt / endToJunctionFt),
+            FollowCornerGeometry.Facing(leadEnd, turnOff.Junction)
         );
         follower.Ground.Layout = run.Layout;
-        EndLeadAtJunction(new Converging(run, turnOff, follower, endAtJunction));
+        EndLeadAtJunction(new Converging(run, turnOff, follower, endAtJunction, leadEnd));
 
         FollowRoutePlan command = FollowRoutePlanner.PlanForCommand(run.Layout, follower, run.Lead, () => []);
         FollowRoutePlan first = FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []);
@@ -1055,7 +1056,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         foreach (FollowRoutePlan own in new[] { first, replan })
         {
             FollowRoutePlan.Joinable joined = Assert.IsType<FollowRoutePlan.Joinable>(own);
-            Assert.Equal(turnOff.Junction.Id, joined.MergeNode);
+            Assert.Equal(leadEnd.Id, joined.MergeNode);
             Assert.Empty(joined.PathToMerge.Segments);
             Assert.Empty(joined.LeadPathFromMerge);
         }
@@ -1078,7 +1079,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         run.Run.Engine.TickOneSecond();
         FollowingPhase follow = Assert.IsType<FollowingPhase>(run.Follower.Phases?.CurrentPhase);
         TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
-        Assert.Equal(run.TurnOff.Junction.Id, MergeNodeOf(follow));
+        Assert.Equal(run.LeadEnd.Id, MergeNodeOf(follow));
         Assert.Equal(route.Segments.Count, follow.MergeSegmentIndex);
 
         int plansBefore = follow.PlanCount;
@@ -1280,7 +1281,13 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
     /// The lead and the follower of <see cref="StartConverging"/>, the junction they converge on, and <see cref="EndAtJunction"/>,
     /// the lead's re-route along its route to the junction and onto the follower's taxiway, which ends at the junction.
     /// </summary>
-    private sealed record Converging(FollowCornerGeometry.LeadRun Run, TurnOff TurnOff, AircraftState Follower, string EndAtJunction);
+    private sealed record Converging(
+        FollowCornerGeometry.LeadRun Run,
+        TurnOff TurnOff,
+        AircraftState Follower,
+        string EndAtJunction,
+        GroundNode LeadEnd
+    );
 
     /// <summary>
     /// The lead taxiing B (<see cref="FollowCornerGeometry.StartTaxiingLead"/>), and a C172 on the taxiway that meets the lead's route
@@ -1295,7 +1302,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             return null;
         }
 
-        (TurnOff turnOff, GroundNode behind, string endAtJunction) = FindConvergingJunction(run);
+        (TurnOff turnOff, GroundNode behind, string endAtJunction, GroundNode leadEnd) = FindConvergingJunction(run);
         output.WriteLine($"junction #{turnOff.Junction.Id}, far #{turnOff.Far.Id}, follower at #{behind.Id}");
         double edgeFt = FollowCornerGeometry.EdgeBetween(turnOff.Junction, turnOff.Far).DistanceNm * GeoMath.FeetPerNm;
         AircraftState follower = atJunction
@@ -1320,7 +1327,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         run.Engine.TickOneSecond();
         FollowingPhase follow = Assert.IsType<FollowingPhase>(follower.Phases?.CurrentPhase);
         Assert.True(atJunction || follow.IsGivingWay, "the follower is not giving way at the junction");
-        return new Converging(run, turnOff, follower, endAtJunction);
+        return new Converging(run, turnOff, follower, endAtJunction, leadEnd);
     }
 
     /// <summary>The clearance <see cref="FollowCornerGeometry.StartTaxiingLead"/> gives its lead.</summary>
@@ -1328,13 +1335,15 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
     /// <summary>
     /// A junction where the lead's route meets a taxiway off it, found by clearing the lead along its route onto each taxiway that
-    /// leaves the route two segments or more ahead (a <c>TAXI</c> with no onward direction ends where its route meets the last
-    /// taxiway), noting where that route ends, and clearing it back onto its own route: the first such end where a straight edge
-    /// of that taxiway, 50 ft or more, leaves the route and runs on past its far node to another named taxiway
-    /// (<see cref="ConvergingOff"/>). That junction and far node, the node behind the far one, and the re-route that ends at the
-    /// junction.
+    /// leaves the route two segments or more ahead (a <c>TAXI</c> with no destination ends on the route held short of the last
+    /// taxiway, just before the junction), noting where that route ends, and clearing it back onto its own route: the first such
+    /// junction where a straight edge of that taxiway, 50 ft or more, leaves the route and runs on past its far node to another
+    /// named taxiway (<see cref="ConvergingOff"/>). That junction and far node, the node behind the far one, the re-route that ends
+    /// held short of the junction's side taxiway, and the node that re-route ends at.
     /// </summary>
-    private static (TurnOff TurnOff, GroundNode Behind, string EndAtJunction) FindConvergingJunction(FollowCornerGeometry.LeadRun run)
+    private static (TurnOff TurnOff, GroundNode Behind, string EndAtJunction, GroundNode LeadEnd) FindConvergingJunction(
+        FollowCornerGeometry.LeadRun run
+    )
     {
         TaxiRoute route = Assert.IsType<TaxiRoute>(run.Lead.Ground.AssignedTaxiRoute);
         HashSet<int> onRoute = [.. route.Segments.SelectMany(s => new[] { s.FromNodeId, s.ToNodeId })];
@@ -1351,11 +1360,18 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             {
                 string taxi = $"TAXI {string.Join(" ", TaxiwaysBefore(route, i))} {name}";
                 bool cleared = run.Engine.SendCommand(run.Lead.Callsign, taxi).Success;
+                bool holdsShortOfIt = HoldsShortOfAtItsEnd(run.Lead.Ground.AssignedTaxiRoute, name);
                 int end = run.Lead.Ground.AssignedTaxiRoute?.Segments[^1].ToNodeId ?? -1;
                 Assert.True(run.Engine.SendCommand(run.Lead.Callsign, KoakLeadTaxi).Success, "the lead was not cleared back onto its route");
-                if (cleared && run.Layout.Nodes.TryGetValue(end, out GroundNode? junction) && (ConvergingOff(junction, name, onRoute) is { } found))
+                if (
+                    cleared
+                    && holdsShortOfIt
+                    && run.Layout.Nodes.TryGetValue(end, out GroundNode? leadEnd)
+                    && (JunctionPast(route, end, name, onRoute) is { } junction)
+                    && (ConvergingOff(junction, name, onRoute) is { } found)
+                )
                 {
-                    return (new TurnOff("", junction, found.Far), found.Behind, taxi);
+                    return (new TurnOff("", junction, found.Far), found.Behind, taxi, leadEnd);
                 }
             }
         }
@@ -1363,6 +1379,39 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.Fail($"no taxiway leaves the route {route.ToSummary()} and runs on to another");
         return default;
     }
+
+    /// <summary>
+    /// Whether <paramref name="route"/> ends in the route-incomplete hold short of <paramref name="name"/> that a clearance with
+    /// no destination ends in.
+    /// </summary>
+    private static bool HoldsShortOfAtItsEnd(TaxiRoute? route, string name) =>
+        (route is { Segments.Count: > 0 })
+        && (route.GetHoldShortAt(route.Segments[^1].ToNodeId) is { Reason: HoldShortReason.RouteIncomplete, TargetName: { } target })
+        && string.Equals(target, name, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The junction a re-route ending at <paramref name="end"/>, held short of <paramref name="name"/>, stops short of: the first
+    /// node of <paramref name="route"/> past <paramref name="end"/>, within <see cref="JunctionRunSegments"/> segments, where a
+    /// straight edge of <paramref name="name"/> leaves the route (<see cref="ConvergingOff"/>). Null when the re-route does not
+    /// end on <paramref name="route"/> or no such node follows.
+    /// </summary>
+    private static GroundNode? JunctionPast(TaxiRoute route, int end, string name, HashSet<int> onRoute)
+    {
+        int at = route.Segments.FindIndex(s => s.ToNodeId == end);
+        if (at < 0)
+        {
+            return null;
+        }
+
+        return route
+            .Segments.Skip(at + 1)
+            .Take(JunctionRunSegments)
+            .Select(s => s.Edge.ToNode)
+            .FirstOrDefault(n => ConvergingOff(n, name, onRoute) is not null);
+    }
+
+    /// <summary>How many segments past a held-short re-route's end <see cref="JunctionPast"/> looks for the junction.</summary>
+    private const int JunctionRunSegments = 3;
 
     /// <summary>
     /// A straight edge of taxiway <paramref name="name"/>, 50 ft or more, leaving the route at <paramref name="junction"/>, whose far
@@ -1401,11 +1450,14 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         return taxiways;
     }
 
-    /// <summary>Clears the lead on <see cref="Converging.EndAtJunction"/>, which must end its route at the junction.</summary>
+    /// <summary>
+    /// Clears the lead on <see cref="Converging.EndAtJunction"/>, which must end its route at <see cref="Converging.LeadEnd"/>, its
+    /// hold short of the side taxiway just before the junction.
+    /// </summary>
     private void EndLeadAtJunction(Converging run)
     {
         TaxiRoute route = Reroute(run, run.EndAtJunction);
-        Assert.Equal(run.TurnOff.Junction.Id, route.Segments[^1].ToNodeId);
+        Assert.Equal(run.LeadEnd.Id, route.Segments[^1].ToNodeId);
     }
 
     /// <summary>Clears the lead of <paramref name="run"/> on <paramref name="taxi"/>; the route it was given.</summary>

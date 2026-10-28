@@ -79,15 +79,9 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         string label = heldAtNamedTarget ? $"holding short of {target}" : $"holding short runway {target}";
         // At the end of a route that could not reach its destination the pilot asks for the rest of the way.
         bool requestFurtherTaxi = _holdShort.Reason == HoldShortReason.RouteIncomplete;
-        // A shallow-merge hold stands before the intersection that capped the stop, so it says where: "on D before G".
-        MergeHold? merge = heldAtNamedTarget ? _holdShort.MergeHold : null;
-        string warningText = merge is null
-            ? $"{ctx.Aircraft.Callsign} {label} at {taxiway}"
-            : $"{ctx.Aircraft.Callsign} {label} on {merge.OnTaxiway} before {merge.BeforeTaxiway}";
-        PilotSpeechText speechText =
-            merge is not null
-                ? PilotResponder.BuildHoldingShortBeforeTaxiway(ctx.Aircraft, _holdShort.TargetName ?? "unknown", merge, requestFurtherTaxi)
-            : heldAtNamedTarget ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
+        string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
+        PilotSpeechText speechText = heldAtNamedTarget
+            ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
             : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
         // At the stop a spawn's preset taxi ends at, the delayed "holding short of C at T41W, … ready to taxi" call replaces
         // this report when that call can come (someone answers it and the pacing rate is above zero), so the pilot does not
@@ -338,11 +332,11 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         }
 
         return (ground.PresetTaxiStop is { } stop) && (_holdShort.TargetName is { Length: > 0 } target)
-            ? MatchPresetTaxiStop(ground, stop, target, _holdShort.MergeHold)
+            ? MatchPresetTaxiStop(ground, stop, target)
             : null;
     }
 
-    private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, string target, MergeHold? merge)
+    private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, string target)
     {
         if (stop.Kind == PresetTaxiStopKind.Spot)
         {
@@ -354,7 +348,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             (stop.Kind == PresetTaxiStopKind.TaxiwayHoldShort)
             && SameName(target, stop.Name)
             && ((stop.OnTaxiway is null) || SameName(ground.CurrentTaxiway, stop.OnTaxiway));
-        return atTheBar ? ReadyToTaxiLocation.HoldingShort(target, ground.CurrentTaxiway ?? "taxiway") with { MergeHold = merge } : null;
+        return atTheBar ? ReadyToTaxiLocation.HoldingShort(target, ground.CurrentTaxiway ?? "taxiway") : null;
     }
 
     private static bool SameName(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -438,9 +432,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         string destination = RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway");
         return cmd switch
         {
-            CanonicalCommandType.CrossRunway => _holdShort.Reason == HoldShortReason.RouteIncomplete
-                ? CommandAcceptance.Rejected(RejectionMessage())
-                : CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.CrossRunway => EndsItsRoute ? CommandAcceptance.Rejected(RejectionMessage()) : CommandAcceptance.ClearsPhase,
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
@@ -454,6 +446,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             CanonicalCommandType.ClearRunway => _holdShort.TailOverRunwayNodeId is not null
                 ? CommandAcceptance.Allowed
                 : CommandAcceptance.Rejected("CLRWY only applies when holding short of a taxiway with the tail over a runway"),
+            CanonicalCommandType.Resume when _holdShort.EndsNoDestinationRoute => CommandAcceptance.Rejected(RejectionMessage()),
             CanonicalCommandType.Resume => _holdShort.Reason switch
             {
                 HoldShortReason.DestinationRunway => CommandAcceptance.Rejected(
@@ -483,7 +476,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// </summary>
     private string RejectionMessage()
     {
-        if (_holdShort.Reason == HoldShortReason.RouteIncomplete)
+        if (EndsItsRoute)
         {
             return RouteIncompleteMessage(_holdShort.TargetName);
         }
@@ -493,6 +486,13 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             ? $"aircraft is holding short of {target}; only CROSS/LUAW/CTO/HSC, FOLLOWG, a new TAXI, or DEL apply"
             : $"aircraft is holding short of {target}; only RES/FOLLOWG/CROSS/HSC, a new TAXI, or DEL apply";
     }
+
+    /// <summary>
+    /// True at the hold ending a route that goes nowhere past it: a route that could not reach its destination
+    /// (<see cref="HoldShortReason.RouteIncomplete"/>), or one cut short of a taxiway it never drives
+    /// (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>). Neither <c>RES</c> nor <c>CROSS</c> releases it.
+    /// </summary>
+    private bool EndsItsRoute => (_holdShort.Reason == HoldShortReason.RouteIncomplete) || _holdShort.EndsNoDestinationRoute;
 
     /// <summary>
     /// The refusal for a command the bar ending an incomplete route does not take (<see cref="HoldShortReason.RouteIncomplete"/>):

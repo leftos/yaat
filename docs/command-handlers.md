@@ -77,13 +77,15 @@ On the rollout, a `TAXI`/`TAXIAUTO` `EXP` judges the implied exit and the makeab
 The refusals, in the order the handler tests them, each leaving the bar armed:
 
 - No uncleared bar ahead: `No upcoming hold short to clear`.
-- The bar ending an incomplete route (`HoldShortReason.RouteIncomplete`): the incomplete-route refusal (`HoldingShortPhase.RouteIncompleteMessage`), a new `TAXI` being the way on.
+- The bar ending an incomplete route (`HoldShortReason.RouteIncomplete`) or a no-destination route (`HoldShortPoint.EndsNoDestinationRoute`): the incomplete-route refusal (`HoldingShortPhase.RouteIncompleteMessage`), a new `TAXI` being the way on.
 - The destination runway's bar (`HoldShortReason.DestinationRunway`): `Next hold short is departure runway {rwy}; issue CTO or LUAW`.
 - Any other runway bar (crossing, explicit `HS 28R`): `Next hold short is runway {rwy}; use CROSS`.
 
 Runway-node hardening: a bar that is taxiway-class by reason and target name is still refused as a runway bar (the same `use CROSS` text) when `GuardsARunway` finds its node is a layout `GroundNodeType.RunwayHoldShort` node, or another uncleared runway-class bar on the route shares its node. The layout node type is the ground truth the target-name test can only approximate.
 
-The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` follower drives its follow or clearing route, and the assigned route `FOLLOWG` leaves in place is stale. A follower's driven route carries no hold short, so a bare `RES` to one answers `No upcoming hold short to clear`, or `Aircraft is not held` while it waits for its lead with neither route; `TaxiRoute.HasTaxiwayHoldShortAhead` (the hub's `HasTaxiwayHoldShortAhead` flag) is false for followers. With no route at all `RES` still answers `Aircraft is not held`.
+The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` follower drives its follow or clearing route, and the assigned route `FOLLOWG` leaves in place is stale.
+
+A follower's driven route carries no hold short, so a bare `RES` to one answers `No upcoming hold short to clear`, or `Aircraft is not held` while it waits for its lead with neither route; `TaxiRoute.HasTaxiwayHoldShortAhead` (the hub's `HasTaxiwayHoldShortAhead` flag) is false for followers. With no route at all `RES` still answers `Aircraft is not held`.
 
 `RES` at a runway bar the aircraft is already holding short of (`HoldingShortPhase`) is not this arm (its `currentPhase is not HoldingShortPhase` guard): the held runway bar keeps being released by `RES` exactly as before, with no held-bar refusal.
 
@@ -164,7 +166,13 @@ The verdict is read by the same rule on the transparent fast path (`ApplyTranspa
 
 A bare `GA` outside the published final approach fix is refused in `TryApplyTowerCommandCore` by `RefuseBareGoAroundOutsideFaf`. See [phases.md](phases.md#commands-on-an-aircraft-cleared-for-an-approach).
 
-**Supersede on the phase path.** When the gate lets a compound through, `DispatchWithPhase` clears queued work only for a compound of more than one block (the full deferred clear) or a single block that is a *fresh* ground-movement clearance: `TAXI`, `TAXIAUTO`, `PUSH`, `PUSHM` and their forced forms (`IsFreshGroundMovementClearance`). `PUSH` is fresh only from a phase other than `PushbackPhase`, so a mid-push `PUSH FACE x` / `PUSH TAIL x` amends the push and keeps the chain. `AIRTAXI` and `FOLLOWG` are outside the fresh set (owner scope), as are `HOLD`, `RES`, a lone `HS` and a lone `CROSS`; they keep the queue, with no `lost:` warning. A fresh clearance runs `ClearConflictingBlocks` with the compound's dimensions (queued `Ground` work goes, queued altitude and speed stay) and `CancelSupersededDeferrals`, which cancels pending or already-expired `WAIT` / `GIVEWAY` deferrals whose payload dimension overlaps `Ground` (`All` included), so none fires over the new clearance. Deferrals with no ground axis (`CT`, `SQ`, altitude, speed) and pilot-reaction delays are kept, and a firing deferral (`ctx.PreserveConditionals`) cancels nothing. The no-phase main path (steps 5-8) is unchanged.
+**Supersede on the phase path.** When the gate lets a compound through, `DispatchWithPhase` clears queued work only for a compound of more than one block (the full deferred clear) or a single block that is a *fresh* ground-movement clearance: `TAXI`, `TAXIAUTO`, `PUSH`, `PUSHM` and their forced forms (`IsFreshGroundMovementClearance`).
+
+`PUSH` is fresh only from a phase other than `PushbackPhase`, so a mid-push `PUSH FACE x` / `PUSH TAIL x` amends the push and keeps the chain. `AIRTAXI` and `FOLLOWG` are outside the fresh set (owner scope), as are `HOLD`, `RES`, a lone `HS` and a lone `CROSS`; they keep the queue, with no `lost:` warning.
+
+A fresh clearance runs `ClearConflictingBlocks` with the compound's dimensions (queued `Ground` work goes, queued altitude and speed stay) and `CancelSupersededDeferrals`, which cancels pending or already-expired `WAIT` / `GIVEWAY` deferrals whose payload dimension overlaps `Ground` (`All` included), so none fires over the new clearance.
+
+Deferrals with no ground axis (`CT`, `SQ`, altitude, speed) and pilot-reaction delays are kept, and a firing deferral (`ctx.PreserveConditionals`) cancels nothing. The no-phase main path (steps 5-8) is unchanged.
 
 `EmitQueueClearWarning` reports the dropped blocks and the cancelled deferrals (named by source text, e.g. `(lost: WAIT 30 TAXI M4 M1)`) in one `queue cleared by … (lost: …)` warning, also when only deferrals were cancelled. A dropped unconditional block whose commands all appear among the incoming compound's unconditional commands is not reported; a repeat only inside a conditional incoming block still is.
 
@@ -218,7 +226,9 @@ A handler that resolves something the command text does not say (the goal a `PUS
 
 A `TAXI` builds its own route readback (`GroundCommandHandler.RouteReadback`, cut at the first hold short that stops the aircraft) and a `CROSS`/`RES` that releases a bar on a route in progress builds the continuation readback (`RouteContinuationReadback`: the crossing and the queued route up to the next stop). `CommandResult.TaxiRouteReadback` also carries what a TAXI's readback was read from (route, layout, the clearance as worded), so the block can read it again.
 
-A block whose `CROSS` or `RES` names only crossings the TAXI readback already reads (`GroundCommandHandler.IsCoveredByRouteReadback`: runway-only, every bar of each named runway cleared on the route and at or before the readback's first stop) gets the TAXI readback rebuilt from the route's final state by `BlockTaxiReadback.Readback`, after the whole block has run, in both block runners (the normal block path and `ApplyTowerDriverSiblings`). The rebuild reads the named runway ends and an expedited `CROSS`'s "without delay", reads a bar only an uncovered command cleared as uncleared (the walk ends silently there and that command keeps its own clause), and lists the covered commands in `HandlerReadback.Covers`; `PilotResponder` drops each covered command's clause (matched by reference).
+A block whose `CROSS` or `RES` names only crossings the TAXI readback already reads (`GroundCommandHandler.IsCoveredByRouteReadback`: runway-only, every bar of each named runway cleared on the route and at or before the readback's first stop) gets the TAXI readback rebuilt from the route's final state by `BlockTaxiReadback.Readback`, after the whole block has run, in both block runners (the normal block path and `ApplyTowerDriverSiblings`).
+
+The rebuild reads the named runway ends and an expedited `CROSS`'s "without delay", reads a bar only an uncovered command cleared as uncleared (the walk ends silently there and that command keeps its own clause), and lists the covered commands in `HandlerReadback.Covers`; `PilotResponder` drops each covered command's clause (matched by reference).
 
 `CommandResult.PilotUnable` is the refusal counterpart and is a bare `PilotSpeechText`; it needs no tag because a refusal belongs to the one command that failed.
 
@@ -323,7 +333,9 @@ evaluation owns this" — so a missing handler arm behind `AT`/`LV` is never cau
 3. Otherwise fall back to `ApplyCommand`.
 4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:3553`).
 
-The closure takes `(AircraftState, bool firedFromQueue)`: the dispatcher's `ApplyBlock` passes false, `FlightPhysics.ApplyBlock` true, and the bool reaches `TryApplyTowerCommand`. `ResultReachesController(ctx, firedFromQueue)` is false for a scripted command, a deferred payload firing (`PreserveConditionals`: `WAIT`, `BEHIND`, the pilot's reaction delay) and a queued block firing; the `TAXI`/`TAXIAUTO` handler (`TaxiDispatch.ResultReachesController`) then sends the push turn-about warning through `PendingWarnings` instead of the result line.
+The closure takes `(AircraftState, bool firedFromQueue)`: the dispatcher's `ApplyBlock` passes false, `FlightPhysics.ApplyBlock` true, and the bool reaches `TryApplyTowerCommand`.
+
+`ResultReachesController(ctx, firedFromQueue)` is false for a scripted command, a deferred payload firing (`PreserveConditionals`: `WAIT`, `BEHIND`, the pilot's reaction delay) and a queued block firing; the `TAXI`/`TAXIAUTO` handler (`TaxiDispatch.ResultReachesController`) then sends the push turn-about warning through `PendingWarnings` instead of the result line.
 
 **Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
 have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `CreateBlock`
@@ -512,9 +524,13 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   that cannot be recovered (text no longer parses / no description match) is **dropped with an RPO warning** rather than left to fire as a
   silent no-op.
 
-  The follow-up blocks that `NavigationCommandHandler` queues (JRADO, JRADI, DEPART's reach-fix block, the airway intercept after JAWY) serialize their `SourceCommandText` too, and `CommandDispatcher.TryRebuildQueuedNavigationBlock` rebuilds them from the same factory that built them live (`BuildJradoInterceptBlock`, `BuildJradiInterceptBlock`, `BuildDepartBlock`, `BuildAirwayInterceptBlock`), keeping the serialized trigger. Applying the re-parsed instruction instead would set its immediate half and queue a second block. The factory's description must equal the saved `Description`, else the ordinary path runs.
+  The follow-up blocks that `NavigationCommandHandler` queues (JRADO, JRADI, DEPART's reach-fix block, the airway intercept after JAWY) serialize their `SourceCommandText` too, and `CommandDispatcher.TryRebuildQueuedNavigationBlock` rebuilds them from the same factory that built them live (`BuildJradoInterceptBlock`, `BuildJradiInterceptBlock`, `BuildDepartBlock`, `BuildAirwayInterceptBlock`), keeping the serialized trigger.
 
-  A JAWY block's fix sequence is rebuilt from its saved trigger (`PlanAirwayInterceptsFromTrigger`) and accepted only when the rebuilt description equals the saved one; otherwise the block is dropped with the RPO warning. It never resolves the trigger's own fix position, so a trigger naming a fix this navdata lacks drops the block rather than throwing. A block with no `SourceCommandText` is dropped the same way. Rehydration does not recover `DescriptionPrefix`/`NaturalDescriptionPrefix` (cosmetic: a post-restore supersede-split loses
+  Applying the re-parsed instruction instead would set its immediate half and queue a second block. The factory's description must equal the saved `Description`, else the ordinary path runs.
+
+  A JAWY block's fix sequence is rebuilt from its saved trigger (`PlanAirwayInterceptsFromTrigger`) and accepted only when the rebuilt description equals the saved one; otherwise the block is dropped with the RPO warning.
+
+  It never resolves the trigger's own fix position, so a trigger naming a fix this navdata lacks drops the block rather than throwing. A block with no `SourceCommandText` is dropped the same way. Rehydration does not recover `DescriptionPrefix`/`NaturalDescriptionPrefix` (cosmetic: a post-restore supersede-split loses
   the "At FIXIE: " label, not the trigger). Long-lived deferred behavior still belongs on the aircraft (as the `REPORT` armed flags do on
   `AircraftApproachState`) — rehydration protects queued instructions, it doesn't make closures a durable store. Track commands are
   additionally re-dispatched by `ProcessTriggeredTrackBlocks` (see "Triggered re-dispatch" above).

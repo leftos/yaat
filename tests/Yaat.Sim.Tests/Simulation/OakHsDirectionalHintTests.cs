@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -63,12 +64,33 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The bug: <c>HS E</c> as the only mention of E does not route through E. This asserts the
-    /// FIXED behavior — route via E, no unauthorized-taxiway detour, hold-short annotated at E.
-    /// RED against current code (route detours via A/B and warns).
+    /// <c>TAXI D C HS E RWY 28R</c> as the owner reads it: runway 28R, taxi via D C, hold short of E for traffic
+    /// exiting 28R on E. The route never drives E, E carries an explicit hold short, and nothing warns that E is
+    /// driven outside the route issued. D and C reach 28R only over E, so the route ends at the hold short of E.
     /// </summary>
     [Fact]
-    public void EmbeddedHsE_RoutesThroughE_NoUnauthorizedDetour()
+    public void EmbeddedHsE_RunwayAhead_HoldsShortOfE_RouteAvoidsE() =>
+        AssertHoldsShortOfEWithoutDrivingE(
+            "TAXI D C HS E RWY 28R",
+            "Taxi via D C HS E",
+            "runway 28R, taxi via D C, hold short of taxiway E",
+            reachesRunway: false
+        );
+
+    /// <summary>
+    /// The same clearance with the runway first and the way past E named: <c>RWY 28R TAXI D C B HS E</c> holds short of E
+    /// on C and goes on along C and B to 28R.
+    /// </summary>
+    [Fact]
+    public void RunwayFirst_TaxiDCBHsE_HoldsShortOfE_RouteAvoidsE() =>
+        AssertHoldsShortOfEWithoutDrivingE(
+            "RWY 28R TAXI D C B HS E",
+            "Taxi via D C B HS E RWY 28R",
+            "runway 28R, taxi via D C, hold short of taxiway E",
+            reachesRunway: true
+        );
+
+    private void AssertHoldsShortOfEWithoutDrivingE(string clearance, string echo, string readback, bool reachesRunway)
     {
         SessionRecording? recording = LoadRecording();
         SimulationEngine? engine = BuildEngine();
@@ -80,26 +102,31 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
         engine.Replay(recording, JustBeforeTaxi);
         Assert.NotNull(engine.FindAircraft(Callsign));
 
-        CommandResult result = engine.SendCommand(Callsign, "TAXI D C HS E RWY 28R");
+        CommandResult result = engine.SendCommand(Callsign, clearance);
         AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
-        LogRoute("HS E", result, route);
+        LogRoute(clearance, result, route);
+        Assert.True(result.Success, $"{clearance} refused: {result.Message}");
         Assert.NotNull(route);
+        output.WriteLine($"[{clearance}] readback={result.PilotReadback?.Speech.Terminal}");
+        output.WriteLine($"[{clearance}] segments=[{string.Join(", ", route.Segments.Select(s => $"{s.FromNodeId}>{s.ToNodeId}:{s.TaxiwayName}"))}]");
 
-        List<string> taxiways = StraightSegmentTaxiways(route);
-
-        // No detour through taxiways the controller never named.
-        Assert.False(HasUnauthorizedWarning(route), $"Unexpected unauthorized-path warning: [{string.Join(" | ", route.Warnings)}]");
-        Assert.DoesNotContain("A", taxiways, StringComparer.OrdinalIgnoreCase);
-        Assert.DoesNotContain("B", taxiways, StringComparer.OrdinalIgnoreCase);
-
-        // The route is steered through E, and E is annotated as an explicit hold-short.
-        Assert.Contains("E", taxiways, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains(
+        Assert.DoesNotContain(route.Segments, s => string.Equals(s.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(RouteMaterialiser.NotInRouteIssuedWarning("E"), route.Warnings);
+        HoldShortPoint holdE = Assert.Single(
             route.HoldShortPoints,
             hs => (hs.Reason == HoldShortReason.ExplicitHoldShort) && string.Equals(hs.TargetName, "E", StringComparison.OrdinalIgnoreCase)
         );
+        Assert.Equal(echo, result.Message);
+        Assert.Equal(readback, result.PilotReadback?.Speech.Terminal);
+
+        bool atRunway = route.HoldShortPoints.Exists(hs => hs.Reason == HoldShortReason.DestinationRunway);
+        Assert.Equal(reachesRunway, atRunway);
+        if (!reachesRunway)
+        {
+            Assert.Equal(holdE.NodeId, route.Segments[^1].ToNodeId);
+        }
     }
 
     /// <summary>

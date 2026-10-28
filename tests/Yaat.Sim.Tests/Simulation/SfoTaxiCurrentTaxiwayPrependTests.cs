@@ -381,9 +381,29 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         SfoGroundHarness.DumpRoute(output, route);
 
-        // With no destination the route ends where B meets K ("holding at the B/K intersection").
+        // With no destination the route ends held short of K where B meets it, bound like an explicit HS K at the first node
+        // on K with its stop set back from that node: the aircraft never stops inside the intersection.
         Assert.Equal(["B"], StraightTaxiwayLegs(route));
-        Assert.Contains(route.Segments[^1].Edge.ToNode.Edges, e => e.MatchesTaxiway("K"));
+        GroundNode bound = route.Segments[^1].Edge.ToNode;
+        Assert.Contains(bound.Edges, e => e.MatchesTaxiway("K"));
+        HoldShortPoint hold = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.RouteIncomplete);
+        Assert.Equal("K", hold.TargetName);
+        Assert.Equal(bound.Id, hold.NodeId);
+        Assert.Contains("holding short of K: route ends at K, no destination given", route.Warnings);
+        var stop = new LatLon(Assert.NotNull(hold.Latitude), Assert.NotNull(hold.Longitude));
+        double stopFt = GeoMath.DistanceNm(stop, bound.Position) * GeoMath.FeetPerNm;
+        output.WriteLine($"hold short of K bound at node {bound.Id}, stop {stopFt:F1} ft from it");
+        Assert.True(stopFt > AirportGroundLayout.OnTaxiEdgeMaxOffsetFt, $"the stop is {stopFt:F1} ft from the K junction node {bound.Id}");
+
+        double nearestFt = double.PositiveInfinity;
+        int held = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => aircraft.Phases?.CurrentPhase is HoldingShortPhase { HoldShort.TargetName: "K" },
+            300,
+            _ => nearestFt = Math.Min(nearestFt, GeoMath.DistanceNm(aircraft.Position, bound.Position) * GeoMath.FeetPerNm)
+        );
+        Assert.True(held > 0, $"not holding short of K after 300 s: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.True(nearestFt > AirportGroundLayout.OnTaxiEdgeMaxOffsetFt, $"the aircraft came {nearestFt:F1} ft from the K junction node");
     }
 
     /// <summary>

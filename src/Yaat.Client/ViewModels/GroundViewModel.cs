@@ -2672,6 +2672,11 @@ public partial class GroundViewModel : ObservableObject
         }
 
         string line = $"route {string.Join(' ', taxiways)}";
+        if (ParseRouteHoldTaxiway(ac.TaxiRoute) is { } holdTaxiway)
+        {
+            line += $" HS {holdTaxiway}";
+        }
+
         if (!string.IsNullOrEmpty(ac.AssignedRunway))
         {
             line += $" · RWY {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}";
@@ -3216,7 +3221,26 @@ public partial class GroundViewModel : ObservableObject
         }
 
         GroundNode? start = TaxiStartNode(layout, ac);
-        return (start is null) ? null : ResolveRemainingRouteFrom(ac, request, start);
+        TaxiRoute? route = (start is null) ? null : ResolveRemainingRouteFrom(ac, request, start);
+        return EndAtRouteHold(route, ParseRouteHoldTaxiway(ac.TaxiRoute));
+    }
+
+    /// <summary>
+    /// <paramref name="route"/> ending where the server's route ends holding short of <paramref name="holdTaxiway"/>: the
+    /// hold binds there, so the overlay never draws on into the junction or along that taxiway. It ends where the server cuts
+    /// it, at the first node of the junction it ends at (<see cref="TaxiPathfinder.TerminusJunctionRunStart"/>), never at an
+    /// earlier node on that taxiway the route runs past or starts on. The route unchanged when the server names no hold or
+    /// the route never meets that taxiway.
+    /// </summary>
+    private static TaxiRoute? EndAtRouteHold(TaxiRoute? route, string? holdTaxiway)
+    {
+        if ((route is null) || (holdTaxiway is null) || (route.Segments.Count == 0))
+        {
+            return route;
+        }
+
+        TaxiRouteSegment end = route.Segments[TaxiPathfinder.TerminusJunctionRunStart(route, holdTaxiway)];
+        return end.Edge.ToNode.Edges.Any(e => e.MatchesTaxiway(holdTaxiway)) ? route.TruncateAt(end.ToNodeId) : route;
     }
 
     /// <summary>
@@ -3264,6 +3288,15 @@ public partial class GroundViewModel : ObservableObject
         // by the taxi clearance only when the route ends at a runway (empty for taxi-to-parking).
         // A parking / spot destination arrives separately so the reconstruction ends at the stand.
         GroundNode? destination = FindTaxiDestinationNode(layout, ac.TaxiDestination);
+
+        // A route ending holding short of a taxiway it does not drive ("S HS B") names that taxiway last, as the server
+        // folded it: with no destination the pathfinder then cuts the route short of it, as it cut the server's, so the
+        // overlay ends at the hold short and never in the junction.
+        if ((ParseRouteHoldTaxiway(ac.TaxiRoute) is { } holdTaxiway) && (destination is null) && string.IsNullOrEmpty(ac.AssignedRunway))
+        {
+            routeTaxiways = [.. routeTaxiways, holdTaxiway];
+        }
+
         return new RemainingRouteRequest
         {
             Layout = layout,
@@ -3541,6 +3574,10 @@ public partial class GroundViewModel : ObservableObject
         };
     }
 
+    /// <summary>
+    /// The taxiways the server's route string drives, in order: every token before its <c>HS</c> marker
+    /// (<see cref="TaxiRoute.FormatTaxiwaySequence"/>), never the taxiway the route holds short of.
+    /// </summary>
     private static List<string> ParseRouteTaxiways(string taxiRoute)
     {
         if (string.IsNullOrWhiteSpace(taxiRoute))
@@ -3561,6 +3598,17 @@ public partial class GroundViewModel : ObservableObject
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The taxiway the server's route string ends holding short of (<c>"S HS B"</c> gives <c>B</c>), or null when it names
+    /// no hold.
+    /// </summary>
+    private static string? ParseRouteHoldTaxiway(string taxiRoute)
+    {
+        string[] parts = string.IsNullOrWhiteSpace(taxiRoute) ? [] : taxiRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        int hs = Array.FindIndex(parts, part => string.Equals(part, "HS", StringComparison.OrdinalIgnoreCase));
+        return ((hs >= 0) && (hs + 1 < parts.Length)) ? parts[hs + 1] : null;
     }
 
     // --- Shown taxi routes ---

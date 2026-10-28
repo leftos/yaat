@@ -309,12 +309,22 @@ public static partial class GroundCommandHandler
             return resolved.Refusal ?? throw new InvalidOperationException("a taxi resolution carries neither a route nor a refusal");
         }
 
+        // From a no-destination hold short of X, a TAXI whose route would only end at the same hold is refused; the aircraft
+        // stays held. Judged on the route the resolution settled on, so no turn-about recovery rewrites the refusal.
+        if (EndsAtTheNoDestinationTerminusHold(aircraft, route) is { TargetName: { } heldShortOf } terminusHold)
+        {
+            string reason = TerminusRefusalReason(groundLayout, aircraft, terminusHold, heldShortOf, category);
+            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason} (the route ends at the same hold)", aircraft.Callsign, reason);
+            return new CommandResult(false, reason) { IsOperatorGuidance = true };
+        }
+
         taxi = resolved.Command;
         TaxiCommand? effectiveCommand = resolved.EffectiveCommand;
         string? occupiedTaxiway = resolved.OccupiedTaxiway;
 
         // Compute dynamic hold-short positions based on aircraft fuselage length
-        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
+        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt, aircraft.Position);
+        HoldInsideNoDestinationTerminusSetback(aircraft, groundLayout, route, aircraftLengthFt);
 
         string hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
         Log.LogInformation(
@@ -430,11 +440,9 @@ public static partial class GroundCommandHandler
 
         // Set up the taxi route and phase
         aircraft.Ground.AssignedTaxiRoute = route;
+        HoldShortTarget? unableEndHold = UnableNoDestinationEndHold(aircraft, groundLayout, route);
         aircraft.Ground.AwaitingTaxiInCall = false;
         aircraft.Ground.Hold = null;
-        // The route is new, so every merge hold on it was armed by this clearance; one already behind the aircraft or
-        // inside its braking stop falls back to the capped stop, as for an HS.
-        DeclineUnreachableMergeHolds(aircraft, groundLayout, route, route.HoldShortPoints);
         // A fresh taxi clearance resets the commanded taxi speed to the category default, and restates the expedite: a TAXI
         // without EXP ends a running one (7110.65 §2-1-5.b, by analogy: a restated clearance without the expedite cancels it).
         aircraft.Ground.CommandedTaxiSpeedKts = null;
@@ -504,7 +512,7 @@ public static partial class GroundCommandHandler
                         route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, SetDestination(reroute, taxi));
                         aircraft.Ground.AssignedTaxiRoute = route;
                         aircraft.Ground.AwaitingTaxiInCall = false;
-                        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
+                        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt, aircraft.Position);
                         rerouted = true;
 
                         Log.LogInformation(
@@ -546,6 +554,10 @@ public static partial class GroundCommandHandler
             string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(taxi.DestinationRunway);
             msg = $"Already at runway {runwayDisplay} — holding short (runway {runwayDisplay} assigned)";
         }
+        else if (unableEndHold is { } unableTarget)
+        {
+            msg = UnableToHoldShortMessage(unableTarget);
+        }
         else
         {
             msg = BuildTaxiReadback(
@@ -570,12 +582,108 @@ public static partial class GroundCommandHandler
         return CommandDispatcher.Ok(msg) with
         {
             EffectiveCommand = effectiveCommand,
-            PilotReadback = options.IsTaxiAuto
-                ? null
+            PilotReadback =
+                options.IsTaxiAuto ? null
+                : (unableEndHold is { } unableHold) ? UnableToHoldShortReadback(unableHold)
                 : RouteReadback(route, groundLayout, asCleared, resolved.EndsShort, new RouteReadbackCrossings([], [], [])),
-            TaxiRouteReadback = options.IsTaxiAuto ? null : new TaxiRouteReadbackSource(route, groundLayout, asCleared, resolved.EndsShort),
+            // An unable answer is no route readback, so no CROSS or RES of the block reads it again.
+            TaxiRouteReadback =
+                (options.IsTaxiAuto || (unableEndHold is not null))
+                    ? null
+                    : new TaxiRouteReadbackSource(route, groundLayout, asCleared, resolved.EndsShort),
         };
     }
+
+    /// <summary>
+    /// The target of the no-destination end hold (<see cref="NoDestinationEndHold"/>) of the route just assigned, when the rolling
+    /// aircraft can no longer brake for it: the hold is flagged unable (<see cref="MarkUnmakeable"/>) and the clearance answered
+    /// unable, as an <c>HS</c> armed inside the stopping distance is. The taxi phase then moves the stop to where the firm rate
+    /// stops the aircraft. Null when the route has no such hold or the aircraft can make it.
+    /// </summary>
+    private static HoldShortTarget? UnableNoDestinationEndHold(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route) =>
+        (NoDestinationEndHold(route) is { TargetName: { } taxiway } endHold) && MarkUnmakeable(aircraft, layout, route, endHold)
+            ? new HoldShortTarget(taxiway, null, false)
+            : null;
+
+    /// <summary>The answer to a hold short the aircraft can no longer brake for: <c>Unable to hold short of T — stopping</c>.</summary>
+    private static string UnableToHoldShortMessage(HoldShortTarget target) => $"Unable to hold short of {target.ToNatural()} — stopping";
+
+    /// <summary>
+    /// The crew's answer to a TAXI whose end hold it can no longer brake for, the words an <c>HS</c> inside the stopping distance
+    /// is answered with (<see cref="PhraseologyVerbalizer.RenderUnableHoldShort"/>): "unable to hold short of bravo, stopping".
+    /// </summary>
+    private static HandlerReadback UnableToHoldShortReadback(HoldShortTarget target) =>
+        new(
+            CanonicalCommandType.Taxi,
+            new PilotSpeechText(
+                PhraseologyVerbalizer.RenderUnableHoldShort(target, spoken: false),
+                PhraseologyVerbalizer.RenderUnableHoldShort(target, spoken: true)
+            )
+        );
+
+    /// <summary>
+    /// A clearance with no destination that ends held short of its last taxiway T
+    /// (<see cref="SegmentExpander.NoDestinationTerminusAdvisory"/>), given to an aircraft whose nose is already inside T's
+    /// taxiway setback (<c>max(L/2 + buffer, wingtip floor)</c> from T's centreline): when the placed stop lies ahead of the
+    /// aircraft, the hold moves to where the aircraft stands, so it holds there rather than taxiing on into the setback. Any
+    /// other route keeps the annotator's placement.
+    /// </summary>
+    private static void HoldInsideNoDestinationTerminusSetback(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, double lengthFt)
+    {
+        if (
+            (NoDestinationEndHold(route) is not { TargetName: { } taxiway, Latitude: { } lat, Longitude: { } lon } hold)
+            || !layout.Nodes.TryGetValue(hold.NodeId, out GroundNode? junction)
+        )
+        {
+            return;
+        }
+
+        LatLon nose = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, (lengthFt / 2.0) / GeoMath.FeetPerNm);
+        IEnumerable<GroundEdge> junctionEdges = junction.Edges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway));
+        double noseFt = HoldShortAnnotator.DistanceToCentrelineFt(nose, junctionEdges, junction.Position);
+        double floorFt = (layout.Runways.Count > 0) ? HoldShortAnnotator.WingtipClearanceFloorFt(layout.Runways.Max(r => r.WidthFt)) : 0.0;
+        double setbackFt = Math.Max((lengthFt / 2.0) + HoldShortAnnotator.TaxiwayHoldShortBufferFt, floorFt);
+        var stop = new LatLon(lat, lon);
+        double stopAheadFt = GeoMath.DistanceNm(aircraft.Position, stop) * GeoMath.FeetPerNm;
+        if ((noseFt >= setbackFt) || !IsAhead(aircraft, stop, stopAheadFt))
+        {
+            return;
+        }
+
+        Log.LogInformation(
+            "[TryTaxi] {Callsign}: nose {NoseFt:F0} ft from {Taxiway}, inside its {SetbackFt:F0} ft setback; holding short where it stands, "
+                + "not {AheadFt:F0} ft ahead",
+            aircraft.Callsign,
+            noseFt,
+            taxiway,
+            setbackFt,
+            stopAheadFt
+        );
+        hold.Latitude = aircraft.Position.Lat;
+        hold.Longitude = aircraft.Position.Lon;
+    }
+
+    /// <summary>
+    /// The <see cref="HoldShortReason.RouteIncomplete"/> hold on <paramref name="route"/>'s last node that ends a clearance with
+    /// no destination (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>); null when the route ends any other way.
+    /// </summary>
+    private static HoldShortPoint? NoDestinationEndHold(TaxiRoute route) =>
+        route.Segments.Count == 0
+            ? null
+            : route.HoldShortPoints.FirstOrDefault(h =>
+                (h.NodeId == route.Segments[^1].ToNodeId) && (h.Reason == HoldShortReason.RouteIncomplete) && h.EndsNoDestinationRoute
+            );
+
+    /// <summary>
+    /// Whether <paramref name="stop"/>, <paramref name="stopAheadFt"/> from the aircraft, lies ahead of it: farther than
+    /// <see cref="StopAheadToleranceFt"/>, and within 90° of its heading.
+    /// </summary>
+    private static bool IsAhead(AircraftState aircraft, LatLon stop, double stopAheadFt) =>
+        (stopAheadFt > StopAheadToleranceFt)
+        && (GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, GeoMath.BearingTo(aircraft.Position, stop)) < 90.0);
+
+    /// <summary>How far ahead of the aircraft (ft) a placed stop must lie before an aircraft inside the setback is held where it stands.</summary>
+    private const double StopAheadToleranceFt = 1.0;
 
     /// <summary>
     /// What a TAXI's route readback is read from (<see cref="RouteReadback"/>): the route, its layout, the clearance as the
@@ -1351,6 +1459,49 @@ public static partial class GroundCommandHandler
     }
 
     /// <summary>
+    /// <paramref name="startNode"/>, or the node of the first cleared taxiway the aircraft is sitting on. The heading-biased
+    /// FindTaxiStartNode can land on an adjacent parallel taxiway after a directional pushback (the aircraft's heading aligns
+    /// with the neighbour's edge, not its own taxiway's), which then makes the named first taxiway "unreachable" — WJA1521
+    /// pushed onto M4 but the start node resolved onto the parallel M5, so "TAXI M4 M2 ..." was rejected. Only overrides when
+    /// the on-taxiway node is at least as close as the heuristic's pick, and never for an aircraft rolling along the taxiway
+    /// the start node lies on (<see cref="RollsOnTheStartNodesTaxiway"/>).
+    /// </summary>
+    private static GroundNode AnchorToFirstClearedTaxiway(AircraftState aircraft, AirportGroundLayout layout, TaxiCommand taxi, GroundNode startNode)
+    {
+        if (
+            (taxi.Path.Count == 0)
+            || taxi.Path[0].StartsWith('#')
+            || startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]))
+            || RollsOnTheStartNodesTaxiway(aircraft, startNode)
+            || (layout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], maxDistFt: 100.0) is not { } onFirstCleared)
+            || (GeoMath.DistanceNm(aircraft.Position, onFirstCleared.Position) > GeoMath.DistanceNm(aircraft.Position, startNode.Position))
+        )
+        {
+            return startNode;
+        }
+
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
+            aircraft.Callsign,
+            startNode.Id,
+            taxi.Path[0],
+            onFirstCleared.Id
+        );
+        return onFirstCleared;
+    }
+
+    /// <summary>
+    /// Whether the aircraft is rolling (above <see cref="TaxiingPhase.StoppedGroundSpeedKts"/>) and <paramref name="startNode"/>
+    /// lies on its current taxiway: the start ahead on the taxiway it is driving is no parallel it was pushed onto. At OAK,
+    /// where B merges into C at 14.5°, a B node beside a B738 rolling on C turned a bare <c>TAXI B</c> into a drive along B's
+    /// last segments into the C/B junction.
+    /// </summary>
+    private static bool RollsOnTheStartNodesTaxiway(AircraftState aircraft, GroundNode startNode) =>
+        (aircraft.GroundSpeed > TaxiingPhase.StoppedGroundSpeedKts)
+        && (aircraft.Ground.CurrentTaxiway is { } current)
+        && startNode.Edges.Any(e => e.MatchesTaxiway(current));
+
+    /// <summary>
     /// Resolves the clearance from one start node through the approach leg: anchoring to the first cleared taxiway, where
     /// the cleared path starts, the ramp-lane cuts, the dropped-taxiway recoveries, the missing-taxiway fallbacks and the
     /// spot line-up. Reads the aircraft and the layout; changes neither.
@@ -1367,29 +1518,7 @@ public static partial class GroundCommandHandler
         double aircraftLengthFt = inputs.AircraftLengthFt;
         TaxiCommand? effectiveCommand = null;
 
-        // Anchor the start node to the first cleared taxiway when the aircraft is sitting on a node
-        // of it. The heading-biased FindTaxiStartNode can land on an adjacent parallel taxiway
-        // after a directional pushback (the aircraft's heading aligns with the neighbour's edge, not
-        // its own taxiway's), which then makes the named first taxiway "unreachable" — WJA1521 pushed
-        // onto M4 but the start node resolved onto the parallel M5, so "TAXI M4 M2 ..." was rejected.
-        // Only overrides when the on-taxiway node is at least as close as the heuristic's pick.
-        if (
-            (taxi.Path.Count > 0)
-            && !taxi.Path[0].StartsWith('#')
-            && !startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]))
-            && groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], maxDistFt: 100.0) is { } onFirstCleared
-            && GeoMath.DistanceNm(aircraft.Position, onFirstCleared.Position) <= GeoMath.DistanceNm(aircraft.Position, startNode.Position)
-        )
-        {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
-                aircraft.Callsign,
-                startNode.Id,
-                taxi.Path[0],
-                onFirstCleared.Id
-            );
-            startNode = onFirstCleared;
-        }
+        startNode = AnchorToFirstClearedTaxiway(aircraft, groundLayout, taxi, startNode);
 
         // A drawn route's leading nodes go stale while the controller is drawing — see the helper.
         taxi = TrimPassedNodeRefPrefix(aircraft, startNode, taxi);
@@ -1410,6 +1539,13 @@ public static partial class GroundCommandHandler
         if (IsBareTaxiOnOwnTaxiway(inputs, taxi, occupiedTaxiway))
         {
             string reason = AlreadyOnTaxiwayReason(taxi.Path[0]);
+            Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, reason);
+            return TaxiResolution.Refused(taxi, new CommandResult(false, reason) { IsOperatorGuidance = true });
+        }
+
+        if (BareTaxiHeldShortOfNoDestinationTerminus(inputs, taxi) is { } terminusHold)
+        {
+            string reason = TerminusRefusalReason(groundLayout, aircraft, terminusHold, taxi.Path[0], inputs.Category);
             Log.Log(inputs.FailureLogLevel, "[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, reason);
             return TaxiResolution.Refused(taxi, new CommandResult(false, reason) { IsOperatorGuidance = true });
         }
@@ -1509,7 +1645,9 @@ public static partial class GroundCommandHandler
 
         // As-cleared first: the route the named taxiways produce on their own wins when it honors every
         // hold-short hint en route (see AsClearedRejectionReason). Only then is the hint's taxiway folded
-        // into the path — the OAK "TAXI D C HS E RWY 28R" shape, where E is the way to the runway.
+        // into the path, to steer the route to the hold. Either way a taxiway held short of is never driven:
+        // OAK "TAXI D C HS E RWY 28R" reads "runway 28R, taxi via D C, hold short of E", so a route that
+        // reaches the runway only over E ends at the hold short of E (HeldShortOfDrivenTarget).
         TaxiRoute? ResolveRoute(TaxiCommand command, out PathfindingFailure? routeFailure)
         {
             if (foldTargets.Count == 0)
@@ -1517,24 +1655,22 @@ public static partial class GroundCommandHandler
                 return ResolveDirect(command, out routeFailure);
             }
 
-            TaxiRoute? asClearedRoute = ResolveDirect(command, out routeFailure);
-            string? rejection = asClearedRoute is null
-                ? routeFailure?.HumanMessage ?? "no route"
-                : AsClearedRejectionReason(asClearedRoute, command, foldTargets);
-            if (rejection is null)
+            TaxiRoute? route = ResolveDirect(command, out routeFailure);
+            string? rejection = route is null ? routeFailure?.HumanMessage ?? "no route" : AsClearedRejectionReason(route, command, foldTargets);
+            if (rejection is not null)
             {
-                return asClearedRoute;
+                Log.LogDebug(
+                    "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; "
+                        + "folding [{Twys}] into the path",
+                    aircraft.Callsign,
+                    route?.Segments.Count ?? 0,
+                    rejection,
+                    string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
+                );
+                route = ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
             }
 
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: as-cleared route ({Segs} segments) does not honor the hold-short hint — {Reason}; "
-                    + "folding [{Twys}] into the path",
-                aircraft.Callsign,
-                asClearedRoute?.Segments.Count ?? 0,
-                rejection,
-                string.Join(" ", foldTargets.Select(t => t.OnTaxiway ?? t.Target))
-            );
-            return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
+            return route is null ? null : HeldShortOfDrivenTarget(route, groundLayout, foldTargets) ?? route;
         }
 
         StartResolution start = ResolveFromBestStart(aircraft.Callsign, taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
@@ -1689,7 +1825,8 @@ public static partial class GroundCommandHandler
 
         // Last, a clearance whose taxiways do not join up: hold short of the taxiway the route needs, or refuse naming it.
         var startLink = new StartLinkInputs(aircraft.Callsign, groundLayout, startNode, taxi, occupiedTaxiway, category, wakeClass);
-        MissingTaxiwayFallback fallback = ApplyMissingTaxiwayFallbacks(startLink, route, cmd => ResolveRoute(cmd, out _));
+        bool endsAtTargetHold = (route is not null) && EndsAtTargetHold(route, foldTargets);
+        MissingTaxiwayFallback fallback = ApplyMissingTaxiwayFallbacks(startLink, route, endsAtTargetHold, cmd => ResolveRoute(cmd, out _));
         route = fallback.Held ?? route;
         if (route is null)
         {
@@ -1702,12 +1839,14 @@ public static partial class GroundCommandHandler
             return TaxiResolution.Refused(taxi, new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi)));
         }
 
+        bool endsShort = (fallback.Held is not null) || endsAtTargetHold;
+
         // A route held short of a missing taxiway never reaches the spot, so there is nothing to line up on.
         route = ApplySpotLineUp(
             aircraft,
             groundLayout,
             route,
-            fallback.Held is null ? destinationNode : null,
+            endsShort ? null : destinationNode,
             new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
         );
 
@@ -1721,9 +1860,39 @@ public static partial class GroundCommandHandler
             Command = taxi,
             EffectiveCommand = effectiveCommand,
             OccupiedTaxiway = occupiedTaxiway,
-            EndsShort = fallback.Held is not null,
+            EndsShort = endsShort,
             Refusal = null,
         };
+    }
+
+    /// <summary>
+    /// <paramref name="route"/> cut at the hold short of the first plain taxiway target (<c>HS E</c>, not a located
+    /// <c>HS C@J</c>) whose taxiway it drives, the target's explicit hold ending it (<see cref="HoldShortBeforeTaxiway"/>).
+    /// Null when it drives none, or when the aircraft already stands at that hold and nothing is left to cut.
+    /// </summary>
+    private static TaxiRoute? HeldShortOfDrivenTarget(TaxiRoute route, AirportGroundLayout layout, IReadOnlyList<HoldShortTarget> foldTargets)
+    {
+        string? driven = route
+            .Segments.Select(s => s.Edge.Edge)
+            .Where(IsTaxiwayDriven)
+            .SelectMany(edge => foldTargets.Where(t => (t.OnTaxiway is null) && edge.MatchesTaxiway(t.Target)).Select(t => t.Target))
+            .FirstOrDefault();
+        return driven is null ? null : HoldShortBeforeTaxiway(route, layout, 0, new TaxiwayCut(driven, Warning: null, EndsNoDestinationRoute: true));
+    }
+
+    /// <summary>
+    /// True when <paramref name="route"/> ends at the hold short of a plain taxiway target, short of its destination
+    /// (<see cref="HeldShortOfDrivenTarget"/>).
+    /// </summary>
+    private static bool EndsAtTargetHold(TaxiRoute route, IReadOnlyList<HoldShortTarget> foldTargets)
+    {
+        if ((route.Segments.Count == 0) || route.HoldShortPoints.Exists(h => h.Reason == HoldShortReason.DestinationRunway))
+        {
+            return false;
+        }
+
+        int lastNodeId = route.Segments[^1].ToNodeId;
+        return foldTargets.Any(t => (t.OnTaxiway is null) && (RouteMaterialiser.FindBoundHoldShort(route.HoldShortPoints, t)?.NodeId == lastNodeId));
     }
 
     /// <summary>
@@ -1893,6 +2062,99 @@ public static partial class GroundCommandHandler
         && string.Equals(only, occupiedTaxiway, StringComparison.OrdinalIgnoreCase)
         && NamesNothingButItsPath(taxi);
 
+    /// <summary>
+    /// The refusal of a bare TAXI naming only the taxiway the aircraft holds short of where a clearance with no destination
+    /// ended (<see cref="SegmentExpander.NoDestinationTerminusAdvisory"/>): it names no way along that taxiway, so it would
+    /// only end at the same hold. Sim-side only, never spoken.
+    /// </summary>
+    public static string HeldShortOfTerminusReason(string taxiway) =>
+        $"holding short of {taxiway}: give a direction (>{taxiway} or <{taxiway}) or a destination";
+
+    /// <summary>
+    /// True for a TAXI whose whole clearance is the taxiway the aircraft holds short of by the
+    /// <see cref="HoldShortReason.RouteIncomplete"/> hold a clearance with no destination ended in, with at most
+    /// <c>EXP</c> / <c>NODEL</c>: no direction (turn hint), destination, hold short or crossing. A TAXIAUTO never is.
+    /// </summary>
+    private static HoldShortPoint? BareTaxiHeldShortOfNoDestinationTerminus(TaxiResolveInputs inputs, TaxiCommand taxi) =>
+        !inputs.Options.IsTaxiAuto
+        && (taxi.Path is [{ } only])
+        && NamesNothingButItsPath(taxi)
+        && (NoDestinationTerminusHold(inputs.Aircraft) is { TargetName: { } target } hold)
+        && string.Equals(only, target, StringComparison.OrdinalIgnoreCase)
+            ? hold
+            : null;
+
+    /// <summary>
+    /// The <see cref="HoldShortReason.RouteIncomplete"/> hold the aircraft is holding at where a clearance with no destination
+    /// ended held short of its last taxiway (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>); null otherwise.
+    /// </summary>
+    private static HoldShortPoint? NoDestinationTerminusHold(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase
+            is HoldingShortPhase { HoldShort: { Reason: HoldShortReason.RouteIncomplete, EndsNoDestinationRoute: true, TargetName: not null } hold }
+            ? hold
+            : null;
+
+    /// <summary>
+    /// The refusal of a TAXI from the no-destination hold short of <paramref name="heldShortOf"/> that would only end at the
+    /// same hold: it asks for a direction when the aircraft can turn onto the taxiway there
+    /// (<see cref="HasAdmissibleDirectionOnto"/>), and says the taxiway lies behind when it cannot.
+    /// </summary>
+    private static string TerminusRefusalReason(
+        AirportGroundLayout layout,
+        AircraftState aircraft,
+        HoldShortPoint hold,
+        string heldShortOf,
+        AircraftCategory category
+    ) =>
+        HasAdmissibleDirectionOnto(layout, aircraft, hold, heldShortOf, category)
+            ? HeldShortOfTerminusReason(heldShortOf)
+            : TerminusBehindReason(heldShortOf);
+
+    /// <summary>
+    /// The no-destination hold the aircraft holds at (<see cref="NoDestinationTerminusHold"/>) when <paramref name="route"/>,
+    /// the route a new TAXI resolved to, ends at that hold's own node: the TAXI would only end at the same hold.
+    /// </summary>
+    private static HoldShortPoint? EndsAtTheNoDestinationTerminusHold(AircraftState aircraft, TaxiRoute? route) =>
+        (route is { Segments.Count: > 0 }) && (NoDestinationTerminusHold(aircraft) is { } hold) && (route.Segments[^1].ToNodeId == hold.NodeId)
+            ? hold
+            : null;
+
+    /// <summary>
+    /// Whether any edge of the taxiway <paramref name="hold"/> holds short of leaves the hold's node in a turn the pathfinder
+    /// admits for <paramref name="category"/> (<see cref="GeometricAdmissibility.AdmitsTurn"/>), arriving as the aircraft's
+    /// route arrived there.
+    /// </summary>
+    private static bool HasAdmissibleDirectionOnto(
+        AirportGroundLayout layout,
+        AircraftState aircraft,
+        HoldShortPoint hold,
+        string heldShortOf,
+        AircraftCategory category
+    )
+    {
+        if (
+            (aircraft.Ground.AssignedTaxiRoute is not { Segments.Count: > 0 } held)
+            || (held.Segments[^1].ToNodeId != hold.NodeId)
+            || !layout.Nodes.TryGetValue(hold.NodeId, out GroundNode? node)
+        )
+        {
+            return true;
+        }
+
+        double arrival = held.Segments[^1].Edge.ArrivalBearing;
+        return node
+            .Edges.Where(e => e.MatchesTaxiway(heldShortOf))
+            .Any(e =>
+                GeometricAdmissibility.AdmitsTurn(arrival, e, GeometricAdmissibility.GetDepartureBearing(e, node, e.OtherNode(node)), category)
+            );
+    }
+
+    /// <summary>
+    /// The refusal of a TAXI from a no-destination hold short of <paramref name="taxiway"/> that would end at the same hold
+    /// when no way onto the taxiway there is a turn the aircraft can make: it lies behind. Sim-side only, never spoken.
+    /// </summary>
+    public static string TerminusBehindReason(string taxiway) => $"holding short of {taxiway}: {taxiway} lies behind, give a destination";
+
     /// <summary>True when <paramref name="taxi"/> carries no destination, turn hint, hold short or crossing.</summary>
     private static bool NamesNothingButItsPath(TaxiCommand taxi) =>
         !HasDestination(taxi)
@@ -1937,8 +2199,8 @@ public static partial class GroundCommandHandler
     /// Appends the taxiway of each fold target (from <see cref="HoldShortTaxiwaysToFold"/>) to the taxi
     /// command's <see cref="TaxiCommand.Path"/> so the hold-short target steers the route as a directional
     /// hint rather than only annotating an already-chosen route. The target stays in
-    /// <see cref="TaxiCommand.HoldShorts"/> so the hold-short is still placed at that intersection — this
-    /// turns <c>TAXI D C HS E RWY 28R</c> into the already-supported <c>TAXI D C E HS E RWY 28R</c> shape.
+    /// <see cref="TaxiCommand.HoldShorts"/> so the hold-short is still placed at that intersection: <c>TAXI D C HS E RWY 28R</c>
+    /// reads as <c>TAXI D C E HS E RWY 28R</c>, whose route <see cref="HeldShortOfDrivenTarget"/> then ends at the E hold.
     /// It is the fallback reading of a clearance with a destination (see <c>ResolveRoute</c> in
     /// <see cref="TryTaxi"/>) and the only reading of one without.
     /// </summary>
@@ -2246,7 +2508,8 @@ public static partial class GroundCommandHandler
 
     /// <summary>
     /// The index of the first segment on <paramref name="firstCleared"/>; the segment count when the route ends at a
-    /// junction with it without entering it (a clearance with no destination ends there); null when it does neither.
+    /// junction with it without entering it, or held short of it where a clearance with no destination ends; null when it
+    /// does neither.
     /// </summary>
     private static int? HeldShortLegEnd(TaxiRoute route, string firstCleared)
     {
@@ -2256,8 +2519,19 @@ public static partial class GroundCommandHandler
             return joinIndex;
         }
 
-        bool endsAtJunction = (route.Segments.Count > 0) && route.Segments[^1].Edge.ToNode.Edges.Any(e => e.MatchesTaxiway(firstCleared));
-        return endsAtJunction ? route.Segments.Count : null;
+        if (route.Segments.Count == 0)
+        {
+            return null;
+        }
+
+        int endNodeId = route.Segments[^1].ToNodeId;
+        bool endsAtJunction = route.Segments[^1].Edge.ToNode.Edges.Any(e => e.MatchesTaxiway(firstCleared));
+        bool heldShortOfIt = route.HoldShortPoints.Any(h =>
+            (h.NodeId == endNodeId)
+            && (h.Reason == HoldShortReason.RouteIncomplete)
+            && string.Equals(h.TargetName, firstCleared, StringComparison.OrdinalIgnoreCase)
+        );
+        return (endsAtJunction || heldShortOfIt) ? route.Segments.Count : null;
     }
 
     private static string? ReversalUpTo(List<TaxiRouteSegment> segments, int lastIndex)
@@ -3190,10 +3464,13 @@ public static partial class GroundCommandHandler
     /// route does not reach its destination — a runway route that resolved without reaching its runway counts — but one
     /// more movement-area taxiway would, so the route is taxied as issued and held short of it. A start that never
     /// reaches the first taxiway is refused rather than held at the end: that hold would drive the missing link silently.
+    /// A route that ends at the hold short of a taxiway the clearance names (<paramref name="endsAtTargetHold"/>, OAK
+    /// <c>TAXI D C HS E RWY 28R</c>) ends where the controller put it and gets no end recovery.
     /// </summary>
     private static MissingTaxiwayFallback ApplyMissingTaxiwayFallbacks(
         StartLinkInputs inputs,
         TaxiRoute? route,
+        bool endsAtTargetHold,
         Func<TaxiCommand, TaxiRoute?> resolve
     )
     {
@@ -3206,7 +3483,7 @@ public static partial class GroundCommandHandler
             }
         }
 
-        bool shortOfDestination = (route is null) || IsRunwayRouteShortOfItsRunway(route, inputs.Taxi);
+        bool shortOfDestination = (route is null) || (!endsAtTargetHold && IsRunwayRouteShortOfItsRunway(route, inputs.Taxi));
         TaxiRoute? held = shortOfDestination ? TryHoldShortOfMissingTaxiway(inputs.Callsign, inputs.Layout, inputs.Taxi, resolve) : null;
         return new MissingTaxiwayFallback(held, null);
     }
@@ -3316,7 +3593,15 @@ public static partial class GroundCommandHandler
         }
 
         int reached = complete.Segments.FindIndex(s => s.Edge.Edge.MatchesTaxiway(target.LastCleared));
-        TaxiRoute? held = reached < 0 ? null : HoldShortBeforeTaxiway(complete, layout, reached, missing, MissingTaxiwayWarning(taxi, missing));
+        TaxiRoute? held =
+            reached < 0
+                ? null
+                : HoldShortBeforeTaxiway(
+                    complete,
+                    layout,
+                    reached,
+                    new TaxiwayCut(missing, MissingTaxiwayWarning(taxi, missing), EndsNoDestinationRoute: false)
+                );
         return held is null
             ? null
             : new MissingTaxiwayCandidate(missing, complete, held, DestinationEntryToThresholdNm(layout, complete, target.Threshold));
@@ -3400,10 +3685,14 @@ public static partial class GroundCommandHandler
     /// <paramref name="missing"/> — or, when that node is runway pavement, at the runway's near-side bar
     /// (<see cref="KeepOffRunwayPavement"/>): no edge of it is driven, the hold-shorts ahead of the cut are kept, and the
     /// route ends held short (<see cref="HoldShortsAtCut"/>). Warnings that only concern pavement past the cut are dropped
-    /// and <paramref name="warning"/> is added. Null when the cut leaves nothing to taxi.
+    /// and <paramref name="warning"/>, when given, is added once. With <paramref name="cut"/>'s
+    /// <see cref="TaxiwayCut.EndsNoDestinationRoute"/>, the hold ending the route is marked
+    /// (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>). Null when the cut leaves nothing to taxi.
     /// </summary>
-    private static TaxiRoute? HoldShortBeforeTaxiway(TaxiRoute complete, AirportGroundLayout layout, int fromIndex, string missing, string warning)
+    internal static TaxiRoute? HoldShortBeforeTaxiway(TaxiRoute complete, AirportGroundLayout layout, int fromIndex, TaxiwayCut cut)
     {
+        string missing = cut.Missing;
+        string? warning = cut.Warning;
         int keep = KeepOffRunwayPavement(complete, layout, CutBeforeTaxiway(complete, layout, fromIndex, missing));
         if (keep <= 0)
         {
@@ -3416,11 +3705,17 @@ public static partial class GroundCommandHandler
             .SelectMany(s => SegmentExpander.EdgeNames(s.Edge.Edge))
             .Where(n => !kept.Any(k => k.Edge.Edge.MatchesTaxiway(n)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        List<string> warnings = [.. complete.Warnings.Where(w => !droppedNames.Any(n => NamesTaxiway(w, n)))];
+        if ((warning is not null) && !warnings.Contains(warning))
+        {
+            warnings.Add(warning);
+        }
+
         return new TaxiRoute
         {
             Segments = kept,
-            HoldShortPoints = HoldShortsAtCut(complete, kept, missing),
-            Warnings = [.. complete.Warnings.Where(w => !droppedNames.Any(n => NamesTaxiway(w, n))), warning],
+            HoldShortPoints = HoldShortsAtCut(complete, kept, missing, cut.EndsNoDestinationRoute),
+            Warnings = warnings,
             ImpliedLanes = [.. complete.ImpliedLanes.Where(lane => !droppedNames.Contains(lane))],
             ClearanceTaxiways = complete.ClearanceTaxiways,
             MandatoryConnectorCount = complete.MandatoryConnectorCount,
@@ -3455,6 +3750,9 @@ public static partial class GroundCommandHandler
     /// far-side bar (SFO <c>TAXI A2 @B1</c> cut where A2 becomes M1 on the 01L threshold) moves back to that bar, which
     /// stays the route's runway hold. A taxiway may change its name on runway pavement, so the first node on the missing
     /// taxiway can be a runway centreline or end node. -1 when the cut is on a runway centreline and no bar comes before it.
+    /// A bar the route reaches from its runway's side (an aircraft taxiing off the runway it landed on, OAK <c>TAXI G D J</c>
+    /// on the 28R rollout) is where the route leaves that runway, never a near-side bar: a cut past it is off the runway and
+    /// stands, so the cleared taxiways beyond it stay in the route.
     /// </summary>
     private static int KeepOffRunwayPavement(TaxiRoute complete, AirportGroundLayout layout, int keep)
     {
@@ -3472,7 +3770,7 @@ public static partial class GroundCommandHandler
             GroundNode? node = layout.Nodes.GetValueOrDefault(nodeId);
             if (runwayBars.Contains(nodeId))
             {
-                (barKeep, onPavementSinceBar) = (i + 1, false);
+                (barKeep, onPavementSinceBar) = (LeavesRunwayAtBar(layout, complete.Segments[i]) ? -1 : i + 1, false);
                 continue;
             }
 
@@ -3491,15 +3789,45 @@ public static partial class GroundCommandHandler
 
     private static bool IsOnRunwayCentreline(GroundNode? node) => (node is not null) && AirportGroundLayout.HasRunwayCenterlineEdge(node);
 
+    /// <summary>
+    /// Whether <paramref name="arriving"/> reaches its runway bar from the runway's side: its start node lies nearer that
+    /// runway's centreline than the bar does. False when the bar's runway is not in the layout.
+    /// </summary>
+    private static bool LeavesRunwayAtBar(AirportGroundLayout layout, TaxiRouteSegment arriving)
+    {
+        GroundNode bar = arriving.Edge.ToNode;
+        if ((bar.RunwayId is not { } runwayId) || (layout.Runways.FirstOrDefault(r => r.Id.Equals(runwayId)) is not { } runway))
+        {
+            return false;
+        }
+
+        return RunwayCentrelineFt(runway, arriving.Edge.FromNode.Position) < RunwayCentrelineFt(runway, bar.Position);
+    }
+
+    /// <summary>The distance (ft) from <paramref name="point"/> to <paramref name="runway"/>'s centreline polyline.</summary>
+    private static double RunwayCentrelineFt(GroundRunway runway, LatLon point)
+    {
+        double best = double.PositiveInfinity;
+        for (int i = 0; i + 1 < runway.Coordinates.Count; i++)
+        {
+            (double lat1, double lon1) = runway.Coordinates[i];
+            (double lat2, double lon2) = runway.Coordinates[i + 1];
+            best = Math.Min(best, GeoMath.DistanceToSegmentFt(point, new LatLon(lat1, lon1), new LatLon(lat2, lon2)));
+        }
+
+        return best;
+    }
+
     private static bool IsRunwayHold(HoldShortPoint hold) => hold.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway;
 
     /// <summary>
     /// The hold-shorts of <paramref name="complete"/> on the <paramref name="kept"/> part, ending the route held short:
     /// a runway bar at the cut stays the hold there, uncleared (the route goes no further, so the aircraft holds short of
     /// the runway); any other hold already there stands; with none, a <see cref="HoldShortReason.RouteIncomplete"/> hold
-    /// of <paramref name="missing"/> is added.
+    /// of <paramref name="missing"/> is added. With <paramref name="endsNoDestinationRoute"/>, the hold at the cut is marked
+    /// as the one ending the route (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>).
     /// </summary>
-    private static List<HoldShortPoint> HoldShortsAtCut(TaxiRoute complete, List<TaxiRouteSegment> kept, string missing)
+    private static List<HoldShortPoint> HoldShortsAtCut(TaxiRoute complete, List<TaxiRouteSegment> kept, string missing, bool endsNoDestinationRoute)
     {
         int holdNodeId = kept[^1].ToNodeId;
         var keptNodes = new HashSet<int>(kept.Select(s => s.ToNodeId)) { kept[0].FromNodeId };
@@ -3521,8 +3849,23 @@ public static partial class GroundCommandHandler
             );
         }
 
+        if (endsNoDestinationRoute)
+        {
+            foreach (HoldShortPoint end in holdShorts.Where(h => h.NodeId == holdNodeId))
+            {
+                end.EndsNoDestinationRoute = true;
+            }
+        }
+
         return holdShorts;
     }
+
+    /// <summary>
+    /// What a <see cref="HoldShortBeforeTaxiway"/> cut holds short of: the taxiway <paramref name="Missing"/> it stops before,
+    /// the controller's note <paramref name="Warning"/> to add (none when null), and whether the hold it ends at ends a route
+    /// that goes nowhere past it (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>).
+    /// </summary>
+    internal sealed record TaxiwayCut(string Missing, string? Warning, bool EndsNoDestinationRoute);
 
     private static HoldShortPoint Uncleared(HoldShortPoint hold) =>
         new()
@@ -3621,7 +3964,12 @@ public static partial class GroundCommandHandler
         };
         TaxiRoute? complete = resolve(augmented);
         return (complete is not null) && ReachesClearance(complete, taxi, inputs.Layout)
-            ? HoldShortBeforeTaxiway(complete, inputs.Layout, 0, missing, MissingTaxiwayWarning(taxi, missing))
+            ? HoldShortBeforeTaxiway(
+                complete,
+                inputs.Layout,
+                0,
+                new TaxiwayCut(missing, MissingTaxiwayWarning(taxi, missing), EndsNoDestinationRoute: false)
+            )
             : null;
     }
 
@@ -5744,7 +6092,7 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, "No upcoming hold short to clear");
         }
 
-        if (next.Reason == HoldShortReason.RouteIncomplete)
+        if ((next.Reason == HoldShortReason.RouteIncomplete) || next.EndsNoDestinationRoute)
         {
             return new CommandResult(false, HoldingShortPhase.RouteIncompleteMessage(next.TargetName));
         }
@@ -5914,64 +6262,9 @@ public static partial class GroundCommandHandler
         }
 
         RecomputeHoldShortPositions(aircraft, layout, route);
-        DeclineUnreachableMergeHolds(aircraft, layout, route, plans);
         NotifyTaxiHoldShortsChanged(aircraft);
         return CommandDispatcher.Ok("");
     }
-
-    /// <summary>
-    /// <see cref="DeclineUnreachableMergeHolds(AircraftState, AirportGroundLayout?, TaxiRoute, IEnumerable{HoldShortPoint})"/>
-    /// over the bars <paramref name="plans"/> just armed.
-    /// </summary>
-    private static void DeclineUnreachableMergeHolds(
-        AircraftState aircraft,
-        AirportGroundLayout? layout,
-        TaxiRoute route,
-        IReadOnlyList<ExplicitHoldShortPlan> plans
-    ) => DeclineUnreachableMergeHolds(aircraft, layout, route, plans.Select(plan => ArmedBar(route, plan)).OfType<HoldShortPoint>());
-
-    /// <summary>
-    /// Takes back the shallow-merge stop (<see cref="HoldShortPoint.MergeHold"/>) of each of the just-armed
-    /// <paramref name="armed"/> bars that the aircraft is already past or cannot brake to at the firm rate, and recomputes
-    /// the positions when any was: the bar then keeps the stop capped at the first junction, its wingtip warning and the
-    /// plain readback. The aircraft can still hold short of the target, so this is no "unable".
-    /// </summary>
-    private static void DeclineUnreachableMergeHolds(
-        AircraftState aircraft,
-        AirportGroundLayout? layout,
-        TaxiRoute route,
-        IEnumerable<HoldShortPoint> armed
-    )
-    {
-        if ((layout is null) || !ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute))
-        {
-            return;
-        }
-
-        bool declined = false;
-        foreach (HoldShortPoint bar in armed.ToList())
-        {
-            if ((bar is { IsCleared: false, MergeHold: not null }) && MergeHoldOutOfReach(layout, route, aircraft, bar))
-            {
-                bar.MergeHoldDeclined = true;
-                declined = true;
-                Log.LogDebug(
-                    "[HS] {Callsign}: past or inside the braking stop of the merge hold short of {Target}; keeping the capped stop",
-                    aircraft.Callsign,
-                    bar.TargetName
-                );
-            }
-        }
-
-        if (declined)
-        {
-            RecomputeHoldShortPositions(aircraft, layout, route);
-        }
-    }
-
-    private static bool MergeHoldOutOfReach(AirportGroundLayout layout, TaxiRoute route, AircraftState aircraft, HoldShortPoint bar) =>
-        (TaxiingPhase.AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, bar) < 0.0)
-        || TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate);
 
     /// <summary>The uncleared bar <paramref name="plan"/> added or re-armed on <paramref name="route"/>, or null.</summary>
     private static HoldShortPoint? ArmedBar(TaxiRoute route, ExplicitHoldShortPlan plan)
@@ -6003,19 +6296,20 @@ public static partial class GroundCommandHandler
     /// beyond the holding position marking". A route a TAXI on the landing rollout stored behind the exit
     /// (<see cref="PhaseList.TaxiRoute"/>) is never judged: the aircraft is not on it yet.
     /// </summary>
-    private static bool MarkUnmakeableHoldShort(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, ExplicitHoldShortPlan plan)
+    private static bool MarkUnmakeableHoldShort(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, ExplicitHoldShortPlan plan) =>
+        (ArmedBar(route, plan) is { } bar) && MarkUnmakeable(aircraft, layout, route, bar);
+
+    /// <summary>
+    /// Flags <paramref name="bar"/> as one the aircraft cannot make — closer than the distance it needs to brake to a stop
+    /// (<see cref="TaxiingPhase.IsHoldShortUnmakeable"/>) — and answers whether it did. Only a bar on the aircraft's assigned
+    /// route is judged.
+    /// </summary>
+    private static bool MarkUnmakeable(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, HoldShortPoint bar)
     {
-        if (!ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute))
-        {
-            return false;
-        }
-
-        if (ArmedBar(route, plan) is not { } bar)
-        {
-            return false;
-        }
-
-        if (!TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate))
+        if (
+            !ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute)
+            || !TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, 1.0 / SimulationEngine.PhysicsSubTickRate)
+        )
         {
             return false;
         }
@@ -6051,7 +6345,8 @@ public static partial class GroundCommandHandler
         }
 
         double aircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, aircraftLengthFt);
+        LatLon? onRoute = ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute) ? aircraft.Position : null;
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, aircraftLengthFt, onRoute);
     }
 
     /// <summary>
@@ -6086,12 +6381,13 @@ public static partial class GroundCommandHandler
     internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross, AirportGroundLayout? layout)
     {
         var holdPhase = aircraft.Phases?.CurrentPhase as HoldingShortPhase;
-        bool releasesHold =
-            (holdPhase is not null)
-            && (
-                ((cross.RunwayIds.Count == 0) && (cross.HoldShorts.Count == 0))
-                || cross.RunwayIds.Any(r => HoldShortAnnotator.TargetMatches(holdPhase.HoldShort.TargetName, r))
-            );
+        bool releasesHold = CrossReleasesHold(holdPhase, cross);
+        // The hold ending a route cut short of a taxiway it never drives leads nowhere past it, so no CROSS releases it.
+        if (releasesHold && holdPhase is { HoldShort.EndsNoDestinationRoute: true })
+        {
+            return new CommandResult(false, HoldingShortPhase.RouteIncompleteMessage(holdPhase.HoldShort.TargetName));
+        }
+
         List<HoldShortPoint> targets = CrossingTargets(aircraft, cross, releasesHold ? holdPhase : null);
         List<HoldShortPoint> marked = [];
         if (cross.Expedite)
@@ -6109,24 +6405,49 @@ public static partial class GroundCommandHandler
 
         if (!cross.Expedite)
         {
-            // A CROSS without EXP restates the crossing clearance without the expedite, which cancels it (7110.65 §2-1-5.b, by
-            // analogy). Released from a stop it also ends the route expedite, with every crossing mark; a pre-clearance while
-            // rolling clears only the crossings it names.
-            if (releasesHold)
-            {
-                EndRouteExpedite(aircraft);
-            }
-            else
-            {
-                ClearCrossingExpedites(aircraft, targets);
-            }
-
+            EndExpeditesOfAPlainCross(aircraft, releasesHold, targets);
             return result;
         }
 
-        // The multi-runway / HS path echoes the command's own description, its "without delay" included.
+        return WithExpediteEcho(cross, result);
+    }
+
+    /// <summary>
+    /// An accepted <c>CROSS … EXP</c>'s <paramref name="result"/> with its "without delay": added to a single-runway crossing's
+    /// message, while the multi-runway / HS path already echoes the command's own description, its "without delay" included.
+    /// </summary>
+    private static CommandResult WithExpediteEcho(CrossRunwayCommand cross, CommandResult result)
+    {
         bool describesItself = (cross.RunwayIds.Count > 1) || (cross.HoldShorts.Count > 0);
         return describesItself ? result : result with { Message = result.Message + CommandDescriber.WithoutDelaySuffix };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="cross"/> releases the hold <paramref name="holdPhase"/> holds the aircraft at: a bare CROSS, or
+    /// one naming the held bar's runway. False when the aircraft is not holding short.
+    /// </summary>
+    private static bool CrossReleasesHold(HoldingShortPhase? holdPhase, CrossRunwayCommand cross) =>
+        (holdPhase is not null)
+        && (
+            ((cross.RunwayIds.Count == 0) && (cross.HoldShorts.Count == 0))
+            || cross.RunwayIds.Any(r => HoldShortAnnotator.TargetMatches(holdPhase.HoldShort.TargetName, r))
+        );
+
+    /// <summary>
+    /// A CROSS without EXP restates the crossing clearance without the expedite, which cancels it (7110.65 §2-1-5.b, by
+    /// analogy). Released from a stop (<paramref name="releasesHold"/>) it also ends the route expedite, with every crossing
+    /// mark; a pre-clearance while rolling clears only the crossings it names (<paramref name="targets"/>).
+    /// </summary>
+    private static void EndExpeditesOfAPlainCross(AircraftState aircraft, bool releasesHold, List<HoldShortPoint> targets)
+    {
+        if (releasesHold)
+        {
+            EndRouteExpedite(aircraft);
+        }
+        else
+        {
+            ClearCrossingExpedites(aircraft, targets);
+        }
     }
 
     /// <summary>
@@ -6791,7 +7112,6 @@ public static partial class GroundCommandHandler
 
         HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, hs.Target);
         RecomputeHoldShortPositions(aircraft, groundLayout, route);
-        DeclineUnreachableMergeHolds(aircraft, groundLayout, route, [plan]);
 
         EndRouteExpedite(aircraft);
 
@@ -6806,9 +7126,7 @@ public static partial class GroundCommandHandler
             unable
         );
 
-        return CommandDispatcher.Ok(
-            unable ? $"Unable to hold short of {hs.Target.ToNatural()} — stopping" : $"Hold short of {hs.Target.ToNatural()}"
-        );
+        return CommandDispatcher.Ok(unable ? UnableToHoldShortMessage(hs.Target) : $"Hold short of {hs.Target.ToNatural()}");
     }
 
     internal static CommandResult TryFollow(

@@ -660,7 +660,7 @@ public sealed class TaxiingPhase : Phase
         for (int i = current; i <= last; i++)
         {
             TaxiRouteSegment seg = route.Segments[i];
-            double fromFt = i == current ? AlongSegmentFt(seg, position) : 0.0;
+            double fromFt = i == current ? AlongFromSegmentStartFt(seg, position) : 0.0;
             double legFt = Math.Max(0.0, (seg.Edge.DistanceNm * GeoMath.FeetPerNm) - fromFt);
             if (leftFt <= legFt)
             {
@@ -672,6 +672,21 @@ public sealed class TaxiingPhase : Phase
 
         return route.Segments[last].Edge.ToNode.Position;
     }
+
+    /// <summary>
+    /// How far (ft) along the straight <paramref name="seg"/> the aircraft at <paramref name="position"/> stands, negative while it
+    /// is still short of the from-node: a route that starts at a node a few feet ahead of the aircraft (within
+    /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/>, so no approach leg is driven to it) leaves it there. A distance counted
+    /// from the from-node instead would place a stop that far beyond where the aircraft's own braking ends. A fillet arc is
+    /// measured as <see cref="AlongSegmentFt"/> measures it.
+    /// </summary>
+    private static double AlongFromSegmentStartFt(TaxiRouteSegment seg, LatLon position) =>
+        seg.Edge.Edge is GroundArc
+            ? AlongSegmentFt(seg, position)
+            : Math.Min(
+                GeoMath.AlongTrackDistanceNm(position, seg.Edge.FromNode.Position, new TrueHeading(seg.Edge.DepartureBearing)) * GeoMath.FeetPerNm,
+                seg.Edge.DistanceNm * GeoMath.FeetPerNm
+            );
 
     /// <summary>
     /// How far (ft) along <paramref name="seg"/>, measured from its from-node, <paramref name="position"/> stands.
@@ -1075,7 +1090,12 @@ public sealed class TaxiingPhase : Phase
     /// sub-ticked curve onto the moved stop (<see cref="GroundNavigator.CurveKts"/>, the curve
     /// <see cref="MovedStopDistanceFt"/> placed it by) at the rate the plan chose (<see cref="ApplyStopBrakeRate"/>). The
     /// navigator plans the same curve, but publishes no speed on the sub-tick it arrives at a node, so a moved stop past a
-    /// junction would lose a braking sub-tick there that the firm rate cannot win back. Null when there is no such bar.
+    /// junction would lose a braking sub-tick there that the firm rate cannot win back. A rolling aircraft (above
+    /// <see cref="StoppedGroundSpeedKts"/>) stopping for a hold it cannot make never speeds up, so the cap is also held to its
+    /// present ground speed: a clearance that raised its taxi speed cap (a fresh TAXI ends a commanded SPD) would otherwise
+    /// let it accelerate onto the curve on the first sub-ticks and roll past the stop the firm rate was placed for. An
+    /// aircraft at rest short of the moved stop (a HOLD released) is capped by the curve alone, so it can creep onto it.
+    /// Null when there is no such bar.
     /// </summary>
     private double? UnableStopCapKts(PhaseContext ctx, TaxiRoute route)
     {
@@ -1086,7 +1106,9 @@ public sealed class TaxiingPhase : Phase
 
         double toStopNm = Math.Max(0.0, AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar)) / GeoMath.FeetPerNm;
         double decelRate = _nav.DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
-        return GroundNavigator.CurveKts(0.0, toStopNm, decelRate, ctx.DeltaSeconds);
+        double curveKts = GroundNavigator.CurveKts(0.0, toStopNm, decelRate, ctx.DeltaSeconds);
+        double groundSpeedKts = ctx.Aircraft.GroundSpeed;
+        return groundSpeedKts > StoppedGroundSpeedKts ? Math.Min(groundSpeedKts, curveKts) : curveKts;
     }
 
     /// <summary>
@@ -1975,10 +1997,10 @@ public sealed class TaxiingPhase : Phase
             ctx.MarkHoldShortNodeOccupied?.Invoke(_nav.TargetNodeId);
 
             // Residual cleanup: the navigator's pre-arrival BRAKE-CLAMP reduces gs to a
-            // sub-kt residual (~0.5–1 kt) by enforcing the kinematic curve every sub-tick,
-            // but can't reach exactly zero because the curve is asymptotically steep near
-            // d=0 and the aircraft advances by gs·dt each physics sub-tick. This snap
-            // cleans up that residual — cosmetically invisible at sub-kt.
+            // residual of up to StartNodeHoldArmSpeedKts (3 kt; a B738 measured 2.85 kt) by
+            // enforcing the kinematic curve every sub-tick, but can't reach exactly zero
+            // because the curve is asymptotically steep near d=0 and the aircraft advances
+            // by gs·dt each physics sub-tick. This snap cleans up that residual.
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
@@ -2043,15 +2065,28 @@ public sealed class TaxiingPhase : Phase
     /// (<see cref="AtParkingPhase"/> for a gate the route actually reaches — see
     /// <see cref="EndsAtParkingStand"/> — otherwise <see cref="HoldingInPositionPhase"/>, since a spot is an
     /// intermediate waypoint where the aircraft awaits further instructions, not a parked gate).
-    /// Shared by normal last-segment arrival and the nose-at-spot terminal stop.
+    /// Shared by normal last-segment arrival and the nose-at-spot terminal stop. A route that ends in a route-incomplete hold
+    /// (<see cref="HoldShortReason.RouteIncomplete"/>, the no-destination terminus) holds short of its taxiway there instead,
+    /// as the aircraft does when it is already inside that hold's setback as the route is built.
     /// </summary>
     private static bool CompleteRoute(PhaseContext ctx, TaxiRoute route)
     {
         Log.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
 
+        PhaseList? phases = ctx.Aircraft.Phases;
+        if (
+            (phases is not null)
+            && (phases.Phases.Count <= phases.CurrentIndex + 1)
+            && (route.Segments.Count > 0)
+            && (route.GetHoldShortAt(route.Segments[^1].ToNodeId) is { IsCleared: false, Reason: HoldShortReason.RouteIncomplete } endHold)
+        )
+        {
+            phases.InsertAfterCurrent([new HoldingShortPhase(endHold), new HoldingInPositionPhase()]);
+            return true;
+        }
+
         ApplyDepartureClearanceIfPending(ctx);
 
-        PhaseList? phases = ctx.Aircraft.Phases;
         if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
         {
             if (EndsAtParkingStand(ctx, route))

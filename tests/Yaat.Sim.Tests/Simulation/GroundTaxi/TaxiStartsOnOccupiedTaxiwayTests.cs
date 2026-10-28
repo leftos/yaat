@@ -103,7 +103,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, type);
         Assert.Equal(category, AircraftCategorization.Categorize(type));
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
         output.WriteLine($"{type}: occupied C edge {tangentCut.Id}-{farEnd.Id}; {command}: {result.Success} — {result.Message}");
         Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
@@ -161,7 +161,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <summary>
     /// The same rolling C172 re-routed so near the C node ahead that braking to pivot speed at the firm rate leaves
     /// no room to turn about before that node (the stopping distance at <see cref="CategoryPerformance.ExpediteExitDecelRate"/>
-    /// plus the turn-about radius reaches past it). It cannot reach its pivot speed by that node, so it rolls on past it onto C
+    /// reaches past it). It cannot reach its pivot speed by that node, so it rolls on past it onto C
     /// beyond (the navigator's roll-past line, never its roll-on-to-the-node line) and turns about there on its own tight radius,
     /// never short of the node: never faster than the pivot speed on the arc, never wider than C's TDG 1A half-width.
     /// </summary>
@@ -171,7 +171,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <summary>
     /// A C172 started near C's far end facing H, cleared along C ahead to the first taxiway off it past H and ticked to taxi
     /// speed, then re-routed to the taxiway off C behind it: mid-edge, or, when <paramref name="reRouteNearTheNode"/>, once
-    /// the C node ahead is closer than the firm-rate stopping distance plus the turn-about radius. Ticked through the brake,
+    /// the C node ahead is closer than the firm-rate stopping distance. Ticked through the brake,
     /// the turn about and the leg back to the far node.
     /// </summary>
     private void RollingTurnAboutOnC(bool reRouteNearTheNode)
@@ -189,14 +189,14 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         AircraftState aircraft = MakeAircraft(ground.Layout, start, GeoMath.BearingTo(farEnd.Position, tangentCut.Position), "OAK", "C");
         aircraft.AircraftType = Type;
         ground.Engine.World.AddAircraft(aircraft);
-        SendAndLog(ground, aircraft, $"TAXI C {FirstTaxiwayOffCBeyond(tangentCut, farEnd)}");
+        SendAndLog(ground, aircraft, $"TAXI C {RunwayClearanceOffCBeyond(tangentCut, farEnd)}");
 
         double radiusFt = TurnAboutFit.Evaluate(Type, Category).RadiusFt;
         double firmRate = CategoryPerformance.ExpediteExitDecelRate(Category);
         double ToNodeAheadFt() => GeoMath.DistanceNm(aircraft.Position, tangentCut.Position) * GeoMath.FeetPerNm;
         bool ReadyToReRoute() =>
             reRouteNearTheNode
-                ? ((aircraft.GroundSpeed >= NearTheNodeMinKts) && (ToNodeAheadFt() < (StoppingDistanceFt(aircraft.GroundSpeed, firmRate) + radiusFt)))
+                ? ((aircraft.GroundSpeed >= NearTheNodeMinKts) && (ToNodeAheadFt() < StoppingDistanceFt(aircraft.GroundSpeed, firmRate)))
                 : aircraft.GroundSpeed >= MinTaxiSpeedKts;
         int rollingAt = SfoGroundHarness.TickUntil(ground.Engine, ReadyToReRoute, RollUpTickSeconds, null);
         Assert.True(rollingAt > 0, $"the aircraft was not ready to re-route within {RollUpTickSeconds}s ({aircraft.GroundSpeed:F1} kt)");
@@ -212,9 +212,10 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         DebugLogCapture? brakePlan = reRouteNearTheNode
             ? DebugLogCapture.Install(TaxiwayTurnAboutAimTests.RollOnToTheNodeLine, TaxiwayTurnAboutAimTests.RollPastTheNodeLine)
             : null;
-        SendAndLog(ground, aircraft, $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}");
+        SendAndLog(ground, aircraft, $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}");
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         SfoGroundHarness.DumpRoute(output, route);
+        Assert.Equal(farEnd.Id, route.Segments[0].ToNodeId);
 
         double? arcStartKts = null;
         double? arcStartToNodeFt = null;
@@ -334,7 +335,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     {
         const string Type = "C172";
         double radiusFt = TurnAboutFit.Evaluate(Type, AircraftCategory.Piston).RadiusFt;
-        if (RollIntoTurnAboutOnC(Type, radiusFt / 2.0, WithinTheRadiusTaxiSpeedKts, isScenarioScripted: false) is not { } run)
+        if (RollIntoTurnAboutOnC(Type, radiusFt / 2.0, WithinTheRadiusTaxiSpeedKts, isScenarioScripted: false, noDestination: false) is not { } run)
         {
             return;
         }
@@ -355,7 +356,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     public void RollingTurnAboutOnC_LessThanItsFirmStopToTheNodeAhead_NeverSlidesBackToIt()
     {
         double firmStopFt = StoppingDistanceFt(OverrunTaxiSpeedKts, CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston));
-        if (RollIntoTurnAboutOnC("C172", firmStopFt - OverrunFt, OverrunTaxiSpeedKts, isScenarioScripted: false) is not { } run)
+        if (RollIntoTurnAboutOnC("C172", firmStopFt - OverrunFt, OverrunTaxiSpeedKts, isScenarioScripted: false, noDestination: false) is not { } run)
         {
             return;
         }
@@ -384,7 +385,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         double taxiRate = CategoryPerformance.TaxiDecelRate(Category);
         double firmStopFt = StoppingDistanceFt(JetTaxiSpeedKts, CategoryPerformance.ExpediteExitDecelRate(Category));
         double shortOfNodeFt = radiusFt + ((StoppingDistanceFt(JetTaxiSpeedKts, taxiRate) + firmStopFt) / 2.0);
-        if (RollIntoTurnAboutOnC(Type, shortOfNodeFt, JetTaxiSpeedKts, isScenarioScripted: true) is not { } run)
+        if (RollIntoTurnAboutOnC(Type, shortOfNodeFt, JetTaxiSpeedKts, isScenarioScripted: true, noDestination: false) is not { } run)
         {
             return;
         }
@@ -392,6 +393,40 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         Assert.True(
             run.MaxDecelKtsPerSec <= (taxiRate + DecelToleranceKtsPerSec),
             $"the B738 slowed by {run.MaxDecelKtsPerSec:F2} kt in one second, faster than its {taxiRate:F1} kt/s taxi rate"
+        );
+    }
+
+    /// <summary>
+    /// The same rolling B738, turned about by a scenario preset's TAXI with no destination (<c>TAXI C J</c>): the route ends
+    /// held short of J, a route-incomplete hold. It still never brakes firmly for the routine turn about or for the hold:
+    /// until the second it takes the hold its speed never falls faster than its taxi rate, no firm rate is ever published to
+    /// it, and it takes the hold from no faster than one second of taxi-rate braking above the crawl a hold arms at
+    /// (<see cref="TaxiingPhase.StartNodeHoldArmSpeedKts"/>), plus one sub-tick of it.
+    /// </summary>
+    [Fact]
+    public void RollingTurnAboutOnC_Jet_NoDestination_NeverBrakesAboveItsTaxiRate()
+    {
+        const string Type = "B738";
+        const AircraftCategory Category = AircraftCategory.Jet;
+        double radiusFt = TurnAboutFit.Evaluate(Type, Category).RadiusFt;
+        double taxiRate = CategoryPerformance.TaxiDecelRate(Category);
+        double firmStopFt = StoppingDistanceFt(JetTaxiSpeedKts, CategoryPerformance.ExpediteExitDecelRate(Category));
+        double shortOfNodeFt = radiusFt + ((StoppingDistanceFt(JetTaxiSpeedKts, taxiRate) + firmStopFt) / 2.0);
+        if (RollIntoTurnAboutOnC(Type, shortOfNodeFt, JetTaxiSpeedKts, isScenarioScripted: true, noDestination: true) is not { } run)
+        {
+            return;
+        }
+
+        double holdArmBoundKts = taxiRate + TaxiingPhase.StartNodeHoldArmSpeedKts + (taxiRate / SimulationEngine.PhysicsSubTickRate);
+        Assert.True(run.SpeedBeforeHoldKts is not null, "the B738 never took the hold of J at the end of its route");
+        Assert.True(
+            run.MaxDecelKtsPerSec <= (taxiRate + DecelToleranceKtsPerSec),
+            $"the B738 slowed by {run.MaxDecelKtsPerSec:F2} kt in one second, faster than its {taxiRate:F1} kt/s taxi rate"
+        );
+        Assert.False(run.FirmRatePublished, $"a brake rate above the B738's {taxiRate:F1} kt/s taxi rate was published to it");
+        Assert.True(
+            run.SpeedBeforeHoldKts <= holdArmBoundKts,
+            $"the B738 took the hold of J from {run.SpeedBeforeHoldKts:F2} kt, above the {holdArmBoundKts:F2} kt bound"
         );
     }
 
@@ -416,17 +451,27 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     /// <summary>What a rolling turn about on C did (<see cref="RollIntoTurnAboutOnC"/>).</summary>
     /// <param name="PivotKts">The type's pivot speed (kts).</param>
     /// <param name="MaxTurnKts">The fastest (kts) it went once its heading turned off the rolling bearing, until it faced the far node.</param>
-    /// <param name="MaxDecelKtsPerSec">The most (kts) its speed fell in any one second.</param>
+    /// <param name="MaxDecelKtsPerSec">The most (kts) its speed fell in any one second, leaving out the seconds held short.</param>
     /// <param name="MaxSlideBackFt">The furthest (ft) its progress along the rolling bearing ran back while it faced within 90° of it.</param>
-    private sealed record RollingTurnAboutRun(double PivotKts, double MaxTurnKts, double MaxDecelKtsPerSec, double MaxSlideBackFt);
+    /// <param name="SpeedBeforeHoldKts">Its speed (kts) the second before it took a hold, or null when it took none.</param>
+    /// <param name="FirmRatePublished">Whether a brake rate above its taxi rate was ever published to it.</param>
+    private sealed record RollingTurnAboutRun(
+        double PivotKts,
+        double MaxTurnKts,
+        double MaxDecelKtsPerSec,
+        double MaxSlideBackFt,
+        double? SpeedBeforeHoldKts,
+        bool FirmRatePublished
+    );
 
     /// <summary>
     /// A <paramref name="type"/> placed <paramref name="shortOfNodeFt"/> short of the C node ahead (the tangent cut), facing
     /// it and rolling at <paramref name="speedKts"/>, cleared to the taxiway off C behind it by the controller, or by a
     /// scenario preset when <paramref name="isScenarioScripted"/>, and ticked second by second through its turn about and
-    /// the leg back to the far node; null when the layout is unavailable.
+    /// the leg back to the far node; null when the layout is unavailable. With <paramref name="noDestination"/> the clearance
+    /// names only that taxiway (<c>TAXI C J</c>), else the runway along it as well (<see cref="RunwayClearanceOffCBeyond"/>).
     /// </summary>
-    private RollingTurnAboutRun? RollIntoTurnAboutOnC(string type, double shortOfNodeFt, double speedKts, bool isScenarioScripted)
+    private RollingTurnAboutRun? RollIntoTurnAboutOnC(string type, double shortOfNodeFt, double speedKts, bool isScenarioScripted, bool noDestination)
     {
         if (BuildGround("OAK") is not { } ground)
         {
@@ -442,7 +487,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         aircraft.IndicatedAirspeed = speedKts;
         ground.Engine.World.AddAircraft(aircraft);
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string clearance = noDestination ? FirstTaxiwayOffCBeyond(farEnd, tangentCut).Taxiway : RunwayClearanceOffCBeyond(farEnd, tangentCut);
+        string command = $"TAXI C {clearance}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult result = CommandDispatcher.Dispatch(
@@ -466,10 +512,23 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         double maxTurnKts = 0.0;
         double maxDecelKts = 0.0;
         double maxSlideBackFt = 0.0;
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(type));
+        double? speedBeforeHoldKts = null;
+        bool firmPublished = false;
         void Track()
         {
             double kts = aircraft.GroundSpeed;
-            maxDecelKts = Math.Max(maxDecelKts, previousKts - kts);
+            firmPublished |= (aircraft.Targets.DesiredDecelRate is { } rate) && (rate > taxiRate);
+            // The second that takes a hold drops the speed to zero in one go; the braking measured is the one before it.
+            if (aircraft.Phases?.CurrentPhase is HoldingShortPhase)
+            {
+                speedBeforeHoldKts ??= previousKts;
+            }
+            else
+            {
+                maxDecelKts = Math.Max(maxDecelKts, previousKts - kts);
+            }
+
             previousKts = kts;
             double offDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, rollingBearingDeg);
             turning |= offDeg > TurnStartDeg;
@@ -487,7 +546,14 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         }
 
         int legDoneAt = SfoGroundHarness.TickUntil(ground.Engine, () => route.CurrentSegmentIndex > 0, TurnAboutLegTickSeconds, _ => Track());
-        var run = new RollingTurnAboutRun(PivotSpeedKts(type, AircraftCategorization.Categorize(type)), maxTurnKts, maxDecelKts, maxSlideBackFt);
+        var run = new RollingTurnAboutRun(
+            PivotSpeedKts(type, AircraftCategorization.Categorize(type)),
+            maxTurnKts,
+            maxDecelKts,
+            maxSlideBackFt,
+            speedBeforeHoldKts,
+            firmPublished
+        );
         output.WriteLine($"{run}; leg done after {legDoneAt}s");
         Assert.True(legDoneAt > 0, $"the aircraft did not finish the leg back to node {farEnd.Id} within {TurnAboutLegTickSeconds}s");
         return run;
@@ -2105,7 +2171,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
@@ -2137,7 +2203,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         double offFarDeg = GeoMath.AbsBearingDifference(angled.Degrees, GeoMath.BearingTo(aircraft.Position, farEnd.Position));
         Assert.InRange(offFarDeg, GroundNavigator.ReversalEntryThresholdDeg + 10.0, 180.0);
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
@@ -2167,7 +2233,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
         TrueHeading angled = AngleAcrossC(aircraft, AcrossEdgeDeg);
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         DispatchContext scripted = ground.Engine.BuildDispatchContext(aircraft, isScenarioScripted: true, facilityHint: null);
@@ -2203,7 +2269,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, type);
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
@@ -2245,7 +2311,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         double offFarDeg = GeoMath.AbsBearingDifference(angled.Degrees, GeoMath.BearingTo(aircraft.Position, farEnd.Position));
         Assert.InRange(offFarDeg, 90.0, GroundNavigator.ReversalEntryThresholdDeg - 10.0);
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
@@ -2291,7 +2357,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
         Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
@@ -2323,7 +2389,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "C172");
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
         Assert.True(result.Success, $"'{command}' was refused: {result.Message}");
         Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.Ground.TaxiTurnAboutShape);
@@ -2390,7 +2456,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         ground.Engine.World.AddAircraft(aircraft);
         double offNoseDeg = GeoMath.AbsBearingDifference(alongDeg, GeoMath.BearingTo(position, tangentCut.Position));
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(parsed.Value), ground.Layout);
@@ -2421,7 +2487,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (GroundNode tangentCut, GroundNode farEnd) = KoakTaxiwayC.LongEdgeWestOfH(ground.Layout);
         AircraftState aircraft = SpawnMidCFacingH(ground, tangentCut, farEnd, "B738");
 
-        string command = $"TAXI C {FirstTaxiwayOffCBeyond(farEnd, tangentCut)}";
+        string command = $"TAXI C {RunwayClearanceOffCBeyond(farEnd, tangentCut)}";
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
         Assert.True(parsed.IsSuccess, parsed.Reason);
         DispatchContext scripted = ground.Engine.BuildDispatchContext(aircraft, isScenarioScripted: true, facilityHint: null);
@@ -3586,10 +3652,51 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Walks C on from <paramref name="start"/>, away from <paramref name="cameFrom"/>, to the first node with an edge on
-    /// another taxiway (no ramp connector, no runway centreline), and returns that taxiway's name.
+    /// The clearance after <c>TAXI C</c> that sends the aircraft along C past <paramref name="start"/>, away from
+    /// <paramref name="cameFrom"/>: the first taxiway off C there, to the runway of the hold-short bar nearest along it
+    /// (<c>J RWY 28R</c>). The destination keeps the route going past the junction, so its leg along C is the one a bare
+    /// <c>TAXI C J</c> drove before a route with no destination ended holding short of its last taxiway.
     /// </summary>
-    private static string FirstTaxiwayOffCBeyond(GroundNode start, GroundNode cameFrom)
+    private static string RunwayClearanceOffCBeyond(GroundNode start, GroundNode cameFrom)
+    {
+        (string taxiway, GroundNode junction) = FirstTaxiwayOffCBeyond(start, cameFrom);
+        return $"{taxiway} RWY {NearestRunwayAlong(junction, taxiway)}";
+    }
+
+    /// <summary>
+    /// The runway end (its first designator) of the hold-short bar fewest nodes from <paramref name="junction"/> along
+    /// <paramref name="taxiway"/>.
+    /// </summary>
+    private static string NearestRunwayAlong(GroundNode junction, string taxiway)
+    {
+        var seen = new HashSet<int> { junction.Id };
+        var queue = new Queue<GroundNode>([junction]);
+        while (queue.TryDequeue(out GroundNode? node))
+        {
+            if ((node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } runway))
+            {
+                return runway.End1;
+            }
+
+            foreach (IGroundEdge edge in node.Edges.Where(e => !e.IsRunwayCenterline && e.MatchesTaxiway(taxiway)))
+            {
+                GroundNode next = edge.OtherNode(node);
+                if (seen.Add(next.Id))
+                {
+                    queue.Enqueue(next);
+                }
+            }
+        }
+
+        Assert.Fail($"no runway hold-short bar along {taxiway} from node {junction.Id}");
+        return "";
+    }
+
+    /// <summary>
+    /// Walks C on from <paramref name="start"/>, away from <paramref name="cameFrom"/>, to the first node with an edge on
+    /// another taxiway (no ramp connector, no runway centreline), and returns that taxiway's name and the node.
+    /// </summary>
+    private static (string Taxiway, GroundNode Junction) FirstTaxiwayOffCBeyond(GroundNode start, GroundNode cameFrom)
     {
         GroundNode previous = cameFrom;
         GroundNode current = start;
@@ -3597,7 +3704,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         {
             if (OtherTaxiwayAt(current, "C") is { } name)
             {
-                return name;
+                return (name, current);
             }
 
             GroundNode next = NextAlong(current, "C", GeoMath.BearingTo(previous.Position, current.Position));
@@ -3607,7 +3714,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         }
 
         Assert.Fail($"no taxiway off C within {MaxWalkNodes} nodes of node {start.Id}");
-        return "";
+        return ("", start);
     }
 
     private static string? OtherTaxiwayAt(GroundNode node, string taxiway)

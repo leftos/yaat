@@ -227,7 +227,7 @@ The least distance from a taxiway hold-short holder's nose to the centreline of 
 _Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)
 
 **Route-incomplete hold**:
-Where a TAXI whose taxiways do not reach its destination ends: the aircraft taxis the route as issued and holds short of the one taxiway the route still needs, and the controller is told which (`HoldShortReason.RouteIncomplete`, docs/ground/pathfinder.md). Only a new TAXI that includes that taxiway moves it on.
+Where a TAXI whose taxiways do not reach its destination ends: the aircraft taxis the route as issued and holds short of the one taxiway the route still needs, and the controller is told which (`HoldShortReason.RouteIncomplete`, docs/ground/pathfinder.md). Only a new TAXI that includes that taxiway moves it on. A TAXI with no destination that meets its last taxiway ends the same way, held short of that taxiway rather than in the intersection (`HoldShortPoint.EndsNoDestinationRoute`, docs/ground/hold-short-placement.md); `RES` and `CROSS` do not release it.
 _Avoid_: explicit hold-short (that is the controller's `HS`; this one is the resolver's), partial route
 
 **Implied lead-in**:
@@ -410,10 +410,6 @@ The straight taxi edges a ground aircraft has driven, oldest first, kept to abou
 
 **Lead's path**:
 What a `FOLLOWG` follower joins: its lead's taxi edge trail with the gaps filled, the edge the lead is on, and the lead's remaining route: its assigned route, or, for a lead that is itself a follower, its driven route while its follow is current, never its stale assigned route (`FollowRoutePlanner`, docs/ground/navigator.md).
-
-**Merge hold**:
-Where `HS C` holds an aircraft arriving on a taxiway that runs into C at a few degrees (OAK D into C) when an earlier intersection caps the wingtip-floor walk-back: short of that whole intersection, nose at its near edge, instead of on C's edge with a warning. The readback and hold report say where ("will hold on D before G"; `HoldShortPoint.MergeHold`, `HoldShortAnnotator.PlaceMergeHold`, docs/ground/hold-short-placement.md).
-_Avoid_: merge node (a `FOLLOWG` follower's join point, below)
 
 **Merge node**:
 The node of the lead's path a `FOLLOWG` follower's goal-set search reaches first, where it joins the lead's path (`FollowRoutePlan.Joinable`, docs/ground/navigator.md); also called the merge point. A follower standing behind the lead on the edge the lead is on joins at that edge's start in the lead's direction, behind the follower, with no route to it.

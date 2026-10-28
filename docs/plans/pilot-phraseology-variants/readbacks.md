@@ -10,7 +10,9 @@ How to mark it up: strike a variant (`~~text~~`), add a row under its canonical 
 - **Canonical** is today's spoken body, quoted from the code (path:line under `src/Yaat.Sim/`). Each family's first table lists them as C1, C2, …; the variant table refers to them.
 - **Every variant ends ", {cs}"** unless the row shows `{cs}` somewhere else.
 
-  A row never opens with `{cs}` (pilots never say their callsign first, that is the controller's); it places `{cs}` mid-row only in a single unconditioned readback, at most once, with only a courtesy after it, and a multi-clause readback closes with the callsign once. The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
+  A row never opens with `{cs}` (pilots never say their callsign first, that is the controller's); it places `{cs}` mid-row only in a single unconditioned readback, at most once, with only a courtesy after it, and a multi-clause readback closes with the callsign once.
+
+  The callsign form (N-number shortening) is part E and the frequency form is part F; this file covers body wording and, for busy altitudes only, the altitude's number form. Numbers are shown in the FAA digit form (altitudes AIM 4-2-9.a, headings AIM 4-2-10, speeds AIM 4-2-11) except the busy group-form altitude and speed rows (see "Floor as the owner's rulings change it" below).
 - **Owner ruling 1, 2, 3** in a Basis cell name the owner's YAAT-1082 rulings listed in the next section.
 - **Bands**: Q quiet, N normal, B busy. The pilot's trait shifts the band first; then a seeded pick chooses one row of that band per transmission. N always holds the canonical, marked `= C`.
 - **Ruling**: `OK` (obeys the floor), `No: F4` (breaks that floor rule, kept to show the boundary), `No: J` (breaks no F-rule, rejected on judgement, reason in Basis).
@@ -425,7 +427,7 @@ LAHSO note: today's C5 says "hold short runway three three" (PilotResponder.cs:9
 | C9 | push back, face east / push onto alpha, face east | Pilot/PushReadbackPhrases.cs:41-76 |
 | C10 | follow the traffic / behind the traffic / follow the traffic, hold short of runway one right | PilotResponder.cs:470-512 |
 | C11 | taxi without delay; "…, without delay" inside a taxi | PilotResponder.cs:821; PhraseologyVerbalizer.cs:509 |
-| C12 | hold short of charlie, will hold on delta before golf / unable to hold short of tango, stopping / unable mike four, taxi via … | PhraseologyVerbalizer `RenderMergeHoldShort`, `RenderUnableHoldShort`; `BuildReadbackAsApplied` |
+| C12 | unable to hold short of tango, stopping / unable mike four, taxi via … | PhraseologyVerbalizer `RenderUnableHoldShort`; `BuildReadbackAsApplied` |
 
 | Ref | Band | Variant | Ruling | Basis |
 |---|---|---|---|---|

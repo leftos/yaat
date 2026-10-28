@@ -67,13 +67,7 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
         }
 
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
-        int restAt = SfoGroundHarness.TickUntil(
-            ground.Engine,
-            () =>
-                (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true }) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
-            CrossBudgetSeconds,
-            null
-        );
+        int restAt = SfoGroundHarness.TickUntil(ground.Engine, () => IsAtRestWithNoRouteLeft(leader), CrossBudgetSeconds, null);
         Assert.True(restAt >= 0, $"{Leader} never came to rest with no route left: {leader.Phases?.CurrentPhase?.Name}");
         AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
         AssertSent(ground, Leader, "TAXI F 28L");
@@ -240,26 +234,31 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Stops the leader with no route left: <paramref name="taxi"/> names no destination, so it ends where its last two taxiways
-    /// meet (<see cref="ToFJunction"/>), and the leader is ticked to rest there. A follower then has
+    /// Stops the leader with no route left: <paramref name="taxi"/> names no destination, so it ends held short of its last
+    /// taxiway (<see cref="ToFJunction"/>), and the leader is ticked to rest there — with no route left, or stopped in the
+    /// route-incomplete hold its route ends in, the route still active. A follower then has
     /// only the leader's trail and the edge it stands on to join — a path guessed from where it stands — so it gives way at the
     /// merge past the bar rather than waiting short of the runway.
     /// </summary>
     private protected void StandLeaderWithNoRoute(SfoGround ground, AircraftState leader, string taxi)
     {
         AssertSent(ground, Leader, taxi);
-        int restAt = SfoGroundHarness.TickUntil(
-            ground.Engine,
-            () =>
-                (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true }) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
-            CrossBudgetSeconds,
-            null
-        );
+        int restAt = SfoGroundHarness.TickUntil(ground.Engine, () => IsAtRestWithNoRouteLeft(leader), CrossBudgetSeconds, null);
         Output.WriteLine($"{Leader} at rest with no route at +{restAt}s: {leader.Phases?.CurrentPhase?.Name} taxiway={leader.Ground.CurrentTaxiway}");
         Assert.True(restAt > 0, $"{Leader} never came to rest with no route left within {CrossBudgetSeconds}s of '{taxi}'");
     }
 
-    /// <summary>The leader's taxi along L and LF that ends where LF meets F, at the merge of its path with the follower's.</summary>
+    /// <summary>
+    /// Whether <paramref name="leader"/> is stopped with no route left to drive: none at all, a completed one, or one that ends in
+    /// the route-incomplete hold it is holding at (a clearance with no destination, its route still active).
+    /// </summary>
+    private protected static bool IsAtRestWithNoRouteLeft(AircraftState leader) =>
+        (
+            (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true })
+            || (leader.Phases?.CurrentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.RouteIncomplete })
+        ) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts);
+
+    /// <summary>The leader's taxi along L and LF that ends held short of F, short of the merge of its path with the follower's.</summary>
     private protected const string ToFJunction = "TAXI L LF F";
 
     private protected static readonly LatLon Origin = new(37.62, -122.38);
@@ -426,12 +425,13 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
     /// <summary>
     /// Clears <paramref name="leader"/> on the first re-route it accepts whose re-planned follow joins its path at a node behind
     /// <paramref name="follower"/> (more than 90° off its heading), where the follower has already been, or that the follower
-    /// could reach only head-on down the leader's path (<see cref="FollowRoutePlan.FollowerAhead"/>): <c>TAXI F L A</c>, which
-    /// brings the leader up F1 toward the follower, re-plans so.
+    /// could reach only head-on down the leader's path (<see cref="FollowRoutePlan.FollowerAhead"/>). The leader holds short of F
+    /// on LF facing east, so its re-route carries on the way it faces: <c>TAXI F N</c> joins F at the LF merge, behind a
+    /// follower already on F.
     /// </summary>
     private protected void RerouteBehindTheFollower(SfoGround ground, AircraftState leader, AircraftState follower)
     {
-        string[] taxis = ["TAXI F A", "TAXI L A", "TAXI F B", "TAXI F B A", "TAXI F Z", "TAXI F L A", "TAXI F C", "TAXI F A 28R"];
+        string[] taxis = ["TAXI F N"];
         foreach (string taxi in taxis)
         {
             CommandResult result = ground.Engine.SendCommand(Leader, taxi);
@@ -447,11 +447,6 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
                 $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()} "
                     + $"replan={plan.GetType().Name} mergeBehind={behind}"
             );
-            if (taxi == "TAXI F L A")
-            {
-                Assert.IsType<FollowRoutePlan.FollowerAhead>(plan);
-            }
-
             if (result.Success && (behind || (plan is FollowRoutePlan.FollowerAhead)))
             {
                 return;
@@ -684,11 +679,13 @@ public abstract class FollowGroundAtRunwayBarTestBase(ITestOutputHelper output)
     /// <summary>
     /// Clears <paramref name="leader"/> on the first re-route along F1 it accepts that leaves <paramref name="follower"/> nothing to
     /// join: a re-plan of the follow finds it ahead of the leader on its new route, no taxi path to it, or only a route whose
-    /// first edge leaves back across the follower's heading, which the follow does not adopt after a lead re-route.
+    /// first edge leaves back across the follower's heading, which the follow does not adopt after a lead re-route. The leader
+    /// holds short of F on LF facing east, and F1 lies behind it, so it reaches F1 the way it faces: east on F, round by P and
+    /// C, south on L and west along F1 through the follower (<c>TAXI F P C L F1 A</c>).
     /// </summary>
     private protected void RerouteThroughTheFollower(SfoGround ground, AircraftState leader, AircraftState follower)
     {
-        string[] taxis = ["TAXI L F F1 A", "TAXI F F1 A", "TAXI A F1 F"];
+        string[] taxis = ["TAXI F P C L F1 A"];
         foreach (string taxi in taxis)
         {
             CommandResult result = ground.Engine.SendCommand(Leader, taxi);

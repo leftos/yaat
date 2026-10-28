@@ -3065,7 +3065,7 @@ public static class CommandDispatcher
             // crossing in front of the follow. The departure bar keeps HoldingShortPhase's own refusal (LUAW/CTO).
             case ResumeCommand armedResume
                 when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft)
-                    is { HoldShort.Reason: not HoldShortReason.DestinationRunway } armedHold:
+                    is { HoldShort: { Reason: not HoldShortReason.DestinationRunway, EndsNoDestinationRoute: false } } armedHold:
                 return GroundCommandHandler.TryResumeAcrossArmedHold(aircraft, groundLayout, armedResume, armedHold);
 
             // A helicopter air-taxiing or relocating is held with HPP (hover present position),
@@ -3075,7 +3075,10 @@ public static class CommandDispatcher
             // which reject with an on-the-ground message.
             case ResumeCommand hsResume
                 when currentPhase
-                    is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing } holdShort:
+                    is HoldingShortPhase
+                    {
+                        HoldShort: { Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing, EndsNoDestinationRoute: false },
+                    } holdShort:
             {
                 CommandResult applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
                     aircraft,

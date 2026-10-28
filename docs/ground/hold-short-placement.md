@@ -70,42 +70,49 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
 - **The floor.** The nose stays at least `max(L/2 + 30, floor)` from the crossed taxiway's centreline, measured perpendicular to its straight edges (fillet arcs excluded), never to the bar node.
 
   `floor` comes from the airport's widest runway as a whole-airport worst case (the layout has no taxiway width or design group): < 75 ft → 49.5, < 100 → 64.5, < 150 → 84, < 200 → 132 (150 ft maps to ADG V: OAK 30 carries MD-11s), ≥ 200 → 156 ft (half the ADG span ceiling + 25 ft; the 25 ft is a judgement call). Placement walks back along the route from where it meets the crossed centreline until the nose clears; the centre is L/2 further back.
-- **Caps.** The just-past-runway stop still wins (no floor, no new warning there). Otherwise the walk-back stops at the previous junction on the route (the last node that is a runway hold-short or has more than two edges off the target that are not ramp connectors), tail at that junction. A fillet arc onto a ramp (`D - RAMP`) is not a ramp connector, so it counts: a node with only such an arc beside the route is a junction.
+- **Caps.** The just-past-runway stop still wins (no floor, no new warning there). Otherwise no taxiway junction behind caps the walk-back: it goes back past any intersection and stops only (`WalkBackLimitCentreFt`) where the aircraft stands along the route (at most the bar's own node), or at a runway hold-short bar the route crossed, the tail staying `RunwayCrossingFarSideGate.MarginFt` (10 ft) clear of that bar (AIM 4-3-21.b).
 
-  It never moves forward of the old `length + 30` stop. When the clamp leaves the nose short of the floor, the route carries `holding short of TWY T — wingtip clearance from T not assured (N ft)`; a recompute replaces that warning rather than adding another.
+  Those two limits bound the length setback too, so a stop they put forward of `length + 30` is kept there. A stop the setback would put behind the aircraft is placed where the aircraft stands (`NoFurtherBackThanTheAircraft`; how far back the setback put it is carried from the placement, never found again by projecting the point onto the route, which a route that doubles back passes twice).
+
+  It never moves forward of the old `length + 30` stop, except as those two limits hold it. When the clamp leaves the nose short of the floor, the route carries `holding short of TWY T — wingtip clearance from T not assured (N ft)`; a recompute replaces that warning rather than adding another.
+- **Just past a runway.** A taxiway hold short within a fuselage length past a runway the route crosses takes the nose-at-line setback (half a length) and is clamped at the runway hold line, with the tail over the bars when the gap is shorter than the whole fuselage (`holding short of TWY T leaves the tail over RWY 28R — unable to clear the runway`).
+
+  The stop records its real setback, the gap to the runway hold line when that is shorter than half a length, so an aircraft standing between the bar less half a length and the hold line keeps the stop at the hold line instead of having it moved to where it stands, and a rolling aircraft is not answered unable.
 - **A target straight ahead.**
 
   When the target taxiway continues the one the aircraft is on (it leaves the bar node within 20° of the arriving heading, as T continues TE at OAK junction #136), nothing on it can pass abeam the nose, so the floor is measured against the junction's **other** branches instead.
 
   Those are the branches not within 20° of straight ahead or straight behind (U and TC at #136), each traced along its own edges for 500 ft from the node, never looked up by name (SFO node 133, where a second B forks off as B runs into Z, would otherwise measure the nose against its own line). The warning names them: `holding short of TWY T — wingtip clearance from TC/U not assured (92 ft)`.
 
-  A branch named for the target that leaves straight behind is dropped like any other straight-behind branch, so a junction left with no other branch (the taxiway only changes name, OAK C→A) gets the plain `length + 30` stop and no warning. A target-named edge behind that fans off the arriving line by less than 1° is the same line drawn under two names (FLL A/A1, MIA Q2/M2, IAH WA), not a merge, and takes this path too. 7110.65 §3-7-2a.2(b) makes `HS T` valid even though T is a later segment of the issued route ("stop where TE becomes T").
+  A branch named for the target that leaves straight behind is dropped like any other straight-behind branch, so a junction left with no other branch (the taxiway only changes name, OAK C→A) gets the plain `length + 30` stop and no warning.
+
+  A target-named edge behind that fans off the arriving line by less than 1° is the same line drawn under two names (FLL A/A1, MIA Q2/M2, IAH WA), not a merge, and takes this path too. 7110.65 §3-7-2a.2(b) makes `HS T` valid even though T is a later segment of the issued route ("stop where TE becomes T").
 - **A shallow merge.**
 
   A bar node is a shallow merge when the target continues straight ahead and another straight edge named for the target leaves within 20° of straight behind, off the arriving line by at least 1° (OAK D into C at 5.7°, W5 into W). An aircraft on the target's leg behind then passes alongside the holder's nose, so the floor is held against the **target's own centreline**, never the node's other branches. Other taxiways merging from behind are not considered.
 
-  When the walk-back is capped by an earlier intersection before the floor is met, the stop is the **merge hold**: the aircraft holds short of that whole intersection instead of stopping on the target's edge. The intersection is the first route node behind the bar that is a junction (the rule above) plus the run of route nodes back from it that touch a taxiway other than the arriving one, the target, `RAMP` or a runway: its centre and the fillet tangents either side. The run ends at the first node touching none, so a following ramp fillet pair never joins it.
+  No intersection behind caps the walk-back, and the aircraft holds short of the target itself: the stop is wherever the floor against the target's centreline is met, which can be hundreds of feet back where the arriving taxiway diverges at a few degrees.
 
-  The nose stops at the run's farthest-back node (the near edge), the centre half a length behind it, with no further setback and no floor held against the intersection's taxiway, which is not a hold-short target. The intersection is named by one taxiway: the first in ordinal order of the crossing taxiways whose straight edges touch any node of the intersection run, else the first of the fillet names. OAK `HS C` on D→C: G crosses D 141 ft back of the merge, the near edge (`tangent-cut@J362/D`) is 201 ft back, the nose stops there 61 ft from C's centreline.
-
-  The bar then carries `HoldShortPoint.MergeHold` (`OnTaxiway` D, `BeforeTaxiway` G), which the readback and the hold report read ([pilot-phraseology.md](../pilot-phraseology.md)), and the route carries `holding short of TWY C before TWY G (D merges into C)`, with ` — wingtip clearance from C not assured (61 ft)` appended when the nose is short of the floor. A recompute replaces whichever warning stood.
-
-  The merge hold is **never forward** of the capped stop: where the aircraft's length setback already stands behind the intersection (a long aircraft), the stop stays at `length + 30` with the wingtip warning and no merge hold. It is not placed behind the segment the aircraft is on either.
-
-  **Declined.** `GroundCommandHandler.DeclineUnreachableMergeHolds` runs after a TAXI, `HS`, `RES` or `CROSS` arms a bar. A merge hold whose near edge is already behind the aircraft, or inside its firm-braking stop (`TaxiingPhase.IsHoldShortUnmakeable`), is latched `HoldShortPoint.MergeHoldDeclined`: the stop keeps the capped position, the wingtip warning and the plain readback, on every recompute. It is not an Unable, since the aircraft can still hold short of the target. A new `HS` on the bar clears the latch; flagging the bar Unable drops the merge hold.
-
-  **No capping intersection.** When no intersection caps the walk-back, the stop is wherever the floor against the target's centreline is met, which can be hundreds of feet back where the arriving taxiway diverges at a few degrees. When that stop is behind the `length + 30` setback and meets the floor, the route says so, since nothing else would explain the early stop: `holding short of TWY W 203 ft back (W5 merges into W)`, the nose's distance back of the merge node. A stop short of the floor carries the wingtip warning instead; the readback stays plain.
+  When that stop is behind the `length + 30` setback and meets the floor, the route says so, since nothing else would explain the early stop: `holding short of TWY W 203 ft back (W5 merges into W)`, the nose's distance back of the merge node. A stop short of the floor carries the wingtip warning instead; the readback stays plain.
 - **The stop can sit several segments before the junction.** Where shape points are dense (OAK TE) the painted stop lands segments before the bar node's own segment: 153 ft back at #136, four segments before its 33 ft segment.
 
   Every runtime consumer measures the **along-route** distance to the painted stop (`TaxiRoute.HoldShortSetbackNm` and `StopLiesOnSegment` — the segment the stop lies closest to, so a stop just before a bend counts as set back — and `AlongRouteDistanceToHoldShortFt`), never the distance to the bar node: the navigator brakes for it and the taxi phase takes the hold there (see [navigator.md](./navigator.md)).
+
+  On a route that doubles back over its own stop, the stop is measured on the leg that drives into the bar: `HoldShortSetbackNm` walks back from the bar's segment only as far as the segment in progress, and reaches the segments behind it only when none ahead carries the stop.
+
+  The unmakeable judgement in `TaxiingPhase`, the navigator's braking-curve constraint and `StopLiesOnSegment` all share it, so an aircraft rolling on the leg back toward a stop it passed on the way out is not judged unable to hold short of it.
 
   Runway bars share this: their half-length setback (65 ft for a B738) is longer than the 7–31 ft last segment at many OAK and SFO bars.
 - **The setback walks free-space legs too.** `VirtualNode.OffsetBefore` steps back through the route's own segments (`FindApproachNode` takes each segment's from-node, virtual or not), so a bar at the end of a free-space approach leg is set back along the leg exactly as along a graph edge.
 
   For a **taxiway** bar, a leg shorter than the setback ends the walk at the leg's virtual start, where the aircraft stands: the stop goes there, never projected on behind the aircraft (`HoldShortAnnotatorTests`, SFO B short of T).
 
-  A **runway** bar (a crossing, a destination runway, a `RunwayHoldShort` node or a spot target) is never clamped there: its setback is projected on behind the aircraft by the real overrun. A stop placed on the aircraft reads as zero distance ahead, and which side of zero it falls on is rounding, so the taxi phase's lost-line check (`toStopFt < 0`) would read the line as made on one platform and lost on another (`HoldInsideStoppingDistanceOfBarTests.LineAlreadyLost_RunwayBar_ReRoutedStopStaysBehindTheAircraft`).
-- A stop that lands behind an aircraft already rolling (an `HS` armed mid-taxi) is unmakeable in the usual way (`TaxiingPhase.IsHoldShortUnmakeable`: the bar lies inside the firm-rate flown stop plus the set-back margin). A bar flagged unable while another phase flew the aircraft (a follow) is judged again when a fresh taxi phase is about to move its stop, and keeps its painted stop if the firm rate makes it. A stopped aircraft (2 kt or less) cannot overrun a bar, so it never reads one as unmakeable: it reads the hold short back and holds where it stands.
+  A **runway** bar (a crossing, a destination runway, a `RunwayHoldShort` node or a spot target) is never clamped there: its setback is projected on behind the aircraft by the real overrun.
+
+  A stop placed on the aircraft reads as zero distance ahead, and which side of zero it falls on is rounding, so the taxi phase's lost-line check (`toStopFt < 0`) would read the line as made on one platform and lost on another (`HoldInsideStoppingDistanceOfBarTests.LineAlreadyLost_RunwayBar_ReRoutedStopStaysBehindTheAircraft`).
+- A stop that lands behind an aircraft already rolling (an `HS` armed mid-taxi) is unmakeable in the usual way (`TaxiingPhase.IsHoldShortUnmakeable`: the bar lies inside the firm-rate flown stop plus the set-back margin).
+
+  A bar flagged unable while another phase flew the aircraft (a follow) is judged again when a fresh taxi phase is about to move its stop, and keeps its painted stop if the firm rate makes it. A stopped aircraft (2 kt or less) cannot overrun a bar, so it never reads one as unmakeable: it reads the hold short back and holds where it stands.
 
 ## Placement is not selection
 
@@ -130,7 +137,9 @@ While approaching, the navigator's speed is clamped to a braking curve that reac
 
 With the nose already at or past the marking of an uncleared **runway** bar on the start node (a TAXI starts the route on a bar's node only once the aircraft is close to it, so this is common), the line is lost. `TaxiingPhase.TryHoldPastStartBar` takes that hold instead: the aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, never stopped dead from taxi speed, and holds once it is down to one sub-tick of that braking, wherever that leaves it.
 
-The finding is latched on the bar's node (`TaxiingPhaseDto.PassedStartBarNodeId`), so the stop is not let go part-way as it carries the aircraft away from the node; how the nose is judged past the line is in [navigator.md](./navigator.md) § Stopping at an uncleared bar. `HoldInsideStoppingDistanceOfBarTests` pins an `HS` that re-arms the start bar, live and after a rewind. A re-route with no `HS` that leaves the aircraft partway across that runway keeps the crossing cleared and finishes it, so it never reaches this stop ([navigator.md](./navigator.md) § A re-route mid-crossing keeps the crossing).
+The finding is latched on the bar's node (`TaxiingPhaseDto.PassedStartBarNodeId`), so the stop is not let go part-way as it carries the aircraft away from the node; how the nose is judged past the line is in [navigator.md](./navigator.md) § Stopping at an uncleared bar.
+
+`HoldInsideStoppingDistanceOfBarTests` pins an `HS` that re-arms the start bar, live and after a rewind. A re-route with no `HS` that leaves the aircraft partway across that runway keeps the crossing cleared and finishes it, so it never reaches this stop ([navigator.md](./navigator.md) § A re-route mid-crossing keeps the crossing).
 
 ## Full-length vs intersection entry — `RunwayEntryPoint`
 
@@ -172,18 +181,21 @@ is actually covered.
 
 Without it the segment in progress keeps the junction node as its target and the bar binds only at `ArriveAtNode`, so SKW5416 (CRJ7, 28 kt) told `HS T` on SFO's B stopped 78 ft from T's centreline with its nose in the intersection (GC 28/01 bundle).
 
-**Feasibility.** `IsHoldShortUnmakeable` compares `AlongRouteDistanceToHoldShortFt` (the remainder of the current segment plus whole segments to the bar's node, less the bar's setback) with the stop the aircraft flies at the firm rate: `MovedStopDistanceFt` (v²/2a at `CategoryPerformance.ExpediteExitDecelRate`, plus v·dt/2 for the sub-ticked physics) plus `GroundNavigator.SetBackStopMarginFt` (2 ft), the margin the firm curve onto a painted stop reaches zero short of it. A bar judged makeable is one the firm rate does stop at. It applies only above `StoppedGroundSpeedKts` (2 kt): a stopped aircraft whose stop is already behind it holds where it stands.
+**Feasibility.** `IsHoldShortUnmakeable` compares `AlongRouteDistanceToHoldShortFt` (the remainder of the current segment plus whole segments to the bar's node, less the bar's setback) with the stop the aircraft flies at the firm rate: `MovedStopDistanceFt` (v²/2a at `CategoryPerformance.ExpediteExitDecelRate`, plus v·dt/2 for the sub-ticked physics) plus `GroundNavigator.SetBackStopMarginFt` (2 ft), the margin the firm curve onto a painted stop reaches zero short of it.
+
+A bar judged makeable is one the firm rate does stop at. It applies only above `StoppedGroundSpeedKts` (2 kt): a stopped aircraft whose stop is already behind it holds where it stands.
 
 No reaction time is added: a pilot's response time is the scenario's command-run delay, applied before the clearance reaches the aircraft, so a term here would count it twice. The in-progress leg is measured straight to its node (the navigator publishes no arc remainder), which reads short on a fillet — also conservative.
 
 **Unable.** The handler decides it once at dispatch (`MarkUnmakeableHoldShort` sets `HoldShortPoint.Unable`, the result is `Unable to hold short of T — stopping`, and the pilot answers "unable to hold short of tango, stopping" — P/CG UNABLE; the instruction refused is AIM 2-3-5.c's "the pilot MUST STOP so that no part of the aircraft extends beyond the holding position marking").
 
-The phase then `MoveBarToBrakingDistance`, exactly once per bar, latched as `HoldShortPoint.StopMoved` (on the bar, not the phase, so a fresh taxi phase over the same route, a follow resuming its assigned route, or a restore plus a second `HS` cannot ratchet the stop forward): the bar's Lat/Lon move along the route (`PointAheadAlongRoute`: each leg by its own length, an arc walked as an arc, not along the heading or the node chord) by `MovedStopDistanceFt`, clamped at the node the bar protects. The stop is never moved backward: a painted stop at or past the flown stop is kept.
+The phase then `MoveBarToBrakingDistance`, exactly once per bar, latched as `HoldShortPoint.StopMoved` (on the bar, not the phase, so a fresh taxi phase over the same route, a follow resuming its assigned route, or a restore plus a second `HS` cannot ratchet the stop forward): the bar's Lat/Lon move along the route (`PointAheadAlongRoute`: each leg by its own length, an arc walked as an arc, not along the heading or the node chord) by `MovedStopDistanceFt`, clamped at the node the bar protects.
+
+The stop is never moved backward: a painted stop at or past the flown stop is kept.
 
 The taxi then brakes onto the stop at the firm rate on the sub-ticked curve (`GroundNavigator.PlansStopsOnSubTicks`, `CurveKts`), and `UnableStopCapKts` caps the published speed at that curve. `ApplyStopBrakeRate` takes the firm rate on the tick the stop moves and keeps it until the taxi rate makes the stop outright, going back to it only when the taxi rate misses by more than `TaxiCurveSlackFt`, so an aircraft slowed by a HOLD or `RES` rides the taxi curve.
 
-The clamp makes the modelled overrun a lower bound: an aircraft that cannot make a runway bar does not stop at the junction either (AIM 2-3-5.a.1 makes the marking the runway safety area boundary). `Unable` and `StopMoved` round-trip as `HoldShortPointDto.Unable` and `HoldShortPointDto.StopMoved` (false on legacy snapshots) and `HoldShortAnnotator.ComputeHoldShortPositions` skips an unable bar, so a restore keeps the moved stop instead of putting the bar back on the painted line. A bar flagged Unable carries no merge hold (its moved stop is no longer before the capping intersection), so its report never says "on D before G". A shallow-merge hold round-trips as `HoldShortPointDto.MergeHoldOnTaxiway` / `MergeHoldBeforeTaxiway`, and a declined one as `MergeHoldDeclined` (each omitted when null).
-
+The clamp makes the modelled overrun a lower bound: an aircraft that cannot make a runway bar does not stop at the junction either (AIM 2-3-5.a.1 makes the marking the runway safety area boundary). `Unable` and `StopMoved` round-trip as `HoldShortPointDto.Unable` and `HoldShortPointDto.StopMoved` (false on legacy snapshots) and `HoldShortAnnotator.ComputeHoldShortPositions` skips an unable bar, so a restore keeps the moved stop instead of putting the bar back on the painted line.
 Measured (B738 on B westbound at 30 kt): issued 584 ft out → holds 271 ft from the junction node (the bar binds a fillet split node ~111 ft east of `FindIntersectionNode("B","T")`, plus the length+30 setback); issued 178 ft out → "unable", rolls 74 ft and stops 105 ft short of the junction. The field crawl at 5 kt in the bundle was the conflict detector's cap for SWA2644 on T (a crossing pair), not the hold-short.
 
 **Inside the stopping distance without `HS`.** A bar the aircraft is already inside the taxi-rate stopping distance of without an `HS` (a `TAXI` re-route that drops a crossing clearance short of the runway's entry marking, or a `HOLD` or `GIVEWAY` given close to the bar) is never marked unable: the stop stays on the painted line, centre at the stop and nose at the marking, and `TaxiingPhase` brakes harder for it.
@@ -192,7 +204,9 @@ It takes the firm rate when only that makes the stop and, at a runway bar whose 
 
 **Releasing an explicit taxiway or spot bar before the aircraft arrives.** A bare `RES` to a rolling aircraft driving a route pre-clears the next uncleared taxiway or spot bar (`HS B`, `HS $17`) ahead, the way a bare `CROSS` does: `GroundCommandHandler.TryPreClearNextTaxiwayHoldShort` sets `IsCleared` on that one `HoldShortPoint` and answers `Continue taxi past B`. Later bars stay armed.
 
-"Next" is route order (`TaxiRoute.NextUnclearedHoldShortAhead`, by the segment that reaches the bar's node), not the order of `HoldShortPoints`, which appends a bar added mid-taxi. `CROSS` stays the clearance for a runway bar: when the next bar is a runway one (crossing, explicit `HS 28R` — `TaxiRoute.IsTaxiwayClassHoldShort` is false), `RES` is refused with `Next hold short is runway 28R/10L; use CROSS` and the bar stays armed; the destination runway's bar is refused `Next hold short is departure runway 28R/10L; issue CTO or LUAW`.
+"Next" is route order (`TaxiRoute.NextUnclearedHoldShortAhead`, by the segment that reaches the bar's node), not the order of `HoldShortPoints`, which appends a bar added mid-taxi.
+
+`CROSS` stays the clearance for a runway bar: when the next bar is a runway one (crossing, explicit `HS 28R` — `TaxiRoute.IsTaxiwayClassHoldShort` is false), `RES` is refused with `Next hold short is runway 28R/10L; use CROSS` and the bar stays armed; the destination runway's bar is refused `Next hold short is departure runway 28R/10L; issue CTO or LUAW`.
 
 A bar that reads taxiway-class but stands at a layout `RunwayHoldShort` node, or shares its node with another uncleared runway-class bar, is refused as a runway bar too (`GroundCommandHandler.GuardsARunway`).
 
@@ -208,6 +222,21 @@ Its `TargetName` is X, a taxiway, so `ComputeHoldShortPositions` places it on th
 - **Not a runway bar.** `HoldingShortPhase.ProtectsARunway` is false for it. The aircraft reports "holding short of X at <taxiway>, request further taxi". `RES` and `CROSS` are rejected with `holding short of X where the route issued ends — issue a TAXI that includes X`, and a new `TAXI` replaces it.
 - **Re-armed by `HS X`.** A later `HS X` there turns it into an ordinary explicit hold. `RES` then releases that hold, but the route ends at the hold, so the aircraft does not move until a new `TAXI` names X.
 - The point round-trips through `TaxiRoute` and `HoldingShortPhase` snapshots like any other reason.
+
+### Holds that end a no-destination route
+
+`HoldShortPoint.EndsNoDestinationRoute` marks the hold that ends a clearance with no destination at an explicit hold short of its last taxiway: a bare final taxiway (`TAXI C B`, a bare `TAXI B` on C) and an `HS E` target the route would drive only on its way past (`TAXI C HS B`, `TAXI D C HS E RWY 28R`).
+
+The aircraft never stops inside the junction. The cut is described in [pathfinder.md](./pathfinder.md) under "Final named token — junction stop or terminus walk"; a cut with a destination or a missing link (`ApplyMissingTaxiwayFallbacks`) leaves the flag false.
+
+- **No release.** The phase refuses `RES`, `CROSS` and every other command it would refuse at a route-incomplete hold with `holding short of X where the route issued ends — issue a TAXI that includes X`, whether the aircraft is holding or still taxiing toward the hold, and a bare `RES` to a rolling aircraft never pre-clears it. Only a new `TAXI` moves the aircraft on.
+- **A bare TAXI to the same taxiway is refused**, since it names no way along X and would only end at the same hold: `holding short of B: give a direction (>B or <B) or a destination`, or `holding short of B: B lies behind, give a destination` when no direction onto X is admissible from the hold (OAK C/B, where B runs into C at 14.5°). The refusal is sim-side only and never spoken.
+- **Placement.** The stop is the taxiway setback, except that a hold given when the aircraft's nose is already inside the setback (`max(L/2 + 30, wingtip floor)` from X's centreline) and the placed stop lies ahead of it moves to where the aircraft stands (`HoldInsideNoDestinationTerminusSetback`), so it holds there rather than taxiing on into the setback.
+- **A rolling aircraft that cannot make it.**
+
+  `GroundCommandHandler.UnableNoDestinationEndHold` runs `MarkUnmakeable` on the hold as an `HS` armed inside the stopping distance does: the hold is flagged `Unable`, the answer is `Unable to hold short of X — stopping` (the TAXI's usual notes follow in brackets) with the pilot readback "unable to hold short of X, stopping", no route readback is built, and the taxi phase moves the stop to the firm-rate stopping distance and brakes at the firm rate (see Unable above).
+
+  An aircraft that stands a few feet short of the route's first node places that stop its firm stopping distance from itself, not from the node, and an aircraft stopping for an unable hold short never speeds up on the first sub-ticks after the TAXI raises its speed cap. A stopped aircraft (2 kt or less) is never unable.
 
 ## Footguns
 

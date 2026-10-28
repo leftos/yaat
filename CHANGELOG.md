@@ -25,6 +25,7 @@
 ### Changed
 
 - An assigned speed now outlasts `CM`, `DM` and VFR altitude clearances; only `RNS`, `RPS`, `DSR`, a via clearance, an approach clearance or a new speed ends it.
+- A bare `TAXI B` to a crossing taxiway holds short of B instead of stopping in the intersection; one rolling too fast to stop says unable.
 - A taxi readback stops at the first hold short and reads every runway crossing explicitly; a covered `CROSS` joins the taxi's readback.
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The Session setup popup offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.

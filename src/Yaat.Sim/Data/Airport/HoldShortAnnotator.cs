@@ -362,8 +362,6 @@ public static class HoldShortAnnotator
                 existing.Reason = HoldShortReason.ExplicitHoldShort;
                 existing.IsCleared = false;
                 existing.ClearedByAutoCross = false;
-                // A new HS is a new instruction: whether the aircraft can make a merge hold is judged afresh.
-                existing.MergeHoldDeclined = false;
                 Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: re-armed hold-short at node {NodeId}", target, existing.NodeId);
                 break;
 
@@ -448,10 +446,21 @@ public static class HoldShortAnnotator
     /// <para>That setback is then held to a wingtip-clearance floor (<see cref="ApplyWingtipClearanceFloor"/>): the nose
     /// stays at least <see cref="WingtipClearanceFloorFt"/> from the crossed taxiway's centreline, so an aircraft taxiing
     /// on it clears the holder's nose.</para>
+    ///
+    /// <para>No taxiway stop is ever placed behind the aircraft (<paramref name="aircraftPosition"/>, measured along the route):
+    /// a stop the setback would put there is placed where the aircraft stands instead.</para>
     /// </summary>
-    public static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt)
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="route">The route whose hold shorts are placed.</param>
+    /// <param name="aircraftLengthFt">The aircraft's fuselage length (ft).</param>
+    /// <param name="aircraftPosition">
+    /// Where the aircraft stands on <paramref name="route"/>; null for a route it is not on yet (one stored behind a runway
+    /// exit), which is measured from the start of its current segment.
+    /// </param>
+    public static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt, LatLon? aircraftPosition)
     {
-        double taxiwayOffsetNm = (aircraftLengthFt + TaxiwayHoldShortBufferFt) / GeoMath.FeetPerNm;
+        var path = RoutePolyline.Build(route);
+        var placing = new PlacingRoute(layout, route, path, aircraftLengthFt, path.AircraftAlongFt(route.CurrentSegmentIndex, aircraftPosition));
         double runwayHalfLengthNm = (aircraftLengthFt / 2.0) / GeoMath.FeetPerNm;
 
         foreach (HoldShortPoint hs in route.HoldShortPoints)
@@ -464,75 +473,143 @@ public static class HoldShortAnnotator
                 continue;
             }
 
-            hs.MergeHold = null;
-
-            // Runway hold-shorts, destination holds, and spot targets: offset back from node by half the
-            // aircraft length so the aircraft center (position) stops with its nose at the node. Keyed on
-            // the target, never on the node type alone: a taxiway bar can bind a spot-typed node painted
-            // at the junction (SFO spot 32 on B at T), and that bar still needs the taxiway setback.
-            if (
-                (hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway)
-                || (hsNode.Type is GroundNodeType.RunwayHoldShort)
-                || HoldShortTarget.IsSpotTargetName(hs.TargetName)
-            )
-            {
-                GroundNode vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, HoldShortStopKind.Runway);
-                hs.Latitude = vn.Position.Lat;
-                hs.Longitude = vn.Position.Lon;
-                continue;
-            }
-
-            // Taxiway hold-short: offset back from intersection along approach edge. When the
-            // hold-short sits within a fuselage length past a runway the route crosses, the normal
-            // aircraftLength+30 setback would place the stop behind the runway. Cap to the
-            // nose-at-line setback (½ length) and clamp at the runway hold-short so the aircraft
-            // holds at the taxiway line with its tail over the bars — never reversing onto the
-            // runway it just crossed (issue #172 W1). When the gap is shorter than the whole
-            // fuselage the aircraft also cannot fully clear the runway: tag the overhung runway
-            // hold-short node and warn the controller at issuance (W2/W3).
-            (int RunwayNodeId, double GapNm)? crossedRunway = FindCrossedRunwayHoldShort(layout, route, hs.NodeId, taxiwayOffsetNm);
-            bool justPastRunway = crossedRunway is not null;
-            double twyOffsetNm = justPastRunway ? runwayHalfLengthNm : taxiwayOffsetNm;
-            HoldShortStopKind stopKind = justPastRunway ? HoldShortStopKind.TaxiwayJustPastRunway : HoldShortStopKind.Taxiway;
-            GroundNode twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, twyOffsetNm, stopKind);
-            if (!justPastRunway)
-            {
-                twyVn = ApplyWingtipClearanceFloor(layout, route, hs, aircraftLengthFt, twyVn);
-            }
-
-            hs.Latitude = twyVn.Position.Lat;
-            hs.Longitude = twyVn.Position.Lon;
-
-            if (crossedRunway is { } cr && (cr.GapNm * GeoMath.FeetPerNm) < aircraftLengthFt)
-            {
-                hs.TailOverRunwayNodeId = cr.RunwayNodeId;
-                string rwy =
-                    layout.Nodes.TryGetValue(cr.RunwayNodeId, out GroundNode? rwyNode) && rwyNode.RunwayId is { } rid
-                        ? rid.ToDisplayString()
-                        : "the runway";
-                string warning =
-                    $"holding short of {HoldShortTarget.Describe(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
-                if (!route.Warnings.Contains(warning))
-                {
-                    route.Warnings.Add(warning);
-                }
-            }
-
-            Log.LogDebug(
-                "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft ({Lat:F6}, {Lon:F6}) justPastRunway={JustPast} tailOverRunwayNode={TailOver}",
-                hs.NodeId,
-                hs.TargetName,
-                twyOffsetNm * GeoMath.FeetPerNm,
-                twyVn.Position.Lat,
-                twyVn.Position.Lon,
-                justPastRunway,
-                hs.TailOverRunwayNodeId
-            );
+            GroundNode stop = StopsWithTheNoseAtTheNode(hs, hsNode)
+                ? VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, HoldShortStopKind.Runway)
+                : PlaceTaxiwayStop(placing, hs);
+            hs.Latitude = stop.Position.Lat;
+            hs.Longitude = stop.Position.Lon;
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="hs"/> stops with the nose at its node (half the aircraft length back): runway hold-shorts,
+    /// destination holds, and spot targets. Keyed on the target, never on the node type alone: a taxiway bar can bind a
+    /// spot-typed node painted at the junction (SFO spot 32 on B at T), and that bar still needs the taxiway setback.
+    /// </summary>
+    private static bool StopsWithTheNoseAtTheNode(HoldShortPoint hs, GroundNode hsNode) =>
+        (hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway)
+        || (hsNode.Type is GroundNodeType.RunwayHoldShort)
+        || HoldShortTarget.IsSpotTargetName(hs.TargetName);
+
+    /// <summary>
+    /// A taxiway hold-short's stop: offset back from the intersection along the approach edge. When the hold-short sits
+    /// within a fuselage length past a runway the route crosses, the normal aircraftLength+30 setback would place the stop
+    /// behind the runway. Cap to the nose-at-line setback (½ length) and clamp at the runway hold-short so the aircraft holds
+    /// at the taxiway line with its tail over the bars — never reversing onto the runway it just crossed (issue #172 W1).
+    /// When the gap is shorter than the whole fuselage the aircraft also cannot fully clear the runway: tag the overhung
+    /// runway hold-short node and warn the controller at issuance (W2/W3). Any other stop is held to the wingtip floor
+    /// (<see cref="ApplyWingtipClearanceFloor"/>). Either way the stop is never behind the aircraft
+    /// (<see cref="NoFurtherBackThanTheAircraft"/>).
+    /// </summary>
+    private static GroundNode PlaceTaxiwayStop(PlacingRoute placing, HoldShortPoint hs)
+    {
+        double taxiwayOffsetNm = (placing.LengthFt + TaxiwayHoldShortBufferFt) / GeoMath.FeetPerNm;
+        (int RunwayNodeId, double GapNm)? crossedRunway = FindCrossedRunwayHoldShort(placing.Layout, placing.Route, hs.NodeId, taxiwayOffsetNm);
+        bool justPastRunway = crossedRunway is not null;
+        double twyOffsetNm = justPastRunway ? (placing.LengthFt / 2.0) / GeoMath.FeetPerNm : taxiwayOffsetNm;
+        HoldShortStopKind stopKind = justPastRunway ? HoldShortStopKind.TaxiwayJustPastRunway : HoldShortStopKind.Taxiway;
+        var placed = new PlacedStop(
+            VirtualNode.OffsetBefore(placing.Layout, placing.Route, hs.NodeId, twyOffsetNm, stopKind),
+            (crossedRunway is { } crossing ? Math.Min(twyOffsetNm, crossing.GapNm) : twyOffsetNm) * GeoMath.FeetPerNm
+        );
+        if (!justPastRunway)
+        {
+            placed = ApplyWingtipClearanceFloor(placing, hs, placed);
+        }
+
+        GroundNode twyVn = NoFurtherBackThanTheAircraft(placing, hs, placed);
+        if (crossedRunway is { } cr)
+        {
+            AddTailOverRunwayWarning(placing, hs, cr);
+        }
+
+        Log.LogDebug(
+            "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft ({Lat:F6}, {Lon:F6}) justPastRunway={JustPast} tailOverRunwayNode={TailOver}",
+            hs.NodeId,
+            hs.TargetName,
+            twyOffsetNm * GeoMath.FeetPerNm,
+            twyVn.Position.Lat,
+            twyVn.Position.Lon,
+            justPastRunway,
+            hs.TailOverRunwayNodeId
+        );
+        return twyVn;
+    }
+
+    /// <summary>
+    /// When the gap from the runway hold-short the route just crossed to <paramref name="hs"/>'s node is shorter than the
+    /// fuselage, tags that runway node as overhung and warns that holding short leaves the tail over the runway.
+    /// </summary>
+    private static void AddTailOverRunwayWarning(PlacingRoute placing, HoldShortPoint hs, (int RunwayNodeId, double GapNm) crossed)
+    {
+        if ((crossed.GapNm * GeoMath.FeetPerNm) >= placing.LengthFt)
+        {
+            return;
+        }
+
+        hs.TailOverRunwayNodeId = crossed.RunwayNodeId;
+        string rwy =
+            placing.Layout.Nodes.TryGetValue(crossed.RunwayNodeId, out GroundNode? rwyNode) && rwyNode.RunwayId is { } rid
+                ? rid.ToDisplayString()
+                : "the runway";
+        string warning =
+            $"holding short of {HoldShortTarget.Describe(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
+        if (!placing.Route.Warnings.Contains(warning))
+        {
+            placing.Route.Warnings.Add(warning);
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="stop"/>'s node, or the point on the route where the aircraft stands when the stop lies behind it (by
+    /// more than <see cref="BehindTheAircraftToleranceFt"/>) while <paramref name="hs"/>'s node is still ahead: a hold short
+    /// is never placed behind the aircraft, so one it has already passed the setback for holds it where it is. How far along
+    /// the route the stop lies is carried from its placement (<see cref="PlacedStop.BackFt"/>), never found again by
+    /// projecting the point onto the route, which a route that doubles back on itself passes twice. A stop the setback
+    /// projected back past the route's start counts as at the start.
+    /// </summary>
+    private static GroundNode NoFurtherBackThanTheAircraft(PlacingRoute placing, HoldShortPoint hs, PlacedStop stop)
+    {
+        RoutePolyline path = placing.Path;
+        int barIndex = path.IndexOfFirstArrival(hs.NodeId);
+        if ((barIndex < 0) || (placing.AircraftAlongFt >= path.AlongFt(barIndex)))
+        {
+            return stop.Node;
+        }
+
+        double stopFt = Math.Max(0.0, path.AlongFt(barIndex) - stop.BackFt);
+        if (stopFt >= placing.AircraftAlongFt - BehindTheAircraftToleranceFt)
+        {
+            return stop.Node;
+        }
+
+        Log.LogDebug(
+            "[HoldShortAnnotator] Taxiway HS for {Target} at node {NodeId}: the stop {BehindFt:F0}ft behind the aircraft is placed where it stands",
+            hs.TargetName,
+            hs.NodeId,
+            placing.AircraftAlongFt - stopFt
+        );
+        LatLon here = path.PositionAt(placing.AircraftAlongFt);
+        return VirtualNode.Create(here.Lat, here.Lon);
+    }
+
+    /// <summary>How far (ft, along the route) behind the aircraft a placed stop may lie and still count as where it stands.</summary>
+    private const double BehindTheAircraftToleranceFt = 1.0;
+
+    /// <summary>
+    /// A taxiway hold-short's stop and how far back from the bar's node (ft, along the route) it was placed: the setback the
+    /// stop was offset by, or the bar's distance less the wingtip floor's centre.
+    /// </summary>
+    private readonly record struct PlacedStop(GroundNode Node, double BackFt);
+
+    /// <summary>
+    /// The route a hold-short placement works on: its layout, the route and its polyline, the aircraft's fuselage length
+    /// (ft), and how far along the route (ft) the aircraft stands.
+    /// </summary>
+    private sealed record PlacingRoute(AirportGroundLayout Layout, TaxiRoute Route, RoutePolyline Path, double LengthFt, double AircraftAlongFt);
+
     /// <summary>The margin (ft) a taxiway hold-short keeps beyond the aircraft's length. A judgement call: no FAA document gives a figure.</summary>
-    private const double TaxiwayHoldShortBufferFt = 30.0;
+    public const double TaxiwayHoldShortBufferFt = 30.0;
 
     /// <summary>How far past the bar's node (ft, along the route) the search for the crossed centreline runs.</summary>
     private const double CentrelineMeetSearchAheadFt = 500.0;
@@ -561,24 +638,18 @@ public static class HoldShortAnnotator
     /// Holds a taxiway hold-short's nose at least <c>max(L/2 + 30, floor)</c> from the crossed taxiway's centreline,
     /// measured perpendicular to the centreline edges (never to the junction node). The stop is found by walking the
     /// nose back along the route from where the route meets the centreline; the centre sits half a length behind it.
-    /// The walk stops at the previous junction on the route (the tail clears it) or the route's start. The stop is
+    /// No taxiway intersection behind caps the walk (<see cref="WalkBackLimitCentreFt"/>): it stops only where the aircraft
+    /// stands or at a runway bar the route crossed, and those two limits bound the length setback too. Otherwise the stop is
     /// never forward of <paramref name="lengthSetbackStop"/>, the length + 30 ft setback from the bar's node. When
-    /// the clamp leaves the nose short of the wingtip floor itself, the route carries a wingtip-clearance warning, unless the
-    /// bar is a shallow merge whose capping intersection the aircraft can hold short of instead (<see cref="PlaceMergeHold"/>).
+    /// the clamp leaves the nose short of the wingtip floor itself, the route carries a wingtip-clearance warning.
     /// </summary>
     /// <returns>
-    /// <paramref name="lengthSetbackStop"/>, the stop farther back along the route that the floor asks for, or the shallow-merge
-    /// stop behind the capping intersection's near edge.
+    /// <paramref name="lengthSetbackStop"/>, the stop farther back along the route that the floor asks for, or the stop
+    /// farther on that the walk-back limit holds it to.
     /// </returns>
-    private static GroundNode ApplyWingtipClearanceFloor(
-        AirportGroundLayout layout,
-        TaxiRoute route,
-        HoldShortPoint hs,
-        double lengthFt,
-        GroundNode lengthSetbackStop
-    )
+    private static PlacedStop ApplyWingtipClearanceFloor(PlacingRoute placing, HoldShortPoint hs, PlacedStop lengthSetbackStop)
     {
-        var path = RoutePolyline.Build(route);
+        (AirportGroundLayout layout, TaxiRoute route, RoutePolyline path, double lengthFt, _) = placing;
         int barIndex = path.IndexOfFirstArrival(hs.NodeId);
         if ((hs.TargetName is not { } target) || (layout.Runways.Count == 0) || (barIndex < 0))
         {
@@ -614,14 +685,20 @@ public static class HoldShortAnnotator
         double setbackFt = Math.Max(halfFt + TaxiwayHoldShortBufferFt, floorFt);
         double barFt = path.AlongFt(barIndex);
         double lengthSetbackCentreFt = barFt - (lengthFt + TaxiwayHoldShortBufferFt);
-        double? junctionFt = PreviousJunctionFt(layout, path, barIndex, target);
-        double limitCentreFt = junctionFt is { } j ? j + halfFt : 0.0;
+        (double limitCentreFt, bool limitBoundsSetback) = WalkBackLimitCentreFt(placing, barIndex, halfFt);
         double meetFt = CentrelineMeetFt(path, centreline, barFt);
         double floorCentreFt = NoseWalkBackCentreFt(path, centreline, new NoseWalk(meetFt, setbackFt, halfFt, limitCentreFt));
 
-        double centreFt = Math.Min(floorCentreFt, lengthSetbackCentreFt);
+        // The walk-back limit bounds the length setback too: a runway bar behind keeps the tail clear of the runway's hold
+        // line, and the aircraft's own position keeps the stop from landing behind it. Either way the nose stops inside the
+        // taxiway setback with the wingtip warning rather than leave the aircraft on the runway or send it backwards.
+        double setbackCentreFt = Math.Min(floorCentreFt, lengthSetbackCentreFt);
+        double centreFt = limitBoundsSetback ? Math.Max(limitCentreFt, setbackCentreFt) : setbackCentreFt;
         LatLon floorCentre = path.PositionAt(centreFt);
-        GroundNode stop = centreFt < lengthSetbackCentreFt ? VirtualNode.Create(floorCentre.Lat, floorCentre.Lon) : lengthSetbackStop;
+        PlacedStop stop =
+            Math.Abs(centreFt - lengthSetbackCentreFt) > StopMatchToleranceFt
+                ? new PlacedStop(VirtualNode.Create(floorCentre.Lat, floorCentre.Lon), barFt - centreFt)
+                : lengthSetbackStop;
         double noseFt = DistanceToCentrelineFt(path.PositionAt(centreFt + halfFt), centreline);
         var placement = new FloorPlacement
         {
@@ -630,27 +707,20 @@ public static class HoldShortAnnotator
             Target = target,
             HalfFt = halfFt,
             FloorFt = floorFt,
-            Centreline = centreline,
-            CappedCentreFt = centreFt,
         };
-        if ((noseFt < floorFt - 0.5) && (PlaceMergeHold(layout, route, hs, placement) is { } mergeStop))
-        {
-            return mergeStop;
-        }
-
         ReplaceWingtipWarning(route, target, clearanceFrom, noseFt, floorFt);
-        AddShallowMergeSetbackAdvisory(route, placement, lengthSetbackCentreFt, noseFt);
+        AddShallowMergeSetbackAdvisory(route, placement, lengthSetbackCentreFt, centreFt, noseFt);
 
         Log.LogDebug(
             "[HoldShortAnnotator] Wingtip floor for {Target} at node {NodeId} against {ClearanceFrom}: setback {SetbackFt:F0}ft "
-                + "(floor {FloorFt:F0}), nose {NoseFt:F0}ft, junctionAt {JunctionFt}, centre moved back {MovedFt:F0}ft",
+                + "(floor {FloorFt:F0}), nose {NoseFt:F0}ft, walk-back limit {LimitFt:F0}ft, centre moved back {MovedFt:F0}ft",
             target,
             hs.NodeId,
             clearanceFrom,
             setbackFt,
             floorFt,
             noseFt,
-            junctionFt,
+            limitCentreFt,
             lengthSetbackCentreFt - centreFt
         );
         return stop;
@@ -672,18 +742,16 @@ public static class HoldShortAnnotator
     }
 
     /// <summary>
-    /// Drops the route's placement warnings for the bar on <paramref name="target"/>: the wingtip-clearance warning, the
-    /// shallow-merge advisory and the setback advisory, whichever branches or intersection each named.
+    /// Drops the route's placement warnings for the bar on <paramref name="target"/>: the wingtip-clearance warning and the
+    /// shallow-merge setback advisory, whichever branches each named.
     /// </summary>
     private static void RemovePlacementWarnings(TaxiRoute route, string target)
     {
         string wingtipPrefix = WingtipWarningPrefix(target);
-        string mergePrefix = MergeAdvisoryPrefix(target);
         string setbackPrefix = SetbackAdvisoryPrefix(target);
         string mergeSuffix = MergesIntoSuffix(target);
         route.Warnings.RemoveAll(w =>
             w.StartsWith(wingtipPrefix, StringComparison.Ordinal)
-            || w.StartsWith(mergePrefix, StringComparison.Ordinal)
             || (
                 w.StartsWith(setbackPrefix, StringComparison.Ordinal)
                 && w.Contains(SetbackAdvisoryMarker, StringComparison.Ordinal)
@@ -692,7 +760,7 @@ public static class HoldShortAnnotator
         );
     }
 
-    /// <summary>"merges into X)" closes both shallow-merge advisories; the opening parenthesis names the arriving taxiway.</summary>
+    /// <summary>"merges into X)" closes the shallow-merge setback advisory; the opening parenthesis names the arriving taxiway.</summary>
     private static string MergesIntoSuffix(string target) => $"merges into {target})";
 
     /// <summary>The setback advisory's opening — <c>holding short of TWY T </c> — after which the nose's distance back follows.</summary>
@@ -709,25 +777,29 @@ public static class HoldShortAnnotator
     /// merges into W)</c>, the nose's distance back of the merge node. A stop short of the floor carries the wingtip warning
     /// instead, and the readback stays plain.
     /// </summary>
-    private static void AddShallowMergeSetbackAdvisory(TaxiRoute route, FloorPlacement p, double lengthSetbackCentreFt, double noseFt)
+    private static void AddShallowMergeSetbackAdvisory(
+        TaxiRoute route,
+        FloorPlacement p,
+        double lengthSetbackCentreFt,
+        double centreFt,
+        double noseFt
+    )
     {
         bool floorMet = noseFt >= p.FloorFt - 0.5;
-        bool behindLengthSetback = p.CappedCentreFt < lengthSetbackCentreFt - 0.5;
+        bool behindLengthSetback = centreFt < lengthSetbackCentreFt - 0.5;
         if (!floorMet || !behindLengthSetback || !IsShallowMerge(route, p.BarIndex, p.Target))
         {
             return;
         }
 
         string arriving = route.Segments[p.BarIndex - 1].TaxiwayName;
-        double noseBackFt = p.Path.AlongFt(p.BarIndex) - (p.CappedCentreFt + p.HalfFt);
+        double noseBackFt = p.Path.AlongFt(p.BarIndex) - (centreFt + p.HalfFt);
         route.Warnings.Add($"{SetbackAdvisoryPrefix(p.Target)}{noseBackFt:F0}{SetbackAdvisoryMarker}{arriving} {MergesIntoSuffix(p.Target)}");
     }
 
     private static string WingtipWarningPrefix(string target) => $"holding short of TWY {target} — wingtip clearance from ";
 
-    private static string MergeAdvisoryPrefix(string target) => $"holding short of TWY {target} before TWY ";
-
-    /// <summary>The inputs of a wingtip-floor placement the shallow-merge hold reuses; every distance along the route in feet.</summary>
+    /// <summary>The inputs of a wingtip-floor placement the shallow-merge setback advisory reads; every distance in feet.</summary>
     private readonly record struct FloorPlacement
     {
         public required RoutePolyline Path { get; init; }
@@ -735,124 +807,7 @@ public static class HoldShortAnnotator
         public required string Target { get; init; }
         public required double HalfFt { get; init; }
         public required double FloorFt { get; init; }
-        public required List<(LatLon A, LatLon B)> Centreline { get; init; }
-
-        /// <summary>The centre of the capped stop the merge hold would replace.</summary>
-        public required double CappedCentreFt { get; init; }
     }
-
-    /// <summary>
-    /// At a shallow merge whose wingtip-floor walk-back an earlier junction caps short of the floor, the stop that holds short
-    /// of that junction's whole intersection instead: centre half a length behind the intersection's near edge (its
-    /// farthest-back route node), with no further setback and no floor held against the intersection's taxiway, which is not
-    /// a hold-short target. Sets <see cref="HoldShortPoint.MergeHold"/> and the instructor advisory. Null, leaving the
-    /// capped stop, when the bar is no shallow merge, the merge hold was declined at arming, the route has no such
-    /// junction, the stop is not behind the capped stop (a long aircraft whose length setback already stands behind the
-    /// intersection is never moved forward toward the target), or the stop lies behind the segment the aircraft is on.
-    /// </summary>
-    private static GroundNode? PlaceMergeHold(AirportGroundLayout layout, TaxiRoute route, HoldShortPoint hs, FloorPlacement p)
-    {
-        if (hs.MergeHoldDeclined || !IsShallowMerge(route, p.BarIndex, p.Target))
-        {
-            return null;
-        }
-
-        string arriving = route.Segments[p.BarIndex - 1].TaxiwayName;
-        if (
-            (PreviousJunctionIndex(layout, p.Path, p.BarIndex, p.Target) is not { } junctionIndex)
-            || (CappingIntersection(layout, p.Path, junctionIndex, [arriving, p.Target]) is not { } intersection)
-        )
-        {
-            return null;
-        }
-
-        double noseAtEdgeFt = p.Path.AlongFt(intersection.NearEdgeIndex);
-        double centreFt = noseAtEdgeFt - p.HalfFt;
-        int onIndex = Math.Clamp(route.CurrentSegmentIndex, 0, p.BarIndex);
-        if ((centreFt >= p.CappedCentreFt) || (centreFt < p.Path.AlongFt(onIndex)))
-        {
-            return null;
-        }
-
-        hs.MergeHold = new MergeHold(arriving, intersection.Taxiway);
-        double noseFt = DistanceToCentrelineFt(p.Path.PositionAt(noseAtEdgeFt), p.Centreline);
-        RemovePlacementWarnings(route, p.Target);
-        string advisory = $"{MergeAdvisoryPrefix(p.Target)}{intersection.Taxiway} ({arriving} merges into {p.Target})";
-        route.Warnings.Add(noseFt < p.FloorFt - 0.5 ? $"{advisory} — wingtip clearance from {p.Target} not assured ({noseFt:F0} ft)" : advisory);
-
-        LatLon centre = p.Path.PositionAt(centreFt);
-        Log.LogDebug(
-            "[HoldShortAnnotator] Shallow merge into {Target} at node {NodeId}: holding on {Arriving} before {Before}, nose at node {EdgeNodeId} "
-                + "{NoseFt:F0}ft from {Target} (floor {FloorFt:F0})",
-            p.Target,
-            hs.NodeId,
-            arriving,
-            intersection.Taxiway,
-            p.Path.Vertex(intersection.NearEdgeIndex).Id,
-            noseFt,
-            p.Target,
-            p.FloorFt
-        );
-        return VirtualNode.Create(centre.Lat, centre.Lon);
-    }
-
-    /// <summary>The intersection that capped a walk-back: the route index of its near edge and its taxiway name.</summary>
-    private readonly record struct CappedIntersection(int NearEdgeIndex, string Taxiway);
-
-    /// <summary>
-    /// The whole intersection the junction at route index <paramref name="junctionIndex"/> belongs to: the taxiways that
-    /// make it a junction (every name on its edges other than <paramref name="ownNames"/>, ramp and runway names), and the
-    /// run of route nodes from it back that touch one of those taxiways (its centre and the fillet tangents either side).
-    /// The run stops at the first node that touches none, so a following junction of other taxiways (a ramp fillet pair)
-    /// never joins it. The intersection is named by one taxiway, never a joined list a pilot could not say: of the crossing
-    /// taxiways with a straight edge at any node of that run (in practice its centre, where the crossing taxiway's own
-    /// line passes through), the first in ordinal order; with none, the first of the fillet names in ordinal order.
-    /// </summary>
-    private static CappedIntersection? CappingIntersection(AirportGroundLayout layout, RoutePolyline path, int junctionIndex, string[] ownNames)
-    {
-        if (!layout.Nodes.TryGetValue(path.Vertex(junctionIndex).Id, out GroundNode? junction))
-        {
-            return null;
-        }
-
-        var crossing = new SortedSet<string>(
-            junction.Edges.SelectMany(EdgeNames).Where(n => IsCrossingName(n, ownNames)),
-            StringComparer.OrdinalIgnoreCase
-        );
-        if (crossing.Count == 0)
-        {
-            return null;
-        }
-
-        int nearIndex = junctionIndex;
-        var throughCentre = new SortedSet<string>(StringComparer.Ordinal);
-        for (int i = junctionIndex; i >= 0; i--)
-        {
-            if (!layout.Nodes.TryGetValue(path.Vertex(i).Id, out GroundNode? node) || !node.Edges.Any(e => crossing.Any(e.MatchesTaxiway)))
-            {
-                break;
-            }
-
-            nearIndex = i;
-            throughCentre.UnionWith(node.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).Where(crossing.Contains));
-        }
-
-        IEnumerable<string> candidates = throughCentre.Count > 0 ? throughCentre : crossing.Order(StringComparer.Ordinal);
-        string name = candidates.First();
-        return new CappedIntersection(nearIndex, name);
-    }
-
-    private static IEnumerable<string> EdgeNames(IGroundEdge edge) =>
-        edge switch
-        {
-            GroundArc arc => arc.TaxiwayNames,
-            _ => [edge.TaxiwayName],
-        };
-
-    private static bool IsCrossingName(string name, string[] ownNames) =>
-        !ownNames.Contains(name, StringComparer.OrdinalIgnoreCase)
-        && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase)
-        && !name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>How far (ft) a branch's centreline is followed from the bar's node when the floor is held against it.</summary>
     private const double BranchWalkFt = 500.0;
@@ -996,20 +951,30 @@ public static class HoldShortAnnotator
         return GeoMath.BearingTo(node.Position, next);
     }
 
+    /// <summary>How far (ft) the placed centre may sit from the length setback's and still stop at that setback's own node.</summary>
+    private const double StopMatchToleranceFt = 0.01;
+
     /// <summary>The nose walk-back's inputs, all along-route distances or setbacks in feet.</summary>
     private readonly record struct NoseWalk(double MeetFt, double SetbackFt, double HalfFt, double LimitCentreFt);
 
     /// <summary>The straight centreline pieces of <paramref name="taxiway"/> within <see cref="CentrelineSearchRadiusFt"/> of <paramref name="anchor"/>.</summary>
-    private static List<(LatLon A, LatLon B)> CrossedCentreline(AirportGroundLayout layout, string taxiway, LatLon anchor)
+    private static List<(LatLon A, LatLon B)> CrossedCentreline(AirportGroundLayout layout, string taxiway, LatLon anchor) =>
+        CentrelinePieces(layout.Edges.Where(e => string.Equals(e.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase)), anchor);
+
+    /// <summary>
+    /// How far (ft) <paramref name="point"/> is from the centreline of <paramref name="edges"/>, measured the way a taxiway
+    /// hold-short's setback is: perpendicular to each straight piece between an edge's nodes and shape points, counting only
+    /// the pieces within <see cref="CentrelineSearchRadiusFt"/> of <paramref name="anchor"/>. Infinity when none is.
+    /// </summary>
+    public static double DistanceToCentrelineFt(LatLon point, IEnumerable<GroundEdge> edges, LatLon anchor) =>
+        DistanceToCentrelineFt(point, CentrelinePieces(edges, anchor));
+
+    /// <summary>The straight pieces of <paramref name="edges"/> within <see cref="CentrelineSearchRadiusFt"/> of <paramref name="anchor"/>.</summary>
+    private static List<(LatLon A, LatLon B)> CentrelinePieces(IEnumerable<GroundEdge> edges, LatLon anchor)
     {
         var pieces = new List<(LatLon A, LatLon B)>();
-        foreach (GroundEdge edge in layout.Edges)
+        foreach (GroundEdge edge in edges)
         {
-            if (!string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             var points = new List<LatLon> { edge.Nodes[0].Position };
             points.AddRange(edge.IntermediatePoints.Select(p => new LatLon(p.Lat, p.Lon)));
             points.Add(edge.Nodes[1].Position);
@@ -1082,31 +1047,31 @@ public static class HoldShortAnnotator
     }
 
     /// <summary>
-    /// The along-route position (ft) of the last junction before the bar's node, or null when the route has none.
-    /// A junction is a runway hold-short node (never back onto a runway) or a node with more than two edges that
-    /// are neither ramp connectors nor part of the crossed taxiway (a fillet arc onto it included).
+    /// How far back along the route (ft, the centre's position) the wingtip-floor walk-back may go: a taxiway hold short has
+    /// no intersection backstop, so the stop goes back past any taxiway junction behind it. It never goes behind where the
+    /// aircraft stands along the route (<see cref="PlacingRoute.AircraftAlongFt"/>, at most the bar's own node), nor back
+    /// over a runway hold-short bar the route crossed: the tail stays clear of that bar by the crossing rule's margin
+    /// (<see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/>), never back over the hold line (AIM 4-3-21.b). When
+    /// the aircraft already stands past where that margin puts the centre, the limit is where it stands.
+    /// <c>BoundsSetback</c> is true when the limit also bounds the length setback: a runway bar set it, or the aircraft did
+    /// while the bar's node still lies ahead of it (an aircraft at or past the node has no stop ahead to hold back).
     /// </summary>
-    private static double? PreviousJunctionFt(AirportGroundLayout layout, RoutePolyline path, int barIndex, string target) =>
-        PreviousJunctionIndex(layout, path, barIndex, target) is { } i ? path.AlongFt(i) : null;
-
-    /// <summary>The route index of the junction <see cref="PreviousJunctionFt"/> finds, or null when the route has none.</summary>
-    private static int? PreviousJunctionIndex(AirportGroundLayout layout, RoutePolyline path, int barIndex, string target)
+    private static (double LimitCentreFt, bool BoundsSetback) WalkBackLimitCentreFt(PlacingRoute placing, int barIndex, double halfFt)
     {
+        RoutePolyline path = placing.Path;
+        double barFt = path.AlongFt(barIndex);
+        bool barAhead = placing.AircraftAlongFt < barFt;
+        double aircraftFt = Math.Min(placing.AircraftAlongFt, barFt);
         for (int i = barIndex - 1; i >= 0; i--)
         {
-            if (!layout.Nodes.TryGetValue(path.Vertex(i).Id, out GroundNode? node))
+            if (placing.Layout.Nodes.TryGetValue(path.Vertex(i).Id, out GroundNode? node) && (node.Type == GroundNodeType.RunwayHoldShort))
             {
-                continue;
-            }
-
-            bool isJunction = (node.Type == GroundNodeType.RunwayHoldShort) || (node.Edges.Count(e => !e.IsRamp && !e.MatchesTaxiway(target)) > 2);
-            if (isJunction)
-            {
-                return i;
+                double tailClearFt = path.AlongFt(i) + halfFt + Phases.Ground.RunwayCrossingFarSideGate.MarginFt;
+                return (tailClearFt > aircraftFt) ? (tailClearFt, true) : (aircraftFt, barAhead);
             }
         }
 
-        return null;
+        return (aircraftFt, barAhead);
     }
 
     /// <summary>A taxi route as a polyline of node positions, with the along-route distance (ft) of each node.</summary>
@@ -1139,6 +1104,43 @@ public static class HoldShortAnnotator
         public GroundNode Vertex(int index) => _vertices[index];
 
         public double AlongFt(int index) => _alongFt[index];
+
+        /// <summary>
+        /// How far along the route (ft) the aircraft at <paramref name="position"/> stands: its projection onto the segment at
+        /// <paramref name="currentSegmentIndex"/>, clamped to that segment's two ends; the segment's start when the position is
+        /// unknown. The route's end once every segment is flown, and zero on an empty polyline.
+        /// </summary>
+        public double AircraftAlongFt(int currentSegmentIndex, LatLon? position)
+        {
+            if (_vertices.Count < 2)
+            {
+                return 0.0;
+            }
+
+            if (currentSegmentIndex >= _vertices.Count - 1)
+            {
+                return _alongFt[^1];
+            }
+
+            int leg = Math.Max(0, currentSegmentIndex) + 1;
+            return position is { } at ? OntoLeg(leg, at).AlongFt : _alongFt[leg - 1];
+        }
+
+        /// <summary>
+        /// <paramref name="point"/> projected onto the leg ending at vertex <paramref name="leg"/>, clamped to the leg's ends:
+        /// the foot's distance along the route (ft) and the point's distance from the foot (ft).
+        /// </summary>
+        private (double AlongFt, double OffFt) OntoLeg(int leg, LatLon point)
+        {
+            LatLon from = _vertices[leg - 1].Position;
+            double legBearing = GeoMath.BearingTo(from, _vertices[leg].Position);
+            double toPointFt = GeoMath.DistanceNm(from, point) * GeoMath.FeetPerNm;
+            double offAngleRad = GeoMath.AbsBearingDifference(legBearing, GeoMath.BearingTo(from, point)) * Math.PI / 180.0;
+            double intoLegFt = Math.Clamp(toPointFt * Math.Cos(offAngleRad), 0.0, _alongFt[leg] - _alongFt[leg - 1]);
+            (double lat, double lon) = GeoMath.ProjectPointRaw(from.Lat, from.Lon, legBearing, intoLegFt / GeoMath.FeetPerNm);
+            double offFt = GeoMath.DistanceNm(new LatLon(lat, lon), point) * GeoMath.FeetPerNm;
+            return (_alongFt[leg - 1] + intoLegFt, offFt);
+        }
 
         /// <summary>The first vertex after the start that is <paramref name="nodeId"/>, as <see cref="VirtualNode.OffsetBefore"/> finds it; -1 when none is.</summary>
         public int IndexOfFirstArrival(int nodeId)

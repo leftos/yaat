@@ -25,7 +25,7 @@ public sealed class TaxiingPhaseCompleteOnEntryTests(ITestOutputHelper output)
     private const string DepartureRunway = "28R";
 
     [Fact]
-    public void RouteCompleteOnEntry_NoClearance_HoldsInPosition()
+    public void RouteCompleteOnEntry_NoDestination_HoldsShortOfTheLastTaxiway()
     {
         AirportGroundLayout? layout = LoadOak();
         if (layout is null)
@@ -33,14 +33,19 @@ public sealed class TaxiingPhaseCompleteOnEntryTests(ITestOutputHelper output)
             return;
         }
 
+        // F C names no destination, so the route ends in a route-incomplete hold short of C; an aircraft already there holds
+        // short of C where it stands.
         (AircraftState aircraft, PhaseContext ctx) = StandAtRouteEnd(layout, ["F", "C"], destinationRunway: null);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        Assert.Null(route.GetHoldShortAt(route.Segments[^1].ToNodeId));
+        HoldShortPoint endHold = Assert.IsType<HoldShortPoint>(route.GetHoldShortAt(route.Segments[^1].ToNodeId));
+        Assert.Equal(HoldShortReason.RouteIncomplete, endHold.Reason);
+        Assert.Equal("C", endHold.TargetName);
 
         PhaseRunner.Tick(aircraft, ctx);
 
         output.WriteLine($"phase after first tick: {aircraft.Phases?.CurrentPhase?.Name ?? "(none)"}");
-        Assert.IsType<HoldingInPositionPhase>(aircraft.Phases?.CurrentPhase);
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Same(endHold, holding.HoldShort);
     }
 
     [Fact]

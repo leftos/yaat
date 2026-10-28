@@ -118,7 +118,7 @@ public class GroundViewModelTaxiRouteDirectionTests
         }
 
         TaxiRoute server = ServerRoute((AirportGroundLayout)layout);
-        Assert.Equal("S", server.FormatTaxiwaySequence());
+        Assert.Equal("S HS B", server.FormatTaxiwaySequence());
 
         var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
         {
@@ -148,5 +148,86 @@ public class GroundViewModelTaxiRouteDirectionTests
         );
         double offNoseDeg = GeoMath.AbsBearingDifference(drawn.Segments[0].Edge.DepartureBearing, headingDeg);
         Assert.True(offNoseDeg < 90.0, $"the overlay's first leg leaves {offNoseDeg:F0}° off the aircraft's nose");
+    }
+
+    /// <summary>OAK node on C west of the C/B intersection.</summary>
+    private const int CWestOfBNodeId = 338;
+
+    /// <summary>OAK's C/B intersection, where C crosses B on its way east to the C/A name change.</summary>
+    private const int CBIntersectionNodeId = 193;
+
+    /// <summary>
+    /// A route that crosses the hold's taxiway before the junction it ends at: <c>C A HS B</c> from C west of the C/B
+    /// intersection crosses B there, carries on onto A at the C/A name change and holds short of B where A meets it. The
+    /// overlay ends where the server's route ends, at the A/B junction, never cut back at the C/B crossing.
+    /// </summary>
+    [Fact]
+    public void HoldTaxiwayCrossedBeforeTheEndJunction_OverlayEndsAtTheJunctionTheRouteEndsAt()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return; // test data absent — skip
+        }
+
+        GroundNode onC = layout.Nodes[CWestOfBNodeId];
+        GroundNode crossing = layout.Nodes[CBIntersectionNodeId];
+        Assert.True(
+            crossing.Edges.Any(e => e.MatchesTaxiway("B")) && crossing.Edges.Any(e => e.MatchesTaxiway("C")),
+            $"node #{CBIntersectionNodeId} is not the C/B intersection"
+        );
+
+        AssertOverlayOfCAHsBEndsAtTheABJunction(layout, onC.Position, new TrueHeading(GeoMath.BearingTo(onC.Position, crossing.Position)));
+    }
+
+    /// <summary>
+    /// <c>C A HS B</c> given to an aircraft held at the C/B intersection itself, facing on along C: the rebuilt route starts on
+    /// a node of B, and the overlay still ends where the server's route ends, at the A/B junction.
+    /// </summary>
+    [Fact]
+    public void HeldAtTheCBIntersection_CAHsB_OverlayEndsAtTheABJunction()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return; // test data absent — skip
+        }
+
+        GroundNode onC = layout.Nodes[CWestOfBNodeId];
+        GroundNode crossing = layout.Nodes[CBIntersectionNodeId];
+        AssertOverlayOfCAHsBEndsAtTheABJunction(layout, crossing.Position, new TrueHeading(GeoMath.BearingTo(onC.Position, crossing.Position)));
+    }
+
+    /// <summary>The overlay a B738 at <paramref name="position"/> on C, cleared <c>C A HS B</c>, draws ends at the A/B junction.</summary>
+    private static void AssertOverlayOfCAHsBEndsAtTheABJunction(AirportGroundLayout layout, LatLon position, TrueHeading heading)
+    {
+        var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask)
+        {
+            RoomActiveRunways = () => new Dictionary<string, IReadOnlyList<string>>(),
+        };
+        vm.SetDomainLayoutForTesting(layout);
+        var ac = new AircraftModel
+        {
+            Callsign = "N738",
+            AircraftType = "B738",
+            Position = position,
+            Heading = heading,
+            CurrentTaxiway = "C",
+            TaxiRoute = "C A HS B",
+            AssignedRunway = "",
+            TaxiDestination = "",
+            HasActiveTaxiRoute = true,
+            IsOnGround = true,
+        };
+
+        TaxiRoute? drawn = vm.ResolveRemainingRoute(ac);
+
+        Assert.NotNull(drawn);
+        TaxiRouteSegment last = drawn!.Segments[^1];
+        string described = string.Join(" ", drawn.Segments.Select(s => $"#{s.ToNodeId}({s.TaxiwayName})"));
+        Assert.True(
+            string.Equals(last.TaxiwayName, "A", StringComparison.OrdinalIgnoreCase) && last.Edge.ToNode.Edges.Any(e => e.MatchesTaxiway("B")),
+            $"the overlay ends at #{last.ToNodeId} on {last.TaxiwayName}, not at the A/B junction: {described}"
+        );
     }
 }

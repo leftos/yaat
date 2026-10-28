@@ -326,6 +326,6 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
 
         (CommandResult? result, TaxiRoute _) = issued.Value;
         Assert.NotNull(result.Message);
-        Assert.Contains("C/D intersection", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("holding short of D: route ends at D, no destination given", result.Message, StringComparison.Ordinal);
     }
 }

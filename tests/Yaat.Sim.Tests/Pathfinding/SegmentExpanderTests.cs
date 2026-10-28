@@ -140,7 +140,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         // onward direction or destination, so the route stops where it meets B instead of walking it.
         Assert.Equal(2, route.Segments.Count);
         Assert.Equal(2, route.Segments[^1].ToNodeId);
-        Assert.Contains(route.Warnings, w => w.Contains("holding at the A/B intersection", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("holding short of B: route ends at B, no destination given", route.Warnings);
     }
 
     // -----------------------------------------------------------------------

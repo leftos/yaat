@@ -41,6 +41,21 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
 
     private static readonly string[] Airports = ["OAK", "SFO"];
 
+    /// <summary>The most (ft) an aircraft expected to hold where it stands (<see cref="ExpectedHolds"/>) may move.</summary>
+    private const double MaxHeldMoveFt = 1.0;
+
+    /// <summary>
+    /// The (airport, stand, lane, taxiway) cases whose <c>TAXI {taxiway}</c> is a no-destination hold with the nose already
+    /// inside the taxiway setback: accepted, the aircraft holds where it stands, as
+    /// <see cref="BareTaxiFirstStepHeadingTests.BareTaxiB_FromCInsideTheSetback_HoldsWhereItStands"/> rules.
+    /// </summary>
+    private static readonly HashSet<(string Airport, string Stand, string Lane, string Taxiway)> ExpectedHolds =
+    [
+        ("SFO", "A13V", "M2", "M1"),
+        ("SFO", "B8", "BC", "AY1"),
+        ("SFO", "C10", "BC", "A"),
+    ];
+
     private static readonly Lazy<IReadOnlyList<object[]>> AllCases = new(BuildAllCases);
 
     /// <summary>Every (airport, stand, lane) the sweep pushes.</summary>
@@ -79,6 +94,33 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
         Assert.True(cases.Count > 0, "the sweep enumerated no cases");
     }
 
+    /// <summary>
+    /// Every <see cref="ExpectedHolds"/> entry is run by the sweep: its push is one of the sweep's cases and its taxiway one of
+    /// that lane's exit taxiways, so an entry the sweep no longer reaches fails here rather than passing unseen.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Nightly")]
+    public void ExpectedHolds_AreEachRunByTheSweep()
+    {
+        IReadOnlyList<object[]> cases = AllCases.Value;
+        List<string> notRun = [];
+        foreach ((string airport, string stand, string lane, string taxiway) in ExpectedHolds)
+        {
+            bool pushed = cases.Any(c => ((string)c[0] == airport) && ((string)c[1] == stand) && ((string)c[2] == lane));
+            bool taxied =
+                pushed
+                && (Layout(airport) is { } layout)
+                && ExitTaxiways(layout, MovementAreaClassification.Build(layout, PushTargetPlannerTests.Sidecars.Value), lane)
+                    .Taxiways.Contains(taxiway);
+            if (!taxied)
+            {
+                notRun.Add($"{airport} {stand} PUSH {lane} TAXI {taxiway} ({(pushed ? "taxiway not an exit of the lane" : "push not swept")})");
+            }
+        }
+
+        Assert.True(notRun.Count == 0, $"expected holds the sweep never runs:\n{string.Join("\n", notRun)}");
+    }
+
     /// <summary>The full sweep: every stand, every taxilane it pushes onto, every exit taxiway of that lane (<see cref="ExitTaxiways"/>).</summary>
     [Theory]
     [Trait("Category", "Nightly")]
@@ -115,7 +157,8 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
         foreach (string taxiway in taxiways)
         {
             (SimulationEngine engine, AircraftState aircraft) = Pushed(airport, stand, lane);
-            if (TaxiFailure(engine, aircraft, taxiway) is { } failure)
+            bool expectHold = ExpectedHolds.Contains((airport, stand, lane, taxiway));
+            if (TaxiFailure(engine, aircraft, taxiway, expectHold) is { } failure)
             {
                 failures.Add(failure);
             }
@@ -130,9 +173,10 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
     /// <see cref="MinMovedFt"/> or has completed its route (<see cref="CompletedOnItsRoute"/>): null when it did, otherwise
     /// what went wrong and the pose it was held at. A refusal that names a route taxiway missing from the clearance ("route
     /// to X needs Y, not in clearance") is retried once as <c>TAXI Y X</c>, the clearance it implies, and that retry must be
-    /// accepted; any other refusal, a turn-about one above all, fails.
+    /// accepted; any other refusal, a turn-about one above all, fails. With <paramref name="expectHold"/> (one of
+    /// <see cref="ExpectedHolds"/>), the aircraft must instead hold where it stands (<see cref="HeldWhereItStoodFailure"/>).
     /// </summary>
-    private string? TaxiFailure(SimulationEngine engine, AircraftState aircraft, string taxiway)
+    private string? TaxiFailure(SimulationEngine engine, AircraftState aircraft, string taxiway, bool expectHold)
     {
         LatLon heldAt = aircraft.Position;
         string pose = $"held at ({heldAt.Lat:F7},{heldAt.Lon:F7}) heading {aircraft.TrueHeading.Degrees:F1} on {aircraft.Ground.CurrentTaxiway}";
@@ -156,6 +200,11 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
             return $"  {command} accepted but assigned no taxi route, {pose}";
         }
 
+        if (expectHold)
+        {
+            return HeldWhereItStoodFailure(engine, aircraft, command, pose);
+        }
+
         int doneAt = SfoGroundHarness.TickUntil(
             engine,
             () => (MovedFt(heldAt, aircraft) >= MinMovedFt) || CompletedOnItsRoute(heldAt, aircraft),
@@ -171,6 +220,29 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
         string how = (MovedFt(heldAt, aircraft) >= MinMovedFt) ? "by movement" : "by route completion";
         output.WriteLine($"  moved {MovedFt(heldAt, aircraft):F1} ft after {doneAt} s, done {how}");
         return null;
+    }
+
+    /// <summary>
+    /// Ticks <see cref="TaxiWindowSeconds"/> after an accepted <paramref name="command"/> whose nose already stood inside the
+    /// taxiway setback: null when the aircraft is then in <see cref="HoldingShortPhase"/> having moved less than
+    /// <see cref="MaxHeldMoveFt"/>, otherwise what it did instead.
+    /// </summary>
+    private static string? HeldWhereItStoodFailure(SimulationEngine engine, AircraftState aircraft, string command, string pose)
+    {
+        LatLon heldAt = aircraft.Position;
+        for (int second = 0; second < TaxiWindowSeconds; second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        double movedFt = MovedFt(heldAt, aircraft);
+        if ((aircraft.Phases?.CurrentPhase is HoldingShortPhase) && (movedFt < MaxHeldMoveFt))
+        {
+            return null;
+        }
+
+        return $"  {command} accepted and expected to hold where it stood, but after {TaxiWindowSeconds} s it moved {movedFt:F1} ft "
+            + $"(phase {aircraft.Phases?.CurrentPhase?.GetType().Name}), {pose}";
     }
 
     /// <summary>

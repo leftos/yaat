@@ -77,7 +77,11 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
         }
 
         // The route stops at the pure G/B intersection and never walks along B.
-        Assert.Equal(gbIntersection.Id, route.Segments[^1].ToNodeId);
+        // No destination: the route ends holding short of B at the first node that touches B, never on the G/B junction node.
+        Assert.NotEqual(gbIntersection.Id, route.Segments[^1].ToNodeId);
+        HoldShortPoint endHold = Assert.Single(route.HoldShortPoints, h => h.NodeId == route.Segments[^1].ToNodeId);
+        Assert.Equal(HoldShortReason.RouteIncomplete, endHold.Reason);
+        Assert.Equal("B", endHold.TargetName);
         Assert.DoesNotContain(route.Segments, s => s.TaxiwayName.Equals("B", StringComparison.OrdinalIgnoreCase));
     }
 

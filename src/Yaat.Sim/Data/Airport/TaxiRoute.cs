@@ -111,10 +111,43 @@ public sealed class TaxiRoute
     /// The cleared taxiways in order for operator-facing display. Junction/membership arcs
     /// (<c>"D - RAMP"</c>) are transitions between taxiways, not a leg of one, so they never appear as
     /// a named part of the route, and ramp pavement is dropped: a route out of a stand through the
-    /// RAMP↔D corner and on down D, C, B reads <c>"D C B"</c>. Drives the Aircraft List Info column
-    /// and the DTO TaxiRoute field.
+    /// RAMP↔D corner and on down D, C, B reads <c>"D C B"</c>. A route that ends holding short of a taxiway it does not
+    /// drive (<see cref="EndHoldTaxiway"/>) names that hold last: OAK <c>TAXI S HS B</c> reads <c>"S HS B"</c>, so the
+    /// client's Ground View preview ends at the hold short. Drives the Aircraft List Info column and the DTO TaxiRoute field.
     /// </summary>
-    public string FormatTaxiwaySequence() => string.Join(" ", TaxiwaySequence([]).Select(t => t.Display));
+    public string FormatTaxiwaySequence()
+    {
+        List<string> taxiways = [.. TaxiwaySequence([]).Select(t => t.Display)];
+        if (EndHoldTaxiway(taxiways) is { } hold)
+        {
+            taxiways.Add($"HS {hold}");
+        }
+
+        return string.Join(" ", taxiways);
+    }
+
+    /// <summary>
+    /// The taxiway the route ends holding short of without driving it: an uncleared route-incomplete or explicit hold at the
+    /// route's last node whose target is a taxiway outside <paramref name="drivenTaxiways"/>. Null when the route ends any
+    /// other way, a runway bar included.
+    /// </summary>
+    private string? EndHoldTaxiway(List<string> drivenTaxiways)
+    {
+        if ((Segments.Count == 0) || (Segments[^1].Edge.ToNode.Type == GroundNodeType.RunwayHoldShort))
+        {
+            return null;
+        }
+
+        int endNodeId = Segments[^1].ToNodeId;
+        HoldShortPoint? hold = HoldShortPoints.LastOrDefault(h =>
+            (h.NodeId == endNodeId)
+            && !h.IsCleared
+            && (h.Reason is HoldShortReason.RouteIncomplete or HoldShortReason.ExplicitHoldShort)
+            && !string.IsNullOrEmpty(h.TargetName)
+        );
+        string? target = hold?.TargetName;
+        return (target is null) || drivenTaxiways.Contains(target, StringComparer.OrdinalIgnoreCase) ? null : target;
+    }
 
     /// <summary>
     /// The cleared taxiways in order, from the shared <see cref="TaxiRouteFormatter.TaxiwayLegs"/>
@@ -322,6 +355,13 @@ public sealed class TaxiRoute
     /// <summary>How close (ft) a bar's stop must lie to a segment's chord to count as on that segment.</summary>
     private const double StopOnChordToleranceFt = 3.0;
 
+    /// <summary>
+    /// How much closer (ft) a stop must lie to a segment further back from the bar to be read on it instead: collinear legs
+    /// of a doubled-back route tie to float noise. A stop within the margin of a bend node is read at the bend, an error
+    /// bounded by the margin.
+    /// </summary>
+    private const double StopOnChordTieMarginFt = 0.5;
+
     /// <summary>Slack (nm, ~1 ft) when deciding whether a bar's stop lies on the segment that ends at its node.</summary>
     private const double StopOnSegmentToleranceNm = 1.0 / GeoMath.FeetPerNm;
 
@@ -332,8 +372,11 @@ public sealed class TaxiRoute
     /// segments count at their own length (an arc's arc length), the one the stop lies on pro rata. A stop the taxi phase
     /// moved forward lies on the segment's own geometry instead, which on a fillet is the arc, not its chord: a segment is
     /// read on whichever of its chord and its arc the stop lies closer to, and on the arc the stop's distance to the
-    /// segment's end is measured along the arc (<see cref="GroundArc.Locate"/>). A stop on no segment counts its
-    /// straight-line distance to the node. Zero when the bar has no stop position.
+    /// segment's end is measured along the arc (<see cref="GroundArc.Locate"/>). The stop is kept on the stretch of route
+    /// ahead of the aircraft and nearest the bar: the walk first goes back only to the segment in progress, and reaches
+    /// the segments behind it only when no segment ahead carries the stop, so a route that doubles back over its stop reads
+    /// it on the leg that drives into the bar. A stop on no segment counts its straight-line distance to the node. Zero
+    /// when the bar has no stop position.
     /// </summary>
     /// <param name="barSegmentIndex">Index of the segment whose far node is the bar's node.</param>
     /// <param name="holdShort">The bar.</param>
@@ -350,17 +393,36 @@ public sealed class TaxiRoute
             return 0.0;
         }
 
-        // The chord the stop is closest to, not the first within tolerance: a stop a foot or two before a bend is within
-        // tolerance of the next chord's start too, and taking that one reads the setback short by the gap.
         var stop = new LatLon(lat, lon);
-        double walkedNm = 0.0;
+        int inProgressIndex = Math.Min(barSegmentIndex, Math.Max(0, CurrentSegmentIndex));
+        (double? aheadNm, double walkedNm) = WalkBackToStop(stop, barSegmentIndex, inProgressIndex, 0.0);
+        return aheadNm
+            ?? WalkBackToStop(stop, inProgressIndex - 1, 0, walkedNm).SetbackNm
+            ?? GeoMath.DistanceNm(stop, Segments[barSegmentIndex].Edge.ToNode.Position);
+    }
+
+    /// <summary>
+    /// Walks the route back from segment <paramref name="fromIndex"/> to segment <paramref name="toIndex"/> for the
+    /// segment <paramref name="stop"/> lies on, <paramref name="walkedNm"/> already walked from the bar's node to the end
+    /// of <paramref name="fromIndex"/>.
+    /// </summary>
+    /// <returns>
+    /// The stop's distance (nm) along the route from the bar's node, null when no segment walked lies within
+    /// <see cref="StopOnChordToleranceFt"/> of it; and the distance walked to the start of <paramref name="toIndex"/>.
+    /// </returns>
+    private (double? SetbackNm, double WalkedNm) WalkBackToStop(LatLon stop, int fromIndex, int toIndex, double walkedNm)
+    {
+        // The chord the stop is closest to, not the first within tolerance: a stop a foot or two before a bend is within
+        // tolerance of the next chord's start too, and taking that one reads the setback short by the gap. A segment further
+        // back wins only by more than the tie margin, so collinear legs keep the one nearest the bar.
         double bestOffFt = StopOnChordToleranceFt;
         double? setbackNm = null;
-        for (int j = barSegmentIndex; j >= 0; j--)
+        for (int j = fromIndex; j >= toIndex; j--)
         {
             DirectionalEdge edge = Segments[j].Edge;
             (double offFt, double toEndNm) = StopOnSegment(edge, stop);
-            if (offFt < bestOffFt)
+            double mustBeUnderFt = setbackNm is null ? bestOffFt : bestOffFt - StopOnChordTieMarginFt;
+            if (offFt < mustBeUnderFt)
             {
                 bestOffFt = offFt;
                 setbackNm = walkedNm + toEndNm;
@@ -369,7 +431,7 @@ public sealed class TaxiRoute
             walkedNm += edge.DistanceNm;
         }
 
-        return setbackNm ?? GeoMath.DistanceNm(stop, Segments[barSegmentIndex].Edge.ToNode.Position);
+        return (setbackNm, walkedNm);
     }
 
     /// <summary>
@@ -696,9 +758,7 @@ public sealed class TaxiRoute
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     Unable = hs.Unable,
                     StopMoved = hs.StopMoved ? true : null,
-                    MergeHoldOnTaxiway = hs.MergeHold?.OnTaxiway,
-                    MergeHoldBeforeTaxiway = hs.MergeHold?.BeforeTaxiway,
-                    MergeHoldDeclined = hs.MergeHoldDeclined ? true : null,
+                    EndsNoDestinationRoute = hs.EndsNoDestinationRoute,
                 }),
             ],
             Description = ToSummary(),
@@ -788,8 +848,7 @@ public sealed class TaxiRoute
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                         Unable = hs.Unable,
                         StopMoved = hs.StopMoved == true,
-                        MergeHold = (hs.MergeHoldOnTaxiway is { } on) && (hs.MergeHoldBeforeTaxiway is { } before) ? new MergeHold(on, before) : null,
-                        MergeHoldDeclined = hs.MergeHoldDeclined == true,
+                        EndsNoDestinationRoute = hs.EndsNoDestinationRoute,
                     }
                 );
             }
@@ -884,21 +943,9 @@ public sealed class HoldShortPoint
     /// moved forward to the point the aircraft can actually stop at (never past the node the bar protects),
     /// the taxi brakes at the firm rate onto it, and the pilot answers "unable … stopping" instead of
     /// reading back a hold it will not fly. Set once, at the moment the bar is armed; a bar the aircraft has
-    /// room for is never flagged. Setting it drops any <see cref="MergeHold"/>: the moved stop is no longer before the
-    /// capping intersection, so the hold report must not say it is.
+    /// room for is never flagged.
     /// </summary>
-    public bool Unable
-    {
-        get;
-        set
-        {
-            field = value;
-            if (value)
-            {
-                MergeHold = null;
-            }
-        }
-    }
+    public bool Unable { get; set; }
 
     /// <summary>
     /// True once the taxi phase has moved this <see cref="Unable"/> bar's stop forward to the point the aircraft can
@@ -917,23 +964,10 @@ public sealed class HoldShortPoint
     public int? TailOverRunwayNodeId { get; set; }
 
     /// <summary>
-    /// Set when this taxiway hold-short binds a shallow merge (the arriving taxiway runs into the target at a few degrees)
-    /// and an intersection before the merge caps the wingtip-floor walk-back: the aircraft then holds short of that whole
-    /// intersection, nose at its near edge, and the readback and the hold report name where ("will hold on D before G").
-    /// Null for every other placement. Set by <see cref="HoldShortAnnotator.ComputeHoldShortPositions"/>.
+    /// True for the hold that ends a route cut short of a taxiway it never drives: a clearance with no destination held short
+    /// of its last taxiway (<c>TAXI C B</c>, <c>TAXI C HS B</c>), or a route ended at the hold short of a taxiway it would drive
+    /// (<c>TAXI D C HS E RWY 28R</c>). The route goes nowhere past it, so <c>RES</c> and <c>CROSS</c> do not release it; only
+    /// a new TAXI moves the aircraft on.
     /// </summary>
-    public MergeHold? MergeHold { get; set; }
-
-    /// <summary>
-    /// True once the aircraft was found already past the <see cref="MergeHold"/> stop, or unable to brake to it, when the
-    /// hold-short was armed: placement then keeps the stop capped at the first junction, with the wingtip warning and the
-    /// plain readback, on every recompute.
-    /// </summary>
-    public bool MergeHoldDeclined { get; set; }
+    public bool EndsNoDestinationRoute { get; set; }
 }
-
-/// <summary>
-/// Where a hold-short at a shallow merge holds instead of at the merge: on <paramref name="OnTaxiway"/> (the taxiway the
-/// aircraft arrives on) before <paramref name="BeforeTaxiway"/> (the taxiway of the intersection that capped the walk-back).
-/// </summary>
-public sealed record MergeHold(string OnTaxiway, string BeforeTaxiway);

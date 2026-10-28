@@ -200,15 +200,25 @@ Follow               -> ShowAllTaxiRoutes && (HasActiveTaxiRoute || HasStoredTax
 - `AircraftModel.Position` — live lat/lon.
 - `AircraftModel.AssignedRunway` — the runway the taxi route holds short of (departures). The formatted `TaxiRoute` string lists only taxiways taxied *along*, never the held-short runway, so this is the only channel for it.
 - `AircraftModel.TaxiDestination` — the `@parking` / `$spot` the route ends at (`""` otherwise), from `DtoConverter.TaxiDestinationLabel`. The taxiway string cannot say where a ramp cut is headed, so this is the only channel for it.
-- `AircraftModel.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId` — the shape of the turn about the route starts with on the taxiway the aircraft stood on, not yet flown (for a far-end route with no leg back, until the aircraft reaches the target), and the occupied edge's far node it turns toward (`AircraftGroundOps.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId`; `TaxiTurnAboutShape.None` and null when none is pending). The taxiway string cannot say which end of the occupied edge the route starts from, so this is the only channel for it.
+- `AircraftModel.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId` — the shape of the turn about the route starts with on the taxiway the aircraft stood on, not yet flown (for a far-end route with no leg back, until the aircraft reaches the target), and the occupied edge's far node it turns toward (`AircraftGroundOps.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId`; `TaxiTurnAboutShape.None` and null when none is pending).
+
+  The taxiway string cannot say which end of the occupied edge the route starts from, so this is the only channel for it.
 
 Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **reconstructs the geometry locally**: it parses the taxiway-name string, picks the start node, trims the sequence to start at `CurrentTaxiway`, and re-runs `TaxiPathfinder.ResolveExplicitPath` against the client's cached `AirportGroundLayout` (`_domainLayout`).
 
 The start node is the server's: `AirportGroundLayout.FindTaxiStartNode(position, heading, traffic)` over the ground aircraft the server's world holds (airborne and delayed ones left out), so it never starts at an occupied stand's parking node — on a straight taxi edge or fillet arc the aircraft stands mid-way along, the end ahead of it, so the overlay starts on the taxiway the aircraft is on and not on a nearer parallel one (see [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)).
 
+**The preview ends where the server's route ends.**
+
+A route string that ends `HS B` (a no-destination TAXI held short of its last taxiway, e.g. `C HS B`) is read by `GroundViewModel.ParseRouteHoldTaxiway`: the taxiways before `HS` are the ones driven, and with no destination or assigned runway B is appended last, so the reconstruction's own no-destination cut (`TaxiPathfinder.HoldShortOfNoDestinationTerminus`) ends the overlay short of B. `EndAtRouteHold` then truncates the result at the first node of the junction it ends at (`TaxiPathfinder.TerminusJunctionRunStart`), never at an earlier node on B the route runs past or starts on, so a route given while the aircraft stands at the junction (held at OAK C/B with `C A HS B`) ends where the server's does (A/B).
+
+The overlay never draws on into the junction or along B.
+
 **A turn about is drawn exactly as the server sends it.** The server turns an aircraft mid-way along a straight edge about on the taxiway in one of two shapes (`TaxiTurnAboutShape`), and `AircraftModel.TaxiTurnAboutShape` carries it until that first leg is flown; `TurnAboutStart` picks where the overlay resolves the route from:
 
-- `FromFarEnd` — from the sent target node (`TaxiTurnAboutTargetNodeId`), whatever the aircraft's heading now picks as its start. Its approach leg is re-applied under the same guards the server applies (`TaxiApproachLeg.Prepend`), so a far-end shape the server planned with no leg (a hold short at the far node, a runway centreline between) draws without one. The simulation stops sending that no-leg shape once the aircraft has passed the target, so the overlay never draws a turn about behind it. A target node the layout lacks logs a warning and draws from the start node.
+- `FromFarEnd` — from the sent target node (`TaxiTurnAboutTargetNodeId`), whatever the aircraft's heading now picks as its start. Its approach leg is re-applied under the same guards the server applies (`TaxiApproachLeg.Prepend`), so a far-end shape the server planned with no leg (a hold short at the far node, a runway centreline between) draws without one.
+
+  The simulation stops sending that no-leg shape once the aircraft has passed the target, so the overlay never draws a turn about behind it. A target node the layout lacks logs a warning and draws from the start node.
 - `InPlace` — from the start node, whose first segment reverses over the edge the aircraft stands on.
 - `None` — from the start node, with no turn about.
 
@@ -305,13 +315,17 @@ A surface live-traffic shadow gets the read-only menu every view shares (Track, 
 
 Follow, Give way and Hold short come from the catalog: the host answers the ground traffic as `MenuGroundTrafficRow`s (every other ground aircraft but delayed spawns, nearest first; Give way to… drops live-traffic surface shadows) and the Hold short of… ladder (`GroundViewModel.GetHoldShortMenu` → `HoldShortMenu`: the route line, the me line, one `HoldShortChoice` per bar and the `HoldShortDestination`; `HoldShortLadder` draws it), and Core formats `FOLLOWG`/`GW`.
 
-`GroundTrafficFlyout` draws the traffic lists (layout in [client-context-menus.md](client-context-menus.md)). Pointing at a traffic row, or keyboard-focusing it, calls `ClientMenuHost.HighlightAircraft` (a row gone under the pointer stops highlighting its departed aircraft, and the highlight follows focus handed to a live row as the open flyout refills once a second), which calls `DataBlockViewState.SetMenuHighlight` on every ground view (a hand-set highlight stays); `GroundCanvas` repaints on `HighlightsChanged` while attached to the visual tree (seam `WatchedDataBlockState`).
+`GroundTrafficFlyout` draws the traffic lists (layout in [client-context-menus.md](client-context-menus.md)).
+
+Pointing at a traffic row, or keyboard-focusing it, calls `ClientMenuHost.HighlightAircraft` (a row gone under the pointer stops highlighting its departed aircraft, and the highlight follows focus handed to a live row as the open flyout refills once a second), which calls `DataBlockViewState.SetMenuHighlight` on every ground view (a hand-set highlight stays); `GroundCanvas` repaints on `HighlightsChanged` while attached to the visual tree (seam `WatchedDataBlockState`).
 
 `GroundViewModel.GetHoldShortMenu` walks the reconstructed remaining route (`LadderStopsAndEnd`): a runway bar gives one row per runway (its first bar), a taxiway off the route gives a crossing wherever a route node has one of its edges, a junction arc's included ("X - Y" meets X and Y, as the server's `MatchesTaxiway` decides; the joined name is never a row), and a taxiway met on more than one route taxiway gives one located row (`X@A`) per route taxiway.
 
 A taxiway the route itself turns onto also gives a row, bare, once, at its first turn (`RouteTaxiwayTurnedOnto`: the next segment travels a route taxiway other than the one the node lies on); the taxiway the aircraft starts on gives none. It sorts after an off-route crossing at the same node, and reads "before turning onto {twy}", or "crossing on {X}" when the route meets that taxiway earlier. On `S T U W W1 30` the ladder offers `HS T` and `HS U`.
 
-Each row's bar is the node its `HS` binds by the node walk the server falls back on when the route holds no hold-short point for the target yet (`HoldShortBindIndex`); the client does not mirror the server's first step, which re-arms an existing `HoldShortPoint`, nor its walk starting at `CurrentSegmentIndex`. Its distance from the aircraft (`TaxiRoute.PrefixDistanceFt` corrected by `GroundViewModel.RouteStart`'s offset, rounded by `TugMovePlanner.NoteDistanceFt`), its "where" and its preview route are those of that bar; a bar at 0 ft is dropped.
+Each row's bar is the node its `HS` binds by the node walk the server falls back on when the route holds no hold-short point for the target yet (`HoldShortBindIndex`); the client does not mirror the server's first step, which re-arms an existing `HoldShortPoint`, nor its walk starting at `CurrentSegmentIndex`.
+
+Its distance from the aircraft (`TaxiRoute.PrefixDistanceFt` corrected by `GroundViewModel.RouteStart`'s offset, rounded by `TugMovePlanner.NoteDistanceFt`), its "where" and its preview route are those of that bar; a bar at 0 ft is dropped.
 
 The node the route starts at is a bar like any other: an aircraft partway along an edge that ends at a holding position starts its route at that bar with no free-space leg, so the bar gets its own row, measured from the aircraft, with a preview of no segments.
 
@@ -333,7 +347,9 @@ Taxi to runway (`GroundViewModel.GetTaxiToRunwayChoices`) starts from `TaxiStart
 
 The active departure ends come from `ActiveDepartureRunwayEnds`, which reads the room's active runways like `ActiveRunwayEnds` but keeps only the `Use` Both and Departure ends; Hold short's naming still uses `ActiveRunwayEnds`. The flyout asks for its ends when Taxi to runway first opens ([client-context-menus.md](client-context-menus.md)).
 
-`TaxiToRunwayMenu.RunwayEnds` names every runway end of the airport up front (`OrderedRunwayEnds`): the assigned end, then the departure ends, then the rest by runway number. The assigned and departure runways are searched when the menu opens; a runway with no hold short reads Empty; any other runway reads NotSearched until `TaxiToRunwayEndList.SearchRunwayOf` searches it off the UI thread (`SearchRunwayInBackground`: Searching until it lands, then Ready or Empty), both ends of the runway at once.
+`TaxiToRunwayMenu.RunwayEnds` names every runway end of the airport up front (`OrderedRunwayEnds`): the assigned end, then the departure ends, then the rest by runway number.
+
+The assigned and departure runways are searched when the menu opens; a runway with no hold short reads Empty; any other runway reads NotSearched until `TaxiToRunwayEndList.SearchRunwayOf` searches it off the UI thread (`SearchRunwayInBackground`: Searching until it lands, then Ready or Empty), both ends of the runway at once.
 
 A search voided by a layout change or a failure returns its ends to NotSearched, which the flyout shows as `none` and retries when the tab is chosen again. `RunwayEntryRoutes` shares one in-flight search per key across callers.
 
@@ -343,15 +359,21 @@ Draw taxi route… and Push route… are on every view, and `EnterDrawRoute` / `
 
 A runway threshold goes `OnRunwayThresholdClicked` → `BuildRunwayThresholdMenu`, which resolves the end to its nearest hold-short node the selected aircraft can reach, → `BuildThresholdPointMenu`, with the clicked runway end as the point; a left click on the amber threshold dot raises the same handler. A runway surface goes `OnRunwaySurfaceRightClicked` → `BuildRunwaySurfaceMenu`, with the runways under the click and the nearest node as the point.
 
-A click on a runway centerline node counts as a runway-surface click even outside the painted rectangle (zoomed out, the node hit radius is wider than the runway): `GroundCanvas.TryRaiseRunwaySurfaceClick` takes the runways from the node's centerline edges, so the node opens the runway menu rather than Taxi here. Like a painted-runway click it needs runways drawn (`ShowYaatLayout` or `ShowVideoMapOverlay`); with both hidden the node opens its own menu. A `RunwayHoldShort` node within the hit radius still opens its own node menu, and a threshold marker its threshold menu.
+A click on a runway centerline node counts as a runway-surface click even outside the painted rectangle (zoomed out, the node hit radius is wider than the runway): `GroundCanvas.TryRaiseRunwaySurfaceClick` takes the runways from the node's centerline edges, so the node opens the runway menu rather than Taxi here.
+
+Like a painted-runway click it needs runways drawn (`ShowYaatLayout` or `ShowVideoMapOverlay`); with both hidden the node opens its own menu. A `RunwayHoldShort` node within the hit radius still opens its own node menu, and a threshold marker its threshold menu.
 
 The menu opens with the point header (`SharedMenuGroups.AddPointHeader`), the bold title `{callsign} · {type} → {place}`. At the hold short a threshold click resolves to, the place is `HS 30 at W3` (`IMenuHost.GetHoldShortTaxiwayName`; `HS 30` when no named taxiway leads to it). At a named stand or spot it is `parking {name}` or `spot {name}`.
 
 At any other node it is the taxiways meeting there, ordinal-sorted and joined with ` / ` (`IMenuHost.GetNodeTaxiwayNames`; `this point` when none does), and on a runway surface `runway 28R`, the first runway's first end. The ground view's point menu has no detail row; the radar's does.
 
-Then an icon strip of the ground point items that apply (Taxi here, Taxi to runway, Push to, Custom taxi…), a separator, and the text items by the aircraft's predicate; no strip for an airborne aircraft, and "No route found" stays a text row (its strip button stays too, faded and inert). `PointMenuHostCache` makes the strip and the text items share one set of host answers. Taxi here (`ClientMenuHost.GetTaxiChoices`) is one route's item that sends at once, a flyout (`PointTaxiFlyout.BuildTaxiHere`) of two-line rows, one per route found, or a disabled "No route found", each previewing its route on hover or focus through `SetRoutePreview`.
+Then an icon strip of the ground point items that apply (Taxi here, Taxi to runway, Push to, Custom taxi…), a separator, and the text items by the aircraft's predicate; no strip for an airborne aircraft, and "No route found" stays a text row (its strip button stays too, faded and inert).
 
-Its command ends at the clicked node: a named Spot gives `$SPOT`, a named Parking or Helipad `@STAND`, a hold short the runway (its `RunwayId`'s End1, or the clicked end on a threshold click) as For Departure and Hold short variants, and any other node a trailing node pin, `TAXI W B #1234` (`TaxiRouteFormatter.BuildReadableTaxiPath`, as the draw-route copy uses), which the crossing variants' `HS`/`CROSS` clauses follow. Without the pin the server would stop the aircraft at the junction of the last two taxiways. On a runway surface a "Taxi to runway" flyout (`PointTaxiFlyout.BuildTaxiToRunway`) has a tab per runway end listing its hold-short targets, ordered along the runway from the click (`ClientMenuHost.GetRunwayHoldShortTargets`).
+`PointMenuHostCache` makes the strip and the text items share one set of host answers. Taxi here (`ClientMenuHost.GetTaxiChoices`) is one route's item that sends at once, a flyout (`PointTaxiFlyout.BuildTaxiHere`) of two-line rows, one per route found, or a disabled "No route found", each previewing its route on hover or focus through `SetRoutePreview`.
+
+Its command ends at the clicked node: a named Spot gives `$SPOT`, a named Parking or Helipad `@STAND`, a hold short the runway (its `RunwayId`'s End1, or the clicked end on a threshold click) as For Departure and Hold short variants, and any other node a trailing node pin, `TAXI W B #1234` (`TaxiRouteFormatter.BuildReadableTaxiPath`, as the draw-route copy uses), which the crossing variants' `HS`/`CROSS` clauses follow.
+
+Without the pin the server would stop the aircraft at the junction of the last two taxiways. On a runway surface a "Taxi to runway" flyout (`PointTaxiFlyout.BuildTaxiToRunway`) has a tab per runway end listing its hold-short targets, ordered along the runway from the click (`ClientMenuHost.GetRunwayHoldShortTargets`).
 
 Push to {stand or spot} follows on a named Parking or Spot node when the aircraft can push back, then Custom taxi… (the shared input popup, seeded by `GetCustomTaxiSeed`), then Warp here (`WARPG #node`) after a separator. An airborne aircraft gets the airborne point items (Fly heading, Direct to, Hold) and no taxi items.
 

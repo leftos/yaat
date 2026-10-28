@@ -151,7 +151,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
         route.HoldShortPoints.Add(bar);
 
         // Control: this is a bar the annotator does position, so the second pass below would move it back.
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt, null);
         Assert.NotNull(bar.Latitude);
         Assert.NotNull(bar.Longitude);
 
@@ -161,7 +161,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
         bar.Latitude = movedLat;
         bar.Longitude = movedLon;
 
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt, null);
 
         Assert.Equal(movedLat, bar.Latitude!.Value, 9);
         Assert.Equal(movedLon, bar.Longitude!.Value, 9);

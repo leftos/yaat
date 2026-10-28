@@ -482,6 +482,52 @@ public class SnapshotRoundTripTests
         return ApproachClearance.FromSnapshot(JsonSerializer.Deserialize<ApproachClearanceDto>(json, RecordingJsonOptions.Default)!);
     }
 
+    /// <summary>
+    /// The mark on the hold ending a route cut short of a taxiway it never drives survives a snapshot through JSON, and an
+    /// unmarked hold writes no field for it.
+    /// </summary>
+    [Fact]
+    public void HoldShortPoint_EndsNoDestinationRoute_RoundTripsThroughJson_AndIsOmittedWhileFalse()
+    {
+        if (new TestAirportGroundData().GetLayout("OAK") is not { } layout)
+        {
+            Assert.Skip("no KOAK layout");
+            return;
+        }
+
+        var route = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "B",
+                    EndsNoDestinationRoute = true,
+                },
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "C",
+                },
+            ],
+        };
+
+        string json = JsonSerializer.Serialize(route.ToSnapshot(), RecordingJsonOptions.Default);
+        JsonArray holds = Assert.IsType<JsonArray>(JsonNode.Parse(json)?["HoldShortPoints"]);
+        Assert.True(holds[0]?["EndsNoDestinationRoute"]?.GetValue<bool>() == true, json);
+        Assert.Null(holds[1]?["EndsNoDestinationRoute"]);
+
+        TaxiRoute restored = Assert.IsType<TaxiRoute>(
+            TaxiRoute.FromSnapshot(JsonSerializer.Deserialize<TaxiRouteDto>(json, RecordingJsonOptions.Default)!, layout)
+        );
+        Assert.True(restored.HoldShortPoints[0].EndsNoDestinationRoute, "the end-of-route mark did not survive the snapshot");
+        Assert.False(restored.HoldShortPoints[1].EndsNoDestinationRoute, "an unmarked hold restored marked");
+    }
+
     private static AircraftHoldAnnotation RoundTripThroughJson(AircraftHoldAnnotation annotation)
     {
         string json = JsonSerializer.Serialize(annotation.ToSnapshot(), RecordingJsonOptions.Default);

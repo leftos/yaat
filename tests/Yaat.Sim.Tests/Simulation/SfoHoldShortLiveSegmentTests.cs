@@ -82,8 +82,136 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     /// <summary>One scripted "roll down B, then hold short of T" run and everything asserted about it.</summary>
     private sealed record HsRun(AircraftState Aircraft, GroundNode Spawn, GroundNode Junction, CommandResult Result, RunTrace Trace);
 
-    /// <summary>What the run measured: where and how fast the clearance was issued, and every speed after it.</summary>
-    private sealed record RunTrace(double IssueDistFt, double IssueSpeedKts, LatLon IssuePosition, List<double> SpeedsAfterIssue);
+    /// <summary>
+    /// What the run measured: where, facing which way and how fast the clearance was issued, where the annotator placed
+    /// the T bar's stop as the clearance was answered (before any tick moved it), and every speed after it.
+    /// </summary>
+    private sealed record RunTrace(
+        double IssueDistFt,
+        double IssueSpeedKts,
+        LatLon IssuePosition,
+        TrueHeading IssueHeading,
+        LatLon? PlacedStop,
+        List<double> SpeedsAfterIssue
+    );
+
+    /// <summary>How far behind the aircraft (ft, along its heading) a placed stop may sit and still count as where it stands.</summary>
+    private const double StopBehindToleranceFt = 1.0;
+
+    /// <summary>
+    /// How close to the B/T junction (ft) the B738 is when told <c>HS T</c> in the stop-behind case: inside the T bar's
+    /// setback stop (a fuselage plus 30 ft back from the bar's node, which sits about 110 ft short of the junction), so the
+    /// walk back from the bar ends behind the aircraft, yet far enough from the bar's node that the firm-rate stop from
+    /// taxi speed lies short of it.
+    /// </summary>
+    private const double PastTheSetbackStopIssueWithinFt = 260.0;
+
+    /// <summary>
+    /// How much more (kt/s) a one-second speed drop may be than the firm rate: the second the firm curve starts is
+    /// partly spent at the taxi rate, so a steady second reads the rate to within this.
+    /// </summary>
+    private const double DecelToleranceKtsPerSec = 0.2;
+
+    /// <summary>
+    /// <c>HS T</c> issued to a B738 rolling west on B that is already past where the T bar's setback stop would be:
+    /// the walk back from the bar ends at the aircraft, so the stop is never placed behind it. A stop where it stands
+    /// cannot be made at taxi speed, so the answer is unable; the aircraft brakes no harder than its firm rate onto the
+    /// stop it can make and holds there, short of the junction.
+    /// </summary>
+    [Fact]
+    public void HsT_IssuedPastTheSetbackStop_IsNotPlacedBehindTheAircraftAndBrakesAtTheFirmRate()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: PastTheSetbackStopIssueWithinFt);
+        if (run is null)
+        {
+            return;
+        }
+
+        Assert.True(run.Result.Success, $"HS T refused: {run.Result.Message}");
+        Assert.Contains("Unable to hold short", run.Result.Message, StringComparison.OrdinalIgnoreCase);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(run.Aircraft.Ground.AssignedTaxiRoute);
+        HoldShortPoint bar = Assert.Single(route.HoldShortPoints, h => h.TargetName == "T");
+        double issueToBarNodeFt = DistanceFt(run.Trace.IssuePosition, built.Value.Layout.Nodes[bar.NodeId].Position);
+        double lengthSetbackFt = (FaaAircraftDatabase.Get(Type)?.LengthFt ?? 0) + BarBufferFt;
+        output.WriteLine($"issued {issueToBarNodeFt:F0} ft from the T bar's node {bar.NodeId}; length setback {lengthSetbackFt:F0} ft");
+        Assert.True(
+            issueToBarNodeFt < lengthSetbackFt,
+            $"issued {issueToBarNodeFt:F0} ft from the bar's node, not past its {lengthSetbackFt:F0} ft setback stop"
+        );
+
+        LatLon stop = Assert.NotNull(run.Trace.PlacedStop);
+        double stopAheadFt = AlongHeadingFt(run.Trace.IssuePosition, run.Trace.IssueHeading, stop);
+        output.WriteLine($"issued at {run.Trace.IssueDistFt:F0} ft / {run.Trace.IssueSpeedKts:F1} kt; placed stop {stopAheadFt:F1} ft ahead");
+        Assert.True(stopAheadFt >= -StopBehindToleranceFt, $"HS T's stop was placed {-stopAheadFt:F1} ft behind the aircraft");
+
+        AssertHoldingShortOfT(run);
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet);
+        double peakDecel = PeakDecelBeforeTheHold(run.Trace);
+        output.WriteLine($"peak one-second speed drop before the hold {peakDecel:F2} kt; firm rate {firmRate:F1} kt/s");
+        Assert.True(
+            peakDecel <= firmRate + DecelToleranceKtsPerSec,
+            $"{Callsign} slowed by {peakDecel:F2} kt in one second, above the firm rate {firmRate:F1} kt/s"
+        );
+        double speedBeforeHoldKts = SpeedBeforeTheHoldKts(run.Trace);
+        double holdArmBoundKts = firmRate + TaxiingPhase.StartNodeHoldArmSpeedKts + (firmRate / SimulationEngine.PhysicsSubTickRate);
+        Assert.True(
+            speedBeforeHoldKts <= holdArmBoundKts,
+            $"{Callsign} was still at {speedBeforeHoldKts:F2} kt on the second before it held (bound {holdArmBoundKts:F2}): stopped dead from speed"
+        );
+
+        double rolledFt = AlongHeadingFt(run.Trace.IssuePosition, run.Trace.IssueHeading, run.Aircraft.Position);
+        output.WriteLine(
+            $"held {rolledFt:F1} ft on from the issue, {DistanceFt(run.Aircraft.Position, run.Junction.Position):F0} ft from the junction"
+        );
+        Assert.True(rolledFt >= -StopBehindToleranceFt, $"{Callsign} backed up {-rolledFt:F1} ft to hold");
+        Assert.True(
+            DistanceFt(run.Spawn.Position, run.Aircraft.Position) < DistanceFt(run.Spawn.Position, run.Junction.Position),
+            $"{Callsign} held past the B/T junction"
+        );
+    }
+
+    /// <summary>
+    /// How far <paramref name="point"/> lies ahead of <paramref name="from"/> along <paramref name="heading"/> (ft; negative behind).
+    /// </summary>
+    private static double AlongHeadingFt(LatLon from, TrueHeading heading, LatLon point) =>
+        DistanceFt(from, point) * Math.Cos(GeoMath.AbsBearingDifference(heading.Degrees, GeoMath.BearingTo(from, point)) * Math.PI / 180.0);
+
+    /// <summary>
+    /// The largest one-second speed drop from the issue to the hold, leaving out the second that takes the hold: that
+    /// second's arrival snap zeroes the speed left on the curve and is bounded on its own.
+    /// </summary>
+    private static double PeakDecelBeforeTheHold(RunTrace trace)
+    {
+        double previousKts = trace.IssueSpeedKts;
+        double peak = 0.0;
+        for (int i = 0; i < trace.SpeedsAfterIssue.Count - 1; i++)
+        {
+            peak = Math.Max(peak, previousKts - trace.SpeedsAfterIssue[i]);
+            previousKts = trace.SpeedsAfterIssue[i];
+        }
+
+        return peak;
+    }
+
+    /// <summary>
+    /// The speed (kt) on the whole second before the one that takes the hold: the issue speed when the hold is taken on
+    /// the first second after the issue. The arrival snap zeroes at most this.
+    /// </summary>
+    private static double SpeedBeforeTheHoldKts(RunTrace trace) =>
+        trace.SpeedsAfterIssue.Count < 2 ? trace.IssueSpeedKts : trace.SpeedsAfterIssue[^2];
+
+    /// <summary>Where the annotator placed the uncleared T bar's stop on the aircraft's route, or null when it has none.</summary>
+    private static LatLon? PlacedStopOfT(AircraftState aircraft) =>
+        aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.FirstOrDefault(h => (h.TargetName == "T") && !h.IsCleared)
+            is { Latitude: { } lat, Longitude: { } lon }
+            ? new LatLon(lat, lon)
+            : null;
 
     [Fact]
     public void HsT_IssuedFarOut_HoldsAtTheBar()
@@ -329,8 +457,9 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
                 continue;
             }
 
-            trace = new RunTrace(distFt, aircraft.GroundSpeed, aircraft.Position, []);
+            double issueSpeedKts = aircraft.GroundSpeed;
             issued = ground.Engine.SendCommand(Callsign, "HS T");
+            trace = new RunTrace(distFt, issueSpeedKts, aircraft.Position, aircraft.TrueHeading, PlacedStopOfT(aircraft), []);
             output.WriteLine($"HS T at {distFt:F0} ft / {aircraft.GroundSpeed:F1} kt: {issued.Success} — {issued.Message}");
         }
 

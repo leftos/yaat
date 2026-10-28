@@ -1169,14 +1169,22 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             engine,
             ac =>
             {
-                stoppedBetweenBars |= ac.Phases?.CurrentPhase is HoldingShortPhase;
-                return ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex > farBarSegment;
+                bool pastFarBar = ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex > farBarSegment;
+                stoppedBetweenBars |= !pastFarBar && (ac.Phases?.CurrentPhase is HoldingShortPhase);
+                return pastFarBar;
             },
             300
         );
 
         Assert.False(stoppedBetweenBars, $"the aircraft held short again between {fromTaxiway}'s bar and {toTaxiway}'s bar");
         Assert.NotNull(past);
+
+        // The clearance names no destination, so the route ends holding short of the onward taxiway past the far bar, with the
+        // tail clear of the runway it crossed.
+        HoldingShortPhase endHold = Assert.IsType<HoldingShortPhase>(past.Phases?.CurrentPhase);
+        Assert.Equal(onward, endHold.HoldShort.TargetName);
+        Assert.Null(endHold.HoldShort.TailOverRunwayNodeId);
+
         output.WriteLine(
             $"past {toTaxiway}'s bar: twy={past.Ground.CurrentTaxiway} gs={past.GroundSpeed:F1} phase={past.Phases?.CurrentPhase?.GetType().Name}"
         );

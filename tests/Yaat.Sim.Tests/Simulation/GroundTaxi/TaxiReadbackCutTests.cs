@@ -49,7 +49,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBC_From28LBar_28RAutoCrossed_ReadsBothCrossings()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.All, "TAXI B C");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left and runway two eight right", readback);
+        AssertReadback("taxi via bravo, cross runway two eight left and runway two eight right, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     {
         (SimulationEngine engine, AircraftState aircraft) = HoldingShortOf28RAfter("TAXI B C");
         string? readback = IssueAndReadBack(engine, aircraft, "CROSS 28R");
-        AssertReadback("cross runway two eight right, continue taxi via bravo, charlie", readback);
+        AssertReadback("cross runway two eight right, continue taxi via bravo, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
         Assert.Equal(["B", "C"], Assert.IsType<TaxiRoute>(restored.Ground.AssignedTaxiRoute).ClearanceTaxiways);
 
         string? readback = IssueAndReadBack(restoredEngine, restored, "CROSS 28R");
-        AssertReadback("cross runway two eight right, continue taxi via bravo, charlie", readback);
+        AssertReadback("cross runway two eight right, continue taxi via bravo, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -129,7 +129,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         route.ClearanceTaxiways = null;
         string? readback = IssueAndReadBack(engine, aircraft, "CROSS 28R");
-        AssertReadback("cross runway two eight right, continue taxi via bravo", readback);
+        AssertReadback("cross runway two eight right, continue taxi via bravo, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -168,7 +168,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     {
         (SimulationEngine engine, AircraftState aircraft) = HoldingShortOf28RAfter("TAXI B C");
         string? readback = IssueAndReadBack(engine, aircraft, "RES");
-        AssertReadback("cross runway two eight right, continue taxi via bravo, charlie", readback);
+        AssertReadback("cross runway two eight right, continue taxi via bravo, hold short of taxiway charlie", readback);
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     {
         (SimulationEngine engine, AircraftState aircraft) = HoldingShortOf28RAfter("TAXI B C");
         string? readback = IssueAndReadBack(engine, aircraft, "CROSS 28R EXP");
-        AssertReadback("cross runway two eight right, without delay, continue taxi via bravo, charlie", readback);
+        AssertReadback("cross runway two eight right, without delay, continue taxi via bravo, hold short of taxiway charlie", readback);
     }
 
     /// <summary>A <c>CROSS 28R</c> while still rolling toward the 28R bar pre-clears it, and reads the route past it.</summary>
@@ -196,7 +196,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
         Assert.Contains(route.HoldShortPoints, hs => HoldShortAnnotator.TargetMatches(hs.TargetName, "28R") && !hs.IsCleared);
 
         string? readback = IssueAndReadBack(engine, aircraft, "CROSS 28R");
-        AssertReadback("cross runway two eight right, continue taxi via bravo, charlie", readback);
+        AssertReadback("cross runway two eight right, continue taxi via bravo, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -236,7 +236,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCCross28R_InOneBlock_ReadsTheCrossingInTheRouteReadback()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.Off, "TAXI B C, CROSS 28R");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left and runway two eight right", readback);
+        AssertReadback("taxi via bravo, cross runway two eight left and runway two eight right, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -255,7 +255,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCCross28R_AutoCrossAll_ReadsThe28RCrossingOnce()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.All, "TAXI B C, CROSS 28R");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left and runway two eight right", readback);
+        AssertReadback("taxi via bravo, cross runway two eight left and runway two eight right, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -278,7 +278,10 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCCross28RExp_FromThe28LBar_ReadsTheExpeditedCrossingOnce()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.Off, "TAXI B C, CROSS 28R EXP");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left, cross runway two eight right without delay", readback);
+        AssertReadback(
+            "taxi via bravo, cross runway two eight left, cross runway two eight right without delay, hold short of taxiway charlie",
+            readback
+        );
     }
 
     /// <summary>
@@ -301,7 +304,10 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCCross28LExp_AutoCrossAll_ReadsTheExpeditedRunwayInRouteOrder()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.All, "TAXI B C, CROSS 28L EXP");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left without delay, cross runway two eight right", readback);
+        AssertReadback(
+            "taxi via bravo, cross runway two eight left without delay, cross runway two eight right, hold short of taxiway charlie",
+            readback
+        );
     }
 
     /// <summary>
@@ -333,7 +339,7 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCCross10L_ReadsTheNamedRunwayEnd()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.Off, "TAXI B C, CROSS 10L");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left and runway one zero left", readback);
+        AssertReadback("taxi via bravo, cross runway two eight left and runway one zero left, hold short of taxiway charlie", readback);
     }
 
     /// <summary>
@@ -344,7 +350,10 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCCross28RExpCross28L_FromThe28LBar_ReadsEachCrossingOnce()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.Off, "TAXI B C, CROSS 28R EXP, CROSS 28L");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left, cross runway two eight right without delay", readback);
+        AssertReadback(
+            "taxi via bravo, cross runway two eight left, cross runway two eight right without delay, hold short of taxiway charlie",
+            readback
+        );
     }
 
     /// <summary>
@@ -355,7 +364,10 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     public void TaxiBCExpCross28RExp_FromThe28LBar_SaysWithoutDelayOnce()
     {
         string? readback = ReadbackFrom28LBar(AutoCrossRunwayMode.Off, "TAXI B C EXP, CROSS 28R EXP");
-        AssertReadback("taxi via bravo, charlie, cross runway two eight left and runway two eight right, without delay", readback);
+        AssertReadback(
+            "taxi via bravo, cross runway two eight left and runway two eight right, without delay, hold short of taxiway charlie",
+            readback
+        );
     }
 
     /// <summary>An expedited TAXI with a covered plain <c>CROSS 28L</c> says "without delay" once and reads 28L once.</summary>
@@ -417,8 +429,8 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
         var route = new HandlerReadback(
             CanonicalCommandType.Taxi,
             new PilotSpeechText(
-                "taxi via B C, cross runway 28L and runway 28R",
-                "taxi via bravo, charlie, cross runway two eight left and runway two eight right"
+                "taxi via B C, cross runway 28L and runway 28R, hold short of taxiway C",
+                "taxi via bravo, cross runway two eight left and runway two eight right, hold short of taxiway charlie"
             )
         );
         var covered = new CommandResult(true) { PilotReadback = route with { Covers = [coveredCompound.Blocks[0].Commands[1]] } };
@@ -484,11 +496,11 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Spot E staging: <c>TAXI TE T U HS T</c> ends at the T bar, so a bare <c>RES</c> there has no queued route past the
-    /// bar to read, and the readback is the command's own, as before.
+    /// Spot E staging: <c>TAXI TE T U HS T</c> ends at the T bar, so a bare <c>RES</c> there has no route past the bar to
+    /// release onto: it is refused with the route-incomplete reason, and the pilot reads nothing back.
     /// </summary>
     [Fact]
-    public void ResAtTaxiwayBar_RouteEndsAtTheBar_KeepsTodaysReadback()
+    public void ResAtTaxiwayBar_RouteEndsAtTheBar_IsRefusedWithNoReadback()
     {
         TestVnasData.EnsureInitialized();
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
@@ -513,8 +525,11 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
 
         IssueAndReadBack(engine, aircraft, "TAXI TE T U HS T");
         TickUntilHoldingShortOf(engine, aircraft, "T");
-        string? readback = IssueAndReadBack(engine, aircraft, "RES");
-        AssertReadback("resume taxi", readback);
+        CommandResult res = engine.SendCommand(aircraft.Callsign, "RES");
+        output.WriteLine($"RES: success={res.Success} '{res.Message}'");
+        Assert.False(res.Success, $"RES was accepted: {res.Message}");
+        Assert.Equal("holding short of T where the route issued ends — issue a TAXI that includes T", res.Message);
+        Assert.Null(res.PilotReadback);
     }
 
     /// <summary>Holding short of 28L at the south B bar, facing it, the aircraft is given <paramref name="command"/>.</summary>

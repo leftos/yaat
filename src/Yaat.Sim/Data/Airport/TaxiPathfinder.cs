@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport.Pathfinding;
 
 namespace Yaat.Sim.Data.Airport;
@@ -37,6 +38,8 @@ public sealed record NearestGoalRequest(
 /// </summary>
 public static class TaxiPathfinder
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TaxiPathfinder");
+
     /// <summary>
     /// How far ahead a bare <c>TAXI &lt;rwy&gt;</c> (no taxiways named) may carry an aircraft to reach that
     /// runway's hold-short bar: a straight run along the taxiway it already occupies. Anything farther, or
@@ -119,7 +122,57 @@ public static class TaxiPathfinder
         };
 
         (TaxiRoute? route, failure) = SegmentExpander.Run(ctx);
-        return failure is null ? route : null;
+        return failure is null ? HoldShortOfNoDestinationTerminus(layout, route, ctx) : null;
+    }
+
+    /// <summary>
+    /// A clearance with no destination whose route stops where it meets its last taxiway (OAK <c>TAXI B</c> given on C,
+    /// <c>TAXI C B</c>) ends held short of that taxiway, never on the junction node: an aircraft never stops inside an
+    /// intersection. The route is cut before the first node on that taxiway and ends with a
+    /// <see cref="HoldShortReason.RouteIncomplete"/> hold of it (<see cref="Commands.GroundCommandHandler.HoldShortBeforeTaxiway"/>),
+    /// placed on the taxiway setback once the aircraft's length is known. Every consumer of the explicit resolve sees the
+    /// cut: the issued TAXI and the client's route previews alike. Any other route is returned as it stands.
+    /// </summary>
+    private static TaxiRoute? HoldShortOfNoDestinationTerminus(AirportGroundLayout layout, TaxiRoute? route, SearchContext ctx)
+    {
+        if ((route is null) || (SegmentExpander.NoDestinationTerminusTaxiway(route, ctx) is not { } terminus))
+        {
+            return route;
+        }
+
+        string advisory = SegmentExpander.NoDestinationTerminusAdvisory(terminus);
+        int fromIndex = TerminusJunctionRunStart(route, terminus);
+        var cut = new Commands.GroundCommandHandler.TaxiwayCut(terminus, advisory, EndsNoDestinationRoute: true);
+        if (Commands.GroundCommandHandler.HoldShortBeforeTaxiway(route, layout, fromIndex, cut) is { } held)
+        {
+            return held;
+        }
+
+        // Nothing is left to taxi before the junction: the route stands as resolved, with no hold to carry the advisory.
+        Log.LogDebug(
+            "[TaxiPathfinder] no-destination cut before {Taxiway} from node {StartNode} leaves nothing to taxi; keeping the route uncut",
+            terminus,
+            route.Segments.FirstOrDefault()?.FromNodeId
+        );
+        route.Warnings.Remove(advisory);
+        return route;
+    }
+
+    /// <summary>
+    /// The index of the segment that reaches the junction <paramref name="route"/> ends at: the end node and the run of route
+    /// nodes before it that touch <paramref name="terminus"/> (its fillet tangents) make that junction, and the segment
+    /// leaving the last node before them reaches it. The cut goes before this junction, never before an earlier one with the
+    /// same taxiway that the route runs past.
+    /// </summary>
+    public static int TerminusJunctionRunStart(TaxiRoute route, string terminus)
+    {
+        int index = route.Segments.Count - 1;
+        while ((index > 0) && route.Segments[index].Edge.FromNode.Edges.Any(e => e.MatchesTaxiway(terminus)))
+        {
+            index--;
+        }
+
+        return index;
     }
 
     /// <summary>

@@ -67,13 +67,7 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
         }
 
         (SfoGround ground, AircraftState follower, AircraftState leader) = staged;
-        int restAt = SfoGroundHarness.TickUntil(
-            ground.Engine,
-            () =>
-                (FollowingPhase.DrivenRouteOf(leader) is null or { IsComplete: true }) && (leader.GroundSpeed < SfoGroundHarness.StationarySpeedKts),
-            CrossBudgetSeconds,
-            null
-        );
+        int restAt = SfoGroundHarness.TickUntil(ground.Engine, () => IsAtRestWithNoRouteLeft(leader), CrossBudgetSeconds, null);
         Assert.True(restAt >= 0, $"{Leader} never came to rest with no route left: {leader.Phases?.CurrentPhase?.Name}");
         AssertSent(ground, Follower, $"FOLLOWG {Leader}; CROSS 1L 1R");
         int crossingAt = SfoGroundHarness.TickUntil(
