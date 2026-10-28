@@ -5,13 +5,11 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-1329 Fix flaky DataGridContextMenuStateTests.AirborneVfrOnFinal_ShowsOptionClearances: NavigationDatabase not initialized · release vNext — Urgent · Singles
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [/] YAAT-1215 Snap generated hold-short points onto the paired painted videomap bars · release vNext
   - [ ] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
@@ -67,9 +65,8 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-1326 Add Category "All" for favorites · release vNext
-- [ ] YAAT-1325 Auto delete closes open favorites editor window · release vNext
 - [ ] YAAT-1327 N7LJ stuck at the far-side runway hold-short bar at OAK; RES, CROSS and BREAK do not free it · release vNext
+- [ ] YAAT-1330 N80ZU goes around for N342T, which took off from 28R with CTO MLT 28L and is still treated as on 28R · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -94,7 +91,6 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [/] YAAT-1282 A bare TAXI from holding short of a runway implicitly clears the crossing (OAK B at 28L crosses) · release vNext
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -856,7 +852,6 @@
 - [ ] YAAT-1296 Harden the crossing stop curve: carry flag in the lead-chain exemption, zero-room floor, per-tick allocation
 - [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
 - [ ] YAAT-1298 A taxiing aircraft at rest behind stopped traffic speeds up, then is stopped in one pass (SFO C/J, 6.75 kt)
-- [/] YAAT-1312 Use one 10 ft tail-clear margin for exits, crossings and ClearRunwayPhase · release vNext
 - [ ] YAAT-1313 Test PublishSegmentSpeed's turn-about and slow-turn paths on exit arrival
 - [ ] YAAT-1314 Stop a bare TAXI to a crossing taxiway short of it instead of in the intersection (OAK TAXI B from C) · release vNext
 - [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
@@ -879,3 +874,5 @@
 - [ ] YAAT-1308 Keep corner limits above the setup ceiling when a ground phase raises its ceiling mid-segment
 - [ ] YAAT-1310 Read a taxi readback's crossings before its 'to parking' destination
 - [ ] YAAT-1311 Brake a FOLLOWG follower that turns back with its nose at an exit bar instead of stopping dead
+- [ ] YAAT-1331 Read an uncovered RES CROSS naming a taxiway as "cross taxiway", not "cross runway"
+- [ ] YAAT-1332 Document the probe-test recipe and replay-through rule for reproduce-and-measure runs
