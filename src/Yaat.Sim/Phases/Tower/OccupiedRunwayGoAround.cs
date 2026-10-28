@@ -351,6 +351,14 @@ public static class OccupiedRunwayGoAround
         SrsCategory occupantCategory = SameRunwaySeparation.ResolveSrsCategory(occupant);
         double downfieldNowFt = GeoMath.AlongTrackDistanceNm(occupant.Position, landingThreshold, runway.TrueHeading) * GeoMath.FeetPerNm;
         double projectedFt = downfieldNowFt + ((occupant.GroundSpeed * GeoMath.FeetPerNm / 3600.0) * secondsToThreshold);
+        bool DepartureSatisfied() =>
+            SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
+                departureCrossedRunwayEnd: projectedFt >= runwayEndFt,
+                SameRunwaySeparation.WillBeFlying(occupant, secondsToThreshold),
+                projectedFt,
+                occupantCategory,
+                arrivalCategory
+            );
 
         // The occupant is judged where it will be when the arrival crosses the threshold: still on the pavement then
         // (the classifier already said so now) and, for a departure, flying by then if it is airborne or rolling now. A
@@ -358,9 +366,16 @@ public static class OccupiedRunwayGoAround
         // the landmark distance still applies to it.
         if (LandedHere(occupant, kind, runway))
         {
+            Phase? phase = occupant.Phases?.CurrentPhase;
+            if (SameRunwaySeparation.IsOptionOnTheGround(phase))
+            {
+                return OptionOnTheGroundReason(phase, kind, DepartureSatisfied, RoundedFeet(downfieldNowFt));
+            }
+
+            bool clearOfRunway = (kind != RunwayUseKind.Fouling) && WillBeClearOfRunway(occupant, secondsToThreshold);
             bool satisfied = SameRunwaySeparation.ArrivalBehindLandingSatisfied(
-                (kind != RunwayUseKind.Fouling) && WillBeClearOfRunway(occupant, secondsToThreshold),
-                landerOnGround: true,
+                clearOfRunway,
+                occupant.IsOnGround,
                 projectedFt,
                 occupantCategory,
                 arrivalCategory
@@ -370,14 +385,7 @@ public static class OccupiedRunwayGoAround
 
         if (DepartedHere(occupant, kind, runway))
         {
-            bool satisfied = SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
-                departureCrossedRunwayEnd: projectedFt >= runwayEndFt,
-                SameRunwaySeparation.WillBeFlying(occupant, secondsToThreshold),
-                projectedFt,
-                occupantCategory,
-                arrivalCategory
-            );
-            return satisfied ? null : $"departing, {RoundedFeet(downfieldNowFt)} ft down";
+            return DepartureSatisfied() ? null : $"departing, {RoundedFeet(downfieldNowFt)} ft down";
         }
 
         // Everything else on the pavement — lined up, holding in position, parked, a crossing with no crossing phase — or past
@@ -427,8 +435,26 @@ public static class OccupiedRunwayGoAround
             _ => "on the runway",
         };
 
+    /// <summary>
+    /// Why a touch-and-go on the ground or a stopped stop-and-go (<see cref="SameRunwaySeparation.IsOptionOnTheGround"/>)
+    /// refuses the arrival, or null. 7110.65 3-8-2 makes it a departure from touchdown (touch-and-go) or its complete stop
+    /// (stop-and-go); YAAT classifies it at liftoff as a simplification and judges this ground interval by §3-10-3.a.2: a
+    /// touch-and-go on the ground or a stop-and-go on its second roll as a departure (<paramref name="departureSatisfied"/>,
+    /// evaluated only then), and a stop-and-go stopped before its second roll as blocking, since a.2 is not met. Never a
+    /// §3-10-3.a.1 landed credit; a stop-and-go still braking is not here but a landed aircraft.
+    /// </summary>
+    private static string? OptionOnTheGroundReason(Phase? phase, RunwayUseKind kind, Func<bool> departureSatisfied, string downfieldFeet)
+    {
+        if (!SameRunwaySeparation.IsOptionDepartingOnTheGround(phase))
+        {
+            return $"{DescribeUse(kind)}, {downfieldFeet} ft down";
+        }
+
+        return departureSatisfied() ? null : $"departing, {downfieldFeet} ft down";
+    }
+
     /// <summary>Distance down the runway to the nearest 100 ft — the terminal line carries no false precision.</summary>
-    private static string RoundedFeet(double feet) =>
+    internal static string RoundedFeet(double feet) =>
         (Math.Round(feet / 100.0) * 100.0).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>

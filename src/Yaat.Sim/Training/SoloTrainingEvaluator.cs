@@ -2287,8 +2287,9 @@ public sealed class SoloTrainingEvaluator
 
         private static RunwayOperation? TrySeedOperation(AircraftRunwayState state, double scenarioElapsedSeconds)
         {
-            // A stop-and-go on its second roll is a departure, as an uninterrupted run records it at the roll's start.
-            if (state.IsDepartureAfterRollStart || state.IsTakeoffRoll)
+            // A departure only where an uninterrupted run records one: a takeoff roll, a takeoff or initial climb, or a stop-and-go
+            // past its second roll's start. A touch-and-go or low approach records only its threshold crossing, never a departure.
+            if (state.IsTakeoffRoll || (state.IsDepartureAfterRollStart && state.Phase is not (TouchAndGoPhase or LowApproachPhase)))
             {
                 return RunwayOperation.FromState(OperationKind.Departure, state, scenarioElapsedSeconds);
             }
@@ -2747,8 +2748,15 @@ public sealed class SoloTrainingEvaluator
 
             // 3-10-3.a ("unless authorized in paragraph 3-10-10") and 3-10-10 NOTE 2: an altitude-restricted low approach is
             // authorized over a preceding landing aircraft on the same runway. Over a departing one it is not, so
-            // arrival-behind-departure still applies; nor does 3-10-4 (intersecting runways) defer to 3-10-10.
-            if (succeeding.IsRestrictedLowApproach && (preceding.Kind == OperationKind.Landing) && (relation.Kind == RunwayRelationKind.SameActive))
+            // arrival-behind-departure still applies; nor does 3-10-4 (intersecting runways) defer to 3-10-10. A Landing operation
+            // that is now an option counted as departing (SameRunwaySeparation.IsOptionCountedAsDeparting: a touch-and-go, or a
+            // stop-and-go from its complete stop) is a departing aircraft too, and falls to the arrival-behind-departure rule.
+            if (
+                succeeding.IsRestrictedLowApproach
+                && (preceding.Kind == OperationKind.Landing)
+                && (relation.Kind == RunwayRelationKind.SameActive)
+                && !SameRunwaySeparation.IsOptionCountedAsDeparting(precedingState.Phase)
+            )
             {
                 return null;
             }
@@ -3209,6 +3217,23 @@ public sealed class SoloTrainingEvaluator
             RunwayRelation relation
         )
         {
+            // A touch-and-go, or a stop-and-go from its complete stop, is a departing aircraft (3-8-2) on the ground and after its
+            // liftoff alike (SameRunwaySeparation.IsOptionCountedAsDeparting): no 3-10-3.a.1 landed credit and no airborne free
+            // pass, so the finding is the arrival-behind-departure one. A stop-and-go still braking is a landed aircraft, judged below.
+            if (SameRunwaySeparation.IsOptionCountedAsDeparting(precedingState.Phase))
+            {
+                return TryCreateArrivalBehindDeparture(
+                    preceding with
+                    {
+                        Kind = OperationKind.Departure,
+                    },
+                    succeeding,
+                    precedingState,
+                    scenarioElapsedSeconds,
+                    relation
+                );
+            }
+
             double? exceptionFt = SameRunwaySeparation.RequiredLandingBehindLandingExceptionFt(preceding.SrsCategory, succeeding.SrsCategory);
             if (
                 SameRunwaySeparation.ArrivalBehindLandingSatisfied(
@@ -3494,6 +3519,18 @@ public sealed class SoloTrainingEvaluator
                     {
                         satisfied = IsLandingClearOfRunway(precedingState);
                         actualText = FormatRunwayClearActual(precedingState);
+                    }
+                    else if (SameRunwaySeparation.IsOptionCountedAsDeparting(precedingState.Phase))
+                    {
+                        // A touch-and-go, or a stop-and-go since its stop, is departing (3-8-2): judged by 3-10-3.a.2, even once airborne.
+                        satisfied = SameRunwaySeparation.ArrivalBehindDepartureSatisfied(
+                            HasCrossedRunwayEnd(precedingState),
+                            !precedingState.IsOnGround,
+                            precedingState.AlongLandingThresholdFt,
+                            violation.Preceding.SrsCategory,
+                            violation.Succeeding.SrsCategory
+                        );
+                        actualText = FormatThresholdDistanceActual(precedingState, fromLandingThreshold: true);
                     }
                     else
                     {

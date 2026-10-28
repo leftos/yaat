@@ -118,28 +118,66 @@ public static class SameRunwaySeparation
     }
 
     /// <summary>
-    /// The aircraft is a §3-10-3.a.1 "landed" occupant: its phase is the landing family (landing, rollout/exit, stop-and-go,
-    /// touch-and-go), or — for a phase-less aircraft — its geometric runway use is <see cref="RunwayUseKind.Landing"/>.
+    /// The aircraft is in the §3-10-3.a.1 landing family: its phase is landing or rollout/exit, a touch-and-go or stop-and-go
+    /// on the ground before its liftoff (YAAT classifies those at liftoff; once <see cref="IsOptionOnTheGround"/> their
+    /// ground interval is judged by §3-10-3.a.2, and a stop-and-go still braking is a landed aircraft), or — for a phase-less
+    /// aircraft — its geometric runway use is <see cref="RunwayUseKind.Landing"/>.
     /// </summary>
     public static bool IsLandingFamilyOccupant(Phase? phase, RunwayUseKind? runwayUse) =>
         phase switch
         {
-            LandingPhase or RunwayExitPhase or StopAndGoPhase or TouchAndGoPhase => true,
+            LandingPhase or RunwayExitPhase => true,
+            StopAndGoPhase or TouchAndGoPhase => !HasLiftedOff(phase),
             null => runwayUse == RunwayUseKind.Landing,
             _ => false,
         };
 
     /// <summary>
-    /// The aircraft is a §3-10-3.a.2 "departed" occupant: takeoff roll or initial climb by phase, or — phase-less —
-    /// <see cref="RunwayUseKind.Departing"/> by geometry.
+    /// The aircraft is a §3-10-3.a.2 "departed" occupant: takeoff roll or initial climb by phase, a touch-and-go or
+    /// stop-and-go that has lifted off, a low approach past the landing threshold (<see cref="RunwayUseKind.Departing"/>
+    /// by phase), or — phase-less — <see cref="RunwayUseKind.Departing"/> by geometry.
     /// </summary>
     public static bool IsDepartureFamilyOccupant(Phase? phase, RunwayUseKind? runwayUse) =>
         phase switch
         {
             TakeoffPhase or InitialClimbPhase => true,
+            StopAndGoPhase or TouchAndGoPhase => HasLiftedOff(phase),
+            LowApproachPhase => runwayUse == RunwayUseKind.Departing,
             null => runwayUse == RunwayUseKind.Departing,
             _ => false,
         };
+
+    /// <summary>
+    /// An option counted as a departure while still on the runway: true for a touch-and-go from its touchdown (the start of
+    /// its phase) until its liftoff, and for a stop-and-go from its complete stop (<see cref="StopAndGoPhase.HasStopped"/>)
+    /// until its liftoff; false for a stop-and-go still braking toward its stop, for either after liftoff, and for every other
+    /// phase. 7110.65 3-8-2 makes a touch-and-go a departure from touchdown and a stop-and-go an arrival "until it … makes a
+    /// complete stop … and thereafter … a departing aircraft"; YAAT classifies both at liftoff as a simplification, and judges
+    /// this ground interval by §3-10-3.a.2, never by the §3-10-3.a.1 landed-distance credit. An arrival behind it is
+    /// protected only while a.2 is met: as a departure when <see cref="IsOptionDepartingOnTheGround"/>, never otherwise. A
+    /// stop-and-go still braking is a landed aircraft and keeps the a.1 landmark credit.
+    /// </summary>
+    public static bool IsOptionOnTheGround(Phase? phase) => IsOptionCountedAsDeparting(phase) && !HasLiftedOff(phase);
+
+    /// <summary>
+    /// The option counts as a departing aircraft (7110.65 3-8-2): a touch-and-go for its whole phase, from touchdown through its
+    /// liftoff and climb until the phase hands off at 400 ft AGL; a stop-and-go from its complete stop
+    /// (<see cref="StopAndGoPhase.HasStopped"/>) through its liftoff until the same hand-off. False for a stop-and-go still
+    /// braking toward its stop (a landed aircraft, §3-10-3.a.1) and for every other phase. The solo evaluator judges an
+    /// arrival behind such an option by §3-10-3.a.2 throughout, and denies it the 3-10-10 restricted-low-approach exemption.
+    /// </summary>
+    public static bool IsOptionCountedAsDeparting(Phase? phase) => phase is TouchAndGoPhase or StopAndGoPhase { HasStopped: true };
+
+    /// <summary>
+    /// A touch-and-go on the ground, or a stop-and-go on its second roll: judged by §3-10-3.a.2 as a departure
+    /// (<see cref="ArrivalBehindDepartureSatisfied"/>). A stop-and-go before its second roll (decelerating or stopped) does
+    /// not meet a.2 and blocks.
+    /// </summary>
+    public static bool IsOptionDepartingOnTheGround(Phase? phase) =>
+        phase is TouchAndGoPhase { HasLiftedOff: false } or StopAndGoPhase { IsTakeoffRoll: true };
+
+    /// <summary>A touch-and-go or stop-and-go past its liftoff — the phase's own state, which the sim snapshots.</summary>
+    private static bool HasLiftedOff(Phase? phase) => phase is TouchAndGoPhase { HasLiftedOff: true } or StopAndGoPhase { HasLiftedOff: true };
 
     /// <summary>
     /// Airborne within <paramref name="seconds"/>: already airborne, or still accelerating and projected to reach
@@ -150,7 +188,8 @@ public static class SameRunwaySeparation
     /// acceleration. That type projection follows the spool ramp the roll itself flies, placed on the ramp by
     /// the rolling phase's own clock (or, with no such phase, by the speed the aircraft is making) — an
     /// aircraft still near a standstill is credited with the idle-thrust acceleration it actually has, not
-    /// the steady rate it will reach seconds later.
+    /// the steady rate it will reach seconds later. A simulated touch-and-go is projected through the rest of its
+    /// rollout dwell and then re-accelerates from the speed it carries off it, as its phase flies it.
     /// </summary>
     public static bool WillBeFlying(AircraftState aircraft, double seconds)
     {
@@ -160,13 +199,50 @@ public static class SameRunwaySeparation
         }
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        GroundRollProfile profile = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft) is { } measured
-            ? GroundRollProfile.Constant(measured)
-            : GroundRollProfile.For(aircraft.AircraftType, category);
+        double? measured = RunwayOccupancy.GroundAccelerationKtPerSec(aircraft);
+        if ((measured is null) && (aircraft.Phases?.CurrentPhase is TouchAndGoPhase touchAndGo))
+        {
+            return TouchAndGoWillBeFlying(aircraft, touchAndGo, category, seconds);
+        }
+
+        GroundRollProfile profile = measured is { } rate ? GroundRollProfile.Constant(rate) : GroundRollProfile.For(aircraft.AircraftType, category);
 
         double rollElapsed = GroundRollProfile.RollClockSeconds(aircraft, profile);
         return (profile.SteadyRateKtPerSec > 0)
             && (profile.SpeedAt(rollElapsed + seconds) >= AircraftPerformance.RotationSpeed(aircraft.AircraftType, category));
+    }
+
+    /// <summary>
+    /// A simulated touch-and-go on the ground, projected the way <see cref="TouchAndGoPhase"/> flies it: the rest of its rollout
+    /// dwell, closing on the dwell's speed target at the ground speed-change rate the flight physics apply, then the spool ramp
+    /// from the speed carried off the dwell (the roll's increments add to the speed it has, not to a standstill), rotating once
+    /// the indicated airspeed that ground speed implies reaches Vr. A stop-and-go's second roll really starts from a stop and
+    /// keeps the standing-start projection of <see cref="WillBeFlying"/>.
+    /// </summary>
+    private static bool TouchAndGoWillBeFlying(AircraftState aircraft, TouchAndGoPhase touchAndGo, AircraftCategory category, double seconds)
+    {
+        double dwellSeconds = touchAndGo.RolloutRemainingSeconds;
+        if (seconds < dwellSeconds)
+        {
+            return false;
+        }
+
+        var profile = GroundRollProfile.For(aircraft.AircraftType, category);
+        double rollClock = touchAndGo.IsReaccelerating ? touchAndGo.RollElapsedSeconds : 0;
+        double rampSeconds = seconds - dwellSeconds;
+        double speedKts = touchAndGo.IsReaccelerating ? aircraft.GroundSpeed : SpeedAfterRolloutDwell(aircraft, touchAndGo, category, dwellSeconds);
+        double reachedKts = speedKts + profile.SpeedAt(rollClock + rampSeconds) - profile.SpeedAt(rollClock);
+        return GroundFrame.IasForGroundSpeed(aircraft, reachedKts) >= AircraftPerformance.RotationSpeed(aircraft.AircraftType, category);
+    }
+
+    /// <summary>The ground speed a touch-and-go carries off the remaining <paramref name="dwellSeconds"/> of its rollout dwell.</summary>
+    private static double SpeedAfterRolloutDwell(AircraftState aircraft, TouchAndGoPhase touchAndGo, AircraftCategory category, double dwellSeconds)
+    {
+        double targetKts = touchAndGo.RolloutTargetSpeedKts(aircraft.AircraftType, category);
+        double nowKts = aircraft.GroundSpeed;
+        return nowKts > targetKts
+            ? Math.Max(targetKts, nowKts - (CategoryPerformance.TaxiDecelRate(category) * dwellSeconds))
+            : Math.Min(targetKts, nowKts + (CategoryPerformance.TaxiAccelRate(category) * dwellSeconds));
     }
 
     /// <summary>

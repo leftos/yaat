@@ -33,6 +33,19 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
 
     public override string Name => "StopAndGo";
 
+    /// <summary>
+    /// Rotated off the runway after the second roll. 7110.65 3-8-2 makes a stop-and-go an arrival until its complete stop and a
+    /// departure from it; YAAT classifies it at liftoff as a simplification. While braking toward the stop it is a landed
+    /// aircraft under §3-10-3.a.1; from the complete stop §3-10-3.a.2 applies, blocking an arrival behind while a.2 is not met.
+    /// </summary>
+    public bool HasLiftedOff => _airborne;
+
+    /// <summary>
+    /// Has made its complete stop on the runway. 7110.65 3-8-2: a stop-and-go is an arrival until it makes a complete stop and
+    /// a departing aircraft thereafter, so before this it is a landed aircraft still braking.
+    /// </summary>
+    public bool HasStopped => _stopped;
+
     /// <summary>On its second takeoff roll: re-accelerating after the full stop, not yet airborne.</summary>
     public bool IsTakeoffRoll => _reaccelerating && !_airborne;
 

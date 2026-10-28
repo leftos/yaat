@@ -41,6 +41,21 @@ The AI callers of `Classify` are `ControllerAi/PositionJurisdiction.cs` and `Con
 
 A `HoldingInPositionPhase` runs on no runway of its own (YAAT also uses it as a generic ground-idle hold), so it counts on either its departure or its assigned runway (`PhaseList.RunsOn`) and a pavement test decides: the one in `ClassifyByPhase`, and in `RunwaySafetyAdvisor`'s designator overload the cleared runway's pavement when the designator resolves, else the pavement of whichever of its own runways matches.
 
+## Touch-and-go, stop-and-go and low approach (`ClassifyByPhase`)
+
+7110.65 3-8-2 makes a touch-and-go an arrival until touchdown and a departure after, and a stop-and-go an arrival until its complete stop and a departure after. `ClassifyByPhase` flips both at liftoff as a simplification; its consumers judge the ground interval before it by 3-10-3.a.2 (`SameRunwaySeparation.IsOptionCountedAsDeparting`, `IsOptionOnTheGround`).
+
+| Phase | Kind |
+| --- | --- |
+| `TouchAndGoPhase`, `StopAndGoPhase` before liftoff | `OnSurface` |
+| `TouchAndGoPhase`, `StopAndGoPhase` after liftoff (`HasLiftedOff`) | `Departing`, until the phase hands off at 400 ft AGL |
+| `LowApproachPhase` past its assigned runway's landing threshold and below 400 ft AGL | `Departing` |
+| `LowApproachPhase` short of the threshold or above 400 ft AGL | none (the phase says nothing) |
+
+Consumers: `RunwaySafetyAdvisor` warns a takeoff behind an option on the ground as traffic on the runway and behind a `Departing` one by 3-9-6.a (an opposite-direction leader reads "cannot begin takeoff roll while that traffic is inbound over the runway").
+
+`OccupiedRunwayGoAround` and the solo evaluator judge the arrival behind a counted-as-departing option by the arrival-behind-departure rule (3-10-3.a.2), and a stop-and-go still braking keeps the landing rule; a restricted low approach over a touch-and-go or a stopped stop-and-go is scored, since 3-10-10 authorizes it only over a landing aircraft; the simulated tower and the AI crossing gate no longer hold the runway as `Departing` for a low approach above 400 ft AGL.
+
 ## Implementation notes for the brief
 
 - **Tolerance:** about 5 ft past the marking, measured at the solid (hold-side) line. It has to clear the 2 ft `SetBackStopMarginFt` and nose-on-marking stop noise with margin, so that a correct hold never fouls.

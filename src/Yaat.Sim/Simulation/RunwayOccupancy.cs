@@ -732,7 +732,13 @@ public static class RunwayOccupancy
     /// pavement; with null the phase alone decides — except <see cref="HoldingInPositionPhase"/>, which YAAT also uses as
     /// a generic ground-idle hold and therefore only counts when it is physically on the given runway's pavement, and
     /// <see cref="AirTaxiPhase"/>, a relocation with no runway of its own that is a surface movement (§3-11-3 NOTE) on
-    /// whichever pavement it is over.
+    /// whichever pavement it is over. A touch-and-go or stop-and-go is on the surface until it lifts off (its phase's own
+    /// liftoff state) and departing thereafter. 7110.65 3-8-2 makes a touch-and-go a departure from touchdown and a
+    /// stop-and-go one from its complete stop; YAAT classifies both at liftoff as a simplification. Its consumers judge a
+    /// touch-and-go's ground interval by §3-10-3.a.2; a stop-and-go braking toward its stop is a landed aircraft under
+    /// §3-10-3.a.1, and §3-10-3.a.2 applies from its complete stop. A low approach is a departure once it crosses the landing threshold of its
+    /// assigned runway, until it climbs through 400 ft AGL (where a takeoff hands off); short of the threshold or above that
+    /// height the phase says nothing.
     /// </summary>
     public static RunwayUseKind? ClassifyByPhase(AircraftState ac, RunwayInfo? runway)
     {
@@ -757,7 +763,10 @@ public static class RunwayOccupancy
         {
             TakeoffPhase => RunwayUseKind.Departing,
             LandingPhase or HelicopterLandingPhase => ac.IsOnGround ? RunwayUseKind.OnSurface : RunwayUseKind.Landing,
-            LineUpPhase or LinedUpAndWaitingPhase or StopAndGoPhase or TouchAndGoPhase => RunwayUseKind.OnSurface,
+            StopAndGoPhase { HasLiftedOff: true } or TouchAndGoPhase { HasLiftedOff: true } => RunwayUseKind.Departing,
+            StopAndGoPhase or TouchAndGoPhase => RunwayUseKind.OnSurface,
+            LowApproachPhase => (IsPastAssignedLandingThreshold(ac, phases) && IsBelowDepartureHandOff(ac, phases)) ? RunwayUseKind.Departing : null,
+            LineUpPhase or LinedUpAndWaitingPhase => RunwayUseKind.OnSurface,
             RejectedTakeoffPhase => RunwayUseKind.OnSurface,
             RunwayExitPhase { IsOnCenterline: true } => RunwayUseKind.OnSurface,
             HoldingAfterExitPhase { StoppedInsideHoldingDistance: true } => RunwayUseKind.OnSurface,
@@ -765,6 +774,26 @@ public static class RunwayOccupancy
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Past the landing threshold of the aircraft's assigned runway along that runway's course
+    /// (<see cref="DistanceToAssignedThresholdNm"/>, the displacement from the aircraft's own ground layout when it has one).
+    /// </summary>
+    private static bool IsPastAssignedLandingThreshold(AircraftState ac, PhaseList phases) =>
+        (phases.AssignedRunway is { } assigned) && (DistanceToAssignedThresholdNm(ac, assigned, ac.Ground.Layout) < 0);
+
+    /// <summary>
+    /// Height above its assigned runway's elevation at which a departure stops being a runway user: where
+    /// <see cref="TakeoffPhase"/>, <see cref="TouchAndGoPhase"/> and <see cref="StopAndGoPhase"/> complete and hand off.
+    /// </summary>
+    private const double DepartureHandOffAglFt = 400.0;
+
+    /// <summary>
+    /// Below <see cref="DepartureHandOffAglFt"/> over its assigned runway: a low approach past the threshold is a departure
+    /// there, and above it, climbing out to its own completion, it no longer uses the runway.
+    /// </summary>
+    private static bool IsBelowDepartureHandOff(AircraftState ac, PhaseList phases) =>
+        (phases.AssignedRunway is { } assigned) && ((ac.Altitude - assigned.ElevationFt) < DepartureHandOffAglFt);
 
     /// <summary>
     /// Geometry-only classification: pavement containment and axis alignment on the ground; threshold-crossing height

@@ -138,7 +138,7 @@ internal static class PrecedingDepartureBlock
     }
 
     /// <summary>Rolling toward the trailer on the same pavement rather than away from it (the classifier's axis test is modulo 180).</summary>
-    private static bool IsOppositeDirection(AircraftState leader, RunwayInfo runway) =>
+    internal static bool IsOppositeDirection(AircraftState leader, RunwayInfo runway) =>
         GeoMath.AbsBearingDifference(leader.TrueHeading.Degrees, runway.TrueHeading.Degrees) > RunwayOccupancy.SurfaceAxisToleranceDeg;
 
     /// <summary>

@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests;
 
@@ -609,13 +610,337 @@ public class OccupiedRunwayGoAroundTests
     }
 
     [Fact]
-    public void StopAndGoStoppedBeyondLandmark_NoGoAround()
+    public void StopAndGoStoppedBeyondLandmark_GoesAround()
     {
-        // §3-10-3.a.1 has no motion requirement: a landed Category I stopped 3,500 ft down is legal to land behind.
+        // 7110.65 3-8-2 makes a stop-and-go a departure from its complete stop; YAAT classifies it at liftoff as a
+        // simplification and judges its ground interval by §3-10-3.a.2, so it earns no §3-10-3.a.1 landed-distance credit
+        // 3,500 ft down. Stopped before its second roll it does not meet a.2, so it blocks.
         AircraftState arrival = Arrival("C172", 0.4, 120);
-        AircraftState occupant = Occupant("C172", OnRunway(3500), 0, new StopAndGoPhase(), onGround: true);
+        var stopped = StopAndGoPhase.FromSnapshot(
+            new StopAndGoPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = 20,
+                FieldElevation = Runway.ElevationFt,
+                RunwayHeadingDeg = Runway.TrueHeading.Degrees,
+                ThresholdLat = Runway.ThresholdLatitude,
+                ThresholdLon = Runway.ThresholdLongitude,
+                PauseDuration = 5,
+                PauseElapsed = 1,
+                Stopped = true,
+                Reaccelerating = false,
+                Airborne = false,
+                GoTriggered = false,
+            }
+        );
+        AircraftState occupant = Occupant("C172", OnRunway(3500), 0, stopped, onGround: true);
+
+        Assert.True(stopped.HasStopped);
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void BrakingStopAndGo_IsJudgedByTheLandedRule()
+    {
+        // 7110.65 3-8-2: a stop-and-go is an arrival until it makes a complete stop, so while it is still braking it is a landed
+        // aircraft judged by §3-10-3.a.1: a Category I braking 3,500 ft down is past the 3,000 ft landmark for a Category I
+        // arrival; one braking 1,000 ft down will not be past it, nor clear of the runway, when the arrival crosses.
+        AircraftState beyond = Arrival("C172", 0.4, 120);
+        AircraftState beyondOccupant = Occupant("C172", OnRunway(3500), 30, new StopAndGoPhase(), onGround: true);
+        AircraftState inside = Arrival("C172", 0.4, 120);
+        AircraftState insideOccupant = Occupant("C172", OnRunway(1000), 20, new StopAndGoPhase(), onGround: true);
+
+        Assert.False(GoesAround(beyond, beyondOccupant, setting: true));
+        Assert.True(GoesAround(inside, insideOccupant, setting: true));
+        Assert.Contains(inside.PendingWarnings, w => w.Contains("OCC1 on 28 (landing rollout, 1,000 ft down", StringComparison.Ordinal));
+    }
+
+    /// <summary>A touch-and-go that has lifted off, climbing out over the runway <paramref name="alongFt"/> down it.</summary>
+    private static AircraftState AirborneTouchAndGo(string type, double alongFt, double groundSpeedKts)
+    {
+        AircraftState occupant = Occupant(type, OnRunway(alongFt), groundSpeedKts, LiftedOffOptionPhases.TouchAndGo(Runway), onGround: false);
+        occupant.Altitude = ElevationFt + 150;
+        occupant.VerticalSpeed = 1500;
+        return occupant;
+    }
+
+    [Fact]
+    public void AirborneTouchAndGoPastTheDepartureDistance_NoGoAround()
+    {
+        // 7110.65 3-8-2: once airborne a touch-and-go is a departure, so §3-10-3.a.2 protects the arrival behind it —
+        // airborne and 6,000 ft down (Category III) when the arrival crosses the threshold. Judged as a landed occupant
+        // instead, a Category III pair has no landmark exception and the arrival would go around.
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = AirborneTouchAndGo("B738", 5000, 150);
 
         Assert.False(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void AirborneTouchAndGoShortOfTheDepartureDistance_GoesAroundAsADeparture()
+    {
+        // Airborne but projected short of 6,000 ft and of the runway end at the threshold crossing: §3-10-3.a.2 is not met.
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = AirborneTouchAndGo("B738", 1500, 130);
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("OCC1 on 28 (departing, 1,500 ft down)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowApproachPastTheThresholdShortOfTheDepartureDistance_GoesAroundAsADeparture()
+    {
+        // A low approach is a departure once it crosses the landing threshold, so §3-10-3.a.2 protects the arrival behind
+        // it; projected short of 6,000 ft and of the runway end at the arrival's threshold crossing, it is not met.
+        AircraftState arrival = Arrival("B738", 0.6, 150);
+        AircraftState occupant = Occupant("B738", OnRunway(1500), 130, new LowApproachPhase(), onGround: false);
+        occupant.Altitude = ElevationFt + 150;
+        occupant.VerticalSpeed = 1500;
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("OCC1 on 28 (departing, 1,500 ft down)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TouchAndGoStillRollingBeyondLandmark_GoesAround()
+    {
+        // 7110.65 3-8-2 makes a touch-and-go a departure from touchdown; YAAT classifies it at liftoff as a simplification
+        // and judges its ground interval by §3-10-3.a.2, so it earns no §3-10-3.a.1 landed credit however far down it is.
+        // It will not be flying by the threshold crossing, so a.2 is not met and it blocks as a departure. It re-accelerates
+        // from the speed it carries, so it is barely rolling: at 5 kt it is still short of Vr 60 when the arrival crosses.
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState occupant = Occupant("C172", OnRunway(3500), 5, new TouchAndGoPhase(), onGround: true);
+
+        Assert.False(SameRunwaySeparation.WillBeFlying(occupant, 20.0));
+        Assert.True(GoesAround(arrival, occupant, setting: true));
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("OCC1 on 28 (departing, 3,500 ft down)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TouchAndGoRollingProjectedAirbornePastTheLandmark_NoGoAround()
+    {
+        // The ground interval of a touch-and-go is judged by §3-10-3.a.2: rolling 1,000 ft down at 50 kt, it will be flying
+        // and past 3,000 ft (Category I pair) when the arrival, about 28 s out, crosses the threshold.
+        AircraftState arrival = Arrival("C172", 0.55, 150);
+        AircraftState occupant = Occupant("C172", OnRunway(1000), 50, new TouchAndGoPhase(), onGround: true);
+
+        Assert.False(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void TouchAndGoAheadB738_ArrivalThirtySecondsOut_ProjectsAirbornePastTheLandmark_NoGoAround()
+    {
+        // A touch-and-go re-accelerates from the speed it carries off its rollout dwell, not from a standstill: a B738 just
+        // touched down 1,500 ft down SFO 28R slows to about 130 kt over its 10 s dwell and reaches Vr about 5 s later, so it is
+        // flying and well past 6,000 ft (Category III pair, §3-10-3.a.2) when the arrival, about 30 s out, crosses the threshold.
+        RunwayInfo runway = Sfo28R();
+        AircraftState arrival = ArrivalSecondsOut(runway, "B738", 29.5);
+        AircraftState occupant = OnRunwayIn(runway, "B738", 1500, 140, TouchAndGoInItsDwell(runway, rolloutSeconds: 10, rolloutElapsed: 0));
+
+        Assert.InRange(RunwayOccupancy.SecondsToLandingThreshold(arrival, runway, null), 25.0, OccupiedRunwayGoAround.DecisionWindowSeconds);
+        Assert.False(GoesAroundOn(runway, arrival, occupant));
+    }
+
+    /// <summary>
+    /// The touch-and-go projection follows the phase as the sim flies it — the rollout dwell's deceleration, then the
+    /// re-acceleration ramp from the speed carried off the dwell — so the time to Vr it projects from the touchdown tick and
+    /// from a mid-dwell tick is the tick the phase actually lifts off on, to within one tick.
+    /// </summary>
+    [Theory]
+    [InlineData("B738")]
+    [InlineData("AT72")]
+    [InlineData("C172")]
+    public void WillBeFlying_TouchAndGo_AgreesWithTheSimulatedLiftoff(string type)
+    {
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        int midDwellTick = (int)(CategoryPerformance.TouchAndGoRolloutSeconds(category) / 2.0);
+        var touchAndGo = new TouchAndGoPhase();
+        AircraftState aircraft = OnRunwayIn(Runway, type, 1000, AircraftPerformance.TouchdownSpeed(type, category), touchAndGo);
+        aircraft.IsOnGround = false;
+        PhaseContext ctx = new()
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = category,
+            DeltaSeconds = 1.0,
+            Runway = Runway,
+            FieldElevation = Runway.ElevationFt,
+            Logger = NullLogger.Instance,
+            ListAircraft = () => [aircraft],
+        };
+        aircraft.Phases!.Start(ctx);
+
+        double projectedFromTouchdown = SecondsUntilFlying(aircraft);
+        double projectedFromMidDwell = double.NaN;
+        int tick = 0;
+        while (aircraft.IsOnGround && (tick < 200))
+        {
+            if (tick == midDwellTick)
+            {
+                projectedFromMidDwell = tick + SecondsUntilFlying(aircraft);
+            }
+
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            touchAndGo.OnTick(ctx);
+            tick++;
+        }
+
+        Assert.True(touchAndGo.HasLiftedOff, $"the {type} touch-and-go never lifted off");
+        Assert.InRange(projectedFromTouchdown, tick - 1.0, tick + 1.0);
+        Assert.InRange(projectedFromMidDwell, tick - 1.0, tick + 1.0);
+    }
+
+    /// <summary>The first horizon, to 0.05 s, at which <see cref="SameRunwaySeparation.WillBeFlying"/> says the aircraft is flying.</summary>
+    private static double SecondsUntilFlying(AircraftState aircraft)
+    {
+        for (int step = 0; step <= 3000; step++)
+        {
+            if (SameRunwaySeparation.WillBeFlying(aircraft, step * 0.05))
+            {
+                return step * 0.05;
+            }
+        }
+
+        return double.PositiveInfinity;
+    }
+
+    private static RunwayInfo Sfo28R() => Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("SFO", "28R"));
+
+    /// <summary>
+    /// A touch-and-go on the ground in its rollout dwell, <paramref name="rolloutElapsed"/> of <paramref name="rolloutSeconds"/> in.
+    /// </summary>
+    private static TouchAndGoPhase TouchAndGoInItsDwell(RunwayInfo runway, double rolloutSeconds, double rolloutElapsed) =>
+        TouchAndGoPhase.FromSnapshot(
+            new TouchAndGoPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = rolloutElapsed,
+                FieldElevation = runway.ElevationFt,
+                RunwayHeadingDeg = runway.TrueHeading.Degrees,
+                ThresholdLat = runway.ThresholdLatitude,
+                ThresholdLon = runway.ThresholdLongitude,
+                RolloutDuration = rolloutSeconds,
+                RolloutElapsed = rolloutElapsed,
+                Reaccelerating = false,
+                Airborne = false,
+                RollElapsedSeconds = 0,
+            }
+        );
+
+    /// <summary>
+    /// An aircraft on the ground <paramref name="alongFt"/> down <paramref name="runway"/> at <paramref name="speedKts"/>,
+    /// flying <paramref name="phase"/>.
+    /// </summary>
+    private static AircraftState OnRunwayIn(RunwayInfo runway, string type, double alongFt, double speedKts, Phase phase)
+    {
+        var occupant = new AircraftState
+        {
+            Callsign = "OCC1",
+            AircraftType = type,
+            Position = GeoMath.ProjectPoint(
+                new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+                runway.TrueHeading,
+                alongFt / GeoMath.FeetPerNm
+            ),
+            TrueHeading = runway.TrueHeading,
+            TrueTrack = runway.TrueHeading,
+            Altitude = runway.ElevationFt,
+            IndicatedAirspeed = speedKts,
+            IsOnGround = true,
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        occupant.Phases.Add(phase);
+        occupant.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        return occupant;
+    }
+
+    /// <summary>
+    /// An arrival on <paramref name="runway"/>'s final that reaches its threshold in <paramref name="seconds"/> at its own
+    /// ground speed.
+    /// </summary>
+    private static AircraftState ArrivalSecondsOut(RunwayInfo runway, string type, double seconds)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var arrival = new AircraftState
+        {
+            Callsign = "ARR1",
+            AircraftType = type,
+            Position = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 1.0),
+            TrueHeading = runway.TrueHeading,
+            TrueTrack = runway.TrueHeading,
+            Altitude = runway.ElevationFt + 320,
+            IndicatedAirspeed = 130,
+            VerticalSpeed = -700,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KSFO" },
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        double distanceNm = arrival.GroundSpeed * seconds / 3600.0;
+        arrival.Position = GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), distanceNm);
+        arrival.Altitude = runway.ElevationFt + (distanceNm * 318);
+        arrival.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+        return arrival;
+    }
+
+    private static bool GoesAroundOn(RunwayInfo runway, AircraftState arrival, AircraftState occupant)
+    {
+        PhaseContext ctx = new()
+        {
+            Aircraft = arrival,
+            Targets = arrival.Targets,
+            Category = AircraftCategorization.Categorize(arrival.AircraftType),
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            Logger = NullLogger.Instance,
+            AutoClearedToLand = true,
+            AutoGoAroundOnOccupiedRunway = true,
+            ListAircraft = () => [arrival, occupant],
+        };
+        arrival.Phases!.Start(ctx);
+        arrival.Phases.CurrentPhase!.OnTick(ctx);
+        return arrival.Phases.CurrentPhase is GoAroundPhase;
+    }
+
+    [Fact]
+    public void StopAndGoOnItsSecondRollProjectedAirbornePastTheLandmark_NoGoAround()
+    {
+        // A stop-and-go on its second roll is judged by §3-10-3.a.2 the same way as a rolling touch-and-go.
+        AircraftState arrival = Arrival("C172", 0.55, 150);
+        var secondRoll = StopAndGoPhase.FromSnapshot(
+            new StopAndGoPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = 30,
+                FieldElevation = Runway.ElevationFt,
+                RunwayHeadingDeg = Runway.TrueHeading.Degrees,
+                ThresholdLat = Runway.ThresholdLatitude,
+                ThresholdLon = Runway.ThresholdLongitude,
+                PauseDuration = 5,
+                PauseElapsed = 5,
+                Stopped = true,
+                Reaccelerating = true,
+                Airborne = false,
+                GoTriggered = true,
+                RollElapsedSeconds = 10,
+            }
+        );
+        AircraftState occupant = Occupant("C172", OnRunway(1000), 50, secondRoll, onGround: true);
+
+        Assert.True(secondRoll.IsTakeoffRoll);
+        Assert.False(GoesAround(arrival, occupant, setting: true));
+    }
+
+    [Fact]
+    public void AirborneLandingFloatingPastTheLandmark_NoLandedCredit_GoesAround()
+    {
+        // §3-10-3.a.1 credits an aircraft that has landed: one still floating in its landing phase 3,500 ft down has not, so
+        // the Category I landmark does not apply to it.
+        AircraftState arrival = Arrival("C172", 0.4, 120);
+        AircraftState occupant = Occupant("C172", OnRunway(3500), 60, new LandingPhase(), onGround: false);
+        occupant.Altitude = ElevationFt + 20;
+
+        Assert.True(GoesAround(arrival, occupant, setting: true));
     }
 
     [Fact]

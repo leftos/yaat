@@ -161,6 +161,57 @@ public class RunwayOccupancyTests
         Assert.Equal(RunwayUseKind.OnSurface, Kind(ac));
     }
 
+    /// <summary>
+    /// 7110.65 3-8-2: a touch-and-go is an arrival until it touches down and a departure thereafter, so once it has lifted
+    /// off it is a departing aircraft over the runway, not a landed occupant on it. A stop-and-go is the same after its
+    /// second roll.
+    /// </summary>
+    [Fact]
+    public void TouchAndGoAndStopAndGoAirborne_AreDeparting()
+    {
+        AircraftState touchAndGo = Airborne(OnRunway(4500, 0), 280, ElevationFt + 100, 1500, "B738");
+        AttachPhase(touchAndGo, LiftedOffOptionPhases.TouchAndGo(Runway), Runway);
+        AircraftState stopAndGo = Airborne(OnRunway(5500, 0), 280, ElevationFt + 100, 1500, "B738");
+        AttachPhase(stopAndGo, LiftedOffOptionPhases.StopAndGo(Runway), Runway);
+
+        Assert.Equal(RunwayUseKind.Departing, Kind(touchAndGo));
+        Assert.Equal(RunwayUseKind.Departing, Kind(stopAndGo));
+    }
+
+    /// <summary>
+    /// A low approach is a departure once it crosses the landing threshold (the 3-8-2 rule applied to the go-around off it):
+    /// past the threshold it is departing; short of it the phase says nothing and it is classified as before.
+    /// </summary>
+    [Fact]
+    public void LowApproach_PastTheThresholdIsDeparting_ShortOfItUnchanged()
+    {
+        AircraftState past = Airborne(OnRunway(2000, 0), 280, ElevationFt + 100, 0, "B738");
+        AttachPhase(past, new LowApproachPhase(), Runway);
+        AircraftState shortOfIt = Airborne(OnFinal(0.5, 0), 280, ElevationFt + 150, -700, "B738");
+        AttachPhase(shortOfIt, new LowApproachPhase(), Runway);
+
+        Assert.Equal(RunwayUseKind.Departing, Kind(past));
+        Assert.Null(RunwayOccupancy.ClassifyByPhase(shortOfIt, Runway));
+        Assert.Null(Kind(shortOfIt));
+    }
+
+    /// <summary>
+    /// A low approach past the threshold is a departure only below 400 ft AGL, where a takeoff or touch-and-go hands off; above
+    /// it, climbing out to its 1,500 ft completion, it is no runway user at all.
+    /// </summary>
+    [Fact]
+    public void LowApproachPastTheThreshold_DepartingOnlyBelow400FtAgl()
+    {
+        AircraftState low = Airborne(OnRunway(2000, 0), 280, ElevationFt + 300, 1500, "B738");
+        AttachPhase(low, new LowApproachPhase(), Runway);
+        AircraftState high = Airborne(OnRunway(2000, 0), 280, ElevationFt + 500, 1500, "B738");
+        AttachPhase(high, new LowApproachPhase(), Runway);
+
+        Assert.Equal(RunwayUseKind.Departing, Kind(low));
+        Assert.Null(RunwayOccupancy.ClassifyByPhase(high, Runway));
+        Assert.Null(Kind(high));
+    }
+
     [Fact]
     public void LandingPhase_AirborneIsLanding_OnGroundIsOnSurface()
     {

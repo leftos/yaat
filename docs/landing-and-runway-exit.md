@@ -53,14 +53,19 @@ landing-clearance check, before the no-clearance branches. Gate: session setting
 sessions, `false` in `SimScenarioState` so old recordings replay unchanged), fixed-wing, not CLANDF, `RunwayOccupancy.SecondsToLandingThreshold`
 ≤ 30 s, AGL ≥ 50 ft above the runway end. §3-10-3 is a "does not cross the landing threshold until" rule, so every occupant on the
 pavement is judged where it will be when the arrival reaches the threshold (present ground speed held), by what it did on this runway:
-**landed here** (`LandingPhase`/`RunwayExitPhase`/`StopAndGo`/`TouchAndGo`, or a phase-less `Landing`) → a.1 landmark from the **landing**
-threshold (`SameRunwaySeparation`: Cat I 3,000 ft / Cat II 4,500 ft / no exception when either is Cat III — no motion requirement, a
-stopped stop-and-go beyond the landmark is legal); **departed here** (`TakeoffPhase`/`InitialClimbPhase`, or a phase-less `Departing`) →
+**landed here** (`LandingPhase`/`RunwayExitPhase`, a `StopAndGoPhase` still braking toward its stop, or a phase-less `Landing`) → a.1 landmark from the **landing**
+threshold (`SameRunwaySeparation`: Cat I 3,000 ft / Cat II 4,500 ft / no exception when either is Cat III — no motion requirement); **departed here** (`TakeoffPhase`/`InitialClimbPhase`, a touch-and-go, a stop-and-go once stopped, a low approach past the landing threshold, or a phase-less `Departing`) →
 a.2: crossed the runway end, or airborne/rolling and projected past 3,000 / 4,500 / 6,000 ft; **neither** (lined up, holding in
 position, crossing, parked) blocks at any distance. An aircraft past the runway's hold line off the pavement (`RunwayUseKind.Fouling`) blocks only with a part inside `OccupiedRunwayGoAround.GoAroundEdgeBandFt` of the centreline; a crossing projects clear only if it decelerates to its commanded speed and a commanded stop never clears. A helicopter arrival never triggers it (§3-10-3.a.3). The pilot line is spoken with its reason
 (`PilotResponder.BuildGoingAroundTrafficOnRunway`, AIM 5-2-5.9 / 5-5-5.a.2) and the go-around itself goes through `GoAroundHelper.Trigger`.
 A separate terminal entry names the blocking aircraft and the branch that blocked, so an instructor can tell a sequencing
 go-around from one their own crossing caused without replaying the session.
+
+**An option on the runway is an arrival until touchdown and a departure after (7110.65 3-8-2).** A touch-and-go counts as departing from touchdown and a stop-and-go from its complete stop (`SameRunwaySeparation.IsOptionCountedAsDeparting`); the classifier flips both to `Departing` at liftoff, and the ground interval before it is judged by §3-10-3.a.2, never by the a.1 landed credit (`SameRunwaySeparation.IsOptionOnTheGround`).
+
+A touch-and-go on the ground is projected airborne through the rest of its rollout dwell and its re-acceleration (`SameRunwaySeparation.WillBeFlying`), so fewer arrivals go around behind one.
+
+A stop-and-go stopped before its second roll blocks (a.2 is not met), and one still braking is a landed aircraft: past the landmark no go-around, inside it the reason reads "landing rollout, N ft down, not clear in S s".
 
 **A landed occupant is projected off the runway, not assumed to still be on it.** The authority is **§3-10-6.a** (anticipating
 separation: a landing clearance "need not be withheld if you observe the positions of the aircraft and determine that prescribed

@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Commands;
 
@@ -256,10 +257,13 @@ public static class RunwaySafetyAdvisor
     /// the generic <see cref="HoldingInPositionPhase"/>. Note this advisory is the ONLY defense
     /// for the intersection-departure geometry — an occupant far down the pavement is outside the
     /// ground conflict detector's proximity range, so nothing physically stops that departure.
-    /// A preceding arrival still on the pavement — rolling out, on a rolling touch-and-go, stopped
-    /// for a stop-and-go, exiting along the centerline, or still airborne over the runway — is the
+    /// A preceding arrival still on the pavement — rolling out, on a touch-and-go or stop-and-go
+    /// not yet lifted off, exiting along the centerline, or still airborne over the runway — is the
     /// 3-9-6.b case (<see cref="WarnIfLandedTrafficBlocksTakeoff"/>); it is what covers the
-    /// departure once touchdown has ended the arrival's 3-9-4.c hold on LUAW.
+    /// departure once touchdown has ended the arrival's 3-9-4.c hold on LUAW. 7110.65 3-8-2 makes a
+    /// touch-and-go a departure from touchdown and a stop-and-go one from its complete stop; YAAT
+    /// classifies both at liftoff as a simplification, so once lifted off each is a preceding
+    /// departure judged by 3-9-6.a there.
     /// </summary>
     public static void WarnIfRunwayOccupiedForTakeoff(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
@@ -301,10 +305,15 @@ public static class RunwaySafetyAdvisor
     /// <summary>
     /// A simulated arrival that is not yet clear of the runway when a takeoff clearance is issued —
     /// 7110.65 3-9-6.b: the departure may not begin its roll until the preceding landing aircraft is
-    /// clear. Occupancy by <see cref="RunwayOccupancy.Classify"/>: a rollout, a rolling touch-and-go,
-    /// a stopped or rolling stop-and-go, or an exit still on the centerline
+    /// clear. Occupancy by <see cref="RunwayOccupancy.Classify"/>: a rollout, a touch-and-go rolling
+    /// before liftoff, a stopped or rolling stop-and-go, or an exit still on the centerline
     /// (<see cref="RunwayUseKind.OnSurface"/> on the ground), or an arrival still airborne over the
-    /// pavement (<see cref="RunwayUseKind.Landing"/>). The same on-surface bucket also catches a rejected
+    /// pavement (<see cref="RunwayUseKind.Landing"/>). 7110.65 3-8-2 makes a touch-and-go a departure
+    /// from touchdown and a stop-and-go one from its complete stop; YAAT classifies both at liftoff as a
+    /// simplification, so on the ground they warn here as traffic on the runway. Once lifted off, and a
+    /// low approach past the landing threshold, they classify <see cref="RunwayUseKind.Departing"/>: a
+    /// preceding departure that warns only while <see cref="PrecedingDepartureBlock"/> judges it inside
+    /// 3-9-6.a. The same on-surface bucket also catches a rejected
     /// takeoff, which never landed — its condition is 3-9-6.a ("departed and crossed the runway end") —
     /// so the on-surface message cites the parent 3-9-6. An arrival that has begun its turnoff but is
     /// still inside the hold-short bars classifies as a crossing and stays silent: it is leaving, and
@@ -318,7 +327,7 @@ public static class RunwaySafetyAdvisor
     /// </summary>
     private static void WarnIfLandedTrafficBlocksTakeoff(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
     {
-        var arrivals = ctx.ListAircraft!()
+        var occupants = ctx.ListAircraft!()
             .Where(other =>
                 (!ReferenceEquals(other, aircraft))
                 && (!other.IsShadow)
@@ -328,9 +337,9 @@ public static class RunwaySafetyAdvisor
             )
             .Select(other => (Aircraft: other, RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
             .ToList();
-        var onSurface = arrivals.Where(a => a.Aircraft.IsOnGround && (a.Kind == RunwayUseKind.OnSurface)).Select(a => a.Aircraft.Callsign).ToList();
+        var onSurface = occupants.Where(a => a.Aircraft.IsOnGround && (a.Kind == RunwayUseKind.OnSurface)).Select(a => a.Aircraft.Callsign).ToList();
         // The phase classifier calls the whole approach "Landing"; only an arrival already over the pavement blocks the roll.
-        var landing = arrivals
+        var landing = occupants
             .Where(a => (!a.Aircraft.IsOnGround) && (a.Kind == RunwayUseKind.Landing) && RunwayOccupancy.IsOverOrOnPavement(a.Aircraft, runway))
             .Select(a => a.Aircraft.Callsign)
             .ToList();
@@ -350,7 +359,46 @@ public static class RunwaySafetyAdvisor
             aircraft.PendingWarnings.Add(warning);
             Log.LogDebug("[RunwaySafety] {Warning}", warning);
         }
+
+        foreach ((AircraftState leader, RunwayUseKind? kind) in occupants)
+        {
+            if ((kind == RunwayUseKind.Departing) && (leader.Phases?.CurrentPhase is TouchAndGoPhase or StopAndGoPhase or LowApproachPhase))
+            {
+                WarnIfDepartingAhead(aircraft, leader, runway, display);
+            }
+        }
     }
+
+    /// <summary>
+    /// A touch-and-go or stop-and-go that has lifted off, or a low approach past the landing threshold, is a departure, so the
+    /// takeoff behind it is 3-9-6.a. 7110.65 3-8-2 makes a touch-and-go a departure from touchdown and a stop-and-go one from
+    /// its complete stop; YAAT classifies both at liftoff as a simplification. Warns when <paramref name="leader"/>, ahead of
+    /// <paramref name="departure"/>'s position, is not yet airborne with the 3-9-6.a distance or past the runway end, as
+    /// <see cref="PrecedingDepartureBlock"/> judges a roll about to start. A leader flying the opposite way, toward the
+    /// departure, blocks whatever its distance (<see cref="PrecedingDepartureBlock.Blocks"/>): the warning says it is inbound
+    /// over the runway, since every 3-9-6.a distance is credit for traffic running away down it.
+    /// </summary>
+    private static void WarnIfDepartingAhead(AircraftState departure, AircraftState leader, RunwayInfo runway, string display)
+    {
+        double aheadFt = GeoMath.AlongTrackDistanceNm(leader.Position, departure.Position, runway.TrueHeading) * GeoMath.FeetPerNm;
+        if ((aheadFt <= 0) || !PrecedingDepartureBlock.Blocks(departure, leader, runway, aheadFt, out _))
+        {
+            return;
+        }
+
+        string ahead = OccupiedRunwayGoAround.RoundedFeet(aheadFt);
+        string warning = PrecedingDepartureBlock.IsOppositeDirection(leader, runway)
+            ? $"{leader.Callsign} opposite direction on runway {display}, {ahead} ft ahead — this departure cannot begin takeoff roll while that traffic is inbound over the runway (7110.65 3-9-6.a)"
+            : $"{leader.Callsign} departing ahead on runway {display}, {ahead} ft ahead — this departure cannot begin takeoff roll until that traffic is airborne {RequiredDepartureDistance(leader, departure)} ft ahead or past the runway end (7110.65 3-9-6.a)";
+        departure.PendingWarnings.Add(warning);
+        Log.LogDebug("[RunwaySafety] {Warning}", warning);
+    }
+
+    /// <summary>The 3-9-6.a distance, in feet as the warning prints it, for <paramref name="departure"/> behind <paramref name="leader"/>.</summary>
+    private static string RequiredDepartureDistance(AircraftState leader, AircraftState departure) =>
+        SameRunwaySeparation
+            .RequiredDepartureBehindDepartureFt(SameRunwaySeparation.ResolveSrsCategory(leader), SameRunwaySeparation.ResolveSrsCategory(departure))
+            .ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A live-traffic shadow occupying the runway surface (3-9-6.a) or landing on it (3-9-6.b)

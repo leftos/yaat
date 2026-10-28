@@ -574,6 +574,150 @@ public class RunwayOccupancyWarningTests
         Assert.Contains("3-9-6", warning, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The CTO warning for a departure (B738, Category III) behind N200AR (C172) airborne 1,500 ft ahead: 3-9-6.a.4 asks for
+    /// 6,000 ft with a Category III on either side.
+    /// </summary>
+    private const string DepartingAheadWarning =
+        "N200AR departing ahead on runway 30, 1,500 ft ahead — this departure cannot begin takeoff roll until that traffic is airborne 6,000 ft ahead or past the runway end (7110.65 3-9-6.a)";
+
+    /// <summary>
+    /// A synthetic runway 30 (true 310) at OAK's field elevation, 10,000 ft long, so the 3-9-6.a runway end lies beyond the
+    /// 6,000 ft distance.
+    /// </summary>
+    private static RunwayInfo TenThousandFootRunway30()
+    {
+        var threshold = new LatLon(37.0, -122.0);
+        LatLon end = GeoMath.ProjectPoint(threshold, new TrueHeading(310), 10_000 / GeoMath.FeetPerNm);
+        return TestRunwayFactory.Make(
+            designator: "30",
+            airportId: "OAK",
+            thresholdLat: threshold.Lat,
+            thresholdLon: threshold.Lon,
+            endLat: end.Lat,
+            endLon: end.Lon,
+            heading: 310,
+            elevationFt: 6
+        );
+    }
+
+    /// <summary>
+    /// An aircraft flying <paramref name="phase"/> under <paramref name="clearance"/> (a touch-and-go that has lifted off, a
+    /// low approach) airborne <paramref name="aheadFt"/> down runway 30 from <paramref name="departure"/>'s position (moved
+    /// to the threshold), climbing out.
+    /// </summary>
+    private static AircraftState MakeAirborneOptionAhead(
+        AircraftState departure,
+        RunwayInfo runway,
+        double aheadFt,
+        ClearanceType clearance,
+        Phase phase
+    )
+    {
+        departure.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        AircraftState touchAndGo = MakeTouchedDownArrival("N200AR", clearance, phase);
+        touchAndGo.IsOnGround = false;
+        touchAndGo.Position = GeoMath.ProjectPoint(departure.Position, runway.TrueHeading, aheadFt / GeoMath.FeetPerNm);
+        touchAndGo.TrueHeading = runway.TrueHeading;
+        touchAndGo.TrueTrack = runway.TrueHeading;
+        touchAndGo.Altitude = 200;
+        touchAndGo.IndicatedAirspeed = 70;
+        touchAndGo.VerticalSpeed = 700;
+        return touchAndGo;
+    }
+
+    [Fact]
+    public void Cto_BehindAirborneTouchAndGoInside396a_WarnsDepartingAhead()
+    {
+        // 7110.65 3-8-2: once airborne a touch-and-go is a departure, so the takeoff behind it is 3-9-6.a: a Category III
+        // departure may not begin its roll until the preceding departure is airborne and 6,000 ft down or past the runway end.
+        RunwayInfo runway = TenThousandFootRunway30();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState touchAndGo = MakeAirborneOptionAhead(
+            departure,
+            runway,
+            1500,
+            ClearanceType.ClearedTouchAndGo,
+            LiftedOffOptionPhases.TouchAndGo(runway)
+        );
+
+        CommandResult result = Dispatch("CTO", departure, touchAndGo, departure);
+
+        Assert.True(result.Success, result.Message);
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(DepartingAheadWarning, warning);
+    }
+
+    [Fact]
+    public void Cto_TouchAndGoAirborneInboundOverTheRunway_WarnsOppositeDirection()
+    {
+        // A lifted-off touch-and-go flying the opposite way over the runway is inbound toward the departure: no 3-9-6.a distance
+        // credits it, since every one is for traffic running away down the runway.
+        RunwayInfo runway = TenThousandFootRunway30();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState touchAndGo = MakeAirborneOptionAhead(
+            departure,
+            runway,
+            1500,
+            ClearanceType.ClearedTouchAndGo,
+            LiftedOffOptionPhases.TouchAndGo(runway)
+        );
+        touchAndGo.TrueHeading = runway.TrueHeading.ToReciprocal();
+        touchAndGo.TrueTrack = touchAndGo.TrueHeading;
+
+        CommandResult result = Dispatch("CTO", departure, touchAndGo, departure);
+
+        Assert.True(result.Success, result.Message);
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(
+            "N200AR opposite direction on runway 30, 1,500 ft ahead — this departure cannot begin takeoff roll while that traffic is inbound over the runway (7110.65 3-9-6.a)",
+            warning
+        );
+    }
+
+    [Fact]
+    public void Cto_BehindLowApproachPastTheThresholdInside396a_WarnsDepartingAhead()
+    {
+        // A low approach is a departure once it crosses the landing threshold, so the takeoff behind it is 3-9-6.a.
+        RunwayInfo runway = TenThousandFootRunway30();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState lowApproach = MakeAirborneOptionAhead(departure, runway, 1500, ClearanceType.ClearedLowApproach, new LowApproachPhase());
+
+        CommandResult result = Dispatch("CTO", departure, lowApproach, departure);
+
+        Assert.True(result.Success, result.Message);
+        string warning = Assert.Single(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(DepartingAheadWarning, warning);
+    }
+
+    [Fact]
+    public void Cto_BehindAirborneTouchAndGoBeyond396a_NoWarning()
+    {
+        // Airborne and well past the 6,000 ft Category III distance: 3-9-6.a is met.
+        RunwayInfo runway = TenThousandFootRunway30();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
+
+        AircraftState departure = MakeDepartureHoldingShort("N300DP");
+        AircraftState touchAndGo = MakeAirborneOptionAhead(
+            departure,
+            runway,
+            7000,
+            ClearanceType.ClearedTouchAndGo,
+            LiftedOffOptionPhases.TouchAndGo(runway)
+        );
+
+        CommandResult result = Dispatch("CTO", departure, touchAndGo, departure);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(departure.PendingWarnings, w => w.Contains("N200AR", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void Cto_FromHoldShort_LuawOnSameRunway_SucceedsAndWarnsInstructor()
     {

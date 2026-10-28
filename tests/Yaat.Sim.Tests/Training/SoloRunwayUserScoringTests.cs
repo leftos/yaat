@@ -526,6 +526,114 @@ public class SoloRunwayUserScoringTests
     }
 
     [Fact]
+    public void RestrictedLowApproach_OverATouchAndGoReaccelerating_RecordsArrivalBehindDeparture()
+    {
+        // 3-10-10 NOTE 2: a restricted low approach is not authorized over a departing aircraft. A touch-and-go re-accelerating
+        // on the runway counts as a departure (3-8-2), so the 3-10-10 exemption does not apply and 3-10-3.a.2 judges the pair.
+        List<string> titles = RestrictedLowApproachPairTitlesOver(
+            new TouchAndGoPhase(),
+            runway =>
+                TouchAndGoPhase.FromSnapshot(
+                    new TouchAndGoPhaseDto
+                    {
+                        Status = (int)PhaseStatus.Active,
+                        ElapsedSeconds = 12,
+                        FieldElevation = runway.ElevationFt,
+                        RunwayHeadingDeg = runway.TrueHeading.Degrees,
+                        ThresholdLat = runway.ThresholdLatitude,
+                        ThresholdLon = runway.ThresholdLongitude,
+                        RolloutDuration = 10,
+                        RolloutElapsed = 10,
+                        Reaccelerating = true,
+                        Airborne = false,
+                        RollElapsedSeconds = 2,
+                    }
+                ),
+            (option, runway) => PlaceOnTheRunway(option, runway, alongFt: 3000, speedKts: 120)
+        );
+
+        Assert.Equal([ArrivalBehindDepartureTitle], titles);
+    }
+
+    [Fact]
+    public void RestrictedLowApproach_OverATouchAndGoLiftedOff_RecordsArrivalBehindDeparture()
+    {
+        // A touch-and-go is a departure (3-8-2) through its liftoff and climb-out too: still no 3-10-10 exemption over it.
+        List<string> titles = RestrictedLowApproachPairTitlesOver(
+            new TouchAndGoPhase(),
+            LiftedOffOptionPhases.TouchAndGo,
+            (option, runway) => PlaceAirborneOverTheRunway(option, runway, alongFt: 1500)
+        );
+
+        Assert.Equal([ArrivalBehindDepartureTitle], titles);
+    }
+
+    [Fact]
+    public void RestrictedLowApproach_OverAStoppedStopAndGo_RecordsArrivalBehindDeparture()
+    {
+        // A stop-and-go is a departure from its complete stop (3-8-2): no 3-10-10 exemption over it once stopped.
+        List<string> titles = RestrictedLowApproachPairTitlesOver(
+            new StopAndGoPhase(),
+            runway => StopAndGo(runway, reaccelerating: false),
+            (option, runway) => PlaceOnTheRunway(option, runway, alongFt: 3000, speedKts: 0)
+        );
+
+        Assert.Equal([ArrivalBehindDepartureTitle], titles);
+    }
+
+    private const string ArrivalBehindDepartureTitle = "Arrival behind departure same-runway separation";
+
+    /// <summary>
+    /// The pair-finding titles when a restricted low approach (600 ft) crosses the OAK 28R threshold behind an option that
+    /// crossed it first in <paramref name="thresholdPhase"/> and is then flying <paramref name="phaseAhead"/>, placed by
+    /// <paramref name="place"/>.
+    /// </summary>
+    private static List<string> RestrictedLowApproachPairTitlesOver(
+        Phase thresholdPhase,
+        Func<RunwayInfo, Phase> phaseAhead,
+        Action<AircraftState, RunwayInfo> place
+    )
+    {
+        RunwayInfo runway = Runway("OAK", "28R");
+        AirportGroundLayout layout = Layout("OAK");
+        AircraftState option = Lander("N76TG", runway, layout, thresholdPhase);
+        AircraftState lowApproach = Lander("N77LA", runway, layout, new LowApproachPhase());
+        lowApproach.Position = PositionOnRunway(runway, -20000);
+        lowApproach.Altitude = runway.ElevationFt + 600;
+        List<AircraftState> all = [option, lowApproach];
+        var evaluator = new SoloTrainingEvaluator();
+
+        evaluator.Evaluate(all, 10, AirspaceDatabase.Default);
+        CrossTheThreshold(option, runway, thresholdPhase);
+        evaluator.Evaluate(all, 11, AirspaceDatabase.Default);
+        place(option, runway);
+        SetPhase(option, runway, phaseAhead(runway));
+        lowApproach.Position = PositionOnRunway(runway, -300);
+        evaluator.Evaluate(all, 12, AirspaceDatabase.Default);
+        CrossTheThreshold(lowApproach, runway, new LowApproachPhase());
+        lowApproach.Altitude = runway.ElevationFt + 600;
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(all, 13, AirspaceDatabase.Default);
+
+        return [.. notices.Where(e => e.Category == SoloTrainingEventCategory.RunwayWake).Select(e => e.Title)];
+    }
+
+    private static void PlaceOnTheRunway(AircraftState aircraft, RunwayInfo runway, double alongFt, double speedKts)
+    {
+        aircraft.Position = PositionOnRunway(runway, alongFt);
+        aircraft.IsOnGround = true;
+        aircraft.Altitude = runway.ElevationFt;
+        aircraft.IndicatedAirspeed = speedKts;
+    }
+
+    private static void PlaceAirborneOverTheRunway(AircraftState aircraft, RunwayInfo runway, double alongFt)
+    {
+        aircraft.Position = PositionOnRunway(runway, alongFt);
+        aircraft.IsOnGround = false;
+        aircraft.Altitude = runway.ElevationFt + 100;
+        aircraft.IndicatedAirspeed = 80;
+    }
+
+    [Fact]
     public void UnrestrictedLowApproach_OverAPrecedingLandingRollingOut_RecordsArrivalBehindLanding()
     {
         RunwayInfo runway = Runway("OAK", "28R");
@@ -1017,6 +1125,184 @@ public class SoloRunwayUserScoringTests
 
         SoloTrainingEvent wake = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
         Assert.Contains("7 NM", wake.RequiredText);
+    }
+
+    [Fact]
+    public void Landing_BehindATouchAndGoStillRolling_RecordsTheArrivalBehindDepartureFinding()
+    {
+        // 7110.65 3-8-2 makes a touch-and-go a departure from touchdown; YAAT classifies it at liftoff as a simplification and
+        // judges its ground interval by 3-10-3.a.2. A Category I touch-and-go rolling 4,000 ft down earns no a.1 landed credit
+        // behind it, and on the ground it does not meet a.2.
+        RunwayInfo runway = Runway("OAK", "28R");
+        AirportGroundLayout layout = Layout("OAK");
+        AircraftState touchAndGo = Lander("N86TG", runway, layout, new TouchAndGoPhase());
+        touchAndGo.AircraftType = "C172";
+        AircraftState arrival = Lander("N87AR", runway, layout, new FinalApproachPhase());
+        arrival.AircraftType = "C172";
+        arrival.Position = PositionOnRunway(runway, -20000);
+        List<AircraftState> all = [touchAndGo, arrival];
+        var evaluator = new SoloTrainingEvaluator();
+
+        evaluator.Evaluate(all, 10, AirspaceDatabase.Default);
+        CrossTheThreshold(touchAndGo, runway, new TouchAndGoPhase());
+        evaluator.Evaluate(all, 11, AirspaceDatabase.Default);
+        touchAndGo.Position = PositionOnRunway(runway, 4000);
+        touchAndGo.IsOnGround = true;
+        touchAndGo.Altitude = runway.ElevationFt;
+        touchAndGo.IndicatedAirspeed = 40;
+        arrival.Position = PositionOnRunway(runway, -300);
+        evaluator.Evaluate(all, 12, AirspaceDatabase.Default);
+        CrossTheThreshold(arrival, runway, new LandingPhase());
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(all, 13, AirspaceDatabase.Default);
+
+        SoloTrainingEvent pair = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Equal("Arrival behind departure same-runway separation", pair.Title);
+    }
+
+    [Fact]
+    public void BrakingStopAndGoAhead_CatIArrivalCrossesAt3500FtByDay_NoFinding()
+    {
+        // 7110.65 3-8-2: a stop-and-go is an arrival until it makes a complete stop. Still braking 3,500 ft down, a Category I
+        // stop-and-go is a landed aircraft past the 3-10-3.a.1 landmark (3,000 ft) for the Category I arrival behind it.
+        RunwayInfo runway = Runway("OAK", "28R");
+        AirportGroundLayout layout = Layout("OAK");
+        AircraftState stopAndGo = Lander("N91SG", runway, layout, new StopAndGoPhase());
+        stopAndGo.AircraftType = "C172";
+        AircraftState arrival = Lander("N92AR", runway, layout, new FinalApproachPhase());
+        arrival.AircraftType = "C172";
+        arrival.Position = PositionOnRunway(runway, -20000);
+        List<AircraftState> all = [stopAndGo, arrival];
+        var evaluator = new SoloTrainingEvaluator();
+
+        evaluator.Evaluate(all, 10, AirspaceDatabase.Default);
+        CrossTheThreshold(stopAndGo, runway, new StopAndGoPhase());
+        evaluator.Evaluate(all, 11, AirspaceDatabase.Default);
+        stopAndGo.Position = PositionOnRunway(runway, 3500);
+        stopAndGo.IsOnGround = true;
+        stopAndGo.Altitude = runway.ElevationFt;
+        stopAndGo.IndicatedAirspeed = 30;
+        arrival.Position = PositionOnRunway(runway, -300);
+        evaluator.Evaluate(all, 12, AirspaceDatabase.Default);
+        CrossTheThreshold(arrival, runway, new LandingPhase());
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(all, 13, AirspaceDatabase.Default);
+
+        Assert.False(((StopAndGoPhase)stopAndGo.Phases!.CurrentPhase!).HasStopped);
+        Assert.DoesNotContain(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+    }
+
+    [Fact]
+    public void TouchAndGo_FirstSeenAirborne_IsRecordedAsWhenWatchedThroughItsLanding()
+    {
+        // Watched without a break, a touch-and-go records one operation, its landing at the threshold crossing; a stop-and-go
+        // records its second roll as well. Seen first after liftoff, it is recorded the same way, not as a fresh departure.
+        RunwayInfo runway = Runway("OAK", "28R");
+        AirportGroundLayout layout = Layout("OAK");
+
+        List<string> watched = ArrivalPairFindingsBehindAnAirborneTouchAndGo(runway, layout, watchTheLanding: true);
+        List<string> seeded = ArrivalPairFindingsBehindAnAirborneTouchAndGo(runway, layout, watchTheLanding: false);
+
+        Assert.Equal([ArrivalBehindDepartureTitle], watched);
+        Assert.Equal(watched, seeded);
+    }
+
+    [Fact]
+    public void TouchAndGoLiftedOff1500FtAhead_C172Arrival_RecordsArrivalBehindDeparture()
+    {
+        // 7110.65 3-8-2: a touch-and-go is a departure from touchdown, through its liftoff. Airborne 1,500 ft down, a Category I
+        // touch-and-go is short of the 3-10-3.a.2 distance (3,000 ft) for the Category I arrival crossing behind it.
+        RunwayInfo runway = Runway("OAK", "28R");
+        AirportGroundLayout layout = Layout("OAK");
+        AircraftState touchAndGo = Lander("N93TG", runway, layout, new TouchAndGoPhase());
+        touchAndGo.AircraftType = "C172";
+        AircraftState arrival = Lander("N94AR", runway, layout, new FinalApproachPhase());
+        arrival.AircraftType = "C172";
+        arrival.Position = PositionOnRunway(runway, -20000);
+        List<AircraftState> all = [touchAndGo, arrival];
+        var evaluator = new SoloTrainingEvaluator();
+
+        evaluator.Evaluate(all, 10, AirspaceDatabase.Default);
+        CrossTheThreshold(touchAndGo, runway, new TouchAndGoPhase());
+        evaluator.Evaluate(all, 11, AirspaceDatabase.Default);
+        PlaceAirborneOverTheRunway(touchAndGo, runway, alongFt: 1500);
+        SetPhase(touchAndGo, runway, LiftedOffOptionPhases.TouchAndGo(runway));
+        arrival.Position = PositionOnRunway(runway, -300);
+        evaluator.Evaluate(all, 12, AirspaceDatabase.Default);
+        CrossTheThreshold(arrival, runway, new LandingPhase());
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(all, 13, AirspaceDatabase.Default);
+
+        SoloTrainingEvent pair = Assert.Single(notices, e => e.Category == SoloTrainingEventCategory.RunwayWake);
+        Assert.Equal(ArrivalBehindDepartureTitle, pair.Title);
+    }
+
+    [Fact]
+    public void StopAndGoLiftingOffWhileItsFindingIsOpen_IsStillJudgedAsADeparture()
+    {
+        // The arrival crossed behind a Category I stop-and-go still braking 1,000 ft down: an open 3-10-3.a.1 finding. The
+        // stop-and-go then stops, rolls and lifts off — a departure from its stop (3-8-2), judged by 3-10-3.a.2 — so airborne
+        // only 1,500 ft down, short of 3,000 ft, the finding stays open rather than ending on the liftoff tick.
+        RunwayInfo runway = Runway("OAK", "28R");
+        AirportGroundLayout layout = Layout("OAK");
+        AircraftState stopAndGo = Lander("N95SG", runway, layout, new StopAndGoPhase());
+        stopAndGo.AircraftType = "C172";
+        AircraftState arrival = Lander("N96AR", runway, layout, new FinalApproachPhase());
+        arrival.AircraftType = "C172";
+        arrival.Position = PositionOnRunway(runway, -20000);
+        List<AircraftState> all = [stopAndGo, arrival];
+        var evaluator = new SoloTrainingEvaluator();
+
+        evaluator.Evaluate(all, 10, AirspaceDatabase.Default);
+        CrossTheThreshold(stopAndGo, runway, new StopAndGoPhase());
+        evaluator.Evaluate(all, 11, AirspaceDatabase.Default);
+        PlaceOnTheRunway(stopAndGo, runway, alongFt: 1000, speedKts: 30);
+        arrival.Position = PositionOnRunway(runway, -300);
+        evaluator.Evaluate(all, 12, AirspaceDatabase.Default);
+        CrossTheThreshold(arrival, runway, new LandingPhase());
+        SoloTrainingEvent finding = Assert.Single(
+            evaluator.Evaluate(all, 13, AirspaceDatabase.Default),
+            e => e.Category == SoloTrainingEventCategory.RunwayWake
+        );
+        PlaceAirborneOverTheRunway(stopAndGo, runway, alongFt: 1500);
+        SetPhase(stopAndGo, runway, LiftedOffOptionPhases.StopAndGo(runway));
+        evaluator.Evaluate(all, 14, AirspaceDatabase.Default);
+
+        Assert.Equal("Arrival behind landing same-runway separation", finding.Title);
+        Assert.True(Timeline(evaluator, 14).Single(e => e.Id == finding.Id).IsActive);
+    }
+
+    /// <summary>
+    /// The pair-finding titles when an arrival crosses the threshold behind a touch-and-go lifted off 1,500 ft down, the
+    /// touch-and-go first seen either short of the threshold (<paramref name="watchTheLanding"/>) or only after its liftoff.
+    /// </summary>
+    private static List<string> ArrivalPairFindingsBehindAnAirborneTouchAndGo(RunwayInfo runway, AirportGroundLayout layout, bool watchTheLanding)
+    {
+        AircraftState touchAndGo = Lander("N88TG", runway, layout, new TouchAndGoPhase());
+        AircraftState arrival = Lander("N89AR", runway, layout, new FinalApproachPhase());
+        arrival.Position = PositionOnRunway(runway, -20000);
+        List<AircraftState> all = [touchAndGo, arrival];
+        var evaluator = new SoloTrainingEvaluator();
+
+        if (watchTheLanding)
+        {
+            evaluator.Evaluate(all, 10, AirspaceDatabase.Default);
+            CrossTheThreshold(touchAndGo, runway, new TouchAndGoPhase());
+            evaluator.Evaluate(all, 11, AirspaceDatabase.Default);
+        }
+        else
+        {
+            evaluator.Evaluate([arrival], 10, AirspaceDatabase.Default);
+            evaluator.Evaluate([arrival], 11, AirspaceDatabase.Default);
+        }
+
+        touchAndGo.Position = PositionOnRunway(runway, 1500);
+        touchAndGo.Altitude = runway.ElevationFt + 100;
+        touchAndGo.IsOnGround = false;
+        SetPhase(touchAndGo, runway, LiftedOffOptionPhases.TouchAndGo(runway));
+        arrival.Position = PositionOnRunway(runway, -300);
+        evaluator.Evaluate(all, 12, AirspaceDatabase.Default);
+        CrossTheThreshold(arrival, runway, new LandingPhase());
+        List<SoloTrainingEvent> notices = evaluator.Evaluate(all, 13, AirspaceDatabase.Default);
+
+        return [.. notices.Where(e => e.Category == SoloTrainingEventCategory.RunwayWake).Select(e => e.Title)];
     }
 
     private static (SoloTrainingEvaluator, AircraftState, AircraftState, SoloTrainingEvent) DepartureFindingOverALinedUpAircraft(string callsign)

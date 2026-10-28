@@ -189,6 +189,8 @@ Warning messages appear when the simulator detects potential issues:
 
   So does `CTO` issued while another aircraft holds in position on the runway without its own takeoff clearance (3-9-6 same-runway separation) or while a preceding arrival is not yet clear of the runway — rolling out, on a touch-and-go or stop-and-go, exiting along the centerline, or still airborne over it (3-9-6.b). In the `CTO` case the cleared aircraft also stops behind that traffic instead of taxiing through it, continuing once the runway is clear.
 
+  A touch-and-go or stop-and-go that has lifted off, and a low approach past the landing threshold, count as a departure ahead (3-9-6.a); one flying toward the departing aircraft reads "cannot begin takeoff roll while that traffic is inbound over the runway".
+
   Traffic you have frozen *on* the runway with `HOLDPOSITION` or `GIVEWAY` (for example mid-crossing) also counts as an occupied runway for both the landing-family and `CTO` advisories — a crossing still moving stays silent, since it will be clear by itself. A `GIVEWAY` given to an arrival still rolling out or exiting does not stop it there, so that arrival counts as landed traffic still on the runway (the "not yet clear" case above), not as frozen traffic.
 
 ### Command Bar

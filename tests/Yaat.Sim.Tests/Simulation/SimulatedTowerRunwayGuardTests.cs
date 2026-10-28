@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.ControllerAi.Rules;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -115,6 +116,37 @@ public class SimulatedTowerRunwayGuardTests
 
         AircraftState far = OnFinal(landingRunway, "UAL1", 6.0);
         Assert.Null(SimulatedTowerRunwayGuard.ReasonToWait(departure, departureRunway, [departure, far], null, 0));
+    }
+
+    [Fact]
+    public void LowApproachPastTheThreshold_HoldsTheDepartureOnlyBelow400FtAgl()
+    {
+        // A low approach past the threshold is a departure off the runway until 400 ft AGL; above it the runway is free.
+        RunwayInfo runway = Runway("OAK", "28R");
+        AircraftState departure = Departure(runway, "B738");
+        var lowApproach = new AircraftState
+        {
+            Callsign = "N74LA",
+            AircraftType = "B738",
+            AirportId = runway.AirportId,
+            Position = GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading, 0.5),
+            TrueHeading = runway.TrueHeading,
+            TrueTrack = runway.TrueHeading,
+            Altitude = runway.ElevationFt + 300,
+            IndicatedAirspeed = 150,
+            VerticalSpeed = 1500,
+            IsOnGround = false,
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        lowApproach.Phases.Add(new LowApproachPhase());
+        lowApproach.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        string? reason = SimulatedTowerRunwayGuard.ReasonToWait(departure, runway, [departure, lowApproach], null, 0);
+        Assert.NotNull(reason);
+        Assert.Contains("N74LA", reason, StringComparison.Ordinal);
+
+        lowApproach.Altitude = runway.ElevationFt + 500;
+        Assert.Null(SimulatedTowerRunwayGuard.ReasonToWait(departure, runway, [departure, lowApproach], null, 0));
     }
 
     private static RunwayInfo Runway(string airport, string designator) =>

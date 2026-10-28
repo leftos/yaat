@@ -77,8 +77,10 @@ public class Issue1357CrossRunwayTouchAndGoOccupancyTests(ITestOutputHelper outp
                 + $"assigned={n342t.Phases?.AssignedRunway?.Designator} departure={n342t.Phases?.DepartureRunway?.Designator}"
         );
 
-        // The recording shows N342T in TouchAndGoPhase at t=1089, which the phase classifier calls OnSurface.
-        Assert.Equal(RunwayUseKind.OnSurface, RunwayOccupancy.ClassifyByPhase(n342t, Oak("28L")));
+        // The recording shows N342T in TouchAndGoPhase at t=1089, already lifted off: a touch-and-go is a departure once
+        // airborne (7110.65 3-8-2), so the phase classifier calls it Departing — on 28L, not 28R.
+        Assert.False(n342t.IsOnGround);
+        Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.ClassifyByPhase(n342t, Oak("28L")));
         Assert.Null(RunwayOccupancy.ClassifyByPhase(n342t, Oak("28R")));
     }
 

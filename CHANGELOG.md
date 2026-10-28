@@ -53,6 +53,9 @@
 ### Fixed
 
 - A server built from older source than the client now logs each request it refused and says to update, instead of failing silently (Save Bug Report Bundle).
+- A touch-and-go counts as a departure once it lifts off, and a stop-and-go once stopped, in auto go-arounds, takeoff warnings and solo scoring.
+- A takeoff clearance warns when a touch-and-go or low approach is still inbound over the runway from the opposite direction.
+- A low approach above 400 ft no longer holds the runway for the simulated tower or a runway crossing.
 - An aircraft whose crossing ends at the far hold line rolls straight on until its tail is clear, instead of stopping inside the line where no command could move it.
 - An aircraft cleared for closed traffic onto another runway no longer counts as on its takeoff runway once it flies the pattern, so arrivals there stop going around for it.
 - An open favorites edit or add flyout stays open when the bar refreshes, such as when the selected aircraft is deleted.

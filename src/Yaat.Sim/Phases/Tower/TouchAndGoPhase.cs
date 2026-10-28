@@ -33,8 +33,30 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
 
     public override string Name => "TouchAndGo";
 
+    /// <summary>
+    /// Rotated off the runway. 7110.65 3-8-2 makes a touch-and-go a departure from touchdown; YAAT classifies it at liftoff as a
+    /// simplification, and judges the ground interval before it by §3-10-3.a.2, blocking an arrival behind while a.2 is not met.
+    /// </summary>
+    public bool HasLiftedOff => _airborne;
+
+    /// <summary>Past the rollout dwell and on the re-acceleration ramp to Vr (or already lifted off).</summary>
+    public bool IsReaccelerating => _reaccelerating;
+
+    /// <summary>Seconds of the rollout dwell still to run before the re-acceleration begins; 0 once it has begun.</summary>
+    public double RolloutRemainingSeconds => _reaccelerating ? 0 : Math.Max(0, _rolloutDuration - _rolloutElapsed);
+
     /// <inheritdoc />
     public double RollElapsedSeconds => _rollElapsedSeconds;
+
+    /// <summary>
+    /// The speed the rollout dwell slows toward: the type's touchdown speed less the category's touch-and-go bleed over the
+    /// dwell, floored at 40 kt. The flight physics close on it at the ground speed-change rate.
+    /// </summary>
+    public double RolloutTargetSpeedKts(string aircraftType, AircraftCategory category) =>
+        Math.Max(
+            AircraftPerformance.TouchdownSpeed(aircraftType, category) - (CategoryPerformance.TouchAndGoDecelRate(category) * _rolloutDuration),
+            40
+        );
 
     public override PhaseDto ToSnapshot() =>
         new TouchAndGoPhaseDto
@@ -90,10 +112,7 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         ctx.Targets.DesiredVerticalRate = null;
 
         // Decelerate briefly
-        double minSpeed =
-            AircraftPerformance.TouchdownSpeed(ctx.AircraftType, ctx.Category)
-            - CategoryPerformance.TouchAndGoDecelRate(ctx.Category) * _rolloutDuration;
-        ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
+        ctx.Targets.TargetSpeed = RolloutTargetSpeedKts(ctx.AircraftType, ctx.Category);
 
         // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
         // the re-acceleration and climb-out are not capped at the approach speed.
