@@ -64,6 +64,32 @@ public sealed class AircraftGroundOpsDto
     /// <summary>True when the auto-yield is a same-edge in-trail follow ("Following") rather than a converging give-way ("Yielding to").</summary>
     public bool AutoYieldIsFollowing { get; init; }
 
+    /// <summary>
+    /// The crossing stop curve limited the aircraft in the last detector pass, so the next pass gives it the curve again;
+    /// optional — earlier snapshots restore false. Written only when set, so a snapshot with no curve carried is byte-identical
+    /// to one taken before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CrossingStopCurveCarry { get; init; }
+
+    /// <summary>
+    /// The largest travel (ft) of traffic toward the aircraft that the crossing stop curve counted since its carry began, capped
+    /// at that traffic's own stop when it was braking, which decides when the detector releases an aircraft the curve holds at
+    /// its ground speed; optional — earlier snapshots restore 0. Written only when non-zero, so a snapshot with no travel bound
+    /// is byte-identical to one taken before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double CrossingStopCurveBoundClosureTravelFt { get; init; }
+
+    /// <summary>
+    /// The ground conflict detector braked the aircraft in its last pass (its speed limit below the ground speed the pass
+    /// started from), so the next pass counts it as braking where it closes on another aircraft; optional — earlier snapshots
+    /// restore false. Written only when set, so a snapshot with no aircraft braked is byte-identical to one taken before the
+    /// field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool BrakedByDetectorLastPass { get; init; }
+
     /// <summary>1-based position in the departure line at this aircraft's destination-runway hold-short node, or 0 when not in a countable line.</summary>
     public int RunwayQueuePosition { get; init; }
 

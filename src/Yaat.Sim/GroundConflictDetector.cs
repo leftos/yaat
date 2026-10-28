@@ -192,6 +192,48 @@ public static class GroundConflictDetector
     private static Dictionary<AircraftState, RunwayRank>? _runwayRanks;
 
     /// <summary>
+    /// The aircraft the crossing stop curve limited in the pass before the <see cref="ApplySpeedLimits"/> pass in flight
+    /// (<see cref="AircraftGroundOps.CrossingStopCurveCarry"/>, read and cleared by <see cref="ResetGroundState"/>), which keep
+    /// the curve this pass (<see cref="HasCrossingStopCurve"/>). Thread-static, opened by the pass and dropped when it ends, like
+    /// <see cref="_tugRunContinuations"/>; outside a pass none is carried.
+    /// </summary>
+    [ThreadStatic]
+    private static HashSet<AircraftState>? _crossingStopCurveCarried;
+
+    /// <summary>
+    /// The closure travel (ft) each aircraft in <see cref="_crossingStopCurveCarried"/> carried into the pass in flight
+    /// (<see cref="AircraftGroundOps.CrossingStopCurveBoundClosureTravelFt"/>, read by <see cref="ResetGroundState"/>): the
+    /// largest travel of traffic toward it the crossing stop curve counted since its carry began, which
+    /// <see cref="CrossingStopCurveReleases"/> reads as the pass started rather than as the pass's own limits raise it, whichever
+    /// pair the pass resolves first. Thread-static, opened and dropped with <see cref="_crossingStopCurveCarried"/>; outside a
+    /// pass none is known.
+    /// </summary>
+    [ThreadStatic]
+    private static Dictionary<AircraftState, double>? _crossingStopCurveBoundTravel;
+
+    /// <summary>
+    /// The aircraft the pass before the <see cref="ApplySpeedLimits"/> pass in flight braked
+    /// (<see cref="AircraftGroundOps.BrakedByDetectorLastPass"/>, read and cleared by <see cref="ResetGroundState"/>), so
+    /// <see cref="ClosureOf"/> judges whether traffic is braking from its state at the start of the pass, whichever pair the
+    /// pass resolves first. Thread-static, opened by the pass and dropped when it ends, like <see cref="_tugRunContinuations"/>;
+    /// outside a pass none is known.
+    /// </summary>
+    [ThreadStatic]
+    private static HashSet<AircraftState>? _brakedLastPass;
+
+    /// <summary>
+    /// The limit reason of the crossing stop curve (<see cref="CrossingStopCurveKts"/>) on a closing or trailing pair, which
+    /// carries the curve on to the next pass.
+    /// </summary>
+    private const string CrossingStopCurveReason = "crossing stop curve";
+
+    /// <summary>
+    /// The limit reason of the crossing stop curve (<see cref="CrossingStopCurveKts"/>) on a yielder at a converging pair's
+    /// shared node, which carries the curve on to the next pass.
+    /// </summary>
+    private const string ConvergenceCrossingStopCurveReason = "convergence crossing stop curve";
+
+    /// <summary>
     /// Who gives way to whom across a runway (7110.65 3-1-3; AIM 4-3-21.a): a runway user first, an aircraft still vacating a
     /// runway next, everyone else last. The rank decides only who yields (<see cref="ResolveCrossing"/>'s Rule 1,
     /// <see cref="WouldDeadlock"/>); it never takes away a ranked aircraft's own closing check against what lies in its path.
@@ -256,6 +298,9 @@ public static class GroundConflictDetector
     {
         _tugRunContinuations = new Dictionary<AircraftState, IReadOnlyList<TugMove>>(ReferenceEqualityComparer.Instance);
         _runwayRanks = new Dictionary<AircraftState, RunwayRank>(ReferenceEqualityComparer.Instance);
+        _crossingStopCurveCarried = new HashSet<AircraftState>(ReferenceEqualityComparer.Instance);
+        _crossingStopCurveBoundTravel = new Dictionary<AircraftState, double>(ReferenceEqualityComparer.Instance);
+        _brakedLastPass = new HashSet<AircraftState>(ReferenceEqualityComparer.Instance);
         diagnosticLog = BuildDiagnosticSink(diagnosticLog);
         ResetGroundState(aircraft, deltaSeconds);
 
@@ -280,8 +325,13 @@ public static class GroundConflictDetector
             }
         }
 
+        RecordDetectorBraking(aircraft);
+        ZeroLapsedBoundClosureTravel(aircraft);
         _tugRunContinuations = null;
         _runwayRanks = null;
+        _crossingStopCurveCarried = null;
+        _crossingStopCurveBoundTravel = null;
+        _brakedLastPass = null;
     }
 
     /// <summary>
@@ -305,7 +355,17 @@ public static class GroundConflictDetector
             };
     }
 
-    /// <summary>Clears every aircraft's pass-scoped ground state and ages its conflict break, at the top of the pass.</summary>
+    /// <summary>
+    /// Clears every aircraft's pass-scoped ground state and ages its conflict break, at the top of the pass. A crossing stop
+    /// curve carried from the last pass (<see cref="AircraftGroundOps.CrossingStopCurveCarry"/>) moves into the pass's
+    /// <see cref="_crossingStopCurveCarried"/>, so only a curve applied again this pass carries it on. The closure travel it
+    /// carried (<see cref="AircraftGroundOps.CrossingStopCurveBoundClosureTravelFt"/>) is recorded with it in
+    /// <see cref="_crossingStopCurveBoundTravel"/> and stays on the aircraft, for a curve applied again to raise; an aircraft
+    /// with no curve carried has it zeroed, as the pass its carry lapsed in already did (<see cref="ZeroLapsedBoundClosureTravel"/>).
+    /// The last pass's record that it braked the aircraft
+    /// (<see cref="AircraftGroundOps.BrakedByDetectorLastPass"/>) moves the same way into the pass's <see cref="_brakedLastPass"/>,
+    /// and <see cref="RecordDetectorBraking"/> writes it again at the end of the pass.
+    /// </summary>
     private static void ResetGroundState(List<AircraftState> aircraft, double deltaSeconds)
     {
         for (int i = 0; i < aircraft.Count; i++)
@@ -313,10 +373,56 @@ public static class GroundConflictDetector
             aircraft[i].Ground.SpeedLimit = null;
             aircraft[i].Ground.AutoYieldTarget = null;
             aircraft[i].Ground.AutoYieldIsFollowing = false;
+            if (aircraft[i].Ground.CrossingStopCurveCarry)
+            {
+                _crossingStopCurveCarried?.Add(aircraft[i]);
+                _crossingStopCurveBoundTravel?.TryAdd(aircraft[i], aircraft[i].Ground.CrossingStopCurveBoundClosureTravelFt);
+                aircraft[i].Ground.CrossingStopCurveCarry = false;
+            }
+            else
+            {
+                aircraft[i].Ground.CrossingStopCurveBoundClosureTravelFt = 0.0;
+            }
+
+            if (aircraft[i].Ground.BrakedByDetectorLastPass)
+            {
+                _brakedLastPass?.Add(aircraft[i]);
+                aircraft[i].Ground.BrakedByDetectorLastPass = false;
+            }
 
             if (aircraft[i].Ground.ConflictBreakRemainingSeconds > 0)
             {
                 aircraft[i].Ground.ConflictBreakRemainingSeconds = Math.Max(0, aircraft[i].Ground.ConflictBreakRemainingSeconds - deltaSeconds);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records, at the end of the pass, whether it braked each aircraft (<see cref="AircraftGroundOps.BrakedByDetectorLastPass"/>):
+    /// the speed limit it set is below the aircraft's ground speed, still the one it had at the start of the pass, since the
+    /// pass only sets limits and physics flies them after it. The next pass reads it (<see cref="_brakedLastPass"/>), when the
+    /// limit alone no longer shows it: physics clamps the speed to the limit at once.
+    /// </summary>
+    private static void RecordDetectorBraking(List<AircraftState> aircraft)
+    {
+        foreach (AircraftState ac in aircraft)
+        {
+            ac.Ground.BrakedByDetectorLastPass = (ac.Ground.SpeedLimit is { } limitKts) && (limitKts < ac.GroundSpeed);
+        }
+    }
+
+    /// <summary>
+    /// Zeroes, at the end of the pass, the closure travel (<see cref="AircraftGroundOps.CrossingStopCurveBoundClosureTravelFt"/>)
+    /// of each aircraft whose crossing stop curve the pass did not carry on (<see cref="AircraftGroundOps.CrossingStopCurveCarry"/>
+    /// not set again), so no snapshot taken between passes remembers a travel for a carry that has lapsed.
+    /// </summary>
+    private static void ZeroLapsedBoundClosureTravel(List<AircraftState> aircraft)
+    {
+        foreach (AircraftState ac in aircraft)
+        {
+            if (!ac.Ground.CrossingStopCurveCarry)
+            {
+                ac.Ground.CrossingStopCurveBoundClosureTravelFt = 0.0;
             }
         }
     }
@@ -1009,7 +1115,11 @@ public static class GroundConflictDetector
             )
             {
                 diagnosticLog?.Invoke($"  [LeadChain] {Lead.Callsign} yields to its follower {Follower.Callsign}: limit={leadKts:F1}");
-                ApplyMinLimit(Lead, leadKts, new LimitCause("closing on its follower", Follower, distFt, distFt - DefaultStopDistanceFt));
+                ApplyMinLimit(
+                    Lead,
+                    leadKts,
+                    new LimitCause("closing on its follower", Follower, distFt, distFt - DefaultStopDistanceFt, StopClosure.None)
+                );
                 Lead.Ground.AutoYieldTarget = Follower.Callsign;
                 Lead.Ground.AutoYieldIsFollowing = false;
             }
@@ -1172,7 +1282,7 @@ public static class GroundConflictDetector
 
         diagnosticLog?.Invoke($"  [SameEdgeHeadOn] dist={distFt:F0}ft, remA={remA}/{remB}, holder={holder.Callsign}, mover={mover.Callsign}");
 
-        ApplyMinLimit(holder, 0, new LimitCause("same-edge head-on hold", mover, distFt, RoomFt: null));
+        ApplyMinLimit(holder, 0, new LimitCause("same-edge head-on hold", mover, distFt, RoomFt: null, StopClosure.None));
         // mover gets no limit from this layer; closing-proximity (if it fires
         // next tick when the geometry shifts) is the safety net for actual
         // overlap, but the holder being stopped should resolve the standoff.
@@ -1248,19 +1358,21 @@ public static class GroundConflictDetector
         }
 
         // A yielder crossing a runway takes no slowdown, only the braking onto the stop once that is inside its own stopping
-        // distance (IsCrossingRunway, CrossingStopCurveKts). The winner is still returned, so the closing safety net
-        // holds the yielder alone when both would stop.
-        if ((limitSpeed > 0) && IsCrossingRunway(yielder))
+        // distance, or its ground speed held once that braking has bound (HasCrossingStopCurve, CrossingStopCurveKts), which
+        // carries the curve on. The winner is still returned, so the closing safety net holds the yielder alone when both would
+        // stop.
+        if ((limitSpeed > 0) && HasCrossingStopCurve(yielder))
         {
             double roomFt = conflictDistFt - DefaultStopDistanceFt;
-            double? curveKts = CrossingStopCurveKts(yielder, roomFt);
+            StopClosure closure = ClosureOf(winner, yielder);
+            double? curveKts = CrossingStopCurveKts(yielder, closure, roomFt);
             diagnosticLog?.Invoke(
                 $"  [Convergence] shared node={sharedNodeId.Value}: {yielder.Callsign} yields to {winner.Callsign} crossing a runway, "
                     + $"stop curve={curveKts?.ToString("F1") ?? "none"}"
             );
             if (curveKts is { } crossingKts)
             {
-                ApplyMinLimit(yielder, crossingKts, new LimitCause("convergence crossing stop curve", winner, conflictDistFt, roomFt));
+                ApplyMinLimit(yielder, crossingKts, new LimitCause(ConvergenceCrossingStopCurveReason, winner, conflictDistFt, roomFt, closure));
             }
 
             return winner;
@@ -1273,7 +1385,11 @@ public static class GroundConflictDetector
                 + $"→ {yielder.Callsign} yields to {winner.Callsign}, pairDist={conflictDistFt:F0}ft, limit={limitSpeed:F1}"
         );
 
-        ApplyMinLimit(yielder, limitSpeed, new LimitCause("convergence", winner, conflictDistFt, conflictDistFt - DefaultStopDistanceFt));
+        ApplyMinLimit(
+            yielder,
+            limitSpeed,
+            new LimitCause("convergence", winner, conflictDistFt, conflictDistFt - DefaultStopDistanceFt, StopClosure.None)
+        );
         yielder.Ground.AutoYieldTarget = winner.Callsign;
         return winner;
     }
@@ -1284,14 +1400,15 @@ public static class GroundConflictDetector
     /// speed to <see cref="AircraftGroundOps.SpeedLimit"/> at once, so a limit below this would brake it harder than its brakes
     /// allow. When even that rate's stopping distance no longer fits in the <paramref name="roomFt"/> left before the stop ring,
     /// a floor at it lets the aircraft arrive at the ring still carrying speed it cannot shed there (the ring is an instant
-    /// stop), so the floor is taken at the category's max-effort rate instead.
+    /// stop), so the floor is taken at the category's max-effort rate instead. For a crossing stop curve the stop counts the
+    /// other aircraft's travel toward it while it stops (<paramref name="closure"/>, as <see cref="CrossingStopCurveKts"/> counts
+    /// it); for every other limit <paramref name="closure"/> is <see cref="StopClosure.None"/>.
     /// </summary>
-    private static double BrakingFloorKts(AircraftState aircraft, double roomFt)
+    private static double BrakingFloorKts(AircraftState aircraft, double roomFt, StopClosure closure)
     {
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double decelRate = aircraft.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(category);
-        double routineStopFt = aircraft.GroundSpeed * aircraft.GroundSpeed / (2.0 * decelRate) * FtPerNm / 3600.0;
-        if (routineStopFt > roomFt)
+        if (ClosingStopOverrunsRoom(aircraft.GroundSpeed, decelRate, closure, roomFt))
         {
             decelRate = CategoryPerformance.ExpediteExitDecelRate(category);
         }
@@ -1333,17 +1450,17 @@ public static class GroundConflictDetector
         double? yielderDir = winnerIsA ? dirB : dirA;
         MovementState yielderState = winnerIsA ? stateB : stateA;
 
-        (double Limit, string Reason, double? RoomFt)? winnerLimit = winnerDir is { } wd
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? winnerLimit = winnerDir is { } wd
             ? ComputeClosingLimit(winner, wd, yielder, yielderState, distFt, diagnosticLog)
             : null;
-        (double Limit, string Reason, double? RoomFt)? yielderLimit = yielderDir is { } yd
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? yielderLimit = yielderDir is { } yd
             ? ComputeClosingLimit(yielder, yd, winner, winnerState, distFt, diagnosticLog)
             : null;
 
         if (winnerLimit is { Limit: <= 0 } && yielderLimit is { Limit: <= 0 })
         {
             diagnosticLog?.Invoke($"  [Convergence] merge mutual-stop: {yielder.Callsign} holds, {winner.Callsign} proceeds");
-            ApplyMinLimit(yielder, 0, new LimitCause("convergence merge hold", winner, distFt, RoomFt: null));
+            ApplyMinLimit(yielder, 0, new LimitCause("convergence merge hold", winner, distFt, RoomFt: null, StopClosure.None));
             return;
         }
 
@@ -1635,7 +1752,7 @@ public static class GroundConflictDetector
         }
 
         diagnosticLog?.Invoke($"    [Pushback] {mover.Aircraft.Callsign} gives way to pushback {pusher.Aircraft.Callsign}: dist={distFt:F0}ft");
-        ApplyMinLimit(mover.Aircraft, 0, new LimitCause("give way to pushback", pusher.Aircraft, distFt, RoomFt: null));
+        ApplyMinLimit(mover.Aircraft, 0, new LimitCause("give way to pushback", pusher.Aircraft, distFt, RoomFt: null, StopClosure.None));
         mover.Aircraft.Ground.AutoYieldTarget = pusher.Aircraft.Callsign;
         mover.Aircraft.Ground.AutoYieldIsFollowing = false;
 
@@ -1763,7 +1880,7 @@ public static class GroundConflictDetector
         {
             if (ComputeClosingLimit(pusher, pushDir, other.Aircraft, other.State, distFt, diagnosticLog) is { } closing)
             {
-                ApplyMinLimit(pusher, closing.Limit, new LimitCause(closing.Reason, other.Aircraft, distFt, closing.RoomFt));
+                ApplyMinLimit(pusher, closing.Limit, new LimitCause(closing.Reason, other.Aircraft, distFt, closing.RoomFt, closing.Closure));
                 ShowTugMoveYield(pusher, other.Aircraft, closing.Limit);
             }
 
@@ -1772,7 +1889,7 @@ public static class GroundConflictDetector
 
         if (!HasWingspanLateralClearance(pusher, pushDir, other.Aircraft))
         {
-            ApplyMinLimit(pusher, 0, new LimitCause("pushback yield", other.Aircraft, distFt, RoomFt: null));
+            ApplyMinLimit(pusher, 0, new LimitCause("pushback yield", other.Aircraft, distFt, RoomFt: null, StopClosure.None));
             pusher.Ground.AutoYieldTarget = other.Aircraft.Callsign;
             pusher.Ground.AutoYieldIsFollowing = false;
         }
@@ -1831,7 +1948,7 @@ public static class GroundConflictDetector
     /// its own, by sweeping both outlines along the rest of the move and stopping the mover where the outlines would
     /// meet rather than where the two noses would.</para>
     /// </summary>
-    private static (double Limit, string Reason, double? RoomFt)? ComputeClosingLimit(
+    private static (double Limit, string Reason, double? RoomFt, StopClosure Closure)? ComputeClosingLimit(
         AircraftState mover,
         double moveDir,
         AircraftState obstacle,
@@ -2010,7 +2127,7 @@ public static class GroundConflictDetector
     /// proximity trail (the obstacle's speed, at least <see cref="SlowTaxiSpeedKts"/>) inside the trail band and nothing beyond
     /// it. Both carry the room left before the ring.
     /// </summary>
-    private static (double Limit, string Reason, double? RoomFt)? TrailBandLimit(
+    private static (double Limit, string Reason, double? RoomFt, StopClosure Closure)? TrailBandLimit(
         ClosingPair pair,
         (double StopFt, double TrailFt) separation,
         Action<string>? diagnosticLog
@@ -2020,18 +2137,19 @@ public static class GroundConflictDetector
         if (pair.DistFt <= separation.StopFt)
         {
             diagnosticLog?.Invoke($"    [Closing] {route}: {pair.DistFt:F0}ft ≤ stop({separation.StopFt:F0}ft) → limit=0");
-            return (0, "proximity stop", null);
+            return (0, "proximity stop", null, StopClosure.None);
         }
 
         double roomFt = pair.DistFt - separation.StopFt;
-        if (IsCrossingRunway(pair.Mover))
+        if (HasCrossingStopCurve(pair.Mover))
         {
-            double? curveKts = CrossingStopCurveKts(pair.Mover, roomFt);
+            StopClosure closure = ClosureOf(pair.Obstacle, pair.Mover);
+            double? curveKts = CrossingStopCurveKts(pair.Mover, closure, roomFt);
             diagnosticLog?.Invoke(
                 $"    [Closing] {route}: {pair.DistFt:F0}ft, {roomFt:F0}ft to the stop ring, crossing a runway, "
                     + $"stop curve={curveKts?.ToString("F1") ?? "none"}"
             );
-            return curveKts is { } crossingKts ? (crossingKts, "crossing stop curve", roomFt) : null;
+            return curveKts is { } crossingKts ? (crossingKts, CrossingStopCurveReason, roomFt, closure) : null;
         }
 
         if (pair.DistFt > separation.TrailFt)
@@ -2041,7 +2159,7 @@ public static class GroundConflictDetector
 
         double limitSpeed = Math.Max(pair.Obstacle.GroundSpeed, SlowTaxiSpeedKts);
         diagnosticLog?.Invoke($"    [Closing] {route}: {pair.DistFt:F0}ft ≤ trail({separation.TrailFt:F0}ft) → limit={limitSpeed:F1}");
-        return (limitSpeed, "proximity trail", roomFt);
+        return (limitSpeed, "proximity trail", roomFt, StopClosure.None);
     }
 
     /// <summary>
@@ -2271,7 +2389,7 @@ public static class GroundConflictDetector
     /// arrives. A move that is still further out than the margin takes no limit at all: it keeps its speed and the sweep
     /// re-measures on the next pass, which is what lets a push creep past a neighbour it will clear.</para>
     /// </summary>
-    private static (double Limit, string Reason, double? RoomFt)? TugMoveLimit(
+    private static (double Limit, string Reason, double? RoomFt, StopClosure Closure)? TugMoveLimit(
         AircraftState mover,
         PushbackPhase tugMove,
         AircraftState obstacle,
@@ -2313,7 +2431,7 @@ public static class GroundConflictDetector
             $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: tug move fouls {failAlongFt:F1}ft along ≤ margin({marginFt:F1}ft) → "
                 + $"curve={curveKts:F2}kt, limit={limitKts:F2}kt"
         );
-        return (limitKts, "outline stop", null);
+        return (limitKts, "outline stop", null, StopClosure.None);
     }
 
     /// <summary>
@@ -2533,13 +2651,13 @@ public static class GroundConflictDetector
     /// </summary>
     private static void ApplyHolderLimit(
         AircraftState mover,
-        (double Limit, string Reason, double? RoomFt) result,
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure) result,
         AircraftState obstacle,
         double distFt
     )
     {
         ShowParkedHolderYield(mover, obstacle, result.Limit);
-        ApplyMinLimit(mover, result.Limit, new LimitCause(result.Reason, obstacle, distFt, result.RoomFt));
+        ApplyMinLimit(mover, result.Limit, new LimitCause(result.Reason, obstacle, distFt, result.RoomFt, result.Closure));
     }
 
     /// <summary>
@@ -2626,7 +2744,7 @@ public static class GroundConflictDetector
     {
         if (ComputeClosingLimit(mover, moveDir, obstacle, obstacleState, distFt, diagnosticLog) is { } result)
         {
-            ApplyMinLimit(mover, result.Limit, new LimitCause(result.Reason, obstacle, distFt, result.RoomFt));
+            ApplyMinLimit(mover, result.Limit, new LimitCause(result.Reason, obstacle, distFt, result.RoomFt, result.Closure));
         }
     }
 
@@ -2673,10 +2791,10 @@ public static class GroundConflictDetector
             return;
         }
 
-        (double Limit, string Reason, double? RoomFt)? limitForA = closeDirA is { } da
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? limitForA = closeDirA is { } da
             ? ComputeClosingLimit(a, da, b, stateB, distFt, diagnosticLog)
             : null;
-        (double Limit, string Reason, double? RoomFt)? limitForB = closeDirB is { } db
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? limitForB = closeDirB is { } db
             ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog)
             : null;
 
@@ -2694,7 +2812,7 @@ public static class GroundConflictDetector
             AircraftState holder = ChooseMutualStopHolder(a, closeDirA!.Value, b, closeDirB!.Value);
             AircraftState mover = ReferenceEquals(holder, a) ? b : a;
             diagnosticLog?.Invoke($"  [Crossing] mutual stop: {holder.Callsign} holds, {mover.Callsign} proceeds");
-            ApplyMinLimit(holder, 0, new LimitCause("crossing hold", mover, distFt, RoomFt: null));
+            ApplyMinLimit(holder, 0, new LimitCause("crossing hold", mover, distFt, RoomFt: null, StopClosure.None));
         }
         else
         {
@@ -2749,7 +2867,7 @@ public static class GroundConflictDetector
                 $"  [Crossing] {priority.Ac.Callsign} {(onRunway ? "on runway" : "vacating runway")} → {yielder.Ac.Callsign} yields"
             );
             string reason = onRunway ? "yield to runway aircraft" : "yield to aircraft vacating the runway";
-            ApplyMinLimit(yielder.Ac, 0, new LimitCause(reason, priority.Ac, distFt, RoomFt: null));
+            ApplyMinLimit(yielder.Ac, 0, new LimitCause(reason, priority.Ac, distFt, RoomFt: null, StopClosure.None));
         }
 
         return true;
@@ -2811,14 +2929,14 @@ public static class GroundConflictDetector
             // other proceed (ChooseMutualStopHolder).
             AircraftState holder = ChooseMutualStopHolder(a, dirA, b, dirB);
             AircraftState mover = ReferenceEquals(holder, a) ? b : a;
-            ApplyMinLimit(holder, 0, new LimitCause("head-on hold", mover, distFt, RoomFt: null));
+            ApplyMinLimit(holder, 0, new LimitCause("head-on hold", mover, distFt, RoomFt: null, StopClosure.None));
             return;
         }
 
         // No ground graph to confirm diverging routes (e.g. off-graph): treat as a genuine collision
         // course and stop both.
-        ApplyMinLimit(a, 0, new LimitCause("head-on", b, distFt, RoomFt: null));
-        ApplyMinLimit(b, 0, new LimitCause("head-on", a, distFt, RoomFt: null));
+        ApplyMinLimit(a, 0, new LimitCause("head-on", b, distFt, RoomFt: null, StopClosure.None));
+        ApplyMinLimit(b, 0, new LimitCause("head-on", a, distFt, RoomFt: null, StopClosure.None));
     }
 
     // --- Helpers ---
@@ -2966,22 +3084,47 @@ public static class GroundConflictDetector
     /// </summary>
     public static double StopGapFt(double lengthAFt, double lengthBFt) => StopDistanceFt(lengthAFt, lengthBFt) - ((lengthAFt + lengthBFt) / 2);
 
+    /// <summary>
+    /// Limits <paramref name="trailer"/> behind <paramref name="leader"/> <paramref name="distFt"/> ahead: a stop inside the
+    /// pair's stop ring. Outside it, a crosser (<see cref="HasCrossingStopCurve"/>) brakes along its crossing stop curve
+    /// whenever that binds or holds its speed (<see cref="CrossingStopCurveKts"/>), inside the trail band or beyond it; any other
+    /// trailer inside the band, and a crosser carried past its crossing whose curve neither binds nor holds, takes the trail match
+    /// (the leader's ground speed). A crosser still in its crossing takes no trail match.
+    /// </summary>
     private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt)
     {
         (double stopDist, double trailDist) = GetSeparation(leader, trailer);
         if (distFt <= stopDist)
         {
-            ApplyMinLimit(trailer, 0, new LimitCause("trail stop", leader, distFt, RoomFt: null));
+            ApplyMinLimit(trailer, 0, new LimitCause("trail stop", leader, distFt, RoomFt: null, StopClosure.None));
+            return;
         }
-        else if ((distFt <= trailDist) && !IsCrossingRunway(trailer))
+
+        double roomFt = distFt - stopDist;
+        if (HasCrossingStopCurve(trailer))
         {
-            ApplyMinLimit(trailer, leader.GroundSpeed, new LimitCause("trail match", leader, distFt, distFt - stopDist));
+            StopClosure closure = ClosureOf(leader, trailer);
+            if (CrossingStopCurveKts(trailer, closure, roomFt) is { } curveKts)
+            {
+                ApplyMinLimit(trailer, curveKts, new LimitCause(CrossingStopCurveReason, leader, distFt, roomFt, closure));
+                return;
+            }
         }
-        else if (IsCrossingRunway(trailer) && (CrossingStopCurveKts(trailer, distFt - stopDist) is { } curveKts))
+
+        if ((distFt <= trailDist) && !IsCrossingRunway(trailer))
         {
-            ApplyMinLimit(trailer, curveKts, new LimitCause("crossing stop curve", leader, distFt, distFt - stopDist));
+            ApplyMinLimit(trailer, leader.GroundSpeed, new LimitCause("trail match", leader, distFt, roomFt, StopClosure.None));
         }
     }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/> brakes onto a stop ahead by the crossing stop curve (<see cref="CrossingStopCurveKts"/>):
+    /// it is crossing a runway (<see cref="IsCrossingRunway"/>), or the curve limited it in the last pass
+    /// (<see cref="_crossingStopCurveCarried"/>), so a crossing that ends behind traffic keeps braking along the curve rather than
+    /// handing off to the proximity trail or a one-pass stop.
+    /// </summary>
+    private static bool HasCrossingStopCurve(AircraftState aircraft) =>
+        IsCrossingRunway(aircraft) || (_crossingStopCurveCarried?.Contains(aircraft) == true);
 
     /// <summary>
     /// Whether <paramref name="aircraft"/> is crossing a runway: in a <see cref="CrossingRunwayPhase"/>, not merely past the
@@ -2993,29 +3136,198 @@ public static class GroundConflictDetector
     private static bool IsCrossingRunway(AircraftState aircraft) => aircraft.Phases?.CurrentPhase is CrossingRunwayPhase;
 
     /// <summary>
-    /// The limit (kt) a crosser (<see cref="IsCrossingRunway"/>) takes with <paramref name="roomFt"/> left before the stop ahead
-    /// of it, whether or not the pair is inside the trail band (the closing check and the trail match consult it for any crosser
-    /// outside the stop ring): none while the stop is still beyond its own stopping distance, so it keeps the speed the crossing
-    /// is flying; inside it, the braking curve onto the stop, √(2·a·room), at its taxi brake rate, or at the firm rate
-    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) only once its taxi-rate stopping distance no longer fits the whole
-    /// room. Null while the curve is above its ground speed. The curve is read where this pass's travel leaves the crosser, since
-    /// physics flies the limit until the next pass: read where it stands, the limit trails it by a pass and it reaches the stop
-    /// still rolling. The rate is chosen against the whole room, as <see cref="GroundStopBraking.ChooseStopBraking"/> chooses it
-    /// against the whole distance to its stop: the room shrinks by a pass's travel each pass, so an ordinary closure meets the
-    /// pass where the taxi-rate stop no longer fits the room read a pass ahead but still fits the whole room, and the taxi-rate
-    /// curve binds there. The caller passes the same room to <see cref="ApplyMinLimit"/>, so the curve is floored at what the
-    /// crosser's brakes shed in one pass (<see cref="FlooredLimitKts"/>).
+    /// The limit (kt) a crosser (<see cref="HasCrossingStopCurve"/>) takes with <paramref name="roomFt"/> left before the stop
+    /// ahead of it, with <paramref name="closure"/> the traffic's travel toward it while it stops (<see cref="ClosureOf"/>),
+    /// whether or not the pair is inside the trail band (the closing check and the trail match consult it for any crosser
+    /// outside the stop ring): the braking curve onto the stop (<see cref="StopCurveKts"/>) at the rate its stop needs over the
+    /// whole room (<see cref="NeededStopRate"/>), no softer than its taxi brake rate and no harder than its firm rate
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>). That curve is at or above its ground speed only while a
+    /// taxi-rate stop still fits, the stop beyond its own stopping distance: a crosser the curve did not bind in the last pass
+    /// then keeps the speed the crossing is flying (null), and one it bound (<see cref="_crossingStopCurveCarried"/>) holds its
+    /// ground speed, which carries the curve on, until it is released (<see cref="CrossingStopCurveReleases"/>): the traffic
+    /// opening and the taxi-rate curve with <paramref name="closure"/> no longer binding, or the room exceeding its taxi-rate
+    /// stop plus the traffic's travel the curve counted when it bound plus one pass's travel.
+    ///
+    /// <para>The rate is the one the stop needs rather than a switch between the taxi and the firm rate: the room shrinks by a
+    /// pass's travel each pass, and switching to the firm rate on the pass the taxi-rate stop stops fitting would lift the curve
+    /// above the ground speed and release a crosser the curve was holding. The caller passes the same room and closure to
+    /// <see cref="ApplyMinLimit"/>, so the curve is floored at what the crosser's brakes shed in one pass
+    /// (<see cref="FlooredLimitKts"/>).</para>
+    ///
+    /// <para>A crosser is clear of the runway only once its tail is past the far holding-position marking: AIM 4-3-21.b,
+    /// "An aircraft is considered clear of the runway when all parts of the aircraft are past the runway edge and there are no
+    /// restrictions to its continued movement beyond the runway holding position markings". So while it is still in its
+    /// crossing with that point ahead (<see cref="CrossingRunwayPhase.TailClearRemainingFt"/>) and the obstacle closing on it
+    /// (an obstacle not closing leaves the curve ending at the ring, which a floor would only move to the firm rate), a binding
+    /// curve is held no lower than the stop curve onto that point (<see cref="TailClearFloorKts"/>) unless even the firm-rate
+    /// closing curve is lower, in which case it stops on the runway along that one; and never above its ground speed, so a
+    /// crosser the curve binds never speeds up. A stop (zero) is never raised.</para>
     /// </summary>
-    private static double? CrossingStopCurveKts(AircraftState crosser, double roomFt)
+    private static double? CrossingStopCurveKts(AircraftState crosser, StopClosure closure, double roomFt)
     {
         AircraftCategory category = AircraftCategorization.Categorize(crosser.AircraftType);
-        double aheadFt = Math.Max(roomFt - (crosser.GroundSpeed * GroundStopBraking.FeetPerSecondPerKt * DetectorIntervalSeconds), 0.0);
-        double rate =
-            GroundStopBraking.StoppingDistanceFt(crosser.GroundSpeed, CategoryPerformance.TaxiDecelRate(category)) > roomFt
-                ? CategoryPerformance.ExpediteExitDecelRate(category)
-                : CategoryPerformance.TaxiDecelRate(category);
-        double curveKts = Math.Sqrt(2.0 * rate * aheadFt / GroundStopBraking.FeetPerSecondPerKt);
-        return curveKts < crosser.GroundSpeed ? curveKts : null;
+        double rate = NeededStopRate(crosser.GroundSpeed, closure, roomFt, category);
+        double curveKts = StopCurveKts(crosser.GroundSpeed, closure, rate, roomFt);
+        if (curveKts >= crosser.GroundSpeed)
+        {
+            bool boundLastPass = _crossingStopCurveCarried?.Contains(crosser) == true;
+            return (boundLastPass && !CrossingStopCurveReleases(crosser, closure, roomFt, category)) ? crosser.GroundSpeed : null;
+        }
+
+        return (curveKts > 0.0) && (closure.ClosingKts > 0.0) && (TailClearFloorKts(crosser, closure, roomFt) is { } floorKts)
+            ? Math.Min(crosser.GroundSpeed, Math.Max(curveKts, floorKts))
+            : curveKts;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="crosser"/>, held at its ground speed because the crossing stop curve bound it in an earlier pass
+    /// and is now at or above that speed (<see cref="CrossingStopCurveKts"/>), is released. It is released when either holds:
+    /// the traffic is opening (<see cref="StopClosure.Opening"/>) and the stop curve at its taxi brake rate over
+    /// <paramref name="roomFt"/> with <paramref name="closure"/> (<see cref="StopCurveKts"/>, which takes one pass's travel of
+    /// both aircraft off the room) no longer binds, at or above its ground speed; or <paramref name="roomFt"/> exceeds its
+    /// taxi-rate stop from its ground speed, plus the traffic's travel toward it the curve counted when it bound, capped as it
+    /// was then (<see cref="_crossingStopCurveBoundTravel"/>, as the pass started; zero for a crosser with none recorded), plus
+    /// one pass's travel of both aircraft with <paramref name="closure"/>. Otherwise it stays held.
+    /// </summary>
+    private static bool CrossingStopCurveReleases(AircraftState crosser, StopClosure closure, double roomFt, AircraftCategory category)
+    {
+        double taxiRate = CategoryPerformance.TaxiDecelRate(category);
+        if (closure.Opening && (StopCurveKts(crosser.GroundSpeed, closure, taxiRate, roomFt) >= crosser.GroundSpeed))
+        {
+            return true;
+        }
+
+        double boundTravelFt = _crossingStopCurveBoundTravel?.GetValueOrDefault(crosser) ?? 0.0;
+        double passTravelFt = (crosser.GroundSpeed + closure.ClosingKts) * GroundStopBraking.FeetPerSecondPerKt * DetectorIntervalSeconds;
+        return roomFt > GroundStopBraking.StoppingDistanceFt(crosser.GroundSpeed, taxiRate) + boundTravelFt + passTravelFt;
+    }
+
+    /// <summary>
+    /// The floor (kt) under a binding crossing stop curve for <paramref name="crosser"/> still in its crossing with its tail
+    /// short of the far holding-position marking (<see cref="CrossingRunwayPhase.TailClearRemainingFt"/>), else null: the plain
+    /// stop curve (no closure) onto that point, at the taxi rate when a taxi-rate stop from its ground speed fits there and at
+    /// the firm rate otherwise, but no higher than the closing curve at the firm rate over <paramref name="roomFt"/>, with
+    /// <paramref name="closure"/> counted.
+    /// </summary>
+    private static double? TailClearFloorKts(AircraftState crosser, StopClosure closure, double roomFt)
+    {
+        if (
+            (crosser.Phases?.CurrentPhase is not CrossingRunwayPhase crossing)
+            || (crossing.TailClearRemainingFt(crosser.Position) is not { } tailClearFt)
+            || (tailClearFt <= 0.0)
+        )
+        {
+            return null;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(crosser.AircraftType);
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(category);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(category);
+        double tailClearRate = GroundStopBraking.StoppingDistanceFt(crosser.GroundSpeed, taxiRate) <= tailClearFt ? taxiRate : firmRate;
+        double tailClearKts = StopCurveKts(crosser.GroundSpeed, StopClosure.None, tailClearRate, tailClearFt);
+        double firmClosingKts = StopCurveKts(crosser.GroundSpeed, closure, firmRate, roomFt);
+        return Math.Min(tailClearKts, firmClosingKts);
+    }
+
+    /// <summary>
+    /// The speed (kt) whose stop at <paramref name="rate"/>, plus <paramref name="closure"/>'s travel toward the crosser while
+    /// it stops, fits the room left once this pass's travel of both aircraft is taken off <paramref name="roomFt"/> (physics
+    /// flies the limit until the next pass: read where the crosser stands, the limit trails it by a pass and it reaches the stop
+    /// still rolling). An obstacle closing at c the whole stop: v²/(2·a) + c·v/a = room, so v = k / (c + √(c² + k)) with
+    /// k = 2·a·room, which is √(2·a·room) for an obstacle not closing. A braking obstacle travels no further than its own stop
+    /// (<see cref="StopClosure.StopFt"/>): once that caps its travel, v = √(2·a·(room − its stop)).
+    /// </summary>
+    private static double StopCurveKts(double groundSpeedKts, StopClosure closure, double rate, double roomFt)
+    {
+        double passTravelFt = (groundSpeedKts + closure.ClosingKts) * GroundStopBraking.FeetPerSecondPerKt * DetectorIntervalSeconds;
+        double aheadFt = Math.Max(roomFt - passTravelFt, 0.0);
+        if (closure.StopFt is { } obstacleStopFt)
+        {
+            double cappedKts = Math.Sqrt(2.0 * rate * Math.Max(aheadFt - obstacleStopFt, 0.0) / GroundStopBraking.FeetPerSecondPerKt);
+            if (closure.TravelFt(cappedKts / rate) >= obstacleStopFt)
+            {
+                return cappedKts;
+            }
+        }
+
+        double k = 2.0 * rate * aheadFt / GroundStopBraking.FeetPerSecondPerKt;
+        return k > 0.0 ? k / (closure.ClosingKts + Math.Sqrt((closure.ClosingKts * closure.ClosingKts) + k)) : 0.0;
+    }
+
+    /// <summary>
+    /// The rate (kt/s) a stop from <paramref name="groundSpeedKts"/> needs to fit <paramref name="roomFt"/> with
+    /// <paramref name="closure"/>'s travel toward the stopping aircraft counted: a* = (GS²/2 + c·GS)·F / R, with F feet per
+    /// second per knot; once the traffic's own stop S (<see cref="StopClosure.StopFt"/>) caps its travel, a* = GS²·F / (2·(R − S)),
+    /// and the firm rate when R ≤ S. Taken over the whole room, never the room less a pass, and held between
+    /// <paramref name="category"/>'s taxi brake rate and its firm rate (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>):
+    /// a stop that fits at the taxi rate brakes no softer than that, and one that needs more than the firm rate brakes at it.
+    /// </summary>
+    private static double NeededStopRate(double groundSpeedKts, StopClosure closure, double roomFt, AircraftCategory category)
+    {
+        double taxiRate = CategoryPerformance.TaxiDecelRate(category);
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(category);
+        if (roomFt <= 0.0)
+        {
+            return firmRate;
+        }
+
+        double stopTermFt = groundSpeedKts * groundSpeedKts / 2.0 * GroundStopBraking.FeetPerSecondPerKt;
+        double closingTermFt = closure.ClosingKts * groundSpeedKts * GroundStopBraking.FeetPerSecondPerKt;
+        double neededRate = (stopTermFt + closingTermFt) / roomFt;
+        if ((neededRate > 0.0) && (closure.StopFt is { } obstacleStopFt) && (closingTermFt / neededRate > obstacleStopFt))
+        {
+            neededRate = roomFt > obstacleStopFt ? stopTermFt / (roomFt - obstacleStopFt) : firmRate;
+        }
+
+        return Math.Clamp(neededRate, taxiRate, firmRate);
+    }
+
+    /// <summary>
+    /// Whether a stop from <paramref name="groundSpeedKts"/> at <paramref name="rate"/>, plus <paramref name="closure"/>'s
+    /// travel toward the stopping aircraft while it stops, takes more than <paramref name="roomFt"/>.
+    /// </summary>
+    private static bool ClosingStopOverrunsRoom(double groundSpeedKts, double rate, StopClosure closure, double roomFt) =>
+        GroundStopBraking.StoppingDistanceFt(groundSpeedKts, rate) + closure.TravelFt(groundSpeedKts / rate) > roomFt;
+
+    /// <summary>
+    /// How <paramref name="obstacle"/> closes on <paramref name="stopper"/> while it stops (<see cref="StopClosure"/>): its
+    /// ground-speed component along the bearing from it to the stopper, in the direction physics moves it (its pushback heading
+    /// under a push, else its heading), zero when it moves across or away; whether it is opening, that component pointing away
+    /// from the stopper; and, when it is braking itself at the start of the pass (the detector braked it in its last pass,
+    /// <see cref="_brakedLastPass"/>, or a published decel rate), that closing speed's stopping distance at its category's taxi
+    /// brake rate, which caps its travel. Read from the state at the start of the pass, it is the same whichever pair the pass
+    /// resolves first.
+    /// </summary>
+    private static StopClosure ClosureOf(AircraftState obstacle, AircraftState stopper)
+    {
+        double moveDeg = (obstacle.Ground.PushbackTrueHeading ?? obstacle.TrueHeading).Degrees;
+        double offDeg = HeadingDifference(moveDeg, GeoMath.BearingTo(obstacle.Position, stopper.Position));
+        double towardKts = obstacle.GroundSpeed * Math.Cos(offDeg * Math.PI / 180.0);
+        double closingKts = Math.Max(towardKts, 0.0);
+        bool opening = towardKts < 0.0;
+        bool braking = (_brakedLastPass?.Contains(obstacle) == true) || (obstacle.Targets.DesiredDecelRate is not null);
+        if (!braking)
+        {
+            return new StopClosure(closingKts, StopFt: null, Opening: opening);
+        }
+
+        double obstacleRate = CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(obstacle.AircraftType));
+        return new StopClosure(closingKts, GroundStopBraking.StoppingDistanceFt(closingKts, obstacleRate), Opening: opening);
+    }
+
+    /// <summary>
+    /// Traffic closing on an aircraft that is stopping: its closing speed (kt), never below zero; for traffic braking itself, its
+    /// own stopping distance (ft), which caps how far it closes, null for traffic not braking; and whether it is opening, its
+    /// ground-speed component along the bearing from it to the stopping aircraft pointing away (<see cref="ClosureOf"/>).
+    /// </summary>
+    private readonly record struct StopClosure(double ClosingKts, double? StopFt, bool Opening)
+    {
+        /// <summary>No traffic closing.</summary>
+        public static StopClosure None => new(0.0, StopFt: null, Opening: false);
+
+        /// <summary>How far (ft) the traffic closes over <paramref name="seconds"/>, no further than its own stop.</summary>
+        public double TravelFt(double seconds) =>
+            Math.Min(ClosingKts * seconds * GroundStopBraking.FeetPerSecondPerKt, StopFt ?? double.PositiveInfinity);
     }
 
     /// <summary>
@@ -3023,18 +3335,22 @@ public static class GroundConflictDetector
     /// <paramref name="leader"/>: the leader's ground speed, floored as <see cref="ApplyMinLimit"/> floors it.
     /// </summary>
     private static double TrailMatchKts(AircraftState trailer, AircraftState leader, double distFt) =>
-        FlooredLimitKts(trailer, leader.GroundSpeed, distFt - GetSeparation(leader, trailer).StopFt);
+        FlooredLimitKts(trailer, leader.GroundSpeed, distFt - GetSeparation(leader, trailer).StopFt, StopClosure.None);
 
     /// <summary>
-    /// Why a limit is set: the reason the log names, the aircraft it is set for, how far apart the two are (ft), and the room
-    /// (ft) left before the pair's stop ring when the limit's producer knows it (<see cref="FlooredLimitKts"/>), else null.
+    /// Why a limit is set: the reason the log names, the aircraft it is set for, how far apart the two are (ft), the room (ft)
+    /// left before the pair's stop ring when the limit's producer knows it (<see cref="FlooredLimitKts"/>), else null, and the
+    /// other aircraft's travel toward this one while it stops that the limit counted: a crossing stop curve's closure
+    /// (<see cref="CrossingStopCurveKts"/>), which its floor counts too, and <see cref="StopClosure.None"/> for every other limit.
     /// </summary>
-    private readonly record struct LimitCause(string Reason, AircraftState Other, double DistFt, double? RoomFt);
+    private readonly record struct LimitCause(string Reason, AircraftState Other, double DistFt, double? RoomFt, StopClosure Closure);
 
     /// <summary>
     /// Lowers <paramref name="aircraft"/>'s ground speed limit to <paramref name="maxSpeed"/>, keeping the lowest limit the
     /// pairs resolved so far this pass set. A non-zero limit is first floored (<see cref="FlooredLimitKts"/>) when its producer
-    /// knows the room (<see cref="LimitCause.RoomFt"/>) left before the pair's stop ring; a stop (zero) stays instant.
+    /// knows the room (<see cref="LimitCause.RoomFt"/>) left before the pair's stop ring; a stop (zero) stays instant. A crossing
+    /// stop curve carries on to the next pass with the travel it counted (<see cref="CarryCrossingStopCurve"/>), and its floor
+    /// chooses its rate with the closure the curve counted (<see cref="LimitCause.Closure"/>).
     /// </summary>
     private static void ApplyMinLimit(AircraftState aircraft, double maxSpeed, LimitCause cause)
     {
@@ -3043,7 +3359,12 @@ public static class GroundConflictDetector
             return;
         }
 
-        maxSpeed = FlooredLimitKts(aircraft, maxSpeed, cause.RoomFt);
+        maxSpeed = FlooredLimitKts(aircraft, maxSpeed, cause.RoomFt, cause.Closure);
+        if (cause.Reason is CrossingStopCurveReason or ConvergenceCrossingStopCurveReason)
+        {
+            CarryCrossingStopCurve(aircraft, maxSpeed, cause.Closure);
+        }
+
         double? existing = aircraft.Ground.SpeedLimit;
         if (existing is { } ex)
         {
@@ -3072,14 +3393,29 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
+    /// Carries the crossing stop curve that limits <paramref name="aircraft"/> to <paramref name="limitKts"/> on to the next
+    /// pass (<see cref="AircraftGroundOps.CrossingStopCurveCarry"/>), raising the closure travel it carries
+    /// (<see cref="AircraftGroundOps.CrossingStopCurveBoundClosureTravelFt"/>) to the travel the curve counted:
+    /// <paramref name="closure"/>'s travel toward it while it stops at its taxi brake rate from that limit, no further than the
+    /// traffic's own stop (<see cref="StopClosure.TravelFt"/>).
+    /// </summary>
+    private static void CarryCrossingStopCurve(AircraftState aircraft, double limitKts, StopClosure closure)
+    {
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(aircraft.AircraftType));
+        double travelFt = closure.TravelFt(limitKts / taxiRate);
+        aircraft.Ground.CrossingStopCurveCarry = true;
+        aircraft.Ground.CrossingStopCurveBoundClosureTravelFt = Math.Max(aircraft.Ground.CrossingStopCurveBoundClosureTravelFt, travelFt);
+    }
+
+    /// <summary>
     /// <paramref name="limitKts"/> raised to the speed <paramref name="aircraft"/> can still brake down from over the next
     /// detector pass (<see cref="BrakingFloorKts"/>, with <paramref name="roomFt"/> the room left before the pair's stop ring):
     /// physics clamps the speed to <see cref="AircraftGroundOps.SpeedLimit"/> at once, so a lower limit would brake the aircraft
     /// harder than its brakes allow. A stop (zero), and a limit whose producer knows no room (a tug move, floored at the towbar
     /// rate by <see cref="TugMoveLimit"/>), are returned as they are.
     /// </summary>
-    private static double FlooredLimitKts(AircraftState aircraft, double limitKts, double? roomFt) =>
-        (limitKts > 0.0) && (roomFt is { } room) ? Math.Max(limitKts, BrakingFloorKts(aircraft, room)) : limitKts;
+    private static double FlooredLimitKts(AircraftState aircraft, double limitKts, double? roomFt, StopClosure closure) =>
+        (limitKts > 0.0) && (roomFt is { } room) ? Math.Max(limitKts, BrakingFloorKts(aircraft, room, closure)) : limitKts;
 
     private static double HeadingDifference(double h1, double h2)
     {

@@ -460,8 +460,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
     /// the two markings. It never loses more speed in a second than the piston firm rate allows, outside the seconds the
     /// ground-conflict speed limit governs it (the crossing meets N52417's track at the C/J junction).
     /// </summary>
-    // Booked as YAAT-1257: the one-pass stop is the detector's crossing-to-trail hand-off, not this fixture's premise.
-    [Fact(Skip = "YAAT-1257: a crossing that completes behind stopped traffic stops in one pass (owner ruling on YAAT-1214)")]
+    [Fact]
     public void GiveWay_PastAClearedBarsHoldLine_ContinuesAcrossWithoutStoppingShortOfTheRunway()
     {
         SimulationEngine? engine = KoakFollowClip.Load(output, WithLeadOnJ());
@@ -570,13 +569,143 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The same crossing and GIVEWAY as <see cref="GiveWay_PastAClearedBarsHoldLine_ContinuesAcrossWithoutStoppingShortOfTheRunway"/>:
+    /// from the first second that starts with N738SP in the crossing, its tail short of the far holding-position marking and the
+    /// room before its stop ring behind N52417 inside its taxi-rate stop plus N52417's closure over that stop plus one detector
+    /// pass of both aircraft's travel, where the detector's crossing stop curve binds (<see cref="CrossingCurveBindsFrom"/>),
+    /// to its stop or its tail clearing the far marking, its ground speed never rises.
+    /// </summary>
+    [Fact]
+    public void GiveWay_PastAClearedBarsHoldLine_NeverSpeedsUpOnceTheCrossingCurveBinds()
+    {
+        SimulationEngine? engine = KoakFollowClip.Load(output, WithLeadOnJ());
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState giver = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
+        GroundNode firstBar = Assert.IsType<AirportGroundLayout>(giver.Ground.Layout).Nodes[ClearedBarNodeId];
+        double approachDeg = double.NaN;
+        double farApproachDeg = double.NaN;
+        GroundNode? farBar = null;
+        int nearBarSegmentIndex = -1;
+        int leadTaxiAt = -1;
+        int giveWayAt = -1;
+        int countedSeconds = 0;
+        bool windowOpen = false;
+        double? countedFromKts = null;
+        (double RiseKts, int AtSecond) worstRise = (double.NegativeInfinity, -1);
+        KoakFollowClip.RunScript(
+            engine,
+            output,
+            [.. Script.Where(line => (line.Second != GiveWaySecond) && (line.Second != LeadTaxiSecond))],
+            LongTypeBudgetSeconds,
+            second =>
+            {
+                if (leadTaxiAt < 0)
+                {
+                    if (GeoMath.DistanceNm(giver.Position, firstBar.Position) * GeoMath.FeetPerNm > LeadTaxiTriggerFt)
+                    {
+                        return false;
+                    }
+
+                    leadTaxiAt = second;
+                    approachDeg = ApproachBearingDeg(firstBar, giver.Position);
+                    TaxiRoute route = Assert.IsType<TaxiRoute>(giver.Ground.AssignedTaxiRoute);
+                    nearBarSegmentIndex = route.Segments.FindIndex(s => s.ToNodeId == ClearedBarNodeId);
+                    TaxiRouteSegment farBarSegment = FarBarSegment(route, ClearedBarNodeId);
+                    farBar = farBarSegment.Edge.ToNode;
+                    farApproachDeg = GeoMath.BearingTo(farBar.Position, farBarSegment.Edge.FromNode.Position);
+                    Assert.True(engine.SendCommand(KoakFollowClip.Lead, LeadTaxiOnJ).Success);
+                    return false;
+                }
+
+                if (giveWayAt < 0)
+                {
+                    if (
+                        (NosePastHoldLineFt(Nose(giver), firstBar, approachDeg) <= 0.0)
+                        || (NosePastHoldLineFt(giver.Position, firstBar, approachDeg) >= 0.0)
+                        || (giver.Phases?.CurrentPhase is not TaxiingPhase)
+                        || (lead.GroundSpeed <= LeadRollingKts)
+                        || (GroundConflictDetector.GiveWayStop(giver, lead, out _) is null)
+                    )
+                    {
+                        return false;
+                    }
+
+                    giveWayAt = second;
+                    Assert.True(engine.SendCommand(KoakFollowClip.Follower, $"GIVEWAY {KoakFollowClip.Lead}").Success);
+                    return false;
+                }
+
+                if (countedFromKts is { } fromKts)
+                {
+                    double riseKts = giver.GroundSpeed - fromKts;
+                    worstRise = riseKts > worstRise.RiseKts ? (riseKts, second) : worstRise;
+                    countedSeconds++;
+                }
+
+                bool inCrossing =
+                    (giver.Phases?.CurrentPhase is CrossingRunwayPhase)
+                    || (giver.Ground.AssignedTaxiRoute?.CurrentSegmentIndex > nearBarSegmentIndex);
+                double tailPastFarFt = NosePastHoldLineFt(Tail(giver), farBar!, farApproachDeg);
+                windowOpen = windowOpen || (inCrossing && (tailPastFarFt < 0.0) && CrossingCurveBindsFrom(giver, lead));
+                output.WriteLine(
+                    $"t={second} gs={giver.GroundSpeed:F2} {giver.Phases?.CurrentPhase?.Name} tail {tailPastFarFt:F1} ft past the far marking "
+                        + $"window={windowOpen} limit={giver.Ground.SpeedLimit?.ToString("F2")} | lead gs={lead.GroundSpeed:F1}"
+                );
+                countedFromKts = windowOpen ? giver.GroundSpeed : null;
+                return inCrossing && ((tailPastFarFt >= 0.0) || (giver.GroundSpeed < StationaryKts));
+            }
+        );
+
+        Assert.True(giveWayAt > 0, "N738SP's nose never passed the runway 33 hold line with its centre short of it and N52417 rolling");
+        Assert.True(countedSeconds > 0, "no second of N738SP's crossing started with the room before its stop ring inside its closing stop");
+        output.WriteLine($"{countedSeconds} counted second(s); largest one-second rise {worstRise.RiseKts:F2} kt ending t={worstRise.AtSecond}");
+        Assert.True(
+            worstRise.RiseKts <= 1e-6,
+            $"N738SP sped up {worstRise.RiseKts:F2} kt in the second ending t={worstRise.AtSecond} with its crossing curve binding"
+        );
+    }
+
+    /// <summary>
+    /// Whether the detector's crossing stop curve binds <paramref name="giver"/> behind <paramref name="lead"/>, judged as the
+    /// detector judges it at the start of a pass: the room R (ft) before its stop ring (the centre distance less the pair's ring)
+    /// is inside its piston taxi-rate stop from its ground speed, plus the lead's closure over that stop, plus one pass of both
+    /// aircraft's travel: R ≤ GS²/(2·a)·F + min(c·GS/a·F, S) + (GS + c)·F·0.25, with F feet per second per knot. c is the lead's
+    /// ground speed along the bearing from it to the giver, in the direction it moves, never below zero; S is the lead's own
+    /// stop from c at its taxi rate while it is braking (the detector braked it in its last pass, or a published decel rate),
+    /// else unbounded.
+    /// </summary>
+    private static bool CrossingCurveBindsFrom(AircraftState giver, AircraftState lead)
+    {
+        double sepFt = GeoMath.DistanceNm(giver.Position, lead.Position) * GeoMath.FeetPerNm;
+        double roomFt = sepFt - GroundConflictDetectorTests.StopRingFt(lead.AircraftType, giver.AircraftType);
+        double moveDeg = (lead.Ground.PushbackTrueHeading ?? lead.TrueHeading).Degrees;
+        double offDeg = GeoMath.SignedBearingDifference(moveDeg, GeoMath.BearingTo(lead.Position, giver.Position));
+        double closingKts = Math.Max(lead.GroundSpeed * Math.Cos(offDeg * Math.PI / 180.0), 0.0);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double gs = giver.GroundSpeed;
+        bool leadBraking = lead.Ground.BrakedByDetectorLastPass || (lead.Targets.DesiredDecelRate is not null);
+        double leadRate = CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(lead.AircraftType));
+        double leadStopFt = leadBraking ? closingKts * closingKts / (2.0 * leadRate) * FeetPerSecondPerKt : double.PositiveInfinity;
+        double passSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
+        double reachFt =
+            (gs * gs / (2.0 * taxiRate) * FeetPerSecondPerKt)
+            + Math.Min(closingKts * gs / taxiRate * FeetPerSecondPerKt, leadStopFt)
+            + ((gs + closingKts) * FeetPerSecondPerKt * passSeconds);
+        return roomFt <= reachFt;
+    }
+
+    /// <summary>
     /// The same crossing with no GIVEWAY (YAAT-324): N738SP crosses runway 33 on C under its CROSS clearance and meets
     /// N52417, taxiing J across C, at the C/J junction just past the far bar. The ground-conflict speed limit slows it for the
     /// traffic, and it never loses more speed in a second than the piston firm rate allows, the seconds under that limit
     /// included: physics clamps the speed to a limit at once, so a non-zero limit must not ask for more than its brakes give.
     /// </summary>
-    // Booked as YAAT-1257: the one-pass stop is the detector's crossing-to-trail hand-off, not this fixture's premise.
-    [Fact(Skip = "YAAT-1257: a crossing that completes behind stopped traffic stops in one pass (owner ruling on YAAT-1214)")]
+    [Fact]
     public void Crossing_TrafficAtTheJunctionPastTheFarBar_NeverLosesMoreThanTheFirmRateInASecond()
     {
         SimulationEngine? engine = KoakFollowClip.Load(output, WithLeadOnJ());
@@ -635,6 +764,106 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
             $"largest one-second speed loss {lossKts:F2} kt ending t={atSecond} (at rest t={stoppedAt}); firm rate allows {firmLossKts:F2}"
         );
         Assert.True(lossKts <= firmLossKts + 1e-6, $"N738SP lost {lossKts:F2} kt in the second ending t={atSecond}, more than the firm rate allows");
+    }
+
+    /// <summary>
+    /// The same crossing with N52417 taxiing west on C, head-on toward N738SP, as N738SP crosses runway 33: the closing traffic
+    /// past the far bar never makes N738SP stop short of where its tail is past the far holding-position marking (AIM 4-3-21.a),
+    /// so it comes to rest clear of the runway, never says it is holding position not clear of it, and never loses more speed in
+    /// a second than the piston firm rate allows.
+    /// </summary>
+    [Fact]
+    public void Crossing_HeadOnClosingTrafficPastTheFarBar_StopsTailClearOfTheRunway()
+    {
+        SimulationEngine? engine = KoakFollowClip.Load(output, WithLeadOnCEastOfJ());
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState crosser = engine.FindAircraft(KoakFollowClip.Follower)!;
+        AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(crosser.Ground.Layout);
+        GroundNode firstBar = layout.Nodes[ClearedBarNodeId];
+        var speeds = new List<(int Second, double SpeedKts)>();
+        var notClearCalls = new List<string>();
+        TaxiRouteSegment? farBarSegment = null;
+        bool enteredCrossing = false;
+        int leadTaxiAt = -1;
+        int restSeconds = 0;
+        int stoppedAt = KoakFollowClip.RunScript(
+            engine,
+            output,
+            [.. Script.Where(line => (line.Second != GiveWaySecond) && (line.Second != LeadTaxiSecond))],
+            LongTypeBudgetSeconds,
+            second =>
+            {
+                if (leadTaxiAt < 0)
+                {
+                    if (GeoMath.DistanceNm(crosser.Position, firstBar.Position) * GeoMath.FeetPerNm > LeadTaxiTriggerFt)
+                    {
+                        return false;
+                    }
+
+                    leadTaxiAt = second;
+                    farBarSegment = FarBarSegment(Assert.IsType<TaxiRoute>(crosser.Ground.AssignedTaxiRoute), ClearedBarNodeId);
+                    Assert.True(engine.SendCommand(KoakFollowClip.Lead, LeadTaxiWestOnC).Success);
+                    speeds.Add((second, crosser.GroundSpeed));
+                    return false;
+                }
+
+                speeds.Add((second, crosser.GroundSpeed));
+                enteredCrossing |= crosser.Phases?.CurrentPhase is CrossingRunwayPhase;
+                notClearCalls.AddRange(
+                    crosser
+                        .PendingPilotTransmissions.Select(t => t.Text)
+                        .Concat(crosser.PendingWarnings)
+                        .Where(text => text.Contains("not clear of runway", StringComparison.OrdinalIgnoreCase))
+                );
+                output.WriteLine(
+                    $"t={second} gs={crosser.GroundSpeed:F1} {crosser.Phases?.CurrentPhase?.Name} "
+                        + $"limit={crosser.Ground.SpeedLimit?.ToString("F1")} | lead gs={lead.GroundSpeed:F1} hdg={lead.TrueHeading.Degrees:F0}"
+                );
+                restSeconds = enteredCrossing && (crosser.GroundSpeed < StationaryKts) ? restSeconds + 1 : 0;
+                return restSeconds > NotClearWatchSeconds;
+            }
+        );
+
+        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {ClearedBarNodeId})");
+        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {ClearedBarNodeId}");
+        Assert.True(stoppedAt > 0, $"N738SP never came to rest for N52417; gs={crosser.GroundSpeed:F1}");
+        GroundNode farBar = farBarSegment!.Edge.ToNode;
+        double farApproachDeg = GeoMath.BearingTo(farBar.Position, farBarSegment.Edge.FromNode.Position);
+        double tailPastFarFt = NosePastHoldLineFt(Tail(crosser), farBar, farApproachDeg);
+        (double lossKts, int atSecond) = LargestLossOverConsecutiveSeconds(speeds);
+        double firmLossKts = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) * (1.0 + (1.0 / SimulationEngine.PhysicsSubTickRate));
+        output.WriteLine(
+            $"at rest t={stoppedAt} ({crosser.Phases?.CurrentPhase?.Name}): tail {tailPastFarFt:F1} ft past the far marking (node {farBar.Id}); "
+                + $"largest one-second loss {lossKts:F2} kt ending t={atSecond}, firm rate allows {firmLossKts:F2}"
+        );
+        Assert.True(tailPastFarFt >= 0.0, $"N738SP came to rest with its tail {-tailPastFarFt:F1} ft short of the far runway 33 marking");
+        Assert.Empty(notClearCalls);
+        Assert.True(lossKts <= firmLossKts + 1e-6, $"N738SP lost {lossKts:F2} kt in the second ending t={atSecond}, more than the firm rate allows");
+    }
+
+    /// <summary>How long (s) N738SP is watched at rest: past the crossing's 3 s wait before it says it is not clear of the runway.</summary>
+    private const int NotClearWatchSeconds = 5;
+
+    private const string LeadTaxiWestOnC = "TAXI C F";
+
+    /// <summary>
+    /// The H2 scenario with N52417 standing on taxiway C some 300 ft east of the C/J junction (KOAK node 352), facing west
+    /// along C toward the runway 33 crossing N738SP makes.
+    /// </summary>
+    private static string WithLeadOnCEastOfJ()
+    {
+        JsonNode scenario = Assert.IsAssignableFrom<JsonNode>(JsonNode.Parse(Scenario));
+        JsonNode lead = Assert.Single(scenario["aircraft"]!.AsArray(), a => (string?)a?["aircraftId"] == KoakFollowClip.Lead)!;
+        JsonNode conditions = lead["startingConditions"]!;
+        conditions["coordinates"]!["lat"] = 37.729696;
+        conditions["coordinates"]!["lon"] = -122.216629;
+        conditions["heading"] = 292;
+        return scenario.ToJsonString();
     }
 
     /// <summary>

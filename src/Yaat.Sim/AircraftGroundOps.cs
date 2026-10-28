@@ -218,6 +218,31 @@ public class AircraftGroundOps
     public bool AutoYieldIsFollowing { get; set; }
 
     /// <summary>
+    /// The crossing stop curve limited this aircraft in the last <see cref="GroundConflictDetector"/> pass. The next pass reads
+    /// and clears it at its start, and gives the aircraft the curve again even once its crossing has ended, so a crossing that
+    /// completes behind traffic keeps braking along the curve instead of handing off to a one-pass stop. Set again by every
+    /// pass the curve limits it, so it lapses the first pass the curve does not.
+    /// </summary>
+    public bool CrossingStopCurveCarry { get; set; }
+
+    /// <summary>
+    /// The largest travel (ft) of traffic toward this aircraft that the crossing stop curve counted in a
+    /// <see cref="GroundConflictDetector"/> pass that limited it, since its <see cref="CrossingStopCurveCarry"/> began: the
+    /// traffic's travel while this aircraft stops at its taxi brake rate from the limit the curve set, no further than the
+    /// traffic's own stop when it was braking. While the carry holds, the next pass reads it at its start to decide when an
+    /// aircraft the curve holds at its ground speed is released; the pass that ends with the carry lapsed zeroes it.
+    /// </summary>
+    public double CrossingStopCurveBoundClosureTravelFt { get; set; }
+
+    /// <summary>
+    /// The <see cref="GroundConflictDetector"/> braked this aircraft in its last pass: the speed limit that pass set was below the
+    /// aircraft's ground speed at the pass's start. The next pass reads and clears it at its start, and counts the aircraft as
+    /// braking where it closes on another that is stopping (its travel capped at its own stop): physics has by then clamped the
+    /// speed to the limit, so the limit alone no longer shows it. Set again at the end of every pass.
+    /// </summary>
+    public bool BrakedByDetectorLastPass { get; set; }
+
+    /// <summary>
     /// Display-only 1-based position in the physical departure line at this aircraft's destination-runway
     /// hold-short node, or 0 when it is not in a countable line. Re-derived every sim-second by
     /// <see cref="Simulation.SimulationEngine"/> from full world context (aircraft holding short of, or
@@ -422,6 +447,9 @@ public class AircraftGroundOps
             SpeedLimit = SpeedLimit,
             AutoYieldTarget = AutoYieldTarget,
             AutoYieldIsFollowing = AutoYieldIsFollowing,
+            CrossingStopCurveCarry = CrossingStopCurveCarry,
+            CrossingStopCurveBoundClosureTravelFt = CrossingStopCurveBoundClosureTravelFt,
+            BrakedByDetectorLastPass = BrakedByDetectorLastPass,
             RunwayQueuePosition = RunwayQueuePosition,
             RunwayQueueRunway = RunwayQueueRunway,
             RunwayQueueIntersection = RunwayQueueIntersection,
@@ -473,6 +501,9 @@ public class AircraftGroundOps
             SpeedLimit = dto.SpeedLimit,
             AutoYieldTarget = dto.AutoYieldTarget,
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
+            CrossingStopCurveCarry = dto.CrossingStopCurveCarry,
+            CrossingStopCurveBoundClosureTravelFt = dto.CrossingStopCurveBoundClosureTravelFt,
+            BrakedByDetectorLastPass = dto.BrakedByDetectorLastPass,
             RunwayQueuePosition = dto.RunwayQueuePosition,
             RunwayQueueRunway = dto.RunwayQueueRunway,
             RunwayQueueIntersection = dto.RunwayQueueIntersection,

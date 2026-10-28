@@ -85,6 +85,19 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>The crossing slice the navigator is playing back (entry bar → exit bar → tail-clearance). Null until built.</summary>
     internal TaxiRoute? CrossingRoute => _crossingRoute;
 
+    /// <summary>
+    /// How far (ft) an aircraft at <paramref name="position"/> still has to go along the crossing slice to where the crossing
+    /// completes, its tail past the far holding-position marking (the slice's last node, <see cref="TaxiRoute.IsComplete"/>);
+    /// measured as <see cref="TaxiRoute.RemainingDistanceFt"/> measures it. Zero once the slice is complete; null before it is built.
+    /// </summary>
+    public double? TailClearRemainingFt(LatLon position) =>
+        _crossingRoute switch
+        {
+            null => null,
+            { IsComplete: true } => 0.0,
+            { } route => route.RemainingDistanceFt(position, route.Segments.Count),
+        };
+
     /// <summary>The navigator's straight-segment speed cap (kts), or null before the crossing slice is built.</summary>
     public double? NavMaxSpeedKts => _navigator?.MaxSpeedKts;
 

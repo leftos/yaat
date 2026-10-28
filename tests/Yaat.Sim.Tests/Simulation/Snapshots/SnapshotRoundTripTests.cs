@@ -233,6 +233,93 @@ public class SnapshotRoundTripTests
         Assert.Null(restoredDetached.TowbarTrueHeading);
     }
 
+    /// <summary>The crossing stop curve carried into the next detector pass round-trips through a snapshot.</summary>
+    [Fact]
+    public void AircraftGroundOps_CrossingStopCurveCarry_RoundTrips()
+    {
+        var carried = new AircraftGroundOps { CrossingStopCurveCarry = true };
+
+        string json = JsonSerializer.Serialize(carried.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = AircraftGroundOps.FromSnapshot(JsonSerializer.Deserialize<AircraftGroundOpsDto>(json, RecordingJsonOptions.Default)!, null);
+
+        Assert.True(restored.CrossingStopCurveCarry);
+    }
+
+    /// <summary>
+    /// With no crossing stop curve carried, the snapshot names no carry at all, so its bytes are those of a snapshot written
+    /// before the field existed.
+    /// </summary>
+    [Fact]
+    public void AircraftGroundOps_NoCrossingStopCurveCarry_WritesNoCarryField()
+    {
+        string json = JsonSerializer.Serialize(new AircraftGroundOps().ToSnapshot(), RecordingJsonOptions.Default);
+
+        Assert.DoesNotContain(nameof(AircraftGroundOps.CrossingStopCurveCarry), json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A snapshot written before the carry existed (no such field) restores with no curve carried.</summary>
+    [Fact]
+    public void AircraftGroundOpsDto_WithoutCrossingStopCurveCarry_RestoresNoCarry()
+    {
+        JsonObject json = Assert.IsType<JsonObject>(
+            JsonSerializer.SerializeToNode(new AircraftGroundOps { CrossingStopCurveCarry = true }.ToSnapshot(), RecordingJsonOptions.Default)
+        );
+        string key = Assert
+            .Single(json, p => string.Equals(p.Key, nameof(AircraftGroundOps.CrossingStopCurveCarry), StringComparison.OrdinalIgnoreCase))
+            .Key;
+        json.Remove(key);
+
+        var restored = AircraftGroundOps.FromSnapshot(json.Deserialize<AircraftGroundOpsDto>(RecordingJsonOptions.Default)!, null);
+
+        Assert.False(restored.CrossingStopCurveCarry);
+    }
+
+    /// <summary>
+    /// The largest closure travel the crossing stop curve counted since its carry began round-trips through a snapshot to the
+    /// bit, so a replay releases a held crosser on the same pass.
+    /// </summary>
+    [Fact]
+    public void AircraftGroundOps_CrossingStopCurveBoundClosureTravelFt_RoundTripsBitExact()
+    {
+        double boundTravelFt = 6.123456789;
+        var bound = new AircraftGroundOps { CrossingStopCurveBoundClosureTravelFt = boundTravelFt };
+
+        string json = JsonSerializer.Serialize(bound.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = AircraftGroundOps.FromSnapshot(JsonSerializer.Deserialize<AircraftGroundOpsDto>(json, RecordingJsonOptions.Default)!, null);
+
+        Assert.Equal(BitConverter.DoubleToInt64Bits(boundTravelFt), BitConverter.DoubleToInt64Bits(restored.CrossingStopCurveBoundClosureTravelFt));
+    }
+
+    /// <summary>
+    /// With no closure travel bound, the snapshot names no bound closure travel at all, so its bytes are those of a snapshot
+    /// written before the field existed.
+    /// </summary>
+    [Fact]
+    public void AircraftGroundOps_NoBoundClosureTravel_WritesNoBoundClosureTravelField()
+    {
+        string json = JsonSerializer.Serialize(new AircraftGroundOps().ToSnapshot(), RecordingJsonOptions.Default);
+
+        Assert.DoesNotContain(nameof(AircraftGroundOps.CrossingStopCurveBoundClosureTravelFt), json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The detector's speed limit and its record that it braked the aircraft in its last pass round-trip through a snapshot, the
+    /// limit to the bit, so a replay resumes the next pass from the same state.
+    /// </summary>
+    [Fact]
+    public void AircraftGroundOps_SpeedLimitAndBrakedByDetectorLastPass_RoundTripBitExact()
+    {
+        double limitKts = Math.Sqrt(81.3);
+        var braked = new AircraftGroundOps { SpeedLimit = limitKts, BrakedByDetectorLastPass = true };
+
+        string json = JsonSerializer.Serialize(braked.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = AircraftGroundOps.FromSnapshot(JsonSerializer.Deserialize<AircraftGroundOpsDto>(json, RecordingJsonOptions.Default)!, null);
+
+        double restoredKts = Assert.IsType<double>(restored.SpeedLimit);
+        Assert.Equal(BitConverter.DoubleToInt64Bits(limitKts), BitConverter.DoubleToInt64Bits(restoredKts));
+        Assert.True(restored.BrakedByDetectorLastPass);
+    }
+
     [Fact]
     public void HoldAnnotation_RawRadialAndBlankInstructions_RoundTripThroughJson()
     {

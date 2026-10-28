@@ -427,7 +427,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     Its snapshot cases round-trip the follow route, merge index, lead edge into the merge, give-way, unjoinable latch, navigator and clearing attempts.
 
-    `Simulation/GroundTaxi/GiveWayStopBrakingTests.cs` (the KOAK H2 clip: a `GIVEWAY` keeps taxiing and brakes at the taxi rate to a stop with its centre clear of the crossing track by wingtip clearance, the traffic crosses unstopped and the hold releases; told inside its taxi-rate stopping distance it brakes at no more than the max-effort rate and never passes the point).
+    `Simulation/GroundTaxi/GiveWayStopBrakingTests.cs` (the KOAK H2 clip: a `GIVEWAY` keeps taxiing and brakes at the taxi rate to a stop with its centre clear of the crossing track by wingtip clearance, the traffic crosses unstopped and the hold releases; told inside its taxi-rate stopping distance it brakes at no more than the max-effort rate and never passes the point; a `GIVEWAY` past a cleared bar's hold line never speeds up once the crossing stop curve binds, and a crosser meeting head-on traffic past the far bar stops tail-clear of the runway).
 
     `GiveWayAutoReleaseTests.cs` and `GiveWayInTrailReleaseTests.cs` (the GIVEWAY release at a shared node: held until the traffic's tail clears it, no 1,500 ft cap, no timeout or stationary-bypass release, mutual give-way releasing the lower callsign, a rejoin in trail not a crossing) and `Simulation/SfoGiveWayCrossingTests.cs` (the SFO 28RT recording: UAL2237's GIVEWAY to UAL926 crossing toward F, about 5,000 ft away, holds it short of the node until UAL926's tail has cleared it).
 

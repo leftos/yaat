@@ -118,6 +118,8 @@ A restore that kept no latch would let the stop go once the aircraft had slowed 
 
 The aircraft's own `AircraftGroundOps.TaxiEdgeTrail` is `[JsonIgnore]`; this DTO field is its carrier.
 
+`AircraftGroundOpsDto` carries the ground conflict detector's cross-pass state the same additive way (no schema bump; each is written only when non-default, so a snapshot with none set is byte-identical to an older one, and an older snapshot restores them false or 0): `CrossingStopCurveCarry` (the crossing stop curve limited the aircraft last pass, so the next pass gives it the curve again), `CrossingStopCurveBoundClosureTravelFt` (the travel of traffic the curve counted since the carry began, which decides when a crosser held at its ground speed is released) and `BrakedByDetectorLastPass` (the detector's limit was below the aircraft's ground speed). A replay that dropped them would brake a carried crosser differently, so they round-trip bit-exact ([conflict-and-visual-detection.md](conflict-and-visual-detection.md)).
+
 `FollowingPhaseDto` carries the `FOLLOWG` follow's graph state the same additive way, with no schema bump ([ground/navigator.md](ground/navigator.md) § FOLLOWG: driving the follow route):
 
 - `FollowRoute` (a `TaxiRouteDto`: the follower's route to the merge node, then the lead's path) and `MergeSegmentIndex` (the first segment on the lead's path), null and 0 before the follow planned one.
