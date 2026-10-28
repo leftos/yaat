@@ -46,7 +46,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     )
     {
         RunwayPlan plan = RunwayCrossingDetector.PlanRunway(rwy, layout.AirportId, null);
-        return RunwayCrossingDetector.DetectRunwayCrossings(plan, [plan], layout, coordIndex, ref nextNodeId);
+        return RunwayCrossingDetector.DetectRunwayCrossings(plan, [plan], layout, coordIndex, videoMap: null, ref nextNodeId);
     }
 
     /// <summary>The parse-time rectangle of <paramref name="rwy"/> as the detector builds it with no navdata for the runway.</summary>

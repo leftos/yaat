@@ -25,6 +25,7 @@ public static class LayoutCloner
                 Name = node.Name,
                 TrueHeading = node.TrueHeading,
                 RunwayId = node.RunwayId,
+                PaintSegmentIndex = node.PaintSegmentIndex,
                 Origin = node.Origin,
                 SourceIntersectionPosition = node.SourceIntersectionPosition,
             };

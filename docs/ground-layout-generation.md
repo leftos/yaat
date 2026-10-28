@@ -46,7 +46,7 @@ AirportGroundLayout (complete graph)
 
 **Entry points**: the `GeoJsonParser.Parse*` overloads (`Parse`, `ParseWithDiagnostics`, `ParseMultiple`) in `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`, which all build through `ParseCollectingIssues` / `BuildLayout`.
 
-**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap)` (`LayoutInputs.cs`). `StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none. The layout build does not read the videomap yet. yaat-server passes the map it fetched (`TowerCabMapDownloader`), and the test harness, the precompute builder, `GroundMapCheck` and LayoutInspector pass `VideoMap: null`.
+**Inputs**: besides the map's GeoJSON, the airport id and the code runway widths are looked up by, every overload takes a `LayoutInputs(StandLeadIns, VideoMap)` (`LayoutInputs.cs`). `StandLeadIns` is the airport's sidecar `standLeadIns` (Step 6); `VideoMap` is its tower-cab videomap (`TowerCabVideoMap.Read`), or null when it has none. Step 5 pairs the videomap's painted bars with the generated hold-short points (Step 5d). yaat-server passes the map it fetched (`TowerCabMapDownloader`), and the test harness, the precompute builder, `GroundMapCheck` and LayoutInspector pass `VideoMap: null`.
 
 **Critical invariant**: During Steps 2-6, `GroundNode.Edges` adjacency lists remain EMPTY. All edges are added to `layout.Edges` only. At the end of Step 7, `RebuildAdjacencyLists()` populates each node's `Edges` list from `AllEdges` (`layout.Edges` plus the arcs, which exist only after Step 8 and join the lists when it rebuilds them). This timing is essential because earlier steps need to perform lookups on `layout.Edges` directly.
 
@@ -182,8 +182,9 @@ Identify edges where one endpoint is on-runway and the other is off-runway. Thes
 
 For each boundary edge, process via `ProcessBoundaryEdge()`:
 
+0. **Pair with paint** (`SeatCrossing`, `RunwayPaintPairing`): with a videomap, the crossing is paired with the first painted bar on its taxiway that the placement can seat (innermost along the taxiway first, snap point within D_rule − 60 ft … D_rule + 100 ft), and the ideal position below is that bar's snap point, D_paint, instead of the rule's D_rule. The node records `PaintSegmentIndex`. Details: [hold-short-placement.md](ground/hold-short-placement.md#seating-on-the-painted-bar)
 1. Compute the ideal hold-short position: perpendicular projection onto the boundary edge at the correct cross-track distance
-2. **Reuse check**: If the off-runway node is close (within `HoldShortSnapFt`, 5 ft) AND is not already a hold-short AND is not a junction (doesn't touch multiple taxiways), upgrade it to `RunwayHoldShort` type and `RunwayId`
+2. **Reuse check**: If the off-runway node is close (within `HoldShortSnapFt`, 5 ft; for a paint-paired bar, to its snap point and not more than 1 ft on the runway side of it) AND is not already a hold-short AND is not a junction (doesn't touch multiple taxiways), upgrade it to `RunwayHoldShort` type and `RunwayId`
 3. **Otherwise**: Interpolate a new node at the hold-short distance on the boundary edge
 4. **If interpolation needed**: Split the boundary edge via `SplitEdgeAtOneNode()` → two sub-edges connected through the new hold-short node
 
@@ -248,7 +249,7 @@ Replaces eligible intersection nodes with bezier arcs at turns ≥15°. Details 
 
 **Function**: `RunwayCrossingDetector.MarkShortBars()`
 
-With every node in its final place, sets `GroundNode.IsShortBar` on each `RunwayHoldShort` node whose runway is in the layout: true for a short fallback bar inside the holding distance, false for the runway's hold line. See [ground/hold-short-placement.md](ground/hold-short-placement.md).
+With every node in its final place, sets `GroundNode.IsShortBar` on each `RunwayHoldShort` node whose runway is in the layout: true for a short fallback bar inside the holding distance, false for the runway's hold line (a paint-paired bar is always false). See [ground/hold-short-placement.md](ground/hold-short-placement.md).
 
 ---
 

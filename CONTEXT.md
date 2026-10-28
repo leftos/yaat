@@ -379,6 +379,9 @@ The ground layout's node at a runway's painted hold line (`RunwayHoldShort`, `Ru
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: its base separation S (*Standoff*), `GroundRunway.HoldShortStandoffFt`. An aircraft is clear of the runway only with its tail past a bar at this distance.
 
+**Paint-paired bar**:
+A runway hold-short node seated on the painted hold bar the tower-cab videomap draws on its taxiway, at that bar's distance from the centerline (D_paint) instead of the rule's D (`RunwayPaintPairing`, `GroundNode.PaintSegmentIndex`). It is always its runway's hold line, never a short bar (docs/ground/hold-short-placement.md).
+
 **Runway rank**:
 Who gives way to whom across a runway in the ground-conflict pass (`GroundConflictDetector.ComputeRank`): a runway user (taking off, landing, rolling out, lined up on the pavement) outranks an aircraft vacating the runway, which outranks everything else; the lower rank yields (7110.65 3-1-3, AIM 4-3-21.a).
 
@@ -387,6 +390,9 @@ An aircraft taking off, landing, rolling out, lined up on the pavement, or cross
 
 **Short bar**:
 A runway hold-short node nearer the centreline than the runway's holding distance, a dead-end fallback where the taxiway ends or merges before reaching it (`GroundNode.IsShortBar` true, set by `RunwayCrossingDetector.MarkShortBars`); the runway's hold line is the node at S or D (docs/ground/hold-short-placement.md). A route that passes the holding distance without a bar keeps the short bar.
+
+**Snap band**:
+How far from the rule's centerline standoff D a painted bar's snap point may sit for the bar to pair with a crossing: 60 ft inside to 100 ft outside, and at least the runway's half-width plus 50 ft from the centerline (`RunwayPaintPairing.InBand`). A bar outside it is not that crossing's hold line (docs/ground/hold-short-placement.md).
 
 **Standoff (S, D)**:
 The hold-short placement rule (`HoldShortStandoff`). **S** is a runway's base separation: feet from its centreline to the nearest point of the hold line, from the authored `holdShortDistance` or the rule by width, length, ILS category and elevation. **D** is where the taxiway's centreline meets that line, `D = S + (W_twy / 2) · |cos θ|` for a taxiway at angle θ to the runway, so an angled taxiway's bar sits farther out than S (docs/ground/hold-short-placement.md).

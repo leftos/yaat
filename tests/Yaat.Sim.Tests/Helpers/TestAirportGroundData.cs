@@ -73,8 +73,8 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
             // back to null so the harness's silent-skip convention still holds.
             TestVnasData.EnsureInitialized();
             string? runwayAirportCode = NavigationDatabase.InstanceOrNull is not null ? shortId.ToUpperInvariant() : null;
-            // The videomap is null because both production call sites pass null today; a harness that read the tower-cab
-            // fixture would build a graph the shipping code does not.
+            // The videomap is null: the server passes the fetched tower-cab map, but the precompute tool and this harness
+            // pass null, so the shared harness builds the unsnapped graph and the paint-snap tests build their own OAK layout.
             layout = GeoJsonParser.Parse(
                 shortId,
                 File.ReadAllText(path),

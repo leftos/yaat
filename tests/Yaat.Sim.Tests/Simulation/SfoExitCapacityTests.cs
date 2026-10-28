@@ -191,7 +191,9 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     }
 
     /// <summary>An E75L holds short of 28L on T; a second E75L may still exit onto T (both at CWT G: capacity two).</summary>
-    [Fact(Skip = "YAAT-1215: E75L pair no longer fits on T until the paint snap seats the bars (owner ruling 2026-10-26)")]
+    [Fact(
+        Skip = "YAAT-1306: E75L pair no longer fits on T until SFO's tower-cab map draws the hold bars the paint snap seats them on (owner ruling)"
+    )]
     public void E75L_WithE75LHoldingShortOnT_MayExitOnT()
     {
         ExitOutcome outcome = RunPair("E75L", "E75L");

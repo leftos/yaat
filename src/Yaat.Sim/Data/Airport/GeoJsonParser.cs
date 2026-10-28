@@ -350,13 +350,22 @@ public static class GeoJsonParser
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
         // Every runway's S and rectangle come first, so each crossing sees every other runway's holding area whatever the order.
         var fallbackBars = new List<FallbackBar>();
+        var snappedBars = new List<SnappedBar>();
         List<RunwayPlan> plans = [.. runways.Select(rwy => RunwayCrossingDetector.PlanRunway(rwy, layout.AirportId, runwayAirportCode))];
         foreach (RunwayPlan plan in plans)
         {
             RunwayFeature rwy = plan.Feature;
-            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(plan, plans, layout, coordIndex, ref nextNodeId);
+            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(
+                plan,
+                plans,
+                layout,
+                coordIndex,
+                source.Inputs.VideoMap,
+                ref nextNodeId
+            );
             double rwyWidthFt = crossings.WidthFt;
             fallbackBars.AddRange(crossings.FallbackBars);
+            snappedBars.AddRange(crossings.SnappedBars);
 
             layout.Runways.Add(
                 new GroundRunway
@@ -376,7 +385,7 @@ public static class GeoJsonParser
         }
 
         // Step 5b: with every runway's bars in place, drop the dead-end fallback bars a joining taxiway's bar makes redundant.
-        RunwayCrossingDetector.DropRedundantFallbackBars(layout, fallbackBars);
+        RunwayCrossingDetector.DropRedundantFallbackBars(layout, RunwayCrossingDetector.RaiseCeilingsToSnappedBars(fallbackBars, snappedBars));
 
         // Step 6: Create parking nodes and connect each to its sidecar lead-in's taxiway vertex, else to the nearest taxiway
         Dictionary<string, StandLeadIn> leadInsByStand = UsableStandLeadIns(airportId, parkings, source.Inputs.StandLeadIns);
@@ -433,7 +442,7 @@ public static class GeoJsonParser
         }
 
         // Step 9: with every node in its final place, mark each runway bar as its runway's hold line or a short fallback bar
-        RunwayCrossingDetector.MarkShortBars(layout);
+        RunwayCrossingDetector.MarkShortBars(layout, snappedBars.Select(snapped => snapped.Bar.Id).ToHashSet());
 
         Log.LogInformation(
             "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, {ArcCount} arcs, " + "{ParkingCount} parking, {HelipadCount} helipads",
