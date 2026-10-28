@@ -676,7 +676,9 @@ public class GroundConflictDetectorTests
         return mover;
     }
 
-    /// <summary>A B738 at parking <paramref name="distFt"/> from <paramref name="from"/> on a true bearing of <paramref name="bearingDeg"/>.</summary>
+    /// <summary>
+    /// A B738 at parking <paramref name="distFt"/> from <paramref name="from"/> on a true bearing of <paramref name="bearingDeg"/>.
+    /// </summary>
     private static AircraftState ParkedB738(string callsign, LatLon from, double bearingDeg, double distFt) =>
         MakeAircraft(
             callsign,
@@ -4538,6 +4540,1085 @@ public class GroundConflictDetectorTests
         double limitKts = limit.Value;
         Assert.True(limitKts < speedKts, $"{type} limited to {limitKts:F2} kt, not under its {speedKts:F1} kt");
         Assert.True(limitKts >= floorKts - 1e-9, $"{type} limited to {limitKts:F2} kt, under the taxi-rate floor {floorKts:F2} kt");
+    }
+
+    /// <summary>
+    /// A crosser (<see cref="CrossingRunwayPhase"/>) braking onto the stop ring ahead of traffic that is closing on it is allowed
+    /// less speed than with the same traffic at rest the same room away: the curve is the speed whose stop, plus the traffic's
+    /// travel toward it while stopping, fits the room, v = −c + √(c² + 2·a·d), with c the traffic's ground-speed component toward
+    /// the crosser along the line between them.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_ClosingObstacle_AllowsLessThanAStillOne()
+    {
+        (AirportGroundLayout stillLayout, AircraftState stillCrosser, AircraftState stillTraffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new HoldingInPositionPhase(),
+            trafficKts: 0.0,
+            CurveRoomFt
+        );
+        GroundConflictDetector.ApplySpeedLimits([stillCrosser, stillTraffic], stillLayout);
+        (AirportGroundLayout closingLayout, AircraftState closingCrosser, AircraftState closingTraffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: CurveTrafficKts,
+            CurveRoomFt
+        );
+        GroundConflictDetector.ApplySpeedLimits([closingCrosser, closingTraffic], closingLayout);
+
+        double closingKts = CurveClosingKts(CurveTrafficKts);
+        double stillKts = Assert.IsType<double>(stillCrosser.Ground.SpeedLimit);
+        double limitKts = Assert.IsType<double>(closingCrosser.Ground.SpeedLimit);
+        double expectedKts = CurveClosedFormKts(CentreDistanceFt(closingCrosser, closingTraffic), closingKts, obstacleStopFt: null);
+        _output.WriteLine($"traffic at rest: {stillKts:F3} kt; closing at {closingKts:F2} kt: {limitKts:F3} kt (closed form {expectedKts:F3})");
+        Assert.True(limitKts < stillKts, $"closing traffic allowed {limitKts:F3} kt, not under the {stillKts:F3} kt for traffic at rest");
+        Assert.Equal(expectedKts, limitKts, 6);
+    }
+
+    /// <summary>
+    /// A crosser whose taxi-rate stop alone fits the room before the stop ring, but not once the traffic's travel toward it while
+    /// it stops is counted, brakes along the curve at the rate that stop needs over the whole room, a* = (GS²/2 + c·GS)·F / R,
+    /// between its taxi and its firm rate.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_ClosureOverrunsTheTaxiRateStop_UsesTheNeededRate()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: ClosureRateTrafficKts,
+            ClosureRateRoomFt
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
+
+        double closingKts = CurveClosingKts(ClosureRateTrafficKts);
+        double roomFt = CentreDistanceFt(crosser, traffic) - StopRingFt(CurveType, CurveType);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston);
+        double taxiStopFt = CurveCrosserKts * CurveCrosserKts / (2.0 * taxiRate) * CurveFeetPerSecondPerKt;
+        double neededRate = ((CurveCrosserKts * CurveCrosserKts / 2.0) + (closingKts * CurveCrosserKts)) * CurveFeetPerSecondPerKt / roomFt;
+        double neededKts = CurveKts(roomFt, closingKts, neededRate, obstacleStopFt: null);
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        _output.WriteLine(
+            $"room {roomFt:F1} ft, taxi-rate stop {taxiStopFt:F1} ft, closing {closingKts:F2} kt: needed rate {neededRate:F3} kt/s, "
+                + $"limited to {limitKts:F3} kt (needed-rate curve {neededKts:F3}, firm-rate curve "
+                + $"{CurveKts(roomFt, closingKts, firmRate, obstacleStopFt: null):F3})"
+        );
+        Assert.True(taxiStopFt <= roomFt, $"the taxi-rate stop {taxiStopFt:F1} ft does not fit the {roomFt:F1} ft room on its own");
+        Assert.InRange(neededRate, taxiRate, firmRate);
+        Assert.Equal(neededKts, limitKts, 6);
+    }
+
+    /// <summary>
+    /// Traffic closing on a crosser while braking itself (a published decel rate) closes no further than its own stop, so once
+    /// that caps its travel the crosser is allowed more than the closed form for traffic closing the whole stop: the curve is
+    /// the plain stop curve over the room less the traffic's stop.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_BrakingObstacle_ClosesNoFurtherThanItsOwnStop()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: BrakingTrafficKts,
+            BrakingTrafficRoomFt
+        );
+        double trafficRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        traffic.Targets.DesiredDecelRate = trafficRate;
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
+
+        double closingKts = CurveClosingKts(BrakingTrafficKts);
+        double distFt = CentreDistanceFt(crosser, traffic);
+        double trafficStopFt = closingKts * closingKts / (2.0 * trafficRate) * CurveFeetPerSecondPerKt;
+        double uncappedKts = CurveClosedFormKts(distFt, closingKts, obstacleStopFt: null);
+        double cappedKts = CurveClosedFormKts(distFt, closingKts, trafficStopFt);
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        _output.WriteLine(
+            $"limited to {limitKts:F3} kt; closing the whole stop {uncappedKts:F3}, capped at its own {trafficStopFt:F2} ft stop {cappedKts:F3}"
+        );
+        Assert.True(limitKts > uncappedKts, $"the braking traffic's closure was counted for the whole stop: {limitKts:F3} kt");
+        Assert.Equal(cappedKts, limitKts, 6);
+    }
+
+    /// <summary>
+    /// A crosser whose crossing completed last pass (<see cref="TaxiingPhase"/> now, the crossing stop curve carried from the
+    /// pass before), closing on traffic at rest inside the trail band, keeps braking along the curve: limited to the curve's
+    /// closed form, not the proximity trail's floor nor a stop, and the curve applied again carries it on to the next pass.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_CarriesOnePassPastTheCrossingsEnd_NoLimitZeroJump()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new TaxiingPhase(),
+            new HoldingInPositionPhase(),
+            trafficKts: 0.0,
+            CurveRoomFt
+        );
+        crosser.Ground.CrossingStopCurveCarry = true;
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
+
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        double expectedKts = CurveClosedFormKts(CentreDistanceFt(crosser, traffic), closingKts: 0.0, obstacleStopFt: null);
+        _output.WriteLine($"carried crosser limited to {limitKts:F3} kt (closed form {expectedKts:F3})");
+        Assert.True(limitKts > 0.0, "the carried crosser was stopped in one pass");
+        Assert.Equal(expectedKts, limitKts, 6);
+        Assert.True(crosser.Ground.CrossingStopCurveCarry, "the curve applied this pass did not carry on to the next");
+    }
+
+    /// <summary>
+    /// A crosser on SFO's 01L/19R crossing, its tail-clear point ahead, whose taxi-rate closing curve binds while a firm-rate
+    /// closing stop still fits the room: it is held at the plain stop curve onto the tail-clear point
+    /// (<see cref="CrossingRunwayPhase.TailClearRemainingFt"/>), never above its ground speed, rather than the closing curve.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TailClearFloor_HoldsTheTailClearCurveWhenAFirmClosingStopFits()
+    {
+        if (SfoTailClearPair(TailClearFloorRoomFt, TailClearFloorTrafficKts, ShortOfTheFarBarFt) is not { } pair)
+        {
+            return;
+        }
+
+        GroundConflictDetector.ApplySpeedLimits([pair.Crosser, pair.Traffic], pair.Layout, diagnosticLog: _output.WriteLine);
+
+        TailClearCurves curves = TailClearCurvesOf(pair);
+        double limitKts = Assert.IsType<double>(pair.Crosser.Ground.SpeedLimit);
+        _output.WriteLine($"{curves}: limited to {limitKts:F3} kt");
+        Assert.True(curves.CloseKts < curves.TailClearKts, $"the closing curve does not bind under the tail-clear curve: {curves}");
+        Assert.True(curves.TailClearKts <= curves.FirmCloseKts, $"a firm-rate closing stop does not fit: {curves}");
+        Assert.Equal(Math.Min(CurveCrosserKts, curves.TailClearKts), limitKts, 6);
+    }
+
+    /// <summary>
+    /// A crosser on SFO's 01L/19R crossing, its tail-clear point ahead, whose closing curve even at the firm rate is under the
+    /// stop curve onto the tail-clear point: it stops on the runway along the firm-rate closing curve.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TailClearFloor_StopsOnTheRunwayWhenEvenTheFirmRateCannotMakeTailClear()
+    {
+        if (SfoTailClearPair(TailClearShortRoomFt, TailClearFloorTrafficKts, ShortOfTheFarBarFt) is not { } pair)
+        {
+            return;
+        }
+
+        GroundConflictDetector.ApplySpeedLimits([pair.Crosser, pair.Traffic], pair.Layout, diagnosticLog: _output.WriteLine);
+
+        TailClearCurves curves = TailClearCurvesOf(pair);
+        double limitKts = Assert.IsType<double>(pair.Crosser.Ground.SpeedLimit);
+        _output.WriteLine($"{curves}: limited to {limitKts:F3} kt");
+        Assert.True(curves.FirmCloseKts < curves.TailClearKts, $"a firm-rate closing stop still makes tail-clear: {curves}");
+        Assert.Equal(Math.Max(curves.CloseKts, curves.FirmCloseKts), limitKts, 6);
+        Assert.True(limitKts < curves.TailClearKts, $"limited to {limitKts:F3} kt, not under the tail-clear curve: {curves}");
+    }
+
+    /// <summary>
+    /// A crosser on SFO's 01L/19R crossing, its tail-clear point ahead, with closing traffic inside the stop ring or with less
+    /// than one detector pass of room before it: its stop (zero) is never raised by the tail-clear floor.
+    /// </summary>
+    [Theory]
+    [InlineData(-5.0)]
+    [InlineData(2.0)]
+    public void CrossingCurve_TailClearFloor_NeverRaisesAZeroLimit(double roomFt)
+    {
+        if (SfoTailClearPair(roomFt, TailClearFloorTrafficKts, ShortOfTheFarBarFt) is not { } pair)
+        {
+            return;
+        }
+
+        GroundConflictDetector.ApplySpeedLimits([pair.Crosser, pair.Traffic], pair.Layout, diagnosticLog: _output.WriteLine);
+
+        double tailClearFt = Assert.IsType<double>(pair.Crossing.TailClearRemainingFt(pair.Crosser.Position));
+        _output.WriteLine(
+            $"room {roomFt:F1} ft, {tailClearFt:F1} ft to tail-clear: limit {pair.Crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(tailClearFt > 0.0, "the crosser's tail is already clear");
+        Assert.Equal(0.0, pair.Crosser.Ground.SpeedLimit);
+    }
+
+    /// <summary>SFO's runway 01L/19R hold-short on G, the crossing's entry bar (see <c>CrossingRunwayTailClearTests</c>).</summary>
+    private const int SfoG01LEntryBarNodeId = 878;
+
+    /// <summary>
+    /// How far (ft) short of the far bar the crosser is placed: its traffic, a stop ring and the room ahead, is then off the
+    /// runway, so the pair is not a crosser yielding to traffic vacating it.
+    /// </summary>
+    private const double ShortOfTheFarBarFt = 30.0;
+
+    /// <summary>Closes at 1 kt along the line (<see cref="CurveTrafficHeadingDeg"/>).</summary>
+    private const double TailClearFloorTrafficKts = 2.0;
+
+    /// <summary>Room (ft): just over a C172's 42.2 ft taxi-rate stop from 10 kt plus 1 kt of closure over it, so the taxi rate is chosen.</summary>
+    private const double TailClearFloorRoomFt = 51.0;
+
+    /// <summary>Room (ft) where the firm-rate curve for 1 kt of closure binds above the firm-rate floor.</summary>
+    private const double TailClearShortRoomFt = 25.0;
+
+    /// <summary>A crosser in a built crossing on SFO's 01L/19R, its traffic ahead, and the crossing itself.</summary>
+    private sealed record TailClearPair(AirportGroundLayout Layout, AircraftState Crosser, AircraftState Traffic, CrossingRunwayPhase Crossing);
+
+    /// <summary>
+    /// The curves a <see cref="TailClearPair"/> crosser is judged by: the closing curve at the rate chosen
+    /// (<see cref="CurveClosedFormKts"/>), the closing curve at the firm rate, and the plain stop curve onto the tail-clear point,
+    /// at the taxi rate when a taxi-rate stop fits there and at the firm rate otherwise.
+    /// </summary>
+    private sealed record TailClearCurves(double RoomFt, double TailClearFt, double CloseKts, double FirmCloseKts, double TailClearKts)
+    {
+        public override string ToString() =>
+            $"room {RoomFt:F1} ft, {TailClearFt:F1} ft to tail-clear, closing curve {CloseKts:F3}, firm closing curve {FirmCloseKts:F3}, "
+            + $"tail-clear curve {TailClearKts:F3}";
+    }
+
+    private static TailClearCurves TailClearCurvesOf(TailClearPair pair)
+    {
+        double offDeg = GeoMath.SignedBearingDifference(
+            pair.Traffic.TrueHeading.Degrees,
+            GeoMath.BearingTo(pair.Traffic.Position, pair.Crosser.Position)
+        );
+        double closingKts = Math.Max(pair.Traffic.GroundSpeed * Math.Cos(offDeg * Math.PI / 180.0), 0.0);
+        double distFt = CentreDistanceFt(pair.Crosser, pair.Traffic);
+        double roomFt = distFt - StopRingFt(CurveType, CurveType);
+        double tailClearFt = Assert.IsType<double>(pair.Crossing.TailClearRemainingFt(pair.Crosser.Position));
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston);
+        double taxiStopFt = CurveCrosserKts * CurveCrosserKts / (2.0 * taxiRate) * CurveFeetPerSecondPerKt;
+        double tailClearRate = taxiStopFt <= tailClearFt ? taxiRate : firmRate;
+        return new TailClearCurves(
+            roomFt,
+            tailClearFt,
+            CurveClosedFormKts(distFt, closingKts, obstacleStopFt: null),
+            CurveKts(roomFt, closingKts, firmRate, obstacleStopFt: null),
+            CurveKts(tailClearFt, closingKts: 0.0, tailClearRate, obstacleStopFt: null)
+        );
+    }
+
+    /// <summary>
+    /// A <see cref="CurveType"/> crosser at <see cref="CurveCrosserKts"/> on SFO's 01L/19R crossing on G, its crossing slice
+    /// built, <paramref name="shortOfTheFarBarFt"/> short of the far bar, and a <see cref="CurveType"/> traffic dead ahead of it,
+    /// <paramref name="roomFt"/> beyond the pair's stop ring, heading <see cref="CurveTrafficHeadingDeg"/> off the crosser's
+    /// heading at <paramref name="trafficKts"/>. Null when the SFO layout is not available.
+    /// </summary>
+    private static TailClearPair? SfoTailClearPair(double roomFt, double trafficKts, double shortOfTheFarBarFt)
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return null;
+        }
+
+        GroundNode entry = layout.Nodes[SfoG01LEntryBarNodeId];
+        var crosser = new AircraftState
+        {
+            Callsign = "CROSS",
+            AircraftType = CurveType,
+            Position = entry.Position,
+            IsOnGround = true,
+            IndicatedAirspeed = CurveCrosserKts,
+        };
+        Assert.True(
+            GroundCommandHandler
+                .TryTaxi(crosser, new TaxiCommand(Path: ["G", "B", "M1", "M5"], HoldShorts: [], Expedite: false, DestinationParking: "A6S"), layout)
+                .Success
+        );
+        TaxiRoute route = Assert.IsType<TaxiRoute>(crosser.Ground.AssignedTaxiRoute);
+        int entryIndex = route.Segments.FindIndex(s => s.FromNodeId == SfoG01LEntryBarNodeId);
+        TaxiRouteSegment farBarSegment = route
+            .Segments.Skip(entryIndex)
+            .First(s =>
+                (s.ToNodeId != entry.Id)
+                && (s.Edge.ToNode.Type == GroundNodeType.RunwayHoldShort)
+                && (s.Edge.ToNode.RunwayId?.Equals(entry.RunwayId) == true)
+            );
+        foreach (int barId in new[] { entry.Id, farBarSegment.ToNodeId })
+        {
+            route.GetHoldShortAt(barId)?.IsCleared = true;
+        }
+
+        crosser.TrueHeading = new TrueHeading(GeoMath.BearingTo(entry.Position, farBarSegment.Edge.ToNode.Position));
+        var crossing = new CrossingRunwayPhase(entry.Id, farBarSegment.ToNodeId, entry.RunwayId?.ToString());
+        crossing.OnStart(
+            new PhaseContext
+            {
+                Aircraft = crosser,
+                Targets = crosser.Targets,
+                Category = AircraftCategory.Piston,
+                DeltaSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate,
+                GroundLayout = layout,
+                Logger = NullLogger.Instance,
+            }
+        );
+        crosser.IndicatedAirspeed = CurveCrosserKts;
+        crosser.Position = GeoMath.ProjectPoint(
+            farBarSegment.Edge.ToNode.Position,
+            crosser.TrueHeading.ToReciprocal(),
+            shortOfTheFarBarFt / GeoMath.FeetPerNm
+        );
+        crosser.Phases = new PhaseList();
+        crosser.Phases.Add(crossing);
+        crosser.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        TaxiRoute slice = Assert.IsType<TaxiRoute>(crossing.CrossingRoute);
+        slice.CurrentSegmentIndex = slice.Segments.FindIndex(s => s.ToNodeId == farBarSegment.ToNodeId);
+        Assert.True(slice.CurrentSegmentIndex >= 0, $"the crossing slice does not run to the far bar (node {farBarSegment.ToNodeId})");
+
+        double distFt = StopRingFt(CurveType, CurveType) + roomFt;
+        LatLon trafficAt = GeoMath.ProjectPoint(crosser.Position, crosser.TrueHeading, distFt / GeoMath.FeetPerNm);
+        AircraftState traffic = MakeAircraft(
+            "TFC",
+            trafficAt,
+            heading: (crosser.TrueHeading.Degrees + CurveTrafficHeadingDeg) % 360.0,
+            gs: trafficKts,
+            phase: new TaxiingPhase()
+        );
+        traffic.AircraftType = CurveType;
+        return new TailClearPair(layout, crosser, traffic, crossing);
+    }
+
+    /// <summary>
+    /// A carried crosser (<see cref="TaxiingPhase"/>, the curve carried from the last pass) whose traffic at rest is beyond its
+    /// stopping distance takes no curve this pass, so the carry lapses.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_CarriedWithTrafficBeyondItsStop_Lapses()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new TaxiingPhase(),
+            new HoldingInPositionPhase(),
+            trafficKts: 0.0,
+            LapseRoomFt
+        );
+        crosser.Ground.CrossingStopCurveCarry = true;
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
+
+        _output.WriteLine($"carried crosser {LapseRoomFt:F0} ft short of the stop ring: limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}");
+        Assert.False(crosser.Ground.CrossingStopCurveCarry, "the carry did not lapse with no curve binding");
+    }
+
+    /// <summary>
+    /// A crosser whose taxi-rate stop overruns the room before the stop ring, with traffic at rest there, brakes along the curve
+    /// at the rate its stop needs: it is never released because the firm-rate curve would be above its ground speed, and its
+    /// limit lies between what its firm rate sheds in one pass and its ground speed.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TaxiRateOverrunWithTrafficAtRest_NeverReleasesTheLimit()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new HoldingInPositionPhase(),
+            trafficKts: 0.0,
+            OverrunAtRestRoomFt
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
+
+        double distFt = CentreDistanceFt(crosser, traffic);
+        double roomFt = distFt - StopRingFt(CurveType, CurveType);
+        double taxiStopFt = CurveClosingStopFt(closingKts: 0.0, CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston));
+        double expectedKts = CurveClosedFormKts(distFt, closingKts: 0.0, obstacleStopFt: null);
+        _output.WriteLine(
+            $"room {roomFt:F2} ft, taxi-rate stop {taxiStopFt:F2} ft: limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"} "
+                + $"(closed form {expectedKts:F3})"
+        );
+        Assert.True(taxiStopFt > roomFt, $"the taxi-rate stop {taxiStopFt:F2} ft fits the {roomFt:F2} ft room");
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        Assert.InRange(limitKts, CurveFirmFloorKts, CurveCrosserKts);
+        Assert.Equal(expectedKts, limitKts, 6);
+    }
+
+    /// <summary>
+    /// A crosser in its crossing, or with the curve carried past the crossing's end, whose taxi-rate stop plus the traffic's
+    /// closure over it overruns the room before the stop ring while its firm-rate stop plus that closure fits, brakes along the
+    /// curve at the rate its stop needs: limited no higher than its ground speed, never released, and carried on to the next pass.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CrossingCurve_ClosureOverrunsTheTaxiStopButNotTheFirm_HoldsInsteadOfReleasing(bool carried)
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            carried ? new TaxiingPhase() : new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: ClosureRateTrafficKts,
+            ClosureHoldRoomFt
+        );
+        crosser.Ground.CrossingStopCurveCarry = carried;
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
+
+        double closingKts = CurveClosingKts(ClosureRateTrafficKts);
+        double distFt = CentreDistanceFt(crosser, traffic);
+        double roomFt = distFt - StopRingFt(CurveType, CurveType);
+        double taxiStopFt = CurveClosingStopFt(closingKts, CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston));
+        double firmStopFt = CurveClosingStopFt(closingKts, CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston));
+        double expectedKts = CurveClosedFormKts(distFt, closingKts, obstacleStopFt: null);
+        _output.WriteLine(
+            $"room {roomFt:F2} ft, closing {closingKts:F2} kt: taxi-rate stop {taxiStopFt:F2} ft, firm-rate stop {firmStopFt:F2} ft; "
+                + $"limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"} (closed form {expectedKts:F3})"
+        );
+        Assert.True(taxiStopFt > roomFt, $"the taxi-rate stop and closure, {taxiStopFt:F2} ft, fit the {roomFt:F2} ft room");
+        Assert.True(firmStopFt <= roomFt, $"the firm-rate stop and closure, {firmStopFt:F2} ft, overrun the {roomFt:F2} ft room");
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        Assert.True(limitKts <= CurveCrosserKts, $"limited to {limitKts:F3} kt, above its {CurveCrosserKts:F1} kt");
+        Assert.Equal(expectedKts, limitKts, 6);
+        Assert.True(crosser.Ground.CrossingStopCurveCarry, "the curve applied this pass did not carry on to the next");
+    }
+
+    /// <summary>
+    /// A crosser on SFO's 01L/19R crossing, far enough short of the far bar that the stop curve onto its tail-clear point is
+    /// above its ground speed, is held at its ground speed by that floor while its taxi-rate closing stop still fits the room.
+    /// Flown at that limit for one pass with the traffic still closing, the taxi-rate closing stop no longer fits the room, and
+    /// the next pass still holds it at its ground speed rather than releasing it.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TailClearFloorHeldGroundSpeed_TheNextPassStillHoldsIt()
+    {
+        if (SfoTailClearPair(HeldTailClearRoomFt, TailClearFloorTrafficKts, HeldShortOfTheFarBarFt) is not { } pair)
+        {
+            return;
+        }
+
+        double taxiStopFt = CurveClosingStopFt(CurveClosingKts(TailClearFloorTrafficKts), CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston));
+        double firstRoomFt = TailClearRoomFt(pair);
+        double firstKts = ApplyAndFlyOnePass(pair);
+        double secondRoomFt = TailClearRoomFt(pair);
+        AssertHeldStaging(firstRoomFt, secondRoomFt);
+        GroundConflictDetector.ApplySpeedLimits([pair.Crosser, pair.Traffic], pair.Layout, diagnosticLog: _output.WriteLine);
+
+        _output.WriteLine(
+            $"taxi-rate closing stop {taxiStopFt:F2} ft; room {firstRoomFt:F2} ft: limit {firstKts:F3} kt; next pass room {secondRoomFt:F2} ft: "
+                + $"limit {pair.Crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(taxiStopFt <= firstRoomFt, $"the taxi-rate closing stop {taxiStopFt:F2} ft overruns the first pass's {firstRoomFt:F2} ft room");
+        Assert.True(taxiStopFt > secondRoomFt, $"the taxi-rate closing stop {taxiStopFt:F2} ft still fits the next pass's {secondRoomFt:F2} ft room");
+        Assert.Equal(CurveCrosserKts, firstKts, 6);
+        Assert.Equal(CurveCrosserKts, Assert.IsType<double>(pair.Crosser.Ground.SpeedLimit), 6);
+    }
+
+    /// <summary>
+    /// The same crosser one pass on with its traffic come to rest: nothing closes on it, so the tail-clear floor no longer holds
+    /// it, and its limit drops to the stop curve no faster than its firm rate sheds in one pass, never above its ground speed.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TailClearFloorWhenTrafficStops_DropsNoFasterThanTheFirmRate()
+    {
+        if (SfoTailClearPair(HeldTailClearRoomFt, TailClearFloorTrafficKts, HeldShortOfTheFarBarFt) is not { } pair)
+        {
+            return;
+        }
+
+        double firstRoomFt = TailClearRoomFt(pair);
+        double firstKts = ApplyAndFlyOnePass(pair);
+        AssertHeldStaging(firstRoomFt, TailClearRoomFt(pair));
+        pair.Traffic.IndicatedAirspeed = 0.0;
+        GroundConflictDetector.ApplySpeedLimits([pair.Crosser, pair.Traffic], pair.Layout, diagnosticLog: _output.WriteLine);
+
+        _output.WriteLine(
+            $"limit {firstKts:F3} kt with the traffic closing; room {TailClearRoomFt(pair):F2} ft with it at rest: "
+                + $"limit {pair.Crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        double limitKts = Assert.IsType<double>(pair.Crosser.Ground.SpeedLimit);
+        double firmPassKts = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) / SimulationEngine.PhysicsSubTickRate;
+        Assert.InRange(limitKts, pair.Crosser.GroundSpeed - firmPassKts, pair.Crosser.GroundSpeed);
+    }
+
+    /// <summary>
+    /// A crosser whose crossing completed last pass (<see cref="TaxiingPhase"/> now, the curve carried), trailing a leader at
+    /// rest on the same edge inside the trail band, brakes along the crossing stop curve instead of taking the trail match's
+    /// stop: a non-zero limit set for the curve's reason, carried on to the next pass.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_CarriedInTrailBehindAStoppedLeader_BrakesAlongTheCurve()
+    {
+        (AirportGroundLayout layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        double distFt = StopRingFt(CurveType, CurveType) + CurveRoomFt;
+        AircraftState crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: CurveCrosserKts,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", layout.Edges[0]), MakeSeg(1, 2, "A", layout.Edges[1])),
+            phase: new TaxiingPhase()
+        );
+        crosser.AircraftType = CurveType;
+        crosser.Ground.CrossingStopCurveCarry = true;
+        AircraftState leader = MakeAircraft(
+            "LEAD",
+            new LatLon(BaseLat + (distFt / 100.0 * OffsetLatPer100Ft), BaseLon),
+            heading: 0,
+            gs: 0.0,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", layout.Edges[0]), MakeSeg(1, 2, "A", layout.Edges[1])),
+            phase: new TaxiingPhase()
+        );
+        leader.AircraftType = CurveType;
+        var lines = new List<string>();
+        try
+        {
+            GroundConflictDetector.DebugSink = lines.Add;
+            GroundConflictDetector.ApplySpeedLimits([crosser, leader], layout, diagnosticLog: _output.WriteLine);
+        }
+        finally
+        {
+            GroundConflictDetector.DebugSink = null;
+        }
+
+        List<string> crosserLimits = [.. lines.Where(line => line.Contains("[ApplyMinLimit] CROSS:", StringComparison.Ordinal))];
+        double expectedKts = CurveClosedFormKts(CentreDistanceFt(crosser, leader), closingKts: 0.0, obstacleStopFt: null);
+        _output.WriteLine(
+            $"limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"} (closed form {expectedKts:F3}): {string.Join(" | ", crosserLimits)}"
+        );
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        Assert.True(limitKts > 0.0, "the carried crosser was stopped in one pass by the trail match");
+        Assert.Contains("reason=crossing stop curve ", Assert.IsType<string>(crosserLimits.LastOrDefault()), StringComparison.Ordinal);
+        Assert.Equal(expectedKts, limitKts, 6);
+        Assert.True(crosser.Ground.CrossingStopCurveCarry, "the curve applied this pass did not carry on to the next");
+    }
+
+    /// <summary>
+    /// A crosser closing on traffic that a third aircraft brakes in the same pass takes the same limit, to the bit, whichever
+    /// pair the pass resolves first: the traffic's closure is read from its state at the start of the pass (not braking yet), so
+    /// it is the closed form for traffic closing the whole stop.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_ClosureIsTheSameWhicheverPairResolvesFirst()
+    {
+        (double? crosserFirstKts, double expectedKts) = ClosureOrderLimit(crosserFirst: true);
+        (double? crosserLastKts, _) = ClosureOrderLimit(crosserFirst: false);
+
+        _output.WriteLine(
+            $"crosser's pair first: {crosserFirstKts?.ToString("R") ?? "none"}; last: {crosserLastKts?.ToString("R") ?? "none"} "
+                + $"(closed form {expectedKts:F3})"
+        );
+        double firstKts = Assert.IsType<double>(crosserFirstKts);
+        double lastKts = Assert.IsType<double>(crosserLastKts);
+        Assert.Equal(BitConverter.DoubleToInt64Bits(firstKts), BitConverter.DoubleToInt64Bits(lastKts));
+        Assert.Equal(expectedKts, firstKts, 6);
+    }
+
+    /// <summary>
+    /// A crosser closing on traffic that an aircraft at rest ahead of it brakes (<see cref="CrosserTrafficAndBlocker"/>), all
+    /// three flown one pass at the limits that pass set, as physics flies them (<see cref="FlyOnePass"/>): in the next pass the
+    /// traffic's speed limit is no longer below its ground speed, yet the detector braked it in the pass before, so the crosser's
+    /// curve counts the traffic's closure no further than the traffic's own stop.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TrafficBrakedLastPass_CapsTheClosure()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic, AircraftState blocker) = CrosserTrafficAndBlocker();
+        List<AircraftState> aircraft = [crosser, traffic, blocker];
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout, diagnosticLog: _output.WriteLine);
+        double trafficLimitKts = Assert.IsType<double>(traffic.Ground.SpeedLimit);
+        Assert.True(trafficLimitKts < traffic.GroundSpeed, $"the blocker left the traffic at {trafficLimitKts:F3} kt, not braking it");
+
+        FlyOnePass(aircraft);
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout, diagnosticLog: _output.WriteLine);
+
+        double distFt = CentreDistanceFt(crosser, traffic);
+        double closingKts = ClosingKtsOf(traffic, crosser);
+        double trafficRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double trafficStopFt = closingKts * closingKts / (2.0 * trafficRate) * CurveFeetPerSecondPerKt;
+        double cappedKts = CurveClosedFormKts(crosser.GroundSpeed, distFt, closingKts, trafficStopFt);
+        double uncappedKts = CurveClosedFormKts(crosser.GroundSpeed, distFt, closingKts, obstacleStopFt: null);
+        double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        _output.WriteLine(
+            $"traffic flew its {trafficLimitKts:F3} kt limit, closing at {closingKts:F3} kt; crosser at {crosser.GroundSpeed:F3} kt limited to "
+                + $"{limitKts:F6} kt (closure capped at the traffic's {trafficStopFt:F2} ft stop {cappedKts:F6}, closing the whole stop "
+                + $"{uncappedKts:F6})"
+        );
+        Assert.Equal(trafficLimitKts, traffic.GroundSpeed);
+        Assert.True(Math.Abs(cappedKts - uncappedKts) > 1e-3, $"capping the closure does not move the curve: {cappedKts:F6} kt");
+        Assert.Equal(cappedKts, limitKts, 6);
+    }
+
+    /// <summary>
+    /// A crosser the crossing stop curve binds behind traffic closing on it (<see cref="StoppingTrafficKts"/>,
+    /// <see cref="StoppingTrafficRoomFt"/>), flown one pass at its limit as physics flies it (<see cref="FlyOnePass"/>), the
+    /// traffic moved one pass on and then at rest: the curve onto it is now above the crosser's ground speed, but the curve bound
+    /// it in the pass before and the taxi-rate curve over the room, with the closure it bound with, still binds, so it holds its
+    /// ground speed rather than being released. Limited at or below its ground speed on both passes, the curve carried on.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_TrafficStopsAfterTheCurveBinds_HoldsTheSpeed()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: StoppingTrafficKts,
+            StoppingTrafficRoomFt
+        );
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+        double? firstKts = crosser.Ground.SpeedLimit;
+        FlyOnePass([crosser]);
+        MoveOnePass(traffic);
+        traffic.IndicatedAirspeed = 0.0;
+        double secondDistFt = CentreDistanceFt(crosser, traffic);
+        double secondCurveKts = CurveClosedFormKts(crosser.GroundSpeed, secondDistFt, closingKts: 0.0, obstacleStopFt: null);
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+
+        _output.WriteLine(
+            $"first pass: limit {firstKts?.ToString("F3") ?? "none"}, flown at {crosser.GroundSpeed:F3} kt; next pass room "
+                + $"{secondDistFt - StopRingFt(CurveType, CurveType):F2} ft with the traffic at rest, curve {secondCurveKts:F3} kt: "
+                + $"limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(firstKts < CurveCrosserKts, $"the curve did not bind on the first pass: limit {firstKts?.ToString("F3") ?? "none"}");
+        Assert.True(
+            secondCurveKts >= crosser.GroundSpeed,
+            $"the curve onto the traffic at rest still binds on the next pass: {secondCurveKts:F3} kt"
+        );
+        double secondKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
+        Assert.True(secondKts <= crosser.GroundSpeed, $"limited to {secondKts:F3} kt, above its {crosser.GroundSpeed:F3} kt");
+        Assert.True(crosser.Ground.CrossingStopCurveCarry, "the held curve did not carry on to the next pass");
+    }
+
+    /// <summary>
+    /// A crosser the crossing stop curve binds behind traffic closing on it (<see cref="StoppingTrafficKts"/>,
+    /// <see cref="StoppingTrafficRoomFt"/>), flown one pass at its limit (<see cref="FlyOnePass"/>), with the traffic then dead
+    /// ahead <see cref="OpeningTrafficRoomFt"/> beyond the stop ring and turned to move away from it: the traffic is opening and
+    /// the taxi-rate curve over the room with its current closure (none) no longer binds, so the crosser is released and the
+    /// carry lapses, though the curve with the closure it bound with still binds.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_HeldBehindTrafficThatMovesAway_Releases()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: StoppingTrafficKts,
+            StoppingTrafficRoomFt
+        );
+        double boundClosingKts = ClosingKtsOf(traffic, crosser);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+        double? firstKts = crosser.Ground.SpeedLimit;
+        FlyOnePass([crosser]);
+        PlaceTrafficAhead(crosser, traffic, OpeningTrafficRoomFt);
+        traffic.TrueHeading = crosser.TrueHeading;
+        double gsKts = crosser.GroundSpeed;
+        double roomFt = CentreDistanceFt(crosser, traffic) - StopRingFt(CurveType, CurveType);
+        double currentClosingKts = ClosingKtsOf(traffic, crosser);
+        double currentCurveKts = CurveKts(gsKts, roomFt, currentClosingKts, taxiRate, obstacleStopFt: null);
+        double boundCurveKts = CurveKts(gsKts, roomFt, boundClosingKts, taxiRate, obstacleStopFt: null);
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+
+        _output.WriteLine(
+            $"first pass: limit {firstKts?.ToString("F3") ?? "none"}, bound with {boundClosingKts:F3} kt of closure; flown at {gsKts:F3} kt, "
+                + $"traffic moving away, room {roomFt:F2} ft, closing {currentClosingKts:F3} kt: taxi-rate curve with that closure "
+                + $"{currentCurveKts:F3} kt, with the bound closure {boundCurveKts:F3} kt; "
+                + $"limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(firstKts < CurveCrosserKts, $"the curve did not bind on the first pass: limit {firstKts?.ToString("F3") ?? "none"}");
+        Assert.True(currentCurveKts >= gsKts, $"the taxi-rate curve with the current closure still binds: {currentCurveKts:F3} kt");
+        Assert.True(boundCurveKts < gsKts, $"the taxi-rate curve with the bound closure no longer binds: {boundCurveKts:F3} kt");
+        Assert.Null(crosser.Ground.SpeedLimit);
+        Assert.False(crosser.Ground.CrossingStopCurveCarry, "the released curve still carried on to the next pass");
+    }
+
+    /// <summary>
+    /// A crosser the crossing stop curve binds behind traffic closing on it (<see cref="StoppingTrafficKts"/>,
+    /// <see cref="StoppingTrafficRoomFt"/>), flown at its limit (<see cref="FlyOnePass"/>) with the traffic then at rest: while
+    /// the taxi-rate curve over the room, with the closure it bound with, still binds, it holds its ground speed, though the
+    /// curve onto the traffic at rest does not bind; the next pass, with the traffic at rest
+    /// <see cref="ClearsBoundClosureRoomFt"/> beyond the stop ring, where that curve no longer binds, it is released, the carry
+    /// lapses and the closure it remembered is zeroed by the end of that pass.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_HeldBehindTrafficAtRest_ReleasesOnceTheRoomClearsTheBoundClosure()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: StoppingTrafficKts,
+            StoppingTrafficRoomFt
+        );
+        double boundClosingKts = ClosingKtsOf(traffic, crosser);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+        double? firstKts = crosser.Ground.SpeedLimit;
+        FlyOnePass([crosser]);
+        MoveOnePass(traffic);
+        traffic.IndicatedAirspeed = 0.0;
+        double heldGsKts = crosser.GroundSpeed;
+        double heldRoomFt = CentreDistanceFt(crosser, traffic) - StopRingFt(CurveType, CurveType);
+        double heldRestCurveKts = CurveKts(heldGsKts, heldRoomFt, closingKts: 0.0, taxiRate, obstacleStopFt: null);
+        double heldBoundCurveKts = CurveKts(heldGsKts, heldRoomFt, boundClosingKts, taxiRate, obstacleStopFt: null);
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+
+        double? heldKts = crosser.Ground.SpeedLimit;
+        _output.WriteLine(
+            $"first pass: limit {firstKts?.ToString("F3") ?? "none"}, bound with {boundClosingKts:F3} kt of closure; flown at "
+                + $"{heldGsKts:F3} kt, traffic at rest, room {heldRoomFt:F2} ft: taxi-rate curve with no closure {heldRestCurveKts:F3} kt, "
+                + $"with the bound closure {heldBoundCurveKts:F3} kt; limit {heldKts?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(firstKts < CurveCrosserKts, $"the curve did not bind on the first pass: limit {firstKts?.ToString("F3") ?? "none"}");
+        Assert.True(heldRestCurveKts >= heldGsKts, $"the taxi-rate curve onto the traffic at rest still binds: {heldRestCurveKts:F3} kt");
+        Assert.True(heldBoundCurveKts < heldGsKts, $"the taxi-rate curve with the bound closure no longer binds: {heldBoundCurveKts:F3} kt");
+        Assert.Equal(heldGsKts, Assert.IsType<double>(heldKts));
+        Assert.True(crosser.Ground.CrossingStopCurveCarry, "the held curve did not carry on to the next pass");
+
+        FlyOnePass([crosser]);
+        PlaceTrafficAhead(crosser, traffic, ClearsBoundClosureRoomFt);
+        double clearRoomFt = CentreDistanceFt(crosser, traffic) - StopRingFt(CurveType, CurveType);
+        double clearBoundCurveKts = CurveKts(crosser.GroundSpeed, clearRoomFt, boundClosingKts, taxiRate, obstacleStopFt: null);
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+
+        _output.WriteLine(
+            $"next pass at {crosser.GroundSpeed:F3} kt, traffic at rest, room {clearRoomFt:F2} ft: taxi-rate curve with the bound closure "
+                + $"{clearBoundCurveKts:F3} kt; limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(clearBoundCurveKts >= crosser.GroundSpeed, $"the taxi-rate curve with the bound closure still binds: {clearBoundCurveKts:F3} kt");
+        Assert.Null(crosser.Ground.SpeedLimit);
+        Assert.False(crosser.Ground.CrossingStopCurveCarry, "the released curve still carried on to the next pass");
+        Assert.Equal(0.0, crosser.Ground.CrossingStopCurveBoundClosureTravelFt);
+    }
+
+    /// <summary>
+    /// A crosser the crossing stop curve binds behind traffic closing on it (<see cref="BrakedStoppingTrafficKts"/>,
+    /// <see cref="BrakedStoppingTrafficRoomFt"/>) that the detector braked in its last pass, so the curve counts the traffic's
+    /// travel no further than its own stop, flown one pass at its limit (<see cref="FlyOnePass"/>), with the traffic then at rest
+    /// dead ahead <see cref="CappedTravelReleaseMarginFt"/> beyond its taxi-rate stop plus that capped travel plus one pass's
+    /// travel: it is released and the carry lapses, though the taxi-rate curve with the closure uncapped still binds.
+    /// </summary>
+    [Fact]
+    public void CrossingCurve_BoundBehindBrakedTrafficThatStops_ReleasesOnceTheRoomClearsTheCappedTravel()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: BrakedStoppingTrafficKts,
+            BrakedStoppingTrafficRoomFt
+        );
+        traffic.Ground.BrakedByDetectorLastPass = true;
+        double closingKts = ClosingKtsOf(traffic, crosser);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double trafficStopFt = closingKts * closingKts / (2.0 * taxiRate) * CurveFeetPerSecondPerKt;
+        double cappedKts = CurveClosedFormKts(CentreDistanceFt(crosser, traffic), closingKts, trafficStopFt);
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+        double? firstKts = crosser.Ground.SpeedLimit;
+        FlyOnePass([crosser]);
+        traffic.IndicatedAirspeed = 0.0;
+        double gsKts = crosser.GroundSpeed;
+        double taxiStopFt = gsKts * gsKts / (2.0 * taxiRate) * CurveFeetPerSecondPerKt;
+        double passFt = gsKts * CurveFeetPerSecondPerKt / SimulationEngine.PhysicsSubTickRate;
+        double releaseRoomFt = taxiStopFt + trafficStopFt + passFt;
+        PlaceTrafficAhead(crosser, traffic, releaseRoomFt + CappedTravelReleaseMarginFt);
+        double roomFt = CentreDistanceFt(crosser, traffic) - StopRingFt(CurveType, CurveType);
+        double uncappedCurveKts = CurveKts(gsKts, roomFt, closingKts, taxiRate, obstacleStopFt: null);
+
+        GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
+
+        _output.WriteLine(
+            $"first pass: limit {firstKts?.ToString("F3") ?? "none"} (capped closed form {cappedKts:F3}), closing {closingKts:F3} kt "
+                + $"capped at the traffic's {trafficStopFt:F2} ft stop; flown at {gsKts:F3} kt, traffic at rest, room {roomFt:F2} ft: "
+                + $"taxi-rate stop {taxiStopFt:F2} ft + capped travel {trafficStopFt:F2} ft + one pass {passFt:F2} ft = "
+                + $"{releaseRoomFt:F2} ft, taxi-rate curve with the closure uncapped {uncappedCurveKts:F3} kt; "
+                + $"limit {crosser.Ground.SpeedLimit?.ToString("F3") ?? "none"}"
+        );
+        Assert.True(firstKts < CurveCrosserKts, $"the curve did not bind on the first pass: limit {firstKts?.ToString("F3") ?? "none"}");
+        Assert.Equal(cappedKts, Assert.IsType<double>(firstKts), 6);
+        Assert.True(roomFt > releaseRoomFt, $"the {roomFt:F2} ft room is short of the {releaseRoomFt:F2} ft release room");
+        Assert.True(uncappedCurveKts < gsKts, $"the taxi-rate curve with the closure uncapped no longer binds: {uncappedCurveKts:F3} kt");
+        Assert.Null(crosser.Ground.SpeedLimit);
+        Assert.False(crosser.Ground.CrossingStopCurveCarry, "the released curve still carried on to the next pass");
+    }
+
+    /// <summary>
+    /// One pass over <see cref="CrosserTrafficAndBlocker"/>'s three aircraft, listed crosser first or crosser last. Returns the
+    /// crosser's limit and the closed form for the traffic closing the whole stop.
+    /// </summary>
+    private (double? LimitKts, double ExpectedKts) ClosureOrderLimit(bool crosserFirst)
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic, AircraftState blocker) = CrosserTrafficAndBlocker();
+        List<AircraftState> aircraft = crosserFirst ? [crosser, traffic, blocker] : [blocker, traffic, crosser];
+
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout, diagnosticLog: _output.WriteLine);
+
+        double trafficLimitKts = Assert.IsType<double>(traffic.Ground.SpeedLimit);
+        Assert.True(trafficLimitKts < traffic.GroundSpeed, $"the blocker left the traffic at {trafficLimitKts:F3} kt, not braking it");
+        double expectedKts = CurveClosedFormKts(CentreDistanceFt(crosser, traffic), CurveClosingKts(ClosureRateTrafficKts), obstacleStopFt: null);
+        return (crosser.Ground.SpeedLimit, expectedKts);
+    }
+
+    /// <summary>
+    /// A crosser and traffic closing on it (<see cref="CurvePair"/>, <see cref="ClosureRateRoomFt"/>), and an aircraft at rest
+    /// <see cref="BlockerRoomFt"/> beyond the traffic's stop ring dead ahead of it, which brakes the traffic.
+    /// </summary>
+    private static (AirportGroundLayout Layout, AircraftState Crosser, AircraftState Traffic, AircraftState Blocker) CrosserTrafficAndBlocker()
+    {
+        (AirportGroundLayout layout, AircraftState crosser, AircraftState traffic) = CurvePair(
+            new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"),
+            new TaxiingPhase(),
+            trafficKts: ClosureRateTrafficKts,
+            ClosureRateRoomFt
+        );
+        AircraftState blocker = MakeAircraft(
+            "BLOCK",
+            GeoMath.ProjectPoint(traffic.Position, traffic.TrueHeading, (StopRingFt(CurveType, CurveType) + BlockerRoomFt) / GeoMath.FeetPerNm),
+            heading: CurveTrafficHeadingDeg,
+            gs: 0.0,
+            phase: new HoldingInPositionPhase()
+        );
+        blocker.AircraftType = CurveType;
+        return (layout, crosser, traffic, blocker);
+    }
+
+    /// <summary>
+    /// Flies <paramref name="aircraft"/> one detector pass as physics flies them on the ground: each one's speed clamped to its
+    /// speed limit at once, then moved one pass along its heading.
+    /// </summary>
+    private static void FlyOnePass(List<AircraftState> aircraft)
+    {
+        foreach (AircraftState ac in aircraft)
+        {
+            if ((ac.Ground.SpeedLimit is { } limitKts) && (ac.IndicatedAirspeed > limitKts))
+            {
+                ac.IndicatedAirspeed = limitKts;
+            }
+
+            MoveOnePass(ac);
+        }
+    }
+
+    /// <summary>
+    /// Places <paramref name="traffic"/> dead ahead of <paramref name="crosser"/>, <paramref name="roomFt"/> beyond the pair's
+    /// stop ring.
+    /// </summary>
+    private static void PlaceTrafficAhead(AircraftState crosser, AircraftState traffic, double roomFt) =>
+        traffic.Position = GeoMath.ProjectPoint(
+            crosser.Position,
+            crosser.TrueHeading,
+            (StopRingFt(CurveType, CurveType) + roomFt) / GeoMath.FeetPerNm
+        );
+
+    /// <summary>
+    /// How fast (kt) <paramref name="traffic"/> closes on <paramref name="crosser"/>: its ground speed along the bearing to it,
+    /// never below zero.
+    /// </summary>
+    private static double ClosingKtsOf(AircraftState traffic, AircraftState crosser)
+    {
+        double offDeg = GeoMath.SignedBearingDifference(traffic.TrueHeading.Degrees, GeoMath.BearingTo(traffic.Position, crosser.Position));
+        return Math.Max(traffic.GroundSpeed * Math.Cos(offDeg * Math.PI / 180.0), 0.0);
+    }
+
+    /// <summary>
+    /// One detector pass over <paramref name="pair"/>, after which the crosser flies the limit it took (its ground speed set to
+    /// it) and both aircraft move one pass along their headings. Returns that limit.
+    /// </summary>
+    private double ApplyAndFlyOnePass(TailClearPair pair)
+    {
+        GroundConflictDetector.ApplySpeedLimits([pair.Crosser, pair.Traffic], pair.Layout, diagnosticLog: _output.WriteLine);
+        double limitKts = Assert.IsType<double>(pair.Crosser.Ground.SpeedLimit);
+        pair.Crosser.IndicatedAirspeed = limitKts;
+        MoveOnePass(pair.Crosser);
+        MoveOnePass(pair.Traffic);
+        return limitKts;
+    }
+
+    /// <summary>
+    /// Asserts the held crosser is staged as the ruling's figures describe, so a fixture drift fails here rather than as a curve:
+    /// its room on the first pass (<see cref="HeldFirstRoomFt"/>) and on the next (<see cref="HeldSecondRoomFt"/>).
+    /// </summary>
+    private static void AssertHeldStaging(double firstRoomFt, double secondRoomFt)
+    {
+        Assert.InRange(firstRoomFt, HeldFirstRoomFt - HeldStagingToleranceFt, HeldFirstRoomFt + HeldStagingToleranceFt);
+        Assert.InRange(secondRoomFt, HeldSecondRoomFt - HeldStagingToleranceFt, HeldSecondRoomFt + HeldStagingToleranceFt);
+    }
+
+    private static void MoveOnePass(AircraftState aircraft) =>
+        aircraft.Position = GeoMath.ProjectPoint(
+            aircraft.Position,
+            aircraft.TrueHeading,
+            aircraft.GroundSpeed / SimulationEngine.PhysicsSubTickRate / 3600.0
+        );
+
+    private static double TailClearRoomFt(TailClearPair pair) => CentreDistanceFt(pair.Crosser, pair.Traffic) - StopRingFt(CurveType, CurveType);
+
+    /// <summary>
+    /// How far (ft) a <see cref="CurveType"/> crosser at <see cref="CurveCrosserKts"/> takes to stop at <paramref name="rate"/>,
+    /// plus the travel of traffic closing on it at <paramref name="closingKts"/> while it stops.
+    /// </summary>
+    private static double CurveClosingStopFt(double closingKts, double rate) =>
+        ((CurveCrosserKts * CurveCrosserKts / 2.0) + (closingKts * CurveCrosserKts)) / rate * CurveFeetPerSecondPerKt;
+
+    /// <summary>
+    /// The speed (kt) a <see cref="CurveType"/> crosser at <see cref="CurveCrosserKts"/> sheds over one pass at its firm rate,
+    /// taken off it.
+    /// </summary>
+    private static double CurveFirmFloorKts =>
+        CurveCrosserKts - (CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) / SimulationEngine.PhysicsSubTickRate);
+
+    /// <summary>Room (ft): under a C172's 42.2 ft taxi-rate stop from 10 kt, with the traffic at rest.</summary>
+    private const double OverrunAtRestRoomFt = 40.0;
+
+    /// <summary>Room (ft): under a C172's 84.4 ft taxi-rate stop from 10 kt plus 5 kt of closure over it, over its 37.5 ft firm-rate one.</summary>
+    private const double ClosureHoldRoomFt = 70.0;
+
+    /// <summary>How far (ft) short of the far bar the crosser is placed for the stop curve onto its tail-clear point to be above 10 kt.</summary>
+    private const double HeldShortOfTheFarBarFt = 150.0;
+
+    /// <summary>Room (ft) given to <see cref="SfoTailClearPair"/> for the held crosser, which measures <see cref="HeldFirstRoomFt"/> there.</summary>
+    private const double HeldTailClearRoomFt = 50.9;
+
+    /// <summary>The held crosser's measured room (ft) on the first pass: just over its 50.6 ft taxi-rate stop plus 1 kt of closure.</summary>
+    private const double HeldFirstRoomFt = 51.0;
+
+    /// <summary>The held crosser's measured room (ft) once both aircraft have flown one pass: under that stop.</summary>
+    private const double HeldSecondRoomFt = 46.36;
+
+    /// <summary>How far (ft) a measured room may lie from the staged one.</summary>
+    private const double HeldStagingToleranceFt = 0.15;
+
+    /// <summary>Room (ft) beyond the traffic's stop ring at which an aircraft at rest dead ahead of it brakes it: inside its trail band.</summary>
+    private const double BlockerRoomFt = 60.0;
+
+    /// <summary>Room (ft) where the curve for 2 kt of closure binds a C172 at 10 kt at its taxi rate, above its taxi-rate floor.</summary>
+    private const double StoppingTrafficRoomFt = 60.0;
+
+    /// <summary>Closes at 2 kt along the line (<see cref="CurveTrafficHeadingDeg"/>) until it comes to rest.</summary>
+    private const double StoppingTrafficKts = 4.0;
+
+    /// <summary>
+    /// Room (ft) where the taxi-rate curve onto traffic not closing no longer binds a C172 at 9.58 kt (from 42.8 ft) but the one
+    /// for 2 kt of closure still does (under 59.8 ft).
+    /// </summary>
+    private const double OpeningTrafficRoomFt = 48.0;
+
+    /// <summary>Room (ft) beyond where the taxi-rate curve for 2 kt of closure binds a C172 at 9.58 kt (under 59.8 ft).</summary>
+    private const double ClearsBoundClosureRoomFt = 61.0;
+
+    /// <summary>Closes at 4 kt along the line (<see cref="CurveTrafficHeadingDeg"/>), a 6.75 ft stop at its taxi rate.</summary>
+    private const double BrakedStoppingTrafficKts = 8.0;
+
+    /// <summary>
+    /// Room (ft) where the taxi-rate curve for 4 kt of closure, capped at the traffic's 6.75 ft stop, binds a C172 at 10 kt
+    /// (under 54.9 ft).
+    /// </summary>
+    private const double BrakedStoppingTrafficRoomFt = 52.0;
+
+    /// <summary>How far (ft) beyond the crosser's taxi-rate stop, the capped travel and one pass's travel the traffic is placed.</summary>
+    private const double CappedTravelReleaseMarginFt = 0.5;
+
+    private const string CurveType = "C172";
+    private const double CurveCrosserKts = 10.0;
+    private const double CurveFeetPerSecondPerKt = GeoMath.FeetPerNm / 3600.0;
+
+    /// <summary>Room (ft) left before the stop ring: under a C172's taxi-rate stop from 10 kt, so the curve brakes at the firm rate.</summary>
+    private const double CurveRoomFt = 22.5;
+
+    private const double CurveTrafficKts = 1.0;
+
+    /// <summary>The traffic's heading: 60° off the line toward the crosser (due south), closing at half its ground speed.</summary>
+    private const double CurveTrafficHeadingDeg = 120.0;
+
+    /// <summary>Room (ft): just over a C172's 42.2 ft taxi-rate stop from 10 kt, well under it plus 5 kt of closure over that stop.</summary>
+    private const double ClosureRateRoomFt = 43.0;
+
+    /// <summary>Closes at 5 kt along the line (<see cref="CurveTrafficHeadingDeg"/>).</summary>
+    private const double ClosureRateTrafficKts = 10.0;
+
+    /// <summary>Room (ft) where the curve for 1 kt of closure binds above the firm-rate floor whether or not the closure is capped.</summary>
+    private const double BrakingTrafficRoomFt = 23.2;
+
+    /// <summary>Closes at 1 kt along the line (<see cref="CurveTrafficHeadingDeg"/>).</summary>
+    private const double BrakingTrafficKts = 2.0;
+
+    /// <summary>Room (ft): well beyond a C172's 42.2 ft taxi-rate stop from 10 kt.</summary>
+    private const double LapseRoomFt = 150.0;
+
+    /// <summary>
+    /// A <see cref="CurveType"/> crosser at <see cref="CurveCrosserKts"/> heading north up the simple layout's taxiway, and a
+    /// <see cref="CurveType"/> traffic dead ahead of it, <paramref name="roomFt"/> beyond the pair's stop ring, heading
+    /// <see cref="CurveTrafficHeadingDeg"/> at <paramref name="trafficKts"/>.
+    /// </summary>
+    private static (AirportGroundLayout Layout, AircraftState Crosser, AircraftState Traffic) CurvePair(
+        Phase crosserPhase,
+        Phase trafficPhase,
+        double trafficKts,
+        double roomFt
+    )
+    {
+        (AirportGroundLayout layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        double distFt = StopRingFt(CurveType, CurveType) + roomFt;
+        AircraftState crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: CurveCrosserKts,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", layout.Edges[0]), MakeSeg(1, 2, "A", layout.Edges[1])),
+            phase: crosserPhase
+        );
+        crosser.AircraftType = CurveType;
+        AircraftState traffic = MakeAircraft(
+            "TFC",
+            new LatLon(BaseLat + (distFt / 100.0 * OffsetLatPer100Ft), BaseLon),
+            heading: CurveTrafficHeadingDeg,
+            gs: trafficKts,
+            phase: trafficPhase
+        );
+        traffic.AircraftType = CurveType;
+        return (layout, crosser, traffic);
+    }
+
+    private static double CentreDistanceFt(AircraftState a, AircraftState b) => GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
+
+    /// <summary>How fast (kt) traffic at <paramref name="trafficKts"/> heading <see cref="CurveTrafficHeadingDeg"/> closes on the crosser.</summary>
+    private static double CurveClosingKts(double trafficKts) => trafficKts * Math.Cos((CurveTrafficHeadingDeg - 180.0) * Math.PI / 180.0);
+
+    /// <summary>
+    /// The crossing stop curve (kt) for a <see cref="CurveType"/> crosser at <see cref="CurveCrosserKts"/> with its centre
+    /// <paramref name="distFt"/> from traffic closing on it at <paramref name="closingKts"/>, braked off at the rate its stop needs
+    /// over the room R past the stop ring (<see cref="CurveKts"/>): a* = (GS²/2 + c·GS)·F / R, or GS²·F / (2·(R − S)) once the
+    /// traffic's own stop S (<paramref name="obstacleStopFt"/>) caps its travel (the firm rate when R ≤ S), held between the taxi
+    /// and the firm rate.
+    /// </summary>
+    private static double CurveClosedFormKts(double distFt, double closingKts, double? obstacleStopFt) =>
+        CurveClosedFormKts(CurveCrosserKts, distFt, closingKts, obstacleStopFt);
+
+    /// <summary>
+    /// <see cref="CurveClosedFormKts(double, double, double?)"/> for a <see cref="CurveType"/> crosser at
+    /// <paramref name="crosserKts"/>.
+    /// </summary>
+    private static double CurveClosedFormKts(double crosserKts, double distFt, double closingKts, double? obstacleStopFt)
+    {
+        double roomFt = distFt - StopRingFt(CurveType, CurveType);
+        double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston);
+        double stopTermFt = crosserKts * crosserKts / 2.0 * CurveFeetPerSecondPerKt;
+        double closingTermFt = closingKts * crosserKts * CurveFeetPerSecondPerKt;
+        double neededRate = (stopTermFt + closingTermFt) / roomFt;
+        if ((obstacleStopFt is { } stopFt) && (closingTermFt / neededRate > stopFt))
+        {
+            neededRate = roomFt > stopFt ? stopTermFt / (roomFt - stopFt) : firmRate;
+        }
+
+        return CurveKts(crosserKts, roomFt, closingKts, Math.Clamp(neededRate, taxiRate, firmRate), obstacleStopFt);
+    }
+
+    /// <summary>
+    /// The curve (kt) at <paramref name="rate"/> with <paramref name="roomFt"/> past the stop ring, less one detector pass of both
+    /// aircraft's travel: v = −c + √(c² + 2·a·d) for traffic closing at c the whole stop, or √(2·a·(d − its stop)) once
+    /// <paramref name="obstacleStopFt"/> caps the traffic's travel.
+    /// </summary>
+    private static double CurveKts(double roomFt, double closingKts, double rate, double? obstacleStopFt) =>
+        CurveKts(CurveCrosserKts, roomFt, closingKts, rate, obstacleStopFt);
+
+    /// <summary><see cref="CurveKts(double, double, double, double?)"/> for a crosser at <paramref name="crosserKts"/>.</summary>
+    private static double CurveKts(double crosserKts, double roomFt, double closingKts, double rate, double? obstacleStopFt)
+    {
+        double aheadFt = roomFt - ((crosserKts + closingKts) * CurveFeetPerSecondPerKt / SimulationEngine.PhysicsSubTickRate);
+        if (obstacleStopFt is { } stopFt)
+        {
+            double cappedKts = Math.Sqrt(2.0 * rate * Math.Max(aheadFt - stopFt, 0.0) / CurveFeetPerSecondPerKt);
+            if (closingKts * cappedKts / rate * CurveFeetPerSecondPerKt >= stopFt)
+            {
+                return cappedKts;
+            }
+        }
+
+        return -closingKts + Math.Sqrt((closingKts * closingKts) + (2.0 * rate * aheadFt / CurveFeetPerSecondPerKt));
     }
 
     /// <summary>

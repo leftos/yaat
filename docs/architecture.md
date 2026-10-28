@@ -405,7 +405,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     Its snapshot cases round-trip the follow route, merge index, lead edge into the merge, give-way, unjoinable latch, navigator and clearing attempts.
 
-    `Simulation/GroundTaxi/GiveWayStopBrakingTests.cs` (the KOAK H2 clip: a `GIVEWAY` keeps taxiing and brakes at the taxi rate to a stop with its centre clear of the crossing track by wingtip clearance, the traffic crosses unstopped and the hold releases; told inside its taxi-rate stopping distance it brakes at no more than the max-effort rate and never passes the point).
+    `Simulation/GroundTaxi/GiveWayStopBrakingTests.cs` (the KOAK H2 clip: a `GIVEWAY` keeps taxiing and brakes at the taxi rate to a stop with its centre clear of the crossing track by wingtip clearance, the traffic crosses unstopped and the hold releases; told inside its taxi-rate stopping distance it brakes at no more than the max-effort rate and never passes the point; a `GIVEWAY` past a cleared bar's hold line never speeds up once the crossing stop curve binds, and a crosser meeting head-on traffic past the far bar stops tail-clear of the runway).
 
     `Simulation/GroundTaxi/RunwayCrossingFarSideGateTests.cs` (the near-line gate's judgement: a leader slowing for a corner leaves room, one held by its limit or its own gate blocks, oncoming traffic and a queue at rest block, a resume needs 10 ft more room than a rolling aircraft, and `IsCommitted` at rest and rolling).
 
