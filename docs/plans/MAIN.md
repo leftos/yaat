@@ -5,8 +5,8 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Wave 9 — Docs and repo hygiene
-- [ ] YAAT-1372 Fix flaky ScenarioLoadProgressTests.ConcurrentLayoutFetches_ShowWhatIsStillRunning_AsEachFinishes (misses '1 of 3: SQL, SFO' under load) · release vNext — Urgent · No project
-- [ ] YAAT-1373 Fix flaky LiveTrafficDvrTests.Seek_DropsEveryAircraft_AndStandsTheRoomAtTheInstant ('replay never became ready' under load) · release vNext — Urgent · No project
+- [/] YAAT-1372 Fix flaky ScenarioLoadProgressTests.ConcurrentLayoutFetches_ShowWhatIsStillRunning_AsEachFinishes (misses '1 of 3: SQL, SFO' under load) · release vNext — Urgent · No project
+- [/] YAAT-1373 Fix flaky LiveTrafficDvrTests.Seek_DropsEveryAircraft_AndStandsTheRoomAtTheInstant ('replay never became ready' under load) · release vNext — Urgent · No project
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Singles
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
@@ -16,8 +16,6 @@
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
   - [/] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
-  - [/] YAAT-1360 Find ground-test nodes by meaning instead of node number (runway bar on a taxiway, junction, stand) · release vNext
-  - [ ] YAAT-1375 Fix FollowGroundBarStopTests long-aircraft turn-back test, red on feat/yaat-1201-videomap-snap · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -96,6 +94,7 @@
 - [ ] YAAT-1362 Refuse a speed past the type's Vmo/Mmo or below its minimum as unable, naming the speed it can fly · release vNext
 - [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
 - [ ] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
+- [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -257,7 +256,6 @@
 - [ ] YAAT-1276 Rule on the GIVEWAY rejoin rule's unbounded detour; test the bug_bundle trim tail paths
 - [ ] YAAT-1333 Pick a same-runway separation category for types missing from the FAA table (DA62 gets Category III)
 - [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
-- [/] YAAT-1335 Count an airborne touch-and-go as a departure, not a landed occupant · release vNext
 - [ ] YAAT-1336 Check a departure between 400 ft and the runway end still counts as a preceding departure
 - [ ] YAAT-1337 Score solo runway users on the runway their current phase runs on
 - [ ] YAAT-1349 Measure a reverse exit's remaining run along the exit path for the arrival clear-time prediction
@@ -267,6 +265,7 @@
 - [ ] YAAT-1353 Skip only the too-short side of a crossover in the automatic exit choice (SFO 28R N Left drops N Right)
 - [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
 - [ ] YAAT-1355 Judge touch-and-gos and low approaches as departures in the solo evaluator; one CTO departing-ahead policy
+- [ ] YAAT-1377 Judge an airborne option's opposite direction by track, not heading, before blocking a takeoff as head-on
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -902,6 +901,7 @@
 - [ ] YAAT-1369 Keep an airborne departure a runway user until it crosses the runway end or turns off, not 400 ft AGL (3-9-6.a)
 - [ ] YAAT-1370 Release the controller-AI runway crossing gate once airborne traffic has passed the crossing point
 - [ ] YAAT-1371 Project a braking stop-and-go to its stop before judging the go-around (late go-around behind it)
+- [ ] YAAT-1376 Stop OakPreferLaterOnsideExitTests counting P's south-side bar as an on-side exit
 
 ## No project
 
