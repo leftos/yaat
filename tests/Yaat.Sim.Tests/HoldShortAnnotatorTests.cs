@@ -1076,7 +1076,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         LatLon centre = new(hold.Latitude!.Value, hold.Longitude!.Value);
         double tailToBarFt = (GeoMath.DistanceNm(centre, bar.Position) * GeoMath.FeetPerNm) - (lengthFt / 2.0);
         Assert.True(
-            Math.Abs(tailToBarFt - Yaat.Sim.Phases.Ground.RunwayCrossingFarSideGate.MarginFt) <= 0.5,
+            Math.Abs(tailToBarFt - Yaat.Sim.Phases.Ground.RunwayTailClearance.MarginFt) <= 0.5,
             $"tail is {tailToBarFt:F1} ft from runway bar {bar.Id}; expected the clamp to put it the crossing margin past it"
         );
         Assert.Null(hold.TailOverRunwayNodeId);

@@ -488,7 +488,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// exit-side hold-short nodes, extend it past the exit for tail clearance, and hand the result to a new
     /// <see cref="GroundNavigator"/>. The extension runs ½ aircraft length along the route's own onward segments when it has
     /// any, else a straight-ahead walk on the layout (<see cref="AppendLayoutTailClearance"/>) for ½ length plus
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/>. Idempotent — only builds the navigator once per phase instance.
+    /// <see cref="RunwayTailClearance.MarginFt"/>. Idempotent — only builds the navigator once per phase instance.
     /// </summary>
     private void TryBuildCrossingRoute(PhaseContext ctx)
     {
@@ -681,7 +681,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// aircraft is not clear of the runway until every part of it has crossed that marking (AIM 2-3-5.a.1, AIM 4-3-21.b).
     /// When the route ends on the crossed runway's far bar (a CROSS of the destination runway) or runs out inside the ½
     /// length past it, the walk continues from the route's last segment for what is left plus
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/>. Returns how many route segments were consumed whole and whether the
+    /// <see cref="RunwayTailClearance.MarginFt"/>. Returns how many route segments were consumed whole and whether the
     /// extension ends on a cut inside one.
     /// </summary>
     private static (int FullSegments, bool Partial) AppendTailClearance(
@@ -724,7 +724,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         // The route runs out within the tail-clearance distance past the crossed runway's far bar: walk the layout straight ahead.
         if ((ctx.GroundLayout is { } layout) && (ExitIsCrossedRunwayBar(layout, approachNodeId, route.Segments[exitIdx].ToNodeId) is { } crossed))
         {
-            double walkNm = remainingNm + (RunwayCrossingFarSideGate.MarginFt / GeoMath.FeetPerNm);
+            double walkNm = remainingNm + (RunwayTailClearance.MarginFt / GeoMath.FeetPerNm);
             AppendLayoutTailClearance(ctx, route.Segments[^1].Edge, walkNm, crossed, slice);
             return (fullSegments, false);
         }
@@ -751,7 +751,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
     /// <summary>
     /// Extend <paramref name="slice"/> from the end of <paramref name="arrivedOn"/> along the layout straight ahead for
-    /// <paramref name="remainingNm"/>, so the tail ends <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far bar
+    /// <paramref name="remainingNm"/>, so the tail ends <see cref="RunwayTailClearance.MarginFt"/> past the far bar
     /// (the YAAT-905 bare-crossing end's distance). Each step takes the edge whose whole heading change (to its start and
     /// to its end bearing) from the one arrived along is least, up to <see cref="MaxTailWalkTurnDeg"/>, never a runway edge.
     /// A straight the remaining distance falls inside is cut at it: a plain straight at the exact distance, a straight

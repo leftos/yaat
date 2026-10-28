@@ -477,10 +477,13 @@ The point past which an aircraft cleared across a runway is no longer held at th
 The follow route a `FOLLOWG` follower keeps after a lead re-route joins nothing, while it brakes to rest along it rather than drive a clearing route (`FollowingPhase.IsBrakingLostRoute`, docs/ground/navigator.md).
 
 **Clear-of-runway end** (of a bare crossing):
-Where a `TAXI` that crosses a runway with no destination ends: on the far taxiway with the aircraft's tail and nose both `RunwayCrossingFarSideGate.MarginFt` past the far bar, instead of at the centreline join (`SegmentExpander.EndClearOfCrossedRunway`, `ClearOfRunwayEnds`, docs/ground/pathfinder.md).
+Where a `TAXI` that crosses a runway with no destination ends: on the far taxiway with the aircraft's tail and nose both `RunwayTailClearance.MarginFt` past the far bar, instead of at the centreline join (`SegmentExpander.EndClearOfCrossedRunway`, `ClearOfRunwayEnds`, docs/ground/pathfinder.md).
 
 **Far bar**:
 The crossed runway's holding-position marking on the side the aircraft leaves by; a crossing is complete only when the whole aircraft is past it. The route search finds it on the final taxiway, bounded by cross-track from the runway centreline, not by distance along the taxiway (`SegmentExpander.FindFarBar`).
+
+**Tail clear** (of a runway exit, crossing or `CLRWY` stop):
+The point where every part of a leaving aircraft is past the runway holding-position marking (AIM 4-3-21.b). YAAT stops the aircraft `RunwayTailClearance.MarginFt` (10 ft) past that point, so its tail is clear with a margin rather than on the line (`RunwayTailClearance`, docs/landing-and-runway-exit.md).
 
 **Tail clearance** (of a crossing):
 The distance past the far bar the crossing phase carries the aircraft so its tail is clear of the runway: half the aircraft's length (`CrossingRunwayPhase.AppendTailClearance`). A bare crossing's end adds the nose to that test and a 10 ft margin.

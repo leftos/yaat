@@ -83,9 +83,9 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
             );
 
             Assert.True(
-                tailPastFt >= RunwayCrossingFarSideGate.MarginFt - 1.0,
+                tailPastFt >= RunwayTailClearance.MarginFt - 1.0,
                 $"{Callsign}'s tail is {tailPastFt:F1} ft past the 28L hold line at #{FarBarId}, "
-                    + $"short of the {RunwayCrossingFarSideGate.MarginFt:F0} ft margin"
+                    + $"short of the {RunwayTailClearance.MarginFt:F0} ft margin"
             );
             Assert.True(
                 turnDeg <= MaxTurnDeg,
@@ -157,9 +157,9 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
         );
 
         Assert.True(
-            tailPastFt >= RunwayCrossingFarSideGate.MarginFt - 1.0,
+            tailPastFt >= RunwayTailClearance.MarginFt - 1.0,
             $"{SfoCallsign}'s tail is {tailPastFt:F1} ft past 28L's hold line at #{SfoK28LNorthBarId}, "
-                + $"short of the {RunwayCrossingFarSideGate.MarginFt:F0} ft margin"
+                + $"short of the {RunwayTailClearance.MarginFt:F0} ft margin"
         );
         Assert.True(nosePastOtherFt <= 0.0, $"{SfoCallsign}'s nose is {nosePastOtherFt:F1} ft past 28R's hold line at #{SfoK28RBarId}");
     }

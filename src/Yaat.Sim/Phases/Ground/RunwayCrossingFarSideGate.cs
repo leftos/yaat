@@ -15,12 +15,9 @@ internal static class RunwayCrossingFarSideGate
 {
     private static readonly ILogger Log = SimLog.CreateLogger("RunwayCrossingFarSideGate");
 
-    /// <summary>Room (ft) the gate wants past the aircraft's length and the pair's stop gap (owner ruling).</summary>
-    internal const double MarginFt = 10.0;
-
     /// <summary>
-    /// Room (ft) on top of <see cref="MarginFt"/> an aircraft at rest at the near line waits for before it resumes, so traffic
-    /// creeping at the edge of the room does not start and stop it by turns.
+    /// Room (ft) on top of <see cref="RunwayTailClearance.MarginFt"/> an aircraft at rest at the near line waits for before it
+    /// resumes, so traffic creeping at the edge of the room does not start and stop it by turns.
     /// </summary>
     internal const double ResumeMarginFt = 10.0;
 
@@ -81,8 +78,8 @@ internal static class RunwayCrossingFarSideGate
     /// Whether the far side of the crossing between <paramref name="bars"/> (the near and the far bar node) leaves the aircraft
     /// too little room to clear the runway: some aircraft on its path, at the stop point projected for it, has its tail less than
     /// the aircraft's own length, the pair's stop gap (<see cref="GroundConflictDetector.StopGapFt"/>) and
-    /// <see cref="MarginFt"/> — and <see cref="ResumeMarginFt"/> when <paramref name="resuming"/> from rest — past the far
-    /// holding-position marking. The path is the straight line across between the bars, then <paramref name="beyond"/>'s route
+    /// <see cref="RunwayTailClearance.MarginFt"/> — and <see cref="ResumeMarginFt"/> when <paramref name="resuming"/> from rest —
+    /// past the far holding-position marking. The path is the straight line across between the bars, then <paramref name="beyond"/>'s route
     /// from its segment <c>Start</c> on, extended straight where it runs out. An aircraft between the bars counts only when it is
     /// aligned with the way across, so runway traffic is not traffic ahead. With <paramref name="judgeLeadersGates"/>, a leader
     /// held at a cleared crossing bar ahead of it by its own gate is projected to stop there (<see cref="KnownStopAheadFt"/>).
@@ -109,11 +106,12 @@ internal static class RunwayCrossingFarSideGate
         double crossFt = GeoMath.DistanceNm(near.Position, far.Position) * GeoMath.FeetPerNm;
         double lookAheadSeconds =
             (crossFt + ownLengthFt) / (CategoryPerformance.RunwayCrossingSpeed(ctx.Category) * GroundStopBraking.FeetPerSecondPerKt);
-        double extentFt = ownLengthFt + GroundConflictDetector.DefaultStopDistanceFt + MarginFt + ResumeMarginFt + LongestHalfLengthFt;
+        double extentFt =
+            ownLengthFt + GroundConflictDetector.DefaultStopDistanceFt + RunwayTailClearance.MarginFt + ResumeMarginFt + LongestHalfLengthFt;
         List<LatLon> path = FarSidePath(layout, near.Position, far.Position, beyond, extentFt);
         double reachFt = Math.Max(crossFt, extentFt) + PathLateralFt;
         List<OnPath> onPath = AircraftOnPath(ctx.Aircraft, listAircraft(), path, crossFt, (far.Position, reachFt));
-        double marginFt = MarginFt + (resuming ? ResumeMarginFt : 0.0);
+        double marginFt = RunwayTailClearance.MarginFt + (resuming ? ResumeMarginFt : 0.0);
         var judge = new Judge(ctx, lookAheadSeconds, judgeLeadersGates);
         foreach (OnPath other in onPath)
         {

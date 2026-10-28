@@ -10,8 +10,9 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
-/// <see cref="ClearRunwayPhase"/> (<c>CLRWY</c>) pulls the aircraft ½ its length past the runway holding position so
-/// every part of it has crossed the marking (AIM 2-3-5.a.1). A type the FAA database does not carry takes its length
+/// <see cref="ClearRunwayPhase"/> (<c>CLRWY</c>) pulls the aircraft ½ its length plus <see cref="RunwayTailClearance.MarginFt"/>
+/// past the runway holding position so every part of it has crossed the marking with that margin (AIM 2-3-5.a.1,
+/// AIM 4-3-21.b). A type the FAA database does not carry takes its length
 /// from the CWT fallback, the same source the runway exit and the landing roll use.
 /// </summary>
 public class ClearRunwayPhaseFallbackLengthTests(ITestOutputHelper output)
@@ -90,8 +91,9 @@ public class ClearRunwayPhaseFallbackLengthTests(ITestOutputHelper output)
         Assert.NotNull(clearance);
         Assert.Equal(MEastHoldShortNodeId, clearance.Segments[0].FromNodeId);
         double pastBarFt = clearance.Segments.Sum(s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
-        output.WriteLine($"approach node {approachNodeId}; target is {pastBarFt:F1}ft past the bar; expected {expectedHalfFt:F1}ft");
+        double expectedPastBarFt = expectedHalfFt + RunwayTailClearance.MarginFt;
+        output.WriteLine($"approach node {approachNodeId}; target is {pastBarFt:F1}ft past the bar; expected {expectedPastBarFt:F1}ft");
 
-        Assert.Equal(expectedHalfFt, pastBarFt, 0.5);
+        Assert.Equal(expectedPastBarFt, pastBarFt, 0.5);
     }
 }

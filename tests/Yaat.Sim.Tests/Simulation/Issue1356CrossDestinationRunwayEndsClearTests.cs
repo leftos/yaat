@@ -94,7 +94,7 @@ public sealed class Issue1356CrossDestinationRunwayEndsClearTests(ITestOutputHel
         output.WriteLine($"far bar #{farBar.Id} hold line {holdLineFt:F1} ft from the {Runway} centreline; tail {tailFt:F1} ft");
 
         Assert.True(
-            tailFt >= holdLineFt + RunwayCrossingFarSideGate.MarginFt - 1.0,
+            tailFt >= holdLineFt + RunwayTailClearance.MarginFt - 1.0,
             $"{Callsign} ended its crossing of {Runway} with its tail {tailFt:F1} ft from the centreline, "
                 + $"short of the far hold line at {holdLineFt:F1} ft plus the margin"
         );

@@ -23,7 +23,7 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
     /// <summary>The taxiway intersection node on G just north of runway 28R that the tail is measured from.</summary>
     private const int GIntersectionNorthOf28RNodeId = 361;
 
-    /// <summary>The crossing rule's margin past the hold line on top of half a length (RunwayCrossingFarSideGate.MarginFt).</summary>
+    /// <summary>The crossing rule's margin past the hold line on top of half a length (RunwayTailClearance.MarginFt).</summary>
     private const double TailMarginFt = 10.0;
 
     private const double StoppedKts = 0.5;
@@ -82,7 +82,7 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
     /// A B738 just off a runway at OAK, facing the runway's hold-short bar on the taxiway it leaves by, given a bare taxi
     /// along that taxiway to the next one off it, which lies closer past the bar than the length setback reaches back: the
     /// end hold never leaves the tail over the runway's hold line. The aircraft drives on until its tail is
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the bar and holds there, short of the taxiway, and the route
+    /// <see cref="RunwayTailClearance.MarginFt"/> past the bar and holds there, short of the taxiway, and the route
     /// warns that wingtip clearance from that taxiway is not assured.
     /// </summary>
     [Theory]
@@ -147,8 +147,8 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
         );
         output.WriteLine($"warnings: {string.Join(" | ", route.Warnings)}");
         Assert.True(
-            tailPastBarFt >= RunwayCrossingFarSideGate.MarginFt - TailToleranceFt,
-            $"the {AircraftType}'s tail ends {tailPastBarFt:F1} ft past runway bar {barNodeId}, inside {RunwayCrossingFarSideGate.MarginFt:F0} ft"
+            tailPastBarFt >= RunwayTailClearance.MarginFt - TailToleranceFt,
+            $"the {AircraftType}'s tail ends {tailPastBarFt:F1} ft past runway bar {barNodeId}, inside {RunwayTailClearance.MarginFt:F0} ft"
         );
         Assert.Contains(route.Warnings, w => w.StartsWith($"holding short of TWY {onto} — wingtip clearance from ", StringComparison.Ordinal));
     }

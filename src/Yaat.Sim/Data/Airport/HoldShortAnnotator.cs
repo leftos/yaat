@@ -1198,7 +1198,7 @@ public static class HoldShortAnnotator
     /// no intersection backstop, so the stop goes back past any taxiway junction behind it. It never goes behind where the
     /// aircraft stands along the route (<see cref="PlacingRoute.AircraftAlongFt"/>, at most the bar's own node), nor back
     /// over a runway hold-short bar the route crossed: the tail stays clear of that bar by the crossing rule's margin
-    /// (<see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/>), never back over the hold line (AIM 4-3-21.b). When
+    /// (<see cref="Phases.Ground.RunwayTailClearance.MarginFt"/>), never back over the hold line (AIM 4-3-21.b). When
     /// the aircraft already stands past where that margin puts the centre, the limit is where it stands.
     /// <c>BoundsSetback</c> is true when the limit also bounds the length setback: a runway bar set it, or the aircraft did
     /// while the bar's node still lies ahead of it (an aircraft at or past the node has no stop ahead to hold back).
@@ -1213,7 +1213,7 @@ public static class HoldShortAnnotator
         {
             if (placing.Layout.Nodes.TryGetValue(path.Vertex(i).Id, out GroundNode? node) && (node.Type == GroundNodeType.RunwayHoldShort))
             {
-                double tailClearFt = path.AlongFt(i) + halfFt + Phases.Ground.RunwayCrossingFarSideGate.MarginFt;
+                double tailClearFt = path.AlongFt(i) + halfFt + Phases.Ground.RunwayTailClearance.MarginFt;
                 return (tailClearFt > aircraftFt) ? (tailClearFt, true) : (aircraftFt, barAhead);
             }
         }

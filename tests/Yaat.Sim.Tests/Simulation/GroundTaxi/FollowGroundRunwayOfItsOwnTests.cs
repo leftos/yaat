@@ -265,7 +265,7 @@ public class FollowGroundRunwayOfItsOwnTests(ITestOutputHelper output)
     /// As <see cref="LeadDepartsWhileTheFollowerWaitsToCrossOneRight_CrossedFollowerHoldsAtTheLeadsBar"/>, with the lead's path
     /// gone (the departed lead shows no taxi route): a lead with no path left is a missing route, not a reason to stay inside
     /// the 1R hold line, so the follower's crossing ends with its centre ½ its length plus
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far 1R bar (AIM 2-3-5.a.1, AIM 4-3-21.b), and it then taxis on to
+    /// <see cref="RunwayTailClearance.MarginFt"/> past the far 1R bar (AIM 2-3-5.a.1, AIM 4-3-21.b), and it then taxis on to
     /// the lead's 28L bar and holds there as a departure hold, never crossing 28L.
     /// </summary>
     [Fact]
@@ -276,7 +276,7 @@ public class FollowGroundRunwayOfItsOwnTests(ITestOutputHelper output)
             return;
         }
 
-        double clearFt = (AircraftLength.ResolveFt(Type) / 2.0) + RunwayCrossingFarSideGate.MarginFt;
+        double clearFt = (AircraftLength.ResolveFt(Type) / 2.0) + RunwayTailClearance.MarginFt;
         Assert.True(run.CentrePastFarBarFt is not null, $"{Follower}'s 1R crossing never ended");
         Assert.True(
             run.CentrePastFarBarFt >= clearFt,

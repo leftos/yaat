@@ -1175,7 +1175,7 @@ public static class SegmentExpander
     /// End a bare final taxiway reached across a runway (an offset crossing, or a pair the sidecar declares) with the whole
     /// aircraft clear of the runway: straight ahead along the final taxiway from its join, to the first point where the tail
     /// and the nose (half the aircraft's length behind and ahead of its centre, along its heading there) both stand
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far hold line, measured perpendicular to that line, carried
+    /// <see cref="RunwayTailClearance.MarginFt"/> past the far hold line, measured perpendicular to that line, carried
     /// straight into a taxiway reached first (AIM 4-3-21.b, 2-3-5.a.1). On a straight taxiway that is half the length plus the
     /// margin along it; past a bend the fuselage is measured where it actually lies. Refused
     /// (<see cref="FailureKind.NoRoomToClearRunway"/>) when a T, a runway centreline or another runway's bar comes first, or
@@ -1207,7 +1207,7 @@ public static class SegmentExpander
 
         string trace =
             $"{precedingTaxiway}→{final} across {runway}: end #{walk.Head.HeadNodeId}, tail and nose {walk.ClearOfLineFt:F1}ft past "
-            + $"the far line (need {RunwayCrossingFarSideGate.MarginFt:F0}ft) into {walk.CarriedInto ?? "-"}";
+            + $"the far line (need {RunwayTailClearance.MarginFt:F0}ft) into {walk.CarriedInto ?? "-"}";
         if (!walk.Clears)
         {
             ctx.DiagnosticLog?.Invoke($"[clear-of-runway] refused {trace}");
@@ -1447,7 +1447,7 @@ public static class SegmentExpander
     /// <summary>
     /// Walk on from the far bar at <paramref name="atBar"/>'s head, straight ahead along <paramref name="finalTaxiway"/> and
     /// carried straight into whatever taxiway it meets first, to the first point where the aircraft's tail and nose both stand
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far hold line (<see cref="ClearOfRunwayProbe.ClearOfLineFt"/>):
+    /// <see cref="RunwayTailClearance.MarginFt"/> past the far hold line (<see cref="ClearOfRunwayProbe.ClearOfLineFt"/>):
     /// a straight edge is cut there by a virtual node, an arc taken whole, and the walk carries on past an end that falls
     /// short. Stopped short (not clear) by a T, a dead end, a runway centreline or another runway's bar (<see cref="EndAtNode"/>).
     /// </summary>
@@ -1464,7 +1464,7 @@ public static class SegmentExpander
             if (CutPast(node, edge, probe) is { } cut)
             {
                 double cutClearFt = probe.ClearOfLineFt(cut.End.Position, cut.BearingDeg);
-                if (cutClearFt >= RunwayCrossingFarSideGate.MarginFt)
+                if (cutClearFt >= RunwayTailClearance.MarginFt)
                 {
                     bool roomAhead = !OtherRunwayAhead(current, edge, cut.AlongFt, onTaxiway, probe);
                     edges.Add(cut.Edge.Directed(node, cut.End));
@@ -1477,7 +1477,7 @@ public static class SegmentExpander
             edges.Add(edge.Directed(node, next));
             current = Advance(current, node, edge, next, probe.Ctx);
             clearFt = probe.ClearOfLineFt(next.Position, current.ArrivalBearing);
-            if (StopsWalkAt(next, probe.Crossed, clearFt >= RunwayCrossingFarSideGate.MarginFt))
+            if (StopsWalkAt(next, probe.Crossed, clearFt >= RunwayTailClearance.MarginFt))
             {
                 return EndAtNode(new ClearOfRunwayWalk(edges, current, clearFt, carriedInto, false), next, probe);
             }
@@ -1511,10 +1511,10 @@ public static class SegmentExpander
     /// Whether a bare crossing of <paramref name="crossed"/> may end at the layout node <paramref name="end"/> with the nearer
     /// of the aircraft's tail and nose <paramref name="clearOfLineFt"/> past the far hold line: never where
     /// <see cref="RefusesClearOfRunwayEndAt"/> refuses the node, and only once that distance reaches
-    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/>.
+    /// <see cref="RunwayTailClearance.MarginFt"/>.
     /// </summary>
     public static bool EndClearsAt(GroundNode end, RunwayIdentifier crossed, double clearOfLineFt) =>
-        !RefusesClearOfRunwayEndAt(end, crossed) && (clearOfLineFt >= RunwayCrossingFarSideGate.MarginFt);
+        !RefusesClearOfRunwayEndAt(end, crossed) && (clearOfLineFt >= RunwayTailClearance.MarginFt);
 
     /// <summary>
     /// Whether a bare crossing of <paramref name="crossed"/> can never end at <paramref name="end"/>: a node on a runway
@@ -1571,7 +1571,7 @@ public static class SegmentExpander
 
     /// <summary>
     /// <paramref name="edge"/> from <paramref name="from"/> cut by a virtual node at the first point where the whole fuselage of
-    /// an aircraft centred there, nosed along the edge, stands <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far
+    /// an aircraft centred there, nosed along the edge, stands <see cref="RunwayTailClearance.MarginFt"/> past the far
     /// hold line (<see cref="ClearOfRunwayProbe.ClearOfLineFt"/>), how far along the edge that lies and the edge's bearing,
     /// when it is a straight edge with no shape points that runs toward the line's far side past that point; null otherwise
     /// (an arc is taken whole), as <see cref="CrossingRunwayPhase"/>'s tail-clearance leg cuts. While the edge runs away from
@@ -1597,7 +1597,7 @@ public static class SegmentExpander
             return null;
         }
 
-        double alongFt = (probe.LengthFt / 2.0) + ((RunwayCrossingFarSideGate.MarginFt - probe.PastLineFt(from.Position)) / towardLine);
+        double alongFt = (probe.LengthFt / 2.0) + ((RunwayTailClearance.MarginFt - probe.PastLineFt(from.Position)) / towardLine);
         double edgeFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
         if ((alongFt <= 0.0) || (alongFt >= edgeFt))
         {
@@ -1607,7 +1607,7 @@ public static class SegmentExpander
         // The projection is flat and the distances great-circle, so the closed form lands a few hundredths of a foot off. At
         // most MaxCutRefinements steps move the cut until the tail lies within ±CutRefinementSlackFt/2 of
         // MarginFt + CutRefinementSlackFt; the walk still checks the end it gets, so a cut that falls short is never taken.
-        double targetFt = RunwayCrossingFarSideGate.MarginFt + CutRefinementSlackFt;
+        double targetFt = RunwayTailClearance.MarginFt + CutRefinementSlackFt;
         LatLon endPos = ProjectAlong(from.Position, bearing, alongFt);
         for (int step = 0; step < MaxCutRefinements; step++)
         {
@@ -4970,7 +4970,7 @@ public static class SegmentExpander
 
     /// <summary>
     /// The refusal of a bare clearance that crosses <paramref name="runway"/> onto <paramref name="taxiway"/>, which has no
-    /// straight-ahead point where the aircraft's tail and nose both stand <see cref="RunwayCrossingFarSideGate.MarginFt"/> past
+    /// straight-ahead point where the aircraft's tail and nose both stand <see cref="RunwayTailClearance.MarginFt"/> past
     /// its far hold line, measured square to it, before a T, a runway centreline or another runway's bar
     /// (<see cref="FailureKind.NoRoomToClearRunway"/>).
     /// </summary>

@@ -263,7 +263,8 @@ public class SfoCrossoverCapacityTests(ITestOutputHelper output)
     /// A C172 off 28R has pulled up along K and holds short of 28L; a second C172 landing 28R fits behind it, so K is
     /// not full. A C172 is 27 ft, so the detector's trail ring is max(100, 27 + 25 = 52) = 100 ft centre to centre and
     /// leaves a stop gap of 100 − 27 = 73 ft (<see cref="GroundConflictDetector.StopGapFt"/>): the arrival needs
-    /// 27 + 73 = 100 ft behind the occupant's tail, against about 164 − s ft free on K's 191 ft, s being the occupant's
+    /// 27 + 73 + 10 = 110 ft behind the occupant's tail (its length, the stop gap and the tail-clear margin,
+    /// <see cref="RunwayTailClearance.MarginFt"/>), against about 164 − s ft free on K's 191 ft, s being the occupant's
     /// nose distance short of 28L's bar.
     /// </summary>
     [Fact]
@@ -274,7 +275,8 @@ public class SfoCrossoverCapacityTests(ITestOutputHelper output)
     /// way and is within the limit of two. K is 191 ft between the bars and a CRJ2 88 ft, so 98 ft is free behind the
     /// occupant's tail, room for the arrival's 88 ft; but the ground conflict detector would stop the arrival at its trail
     /// ring, 88 + 25 = 113 ft centre to centre, with its tail still across 28R's hold line. The free pavement must hold the
-    /// arrival plus the detector's stop gap (<see cref="GroundConflictDetector.StopGapFt"/>, 25 ft), 113 ft, so K is full.
+    /// arrival plus the detector's stop gap (<see cref="GroundConflictDetector.StopGapFt"/>, 25 ft) plus the tail-clear
+    /// margin (<see cref="RunwayTailClearance.MarginFt"/>, 10 ft), 123 ft, so K is full.
     /// </summary>
     [Fact]
     public void Crossover_SameDirection_Crj2PairRefusedOnK()
@@ -287,6 +289,27 @@ public class SfoCrossoverCapacityTests(ITestOutputHelper output)
         WriteLengthCheck(segment, occupant, "CRJ2");
 
         AssertExitBarRead(engine, layout, segment, ("28R", "CRJ2"), full: true);
+    }
+
+    /// <summary>
+    /// An E75L stands on Q, about 136 ft short of 28L's bar, with half <see cref="RunwayTailClearance.MarginFt"/> more pavement behind its tail
+    /// than an E75L landing 28R and the detector's stop gap take (<see cref="GroundConflictDetector.StopGapFt"/>): the
+    /// arrival would fit, but not with its tail the margin past 28R's hold line, where its exit stops it
+    /// (<see cref="RunwayTailClearance.PastBarFt"/>), so Q is full.
+    /// </summary>
+    [Fact]
+    public void Crossover_SameDirection_RoomShortOfTheTailClearMargin_IsFull()
+    {
+        SimulationEngine engine = BuildEngine();
+        AirportGroundLayout layout = SfoLayout();
+        ExitCapacitySegment segment = SegmentFor(layout, "Q", "28R");
+        double lengthFt = AircraftLength.ResolveFt("E75L");
+        double withoutMarginFt = lengthFt + GroundConflictDetector.StopGapFt(lengthFt, lengthFt);
+        double centreFt = (lengthFt / 2) + withoutMarginFt + (RunwayTailClearance.MarginFt / 2);
+        AircraftState occupant = SpawnHoldingShortOf28L(engine, layout, segment, "E75L", centreFt);
+        WriteLengthCheck(segment, occupant, "E75L");
+
+        AssertExitBarRead(engine, layout, segment, ("28R", "E75L"), full: true);
     }
 
     /// <summary>
@@ -438,7 +461,8 @@ public class SfoCrossoverCapacityTests(ITestOutputHelper output)
     /// <summary>
     /// Writes where a same-direction <paramref name="occupant"/> stands on the segment, travelling toward 28L's bar: its
     /// nose distance <c>s</c> short of that bar, the pavement free behind its tail for a 28R arrival, and the length an
-    /// arrival of <paramref name="arrivalType"/> needs there (its own length plus the detector's stop gap).
+    /// arrival of <paramref name="arrivalType"/> needs there (its own length, the detector's stop gap and the tail-clear
+    /// margin (<see cref="RunwayTailClearance.MarginFt"/>)).
     /// </summary>
     private void WriteLengthCheck(ExitCapacitySegment segment, AircraftState occupant, string arrivalType)
     {
@@ -446,10 +470,10 @@ public class SfoCrossoverCapacityTests(ITestOutputHelper output)
         double arrivalFt = AircraftLength.ResolveFt(arrivalType);
         double centreFt = segment.DistanceAlongFromBarFt(segment.ExitBarFor("28R"), occupant.Position);
         double noseFt = segment.StripLengthFt - centreFt - (occupantFt / 2);
-        double neededFt = arrivalFt + GroundConflictDetector.StopGapFt(occupantFt, arrivalFt);
+        double neededFt = arrivalFt + GroundConflictDetector.StopGapFt(occupantFt, arrivalFt) + RunwayTailClearance.MarginFt;
         output.WriteLine(
             $"{occupant.Callsign} centre {centreFt:F0} ft along from 28R's bar, nose s = {noseFt:F0} ft short of 28L's bar; "
-                + $"{centreFt - (occupantFt / 2):F0} ft free behind its tail, {neededFt:F0} ft needed (arrival plus stop gap)"
+                + $"{centreFt - (occupantFt / 2):F0} ft free behind its tail, {neededFt:F0} ft needed (arrival, stop gap and tail-clear margin)"
         );
     }
 

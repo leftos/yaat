@@ -477,7 +477,7 @@ public sealed record SearchContext(
 
     /// <summary>
     /// The aircraft's length in feet (<see cref="ExplicitPathOptions.AircraftLengthFt"/>), given to <see cref="Compile"/>: a
-    /// bare taxi that crosses a runway ends half of it plus <see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/> past
+    /// bare taxi that crosses a runway ends half of it plus <see cref="Phases.Ground.RunwayTailClearance.MarginFt"/> past
     /// the far bar. Null for an auto route, whose search never ends a bare crossing; the explicit resolver refuses to end one
     /// without it.
     /// </summary>

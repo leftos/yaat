@@ -120,7 +120,7 @@ public class RunwayCrossingFarSideGateTests(ITestOutputHelper output)
         }
 
         double lengthFt = AircraftLength.ResolveFt(AircraftType);
-        double neededFt = lengthFt + GroundConflictDetector.StopGapFt(lengthFt, lengthFt) + RunwayCrossingFarSideGate.MarginFt;
+        double neededFt = lengthFt + GroundConflictDetector.StopGapFt(lengthFt, lengthFt) + RunwayTailClearance.MarginFt;
         gate.Place("RST", tailPastFarFt: neededFt + (RunwayCrossingFarSideGate.ResumeMarginFt / 2.0), awayFromTheCrossing: true, speedKts: 0.0);
 
         Assert.False(gate.IsBlocked(resuming: false), "the room plus half the resume margin held a rolling aircraft");

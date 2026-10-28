@@ -23,13 +23,6 @@ public sealed class RunwayExitPhase : Phase
     private const double LogIntervalSeconds = 3.0;
 
     /// <summary>
-    /// How far (ft) the route-end stop puts the tail past the hold-short marking: the stop aims at half the aircraft length plus
-    /// this past the hold-short node, so the planned rest pose has every part of the aircraft past the marking (AIM 4-3-21.b)
-    /// with a margin rather than the tail on the line itself.
-    /// </summary>
-    public const double TailClearMarginFt = 3.0;
-
-    /// <summary>
     /// Lead time (seconds) the aircraft must still have before the branch point for a late
     /// <c>EL</c>/<c>ER</c>/<c>EXIT</c> to be honored. Inside it the pilot is committed to the turn-off.
     ///
@@ -1258,11 +1251,11 @@ public sealed class RunwayExitPhase : Phase
             pastBranchBar |= toNode.Type == GroundNodeType.RunwayHoldShort;
         }
 
-        // Append a virtual segment past the hold-short node so the aircraft's tail
-        // clears the hold-short line. The virtual node is offset along the graph edge.
+        // Append a virtual segment past the hold-short node so the aircraft's tail clears the hold-short line by
+        // RunwayTailClearance.MarginFt. The virtual node is offset along the graph edge.
         GroundNode holdShortNode = _exitPath[^1];
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
-        double tailClearNm = ((lengthFt / 2.0) + TailClearMarginFt) / GeoMath.FeetPerNm;
+        double tailClearNm = RunwayTailClearance.PastBarFt(lengthFt) / GeoMath.FeetPerNm;
 
         GroundNode virtualTarget;
         if (_exitPath.Count >= 2)

@@ -34,7 +34,7 @@ public enum FailureKind
 
     /// <summary>
     /// A bare clearance crosses a runway onto a taxiway with no straight-ahead point where the whole aircraft clears the
-    /// runway's holding position (tail and nose both <see cref="Phases.Ground.RunwayCrossingFarSideGate.MarginFt"/> past the
+    /// runway's holding position (tail and nose both <see cref="Phases.Ground.RunwayTailClearance.MarginFt"/> past the
     /// far hold line, measured square to it) before a T, a runway centreline or another runway's bar. Refused as issued, like
     /// <see cref="TaxiwaysDoNotConnect"/>.
     /// </summary>

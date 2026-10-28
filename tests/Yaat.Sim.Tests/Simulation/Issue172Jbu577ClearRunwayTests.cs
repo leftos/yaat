@@ -135,7 +135,8 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
         bool occupiedAfter = engine.ComputeOccupiedHoldShortNodes().Contains(runwayNodeId.Value);
         double lengthFt = FaaAircraftDatabase.Get(jbu.AircraftType)?.LengthFt ?? 123.0;
         output.WriteLine(
-            $"AFTER: phase={jbu.Phases?.CurrentPhase?.GetType().Name} ias={jbu.IndicatedAirspeed:F1} distRunway={distRunwayAfter:F0} occupied={occupiedAfter} lengthFt={lengthFt:F0}"
+            $"AFTER: phase={jbu.Phases?.CurrentPhase?.GetType().Name} ias={jbu.IndicatedAirspeed:F1} "
+                + $"distRunway={distRunwayAfter:F0} occupied={occupiedAfter} lengthFt={lengthFt:F0}"
         );
 
         // Pulled forward, fully clear of the runway, then holds in position.
@@ -149,8 +150,8 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
             $"aircraft should have pulled forward away from the runway (distRunway {distRunwayBefore:F0} -> {distRunwayAfter:F0})"
         );
 
-        // Stopped at the ½-length tail-clearance node — tail just clear of the bars (the same node a
-        // crossing-with-no-hold-short stops at), NOT walked on to the next junction (#155, ~148 ft past).
+        // Stopped at the clearance node ½ length plus RunwayTailClearance.MarginFt past the bar — tail that margin past
+        // the bars — NOT walked on to the next junction (#155, ~148 ft past).
         Assert.True(
             distRunwayAfter >= lengthFt * 0.5 - 5,
             $"the tail should be clear of the runway bars (~½ length past); distRunway={distRunwayAfter:F0}, ½ length={lengthFt * 0.5:F0}"
