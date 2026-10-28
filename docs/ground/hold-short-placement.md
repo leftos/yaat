@@ -84,6 +84,8 @@ Candidates rank innermost first: the nearer snap point along the taxiway walk fr
 
 A minted node's edge fraction is clamped to `MinEdgeFraction` (0.01) … `MaxEdgeFraction` (0.99), off the endpoints. `MintFraction` is the one exception: when the bar is on paint and the raw fraction lies inside that clamp beside an endpoint refused for reuse (one on the runway side of the paint), the node is minted at the raw fraction, on the snap point, so the endpoint moves onto the paint instead of staying off it. A snap that moves a bar more than `LargeSnapFt` (40 ft) from where the rule would seat it is logged at Debug.
 
+**End clearance.** A minted node is also kept clear of the edge ends it splits: one that would land within `GeometricAdmissibility.NoOpEdgeThresholdNm` (≈1.2 ft) of an end moves to 0.01 ft past that threshold, because the pathfinder reads a shorter edge as a zero-length no-op (`ClearOfEdgeEnds`); an edge too short to hold a point clear of both ends keeps its fraction, logged at Debug. A far-end move seats the bar toward the runway, so on an edge whose far node sits on the paint it can end up up to about 1.2 ft runway-side of the paint.
+
 **What a paint-paired bar changes.** The node records its segment in `GroundNode.PaintSegmentIndex` (the index among the videomap's segments in file order; omitted from the JSON when null, so no layout format bump).
 
 `MarkShortBars` always reads a paint-paired bar as its runway's hold line, whatever its cross-track. `DropRedundantFallbackBars` judges a fallback junction against a ceiling raised to the farthest D_paint among its runway's paint-paired bars (`RaiseCeilingsToSnappedBars`), so a route out of the junction that reaches such a bar still counts as reaching one.

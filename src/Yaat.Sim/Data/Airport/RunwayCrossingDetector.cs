@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -54,6 +55,13 @@ internal static class RunwayCrossingDetector
 
     /// <summary>The upper bound of the fraction range a minted node is clamped to along its edge (<see cref="MinEdgeFraction"/>).</summary>
     private const double MaxEdgeFraction = 0.99;
+
+    /// <summary>
+    /// How far (ft) past <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/> a minted node is moved off an
+    /// edge end it would otherwise sit within that threshold of: a rounding margin, so the split edge cannot land on the
+    /// threshold itself.
+    /// </summary>
+    private const double MintEndClearanceFt = 0.01;
 
     /// <summary>
     /// Plans every runway of the layout (<see cref="PlanRunway"/>) before any runway's bars are seated, so each crossing can
@@ -710,8 +718,8 @@ internal static class RunwayCrossingDetector
             return new BarPlacement(Bar: null, Fallback: null);
         }
 
-        double fraction = (idealNm - crossOn) / denom;
-        fraction = Math.Clamp(fraction, MinEdgeFraction, MaxEdgeFraction);
+        double fraction = Math.Clamp((idealNm - crossOn) / denom, MinEdgeFraction, MaxEdgeFraction);
+        fraction = ClearOfEdgeEnds(onNode.Position, offNode.Position, fraction, edge.TaxiwayName, rect.CombinedId).Fraction;
 
         double hsLat = onNode.Position.Lat + fraction * (offNode.Position.Lat - onNode.Position.Lat);
         double hsLon = onNode.Position.Lon + fraction * (offNode.Position.Lon - onNode.Position.Lon);
@@ -1240,6 +1248,56 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
+    /// Clears the mint point at <paramref name="fraction"/> (0 at <paramref name="from"/>, 1 at <paramref name="to"/>) of an
+    /// edge end it lies within <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/> of, moving it along the edge to
+    /// <see cref="MintEndClearanceFt"/> past that threshold, and reports how far (ft) a far-end move went. A bar minted that
+    /// close to a node leaves an edge the pathfinder reads as a zero-length no-op
+    /// (<see cref="GeometricAdmissibility.IsNoOpEdge"/>), which blocks every route that starts on the bar. An edge too short
+    /// to hold a point clear of both ends keeps the fraction it was given.
+    /// </summary>
+    internal static (double Fraction, double FarEndMoveFt) ClearOfEdgeEnds(
+        LatLon from,
+        LatLon to,
+        double fraction,
+        string taxiwayName,
+        RunwayIdentifier runwayId
+    )
+    {
+        double clearanceNm = GeometricAdmissibility.NoOpEdgeThresholdNm + (MintEndClearanceFt / GeoMath.FeetPerNm);
+        double lengthNm = GeoMath.DistanceNm(from, to);
+        if (lengthNm < (2.0 * clearanceNm))
+        {
+            Log.LogDebug(
+                "Runway crossing: {Taxiway} at {Runway}: edge of {LengthFt:F2} ft too short to clear {ClearanceFt:F2} ft off both ends; fraction {Fraction:F4} kept",
+                taxiwayName,
+                runwayId,
+                lengthNm * GeoMath.FeetPerNm,
+                clearanceNm * GeoMath.FeetPerNm,
+                fraction
+            );
+            return (fraction, 0.0);
+        }
+
+        LatLon mint = Along(from, to, fraction);
+        if (GeoMath.DistanceNm(from, mint) < GeometricAdmissibility.NoOpEdgeThresholdNm)
+        {
+            return (clearanceNm / lengthNm, 0.0);
+        }
+
+        if (GeoMath.DistanceNm(mint, to) < GeometricAdmissibility.NoOpEdgeThresholdNm)
+        {
+            double floored = 1.0 - (clearanceNm / lengthNm);
+            return (floored, GeoMath.DistanceNm(mint, Along(from, to, floored)) * GeoMath.FeetPerNm);
+        }
+
+        return (fraction, 0.0);
+    }
+
+    /// <summary>The point <paramref name="fraction"/> of the way from <paramref name="from"/> to <paramref name="to"/>.</summary>
+    private static LatLon Along(LatLon from, LatLon to, double fraction) =>
+        new(from.Lat + (fraction * (to.Lat - from.Lat)), from.Lon + (fraction * (to.Lon - from.Lon)));
+
+    /// <summary>
     /// Interpolates a hold-short node on <paramref name="segment"/>'s edge between its near node (toward the runway) and
     /// its far node at <paramref name="target"/>'s ideal cross-track distance. If the ideal lies within
     /// <see cref="HoldShortSnapFt"/> of either endpoint, upgrades that endpoint in place; a paint-paired bar refuses an
@@ -1279,12 +1337,30 @@ internal static class RunwayCrossingDetector
             return null;
         }
 
-        double fraction = MintFraction(
+        double mintedFraction = MintFraction(
             (idealFt - crossNearFt) / denom,
             onPaint: target.SnapPoint is not null,
             nearRefused: !nearReusable,
             farRefused: !farReusable
         );
+        (double fraction, double farEndMoveFt) = ClearOfEdgeEnds(
+            nearNode.Position,
+            farNode.Position,
+            mintedFraction,
+            edge.TaxiwayName,
+            rect.CombinedId
+        );
+        if ((farEndMoveFt > 0.0) && (target.SnapPoint is not null) && (ReuseDistanceFt(target, farNode, crossFarFt) <= PaintRunwaySideToleranceFt))
+        {
+            Log.LogDebug(
+                "Runway crossing (walker): {Taxiway} at {Runway} — the bar moved {MovedFt:F2} ft off far node #{FarNodeId}, which sits within {ToleranceFt:F1} ft of the paint",
+                edge.TaxiwayName,
+                rect.CombinedId,
+                farEndMoveFt,
+                farNode.Id,
+                PaintRunwaySideToleranceFt
+            );
+        }
         double hsLat = nearNode.Position.Lat + fraction * (farNode.Position.Lat - nearNode.Position.Lat);
         double hsLon = nearNode.Position.Lon + fraction * (farNode.Position.Lon - nearNode.Position.Lon);
 
@@ -1407,6 +1483,7 @@ internal static class RunwayCrossingDetector
         }
 
         double backoffFraction = Math.Clamp(1.0 - (HoldShortFallbackBufferFt / edgeLengthFt), 0.01, 0.99);
+        backoffFraction = ClearOfEdgeEnds(prevNode.Position, currentNode.Position, backoffFraction, taxiwayName, rect.CombinedId).Fraction;
         double hsLat = prevNode.Position.Lat + backoffFraction * (currentNode.Position.Lat - prevNode.Position.Lat);
         double hsLon = prevNode.Position.Lon + backoffFraction * (currentNode.Position.Lon - prevNode.Position.Lon);
 
@@ -1714,6 +1791,8 @@ internal static class RunwayCrossingDetector
     /// <summary>
     /// Splits an edge into two segments through one intermediate node.
     /// Replaces: from-to with from-mid, mid-to.
+    /// Touches only <see cref="AirportGroundLayout.Edges"/>: node adjacency lists are stale until the caller runs
+    /// <see cref="AirportGroundLayout.RebuildAdjacencyLists"/> (the parse does so in its Step 7).
     /// </summary>
     internal static void SplitEdgeAtOneNode(AirportGroundLayout layout, GroundEdge edge, GroundNode midNode)
     {

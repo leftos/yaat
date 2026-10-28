@@ -3,6 +3,7 @@ using System.Text;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Fillet;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
@@ -79,6 +80,56 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         Assert.True(snapped.Length == 31, $"{snapped.Length} OAK bars snapped, expected 31:\n{report}");
     }
 
+    /// <summary>
+    /// OAK built on its tower-cab videomap: from the north 28R holding position on B, the route to the south one is B straight across
+    /// the runway, as on the graph built without the map, for a piston and a jet alike.
+    /// </summary>
+    [Theory]
+    [InlineData(AircraftCategory.Piston)]
+    [InlineData(AircraftCategory.Jet)]
+    public void Oak_28R_FromTheNorthBarOnB_RoutesToTheSouthBarAlongB(AircraftCategory category)
+    {
+        AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.Standard);
+        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
+        GroundNode bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0];
+        GroundNode north = bars.MaxBy(n => GeoMath.DistanceNm(n.Position, bar28L.Position))!;
+        GroundNode south = bars.Where(n => n.Id != north.Id).MinBy(n => GeoMath.DistanceNm(n.Position, north.Position))!;
+
+        GoalRoute? across = TaxiPathfinder.FindRouteToNearestGoal(
+            layout,
+            north.Id,
+            category,
+            WakeTurbulenceData.WakeClass.Small,
+            NearestGoalRequest.To(new HashSet<int> { south.Id })
+        );
+
+        List<TaxiRouteSegment> segments = Assert.IsType<TaxiRoute>(across?.Route).Segments;
+        string path = string.Join(" ", segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}[{s.Edge.Edge.TaxiwayName}]"));
+        Assert.True(
+            segments.All(s => s.Edge.Edge.MatchesTaxiway("B")),
+            $"the route from the north 28R bar on B (#{north.Id}) to the south one (#{south.Id}) leaves B: {path}"
+        );
+    }
+
+    /// <summary>
+    /// Every OAK edge built on its videomap is at least <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/> long: a bar
+    /// minted closer than that to a node leaves an edge the pathfinder reads as a zero-length no-op, which blocks every route
+    /// that starts on the bar.
+    /// </summary>
+    [Fact]
+    public void Oak_MapBuilt_HasNoEdgeShorterThanTheNoOpThreshold()
+    {
+        AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.Standard);
+        List<string> shortEdges =
+        [
+            .. layout
+                .Edges.Where(edge => edge.DistanceNm < GeometricAdmissibility.NoOpEdgeThresholdNm)
+                .Select(edge => $"#{edge.Nodes[0].Id}-#{edge.Nodes[1].Id} [{edge.TaxiwayName}] {edge.DistanceNm * GeoMath.FeetPerNm:F3} ft"),
+        ];
+
+        Assert.True(shortEdges.Count == 0, $"{shortEdges.Count} OAK edges are shorter than the no-op threshold: {string.Join("; ", shortEdges)}");
+    }
+
     [Fact]
     public void Oak_15_33_C_BarNearAnEndpoint_MintsOnThePaint()
     {
@@ -121,6 +172,86 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         Assert.Equal(0.01, RunwayCrossingDetector.MintFraction(0.004, onPaint: false, nearRefused: true, farRefused: true));
         Assert.Equal(0.01, RunwayCrossingDetector.MintFraction(0.004, onPaint: true, nearRefused: false, farRefused: true));
     }
+
+    /// <summary>
+    /// The end clearance (<see cref="RunwayCrossingDetector.ClearOfEdgeEnds"/>) moves a minted bar just past
+    /// <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/> from the edge end it sits too close to, leaves a bar clear of
+    /// both ends where it is, and leaves an edge too short to clear both ends unchanged. The positions are real, from the
+    /// map-built OAK parse: #188 and #189, the edge the 28R bar #506 is minted on, and the ~1.2 ft #188-#506 edge itself.
+    /// </summary>
+    [Theory]
+    [InlineData(EndClearance.NearEndMoved)]
+    [InlineData(EndClearance.FarEndMoved)]
+    [InlineData(EndClearance.ClearOfBothEnds)]
+    [InlineData(EndClearance.EdgeTooShort)]
+    public void ClearOfEdgeEnds_MovesAMintedBarOffTheEdgeEndItSitsTooCloseTo(EndClearance scenario)
+    {
+        AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.Standard);
+        GroundNode bar = layout.Nodes[506];
+        GroundNode from = layout.Nodes[188];
+        GroundNode to = (scenario == EndClearance.EdgeTooShort) ? bar : layout.Nodes[189];
+        double fraction = scenario switch
+        {
+            EndClearance.NearEndMoved => 0.05,
+            EndClearance.FarEndMoved => 0.95,
+            _ => 0.5,
+        };
+        double thresholdFt = GeometricAdmissibility.NoOpEdgeThresholdNm * GeoMath.FeetPerNm;
+
+        (double cleared, double farEndMoveFt) = RunwayCrossingDetector.ClearOfEdgeEnds(
+            from.Position,
+            to.Position,
+            fraction,
+            "B",
+            bar.RunwayId!.Value
+        );
+        double clearedEndFt;
+        switch (scenario)
+        {
+            case EndClearance.NearEndMoved:
+                clearedEndFt = GeoMath.DistanceNm(from.Position, Along(from.Position, to.Position, cleared)) * GeoMath.FeetPerNm;
+                Assert.True(cleared > fraction, $"the bar moved to fraction {cleared:F4}, not past {fraction:F4} off the near end");
+                Assert.Equal(0.0, farEndMoveFt);
+                break;
+            case EndClearance.FarEndMoved:
+                clearedEndFt = GeoMath.DistanceNm(Along(from.Position, to.Position, cleared), to.Position) * GeoMath.FeetPerNm;
+                Assert.True(cleared < fraction, $"the bar moved to fraction {cleared:F4}, not below {fraction:F4} off the far end");
+                Assert.True(farEndMoveFt > 0.0, "the far-end move reported no distance");
+                break;
+            case EndClearance.EdgeTooShort:
+                Assert.Equal(fraction, cleared);
+                Assert.Equal(0.0, farEndMoveFt);
+                double lengthFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
+                Assert.True(
+                    lengthFt < (2.0 * thresholdFt),
+                    $"the #188-#506 edge is {lengthFt:F2} ft, not too short to hold a point {thresholdFt:F2} ft off both ends"
+                );
+                return;
+            default:
+                Assert.Equal(fraction, cleared);
+                Assert.Equal(0.0, farEndMoveFt);
+                return;
+        }
+
+        Assert.True(clearedEndFt > thresholdFt, $"{clearedEndFt:F3} ft from the end is not past the no-op threshold {thresholdFt:F3} ft");
+        Assert.True(
+            clearedEndFt <= (thresholdFt * 1.02),
+            $"{clearedEndFt:F3} ft from the end is more than 2% past the no-op threshold {thresholdFt:F3} ft"
+        );
+    }
+
+    /// <summary>Which end of an edge the end clearance is asked about (<see cref="ClearOfEdgeEnds_MovesAMintedBarOffTheEdgeEndItSitsTooCloseTo"/>).</summary>
+    public enum EndClearance
+    {
+        NearEndMoved,
+        FarEndMoved,
+        ClearOfBothEnds,
+        EdgeTooShort,
+    }
+
+    /// <summary>The point <paramref name="fraction"/> of the way from <paramref name="from"/> to <paramref name="to"/>.</summary>
+    private static LatLon Along(LatLon from, LatLon to, double fraction) =>
+        new(from.Lat + (fraction * (to.Lat - from.Lat)), from.Lon + (fraction * (to.Lon - from.Lon)));
 
     [Fact]
     public void Oak_ARemovedBar_LeavesItsNodeWhereTheCalibratedStandoffSeatsIt_AndEveryOtherPairUnchanged()
