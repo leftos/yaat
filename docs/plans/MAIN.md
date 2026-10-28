@@ -10,7 +10,6 @@
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [/] YAAT-1216 Calibrate a runway's hold-short standoff from its paint-paired bars · release vNext
   - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
@@ -20,6 +19,7 @@
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
 - [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs
 - [/] YAAT-1328 Stop a runway exit or CLRWY with the nose short of another runway's hold line (SFO 28R-28L crossovers) · release vNext
+- [ ] YAAT-1344 Pin the painted-bar dedupe of the hold-short standoff planning pass on a layout that exercises it
 
 ## Controller-AI coaching
 
@@ -64,8 +64,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-1327 N7LJ stuck at the far-side runway hold-short bar at OAK; RES, CROSS and BREAK do not free it · release vNext
-- [/] YAAT-1330 N80ZU goes around for N342T, which took off from 28R with CTO MLT 28L and is still treated as on 28R · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
@@ -484,7 +482,6 @@
 - [ ] YAAT-1250 crc_launch: report CRC's exit when it dies between the pipe connect and hello
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
 - [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
-- [ ] YAAT-1338 Restyle LayoutInspector HTML so the unhighlighted layout reads clearly · release vNext
 
 ## Singles
 
@@ -880,3 +877,13 @@
 - [ ] YAAT-1320 Harden the videomap paint pairing: bar length cap, 450 ft cap, solid vs dashed line, marking direction
 - [ ] YAAT-1323 Pin the taxi readback cover rule's edge cases: shared stop node, same runway twice, same-type uncovered readback
 - [ ] YAAT-1324 Tell joined vEDST clients the session went inactive on a repeated StartSession
+
+## No project
+
+- [ ] YAAT-1341 Reject a CROSS whose runway the aircraft has already crossed instead of answering OK
+- [ ] YAAT-1342 HoldingInPositionPhase rejection text offers RES, which the phase rejects
+- [ ] YAAT-1343 Refuse CROSS when there is no room past the far bar to clear the runway
+- [ ] YAAT-1345 Let an auto exit take a short crossover when the stored taxi route already crosses the other runway there
+- [ ] YAAT-1346 Solo scoring counts a tail-inside after-exit hold as clear of the runway
+- [ ] YAAT-1347 Measure a shaped onward segment by its polyline in a crossing's route-own tail clearance
+- [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
