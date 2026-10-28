@@ -505,7 +505,13 @@ public static partial class GroundCommandHandler
                     TaxiRoute? reroute = TaxiPathfinder.FindRoute(groundLayout, bestNeighbor.Id, destNode.Id, category, wakeClass);
                     if (reroute is not null && reroute.Segments.Count > 0)
                     {
-                        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, SetDestination(reroute, taxi));
+                        route = TaxiApproachLeg.Prepend(
+                            groundLayout,
+                            aircraft.Position,
+                            aircraft.TrueHeading,
+                            SetDestination(reroute, taxi),
+                            aircraftLengthFt
+                        );
                         aircraft.Ground.AssignedTaxiRoute = route;
                         aircraft.Ground.AwaitingTaxiInCall = false;
                         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
@@ -1391,7 +1397,7 @@ public static partial class GroundCommandHandler
 
         // The resolver starts from the nearest graph node, which after a pushback onto open apron can be a
         // hundred feet from the aircraft. Drive it there rather than letting the navigator snap onto segment 0.
-        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route);
+        route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route, aircraftLengthFt);
 
         return new TaxiResolution
         {

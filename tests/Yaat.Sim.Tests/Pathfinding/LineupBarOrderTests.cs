@@ -189,8 +189,9 @@ public class LineupBarOrderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The OAK 33 starts west of the runway before its threshold: on C about 100 ft before the threshold, outboard of C's west
-    /// bar, and at that bar itself.
+    /// The OAK 33 starts west of the runway near its threshold: C's west bar itself, which lies before the threshold, and the
+    /// first C node outboard of that bar. With the bar seated on its painted marking, that outboard node lies just past the
+    /// threshold (about 80 ft along 33); the bar is still the one the start reaches C's west side by.
     /// </summary>
     private static GroundNode Oak33WestStart(AirportGroundLayout layout, string start)
     {
@@ -200,14 +201,9 @@ public class LineupBarOrderTests(ITestOutputHelper output)
             return westBar;
         }
 
-        (LatLon Threshold, TrueHeading Heading) axis = Axis("OAK", "33");
-        GroundNode? node = layout
-            .Nodes.Values.Where(n => (n.Type != GroundNodeType.RunwayHoldShort) && n.Edges.Any(e => e.TaxiwayName == "C"))
-            .Where(n => CrossFt(n.Position, axis) < CrossFt(westBar.Position, axis))
-            .MinBy(n => GeoMath.DistanceNm(n.Position, AxisPoint(axis, -100.0, CrossFt(westBar.Position, axis) - 60.0)));
-        Assert.NotNull(node);
-        double along = AlongFt(node.Position, axis);
-        Assert.True((along < 0) && (along > -250), $"node {node.Id} on C is {along:F0} ft along 33, not about -100 ft");
+        GroundNode node = Outboard(westBar, "OAK", "33");
+        Assert.NotEqual(GroundNodeType.RunwayHoldShort, node.Type);
+        Assert.Contains(node.Edges, e => e.TaxiwayName == "C");
         return node;
     }
 

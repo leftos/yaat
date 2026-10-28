@@ -3333,7 +3333,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        TaxiRoute route = TaxiApproachLeg.Prepend(layout, position, heading, graphRoute);
+        TaxiRoute route = TaxiApproachLeg.Prepend(layout, position, heading, graphRoute, AircraftLength.ResolveFt("B738"));
         SfoGroundHarness.DumpRoute(output, route);
 
         TaxiRouteSegment first = route.Segments[0];

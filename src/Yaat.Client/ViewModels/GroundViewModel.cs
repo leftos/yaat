@@ -3346,7 +3346,9 @@ public partial class GroundViewModel : ObservableObject
             return lineUp;
         }
 
-        return (turnedAbout || !StartsWithReversal(route, ac.Heading)) ? WithApproachLeg(improved, ac.Position, ac.Heading) : null;
+        return (turnedAbout || !StartsWithReversal(route, ac.Heading))
+            ? WithApproachLeg(improved, ac.Position, ac.Heading, AircraftLength.ResolveFt(ac.AircraftType))
+            : null;
     }
 
     /// <summary>
@@ -3402,7 +3404,7 @@ public partial class GroundViewModel : ObservableObject
             return cut.Route;
         }
 
-        return WithApproachLeg(route, ac.Position, ac.Heading);
+        return WithApproachLeg(route, ac.Position, ac.Heading, AircraftLength.ResolveFt(ac.AircraftType));
     }
 
     /// <summary>
@@ -3506,10 +3508,11 @@ public partial class GroundViewModel : ObservableObject
     /// starts at the aircraft instead of at the ramp node ahead of it (the leg's own guards refuse and hand
     /// the route back unchanged when the aircraft is standing on that node, or when the drive to it is not
     /// one the pilot would make). <see cref="RampLaneReposition"/> plans already start at the aircraft and
-    /// never come through here.
+    /// never come through here. <paramref name="aircraftLengthFt"/> places the aircraft against a runway bar the route
+    /// starts on, exactly as on the server.
     /// </summary>
-    private TaxiRoute? WithApproachLeg(TaxiRoute? route, LatLon position, TrueHeading heading) =>
-        ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route);
+    private TaxiRoute? WithApproachLeg(TaxiRoute? route, LatLon position, TrueHeading heading, double aircraftLengthFt) =>
+        ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route, aircraftLengthFt);
 
     /// <summary>
     /// Where the overlay resolves the route from, and whether that route opens with the turn about the simulation sent

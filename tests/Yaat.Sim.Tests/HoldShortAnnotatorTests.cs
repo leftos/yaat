@@ -525,7 +525,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        TaxiRoute route = TaxiApproachLeg.Prepend(layout, position, heading, graphRoute);
+        TaxiRoute route = TaxiApproachLeg.Prepend(layout, position, heading, graphRoute, AircraftLength.ResolveFt("B738"));
         Assert.True(route.Segments[0].FromNodeId < 0, $"no free-space leg: the route starts at layout node {route.Segments[0].FromNodeId}");
         Assert.Equal(barNode.Id, route.Segments[0].ToNodeId);
 

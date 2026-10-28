@@ -600,7 +600,13 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
 
         double firstDeg = route.Segments[0].Edge.DepartureBearing;
         LatLon behind = GeoMath.ProjectPoint(Skw5590Pose.Position, new TrueHeading((firstDeg + 180.0) % 360.0), 80.0 / GeoMath.FeetPerNm);
-        TaxiRoute prepended = TaxiApproachLeg.Prepend(ground.Layout, behind, new TrueHeading(firstDeg), route);
+        TaxiRoute prepended = TaxiApproachLeg.Prepend(
+            ground.Layout,
+            behind,
+            new TrueHeading(firstDeg),
+            route,
+            AircraftLength.ResolveFt(aircraft.AircraftType)
+        );
         Assert.Equal(route.Segments.Count + 1, prepended.Segments.Count);
         Assert.Equal(pullFrom + 1, prepended.SpotLineUpPullFromSegment);
 

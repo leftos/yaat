@@ -985,7 +985,8 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// <summary>
     /// Where the aircraft stands on one sub-tick of its approach: along-route distance to the bar's painted stop, its taxi-
     /// and firm-rate stopping distances, whether a TAXI issued now would start the route on the bar's node (the taxi graph's
-    /// nearest node to the aircraft on its heading is the bar's), and how far (ft) its centre is past the hold line through
+    /// nearest node to the aircraft on its heading is the bar's, and no approach leg to it is driven), and how far (ft) its
+    /// centre is past the hold line through
     /// that node, negative when short.
     /// </summary>
     private sealed record Approach(double ToStopFt, double TaxiStopFt, double FirmStopFt, bool StartsAtBar, double CentrePastNodeFt);
@@ -1466,9 +1467,22 @@ public class HoldInsideStoppingDistanceOfBarTests
         double taxiStopFt = StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.TaxiDecelRate(category));
         double firmStopFt = StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.ExpediteExitDecelRate(category));
         bool startsAtBar =
-            rig.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id == rig.ClearedBar.NodeId;
+            (rig.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id == rig.ClearedBar.NodeId)
+            && KeepsNoApproachLeg(aircraft, rig);
         double centrePastNodeFt = rig.Line.NosePastFt(aircraft) - (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0);
         return new Approach(toStopFt, taxiStopFt, firmStopFt, startsAtBar, centrePastNodeFt);
+    }
+
+    /// <summary>
+    /// Whether a route from the bar's node, onward as the first route leaves it, keeps the bar as its first node: the approach
+    /// leg (<see cref="TaxiApproachLeg"/>) is refused, as it is once the aircraft is waiting at the bar or has its nose over the
+    /// marking. Farther back on the edge leading to the bar, the re-route drives to the bar and the bar is a hold ahead.
+    /// </summary>
+    private static bool KeepsNoApproachLeg(AircraftState aircraft, ApproachRig rig)
+    {
+        var fromBar = new TaxiRoute { Segments = [rig.FirstRoute.Segments[rig.BarSegment + 1]], HoldShortPoints = [] };
+        double lengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
+        return ReferenceEquals(fromBar, TaxiApproachLeg.Prepend(rig.Layout, aircraft.Position, aircraft.TrueHeading, fromBar, lengthFt));
     }
 
     /// <summary>Gives the case's order; for a HOLD, the HOLD as given (null for every other order).</summary>

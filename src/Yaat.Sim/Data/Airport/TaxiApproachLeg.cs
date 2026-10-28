@@ -53,10 +53,14 @@ public static class TaxiApproachLeg
     /// <item>the route has segments to start from at all;</item>
     /// <item>the aircraft is more than <see cref="AirportGroundLayout.AtNodeToleranceFt"/> from that node — closer
     /// than that it is standing on it and there is nothing to drive;</item>
-    /// <item>the node is not a runway holding position, and the route holds short at it. An aircraft waiting at
-    /// one sits half a fuselage behind the bar node, and driving up to the node would put its nose past the
-    /// holding-position marking (AIM 2-3-5.a.1); <see cref="Phases.Ground.TaxiingPhase"/> also needs the real
-    /// node id to hold at the bar;</item>
+    /// <item>the node is not a holding position the aircraft is waiting at or already over. The route must not hold
+    /// short at a taxiway holding position on the node, and a runway bar on the node is refused unless the aircraft
+    /// stands short of its painted stop on the straight taxi edge leading to it (<see cref="OccupiedTaxiEdgeLeadingTo"/>),
+    /// its centre more than half <paramref name="aircraftLengthFt"/> plus <see cref="Phases.Ground.GroundNavigator.SetBackStopMarginFt"/>
+    /// from the node. A TAXI starts the route on a bar's node from anywhere on a bar-ended edge, so an aircraft hundreds
+    /// of feet out is driven to it, and the bar, now the leg's far end, gets its usual half-fuselage setback (AIM
+    /// 2-3-5.a.1). Nearer than that the aircraft is waiting at the bar or has its nose over the marking, and
+    /// <see cref="Phases.Ground.TaxiingPhase"/> holds it at the bar by the real node id;</item>
     /// <item>the node lies within <see cref="MaxOffRouteBearingDeg"/> of the route's own departure bearing, or the
     /// aircraft sits close enough to the first segment's own line for pure pursuit to converge onto it —
     /// <see cref="MaxOffLineRatio"/> of the segment's length still ahead of the aircraft. A node behind the aircraft
@@ -72,7 +76,12 @@ public static class TaxiApproachLeg
     /// start node, so the length bound is waived, while the runway-centerline rule still applies.</item>
     /// </list>
     /// </summary>
-    public static TaxiRoute Prepend(AirportGroundLayout layout, LatLon position, TrueHeading heading, TaxiRoute route)
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="position">Where the aircraft stands.</param>
+    /// <param name="heading">The aircraft's true heading.</param>
+    /// <param name="route">The resolved graph route.</param>
+    /// <param name="aircraftLengthFt">The aircraft's fuselage length (ft), which places it against a runway bar on the start node.</param>
+    public static TaxiRoute Prepend(AirportGroundLayout layout, LatLon position, TrueHeading heading, TaxiRoute route, double aircraftLengthFt)
     {
         if (route.Segments.Count == 0)
         {
@@ -83,7 +92,8 @@ public static class TaxiApproachLeg
         GroundNode from = route.Segments[0].Edge.FromNode;
         double distFt = GeoMath.DistanceNm(position, from.Position) * GeoMath.FeetPerNm;
 
-        string? refusal = Refusal(layout, position, heading, route, from, distFt);
+        var pose = new Pose(position, heading, aircraftLengthFt);
+        string? refusal = Refusal(layout, pose, route, from, distFt);
         if (refusal is not null)
         {
             Log.LogDebug("[ApproachLeg] no leg to node {NodeId} ({DistFt:F0} ft): {Refusal}", from.Id, distFt, refusal);
@@ -107,30 +117,34 @@ public static class TaxiApproachLeg
         };
     }
 
+    /// <summary>Where the aircraft stands, which way it points, and its fuselage length (ft).</summary>
+    private readonly record struct Pose(LatLon Position, TrueHeading Heading, double LengthFt);
+
     /// <summary>The guard that refuses the leg, or null when the drive to the route's start node is a legitimate one.</summary>
-    private static string? Refusal(AirportGroundLayout layout, LatLon position, TrueHeading heading, TaxiRoute route, GroundNode from, double distFt)
+    private static string? Refusal(AirportGroundLayout layout, Pose pose, TaxiRoute route, GroundNode from, double distFt)
     {
         if (distFt <= AirportGroundLayout.AtNodeToleranceFt)
         {
             return "the aircraft is already at the node";
         }
 
-        if ((route.GetHoldShortAt(from.Id) is not null) || (from.Type == GroundNodeType.RunwayHoldShort))
+        LatLon position = pose.Position;
+        GroundEdge? occupied = OccupiedTaxiEdgeLeadingTo(layout, position, from);
+        if (HoldingPositionRefusal(route, from, occupied, distFt, pose.LengthFt) is { } atHoldingPosition)
         {
-            return "the route starts at a holding position";
+            return atHoldingPosition;
         }
 
         // An aircraft mid-way along a straight taxi edge has passed neither end of it, so a route leaving an end of that edge
         // by another edge is driven to, however sharply it turns there. A route running along the edge itself is the
         // past-the-start case: the aircraft is already on its first segment, and pure pursuit closes onto it.
-        GroundEdge? occupied = OccupiedTaxiEdgeLeadingTo(layout, position, from);
         bool leavesOccupiedEdgeEnd = (occupied is not null) && !ReferenceEquals(route.Segments[0].Edge.Edge, occupied);
         if (!leavesOccupiedEdgeEnd && (PastStartRefusal(position, route, from) is { } pastStart))
         {
             return pastStart;
         }
 
-        if (AlongRunwayBoundFt(layout, position, heading, from) is { } runwayLengthFt)
+        if (AlongRunwayBoundFt(layout, position, pose.Heading, from) is { } runwayLengthFt)
         {
             return distFt > runwayLengthFt ? $"the roll along the runway is {distFt:F0} ft, beyond the runway's own {runwayLengthFt:F0} ft" : null;
         }
@@ -141,6 +155,40 @@ public static class TaxiApproachLeg
         }
 
         return layout.RunwayCenterlineBetween(position, from.Position) ? "a runway centerline lies between" : null;
+    }
+
+    /// <summary>
+    /// The refusal for a start node that is a holding position the aircraft is waiting at or already over, or null. A
+    /// taxiway hold-short on the node always refuses. A runway bar on the node refuses unless the aircraft is on
+    /// <paramref name="occupied"/>, the straight taxi edge leading to it, with its centre farther from the node than half
+    /// its length plus <see cref="Phases.Ground.GroundNavigator.SetBackStopMarginFt"/>: short of the bar's painted stop,
+    /// where the leg ends at the bar and the bar's stop is set back half a fuselage along it.
+    /// </summary>
+    private static string? HoldingPositionRefusal(TaxiRoute route, GroundNode from, GroundEdge? occupied, double distFt, double lengthFt)
+    {
+        HoldShortPoint? hold = route.GetHoldShortAt(from.Id);
+        bool runwayBar = (from.Type == GroundNodeType.RunwayHoldShort) && ((hold is null) || !TaxiRoute.IsTaxiwayClassHoldShort(hold));
+        if (!runwayBar)
+        {
+            return hold is not null ? "the route starts at a holding position" : null;
+        }
+
+        double paintedStopFt = (lengthFt / 2.0) + Phases.Ground.GroundNavigator.SetBackStopMarginFt;
+        if ((occupied is not null) && (distFt > paintedStopFt))
+        {
+            Log.LogDebug(
+                "[ApproachLeg] runway bar {NodeId} is {DistFt:F0} ft ahead on {Taxiway}, beyond its {StopFt:F0} ft painted stop",
+                from.Id,
+                distFt,
+                occupied.TaxiwayName,
+                paintedStopFt
+            );
+            return null;
+        }
+
+        return occupied is null
+            ? "the route starts at a runway holding position the aircraft is not on the taxi edge to"
+            : $"the route starts at a runway holding position {distFt:F0} ft away, within its {paintedStopFt:F0} ft painted stop";
     }
 
     /// <summary>

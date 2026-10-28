@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
@@ -504,7 +505,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route, AircraftLength.ResolveFt(AircraftType));
 
         Assert.Same(route, result);
     }
@@ -538,7 +539,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route, AircraftLength.ResolveFt(AircraftType));
 
         Assert.Same(route, result);
     }
@@ -576,7 +577,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             SpotLineUpPullFromSegment = 0,
         };
 
-        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route, AircraftLength.ResolveFt(AircraftType));
 
         Assert.NotSame(route, result);
         Assert.True(result.Segments[0].FromNodeId < 0, "the first segment is not the free-space leg from the aircraft");
@@ -682,7 +683,10 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             HoldShortPoints = [],
         };
 
-        Assert.Same(route, TaxiApproachLeg.Prepend(layout, position, new TrueHeading(Runway28RHeadingDeg), route));
+        Assert.Same(
+            route,
+            TaxiApproachLeg.Prepend(layout, position, new TrueHeading(Runway28RHeadingDeg), route, AircraftLength.ResolveFt(AircraftType))
+        );
     }
 
     /// <summary>Node 797 — a real node on OAK taxiway B, 540 ft south of the 28R centerline and 2,460 ft back from node 1144.</summary>
@@ -748,7 +752,10 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
         TaxiRoute route = ExitFilletRoute(exit);
 
-        Assert.Same(route, TaxiApproachLeg.Prepend(layout, abeam.Position, new TrueHeading(Runway28RHeadingDeg), route));
+        Assert.Same(
+            route,
+            TaxiApproachLeg.Prepend(layout, abeam.Position, new TrueHeading(Runway28RHeadingDeg), route, AircraftLength.ResolveFt(AircraftType))
+        );
     }
 
     /// <summary>
@@ -777,7 +784,10 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
         TaxiRoute route = ExitFilletRoute(exit);
 
-        Assert.Same(route, TaxiApproachLeg.Prepend(layout, position, new TrueHeading(AcrossRunwayHeadingDeg), route));
+        Assert.Same(
+            route,
+            TaxiApproachLeg.Prepend(layout, position, new TrueHeading(AcrossRunwayHeadingDeg), route, AircraftLength.ResolveFt(AircraftType))
+        );
     }
 
     /// <summary>SFO node 120, where B bends between its edges to nodes 119 and 12 (the THY9WC push's lane).</summary>
