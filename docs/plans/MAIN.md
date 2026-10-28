@@ -15,7 +15,6 @@
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
   - [/] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
   - [ ] YAAT-1380 Stop an OAK HOLD near a snapped bar from running the aircraft past the hold line · release vNext
-  - [ ] YAAT-1381 Route straight across 28R on B between OAK's snapped bars instead of looping via C, RAMP and A · release vNext
   - [ ] YAAT-1382 Give OAK's C route onto 15/33 a hold-short bar at the snapped 33 threshold · release vNext
   - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
@@ -500,6 +499,7 @@
 - [ ] YAAT-1274 Remove the dead CIFP temp-file sentinel code from TestVnasData
 - [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
 - [ ] YAAT-1357 Give ci.yml a timeout and concurrency group in yaat and yaat-server; drop the stale LFS notes
+- [ ] YAAT-1389 Fix the tick-loop order in tick-loop.md and navigator.md; document DebugSink and the fresh-tree test ceiling
 
 ## Singles
 
@@ -906,6 +906,17 @@
 - [ ] YAAT-1371 Project a braking stop-and-go to its stop before judging the go-around (late go-around behind it)
 - [ ] YAAT-1376 Stop OakPreferLaterOnsideExitTests counting P's south-side bar as an on-side exit
 - [ ] YAAT-1384 Refuse a TAXI that needs a turn-about with the turn-about reason, not 'unreachable'
+- [ ] YAAT-1385 Clear fix crossing stamps when a transmission is rewound, so the reused id never reads them as its own
+- [ ] YAAT-1386 Stop a crossing restriction's speed revert overwriting a newer SPD or RNS when the fix is passed
+- [ ] YAAT-1387 Keep a route search headingless across a zero-length first edge instead of judging the next turn against 0°
+- [ ] YAAT-1388 Brake a ground yielder at the firm rate instead of an unfloored dead stop when a conflict rule binds
+- [ ] YAAT-1390 Let LayoutInspector parse an airport with its tower-cab videomap so it shows the snapped graph · release vNext
+- [ ] YAAT-1391 Stop a follower planning a head-on merge at the end of its lead's route (OAK TAXI B R, 048° against 228°)
+- [ ] YAAT-1392 TAXIAUTO reverses where TAXI refuses a turn about, and TAXI F N F2 F echoes as 'Taxi via LF F' (SFO LF hold)
+- [ ] YAAT-1393 Tell the instructor a route continues past a plain HS X cut (TAXI D C HS E RWY 28R)
+- [ ] YAAT-1394 Check LeavesRunwayAtBar does not misread a near-side bar as an exit where a taxiway wraps a threshold (OAK 33 C)
+- [ ] YAAT-1395 Tidy YAAT-1356 follow-ups: overlay stale stamps, the airspace hold's saved stamps, the speed target after an approach clearance
+- [ ] YAAT-1396 Move the TAXI cut helpers out of GroundCommandHandler into Data/Airport and split ResolveTaxiRouteFrom
 
 ## No project
 
