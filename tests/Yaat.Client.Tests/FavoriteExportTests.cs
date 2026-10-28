@@ -434,4 +434,31 @@ public class FavoriteExportTests : IDisposable
         Assert.Equal(FavoriteCommandCategory.Ground, MainViewModel.NormalizeFavoriteCategory(FavoriteCommandCategory.Ground));
         Assert.Equal(FavoriteCommandCategory.Air, MainViewModel.NormalizeFavoriteCategory((FavoriteCommandCategory)999));
     }
+
+    [Fact]
+    public void NormalizeFavoriteCategory_KeepsAll() =>
+        Assert.Equal(FavoriteCommandCategory.All, MainViewModel.NormalizeFavoriteCategory(FavoriteCommandCategory.All));
+
+    [Fact]
+    public void SetZip_RoundTripsTheAllCategory()
+    {
+        FavoriteStore source = NewStore("source");
+        FavoriteSet set = source.CreateNamedSet("Everywhere")!;
+        FavoriteCommand favorite = Fav("Squawk");
+        favorite.Category = FavoriteCommandCategory.All;
+        source.SaveFavorite(favorite);
+        source.AddToSet(set.Id, favorite.Id);
+
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportSet(source, set.Id, buffer);
+        buffer.Position = 0;
+
+        FavoriteStore target = NewStore("target");
+        FavoriteExport.ImportFile(target, $"Everywhere{FavoriteExport.SetExportExtension}", buffer, FavoriteImportMode.Merge);
+
+        FavoriteSet? imported = target.FindNamedSet("Everywhere");
+        Assert.NotNull(imported);
+        FavoriteCommand restored = Assert.Single(target.GetSetFavorites(imported.Id));
+        Assert.Equal(FavoriteCommandCategory.All, restored.Category);
+    }
 }

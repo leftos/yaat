@@ -4,6 +4,7 @@
 
 ### Added
 
+- Favorites have an **All** category, whose favorites show on every tab.
 - In solo sessions, the Session setup popup asks which positions you work below your own; Session settings › Positions you work changes it later.
 - A scenario sidecar can settle the solo student's lowest worked position with `studentLowestPosition`, so the student is not asked.
 - In solo sessions, an IFR departure asks your lowest worked position for its clearance before pushback; aircraft a preset already moved count as cleared.
@@ -50,6 +51,7 @@
 
 ### Fixed
 
+- An open favorites edit or add flyout stays open when the bar refreshes, such as when the selected aircraft is deleted.
 - An arrival exiting SFO 28R onto Q pulls up to hold short of 28L, so a bare `CROSS` works there as it does at K.
 - A bare `TAXI B` given just past a hold-short bar taxis the way the aircraft faces instead of turning back across the runways.
 - `GIVEWAY` holds the aircraft short of where its route meets the traffic's, however far off or crossing at any angle, until the traffic has passed.

@@ -26,6 +26,11 @@ public partial class FavoritesBarView : UserControl
         FavoriteCommandCategory.Airport,
     ];
 
+    /// <summary>The categories a favorite can be given: every palette tab, then All, which shows in each of them.</summary>
+    private static readonly FavoriteCommandCategory[] AssignableCategories = [.. PaletteCategories, FavoriteCommandCategory.All];
+
+    private const string CommandPlaceholder = "Command text (e.g. FH 270, CM 014)";
+
     private static readonly ILogger Log = AppLog.CreateLogger<FavoritesBarView>();
 
     private MainViewModel? _boundVm;
@@ -43,6 +48,8 @@ public partial class FavoritesBarView : UserControl
     private DateTime _lastDragReorderUtc = DateTime.MinValue;
     private bool _suppressNextFavoriteClick;
     private bool _suppressPaletteTabFeedback;
+    private readonly List<Flyout> _openEditorFlyouts = [];
+    private bool _rebuildPending;
 
     private static readonly TimeSpan DragHoldDelay = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan DragReorderDebounce = TimeSpan.FromMilliseconds(175);
@@ -67,6 +74,10 @@ public partial class FavoritesBarView : UserControl
     {
         IsPaletteModeProperty.Changed.AddClassHandler<FavoritesBarView>((view, _) => view.RebuildRoot());
     }
+
+    internal bool IsEditorFlyoutOpen => _openEditorFlyouts.Count > 0;
+
+    internal IReadOnlyList<Flyout> OpenEditorFlyouts => _openEditorFlyouts;
 
     public void OpenAddFlyoutForCommand(string commandText)
     {
@@ -236,6 +247,22 @@ public partial class FavoritesBarView : UserControl
 
     private void RebuildButtons()
     {
+        // A rebuild re-creates the buttons an open editor flyout is anchored to, which closes it and
+        // discards what the user typed (#1354); it runs once the last editor flyout closes. A flyout
+        // whose Closed never arrived is dropped first, so it cannot hold the rebuild back for good.
+        int staleFlyouts = _openEditorFlyouts.RemoveAll(f => !f.IsOpen);
+        if (staleFlyouts > 0)
+        {
+            Log.LogWarning("Dropped {Count} favorites editor flyout(s) that closed without raising Closed", staleFlyouts);
+            _rebuildPending = false;
+        }
+
+        if (IsEditorFlyoutOpen)
+        {
+            _rebuildPending = true;
+            return;
+        }
+
         if (DataContext is not MainViewModel vm)
         {
             return;
@@ -288,7 +315,7 @@ public partial class FavoritesBarView : UserControl
             {
                 var panel = new UniformGrid { Columns = GetPanelColumns(vm), Margin = new Thickness(8) };
 
-                foreach (FavoriteDisplayEntry? entry in vm.DisplayFavorites.Where(f => NormalizeCategory(f.Favorite) == category))
+                foreach (FavoriteDisplayEntry? entry in vm.DisplayFavorites.Where(f => IsShownInTab(f.Favorite, category)))
                 {
                     panel.Children.Add(entry.Favorite.IsSpacer ? CreateBlankSlot(entry) : CreateFavoriteButton(entry));
                 }
@@ -847,7 +874,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        var reorderContext = GetReorderContext(vm, dragged).ToList();
+        var reorderContext = GetReorderContext(vm, GetShowingTab(dragged.Favorite)).ToList();
         int draggedIndex = reorderContext.IndexOf(dragged);
         int targetIndex = reorderContext.IndexOf(target);
         if (draggedIndex < 0 || targetIndex < 0)
@@ -912,7 +939,7 @@ public partial class FavoritesBarView : UserControl
         var commandBox = new TextBox
         {
             Text = prefillCommand,
-            PlaceholderText = "Command text (e.g. FH 270, CM 014)",
+            PlaceholderText = CommandPlaceholder,
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
@@ -971,7 +998,7 @@ public partial class FavoritesBarView : UserControl
             flyout.Hide();
         };
 
-        flyout.ShowAt(target);
+        ShowEditorFlyout(flyout, target);
     }
 
     private void ShowEditFlyout(Button target, FavoriteDisplayEntry entry)
@@ -982,6 +1009,9 @@ public partial class FavoritesBarView : UserControl
         }
 
         FavoriteCommand fav = entry.Favorite;
+        // Read once, when the flyout opens: a selection change while it is open moves the active tab
+        // at once, but the rebuild that shows the new tab waits until the flyout closes.
+        FavoriteCommandCategory showingTab = GetShowingTab(fav);
         var labelBox = new TextBox
         {
             Text = fav.Label,
@@ -991,6 +1021,7 @@ public partial class FavoritesBarView : UserControl
         var commandBox = new TextBox
         {
             Text = fav.CommandText,
+            PlaceholderText = CommandPlaceholder,
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
@@ -1063,20 +1094,20 @@ public partial class FavoritesBarView : UserControl
 
         insertBeforeBtn.Click += (_, _) =>
         {
-            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
+            vm.InsertBlankBefore(entry, CreateBlankFavorite(showingTab, GetButtonHeight(fav)));
             flyout.Hide();
         };
 
         insertAfterBtn.Click += (_, _) =>
         {
-            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
+            vm.InsertBlankAfter(entry, CreateBlankFavorite(showingTab, GetButtonHeight(fav)));
             flyout.Hide();
         };
 
-        moveLeftBtn.Click += (_, _) => MoveFavorite(entry, direction: -1, flyout);
-        moveRightBtn.Click += (_, _) => MoveFavorite(entry, direction: 1, flyout);
+        moveLeftBtn.Click += (_, _) => MoveFavorite(entry, showingTab, direction: -1, flyout);
+        moveRightBtn.Click += (_, _) => MoveFavorite(entry, showingTab, direction: 1, flyout);
 
-        flyout.ShowAt(target);
+        ShowEditorFlyout(flyout, target);
     }
 
     private void ShowEditBlankFlyout(Button target, FavoriteDisplayEntry entry)
@@ -1087,6 +1118,7 @@ public partial class FavoritesBarView : UserControl
         }
 
         FavoriteCommand fav = entry.Favorite;
+        FavoriteCommandCategory showingTab = GetShowingTab(fav);
         var labelBox = new TextBox
         {
             PlaceholderText = "Label (leave blank for spacer)",
@@ -1164,20 +1196,20 @@ public partial class FavoritesBarView : UserControl
 
         insertBeforeBtn.Click += (_, _) =>
         {
-            vm.InsertBlankBefore(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
+            vm.InsertBlankBefore(entry, CreateBlankFavorite(showingTab, GetButtonHeight(fav)));
             flyout.Hide();
         };
 
         insertAfterBtn.Click += (_, _) =>
         {
-            vm.InsertBlankAfter(entry, CreateBlankFavorite(NormalizeCategory(fav), GetButtonHeight(fav)));
+            vm.InsertBlankAfter(entry, CreateBlankFavorite(showingTab, GetButtonHeight(fav)));
             flyout.Hide();
         };
 
-        moveLeftBtn.Click += (_, _) => MoveFavorite(entry, direction: -1, flyout);
-        moveRightBtn.Click += (_, _) => MoveFavorite(entry, direction: 1, flyout);
+        moveLeftBtn.Click += (_, _) => MoveFavorite(entry, showingTab, direction: -1, flyout);
+        moveRightBtn.Click += (_, _) => MoveFavorite(entry, showingTab, direction: 1, flyout);
 
-        flyout.ShowAt(target);
+        ShowEditorFlyout(flyout, target);
     }
 
     private void ShowBatchFlyout(Button target, FavoriteCommandCategory category)
@@ -1220,7 +1252,28 @@ public partial class FavoritesBarView : UserControl
             flyout.Hide();
         };
 
+        ShowEditorFlyout(flyout, target);
+    }
+
+    /// <summary>
+    /// Opens one of the favorite editor flyouts and tracks it while it is open, so a rebuild of the
+    /// buttons it is anchored to waits until it closes instead of closing it under the user.
+    /// </summary>
+    private void ShowEditorFlyout(Flyout flyout, Button target)
+    {
+        flyout.Opened += (_, _) => _openEditorFlyouts.Add(flyout);
+        flyout.Closed += (_, _) => OnEditorFlyoutClosed(flyout);
         flyout.ShowAt(target);
+    }
+
+    private void OnEditorFlyoutClosed(Flyout flyout)
+    {
+        _openEditorFlyouts.Remove(flyout);
+        if ((_openEditorFlyouts.Count == 0) && _rebuildPending)
+        {
+            _rebuildPending = false;
+            RebuildButtons();
+        }
     }
 
     private FavoriteCommandCategory GetActiveAddCategory() => IsPaletteMode ? _selectedPaletteCategory : FavoriteCommandCategory.Air;
@@ -1268,14 +1321,14 @@ public partial class FavoritesBarView : UserControl
         containerPicker.SelectionChanged += () => saveBtn.IsEnabled = containerPicker.SelectedCount > 0;
     }
 
-    private void MoveFavorite(FavoriteDisplayEntry entry, int direction, Flyout flyout)
+    private void MoveFavorite(FavoriteDisplayEntry entry, FavoriteCommandCategory showingTab, int direction, Flyout flyout)
     {
         if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        var orderedFavorites = GetReorderContext(vm, entry).ToList();
+        var orderedFavorites = GetReorderContext(vm, showingTab).ToList();
         int index = orderedFavorites.IndexOf(entry);
         int targetIndex = index + direction;
         if (index < 0 || targetIndex < 0 || targetIndex >= orderedFavorites.Count)
@@ -1296,10 +1349,11 @@ public partial class FavoritesBarView : UserControl
         flyout.Hide();
     }
 
-    private IEnumerable<FavoriteDisplayEntry> GetReorderContext(MainViewModel vm, FavoriteDisplayEntry entry)
+    /// <summary>The favorites a reorder moves among: in palette mode those the given tab shows, in the bar every favorite.</summary>
+    private IEnumerable<FavoriteDisplayEntry> GetReorderContext(MainViewModel vm, FavoriteCommandCategory showingTab)
     {
         return IsPaletteMode
-            ? vm.DisplayFavorites.Where(f => NormalizeCategory(f.Favorite) == NormalizeCategory(entry.Favorite))
+            ? vm.DisplayFavorites.Where(f => IsShownInTab(f.Favorite, showingTab))
             : vm.DisplayFavorites.Where(f => !f.Favorite.IsSpacer);
     }
 
@@ -1383,6 +1437,22 @@ public partial class FavoritesBarView : UserControl
 
     private static FavoriteCommandCategory NormalizeCategory(FavoriteCommand favorite) => MainViewModel.NormalizeFavoriteCategory(favorite.Category);
 
+    private static bool IsShownInTab(FavoriteCommand favorite, FavoriteCommandCategory tab)
+    {
+        FavoriteCommandCategory category = NormalizeCategory(favorite);
+        return (category == tab) || (category == FavoriteCommandCategory.All);
+    }
+
+    /// <summary>
+    /// The palette tab a favorite's button was reached from: its own category, or the active tab for an
+    /// All favorite, which shows in every tab.
+    /// </summary>
+    private FavoriteCommandCategory GetShowingTab(FavoriteCommand favorite)
+    {
+        FavoriteCommandCategory category = NormalizeCategory(favorite);
+        return category == FavoriteCommandCategory.All ? _selectedPaletteCategory : category;
+    }
+
     private static double GetButtonHeight(FavoriteCommand favorite) =>
         ClampDimension(favorite.ButtonHeight, FavoriteCommandDefaults.ButtonHeight, 24, 72);
 
@@ -1421,7 +1491,7 @@ public partial class FavoritesBarView : UserControl
     {
         return new ComboBox
         {
-            ItemsSource = PaletteCategories,
+            ItemsSource = AssignableCategories,
             SelectedItem = selected,
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),

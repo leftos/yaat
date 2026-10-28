@@ -790,6 +790,9 @@ public enum FavoriteCommandCategory
     Ground,
     Vehicle,
     Airport,
+
+    /// <summary>Shown in every palette tab; never a tab of its own.</summary>
+    All,
 }
 
 public static class FavoriteCommandDefaults

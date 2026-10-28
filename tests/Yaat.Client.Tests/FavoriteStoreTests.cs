@@ -70,6 +70,28 @@ public class FavoriteStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveFavorite_AllCategory_RoundTripsThroughDiskByName()
+    {
+        FavoriteStore store = NewStore();
+        var favorite = new FavoriteCommand
+        {
+            Label = "Squawk",
+            CommandText = "SQ",
+            Category = FavoriteCommandCategory.All,
+        };
+
+        store.SaveFavorite(favorite);
+        store.AddToSet(store.GlobalSet.Id, favorite.Id);
+
+        string file = Assert.Single(Directory.GetFiles(_root, $"*{favorite.Id}*.json", SearchOption.AllDirectories));
+        Assert.Contains("\"All\"", File.ReadAllText(file));
+
+        FavoriteStore reloaded = NewStore();
+        FavoriteCommand restored = Assert.Single(reloaded.GetSetFavorites(reloaded.GlobalSet.Id));
+        Assert.Equal(FavoriteCommandCategory.All, restored.Category);
+    }
+
+    [Fact]
     public void FavoriteFileName_CarriesLabelAndId_AndFollowsRename()
     {
         FavoriteStore store = NewStore();
