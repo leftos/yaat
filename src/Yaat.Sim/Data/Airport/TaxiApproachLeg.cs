@@ -99,6 +99,7 @@ public static class TaxiApproachLeg
             HoldShortPoints = route.HoldShortPoints,
             Warnings = route.Warnings,
             ImpliedLanes = route.ImpliedLanes,
+            ClearanceTaxiways = route.ClearanceTaxiways,
             MandatoryConnectorCount = route.MandatoryConnectorCount,
             DestinationParking = route.DestinationParking,
             DestinationSpot = route.DestinationSpot,

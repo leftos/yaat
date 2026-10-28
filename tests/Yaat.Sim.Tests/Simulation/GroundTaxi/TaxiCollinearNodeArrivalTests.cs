@@ -71,8 +71,12 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
         AircraftState aircraft = SpawnAt(layout, start.Position, lineHeading, type);
         engine.World.AddAircraft(aircraft);
 
-        CommandResult taxi = engine.SendCommand(aircraft.Callsign, "TAXI B");
-        Assert.True(taxi.Success, $"'TAXI B' was refused: {taxi.Message}");
+        // Along the occupied B, a node reference names where the taxi ends: B's end ahead.
+        GroundNode bEnd = TaxiStartsOnOccupiedTaxiwayTests.NodesAhead(start, lineHeading.Degrees, "B").Last();
+        string command = $"TAXI B #{bEnd.Id}";
+        output.WriteLine(command);
+        CommandResult taxi = engine.SendCommand(aircraft.Callsign, command);
+        Assert.True(taxi.Success, $"'{command}' was refused: {taxi.Message}");
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         SfoGroundHarness.DumpRoute(output, route);
         AssertRouteRunsThrough(route, start, node, next);

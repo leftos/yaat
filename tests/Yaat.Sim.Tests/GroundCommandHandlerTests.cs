@@ -2461,7 +2461,7 @@ public class GroundCommandHandlerTests
             TestRunwayFactory.Make(designator: "28R", airportId: "OAK", thresholdLat: 37.730, thresholdLon: -122.218, heading: 280)
         );
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
-        var cmd = new TaxiCommand(["A"], [], Expedite: false);
+        var cmd = new TaxiCommand(["A", "#3"], [], Expedite: false);
 
         CommandResult result = GroundCommandHandler.TryTaxi(ac, cmd, layout);
 
@@ -2502,7 +2502,7 @@ public class GroundCommandHandlerTests
         minLayout.Edges.Add(edge);
         minLayout.RebuildAdjacencyLists();
 
-        var cmd2 = new TaxiCommand(["B"], [], Expedite: false);
+        var cmd2 = new TaxiCommand(["B", "#2"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryTaxi(ac, cmd2, minLayout);
 
         Assert.True(result.Success);
@@ -2646,7 +2646,7 @@ public class GroundCommandHandlerTests
 
         // Compound: TAXI A, CROSS 28R — one block, two parallel commands
         var compound = new CompoundCommand([
-            new ParsedBlock(null, [new TaxiCommand(["A"], [], Expedite: false), new CrossRunwayCommand(["28R"], [], Expedite: false)]),
+            new ParsedBlock(null, [new TaxiCommand(["A", "#3"], [], Expedite: false), new CrossRunwayCommand(["28R"], [], Expedite: false)]),
         ]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(
@@ -2672,7 +2672,7 @@ public class GroundCommandHandlerTests
 
         // Issue #279: "TAXI A GIVEWAY UAL999" (no comma) splits into a TAXI + standalone GIVEWAY
         // sharing one block. Applied in source order, GIVEWAY sees the just-assigned taxi route.
-        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("TAXI A GIVEWAY UAL999");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("TAXI A #3 GIVEWAY UAL999");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         CommandResult result = CommandDispatcher.DispatchCompound(

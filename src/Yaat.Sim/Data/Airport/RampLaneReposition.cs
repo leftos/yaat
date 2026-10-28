@@ -347,6 +347,7 @@ public static class RampLaneReposition
             HoldShortPoints = tail.HoldShortPoints,
             Warnings = tail.Warnings,
             ImpliedLanes = tail.ImpliedLanes,
+            ClearanceTaxiways = tail.ClearanceTaxiways,
             MandatoryConnectorCount = tail.MandatoryConnectorCount,
             DestinationParking = tail.DestinationParking,
             DestinationSpot = tail.DestinationSpot,
@@ -608,6 +609,7 @@ public static class RampLaneReposition
             HoldShortPoints = [.. head.HoldShortPoints],
             Warnings = [.. head.Warnings],
             ImpliedLanes = [.. head.ImpliedLanes],
+            ClearanceTaxiways = head.ClearanceTaxiways,
             MandatoryConnectorCount = head.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
@@ -726,6 +728,7 @@ public static class RampLaneReposition
             HoldShortPoints = [.. resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId))],
             Warnings = resolvedRoute.Warnings,
             ImpliedLanes = resolvedRoute.ImpliedLanes,
+            ClearanceTaxiways = resolvedRoute.ClearanceTaxiways,
             MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
@@ -1055,6 +1058,7 @@ public static class RampLaneReposition
             HoldShortPoints = [.. head.HoldShortPoints, .. tail.HoldShortPoints],
             Warnings = [.. head.Warnings.Concat(tail.Warnings).Distinct()],
             ImpliedLanes = [.. head.ImpliedLanes.Concat(tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
+            ClearanceTaxiways = head.ClearanceTaxiways,
         };
         Log.LogInformation(
             "[RampConfined] {Dest}: {Head} to node {Origin}, cutting {Ft:F0} ft across the ramp to node {Target}, then {Tail}",
@@ -1131,6 +1135,7 @@ public static class RampLaneReposition
             HoldShortPoints = [.. head.HoldShortPoints, .. tail.HoldShortPoints],
             Warnings = [.. head.Warnings, .. tail.Warnings],
             ImpliedLanes = [.. head.ImpliedLanes.Concat(tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
+            ClearanceTaxiways = head.ClearanceTaxiways,
             MandatoryConnectorCount = head.MandatoryConnectorCount + tail.MandatoryConnectorCount,
             DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
             DestinationSpot = destination.Type == GroundNodeType.Spot ? destination.Name : null,
@@ -1591,6 +1596,7 @@ public static class RampLaneReposition
             ],
             Warnings = [.. resolved.Warnings, .. join.Tail.Warnings.Where(w => !resolved.Warnings.Contains(w))],
             ImpliedLanes = [.. resolved.ImpliedLanes.Concat(join.Tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
+            ClearanceTaxiways = resolved.ClearanceTaxiways,
             MandatoryConnectorCount = join.Tail.MandatoryConnectorCount,
             DestinationSpot = request.Spot.Name,
             // The lane starts where the tail does, after however many free-space legs lead to it.

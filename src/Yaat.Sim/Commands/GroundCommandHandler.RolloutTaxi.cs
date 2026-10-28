@@ -499,6 +499,9 @@ public static partial class GroundCommandHandler
         // Any route still assigned on the landing rollout is an earlier taxi's (a departure's, never cleared on takeoff): it would
         // hide the stored route from every reader of ActiveOrStoredTaxiRoute.
         aircraft.Ground.AssignedTaxiRoute = null;
+        // As TryTaxiCore sets it: the taxiways the controller named, so an exit taxiway the clearance left implied is not among them.
+        SetClearanceTaxiways(route, inputs.AsCleared, inputs.Options.IsTaxiAuto);
+
         aircraft.Phases!.TaxiRoute = route;
         aircraft.Phases.StoredTaxiDestinationRunway = stored.Taxi.DestinationRunway;
         Log.LogInformation(
@@ -821,6 +824,7 @@ public static partial class GroundCommandHandler
             HoldShortPoints = [.. source.HoldShortPoints.Where(h => barNodeIds.Contains(h.NodeId))],
             Warnings = source.Warnings,
             ImpliedLanes = source.ImpliedLanes,
+            ClearanceTaxiways = source.ClearanceTaxiways,
             MandatoryConnectorCount = source.MandatoryConnectorCount,
             DestinationParking = source.DestinationParking,
             DestinationSpot = source.DestinationSpot,

@@ -1054,6 +1054,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             HoldShortPoints = assigned.HoldShortPoints,
             Warnings = assigned.Warnings,
             ImpliedLanes = assigned.ImpliedLanes,
+            ClearanceTaxiways = assigned.ClearanceTaxiways,
             DestinationParking = assigned.DestinationParking,
             DestinationSpot = assigned.DestinationSpot,
             SpotLineUpPullFromSegment = ((rejoinAt >= 0) && (pullFrom >= onto.Segments.Count)) ? pullFrom : null,

@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests.Phases;
 
@@ -324,6 +325,15 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     /// <summary>The next runway holding position along M: 01R/19L, one 188 ft segment past the exit bar.</summary>
     private const int MNextRunwayBarNodeId = 902;
 
+    /// <summary>
+    /// The first runway bar along M past the runway <paramref name="entryBar"/> and <paramref name="exitBar"/> cross, going on from
+    /// the exit bar: the bar of the next runway M meets.
+    /// </summary>
+    internal static GroundNode NextRunwayBarAlongM(GroundNode entryBar, GroundNode exitBar) =>
+        TaxiStartsOnOccupiedTaxiwayTests
+            .NodesAhead(exitBar, GeoMath.BearingTo(entryBar.Position, exitBar.Position), "M")
+            .First(n => (n.Type == GroundNodeType.RunwayHoldShort) && !Equals(n.RunwayId, exitBar.RunwayId));
+
     /// <summary>A 777-300ER: at 242 ft it does not fit between SFO's 01L and 01R holding positions on M.</summary>
     private const string HeavyType = "B77W";
 
@@ -365,9 +375,11 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "RJAA" },
         };
 
+        // Along M, a node reference names where the taxi ends: the next runway's bar past the crossed runway.
+        GroundNode mEnd = NextRunwayBarAlongM(entryNode, exitNode);
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(Path: ["M"], HoldShorts: [], Expedite: false, DestinationRunway: null),
+            new TaxiCommand(Path: ["M", $"#{mEnd.Id}"], HoldShorts: [], Expedite: false, DestinationRunway: null),
             layout
         );
         Assert.True(result.Success, $"TAXI M failed: {result.Message}");

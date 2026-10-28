@@ -912,6 +912,395 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
+    /// What a route readback reads off a resolved route: the route from <see cref="StartSegment"/>, the taxiway names it
+    /// may say (<see cref="TaxiwayNamed"/>: a leg the clearance left out is driven silently), each named taxiway's turn
+    /// hint, the runway designators the clearance named, which pick the end a two-ended runway is read as, the runways
+    /// crossed "without delay" (<see cref="ExpeditedRunways"/>), and the cleared bars read as uncleared
+    /// (<see cref="UnclearedBars"/>, matched by reference): a bar another command's own clause crosses, which ends the walk
+    /// silently, read neither as a crossing nor as a hold short, with nothing past it.
+    /// </summary>
+    public sealed record TaxiRouteReadbackInputs(
+        TaxiRoute Route,
+        int StartSegment,
+        Func<string, bool> TaxiwayNamed,
+        IReadOnlyDictionary<string, TurnDirection>? TurnHints,
+        IReadOnlyCollection<string> NamedRunways,
+        IReadOnlyCollection<string> ExpeditedRunways,
+        IReadOnlyCollection<HoldShortPoint> UnclearedBars
+    );
+
+    /// <summary>
+    /// A runway crossing a route readback reads: <see cref="Runway"/> the runway ("runway two eight left"), and whether it is
+    /// crossed "without delay".
+    /// </summary>
+    public sealed record RunwayCrossing(string Runway, bool Expedite);
+
+    /// <summary>
+    /// A route's readback clauses in one form, up to the first hold short that stops the aircraft: <see cref="Route"/> the
+    /// legs ("via bravo, charlie", "on runway …"; empty when none is said), <see cref="StartCrossings"/> each runway cleared
+    /// at the bar the walk starts on, <see cref="Crossings"/> each further runway crossed before the stop ("runway two eight
+    /// left"; a runway is read once), <see cref="HoldShort"/> its target ("runway two eight right", "taxiway charlie"), null
+    /// when nothing stops the aircraft on the route, and <see cref="EndsAtUnclearedBar"/>, whether a bar of
+    /// <see cref="TaxiRouteReadbackInputs.UnclearedBars"/> ended the walk with no hold short: nothing past that bar is read,
+    /// neither the issued taxiways past the route's end nor the destination.
+    /// </summary>
+    public sealed record TaxiRouteClauses(
+        string Route,
+        IReadOnlyList<RunwayCrossing> StartCrossings,
+        IReadOnlyList<RunwayCrossing> Crossings,
+        string? HoldShort,
+        bool EndsAtUnclearedBar
+    );
+
+    /// <summary>
+    /// Walks the route's segments in order from <see cref="TaxiRouteReadbackInputs.StartSegment"/>, collecting the taxiway
+    /// legs (consecutive duplicates collapsed, as <see cref="TaxiRouteFormatter.TaxiwayLegs"/> does), every cleared runway
+    /// hold short as a crossing (implicit, auto-crossed or by a <c>CROSS</c>), and stops at the first hold short that is not
+    /// cleared: nothing past it is read (7110.65 3-7-2.b: route, crossings, then the hold short). A bar of
+    /// <see cref="TaxiRouteReadbackInputs.UnclearedBars"/> ends the walk the same way but is not read as a hold short. The
+    /// destination runway's own bar stops nothing here: the runway assignment says it.
+    /// </summary>
+    public static TaxiRouteClauses RenderRouteToFirstStop(TaxiRouteReadbackInputs inputs, bool spoken) =>
+        RenderRouteToFirstStop(inputs, null, false, spoken ? Spoken : Terminal);
+
+    /// <summary>
+    /// <see cref="RenderRouteToFirstStop(TaxiRouteReadbackInputs, bool)"/>, with <paramref name="released"/>, the bar a
+    /// clearance has just released and the hold short phase has not yet marked cleared, read as cleared. With
+    /// <paramref name="stopAtDestinationRunway"/>, an uncleared destination runway bar is a stop like any other: a continuation
+    /// readback has no runway assignment to say it.
+    /// </summary>
+    private static TaxiRouteClauses RenderRouteToFirstStop(
+        TaxiRouteReadbackInputs inputs,
+        HoldShortPoint? released,
+        bool stopAtDestinationRunway,
+        CaptureFormatter fmt
+    )
+    {
+        int start = Math.Max(0, inputs.StartSegment);
+        List<RunwayCrossing> crossings = StartNodeCrossings(inputs, start, released);
+        int startCrossings = crossings.Count;
+        (HoldShortPoint? stop, int lastSegment, bool endsAtUnclearedBar) = WalkToFirstStop(inputs, start, stopAtDestinationRunway, crossings);
+        return new TaxiRouteClauses(
+            RenderRouteLegs(inputs, lastSegment, fmt),
+            [.. crossings.Take(startCrossings).Select(c => c with { Runway = $"runway {fmt.Runway(c.Runway)}" })],
+            [.. crossings.Skip(startCrossings).Select(c => c with { Runway = $"runway {fmt.Runway(c.Runway)}" })],
+            stop is null ? null : RenderStopTarget(stop, inputs.NamedRunways, fmt),
+            endsAtUnclearedBar
+        );
+    }
+
+    /// <summary>
+    /// Whether the walk reads <paramref name="hs"/> as cleared: cleared and not one of
+    /// <see cref="TaxiRouteReadbackInputs.UnclearedBars"/>.
+    /// </summary>
+    private static bool IsReadCleared(TaxiRouteReadbackInputs inputs, HoldShortPoint hs) =>
+        hs.IsCleared && !inputs.UnclearedBars.Any(bar => ReferenceEquals(bar, hs));
+
+    /// <summary>
+    /// The runways cleared at the bar the walk starts on (the aircraft holding short there), which is behind no segment and is
+    /// read only as a crossing; <paramref name="released"/> counts as cleared.
+    /// </summary>
+    private static List<RunwayCrossing> StartNodeCrossings(TaxiRouteReadbackInputs inputs, int start, HoldShortPoint? released)
+    {
+        var crossings = new List<RunwayCrossing>();
+        TaxiRoute route = inputs.Route;
+        if (start >= route.Segments.Count)
+        {
+            return crossings;
+        }
+
+        int startNode = route.Segments[start].FromNodeId;
+        foreach (
+            HoldShortPoint hs in route.HoldShortPoints.Where(h =>
+                (h.NodeId == startNode) && (IsReadCleared(inputs, h) || ReferenceEquals(h, released)) && (h.TargetName is { Length: > 0 })
+            )
+        )
+        {
+            AddCrossing(crossings, hs, inputs);
+        }
+
+        return crossings;
+    }
+
+    /// <summary>
+    /// Walks the route from <paramref name="start"/>, adding each cleared runway bar to <paramref name="crossings"/>, to the first
+    /// uncleared hold short that stops the aircraft: the stop and the index of the segment ending at it, or no stop and the
+    /// route's last segment. A stopping bar of <see cref="TaxiRouteReadbackInputs.UnclearedBars"/> ends the walk with no stop,
+    /// at the segment ending at it, and <c>EndsAtUnclearedBar</c> set.
+    /// </summary>
+    private static (HoldShortPoint? Stop, int LastSegment, bool EndsAtUnclearedBar) WalkToFirstStop(
+        TaxiRouteReadbackInputs inputs,
+        int start,
+        bool stopAtDestinationRunway,
+        List<RunwayCrossing> crossings
+    )
+    {
+        TaxiRoute route = inputs.Route;
+        for (int i = start; i < route.Segments.Count; i++)
+        {
+            int node = route.Segments[i].ToNodeId;
+            foreach (HoldShortPoint hs in route.HoldShortPoints.Where(h => (h.NodeId == node) && (h.TargetName is { Length: > 0 })))
+            {
+                if (IsReadCleared(inputs, hs))
+                {
+                    AddCrossing(crossings, hs, inputs);
+                }
+                else if (stopAtDestinationRunway || (hs.Reason != HoldShortReason.DestinationRunway))
+                {
+                    return inputs.UnclearedBars.Any(bar => ReferenceEquals(bar, hs)) ? (null, i, true) : (hs, i, false);
+                }
+            }
+        }
+
+        return (null, route.Segments.Count - 1, false);
+    }
+
+    /// <summary>
+    /// The readback of a <c>CROSS</c> or <c>RES</c> that releases <paramref name="released"/> on a route that goes on past
+    /// it, read off the route from the segment leaving the bar as a TAXI from there would be: the lead ("cross runway two
+    /// eight right" for the runways released at the bar, "continue taxi" for a taxiway or spot bar), "without delay" for an
+    /// expedited crossing, the legs ("continue taxi via bravo, charlie"; after a "continue taxi" lead, the legs follow it
+    /// directly, and end with <paramref name="issuedBeyondRoute"/>, the issued taxiways past the route's end, when nothing
+    /// stops the aircraft first), the further crossings, and the hold short that next stops the aircraft (7110.65 3-7-2.b order).
+    /// </summary>
+    public static PilotSpeechText RenderRouteContinuationReadback(
+        TaxiRouteReadbackInputs inputs,
+        HoldShortPoint released,
+        bool expedite,
+        IReadOnlyList<string> issuedBeyondRoute
+    ) =>
+        new(
+            RenderRouteContinuationReadback(inputs, released, expedite, issuedBeyondRoute, Terminal),
+            RenderRouteContinuationReadback(inputs, released, expedite, issuedBeyondRoute, Spoken)
+        );
+
+    private static string RenderRouteContinuationReadback(
+        TaxiRouteReadbackInputs inputs,
+        HoldShortPoint released,
+        bool expedite,
+        IReadOnlyList<string> issuedBeyondRoute,
+        CaptureFormatter fmt
+    )
+    {
+        TaxiRouteClauses clauses = RenderRouteToFirstStop(inputs, released, true, fmt);
+        string route = RouteWithIssuedTail(clauses, inputs, issuedBeyondRoute, fmt);
+        string continueTaxi = route.Length == 0 ? ContinueTaxiRelease : $"{ContinueTaxiRelease} {route}";
+        bool crossesAtBar = clauses.StartCrossings.Count > 0;
+        var body = new StringBuilder(crossesAtBar ? $"cross {string.Join(" and ", clauses.StartCrossings.Select(c => c.Runway))}" : continueTaxi);
+        if (expedite)
+        {
+            body.Append(", without delay");
+        }
+
+        if (crossesAtBar && (route.Length > 0))
+        {
+            body.Append($", {continueTaxi}");
+        }
+
+        if (clauses.Crossings.Count > 0)
+        {
+            body.Append($", cross {string.Join(" and ", clauses.Crossings.Select(c => c.Runway))}");
+        }
+
+        if (clauses.HoldShort is { } holdShort)
+        {
+            body.Append($", hold short of {holdShort}");
+        }
+
+        return body.ToString();
+    }
+
+    /// <summary>
+    /// The clauses' route legs, followed by <paramref name="issuedBeyondRoute"/> when nothing stops the aircraft on the route
+    /// ("via bravo, charlie" from a route on B and an issued C past its end); the legs alone after a stop.
+    /// </summary>
+    private static string RouteWithIssuedTail(
+        TaxiRouteClauses clauses,
+        TaxiRouteReadbackInputs inputs,
+        IReadOnlyList<string> issuedBeyondRoute,
+        CaptureFormatter fmt
+    )
+    {
+        if ((clauses.HoldShort is not null) || clauses.EndsAtUnclearedBar || (issuedBeyondRoute.Count == 0))
+        {
+            return clauses.Route;
+        }
+
+        string tail = string.Join(fmt.TaxiSeparator, issuedBeyondRoute.Select(t => fmt.TaxiTurn(t, TurnHintOf(inputs, t))));
+        return clauses.Route.Length == 0 ? $"via {tail}" : $"{clauses.Route}{fmt.TaxiSeparator}{tail}";
+    }
+
+    /// <summary>
+    /// The TAXI readback read off the resolved route (<see cref="RenderRouteToFirstStop"/>) in both forms: the runway
+    /// assignment first ("runway three zero, …"), then the route, the issued taxiways past the route's end
+    /// (<paramref name="issuedBeyondRoute"/>) and the destination when nothing stops the aircraft first, the crossings
+    /// ("cross runway two eight left and runway two eight right"), "without delay", and the hold short. An expedited TAXI's
+    /// one trailing "without delay" covers every crossing, so each joins as a plain one.
+    /// </summary>
+    public static PilotSpeechText RenderTaxiRouteReadback(
+        TaxiCommand taxi,
+        TaxiRouteReadbackInputs inputs,
+        IReadOnlyList<string> issuedBeyondRoute
+    ) => new(RenderTaxiRouteReadback(taxi, inputs, issuedBeyondRoute, Terminal), RenderTaxiRouteReadback(taxi, inputs, issuedBeyondRoute, Spoken));
+
+    private static string RenderTaxiRouteReadback(
+        TaxiCommand taxi,
+        TaxiRouteReadbackInputs inputs,
+        IReadOnlyList<string> issuedBeyondRoute,
+        CaptureFormatter fmt
+    )
+    {
+        TaxiRouteClauses clauses = RenderRouteToFirstStop(inputs, null, false, fmt);
+        string route = RouteWithIssuedTail(clauses, inputs, issuedBeyondRoute, fmt);
+        string body = route.Length == 0 ? "taxi" : $"taxi {route}";
+        if ((clauses.HoldShort is null) && !clauses.EndsAtUnclearedBar)
+        {
+            body += RenderTaxiDestinationClause(taxi, fmt);
+        }
+
+        List<RunwayCrossing> crossings = [.. clauses.StartCrossings, .. clauses.Crossings];
+        foreach (string clause in CrossingClauses(taxi.Expedite ? [.. crossings.Select(c => c with { Expedite = false })] : crossings))
+        {
+            body += $", {clause}";
+        }
+
+        if (taxi.Expedite)
+        {
+            body += ", without delay";
+        }
+
+        if (clauses.HoldShort is { } holdShort)
+        {
+            body += $", hold short of {holdShort}";
+        }
+
+        return taxi.DestinationRunway is { Length: > 0 } rwy ? $"runway {fmt.Runway(rwy)}, {body}" : body;
+    }
+
+    /// <summary>The legs said up to and including segment <paramref name="lastSegment"/>, "via" leading a taxiway first.</summary>
+    private static string RenderRouteLegs(TaxiRouteReadbackInputs inputs, int lastSegment, CaptureFormatter fmt)
+    {
+        List<TaxiRouteFormatter.TaxiwayLeg> legs = TaxiRouteFormatter.TaxiwayLegs(inputs.Route);
+        var said = new List<TaxiRouteFormatter.TaxiwayLeg>();
+        for (int k = 0; k < legs.Count; k++)
+        {
+            if (IsLegSaid(inputs, legs, k, lastSegment) && ((said.Count == 0) || !SameLeg(said[^1], legs[k])))
+            {
+                said.Add(legs[k]);
+            }
+        }
+
+        var parts = new List<string>(said.Count);
+        foreach (TaxiRouteFormatter.TaxiwayLeg leg in said)
+        {
+            string part = leg.IsRunway
+                ? fmt.RunwaySegment(RunwayEndNamed(leg.Name, inputs.NamedRunways))
+                : fmt.TaxiTurn(leg.Name, TurnHintOf(inputs, leg.Name));
+            parts.Add((parts.Count == 0) && !leg.IsRunway ? $"via {part}" : part);
+        }
+
+        return string.Join(fmt.TaxiSeparator, parts);
+    }
+
+    /// <summary>
+    /// Whether leg <paramref name="k"/> of <paramref name="legs"/> is read: it starts by <paramref name="lastSegment"/>, the walk
+    /// has not already passed it (the next leg starts after the walk's start), and it is a runway or a taxiway the readback says.
+    /// </summary>
+    private static bool IsLegSaid(TaxiRouteReadbackInputs inputs, List<TaxiRouteFormatter.TaxiwayLeg> legs, int k, int lastSegment)
+    {
+        int first = inputs.Route.Segments.IndexOf(legs[k].Segment);
+        bool reachedBeforeStart = (k + 1 < legs.Count) && (inputs.Route.Segments.IndexOf(legs[k + 1].Segment) <= inputs.StartSegment);
+        return (first <= lastSegment) && !reachedBeforeStart && (legs[k].IsRunway || inputs.TaxiwayNamed(legs[k].Name));
+    }
+
+    private static bool SameLeg(TaxiRouteFormatter.TaxiwayLeg a, TaxiRouteFormatter.TaxiwayLeg b) =>
+        string.Equals(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+
+    private static TurnDirection? TurnHintOf(TaxiRouteReadbackInputs inputs, string taxiway) =>
+        (inputs.TurnHints is not null) && inputs.TurnHints.TryGetValue(taxiway, out TurnDirection hint) ? hint : null;
+
+    /// <summary>A hold short's target as read: "runway two eight right", "spot one seven", "taxiway charlie", with a merge hold's place.</summary>
+    private static string RenderStopTarget(HoldShortPoint stop, IReadOnlyCollection<string> namedRunways, CaptureFormatter fmt)
+    {
+        string target = stop.TargetName!;
+        string said;
+        if (IsRunwayTarget(target))
+        {
+            said = $"runway {fmt.Runway(RunwayEndNamed(target, namedRunways))}";
+        }
+        else
+        {
+            var parsed = HoldShortTarget.Parse(target);
+            said = parsed.IsSpot ? $"spot {fmt.Spot(parsed.Target)}" : $"taxiway {fmt.Taxiway(parsed.Target)}";
+        }
+
+        return stop.MergeHold is { } merge ? $"{said}, will hold on {fmt.Taxiway(merge.OnTaxiway)} before {fmt.Taxiway(merge.BeforeTaxiway)}" : said;
+    }
+
+    /// <summary>
+    /// The "cross …" clauses of a TAXI route readback, in route order: consecutive crossings not expedited joined with " and "
+    /// in one clause ("cross runway two eight left and runway two eight right"), each expedited runway in its own clause
+    /// ("cross runway two eight right without delay", as a standalone expedited <c>CROSS</c> reads, 7110.65 §3-7-2.j).
+    /// </summary>
+    private static List<string> CrossingClauses(IReadOnlyList<RunwayCrossing> crossings)
+    {
+        var clauses = new List<string>();
+        var plain = new List<string>();
+        foreach (RunwayCrossing crossing in crossings)
+        {
+            if (!crossing.Expedite)
+            {
+                plain.Add(crossing.Runway);
+                continue;
+            }
+
+            FlushPlainCrossings(clauses, plain);
+            clauses.Add($"cross {crossing.Runway} without delay");
+        }
+
+        FlushPlainCrossings(clauses, plain);
+        return clauses;
+    }
+
+    /// <summary>Adds the pending crossings not expedited to <paramref name="clauses"/> as one "cross …" clause, and clears them.</summary>
+    private static void FlushPlainCrossings(List<string> clauses, List<string> plain)
+    {
+        if (plain.Count > 0)
+        {
+            clauses.Add($"cross {string.Join(" and ", plain)}");
+            plain.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Adds a runway hold short's runway, crossed, to <paramref name="crossings"/> once, expedited when one of
+    /// <see cref="TaxiRouteReadbackInputs.ExpeditedRunways"/> names it; any other hold short adds nothing.
+    /// </summary>
+    private static void AddCrossing(List<RunwayCrossing> crossings, HoldShortPoint hs, TaxiRouteReadbackInputs inputs)
+    {
+        if (!IsRunwayTarget(hs.TargetName!))
+        {
+            return;
+        }
+
+        string end = RunwayEndNamed(hs.TargetName!, inputs.NamedRunways);
+        if (!crossings.Any(c => string.Equals(c.Runway, end, StringComparison.OrdinalIgnoreCase)))
+        {
+            bool expedite = inputs.ExpeditedRunways.Any(runway => HoldShortAnnotator.TargetMatches(hs.TargetName, runway));
+            crossings.Add(new RunwayCrossing(end, expedite));
+        }
+    }
+
+    private static bool IsRunwayTarget(string target) => CommandParser.IsRunwayArg(target.Split('/')[0].Trim());
+
+    /// <summary>The end of a runway (one end, or a pair like "28L/10R") the clearance named, else its first end.</summary>
+    private static string RunwayEndNamed(string runway, IReadOnlyCollection<string> namedRunways)
+    {
+        var id = RunwayIdentifier.Parse(runway);
+        return namedRunways.FirstOrDefault(id.Contains) ?? id.End1;
+    }
+
+    /// <summary>
     /// The readback of a taxiway or spot hold short's release — a <c>CROSS</c> naming a taxiway, or a bare <c>RES</c>
     /// pre-clearing the bar ahead: 7110.65 P/CG CONTINUE ("continue taxi"); release per 3-7-2.a.
     /// </summary>

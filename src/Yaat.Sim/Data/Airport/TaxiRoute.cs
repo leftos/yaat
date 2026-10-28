@@ -21,6 +21,14 @@ public sealed class TaxiRoute
     public List<string> ImpliedLanes { get; init; } = [];
 
     /// <summary>
+    /// The taxiways the TAXI clearance named, in clearance order: a <c>CROSS</c> or <c>RES</c> continuation readback names
+    /// these and the <see cref="ImpliedLanes"/>, as the TAXI readback did, and not an unnamed connector the route drives. Null
+    /// when unknown (a synthetic route, a TAXIAUTO, a route restored from a snapshot written without it): every leg is read.
+    /// Empty when the clearance named none. Snapshotted, and carried by every copy of the route.
+    /// </summary>
+    public List<string>? ClearanceTaxiways { get; set; }
+
+    /// <summary>
     /// Number of mandatory connector insertions the resolver had to bridge between cleared taxiways
     /// that shared no direct junction (the "X and Y do not connect directly — taxi via Z" case). A
     /// route that honors the clearance without any blind detour has 0; used by
@@ -208,6 +216,7 @@ public sealed class TaxiRoute
                     HoldShortPoints = [.. HoldShortPoints.Where(hs => Segments.Take(i + 1).Any(s => s.ToNodeId == hs.NodeId))],
                     Warnings = Warnings,
                     ImpliedLanes = ImpliedLanes,
+                    ClearanceTaxiways = ClearanceTaxiways,
                     SpotLineUpPullFromSegment = SpotLineUpPullFromSegment <= i ? SpotLineUpPullFromSegment : null,
                     TurnAboutShape = TurnAboutShape,
                     TurnAboutTargetNodeId = TurnAboutTargetNodeId,
@@ -698,6 +707,7 @@ public sealed class TaxiRoute
             SpotLineUpPullFromSegment = SpotLineUpPullFromSegment,
             TurnAboutShape = TurnAboutShape,
             TurnAboutTargetNodeId = TurnAboutTargetNodeId,
+            ClearanceTaxiways = ClearanceTaxiways is null ? null : [.. ClearanceTaxiways],
         };
 
     /// <summary>
@@ -795,6 +805,7 @@ public sealed class TaxiRoute
             SpotLineUpPullFromSegment = dto.SpotLineUpPullFromSegment,
             TurnAboutShape = dto.TurnAboutShape,
             TurnAboutTargetNodeId = dto.TurnAboutTargetNodeId,
+            ClearanceTaxiways = dto.ClearanceTaxiways is null ? null : [.. dto.ClearanceTaxiways],
         };
     }
 }

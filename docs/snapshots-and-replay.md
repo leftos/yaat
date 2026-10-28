@@ -205,6 +205,8 @@ A restored taxi whose route the current layout cannot rebuild (an archive withou
 
 `TaxiRouteDto` also carries `DestinationParking` / `DestinationSpot` (nullable, additive) so a restored taxi-to-parking still installs `AtParkingPhase` at the end of the route.
 
+`TaxiRouteDto.ClearanceTaxiways` (additive, no schema bump, not written while null) keeps `TaxiRoute.ClearanceTaxiways`, the taxiways the TAXI clearance named, so a `CROSS`/`RES` after a restore still reads back only those and the route's implied lanes; a route restored without it reads every leg it drives past the bar and no issued taxiways past its end.
+
 `TaxiRouteDto.TurnAboutShape` and `TurnAboutTargetNodeId` (additive, no schema bump) keep `TaxiRoute.TurnAboutShape` and `TurnAboutTargetNodeId` across a restore, so a route that turns the aircraft about on its taxiway still reports the pending shape and its target node (`AircraftGroundOps.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId`) while segment 0 is unflown, and a far-end route with no leg back that cleared both at its target restores cleared. Older snapshots read them as `TaxiTurnAboutShape.None` and null.
 
 `GroundNavigator` round-trips the primitive it is playing: `GroundNavigatorDto.Playback` carries the primitive (straight, Bézier or slow turn), its playback progress, the arc-entry blend, the entry-alignment bookkeeping and the from-node of the segment it was captured on.

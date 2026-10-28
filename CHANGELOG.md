@@ -23,6 +23,7 @@
 
 ### Changed
 
+- A taxi readback stops at the first hold short and reads every runway crossing explicitly; a covered `CROSS` joins the taxi's readback.
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The Session setup popup offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
 - In solo sessions, an IFR departure lined up at an untowered field never departs on its own; it waits for release from approach or center.
@@ -52,6 +53,7 @@
 ### Fixed
 
 - An open favorites edit or add flyout stays open when the bar refreshes, such as when the selected aircraft is deleted.
+- A bare `TAXI` naming only the aircraft's own taxiway is refused, instead of crossing the runway it was holding short of.
 - An arrival exiting SFO 28R onto Q pulls up to hold short of 28L, so a bare `CROSS` works there as it does at K.
 - A bare `TAXI B` given just past a hold-short bar taxis the way the aircraft faces instead of turning back across the runways.
 - `GIVEWAY` holds the aircraft short of where its route meets the traffic's, however far off or crossing at any angle, until the traffic has passed.

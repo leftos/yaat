@@ -65,7 +65,8 @@ public class ResumeReadbackTests
 
     /// <summary>
     /// A bare RES that pre-clears the taxiway hold short ahead of a rolling aircraft releases that bar, which the pilot reads
-    /// back as the §3-7 release, "continue taxi" — not "resume taxi", which answers a hold.
+    /// back as the §3-7 release, "continue taxi" — not "resume taxi", which answers a hold — and the queued route goes on along
+    /// A past the bar, so the legs past it follow (the route knows no clearance taxiways, so every leg is read).
     /// </summary>
     [Fact]
     public void Res_Bare_PreClearingTaxiwayHoldShort_ReadsBackContinueTaxi()
@@ -78,8 +79,8 @@ public class ResumeReadbackTests
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(readback);
-        Assert.Equal("continue taxi", readback.Terminal);
-        Assert.StartsWith("continue taxi", readback.Tts);
+        Assert.Equal("continue taxi via A", readback.Terminal);
+        Assert.StartsWith("continue taxi via alpha", readback.Tts);
     }
 
     /// <summary>

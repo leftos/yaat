@@ -36,6 +36,14 @@ public sealed class TaxiRouteDto
     /// a turn about and on older snapshots.
     /// </summary>
     public int? TurnAboutTargetNodeId { get; init; }
+
+    /// <summary>
+    /// The taxiways the TAXI clearance named, in clearance order (<c>TaxiRoute.ClearanceTaxiways</c>). Null when unknown and on
+    /// older snapshots, and not written while null, so a route that does not know them — and every snapshot 0 without a live
+    /// TAXI route — serializes as before; restore then reads every leg. Additive, no schema bump.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ClearanceTaxiways { get; init; }
 }
 
 public sealed class TaxiSegmentDto

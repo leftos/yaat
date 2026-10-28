@@ -112,7 +112,8 @@ public static partial class PilotResponder
     /// (<see cref="HandlerReadback.Command"/>), so the pilot says the goal the handler resolved; any later push reads back
     /// from its parsed form (<see cref="PushReadbackPhrases.FromCommand(PushbackCommand)"/>), and no clause of another type
     /// ever takes it. A bare <c>RES</c> that pre-cleared a taxiway hold short carries one too ("continue taxi"), which
-    /// replaces the clause of the compound's first <c>RES</c>.</para>
+    /// replaces the clause of the compound's first <c>RES</c>. A TAXI's route readback that also reads a crossing a
+    /// <c>CROSS</c> or <c>RES</c> beside it pre-cleared drops that command's own clause (<see cref="HandlerReadback.Covers"/>).</para>
     /// </summary>
     /// <param name="compound">The compound the controller issued.</param>
     /// <param name="result">The dispatch's result: its effective command and its handler-built push readback.</param>
@@ -188,7 +189,11 @@ public static partial class PilotResponder
         // sequential and parallel clauses identically. The terminal (compact), spoken (TTS) and
         // RPO (terminal + diagnostic) bodies are assembled in lock-step from each clause's
         // independently-built forms.
-        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound)) { Chained = IsChained(compound) };
+        IReadOnlyList<ParsedCommand> covered = handlerReadback?.Covers ?? [];
+        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound, covered))
+        {
+            Chained = IsChained(compound, covered),
+        };
         PilotSpeechContext clauseContext = assembly.Chained ? ChainedClauseContext(speechContext) : speechContext;
         var blocks = new List<BlockClauses>();
         for (int blockIndex = 0; blockIndex < compound.Blocks.Count; blockIndex++)
@@ -227,8 +232,14 @@ public static partial class PilotResponder
     /// readback clause (<see cref="HasNoReadbackClause"/>), in one block or several. A single command, conditioned or not, is
     /// one clause.
     /// </summary>
-    private static bool IsChained(CompoundCommand compound) =>
-        compound.Blocks.Sum(block => block.Commands.Count(cmd => !HasNoReadbackClause(cmd))) > 1;
+    private static bool IsChained(CompoundCommand compound, IReadOnlyList<ParsedCommand> covered) =>
+        compound.Blocks.Sum(block => block.Commands.Count(cmd => !HasNoReadbackClause(cmd) && !IsCovered(cmd, covered))) > 1;
+
+    /// <summary>
+    /// Whether <paramref name="cmd"/> is one of the commands the handler's readback already says
+    /// (<see cref="HandlerReadback.Covers"/>).
+    /// </summary>
+    private static bool IsCovered(ParsedCommand cmd, IReadOnlyList<ParsedCommand> covered) => covered.Any(c => ReferenceEquals(c, cmd));
 
     /// <summary>
     /// Whether <paramref name="cmd"/> is read back with no clause at all (acknowledging a pilot's contact, a say-exit-fix
@@ -256,6 +267,12 @@ public static partial class PilotResponder
         public AircraftState Aircraft { get; } = aircraft;
 
         public HandlerReadback? HandlerReadback { get; set; } = handlerReadback;
+
+        /// <summary>
+        /// The issued commands (matched by reference) whose clause the handler's readback already says, one entry per command
+        /// still to drop.
+        /// </summary>
+        public List<ParsedCommand> Covered { get; } = [.. handlerReadback?.Covers ?? []];
 
         public bool WholeReadback { get; } = wholeReadback;
 
@@ -316,6 +333,11 @@ public static partial class PilotResponder
             assembly.ExpectedApproachId = expect.ApproachId;
         }
 
+        if (TakeCovered(issued, assembly))
+        {
+            return null;
+        }
+
         var trace = new ClauseTrace(assembly.WholeReadback);
         PilotSpeechText? clause;
         if ((assembly.HandlerReadback is { } handler) && IsCommandOfType(cmd, handler.Command))
@@ -340,6 +362,22 @@ public static partial class PilotResponder
         assembly.OfferedQuietRows |= trace.OfferedQuietRows;
         assembly.Chained |= trace.Chained;
         return clause;
+    }
+
+    /// <summary>
+    /// Whether the handler's readback already says <paramref name="cmd"/>, an issued command listed in
+    /// <see cref="HandlerReadback.Covers"/>: it is taken off the list and adds no clause.
+    /// </summary>
+    private static bool TakeCovered(ParsedCommand cmd, ReadbackAssembly assembly)
+    {
+        int index = assembly.Covered.FindIndex(c => ReferenceEquals(c, cmd));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        assembly.Covered.RemoveAt(index);
+        return true;
     }
 
     /// <summary>
@@ -371,7 +409,8 @@ public static partial class PilotResponder
     /// Whether <paramref name="compound"/> is one command with no condition: the only readback in which a variant row may place
     /// the callsign itself (<see cref="PilotVariant.CallsignPlaceholder"/>) or be a bare "wilco".
     /// </summary>
-    private static bool IsSingleUnconditionedCommand(CompoundCommand compound) => compound.Blocks is [{ Condition: null, Commands.Count: 1 }];
+    private static bool IsSingleUnconditionedCommand(CompoundCommand compound, IReadOnlyList<ParsedCommand> covered) =>
+        (compound.Blocks is [{ Condition: null } only]) && (only.Commands.Count(cmd => !IsCovered(cmd, covered)) == 1);
 
     /// <summary>
     /// <paramref name="clause"/> with no callsign placeholder left where it cannot be filled. The verbalizer offers rows that

@@ -56,9 +56,11 @@ public class ClearRunwayPhaseFallbackLengthTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KLAX" },
         };
 
+        // Along M, a node reference names where the taxi ends: the next runway's bar past the crossed runway.
+        GroundNode mEnd = CrossingRunwayTailClearTests.NextRunwayBarAlongM(westNode, runwayNode);
         CommandResult result = GroundCommandHandler.TryTaxi(
             aircraft,
-            new TaxiCommand(Path: ["M"], HoldShorts: [], Expedite: false, DestinationRunway: null),
+            new TaxiCommand(Path: ["M", $"#{mEnd.Id}"], HoldShorts: [], Expedite: false, DestinationRunway: null),
             layout
         );
         Assert.True(result.Success, $"TAXI M failed: {result.Message}");

@@ -216,6 +216,10 @@ A handler that resolves something the command text does not say (the goal a `PUS
 
 `PilotResponder.BuildReadbackAsApplied` swaps `Speech` in for the clause of the compound's first command of that type (`IsCommandOfType`, by `CommandDescriber.ToCanonicalType`) and uses it once; a later command of the same type reads back from its own parsed form, and a command of another type never takes it. The type tag is what lets a compound carry a pre-cleared `RES` and a `PUSH` without one clause landing on the other.
 
+A `TAXI` builds its own route readback (`GroundCommandHandler.RouteReadback`, cut at the first hold short that stops the aircraft) and a `CROSS`/`RES` that releases a bar on a route in progress builds the continuation readback (`RouteContinuationReadback`: the crossing and the queued route up to the next stop). `CommandResult.TaxiRouteReadback` also carries what a TAXI's readback was read from (route, layout, the clearance as worded), so the block can read it again.
+
+A block whose `CROSS` or `RES` names only crossings the TAXI readback already reads (`GroundCommandHandler.IsCoveredByRouteReadback`: runway-only, every bar of each named runway cleared on the route and at or before the readback's first stop) gets the TAXI readback rebuilt from the route's final state by `BlockTaxiReadback.Readback`, after the whole block has run, in both block runners (the normal block path and `ApplyTowerDriverSiblings`). The rebuild reads the named runway ends and an expedited `CROSS`'s "without delay", reads a bar only an uncovered command cleared as uncleared (the walk ends silently there and that command keeps its own clause), and lists the covered commands in `HandlerReadback.Covers`; `PilotResponder` drops each covered command's clause (matched by reference).
+
 `CommandResult.PilotUnable` is the refusal counterpart and is a bare `PilotSpeechText`; it needs no tag because a refusal belongs to the one command that failed.
 
 ## Per-domain effect cheat-sheet

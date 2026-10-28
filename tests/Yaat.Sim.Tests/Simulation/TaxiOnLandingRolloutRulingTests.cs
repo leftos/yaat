@@ -435,6 +435,35 @@ public sealed class TaxiOnLandingRolloutRulingTests
     }
 
     /// <summary>
+    /// A TAXI stored on the landing rollout knows the taxiways its clearance named (the runway left out), and the route the
+    /// aircraft starts after the exit keeps them: OAK 28R B738, <c>TAXI C B W W1 30</c> 6 s after touchdown.
+    /// </summary>
+    [Fact]
+    public void Taxi_StoredOnTheRollout_CarriesItsClearanceTaxiwaysIntoTheStartedRoute()
+    {
+        if (Touchdown("OAK", "28R", "B738") is not { } oak)
+        {
+            return;
+        }
+
+        for (int second = 0; second < 6; second++)
+        {
+            oak.Engine.TickOneSecond();
+        }
+
+        AircraftState aircraft = oak.Aircraft;
+        CommandResult taxi = oak.Engine.SendCommand(Arrival, "TAXI C B W W1 30");
+        _output.WriteLine($"TAXI C B W W1 30 -> {taxi.Success} {taxi.Message}");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute stored = aircraft.Phases?.TaxiRoute ?? throw new Xunit.Sdk.XunitException("no taxi route stored on the phase list");
+        Assert.Equal(["C", "B", "W", "W1"], stored.ClearanceTaxiways);
+
+        int started = SfoGroundHarness.TickUntil(oak.Engine, () => aircraft.Ground.AssignedTaxiRoute is not null, 200, null);
+        Assert.True(started > 0, $"the route never joined: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.Equal(["C", "B", "W", "W1"], aircraft.Ground.AssignedTaxiRoute!.ClearanceTaxiways);
+    }
+
+    /// <summary>
     /// A go-around after a rollout TAXI was accepted takes the taxi plan with it: OAK 28R B738 given <c>TAXIAUTO 30</c> at
     /// touchdown, still above its rejected-landing speed, then <c>GA</c>. No route stays stored, <c>CROSS</c> is refused while
     /// airborne, and the next landing on the same phase list exits on its own pick and holds clear.

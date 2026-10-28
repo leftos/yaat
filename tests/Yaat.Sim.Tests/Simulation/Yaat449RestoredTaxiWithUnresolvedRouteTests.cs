@@ -1,11 +1,13 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -44,12 +46,10 @@ public class Yaat449RestoredTaxiWithUnresolvedRouteTests(ITestOutputHelper outpu
         {
             SessionRecording recording = archive.ToBaseSessionRecording();
             TestVnasData.EnsureInitialized();
-            var engine = new SimulationEngine(
-                RecordingGroundData.Evergreen(
-                    "pins what the server does with an archive that has no layout-format version: the restored route does not resolve on today's layout"
-                ),
-                PushPlanStore.CreateShipped()
+            var groundData = RecordingGroundData.Evergreen(
+                "pins what the server does with an archive that has no layout-format version: the restored route does not resolve on today's layout"
             );
+            var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
             engine.Replay(recording, 0);
 
             TimedSnapshot snapshot = Assert.IsType<TimedSnapshot>(archive.ReadSnapshotAt(RestoreTime));
@@ -91,9 +91,19 @@ public class Yaat449RestoredTaxiWithUnresolvedRouteTests(ITestOutputHelper outpu
             Assert.IsType<HoldingInPositionPhase>(ac.Phases?.CurrentPhase);
             Assert.True(ac.IndicatedAirspeed <= HoldArmSpeedKts, $"held at ias={ac.IndicatedAirspeed:F1}, above the {HoldArmSpeedKts} kt arm speed");
 
-            CommandResult taxi = engine.SendCommand(Callsign, "TAXI W");
-            output.WriteLine($"TAXI W: {taxi.Success} {taxi.Message}");
-            Assert.True(taxi.Success, $"TAXI W refused after the restore: {taxi.Message}");
+            // Along the occupied W, a node reference names where the taxi ends: W's end ahead, from the nearest W node ahead.
+            AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(groundData.GetLayout("OAK"));
+            GroundNode wAhead = layout
+                .Nodes.Values.Where(n =>
+                    n.Edges.Any(e => (e is GroundEdge) && e.MatchesTaxiway("W"))
+                    && (GeoMath.AbsBearingDifference(ac.TrueHeading.Degrees, GeoMath.BearingTo(ac.Position, n.Position)) < 90.0)
+                )
+                .MinBy(n => GeoMath.DistanceNm(ac.Position, n.Position))!;
+            GroundNode wEnd = TaxiStartsOnOccupiedTaxiwayTests.NodesAhead(wAhead, ac.TrueHeading.Degrees, "W").Last();
+            string command = $"TAXI W #{wEnd.Id}";
+            CommandResult taxi = engine.SendCommand(Callsign, command);
+            output.WriteLine($"{command}: {taxi.Success} {taxi.Message}");
+            Assert.True(taxi.Success, $"{command} refused after the restore: {taxi.Message}");
             AircraftState taxiing = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
             Assert.IsType<TaxiingPhase>(taxiing.Phases?.CurrentPhase);
             Assert.NotNull(taxiing.Ground.AssignedTaxiRoute);

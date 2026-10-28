@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// Issue #880: an aircraft resting mid-edge on a long straight taxiway, far from any graph node, had its TAXI start
 /// node picked by distance to nodes alone. At KOAK, an aircraft on C's centreline west of H was 333 ft from a node on
 /// the parallel D and 376 ft from the nearest C node, so its route began with a free-space leg onto D. At KSFO the
-/// same pose mid-B started the route on A and "TAXI B" was refused. A taxi starts on the taxiway the aircraft is on.
+/// same pose mid-B started the route on A and a TAXI along the occupied taxiway was refused. A taxi starts on the taxiway the aircraft is on.
 /// </summary>
 public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 {
@@ -3382,7 +3382,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TaxiOnB_MidEdge_Sfo_RouteStartsOnB()
+    public void TaxiAlongB_MidEdge_Sfo_RouteStartsOnB()
     {
         AirportGroundLayout? layout = LoadLayout("SFO");
         if (layout is null)
@@ -3398,18 +3398,18 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         LatLon position = Along(from.Position, to.Position, 0.5);
         AircraftState aircraft = MakeAircraft(layout, position, GeoMath.BearingTo(from.Position, to.Position), "SFO", "B");
 
-        TaxiRoute route = Resolve(layout, aircraft, "TAXI B");
+        TaxiRoute route = Resolve(layout, aircraft, $"TAXI B #{BEndAheadOfLongestB(layout).Id}");
 
         GroundNode firstFrom = FirstLayoutSegment(route).Edge.FromNode;
         Assert.True(OnStraightEdgeOf(firstFrom, "B"), $"route joins the graph at node {firstFrom.Id}, not on B");
     }
 
     /// <summary>
-    /// A bare <c>TAXI B</c> mid-B at SFO, more than the free-space bound from the B node ahead: the route opens with the
-    /// approach leg along B, starting where the aircraft stands.
+    /// A <c>TAXI B</c> along the occupied taxiway (a node reference names B's end ahead, where it ends) mid-B at SFO, more than the
+    /// free-space bound from the B node ahead: the route opens with the approach leg along B, starting where the aircraft stands.
     /// </summary>
     [Fact]
-    public void TaxiOnB_MidEdge_Sfo_ApproachLegStartsAtTheAircraft()
+    public void TaxiAlongB_MidEdge_Sfo_ApproachLegStartsAtTheAircraft()
     {
         if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
@@ -3418,8 +3418,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         AircraftState aircraft = SpawnMidLongestB(ground, out _);
 
-        CommandResult taxi = ground.Engine.SendCommand(aircraft.Callsign, "TAXI B");
-        Assert.True(taxi.Success, $"'TAXI B' was refused: {taxi.Message}");
+        string command = $"TAXI B #{BEndAheadOfLongestB(ground.Layout).Id}";
+        CommandResult taxi = ground.Engine.SendCommand(aircraft.Callsign, command);
+        Assert.True(taxi.Success, $"'{command}' was refused: {taxi.Message}");
         TaxiRoute route = aircraft.Ground.AssignedTaxiRoute!;
         SfoGroundHarness.DumpRoute(output, route);
 
@@ -3433,11 +3434,12 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A bare <c>TAXI B</c> mid-B at SFO, ticked: the aircraft rolls on along B at taxi speed rather than crawling at the
-    /// navigator's reacquire speed toward a route start hundreds of feet ahead, and it does not turn around.
+    /// A <c>TAXI B</c> along the occupied taxiway (a node reference names B's end ahead, where it ends) mid-B at SFO, ticked: the aircraft
+    /// rolls on along B at taxi speed rather than crawling at the navigator's reacquire speed toward a route start
+    /// hundreds of feet ahead, and it does not turn around.
     /// </summary>
     [Fact]
-    public void TaxiOnB_MidEdge_Sfo_KeepsTaxiSpeed()
+    public void TaxiAlongB_MidEdge_Sfo_KeepsTaxiSpeed()
     {
         if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
@@ -3446,8 +3448,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
         AircraftState aircraft = SpawnMidLongestB(ground, out double startHeadingDeg);
 
-        CommandResult taxi = ground.Engine.SendCommand(aircraft.Callsign, "TAXI B");
-        Assert.True(taxi.Success, $"'TAXI B' was refused: {taxi.Message}");
+        string command = $"TAXI B #{BEndAheadOfLongestB(ground.Layout).Id}";
+        CommandResult taxi = ground.Engine.SendCommand(aircraft.Callsign, command);
+        Assert.True(taxi.Success, $"'{command}' was refused: {taxi.Message}");
         SfoGroundHarness.DumpRoute(output, aircraft.Ground.AssignedTaxiRoute!);
 
         SfoGroundHarness.TickUntil(ground.Engine, () => false, TaxiTickSeconds, null);
@@ -3534,6 +3537,44 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         aircraft.TrueTrack = new TrueHeading(startHeadingDeg);
         aircraft.Ground.CurrentTaxiway = "B";
         return aircraft;
+    }
+
+    /// <summary>
+    /// The node a <c>TAXI B</c> from mid-way along the longest straight B edge, facing its second node, ends at: B's end ahead.
+    /// </summary>
+    private GroundNode BEndAheadOfLongestB(AirportGroundLayout layout)
+    {
+        GroundEdge longestB = LongestStraightB(layout);
+        GroundNode end = NodesAhead(longestB.Nodes[1], GeoMath.BearingTo(longestB.Nodes[0].Position, longestB.Nodes[1].Position), "B").Last();
+        output.WriteLine($"B ends ahead at node {end.Id}");
+        return end;
+    }
+
+    /// <summary>
+    /// The nodes along <paramref name="taxiway"/> from <paramref name="start"/> (first) going on toward
+    /// <paramref name="bearingDeg"/>: at each node the straight edge of the taxiway that turns least, never back by more than
+    /// a right angle, until none goes on. Its last node is where a taxi along the taxiway alone ends.
+    /// </summary>
+    internal static IEnumerable<GroundNode> NodesAhead(GroundNode start, double bearingDeg, string taxiway)
+    {
+        var visited = new HashSet<int>();
+        GroundNode? current = start;
+        double bearing = bearingDeg;
+        while ((current is not null) && visited.Add(current.Id))
+        {
+            yield return current;
+            GroundNode from = current;
+            double heading = bearing;
+            current = from
+                .Edges.Where(e => (e is GroundEdge) && e.MatchesTaxiway(taxiway))
+                .Select(e => e.OtherNode(from))
+                .Where(n => !visited.Contains(n.Id) && (GeoMath.AbsBearingDifference(heading, GeoMath.BearingTo(from.Position, n.Position)) < 90.0))
+                .MinBy(n => GeoMath.AbsBearingDifference(heading, GeoMath.BearingTo(from.Position, n.Position)));
+            if (current is not null)
+            {
+                bearing = GeoMath.BearingTo(from.Position, current.Position);
+            }
+        }
     }
 
     /// <summary>SFO's longest straight B edge (no ramp connector, no runway centreline).</summary>

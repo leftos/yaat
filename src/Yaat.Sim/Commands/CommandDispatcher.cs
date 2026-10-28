@@ -48,6 +48,12 @@ public record CommandResult(
     public HandlerReadback? PilotReadback { get; init; }
 
     /// <summary>
+    /// What a TAXI's route readback (<see cref="PilotReadback"/>) is read from, so a block that goes on to pre-clear a hold short
+    /// on the route can read it again from the route's final state (<see cref="BlockTaxiReadback"/>); null for any other result.
+    /// </summary>
+    internal GroundCommandHandler.TaxiRouteReadbackSource? TaxiRouteReadback { get; init; }
+
+    /// <summary>
     /// The pilot's "unable" for a refusal, when the handler builds one — an exit the crew cannot make on the rollout says
     /// <see cref="Pilot.PilotResponder.BuildUnableToExit"/> — in place of the generic <see cref="Pilot.PilotResponder.BuildUnable"/>
     /// over <see cref="Message"/>; null when the generic form applies.
@@ -77,6 +83,117 @@ public sealed record HandlerReadback(CanonicalCommandType Command, PilotSpeechTe
 
     /// <summary>The values of <see cref="Variants"/>' captures, spoken; null when it has none.</summary>
     public IReadOnlyDictionary<string, string>? Captures { get; init; }
+
+    /// <summary>
+    /// The other commands of the transmission this readback already says, as the issued instances: a TAXI's route readback
+    /// rebuilt because a <c>CROSS</c> or <c>RES</c> beside it names only crossings the readback reads
+    /// (<see cref="GroundCommandHandler.IsCoveredByRouteReadback"/>), so each listed command adds no clause of its own. Empty for
+    /// every other readback.
+    /// </summary>
+    public IReadOnlyList<ParsedCommand> Covers { get; init; } = [];
+}
+
+/// <summary>
+/// The TAXI route readback of one block (<see cref="CommandResult.TaxiRouteReadback"/>), read again once the whole block has run
+/// when a <c>CROSS</c> or <c>RES</c> of the block, before or after the TAXI, names only crossings that readback reads
+/// (<see cref="GroundCommandHandler.IsCoveredByRouteReadback"/>): the rebuilt readback reads them from the route's final state,
+/// with the runway ends those commands named, and covers each such command (<see cref="HandlerReadback.Covers"/>).
+/// </summary>
+internal sealed class BlockTaxiReadback
+{
+    private GroundCommandHandler.TaxiRouteReadbackSource? _source;
+    private HandlerReadback? _taxiReadback;
+
+    /// <summary>Takes in a command's <paramref name="result"/>, keeping a TAXI's route readback and what it was read from.</summary>
+    public void Observe(CommandResult result)
+    {
+        if (result.TaxiRouteReadback is { } source)
+        {
+            _source = source;
+            _taxiReadback = result.PilotReadback;
+        }
+    }
+
+    /// <summary>
+    /// The block's readback: <paramref name="readback"/>, or, when commands of <paramref name="block"/> are covered on the route
+    /// the aircraft still has and <paramref name="readback"/> is null, the TAXI's own, or of a covered command's type, the
+    /// TAXI's readback read again from that route, covering those commands: the covered commands' runways read as named, an
+    /// expedited <c>CROSS</c>'s "without delay", and each bar only an uncovered command cleared read as uncleared.
+    /// </summary>
+    public HandlerReadback? Readback(HandlerReadback? readback, IReadOnlyList<ParsedCommand> block, AircraftState aircraft)
+    {
+        if ((_source is not { } source) || !ReferenceEquals(aircraft.Ground.AssignedTaxiRoute, source.Route))
+        {
+            return readback;
+        }
+
+        (List<ParsedCommand> covered, List<HoldShortPoint> uncleared) = Cover(block, source.Route);
+        if ((covered.Count == 0) || !IsReplaceable(readback, covered))
+        {
+            return readback;
+        }
+
+        List<string> runways = [.. covered.SelectMany(command => GroundCommandHandler.CoverableRunways(command) ?? [])];
+        List<string> expedited = [.. covered.SelectMany(GroundCommandHandler.ExpeditedRunways)];
+        return GroundCommandHandler.RebuildRouteReadback(source, runways, expedited, uncleared) is { } rebuilt
+            ? rebuilt with
+            {
+                Covers = covered,
+            }
+            : readback;
+    }
+
+    /// <summary>
+    /// The commands of <paramref name="block"/> the rebuilt readback covers, and the bars it reads as uncleared: those only an
+    /// uncovered command cleared (<see cref="UnclearedBars"/>). Reading a bar as uncleared can stop the readback before another
+    /// command's bar and uncover it in turn, so the two are settled together; the uncleared set only grows, so this ends.
+    /// </summary>
+    private static (List<ParsedCommand> Covered, List<HoldShortPoint> Uncleared) Cover(IReadOnlyList<ParsedCommand> block, TaxiRoute route)
+    {
+        List<HoldShortPoint> uncleared = [];
+        while (true)
+        {
+            List<ParsedCommand> covered = [.. block.Where(command => GroundCommandHandler.IsCoveredByRouteReadback(command, route, uncleared))];
+            List<HoldShortPoint> next = UnclearedBars(block, covered, route);
+            if (next.Count == uncleared.Count)
+            {
+                return (covered, uncleared);
+            }
+
+            uncleared = next;
+        }
+    }
+
+    /// <summary>
+    /// The cleared bars on <paramref name="route"/> of the runways the uncovered <c>CROSS</c> and <c>RES</c> commands of
+    /// <paramref name="block"/> name, other than a bar of a runway a <paramref name="covered"/> command names: the rebuilt readback
+    /// reads them as uncleared, leaving each crossing to the uncovered command's own clause.
+    /// </summary>
+    private static List<HoldShortPoint> UnclearedBars(IReadOnlyList<ParsedCommand> block, List<ParsedCommand> covered, TaxiRoute route)
+    {
+        List<HoldShortPoint> coveredBars = [.. covered.SelectMany(command => BarsNamedBy(command, route))];
+        return
+        [
+            .. block
+                .Where(command => !covered.Any(c => ReferenceEquals(c, command)))
+                .SelectMany(command => BarsNamedBy(command, route))
+                .Where(bar => bar.IsCleared && !coveredBars.Any(c => ReferenceEquals(c, bar)))
+                .Distinct<HoldShortPoint>(ReferenceEqualityComparer.Instance),
+        ];
+    }
+
+    /// <summary>
+    /// The hold shorts on <paramref name="route"/> of the runways <paramref name="command"/> names, when it is a <c>CROSS</c> or
+    /// <c>RES</c>, coverable or not (a <c>CROSS</c> naming a taxiway as well clears its runways' bars all the same).
+    /// </summary>
+    private static IEnumerable<HoldShortPoint> BarsNamedBy(ParsedCommand command, TaxiRoute route) =>
+        (GroundCommandHandler.RunwaysNamedBy(command) ?? []).SelectMany(runway => GroundCommandHandler.BarsOf(route, runway));
+
+    /// <summary>Whether the block's <paramref name="readback"/> may give way to the rebuilt TAXI readback.</summary>
+    private bool IsReplaceable(HandlerReadback? readback, List<ParsedCommand> covered) =>
+        (readback is null)
+        || ReferenceEquals(readback, _taxiReadback)
+        || covered.Any(command => CommandDescriber.ToCanonicalType(command) == readback.Command);
 }
 
 public static class CommandDispatcher
@@ -2300,7 +2417,9 @@ public static class CommandDispatcher
     /// <summary>
     /// After the gate block's tower driver applied: dispatches the other parallel commands in the same block (e.g. CLAND after
     /// EF 28L, or CROSS after TAXI), collecting every per-command message so the RPO sees the full outcome — without this,
-    /// CLAND's "Cleared to land 28L" would be silently dropped and the user would think only the EF took effect.
+    /// CLAND's "Cleared to land 28L" would be silently dropped and the user would think only the EF took effect. A TAXI driver's
+    /// route readback is read again once a <c>CROSS</c> or <c>RES</c> sibling pre-cleared a hold short on its route
+    /// (<see cref="BlockTaxiReadback"/>).
     /// </summary>
     private static CommandResult ApplyTowerDriverSiblings(
         CommandResult towerResult,
@@ -2317,6 +2436,8 @@ public static class CommandDispatcher
             messages.Add(towerResult.Message);
         }
 
+        var taxiReadback = new BlockTaxiReadback();
+        taxiReadback.Observe(towerResult);
         for (int i = 0; i < gateBlock.Commands.Count; i++)
         {
             if (i == driverIdx)
@@ -2345,9 +2466,15 @@ public static class CommandDispatcher
             {
                 messages.Add(subResult.Message);
             }
+
+            taxiReadback.Observe(subResult);
         }
 
-        return messages.Count <= 1 ? towerResult : towerResult with { Message = string.Join(", ", messages) };
+        return towerResult with
+        {
+            Message = messages.Count <= 1 ? towerResult.Message : string.Join(", ", messages),
+            PilotReadback = taxiReadback.Readback(towerResult.PilotReadback, gateBlock.Commands, aircraft),
+        };
     }
 
     /// <summary>What an altitude assignment does to the instrument approach it is given on (<see cref="ApproachAltitudeVerdict"/>).</summary>
@@ -2952,7 +3079,20 @@ public static class CommandDispatcher
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
                 // A RES never carries EXP, so the release ends a route expedite.
                 GroundCommandHandler.EndRouteExpedite(aircraft);
-                return Ok(CommandDescriber.DescribeNatural(hsResume));
+                return Ok(CommandDescriber.DescribeNatural(hsResume)) with
+                {
+                    PilotReadback = GroundCommandHandler.RouteContinuationReadback(
+                        aircraft,
+                        aircraft.Ground.AssignedTaxiRoute,
+                        holdShort.HoldShort,
+                        new GroundCommandHandler.ContinuationClearance(
+                            CanonicalCommandType.Resume,
+                            GroundCommandHandler.RunwaysNamed(hsResume.CrossRunways, hsResume.HoldShorts),
+                            false
+                        ),
+                        groundLayout
+                    ),
+                };
             }
 
             // Helicopter commands
@@ -2986,7 +3126,7 @@ public static class CommandDispatcher
                     && !GroundCommandHandler.IsDetectorStalled(aircraft)
                     && (FollowingPhase.DrivenRouteOf(aircraft) is { IsComplete: false } preClearRoute):
                 // A pre-clearance while rolling releases nothing from a stop, so a route expedite keeps running (YAAT-658 ruling).
-                return GroundCommandHandler.TryPreClearNextTaxiwayHoldShort(aircraft, preClearRoute);
+                return GroundCommandHandler.TryPreClearNextTaxiwayHoldShort(aircraft, preClearRoute, groundLayout);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
             {
                 CommandResult applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
@@ -4093,6 +4233,7 @@ public static class CommandDispatcher
             var messages = new List<string>();
             DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
             HandlerReadback? readback = null;
+            var taxiReadback = new BlockTaxiReadback();
 
             foreach (ParsedCommand? cmd in captured)
             {
@@ -4116,6 +4257,7 @@ public static class CommandDispatcher
                 }
 
                 readback ??= result.PilotReadback;
+                taxiReadback.Observe(result);
 
                 // An APT that switched an airborne aircraft's layout: the rest of the block resolves names there.
                 if (cmd is ChangeDestinationCommand)
@@ -4131,7 +4273,7 @@ public static class CommandDispatcher
 
             CheckVectoringWarning(ac, captured, hadProcedure, hadViaMode);
             string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
-            return new CommandResult(true, msg) { PilotReadback = readback };
+            return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac) };
         };
     }
 

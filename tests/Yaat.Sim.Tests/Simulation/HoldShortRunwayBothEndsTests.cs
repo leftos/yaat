@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -48,8 +49,9 @@ public class HoldShortRunwayBothEndsTests
         && node.Edges.Any(e => e.TaxiwayName == taxiway);
 
     /// <summary>
-    /// A C172 two G nodes north of <paramref name="nearBar"/>, facing it, cleared <c>TAXI G</c>. Each hop takes the
-    /// northernmost G neighbour, away from the runway, and the start touches no runway link (centerline or junction arc).
+    /// A C172 two G nodes north of <paramref name="nearBar"/>, facing it, cleared along G to G's end ahead, named by a node
+    /// reference. Each hop takes the northernmost G neighbour, away from the runway, and the start touches no runway link
+    /// (centerline or junction arc).
     /// </summary>
     private static AircraftState TaxiingSouthOnG(AirportGroundLayout layout, GroundNode nearBar)
     {
@@ -75,7 +77,8 @@ public class HoldShortRunwayBothEndsTests
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
             Phases = new PhaseList(),
         };
-        TaxiCommand taxi = Assert.IsType<TaxiCommand>(CommandParser.Parse("TAXI G").Value);
+        GroundNode gEnd = TaxiStartsOnOccupiedTaxiwayTests.NodesAhead(current, GeoMath.BearingTo(current.Position, nearBar.Position), "G").Last();
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(CommandParser.Parse($"TAXI G #{gEnd.Id}").Value);
         CommandResult taxied = GroundCommandHandler.TryTaxi(ac, taxi, layout);
         Assert.True(taxied.Success, taxied.Message);
         Assert.NotNull(ac.Ground.AssignedTaxiRoute);
