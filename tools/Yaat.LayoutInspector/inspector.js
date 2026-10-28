@@ -3,26 +3,28 @@
  * Yaat.LayoutInspector — interactive HTML behavior.
  * Embedded into the rendered HTML by HtmlRenderer at build time and run
  * after the data blob (window.D) is in scope. Pulls all rendering colors
- * from the same Editorial Forensic palette as inspector.css so the canvas
- * matches the chrome.
+ * from the same palette as inspector.css so the canvas matches the chrome:
+ * graphite #1c2027 base, neutral greys for the unhighlighted layout, colour
+ * only for meaning (cyan #22d3ee route/accent, red #ff5a52 hold shorts,
+ * green #56d364 highlighted set).
  */
 
 // Canvas paint constants mirror inspector.css :root variables. Canvas2D can't
 // read CSS custom properties cheaply at draw time, so we keep a JS copy.
 const PAINT = {
-  bg: "#0c0d10",
-  surface: "#15171a",
-  hairline: "#1f2126",
-  hairlineStrong: "#2a2d33",
-  textFaint: "#828995",
-  accent: "#f0883e",
-  accentSoft: "rgba(240, 136, 62, 0.25)",
-  legendTwy: "#3fb950",
-  legendRwy: "#58a6ff",
-  legendArc: "#8957e5",
-  legendRamp: "#8b949e",
-  legendHs: "#f85149",
-  legendRoute: "#f0883e",
+  bg: "#1c2027",
+  surface: "#242932",
+  hairline: "#2e343e",
+  hairlineStrong: "#3a414c",
+  textFaint: "#a9b0bb",
+  accent: "#22d3ee",
+  accentSoft: "rgba(34, 211, 238, 0.25)",
+  legendTwy: "#b4bac4",
+  legendRwy: "#7e93ad",
+  legendArc: "#b4bac4",
+  legendRamp: "#737a85",
+  legendHs: "#ff5a52",
+  legendRoute: "#22d3ee",
   // Emphasized stroke colors — used for the actively-highlighted set, and for
   // the whole graph when nothing is highlighted (the full-contrast default).
   edgeTwyHi: "#56d364",
@@ -30,11 +32,21 @@ const PAINT = {
   edgeRampHi: "#aab1bd",
   arcHi: "#d2a8ff",
   arcJunctionHi: "#bc8cff",
-  rwSurface: "#16181c",
-  rwSurfaceHl: "#2a2e35",
-  rwCenterline: "#262a31",
-  rwCenterlineHl: "#565d6a",
+  rwSurface: "#3a404a",
+  rwSurfaceHl: "#4a5160",
+  rwCenterline: "#9aa2ae",
+  rwCenterlineHl: "#d0d5dc",
   measureRuler: "#e6db74",
+  dimAlpha: 0.75,
+  dimArcAlpha: 0.5,
+  dimWidth: 1.1,
+  routeHalo: "rgba(34, 211, 238, 0.28)",
+  nodePlain: "#c7ccd4",
+  nodeDimAlpha: 0.45,
+  rwLabel: "#eef0f3",
+  rwLabelFont: "600 11px ",
+  twyLabel: "#e3e6ea",
+  twyLabelHalo: "#1c2027",
 };
 
 const FONT_MONO = "'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace";
@@ -232,6 +244,91 @@ function traceArc(a) {
   });
 }
 
+// Angle of the screen segment (x1,y1)→(x2,y2), folded into ±90° so text drawn along it stays upright.
+function uprightAngle(x1, y1, x2, y2) {
+  let ang = Math.atan2(y1 - y2, x2 - x1);
+  if (ang > Math.PI / 2) ang -= Math.PI;
+  if (ang < -Math.PI / 2) ang += Math.PI;
+  return ang;
+}
+
+// Axis-aligned bounds of a w×h box centred at (cx, cy), rotated by ang and padded by pad px.
+function rotatedBox(cx, cy, w, h, ang, pad) {
+  const c = Math.abs(Math.cos(ang)),
+    s = Math.abs(Math.sin(ang));
+  const hw = (c * w + s * h) / 2 + pad,
+    hh = (s * w + c * h) / 2 + pad;
+  return { x1: cx - hw, y1: cy - hh, x2: cx + hw, y2: cy + hh };
+}
+
+function boxesOverlap(a, b) {
+  return a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+}
+
+// Groups the labellable taxiway edges by name: each name's text width and the edges long enough
+// on screen to carry it, longest first. Names are sorted so the placement order is stable.
+function taxiwayLabelQueues() {
+  const byName = new Map();
+  D.edges.forEach((e) => {
+    if (!e.twy || e.rwy || e.ramp) return;
+    const na = nodeMap[e.a],
+      nb = nodeMap[e.b];
+    if (!na || !nb) return;
+    if (!byName.has(e.twy)) byName.set(e.twy, { name: e.twy, width: ctx.measureText(e.twy).width, cands: [], placed: [] });
+    const q = byName.get(e.twy);
+    const [x1, y1] = toScreen(na.lat, na.lon);
+    const [x2, y2] = toScreen(nb.lat, nb.lon);
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len >= q.width + 8) q.cands.push({ x1, y1, x2, y2, len });
+  });
+  const queues = Array.from(byName.values()).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  queues.forEach((q) => q.cands.sort((a, b) => b.len - a.len));
+  return queues;
+}
+
+// Draws taxiway names along their edges, thinned greedily: runway label boxes are already in
+// placedBoxes, then each name's candidates go round-robin, longest first. A label is drawn only
+// inside the canvas, clear of every placed box, and 250 px from every placed label of its name.
+function drawTaxiwayLabels(haveAnyHl, placedBoxes) {
+  if (scale < 1.5) return;
+  const px = Math.min(13, Math.max(9, Math.round(9 + 1.2 * Math.log2(scale))));
+  ctx.save();
+  ctx.font = "600 " + px + "px " + FONT_MONO;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  const queues = taxiwayLabelQueues();
+  const depth = queues.reduce((max, q) => Math.max(max, q.cands.length), 0);
+  for (let i = 0; i < depth; i++) {
+    queues.forEach((q) => {
+      const c = q.cands[i];
+      if (!c) return;
+      const cx = (c.x1 + c.x2) / 2,
+        cy = (c.y1 + c.y2) / 2;
+      if (q.placed.some((p) => Math.hypot(p[0] - cx, p[1] - cy) < 250)) return;
+      const ang = uprightAngle(c.x1, c.y1, c.x2, c.y2);
+      const box = rotatedBox(cx, cy, q.width, px, ang, 3);
+      if (box.x1 < 0 || box.y1 < 0 || box.x2 > W || box.y2 > H) return;
+      if (placedBoxes.some((b) => boxesOverlap(b, box))) return;
+      placedBoxes.push(box);
+      q.placed.push([cx, cy]);
+      const hl = twyMatch(q.name);
+      ctx.globalAlpha = haveAnyHl && !hl ? PAINT.dimAlpha : 1;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-ang);
+      ctx.strokeStyle = PAINT.twyLabelHalo;
+      ctx.lineWidth = 3;
+      ctx.strokeText(q.name, 0, 0);
+      ctx.fillStyle = hl ? PAINT.edgeTwyHi : PAINT.twyLabel;
+      ctx.fillText(q.name, 0, 0);
+      ctx.restore();
+    });
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = PAINT.bg;
@@ -241,6 +338,8 @@ function draw() {
   // default view reads at full contrast, and selecting something is what drops
   // the rest back to the de-emphasized style.
   const haveAnyHl = hasHl();
+  // Screen boxes of the labels drawn so far, so taxiway labels never overlap them.
+  const placedBoxes = [];
 
   // 1. Runway surfaces
   D.runways.forEach((r) => {
@@ -261,16 +360,18 @@ function draw() {
     drawLine(x1, y1, x2, y2);
     ctx.setLineDash([]);
     // Label
-    ctx.fillStyle = PAINT.textFaint;
-    ctx.font = "10px " + FONT_MONO;
+    ctx.fillStyle = PAINT.rwLabel;
+    ctx.font = PAINT.rwLabelFont + FONT_MONO;
     ctx.textAlign = "center";
     const mx = (x1 + x2) / 2,
       my = (y1 + y2) / 2;
+    const ly = my - widthPx / 2 - 6;
+    const ang = uprightAngle(x1, y1, x2, y2);
+    const m = ctx.measureText(r.name);
+    // Twice the font height: the anchor is the baseline or the middle depending on ctx state.
+    placedBoxes.push(rotatedBox(mx, ly, m.width, 2 * (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent), ang, 0));
     ctx.save();
-    ctx.translate(mx, my - widthPx / 2 - 6);
-    let ang = Math.atan2(y1 - y2, x2 - x1);
-    if (ang > Math.PI / 2) ang -= Math.PI;
-    if (ang < -Math.PI / 2) ang += Math.PI;
+    ctx.translate(mx, ly);
     ctx.rotate(-ang);
     ctx.fillText(r.name, 0, 0);
     ctx.restore();
@@ -289,9 +390,9 @@ function draw() {
       if (!na || !nb) return;
       const [x1, y1] = toScreen(na.lat, na.lon);
       const [x2, y2] = toScreen(nb.lat, nb.lon);
-      ctx.globalAlpha = 0.16;
+      ctx.globalAlpha = PAINT.dimAlpha;
       ctx.strokeStyle = e.rwy ? PAINT.legendRwy : e.ramp ? PAINT.legendRamp : PAINT.legendTwy;
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = PAINT.dimWidth;
       if (e.rwy) ctx.setLineDash([6, 4]);
       else ctx.setLineDash([]);
       drawLine(x1, y1, x2, y2);
@@ -302,9 +403,9 @@ function draw() {
     // 3. De-emphasized arcs
     D.arcs.forEach((a) => {
       if (isHlArc(a)) return;
-      ctx.globalAlpha = 0.16;
+      ctx.globalAlpha = PAINT.dimArcAlpha;
       ctx.strokeStyle = PAINT.legendArc;
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = PAINT.dimWidth;
       ctx.setLineDash([4, 3]);
       traceArc(a);
       ctx.stroke();
@@ -340,6 +441,9 @@ function draw() {
     ctx.stroke();
     ctx.setLineDash([]);
   });
+
+  // 5b. Taxiway names, above the graph and below the route overlay
+  drawTaxiwayLabels(haveAnyHl, placedBoxes);
 
   // 6. Route overlay
   if (D.route.length >= 2) {
@@ -381,7 +485,7 @@ function draw() {
     }
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(240, 136, 62, 0.25)";
+    ctx.strokeStyle = PAINT.routeHalo;
     ctx.lineWidth = 6;
     routePath();
     ctx.strokeStyle = PAINT.legendRoute;
@@ -421,8 +525,8 @@ function draw() {
     if (haveAnyHl && !isImportant && !onHlTwy && !n.ann) return;
 
     const r = isImportant ? (explicitlyHl ? 5 : 3) : 1.8;
-    const color = isHS ? PAINT.legendHs : isSpot ? PAINT.legendTwy : isPark ? PAINT.legendRwy : "#d29922";
-    ctx.globalAlpha = isImportant || onHlTwy ? 0.9 : haveAnyHl ? 0.3 : 0.6;
+    const color = isHS ? PAINT.legendHs : isSpot ? PAINT.legendTwy : isPark ? PAINT.legendRwy : PAINT.nodePlain;
+    ctx.globalAlpha = isImportant || onHlTwy ? 0.9 : haveAnyHl ? PAINT.nodeDimAlpha : 0.6;
     ctx.beginPath();
     ctx.arc(x, y, Math.max(r, (r * Math.min(scale, 3)) / 3), 0, Math.PI * 2);
     if (isImportant) {

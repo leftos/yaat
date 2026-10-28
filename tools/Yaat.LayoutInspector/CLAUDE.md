@@ -75,6 +75,8 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 
 Pan/zoom state is persisted in `location.hash` — refreshing the page preserves the current view.
 
+The page draws the unhighlighted layout in neutral greys on a graphite background and keeps colour for meaning: the cyan route, red hold shorts, the green highlighted set. Every paint value is a key of `PAINT` in `inspector.js`, and the CSS `--legend-*` variables match `PAINT.legend*`. From zoom 1.5× the map labels taxiways along their edges, thinned so no two labels overlap and a name repeats only 250 px apart.
+
 ### Tick-table (text analysis of a TickRecorder JSON recording)
 | Flag | Purpose |
 |------|---------|

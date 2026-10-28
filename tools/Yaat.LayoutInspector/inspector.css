@@ -1,33 +1,34 @@
 /*
- * Yaat.LayoutInspector — interactive HTML stylesheet ("Editorial Forensic")
+ * Yaat.LayoutInspector — interactive HTML stylesheet
  *
- * Single-accent palette (orange #f0883e) on warm-black, pairing Manrope for
- * navigation/labels with JetBrains Mono for every cell of data. Borders are
- * hairline (#1f2126) and resolve to the accent on focus/hover so the UI
- * reads as instrumentation rather than chrome. Inlined into the rendered
- * HTML by HtmlRenderer at build time — see GetTemplate().
+ * Graphite #1c2027 base with neutral greys for the unhighlighted layout;
+ * colour carries meaning only: cyan #22d3ee for the route and accent, red
+ * #ff5a52 for hold shorts, green #56d364 for the highlighted set. Manrope
+ * for navigation/labels, JetBrains Mono for every cell of data. Borders are
+ * hairline (#2e343e) and resolve to the accent on focus/hover. Inlined into
+ * the rendered HTML by HtmlRenderer at build time — see GetTemplate().
  */
 
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg: #0c0d10;
-  --surface: #15171a;
-  --surface-tint: rgba(21, 23, 26, 0.92);
-  --hairline: #1f2126;
-  --hairline-strong: #2a2d33;
+  --bg: #1c2027;
+  --surface: #242932;
+  --surface-tint: rgba(36, 41, 50, 0.93);
+  --hairline: #2e343e;
+  --hairline-strong: #3a414c;
   --text: #edeef1;
   --text-muted: #aab1bd;
-  --text-faint: #828995;
-  --accent: #f0883e;
-  --accent-soft: rgba(240, 136, 62, 0.15);
+  --text-faint: #a9b0bb;
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.15);
   --danger: #e5534b;
-  --legend-twy: #3fb950;
-  --legend-rwy: #58a6ff;
-  --legend-arc: #8957e5;
-  --legend-ramp: #8b949e;
-  --legend-hs: #f85149;
-  --legend-route: #f0883e;
+  --legend-twy: #b4bac4;
+  --legend-rwy: #7e93ad;
+  --legend-arc: #b4bac4;
+  --legend-ramp: #737a85;
+  --legend-hs: #ff5a52;
+  --legend-route: #22d3ee;
   --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
 }
