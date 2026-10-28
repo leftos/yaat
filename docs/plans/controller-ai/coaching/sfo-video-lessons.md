@@ -77,7 +77,7 @@ Rules a Ground brain applies at any airport; SFO is where the video shows them.
 | S19 | Release times in 28/01: park the aircraft on M1 while the others take 1L at M; for waits over about 15 minutes, hold on L short of M2 facing south, which closes the A, L, F route. | 1:01:58–1:03:33 | Video; the layout has no L/M2 junction (tests F-3) | tests G1 |
 | S20 | Split ground only in 28/01, and in 28/01 open GC2 rather than a separate gate hold. GC1 has movement areas north of gate D8 (not D8 or F1) and keeps aircraft on standard routes; GC2 has D8 south including F1, and does the F1 split, the runway sequencing and release times. Local sends arrivals exiting the 28s west of D that park in GC2's area to GC1. The video describes the same split with the position numbers reversed. | 1:06:42–1:07:44 | SOP 2-1.i, 4-4.h, 6-1.c, 7-1.b–d, 7-2 | |
 | S21 | Gate hold is considered when the departure line passes a marker, as a guideline: past G on B (1L) or M2 on A (1R) in 28/01 and 01/01; past L on F/C in 28/28; past Z1/C3 on Z in 19/10; past B1 on B or Z/R on C in 10/10; past C on E in 19/19. | — | SOP 6-1.d.ii; AIM 4-3-15.a (gate hold for delays over 15 minutes) | tests G3 |
-| S22 | Airlines by gate area, for scenario realism: Southwest, SkyWest, Alaska and American in the Yankee area; Delta at C; United and Southwest at D; United and United Express from E to G; international carriers (Hawaiian, Aeromexico, Avianca) at A; United heavies, Lufthansa and probably ANA at G. | 0:10:59–0:12:33 | Video (gate moves were in progress at recording) | scenario data, not the brain |
+| S22 | Airlines by gate area, for scenario realism: Southwest, SkyWest, Alaska and American in the Yankee area; Delta at C; United and Southwest at D; United and United Express from E to G; international carriers (Hawaiian, Aeromexico, Avianca) at A; United heavies, Lufthansa and ANA at G. | 0:10:59–0:12:33 | Video (gate moves were in progress at recording) | scenario data, not the brain |
 | S23 | G ramp inbounds: when the spot 8 and spot 9 lines are both occupied, the gates behind them are unreachable; hold arrivals short of B4, then bring them in via B4 or B5 once the lines clear. | 0:08:51–0:09:23 | Video; Ramp SOP 3-4.b, 3-4.e | |
 
 ## Where the video and the SOPs disagree
@@ -107,7 +107,7 @@ The Ramp Tower SOP (September 2025) and the ATCT SOP's ramp entry/exit procedure
 | ego gates, Echko | E gates, taxiway E | context |
 | Norcow | NorCal (NCT) | context |
 | Taco | TACA (Avianca group) | context |
-| Honapon | probably ANA, unconfirmed | context |
+| Honapon | ANA (All Nippon Airways) | owner |
 
 ## Sim support these lessons need
 

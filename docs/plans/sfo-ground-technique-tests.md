@@ -47,7 +47,7 @@ Legend: **have** = command surface exists (test is a new pin at SFO); **probe** 
 | A6 | "Push back your discretion, hold short of Alpha" (SOP 3-5.b) | none — no `PUSH … HS A` | **gap** | grammar: a PUSH that stops clear of a named taxiway; until then a plain `PUSH` (≈1.3 lengths) is the stand-in |
 | A7 | "Push deeper" onto A so the D junction stays clear for an arrival (29:18) | none — `PUSH A` has no distance/clear-of qualifier | **gap** | grammar candidate `PUSH A CLR D`; note only |
 | A8 | Push guaranteed-Alpha gates (C10/C11, D6–D11, E12/E13, F10–F20; 09:42) | `PUSH A` from C11, D8, E13T, F10 | have | rows in `TaxiCoverageData.SfoSmoke` with a push preamble, or a `[Theory]` over the gate list |
-| A9 | Supers in/out of the A ramp via spot 1 (video 26:29) vs SOP 3-5.h.i (ADG-VI enter via spot 10; ADG-IV/V for B27 via spot 2) | `TAXI … $10 @G…` / `$2 @B27` | FK | SOP wins; a pilot "unable spot 1" for an A388 is a facility rule |
+| A9 | Supers in/out of the A ramp via spot 1 on M1/M4 (video 26:29; Ramp SOP 2-2.c); into the G ramp via the spot 10 line (SOP 3-5.h.i, Ramp SOP 3-2.a; spot 10 is a G-ramp spot); ADG-IV/V for B27 via spot 2 (SOP 3-5.h.ii) | `TAXI … $1 @A…` / `TAXI … $10 @G…` / `$2 @B27` | FK | the video and both SOPs agree (`controller-ai/coaching/sfo-video-lessons.md` S6) |
 
 ### B. 28/1 routes (video 12:28–23:05; SOP 3-2.d–f, 3-3, 3-4.b.i, 3-4.c, 4-8.b)
 
