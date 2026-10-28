@@ -28,6 +28,10 @@ internal static class ModuleInit
         string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         Yaat.Sim.Testing.TestVnasData.SetTestDataDir(testDataDir);
 
+        // Load the aircraft tables before any test runs: AircraftCategorization.Categorize returns Jet for an empty table,
+        // so a test that reads a category before its harness loads them would otherwise stage every type as a jet.
+        Yaat.Sim.Testing.TestVnasData.EnsureAircraftDataInitialized();
+
         // CIFP is a precondition for the same reason NavData is: procedures, approaches and SIDs
         // come from it, and without them the tests that exercise them return early into a green run.
         //
