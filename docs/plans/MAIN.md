@@ -90,7 +90,6 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [/] YAAT-1356 DVIA and CVIA keep a speed assigned before them instead of resuming published speeds (7110.65 5-7-1) · release vNext
 - [ ] YAAT-1358 CM/DM silently end an assigned speed: DAL334 SPD 350 then DM 290 flew its default 297 · release vNext
 - [ ] YAAT-1362 Refuse a speed past the type's Vmo/Mmo or below its minimum as unable, naming the speed it can fly · release vNext
 - [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
@@ -268,6 +267,9 @@
 - [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
 - [ ] YAAT-1355 Judge touch-and-gos and low approaches as departures in the solo evaluator; one CTO departing-ahead policy
 - [ ] YAAT-1377 Judge an airborne option's opposite direction by track, not heading, before blocking a takeoff as head-on
+- [ ] YAAT-1399 Decide whether route-incomplete holds get the firm-rate and unable handling of other holds (TaxiingPhase.cs:1054, :1138)
+- [ ] YAAT-1400 Fly stops at makeable holds on the sub-ticked stop curve so arrival does not snap up to 3 kt to zero
+- [ ] YAAT-1405 Decide what a no-destination TAXI does when no spot fits between a runway hold line and the next intersection (OAK bar 513 C1 C)
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -897,7 +899,6 @@
 - [ ] YAAT-1323 Pin the taxi readback cover rule's edge cases: shared stop node, same runway twice, same-type uncovered readback
 - [ ] YAAT-1324 Tell joined vEDST clients the session went inactive on a repeated StartSession
 - [ ] YAAT-1364 Warn when the server is older than the client instead of a bare 'Failed to invoke' hub error
-- [ ] YAAT-1365 Cancel a previously assigned speed on an approach clearance (7110.65 5-7-1; CAPP after SPD 210 keeps 210) · release vNext
 - [ ] YAAT-1366 Fly a STAR's published speeds without DVIA (OAKES3 arrival crosses GRUDG..FFIST at 280 kt)
 - [ ] YAAT-1367 Leave published-speed slowdowns to the planner: DVIA/CVIA slow at once; planner decels late from 290 kt
 - [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
@@ -910,13 +911,17 @@
 - [ ] YAAT-1386 Stop a crossing restriction's speed revert overwriting a newer SPD or RNS when the fix is passed
 - [ ] YAAT-1387 Keep a route search headingless across a zero-length first edge instead of judging the next turn against 0°
 - [ ] YAAT-1388 Brake a ground yielder at the firm rate instead of an unfloored dead stop when a conflict rule binds
-- [ ] YAAT-1390 Let LayoutInspector parse an airport with its tower-cab videomap so it shows the snapped graph · release vNext
 - [ ] YAAT-1391 Stop a follower planning a head-on merge at the end of its lead's route (OAK TAXI B R, 048° against 228°)
 - [ ] YAAT-1392 TAXIAUTO reverses where TAXI refuses a turn about, and TAXI F N F2 F echoes as 'Taxi via LF F' (SFO LF hold)
 - [ ] YAAT-1393 Tell the instructor a route continues past a plain HS X cut (TAXI D C HS E RWY 28R)
 - [ ] YAAT-1394 Check LeavesRunwayAtBar does not misread a near-side bar as an exit where a taxiway wraps a threshold (OAK 33 C)
 - [ ] YAAT-1395 Tidy YAAT-1356 follow-ups: overlay stale stamps, the airspace hold's saved stamps, the speed target after an approach clearance
 - [ ] YAAT-1396 Move the TAXI cut helpers out of GroundCommandHandler into Data/Airport and split ResolveTaxiRouteFrom
+- [ ] YAAT-1397 Make AircraftCategorization.Categorize fail loudly on unloaded aircraft tables instead of returning Jet
+- [ ] YAAT-1401 Make CVIA in a SID's climb window supersede crossing speeds on the phase's pending route, not only the live route
+- [ ] YAAT-1402 Find why an OAKES3 arrival climbs to 18,100 ft before GRUDG after CFIX GRUDG 110 230 and a deferred CAPP I30
+- [ ] YAAT-1403 Keep approach transition and last STAR speed true after a later DCT or approach clearance (YAAT-1356 review)
+- [ ] YAAT-1404 Fill ApproachClearance.TransitionName when loading a pre-37 snapshot mid-approach
 
 ## No project
 
