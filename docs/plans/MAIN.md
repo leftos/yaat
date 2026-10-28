@@ -17,6 +17,8 @@
   - [ ] YAAT-1380 Stop an OAK HOLD near a snapped bar from running the aircraft past the hold line · release vNext
   - [ ] YAAT-1382 Give OAK's C route onto 15/33 a hold-short bar at the snapped 33 threshold · release vNext
   - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
+  - [ ] YAAT-1406 Give a TAXI on a fillet arc ending at a runway bar the approach leg, so the nose stops at the line
+  - [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -90,8 +92,7 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [ ] YAAT-1358 CM/DM silently end an assigned speed: DAL334 SPD 350 then DM 290 flew its default 297 · release vNext
-- [ ] YAAT-1362 Refuse a speed past the type's Vmo/Mmo or below its minimum as unable, naming the speed it can fly · release vNext
+- [/] YAAT-1362 Refuse a speed past the type's Vmo/Mmo or below its minimum as unable, naming the speed it can fly · release vNext
 - [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
 - [ ] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP
@@ -932,3 +933,9 @@
 - [ ] YAAT-1346 Solo scoring counts a tail-inside after-exit hold as clear of the runway
 - [ ] YAAT-1347 Measure a shaped onward segment by its polyline in a crossing's route-own tail clearance
 - [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
+- [ ] YAAT-1408 Read back 'holding short of X' when a bare TAXI holds the aircraft where it stands
+- [ ] YAAT-1409 Judge a taxiway hold short unable against its painted marking, not the setback stop
+- [ ] YAAT-1410 Recompute an HS under FOLLOWG against the route the aircraft is driving, not the stale assigned one
+- [ ] YAAT-1411 Slow to 250 before crossing 10,000 ft in a descent, not a few hundred feet below it
+- [ ] YAAT-1412 In solo sessions, a pilot checking in states an assigned speed or vector (AIM 4-4-12.l) · release vNext+1
+- [ ] YAAT-1413 Keep a slower assigned speed in a hold instead of accelerating to the maximum holding speed
