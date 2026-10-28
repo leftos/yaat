@@ -48,9 +48,6 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     /// <summary>The arrival landing KOAK 28R in <see cref="OakRolloutTaxiCDF_ReadsBackTheCrossingBeforeTheEnd"/>.</summary>
     private const string RolloutArrival = "ARR1";
 
-    /// <summary>KOAK's J hold short on D, passed before the 15/33 crossing on <c>TAXI D F HS J</c> from <see cref="OakDJJunctionNode"/>.</summary>
-    private const int OakJHoldShortOnDNode = 1171;
-
     private static double ClearFt(string aircraftType) => (AircraftLength.ResolveFt(aircraftType) / 2.0) + RunwayTailClearance.MarginFt;
 
     /// <summary>
@@ -371,8 +368,14 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         }
 
         HoldShortPoint j = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.ExplicitHoldShort);
-        Assert.Equal(OakJHoldShortOnDNode, j.NodeId);
         Assert.Equal("J", j.TargetName);
+        HoldShortPoint crossing = Assert.Single(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.RunwayCrossing);
+        int jAt = route.Segments.FindIndex(s => s.FromNodeId == j.NodeId);
+        int crossingAt = route.Segments.FindIndex(s => s.FromNodeId == crossing.NodeId);
+        Assert.True(
+            (jAt >= 0) && (jAt < crossingAt),
+            $"the J hold short #{j.NodeId} (segment {jAt}) does not bind before the 15/33 crossing bar #{crossing.NodeId} (segment {crossingAt})"
+        );
         AssertEndsClearPast(route, layout, "33", "F", "C172");
         Assert.Contains("route ends on F clear of 15/33", result.Message);
     }

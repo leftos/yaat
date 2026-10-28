@@ -38,6 +38,12 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     private const int MaxTickSeconds = 120;
 
     /// <summary>
+    /// How far (ft) east of the collinear B edges' end node the painted-map snap seats the 28L/10R bar on B; without the
+    /// map the bar was that node itself.
+    /// </summary>
+    private const double PaintedBarPastStartFt = 5.0;
+
+    /// <summary>
     /// Started from rest 30 ft west of the 28L/10R bar on B, on the edge running to the collinear node, the C172 holds its
     /// 20 kt taxi speed well before the arrival window. The B738 is still accelerating toward its 30 kt there (about 27 kt): an
     /// accelerating aircraft only gains speed through a node on a straight line, so the speed it held entering the window still
@@ -116,8 +122,8 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The 28L/10R hold-short bar on B, the collinear <c>Node</c> west of it and <c>Next</c> (toward spot 9): three B nodes
-    /// whose two straight edges lie on one line.
+    /// The 28L/10R hold-short bar on B, the collinear <c>Node</c> west of it and <c>Next</c> (toward spot 9): the bar sits on
+    /// the line just east of the end node of two straight B edges.
     /// </summary>
     private static (GroundNode Bar, GroundNode Node, GroundNode Next) CollinearBNodesEastOfSpot9(AirportGroundLayout layout)
     {
@@ -132,12 +138,15 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
             select (start, node, next),
         ];
         Assert.True(candidates.Count == 1, $"spot 9 leads to {candidates.Count} pairs of long collinear B edges, expected one");
-        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "10R", "B");
+        (GroundNode edgeEnd, GroundNode collinear, GroundNode toward) = candidates[0];
+        GroundNode bar = GroundNodeLookup.HoldShortBar(layout, "10R", "B", edgeEnd);
+        double barPastStartFt = GeoMath.DistanceNm(edgeEnd.Position, bar.Position) * GeoMath.FeetPerNm;
         Assert.True(
-            bars.Any(b => b.Id == candidates[0].Start.Id),
-            $"the start node {candidates[0].Start.Id} is not the 28L/10R hold-short on B ({string.Join(", ", bars.Select(b => b.Id))})"
+            edgeEnd.Edges.Any(e => e.OtherNode(edgeEnd).Id == bar.Id) && (Math.Abs(barPastStartFt - PaintedBarPastStartFt) <= 1.0),
+            $"the 28L/10R bar on B is {barPastStartFt:F1} ft from the long collinear edge's end node {edgeEnd.Id}, not its B neighbour "
+                + $"{PaintedBarPastStartFt:F1} ft on, where the painted-map snap seats it"
         );
-        return candidates[0];
+        return (bar, collinear, toward);
     }
 
     private static bool IsLongCollinearPair(GroundNode start, GroundNode node, GroundNode next)
