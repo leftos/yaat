@@ -154,6 +154,41 @@ public class HoldShortBarFlagTests
         Assert.True(measured > 0, "ATL has no hold-short node of a layout runway");
     }
 
+    [Fact]
+    public void ASnappedBar_IsAHoldLine_AndEveryOtherBarMatchesTheCrossTrack()
+    {
+        string layoutPath = Path.Combine("TestData", "oak.geojson");
+        string mapPath = Path.Combine("TestData", "TowerCabMaps", "oak.geojson");
+        var map = TowerCabVideoMap.Read(File.ReadAllText(mapPath));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "oak",
+            File.ReadAllText(layoutPath),
+            "OAK",
+            new LayoutInputs(TestStandLeadIns.For("oak"), map),
+            FilletMode.Standard
+        );
+
+        int snapped = 0;
+        foreach (GroundNode node in layout.Nodes.Values)
+        {
+            if ((node.IsShortBar is not { } isShort) || (FindRunway(layout, node.RunwayId) is not { } runway))
+            {
+                continue;
+            }
+
+            if (node.PaintSegmentIndex is not null)
+            {
+                Assert.False(isShort, $"snapped OAK bar #{node.Id} ({node.RunwayId}) is marked a short bar");
+                snapped++;
+                continue;
+            }
+
+            Assert.Equal(!isShort, AirportGroundLayout.IsAtHoldingDistanceByCrossTrack(RunwayCrossingDetector.BuildRunwayRectangle(runway), node));
+        }
+
+        Assert.True(snapped > 0, "no OAK bar was seated on paint");
+    }
+
     /// <summary>
     /// The layout runway whose full identifier is <paramref name="id"/>, as the build and the readers' guard look it up, or
     /// null when the layout has no such runway.

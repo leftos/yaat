@@ -9,13 +9,9 @@ hold-short that sits at the wrong distance.
 
 Every taxiway↔runway boundary gets a `GroundNodeType.RunwayHoldShort` node — the point an aircraft
 holds so it is clear of the runway (AIM 2-3-5.a.1: the marking identifies the **runway safety area
-(RSA) boundary**). They are **entirely synthetic**: the vNAS airport-map GeoJSON has *no*
-painted-hold-line feature type (only `parking`, `helipad`, `spot`, `taxiway`, `runway`), so the
-positions are computed geometrically, not read from data.
+(RSA) boundary**). They are **generated**: the vNAS airport-map GeoJSON has *no* painted-hold-line feature type (only `parking`, `helipad`, `spot`, `taxiway`, `runway`), so each position is computed geometrically by the standoff rule, then snapped onto the painted bar the airport's tower-cab videomap draws on that taxiway when one pairs with it ([Seating on the painted bar](#seating-on-the-painted-bar)). An airport with no videomap keeps every bar at the rule's position.
 
-Core code: `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` (`PlanRunway`, `DetectRunwayCrossings`) and the rule itself in `HoldShortStandoff.cs`. The bars
-are drawn client-side by `GroundRenderer.DrawHoldShortBar` — a perpendicular tick through the node,
-oriented to the taxiway; the wire contract carries only the node point, never a line segment.
+Core code: `src/Yaat.Sim/Data/Airport/RunwayCrossingDetector.cs` (`PlanRunway`, `DetectRunwayCrossings`, `SeatCrossing`), the rule itself in `HoldShortStandoff.cs` and the paint pairing in `RunwayPaintPairing.cs`. The bars are drawn client-side by `GroundRenderer.DrawHoldShortBar` — a perpendicular tick through the node, oriented to the taxiway; the wire contract carries only the node point, never a line segment.
 
 ## The standoff distance
 
@@ -23,7 +19,7 @@ The bar is placed by the reviewed standoff rule (`HoldShortStandoff`; AIM 2-3-5.
 
 **S** is the distance from the runway centerline to the *nearest point* of the hold line, resolved once per runway by `HoldShortStandoff.BaseSeparationFt` (`RunwayCrossingDetector.PlanRunway`) and stored as `GroundRunway.HoldShortStandoffFt` (nullable, omitted from the JSON when null, so no layout format bump). `RunwayRectangle.HoldShortNm` and `MarkShortBars` hold S, never D. By first match:
 
-1. **Paint calibration**: a `calibratedFt` input, reserved for the paint snap and always null for now.
+1. **Paint calibration**: a `calibratedFt` input for a paint-calibrated S, always null: the paint snap seats single bars at their own D_paint and leaves S, `GroundRunway.HoldShortStandoffFt` and the rectangle alone.
 2. **Authored**: the runway feature's `holdShortDistance` (feet from centerline), stored as `GroundRunway.HoldShortDistanceFt`, unless it is more than 15 ft below the rule value for a runway in the 250 ft class (a rule value of 250 ft or more); then the rule value is used and `WarnWhenRuleOverAuthored` logs one warning per runway per parse naming the airport, runway, authored and rule values (OAK 28R authors 225 ft against a rule of 250).
 3. **Rule** (`RunwayStandoffInputs`: width, length, ILS category, elevation): width 200 ft or more, or 150 ft or more with an ILS CAT II or III, gives 280; a 100 ft or wider runway gives 250 when it is 5,000 ft long or longer or has any ILS, else 200; 75 ft or wider gives 150 (175 with an ILS); narrower gives 125 (175 with an ILS). A result of 250 or more adds 1 ft per 100 ft of the runway's higher threshold elevation.
 
@@ -33,7 +29,7 @@ The bar is placed by the reviewed standoff rule (`HoldShortStandoff`; AIM 2-3-5.
 
 θ is the bearing, against the runway heading, of the walk segment where the taxiway centerline reaches cross-track S (`MeasureCrossingAngleDeg`, measured at parse time before the fillets exist). W_twy is a proxy from the *crossed* runway's width, as the layout carries no taxiway width: 75 ft from a 150 ft runway up, 50 from 100, 35 from 75, else 25 (`TaxiwayWidthProxyFt`). D is threaded to the placement as a per-crossing target and never stored on the runway.
 
-D is not taken, and the bar is seated at S, when the taxiway path from the crossing to the D point, or the D point itself, comes within another runway's S plus 5 ft (`OtherRunwayAreaMarginFt`) of its centerline alongside its length (`TouchesHoldingArea`); a taxiway between two close runways keeps its bar out of the other's holding area.
+D is the rule's standoff, D_rule. D is not taken, and the bar is seated at S, when the taxiway path from the crossing to the D point, or the D point itself, comes within another runway's S plus 5 ft (`OtherRunwayAreaMarginFt`) of its centerline alongside its length (`TouchesHoldingArea`); a taxiway between two close runways keeps its bar out of the other's holding area.
 
 A **short bar** is a hold-short node inside S (a dead-end fallback), a **far bar** the crossed runway's bar on the side an aircraft leaves by (both in [CONTEXT.md](../../CONTEXT.md)). Because an angled bar is farther out than S, code that must reach a runway's bars bounds its walk by the largest cross-track among the runway's hold-line bars (`AirportGroundLayout.OutwardWalkBoundFt`), not by S.
 
@@ -57,7 +53,7 @@ the crossing's ideal cross-track, D (S itself for a perpendicular taxiway or whe
   a single boundary-edge length.
 - **Reuse in place** an existing shape-point node only when it already sits within `HoldShortSnapFt`
   (= `FilletConstants.CoincidentNodeThresholdFt`, **5 ft**) of the ideal — a minted node that close
-  would be collapsed into it by the later fillet coincident-node merge anyway.
+  would be collapsed into it by the later fillet coincident-node merge anyway. A bar seated on paint measures that distance straight to its snap point and refuses a node more than `PaintRunwaySideToleranceFt` (1 ft) on the runway side of it.
 - **Dead-end fallback** (`DeadEndFallback`) when the taxiway genuinely terminates or hits a junction
   before reaching the ideal: it seats the bar at the farthest reachable point and logs a warning. This
   is the one path that legitimately lands short of the standoff.
@@ -69,6 +65,30 @@ GeoJSON shape-point happens to sit nearby, scattering the standoff by up to the 
 **acute-exit** bars *inside* the RSA (their shape points fall short) and pushes **right-angle** bars
 out past it. Tightening to the coincident-node threshold forces a node at the exact standoff whenever
 no shape-point is essentially already there, so the scatter is the standoff rule's (the angle term), not the data's.
+
+## Seating on the painted bar
+
+`GeoJsonParser.BuildLayout` passes the airport's `TowerCabVideoMap` (`LayoutInputs.VideoMap`, null when it has none) to `DetectRunwayCrossings`, which seats each crossing through `SeatCrossing`. The tower-cab videomap draws the real painted hold bars as two-point segments ([CONTEXT.md](../../CONTEXT.md), *Tower-cab videomap*); a crossing whose taxiway carries one is seated on it, not at D_rule.
+
+**Pairing** (`RunwayPaintPairing.Candidates`). A segment is a candidate bar for a crossing when:
+
+- It meets the crossing's own taxiway centerline: the boundary edge, then the placement walk's continuations (`PickWalkContinuation`) through junctions while the next edge keeps the taxiway's name, with the segment extended `BarExtensionFt` (10 ft) at either end. Paint on another taxiway's branch past a junction never pairs.
+- It is square to the taxiway there (within 30° of perpendicular) or within 15° of parallel to the runway; it crosses no runway centerline; and it does not lie along a drawn taxiway or runway centerline (both ends within 15 ft of it and within 20°).
+- Its snap point, where it meets the taxiway centerline, lies on the crossing's side of the runway inside the **snap band**: D_paint from D_rule less `MaxInsideRuleFt` (60 ft) to D_rule plus `MaxOutsideRuleFt` (100 ft), and at least the runway's half-width plus `MinBeyondRunwayEdgeFt` (50 ft) from the centerline.
+
+Candidates rank innermost first: the nearer snap point along the taxiway walk from the runway (an aircraft leaving the runway is clear at the first marking it crosses, AIM 2-3-5.a.1), then the smaller D_paint, then the lower file index.
+
+`PairWithPaint` takes the first candidate the placement can seat (`CanSeatOn`): one is passed over when the walk toward its D_paint dead-ends, runs out of `HoldShortWalkMaxHops`, or meets D_paint more than `HoldShortSnapFt` from the snap point (a chain that turns back toward the runway). With no candidate left, the bar is seated by the rule.
+
+**Snap.** The bar's target becomes D_paint with the snap point (`BarTarget.SnapPoint`), and the placement above runs unchanged against it.
+
+A minted node's edge fraction is clamped to `MinEdgeFraction` (0.01) … `MaxEdgeFraction` (0.99), off the endpoints. `MintFraction` is the one exception: when the bar is on paint and the raw fraction lies inside that clamp beside an endpoint refused for reuse (one on the runway side of the paint), the node is minted at the raw fraction, on the snap point, so the endpoint moves onto the paint instead of staying off it. A snap that moves a bar more than `LargeSnapFt` (40 ft) from where the rule would seat it is logged at Debug.
+
+**What a paint-paired bar changes.** The node records its segment in `GroundNode.PaintSegmentIndex` (the index among the videomap's segments in file order; omitted from the JSON when null, so no layout format bump).
+
+`MarkShortBars` always reads a paint-paired bar as its runway's hold line, whatever its cross-track. `DropRedundantFallbackBars` judges a fallback junction against a ceiling raised to the farthest D_paint among its runway's paint-paired bars (`RaiseCeilingsToSnappedBars`), so a route out of the junction that reaches such a bar still counts as reaching one.
+
+The videomap rides in the precompute key (`VideoMapHash`, [`PrecomputeCache/README.md`](../../src/Yaat.Sim/Data/PrecomputeCache/README.md)). `RunwayPaintSnapTests` pins the pairing and the placement on real layouts.
 
 ## Stopping short of a taxiway — the wingtip-clearance floor
 
@@ -117,7 +137,7 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
 
 ## Hold line or short bar — `GroundNode.IsShortBar`
 
-`RunwayCrossingDetector.MarkShortBars` runs as the last build step (`GeoJsonParser.BuildLayout` step 9, after the fillets have settled every node's position) and sets `GroundNode.IsShortBar` on every `RunwayHoldShort` node whose runway is in the layout: false for the runway's hold line, true for a short fallback bar inside the holding distance. It decides by the bar's cross-track from the runway centerline against the holding distance, within `HoldingDistanceToleranceFt` (`AirportGroundLayout.IsAtHoldingDistanceByCrossTrack`: at or beyond S less the tolerance, so an angled bar at D is a hold line). Every other node reads null.
+`RunwayCrossingDetector.MarkShortBars` runs as the last build step (`GeoJsonParser.BuildLayout` step 9, after the fillets have settled every node's position) and sets `GroundNode.IsShortBar` on every `RunwayHoldShort` node whose runway is in the layout: false for the runway's hold line, true for a short fallback bar inside the holding distance. A paint-paired bar is always false. Otherwise it decides by the bar's cross-track from the runway centerline against the holding distance, within `HoldingDistanceToleranceFt` (`AirportGroundLayout.IsAtHoldingDistanceByCrossTrack`: at or beyond S less the tolerance, so an angled bar at D is a hold line). Every other node reads null.
 
 `AirportGroundLayout.IsAtRunwayHoldingDistance`, the short-bar resolution and the exit search's outward walk read the flag first, and fall back to the cross-track measurement only when it is null (a node whose runway is not in the layout, or a layout serialized before the field). The flag is serialized only when non-null, so it rides in the layout JSON of recording archives and the precompute store without a layout format bump ([snapshots-and-replay.md](../snapshots-and-replay.md)).
 

@@ -1,3 +1,5 @@
+This is the pre-implementation map of the snap; the built behaviour is in docs/ground/hold-short-placement.md (Seating on the painted bar), and the code and line numbers below may have moved.
+
 PROTOCOL: 1 overlay: none (docs/agents/explore.md absent), read CLAUDE.md; 2 README: not re-read (earlier map map-yaat-1201.md did it; CLAUDE.md doc list used); 3 Task Index: no row for videomap-to-graph snap (not re-read; earlier map recorded none); 4 ck: skipped (docs/source answered; not measured); 5 design: docs/ground/hold-short-placement.md read in full; 6 source: done; 7 tree search: done (Parse callers, HoldShort consumers, tests).
 
 # YAAT-1201 snap map: videomap hold bar -> generated hold point

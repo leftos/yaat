@@ -57,6 +57,14 @@ public sealed class GroundNode
     public bool? IsShortBar { get; set; }
 
     /// <summary>
+    /// The index, among the airport's tower-cab videomap segments in file order, of the painted bar this
+    /// <see cref="GroundNodeType.RunwayHoldShort"/> node was seated on (<see cref="RunwayPaintPairing"/>); null on a bar seated
+    /// by the standoff rule and on every other node.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PaintSegmentIndex { get; set; }
+
+    /// <summary>
     /// Adjacent edges for graph traversal. Populated during layout construction.
     /// Not serialized — rebuilt by <see cref="AirportGroundLayout.RebuildAdjacencyLists"/> after deserialization.
     /// </summary>
