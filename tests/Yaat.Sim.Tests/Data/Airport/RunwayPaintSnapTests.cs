@@ -812,9 +812,9 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
                 .Order(),
         ];
 
-    private static TowerCabVideoMap OakMap() => TowerCabVideoMap.Read(File.ReadAllText(OakMapPath));
+    internal static TowerCabVideoMap OakMap() => TowerCabVideoMap.Read(File.ReadAllText(OakMapPath));
 
-    private static AirportGroundLayout ParseOak(TowerCabVideoMap? map, FilletMode filletMode)
+    internal static AirportGroundLayout ParseOak(TowerCabVideoMap? map, FilletMode filletMode)
     {
         TestVnasData.EnsureInitialized();
         return GeoJsonParser.Parse("oak", File.ReadAllText(OakLayoutPath), "OAK", new LayoutInputs(TestStandLeadIns.For("oak"), map), filletMode);
