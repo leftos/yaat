@@ -317,7 +317,9 @@ A taxiway the route itself turns onto also gives a row, bare, once, at its first
 
 Each row's bar is the node its `HS` binds by the node walk the server falls back on when the route holds no hold-short point for the target yet (`HoldShortBindIndex`); the client does not mirror the server's first step, which re-arms an existing `HoldShortPoint`, nor its walk starting at `CurrentSegmentIndex`. Its distance from the aircraft (`TaxiRoute.PrefixDistanceFt` corrected by `GroundViewModel.RouteStart`'s offset, rounded by `TugMovePlanner.NoteDistanceFt`), its "where" and its preview route are those of that bar; a bar at 0 ft is dropped.
 
-The node the route starts at is a bar like any other: an aircraft partway along an edge that ends at a holding position starts its route at that bar with no free-space leg, so the bar gets its own row, measured from the aircraft, with a preview of no segments.
+The node the route starts at is a bar like any other: an aircraft within the bar's painted stop, or past it on its runway side, starts its route at that bar with no free-space leg, so the bar gets its own row, measured from the aircraft, with a preview of no segments.
+
+An aircraft on the edge leading to the bar and behind that stop gets a free-space approach leg ending at the bar (the client passes the type's length to `TaxiApproachLeg.Prepend` as the server does). A leg counts as the taxiway it runs along (`SegmentTaxiway`, `ApproachLegTaxiway`), so its end node never reads as a turn onto the taxiway the aircraft is on: an aircraft on K short of the 15/33 bar gets no "TW K" row, and the runway row reads "crossing on K".
 
 An aircraft already past the start node along the first segment (a turn about's route runs back over it) gets no row for that node, which the server never binds, and every distance drops the stretch of the first segment behind it; an aircraft standing on the start node (within `AtNodeToleranceFt`) gets no row there either.
 

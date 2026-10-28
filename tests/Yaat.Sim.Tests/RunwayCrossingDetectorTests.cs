@@ -997,8 +997,15 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     {
         RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
 
-        // An angled taxiway's bar sits out to S + W_twy / 2, the angle term's ceiling.
-        double holdingFt = (rect.HoldShortNm * FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(rect)) / 2.0);
+        // An angled taxiway's bar sits out to S + W_twy / 2, the angle term's ceiling. A bar seated on the painted marking may sit
+        // farther out still, so the ceiling rises to the farthest painted bar of the runway, as RaiseCeilingsToSnappedBars does.
+        double ruleFt = (rect.HoldShortNm * FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(rect)) / 2.0);
+        double paintFt = layout
+            .Nodes.Values.Where(node => IsBarOf(node, rect) && (node.PaintSegmentIndex is not null))
+            .Select(node => CrossTrackFt(rect, node))
+            .DefaultIfEmpty(0.0)
+            .Max();
+        double holdingFt = Math.Max(ruleFt, paintFt);
         double escapeFt = holdingFt + AirportGroundLayout.HoldingDistanceToleranceFt;
         var start = layout.Nodes.Values.Where(node => RunwayCrossingDetector.IsOnRunway(node.Position, rect)).ToList();
         var visited = new HashSet<int>(start.Select(node => node.Id));
