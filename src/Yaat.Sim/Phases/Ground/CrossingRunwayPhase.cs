@@ -32,6 +32,9 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
     private const double LogIntervalSeconds = 3.0;
 
+    /// <summary>The largest turn (degrees) the layout tail-clearance walk takes from the segment it came along.</summary>
+    private const double MaxTailWalkTurnDeg = 45.0;
+
     private readonly int _approachNodeId = approachNodeId;
     private readonly int _targetNodeId = targetNodeId;
     private readonly string? _runwayId = runwayId;
@@ -481,11 +484,11 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     }
 
     /// <summary>
-    /// Slice the source route (own path, else <see cref="AircraftGroundState.AssignedTaxiRoute"/>) between the
-    /// entry- and exit-side hold-short nodes, extend it ½ aircraft length past
-    /// the exit along the route's own onward segments for tail clearance, and
-    /// hand the result to a new <see cref="GroundNavigator"/>. Idempotent —
-    /// only builds the navigator once per phase instance.
+    /// Slice the source route (own path, else <see cref="AircraftGroundState.AssignedTaxiRoute"/>) between the entry- and
+    /// exit-side hold-short nodes, extend it past the exit for tail clearance, and hand the result to a new
+    /// <see cref="GroundNavigator"/>. The extension runs ½ aircraft length along the route's own onward segments when it has
+    /// any, else a straight-ahead walk on the layout (<see cref="AppendLayoutTailClearance"/>) for ½ length plus
+    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/>. Idempotent — only builds the navigator once per phase instance.
     /// </summary>
     private void TryBuildCrossingRoute(PhaseContext ctx)
     {
@@ -662,24 +665,32 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             slice.Add(route.Segments[i]);
         }
 
-        (int fullTailSegments, bool partialTail) = AppendTailClearance(ctx, route, exitIdx, slice);
+        (int fullTailSegments, bool partialTail) = AppendTailClearance(ctx, route, approachNodeId, exitIdx, slice);
         return new CrossingSlice(slice, exitIdx, fullTailSegments, partialTail);
     }
 
     /// <summary>
-    /// Extend <paramref name="slice"/> ½ an aircraft length past the exit node so the tail clears the
-    /// runway, by walking the route's OWN segments after <paramref name="exitIdx"/> — never the graph's
-    /// straightest continuation past the exit node, which leaves the painted line wherever the route turns
-    /// right after the crossing (SFO G → B across 01L/19R: a 121 ft straight extension along G ran ~55 ft
-    /// wide of the fillet the aircraft was about to fly). A straight segment the ½-length boundary falls
-    /// inside is cut at the exact distance with a virtual node; an arc (or a straight carrying shape points)
-    /// is taken whole, because a free-space cut across a curve puts the aircraft off the centerline again
-    /// and the short overshoot is harmless. The ½ length is what it takes for the tail to cross the holding
-    /// position marking: an aircraft is not clear of the runway until every part of it has crossed that marking
-    /// (AIM 2-3-5.a.1, AIM 4-3-21.b). Returns how many route segments were consumed whole and whether
-    /// the extension ends on a cut.
+    /// Extend <paramref name="slice"/> ½ an aircraft length past the exit node so the tail clears the runway, along the
+    /// route's own onward segments when it has any, else a straight-ahead walk on the layout
+    /// (<see cref="AppendLayoutTailClearance"/>). The route's own segments come first because the graph's straightest
+    /// continuation leaves the painted line wherever the route turns right after the crossing (SFO G → B across 01L/19R: a
+    /// 121 ft straight extension along G ran ~55 ft wide of the fillet the aircraft was about to fly). A straight segment the
+    /// ½-length boundary falls inside is cut at the exact distance with a virtual node; an arc (or a straight carrying shape
+    /// points) is taken whole, because a free-space cut across a curve puts the aircraft off the centerline again and the
+    /// short overshoot is harmless. The ½ length is what it takes for the tail to cross the holding position marking: an
+    /// aircraft is not clear of the runway until every part of it has crossed that marking (AIM 2-3-5.a.1, AIM 4-3-21.b).
+    /// When the route ends on the crossed runway's far bar (a CROSS of the destination runway) or runs out inside the ½
+    /// length past it, the walk continues from the route's last segment for what is left plus
+    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/>. Returns how many route segments were consumed whole and whether the
+    /// extension ends on a cut inside one.
     /// </summary>
-    private static (int FullSegments, bool Partial) AppendTailClearance(PhaseContext ctx, TaxiRoute route, int exitIdx, List<TaxiRouteSegment> slice)
+    private static (int FullSegments, bool Partial) AppendTailClearance(
+        PhaseContext ctx,
+        TaxiRoute route,
+        int approachNodeId,
+        int exitIdx,
+        List<TaxiRouteSegment> slice
+    )
     {
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
         if (TailClearanceSuppressed(ctx, route, exitIdx, lengthFt))
@@ -702,9 +713,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
             if (seg.Edge.Edge is GroundEdge { IntermediatePoints.Count: 0 })
             {
-                GroundNode from = seg.Edge.FromNode;
-                (double lat, double lon) = GeoMath.ProjectPointRaw(from.Position.Lat, from.Position.Lon, seg.Edge.DepartureBearing, remainingNm);
-                slice.Add(VirtualNode.CreateSegment(from, VirtualNode.Create(lat, lon), seg.TaxiwayName));
+                slice.Add(CutStraight(seg.Edge, remainingNm, seg.TaxiwayName));
                 return (fullSegments, true);
             }
 
@@ -712,9 +721,234 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             return (fullSegments + 1, false);
         }
 
+        // The route runs out within the tail-clearance distance past the crossed runway's far bar: walk the layout straight ahead.
+        if ((ctx.GroundLayout is { } layout) && (ExitIsCrossedRunwayBar(layout, approachNodeId, route.Segments[exitIdx].ToNodeId) is { } crossed))
+        {
+            double walkNm = remainingNm + (RunwayCrossingFarSideGate.MarginFt / GeoMath.FeetPerNm);
+            AppendLayoutTailClearance(ctx, route.Segments[^1].Edge, walkNm, crossed, slice);
+            return (fullSegments, false);
+        }
+
         // The route ends inside the tail-clearance distance: stop at its end rather than driving past it.
         return (fullSegments, false);
     }
+
+    /// <summary>
+    /// The runway being crossed when the crossing's exit node is one of its hold-short bars (the same runway as the bar the
+    /// crossing starts from), else null.
+    /// </summary>
+    private static RunwayIdentifier? ExitIsCrossedRunwayBar(AirportGroundLayout layout, int approachNodeId, int exitNodeId) =>
+        (
+            layout.Nodes.TryGetValue(approachNodeId, out GroundNode? approach)
+            && layout.Nodes.TryGetValue(exitNodeId, out GroundNode? exit)
+            && (exit.Type == GroundNodeType.RunwayHoldShort)
+            && (approach.RunwayId is { } crossed)
+            && (exit.RunwayId is { } exitRunway)
+            && exitRunway.Equals(crossed)
+        )
+            ? crossed
+            : null;
+
+    /// <summary>
+    /// Extend <paramref name="slice"/> from the end of <paramref name="arrivedOn"/> along the layout straight ahead for
+    /// <paramref name="remainingNm"/>, so the tail ends <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far bar
+    /// (the YAAT-905 bare-crossing end's distance). Each step takes the edge whose whole heading change (to its start and
+    /// to its end bearing) from the one arrived along is least, up to <see cref="MaxTailWalkTurnDeg"/>, never a runway edge.
+    /// A straight the remaining distance falls inside is cut at it: a plain straight at the exact distance, a straight
+    /// with shape points along its shape points (measured along them); an arc is taken whole. The walk stops short, leaving
+    /// the aircraft where it is, rather than drive to a runway centerline node or another runway's hold-short bar, or where
+    /// no edge qualifies; a plain straight it cuts with the nose still short of its end node does not drive to that node, so
+    /// another runway's bar there does not stop it. The extra segments live only in the crossing's slice, never in the
+    /// aircraft's route, so the slice is still recomputable from route, layout and length.
+    /// </summary>
+    private static void AppendLayoutTailClearance(
+        PhaseContext ctx,
+        DirectionalEdge arrivedOn,
+        double remainingNm,
+        RunwayIdentifier crossed,
+        List<TaxiRouteSegment> slice
+    )
+    {
+        double halfLengthNm = (AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0) / GeoMath.FeetPerNm;
+        while (remainingNm > 0)
+        {
+            GroundNode node = arrivedOn.ToNode;
+            if (StraightestContinuation(node, arrivedOn) is not { } next)
+            {
+                string reason = VirtualNode.IsVirtualNode(node)
+                    ? "the route ends off the graph"
+                    : $"no edge within {MaxTailWalkTurnDeg:F0}° of straight ahead";
+                LogTailWalkStop(ctx, node, remainingNm, reason);
+                return;
+            }
+
+            if (IsOnRunwayCenterline(next.ToNode))
+            {
+                LogTailWalkStop(ctx, node, remainingNm, $"the next node #{next.ToNodeId} is on a runway centerline");
+                return;
+            }
+
+            bool noseShortOfNext = (next.Edge is GroundEdge { IntermediatePoints.Count: 0 }) && ((remainingNm + halfLengthNm) < next.DistanceNm);
+            if ((!noseShortOfNext) && IsOtherRunwaysBar(next.ToNode, crossed))
+            {
+                LogTailWalkStop(ctx, node, remainingNm, $"the next node #{next.ToNodeId} is another runway's bar");
+                return;
+            }
+
+            double lengthNm = WalkLengthNm(next);
+            if (lengthNm > remainingNm)
+            {
+                AppendWalkCut(next, remainingNm, slice);
+                return;
+            }
+
+            slice.Add(new TaxiRouteSegment { TaxiwayName = next.TaxiwayName, Edge = next });
+            remainingNm -= lengthNm;
+            arrivedOn = next;
+        }
+    }
+
+    /// <summary>
+    /// The edge out of <paramref name="node"/> whose whole heading change from <paramref name="arrivedOn"/>'s arrival bearing is
+    /// least, if that change is at most <see cref="MaxTailWalkTurnDeg"/>; never the edge arrived along, never a runway edge. An
+    /// edge's change is the larger of the turns to its departure and to its arrival bearing: a fillet starts tangent to its
+    /// taxiway, so its initial bearing alone ties it with the straight edge it leaves and hides the turn it ends in. An exact
+    /// tie goes to the edge whose far node has the lower id, so the choice never depends on edge order between different end
+    /// nodes.
+    /// </summary>
+    private static DirectionalEdge? StraightestContinuation(GroundNode node, DirectionalEdge arrivedOn)
+    {
+        DirectionalEdge? best = null;
+        double bestTurnDeg = MaxTailWalkTurnDeg;
+        foreach (IGroundEdge edge in node.Edges)
+        {
+            if (ReferenceEquals(edge, arrivedOn.Edge) || IsRunwayEdge(edge))
+            {
+                continue;
+            }
+
+            DirectionalEdge candidate = edge.Directed(node, edge.OtherNode(node));
+            double turnDeg = Math.Max(
+                GeoMath.AbsBearingDifference(arrivedOn.ArrivalBearing, candidate.DepartureBearing),
+                GeoMath.AbsBearingDifference(arrivedOn.ArrivalBearing, candidate.ArrivalBearing)
+            );
+            bool better = (best is null) || (turnDeg < bestTurnDeg) || ((turnDeg == bestTurnDeg) && (candidate.ToNodeId < best.ToNodeId));
+            if ((turnDeg <= MaxTailWalkTurnDeg) && better)
+            {
+                best = candidate;
+                bestTurnDeg = turnDeg;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>An edge on a runway: a centerline segment, a <c>RWY…:link</c> crossing connector, or an arc onto either.</summary>
+    private static bool IsRunwayEdge(IGroundEdge edge) =>
+        edge switch
+        {
+            GroundArc arc => arc.TaxiwayNames.Any(static n => n.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)),
+            _ => edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase),
+        };
+
+    /// <summary>Whether <paramref name="node"/> is a hold-short bar of a runway other than <paramref name="crossed"/>.</summary>
+    private static bool IsOtherRunwaysBar(GroundNode node, RunwayIdentifier crossed) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && !((node.RunwayId is { } runway) && runway.Equals(crossed));
+
+    /// <summary>Whether <paramref name="node"/> lies on a runway centerline, so the layout walk must never drive to it.</summary>
+    private static bool IsOnRunwayCenterline(GroundNode node) => node.Edges.Exists(static e => e.IsRunwayCenterline);
+
+    /// <summary>
+    /// How far the layout walk travels along <paramref name="edge"/>: a straight with shape points along its polyline, which is
+    /// longer than its node-to-node <see cref="DirectionalEdge.DistanceNm"/>; any other edge its <c>DistanceNm</c>.
+    /// </summary>
+    private static double WalkLengthNm(DirectionalEdge edge) =>
+        edge.Edge is GroundEdge { IntermediatePoints.Count: > 0 } shaped
+            ? PolylineNm(EdgeGeometry.PointsFrom(shaped, edge.FromNode))
+            : edge.DistanceNm;
+
+    private static double PolylineNm(List<LatLon> points)
+    {
+        double totalNm = 0;
+        for (int i = 1; i < points.Count; i++)
+        {
+            totalNm += GeoMath.DistanceNm(points[i - 1], points[i]);
+        }
+
+        return totalNm;
+    }
+
+    /// <summary>
+    /// Append the part of <paramref name="edge"/> the remaining distance covers: a plain straight cut at it, a straight with
+    /// shape points cut along its shape points, an arc whole.
+    /// </summary>
+    private static void AppendWalkCut(DirectionalEdge edge, double remainingNm, List<TaxiRouteSegment> slice)
+    {
+        switch (edge.Edge)
+        {
+            case GroundEdge { IntermediatePoints.Count: 0 }:
+                slice.Add(CutStraight(edge, remainingNm, edge.TaxiwayName));
+                return;
+            case GroundEdge shaped:
+                AppendShapedCut(shaped, edge, remainingNm, slice);
+                return;
+            default:
+                slice.Add(new TaxiRouteSegment { TaxiwayName = edge.TaxiwayName, Edge = edge });
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Append <paramref name="edge"/> (a straight with shape points) cut <paramref name="remainingNm"/> along its shape points:
+    /// one virtual segment per shape-point leg up to the leg the distance ends in, then a virtual segment to the cut point on
+    /// that leg. The caller cuts only an edge whose polyline (<see cref="WalkLengthNm"/>) is longer than the distance, so the
+    /// last leg always holds the cut; a zero-length leg (a duplicated shape point) is skipped.
+    /// </summary>
+    private static void AppendShapedCut(GroundEdge shaped, DirectionalEdge edge, double remainingNm, List<TaxiRouteSegment> slice)
+    {
+        List<LatLon> points = EdgeGeometry.PointsFrom(shaped, edge.FromNode);
+        GroundNode from = edge.FromNode;
+        double leftNm = remainingNm;
+        for (int i = 1; i < points.Count; i++)
+        {
+            LatLon a = points[i - 1];
+            LatLon b = points[i];
+            double legNm = GeoMath.DistanceNm(a, b);
+            if (legNm <= 0)
+            {
+                continue;
+            }
+
+            if ((legNm >= leftNm) || (i == points.Count - 1))
+            {
+                (double lat, double lon) = GeoMath.ProjectPointRaw(a.Lat, a.Lon, GeoMath.BearingTo(a, b), Math.Min(leftNm, legNm));
+                slice.Add(VirtualNode.CreateSegment(from, VirtualNode.Create(lat, lon), edge.TaxiwayName));
+                return;
+            }
+
+            GroundNode shapePoint = VirtualNode.Create(b.Lat, b.Lon);
+            slice.Add(VirtualNode.CreateSegment(from, shapePoint, edge.TaxiwayName));
+            from = shapePoint;
+            leftNm -= legNm;
+        }
+    }
+
+    /// <summary>A virtual segment along the plain straight <paramref name="edge"/> from its start, <paramref name="remainingNm"/> long.</summary>
+    private static TaxiRouteSegment CutStraight(DirectionalEdge edge, double remainingNm, string taxiwayName)
+    {
+        GroundNode from = edge.FromNode;
+        (double lat, double lon) = GeoMath.ProjectPointRaw(from.Position.Lat, from.Position.Lon, edge.DepartureBearing, remainingNm);
+        return VirtualNode.CreateSegment(from, VirtualNode.Create(lat, lon), taxiwayName);
+    }
+
+    private static void LogTailWalkStop(PhaseContext ctx, GroundNode node, double remainingNm, string reason) =>
+        Log.LogWarning(
+            "[Crossing] {Callsign}: tail-clearance walk past the far bar stopped {Short:F0} ft short at node #{Node}: {Reason}",
+            ctx.Aircraft.Callsign,
+            remainingNm * GeoMath.FeetPerNm,
+            node.Id,
+            reason
+        );
 
     /// <summary>
     /// Whether the ½-length tail-clearance extension must be suppressed, so the crossing ends at the exit

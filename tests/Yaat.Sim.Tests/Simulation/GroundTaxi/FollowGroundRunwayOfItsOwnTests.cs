@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -254,24 +255,36 @@ public class FollowGroundRunwayOfItsOwnTests(ITestOutputHelper output)
     [Fact]
     public void LeadDepartsWhileTheFollowerWaitsToCrossOneRight_CrossedFollowerHoldsAtTheLeadsBar()
     {
-        if (CrossOneRightAfterTheLeadDeparted(keepLeadRoute: true) is { } stop)
+        if (CrossOneRightAfterTheLeadDeparted(keepLeadRoute: true) is { } run)
         {
-            AssertDepartureHoldForTwentyEightLeft(Assert.IsType<HoldingShortPhase>(stop));
+            AssertDepartureHoldForTwentyEightLeft(Assert.IsType<HoldingShortPhase>(run.Stop));
         }
     }
 
     /// <summary>
     /// As <see cref="LeadDepartsWhileTheFollowerWaitsToCrossOneRight_CrossedFollowerHoldsAtTheLeadsBar"/>, with the lead's path
-    /// gone (the departed lead shows no taxi route): the taxi route to the lead's bar keeps the runway guards a resumed assigned
-    /// route has, so the follower, just across 1R and still inside its hold line, takes none and stops where it is.
+    /// gone (the departed lead shows no taxi route): a lead with no path left is a missing route, not a reason to stay inside
+    /// the 1R hold line, so the follower's crossing ends with its centre ½ its length plus
+    /// <see cref="RunwayCrossingFarSideGate.MarginFt"/> past the far 1R bar (AIM 2-3-5.a.1, AIM 4-3-21.b), and it then taxis on to
+    /// the lead's 28L bar and holds there as a departure hold, never crossing 28L.
     /// </summary>
     [Fact]
-    public void LeadDepartsWithNoPathLeft_FollowerInsideTheOneRightHoldLineTakesNoTaxiRouteAndStops()
+    public void LeadDepartsWithNoPathLeft_FollowerClearsOneRightAndHoldsAtTheLeadsBar()
     {
-        if (CrossOneRightAfterTheLeadDeparted(keepLeadRoute: false) is { } stop)
+        if (CrossOneRightAfterTheLeadDeparted(keepLeadRoute: false) is not { } run)
         {
-            Assert.IsType<HoldingInPositionPhase>(stop);
+            return;
         }
+
+        double clearFt = (AircraftLength.ResolveFt(Type) / 2.0) + RunwayCrossingFarSideGate.MarginFt;
+        Assert.True(run.CentrePastFarBarFt is not null, $"{Follower}'s 1R crossing never ended");
+        Assert.True(
+            run.CentrePastFarBarFt >= clearFt,
+            $"{Follower} ended its 1R crossing with its centre {run.CentrePastFarBarFt:F1} ft past the far bar, short of {clearFt:F1} ft"
+        );
+        AssertDepartureHoldForTwentyEightLeft(Assert.IsType<HoldingShortPhase>(run.Stop));
+        var twentyEightLeft = RunwayIdentifier.Parse("28L");
+        Assert.DoesNotContain(run.CrossedRunways, runway => runway.Overlaps(twentyEightLeft));
     }
 
     /// <summary>
@@ -321,10 +334,10 @@ public class FollowGroundRunwayOfItsOwnTests(ITestOutputHelper output)
 
     /// <summary>
     /// With the follower waiting at the 1R bar and the lead at its 28L bar (<see cref="WaitAtOneRightWithTheLeadAtItsBar"/>), the
-    /// lead is put in the air (keeping its taxi route or not), and the follower is cleared across 1R. The phase it stops in;
-    /// null on the silent-skip path.
+    /// lead is put in the air (keeping its taxi route or not), and the follower is cleared across 1R. What the follower did
+    /// until it stopped; null on the silent-skip path.
     /// </summary>
-    private Phase? CrossOneRightAfterTheLeadDeparted(bool keepLeadRoute)
+    private FollowerPastOneRight? CrossOneRightAfterTheLeadDeparted(bool keepLeadRoute)
     {
         if (WaitAtOneRightWithTheLeadAtItsBar() is not { } staged)
         {
@@ -345,20 +358,65 @@ public class FollowGroundRunwayOfItsOwnTests(ITestOutputHelper output)
         return TickUntilFollowerStopsPastOneRight(ground, follower);
     }
 
-    /// <summary>Ticks until the follower stops anywhere but the 1R bar: holding short, or holding in position; that phase.</summary>
-    private Phase TickUntilFollowerStopsPastOneRight(SfoGround ground, AircraftState follower)
+    /// <summary>
+    /// What a follower cleared across 1R did until it stopped: the phase it stopped in, how far (ft) its centre was past the far
+    /// bar of its first crossing, along the way across, at the second that crossing ended (null if it never ended), and the runways
+    /// of every bar it crossed to.
+    /// </summary>
+    private sealed record FollowerPastOneRight(Phase Stop, double? CentrePastFarBarFt, List<RunwayIdentifier> CrossedRunways);
+
+    /// <summary>
+    /// Ticks until the follower stops anywhere but the 1R bar: holding short, or holding in position; asserts its first crossing
+    /// is of 1R. What it did on the way.
+    /// </summary>
+    private FollowerPastOneRight TickUntilFollowerStopsPastOneRight(SfoGround ground, AircraftState follower)
     {
+        CrossingRunwayPhase? first = null;
+        double? centrePastFarBarFt = null;
+        List<RunwayIdentifier> crossedRunways = [];
         int stopped = SfoGroundHarness.TickUntil(
             ground.Engine,
             () =>
                 (follower.Phases?.CurrentPhase is HoldingInPositionPhase)
                 || ((follower.Phases?.CurrentPhase is HoldingShortPhase hold) && !SfoGroundHarness.HoldShortMatches(hold.HoldShort, "1R")),
             HoldBudgetSeconds,
-            null
+            second =>
+            {
+                if (follower.Phases?.CurrentPhase is CrossingRunwayPhase crossing)
+                {
+                    if ((ground.Layout.Nodes[crossing.TargetNodeId].RunwayId is { } runway) && !crossedRunways.Contains(runway))
+                    {
+                        crossedRunways.Add(runway);
+                    }
+
+                    first ??= crossing;
+                    return;
+                }
+
+                if ((first is not null) && (centrePastFarBarFt is null))
+                {
+                    centrePastFarBarFt = CentrePastFarBarFt(ground.Layout, follower, first);
+                    output.WriteLine($"t={second}s: crossing #{first.ApproachNodeId}->#{first.TargetNodeId} ended {centrePastFarBarFt:F1} ft past");
+                }
+            }
         );
         Assert.True(stopped > 0, $"{Follower} never stopped within {HoldBudgetSeconds}s: {follower.Phases?.CurrentPhase?.Name}");
         output.WriteLine($"stopped at t={stopped}s: {follower.Phases?.CurrentPhase?.Name}");
-        return Assert.IsAssignableFrom<Phase>(follower.Phases?.CurrentPhase);
+        Assert.True(first is not null, $"{Follower} never crossed 1R");
+        Assert.True(
+            ground.Layout.Nodes[first.TargetNodeId].RunwayId?.Overlaps(RunwayIdentifier.Parse("1R")) ?? false,
+            $"{Follower}'s first crossing ends at #{first.TargetNodeId}, not a 1R bar"
+        );
+        return new FollowerPastOneRight(Assert.IsAssignableFrom<Phase>(follower.Phases?.CurrentPhase), centrePastFarBarFt, crossedRunways);
+    }
+
+    /// <summary>How far (ft) the aircraft's centre is past <paramref name="crossing"/>'s far bar, along the way across from its near bar.</summary>
+    private static double CentrePastFarBarFt(AirportGroundLayout layout, AircraftState aircraft, CrossingRunwayPhase crossing)
+    {
+        GroundNode nearBar = layout.Nodes[crossing.ApproachNodeId];
+        GroundNode farBar = layout.Nodes[crossing.TargetNodeId];
+        var across = new TrueHeading(GeoMath.BearingTo(nearBar.Position, farBar.Position));
+        return GeoMath.AlongTrackDistanceNm(aircraft.Position, farBar.Position, across) * GeoMath.FeetPerNm;
     }
 
     /// <summary>

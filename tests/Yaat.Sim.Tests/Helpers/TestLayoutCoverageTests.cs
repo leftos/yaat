@@ -35,9 +35,9 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
         "sfo-gc-28rt — a KSFO ground recording that also bundles the scenario's other airports' layouts; every taxi command in it is at "
         + "KSFO and its test asserts only KSFO ground traffic.";
 
-    private const string Issue1357DegradedReason =
-        "issue1357-oak-cto-mlt-28l-occupancy — a KOAK pattern recording whose scenario also declares other airports' layouts; its tests "
-        + "assert only KOAK runway occupancy.";
+    private const string KoakMultiAirportDegradedReason =
+        "issue1356-oak-n7lj-cross-far-bar and issue1357-oak-cto-mlt-28l-occupancy — KOAK recordings whose scenarios also declare "
+        + "FAT and RNO (runway-only layouts) and KOA (no committed map); their traffic and their tests are at KOAK.";
 
     private const string Issue1144AndSfoGc28rtDegradedReason = Issue1144DegradedReason + " " + SfoGc28rtDegradedReason;
 
@@ -54,15 +54,15 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
         ["BZN"] = Issue1144DegradedReason,
         ["CVG"] = SfoGc28rtDegradedReason,
         ["DEN"] = Issue1144AndSfoGc28rtDegradedReason,
-        ["FAT"] = "runway-only layout. " + Issue1357DegradedReason,
+        ["FAT"] = KoakMultiAirportDegradedReason,
         ["GEG"] = SfoGc28rtDegradedReason,
         ["HOU"] = "issue187-star-dvia — IAH is primary; the KHOU traffic is asserted only on its departure altitude cap.",
-        ["KOA"] = "no committed geojson. " + Issue1357DegradedReason,
+        ["KOA"] = KoakMultiAirportDegradedReason,
         ["LAS"] = Issue1144AndSfoGc28rtDegradedReason,
         ["OMA"] = SfoGc28rtDegradedReason,
         ["PDX"] = Issue1144AndSfoGc28rtDegradedReason,
         ["PHX"] = Issue1144AndSfoGc28rtDegradedReason,
-        ["RNO"] = "runway-only layout. " + Issue1357DegradedReason,
+        ["RNO"] = KoakMultiAirportDegradedReason,
         ["SAN"] = Issue1144AndSfoGc28rtDegradedReason,
         ["SAT"] = SfoGc28rtDegradedReason,
         ["SJC"] = "issue216-auto-handoff and multi-cfix-preset — both assert handoff/queue state on airborne traffic.",
