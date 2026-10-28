@@ -166,13 +166,14 @@ internal static class DepartureClearanceHandler
             RunwaySafetyAdvisor.WarnIfTrafficOnFinal(aircraft, runway, ctx);
         }
 
-        // Only when the aircraft is entering the runway now (at the runway's hold-short, in
-        // position, or mid-line-up). A CTO stored during taxi — including one issued at an
-        // intermediate TAXIWAY hold-short ("HS E"), which also arrives here as a
-        // HoldingShortPhase — is applied when the aircraft reaches its departure hold-short;
-        // warning against occupancy minutes early would be noise.
+        // Only when the aircraft is entering the runway now: at the runway's hold-short, in position,
+        // mid-line-up, or taxiing onto the taxiway it held short of to the runway's hold line there
+        // (TakeoffFromTaxiwayHold), which puts it on the runway within seconds. A CTO stored during
+        // taxi, or at a taxiway hold-short where the aircraft stays held, is applied when the
+        // aircraft reaches its departure hold-short; warning against occupancy then would be noise.
         bool enteringRunwayNow =
             currentPhase is HoldingInPositionPhase or LineUpPhase
+            || (result.TaxiwayHoldTakeoff is { Outcome: not TaxiwayHoldTakeoffOutcome.StaysHeld })
             || (
                 currentPhase is HoldingShortPhase enteringHold
                 && enteringHold.HoldShort.TargetName is { } holdTarget
@@ -263,6 +264,11 @@ internal static class DepartureClearanceHandler
         if (runway is null)
         {
             // Target is a taxiway (e.g., "HS E"), not a runway.
+            if ((clearanceType == ClearanceType.ClearedForTakeoff) && (GroundCommandHandler.HeldShortTaxiway(aircraft) is { } heldTaxiway))
+            {
+                return TakeoffFromTaxiwayHold(aircraft, heldTaxiway, departure, assignedAltitude, logger);
+            }
+
             // Clear the hold-short and store the departure clearance so the
             // aircraft resumes taxiing to its destination runway.
             holding.SatisfyClearance(ClearanceType.RunwayCrossing);
@@ -290,6 +296,98 @@ internal static class DepartureClearanceHandler
         {
             Advisory = ProcedureSourceSidAdvisory(clearanceType, routeResult, aircraft),
         };
+    }
+
+    /// <summary>
+    /// A takeoff clearance given while holding short of taxiway <paramref name="taxiway"/> is an implicit taxi onto it for an
+    /// intersection departure: the aircraft is re-cleared <c>TAXI {taxiway} RWY {assigned runway}</c>, which ends at the
+    /// runway's hold line on that taxiway, and the clearance is stored for the taxi machinery to line up and depart there.
+    /// When the taxiway does not reach the assigned runway, or no runway is assigned, the aircraft stays held and the
+    /// clearance is stored on its existing route; it moves on a <c>RES</c> or a new <c>TAXI</c>.
+    /// </summary>
+    private static CommandResult TakeoffFromTaxiwayHold(
+        AircraftState aircraft,
+        string taxiway,
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        ILogger logger
+    )
+    {
+        if (aircraft.Phases?.AssignedRunway is { } runway)
+        {
+            // The implicit taxi keeps the crew's standing taxi instructions: a running expedite and a commanded taxi speed,
+            // which a fresh TAXI would otherwise reset.
+            double? commandedTaxiSpeedKts = aircraft.Ground.CommandedTaxiSpeedKts;
+            var taxi = new TaxiCommand([taxiway], [], Expedite: aircraft.Ground.IsExpeditingTaxi, DestinationRunway: runway.Designator);
+            CommandResult taxiResult = GroundCommandHandler.TryTaxi(aircraft, taxi, aircraft.Ground.Layout, AutoCrossRunwayMode.Off);
+            if (taxiResult.Success)
+            {
+                aircraft.Ground.CommandedTaxiSpeedKts = commandedTaxiSpeedKts;
+                return StoreImplicitTaxiTakeoff(aircraft, taxiway, departure, assignedAltitude, logger);
+            }
+
+            logger.LogDebug(
+                "{Callsign}: CTO at the hold short of {Taxiway} keeps the hold — taxi to {Runway} failed: {Reason}",
+                aircraft.Callsign,
+                taxiway,
+                runway.Designator,
+                taxiResult.Message
+            );
+        }
+
+        CommandResult held = StoreDepartureClearanceDuringTaxi(aircraft, ClearanceType.ClearedForTakeoff, departure, assignedAltitude);
+        return held.Success ? held with { TaxiwayHoldTakeoff = new TaxiwayHoldTakeoff(taxiway, TaxiwayHoldTakeoffOutcome.StaysHeld) } : held;
+    }
+
+    /// <summary>
+    /// Stores the takeoff clearance on the route the implicit taxi onto <paramref name="taxiway"/> just installed. The departure is
+    /// an intersection departure from <paramref name="taxiway"/> only when the route's destination hold is the runway's entry on that
+    /// taxiway (<see cref="RunwayEntryPoint.Resolve"/>); a route that reaches the runway elsewhere departs from there.
+    /// </summary>
+    private static CommandResult StoreImplicitTaxiTakeoff(
+        AircraftState aircraft,
+        string taxiway,
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        ILogger logger
+    )
+    {
+        CommandResult departing = StoreDepartureClearanceDuringTaxi(aircraft, ClearanceType.ClearedForTakeoff, departure, assignedAltitude);
+        string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(aircraft.Phases?.AssignedRunway?.Designator ?? "");
+        if (!departing.Success)
+        {
+            logger.LogWarning(
+                "{Callsign}: CTO at the hold short of {Taxiway} taxied it toward {Runway} but the clearance was not stored: {Reason}",
+                aircraft.Callsign,
+                taxiway,
+                runwayDisplay,
+                departing.Message
+            );
+            return new CommandResult(
+                false,
+                $"{aircraft.Callsign} is taxiing to the {runwayDisplay} hold short on {taxiway} without a takeoff clearance: {departing.Message}"
+            );
+        }
+
+        TaxiwayHoldTakeoffOutcome outcome = DepartsFromTaxiway(aircraft, taxiway)
+            ? TaxiwayHoldTakeoffOutcome.IntersectionDeparture
+            : TaxiwayHoldTakeoffOutcome.OtherEntry;
+        return departing with { TaxiwayHoldTakeoff = new TaxiwayHoldTakeoff(taxiway, outcome) };
+    }
+
+    private static bool DepartsFromTaxiway(AircraftState aircraft, string taxiway)
+    {
+        if (
+            aircraft.Ground.Layout is not { } layout
+            || aircraft.Phases?.AssignedRunway is not { } runway
+            || aircraft.Ground.AssignedTaxiRoute?.HoldShortPoints.Find(hs => hs.Reason == HoldShortReason.DestinationRunway) is not { } bar
+        )
+        {
+            return false;
+        }
+
+        string? entry = RunwayEntryPoint.Resolve(layout, bar.NodeId, runway.Designator, null);
+        return string.Equals(entry, taxiway, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static CommandResult LineUpFromPosition(

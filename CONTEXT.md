@@ -210,6 +210,10 @@ _Avoid_: missed exit (an exit passed without an instruction is not given up)
 The first call a spawned aircraft makes on its own to get moving: a ground spawn's "ready to taxi" (or, for an uncleared IFR departure, its clearance request to the lowest position the student works), or an untowered runway spawn's release request to a radar student. Whether and when an aircraft makes it is decided once, at scenario load, as its `InitialCallupPlan` (`InitialCallupClassifier`, docs/solo-training-pilot-speech.md); an aircraft the loader did not arm never makes one.
 _Avoid_: check-in (a check-in is the call on a frequency change), initial contact (an airborne check-in still follows a release request)
 
+**Intersection departure**:
+A takeoff from a taxiway's hold line on the runway, short of the full runway length, in place of the runway end's entry. A `CTO` given while holding short of a taxiway makes one: the aircraft is re-cleared onto that taxiway to the runway's hold line on it, and the readback names it ("cleared for takeoff runway 28R at echo"). A taxiway that does not reach the assigned runway keeps the hold (`TaxiwayHoldTakeoffOutcome`). Classified per runway end by `RunwayEntryPoint`.
+_Avoid_: intersection takeoff (the AIM's term for the same departure; the code and docs say departure)
+
 **Pre-clear**:
 A clearance for a hold short still ahead of a rolling aircraft, set before it reaches the bar so it taxis through without stopping: `CROSS` for a runway crossing, a bare `RES` for the next taxiway or spot bar (`GroundCommandHandler.TryPreClearNextTaxiwayHoldShort`, docs/command-handlers.md). Only the one bar named is cleared; later bars stay armed.
 _Avoid_: release (a release lifts a hold the aircraft is already stopped at)

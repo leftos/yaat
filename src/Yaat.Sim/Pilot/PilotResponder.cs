@@ -587,14 +587,14 @@ public static partial class PilotResponder
                 cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
                 cto.Departure,
                 cto.AssignedAltitude,
-                includeRunway: true
+                new TakeoffRunwayWording(IncludeRunway: true, Intersection: null)
             ),
             ClearedTakeoffPresentCommand ctopp => BuildTakeoffClearanceClause(
                 aircraft,
                 "cleared for takeoff, present position",
                 ctopp.Departure,
                 ctopp.AssignedAltitude,
-                includeRunway: false
+                new TakeoffRunwayWording(IncludeRunway: false, Intersection: null)
             ),
             _ when HasNoReadbackClause(cmd) => null,
             HoldShortCommand hsc when IsUnmakeableHoldShort(aircraft, hsc) => BuildUnableHoldShortClause(hsc),
@@ -1351,21 +1351,70 @@ public static partial class PilotResponder
         return canonical with { Tts = prefix + (spoken.Text ?? final) };
     }
 
+    /// <summary>
+    /// Pilot readback of a takeoff clearance given while holding short of a taxiway (the handler's
+    /// <see cref="CommandResult.PilotReadback"/>). An intersection departure from that taxiway names its departure point
+    /// right after the runway ("cleared for takeoff runway 28R at E"); a clearance stored while the aircraft stays held
+    /// says where it holds ("cleared for takeoff runway 28R, holding short of E").
+    /// </summary>
+    /// <param name="aircraft">The aircraft reading back.</param>
+    /// <param name="lead">"cleared for takeoff" or "cleared for immediate takeoff".</param>
+    /// <param name="departure">The departure instruction the clearance carries.</param>
+    /// <param name="assignedAltitude">The altitude the clearance assigns, or null.</param>
+    /// <param name="site">The taxiway held short of and where the clearance leaves the aircraft.</param>
+    internal static PilotSpeechText BuildTakeoffClearanceAtTaxiwayHold(
+        AircraftState aircraft,
+        string lead,
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        TaxiwayHoldTakeoff site
+    )
+    {
+        string? intersection = site.Outcome == TaxiwayHoldTakeoffOutcome.IntersectionDeparture ? site.Taxiway : null;
+        PilotSpeechText clause = BuildTakeoffClearanceClause(
+            aircraft,
+            lead,
+            departure,
+            assignedAltitude,
+            new TakeoffRunwayWording(true, intersection)
+        );
+        if (site.Outcome != TaxiwayHoldTakeoffOutcome.StaysHeld)
+        {
+            return clause;
+        }
+
+        return new PilotSpeechText(
+            $"{clause.Terminal}, holding short of {site.Taxiway}",
+            $"{clause.Tts}, holding short of {PhraseologyVerbalizer.SpellTaxiway(site.Taxiway)}"
+        );
+    }
+
+    /// <summary>How a takeoff clearance's readback names the runway.</summary>
+    /// <param name="IncludeRunway">Whether the runway is named ("cleared for takeoff runway 28R").</param>
+    /// <param name="Intersection">The taxiway of an intersection departure, named right after the runway ("… 28R at E"); null for none.</param>
+    private readonly record struct TakeoffRunwayWording(bool IncludeRunway, string? Intersection);
+
     private static PilotSpeechText BuildTakeoffClearanceClause(
         AircraftState aircraft,
         string lead,
         DepartureInstruction departure,
         int? assignedAltitude,
-        bool includeRunway
+        TakeoffRunwayWording runwayWording
     )
     {
         var term = new StringBuilder(lead);
         var tts = new StringBuilder(lead);
         string runwayId = ResolveTakeoffRunwayId(aircraft);
-        if (includeRunway && !string.IsNullOrWhiteSpace(runwayId))
+        if (runwayWording.IncludeRunway && !string.IsNullOrWhiteSpace(runwayId))
         {
             term.Append(" runway ").Append(PhraseologyVerbalizer.CompactRunway(runwayId));
             tts.Append(" runway ").Append(PhraseologyVerbalizer.SpellRunway(runwayId));
+        }
+
+        if (runwayWording.Intersection is { } intersection)
+        {
+            term.Append(" at ").Append(intersection);
+            tts.Append(" at ").Append(PhraseologyVerbalizer.SpellTaxiway(intersection));
         }
 
         PilotSpeechText departureClause = BuildDepartureInstructionClause(departure);

@@ -54,6 +54,12 @@ public record CommandResult(
     internal GroundCommandHandler.TaxiRouteReadbackSource? TaxiRouteReadback { get; init; }
 
     /// <summary>
+    /// Where a takeoff clearance given at a taxiway hold short leaves the aircraft, so the dispatcher can build its readback
+    /// with the clearance's "immediate" wording; null for any other result.
+    /// </summary>
+    internal TaxiwayHoldTakeoff? TaxiwayHoldTakeoff { get; init; }
+
+    /// <summary>
     /// The pilot's "unable" for a refusal, when the handler builds one — an exit the crew cannot make on the rollout says
     /// <see cref="Pilot.PilotResponder.BuildUnableToExit"/> — in place of the generic <see cref="Pilot.PilotResponder.BuildUnable"/>
     /// over <see cref="Message"/>; null when the generic form applies.
@@ -65,6 +71,24 @@ public record CommandResult(
     /// training): operator guidance shown in the terminal only, which no pilot says on frequency, so no "unable" is queued.
     /// </summary>
     public bool IsOperatorGuidance { get; init; }
+}
+
+/// <summary>A takeoff clearance given while holding short of a taxiway (<see cref="CommandResult.TaxiwayHoldTakeoff"/>).</summary>
+/// <param name="Taxiway">The taxiway held short of.</param>
+/// <param name="Outcome">Where the clearance leaves the aircraft.</param>
+internal sealed record TaxiwayHoldTakeoff(string Taxiway, TaxiwayHoldTakeoffOutcome Outcome);
+
+/// <summary>Where a takeoff clearance given at a taxiway hold short leaves the aircraft (<see cref="TaxiwayHoldTakeoff"/>).</summary>
+internal enum TaxiwayHoldTakeoffOutcome
+{
+    /// <summary>It taxis onto the taxiway to the runway's hold line on it and departs from the intersection.</summary>
+    IntersectionDeparture,
+
+    /// <summary>It taxis onto the taxiway, but the route reaches the runway at another entry, where it departs.</summary>
+    OtherEntry,
+
+    /// <summary>It stays held short of the taxiway, the clearance stored on its route.</summary>
+    StaysHeld,
 }
 
 /// <summary>
@@ -2798,6 +2822,41 @@ public static class CommandDispatcher
         return result;
     }
 
+    private static CommandResult ApplyClearedForTakeoff(ClearedForTakeoffCommand cto, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    {
+        CommandResult ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
+            ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
+            : DepartureClearanceHandler.TryDepartureClearance(
+                aircraft,
+                currentPhase,
+                ClearanceType.ClearedForTakeoff,
+                cto.Departure,
+                cto.AssignedAltitude,
+                ctx,
+                Log
+            );
+        // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
+        // existing rolling/upgrade machinery). Latest clearance's modifier wins.
+        if (ctoResult.Success)
+        {
+            aircraft.Ground.IsExpeditingLineup = cto.Immediate;
+        }
+
+        if (ctoResult.TaxiwayHoldTakeoff is { } taxiwayHold)
+        {
+            PilotSpeechText readback = PilotResponder.BuildTakeoffClearanceAtTaxiwayHold(
+                aircraft,
+                cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
+                cto.Departure,
+                cto.AssignedAltitude,
+                taxiwayHold
+            );
+            return ctoResult with { PilotReadback = new HandlerReadback(CanonicalCommandType.ClearedForTakeoff, readback) };
+        }
+
+        return ctoResult;
+    }
+
     private static CommandResult? TryApplyTowerCommandCore(
         ParsedCommand command,
         AircraftState aircraft,
@@ -2836,26 +2895,7 @@ public static class CommandDispatcher
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
-            {
-                CommandResult ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
-                    ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
-                    : DepartureClearanceHandler.TryDepartureClearance(
-                        aircraft,
-                        currentPhase,
-                        ClearanceType.ClearedForTakeoff,
-                        cto.Departure,
-                        cto.AssignedAltitude,
-                        ctx,
-                        Log
-                    );
-                // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
-                // existing rolling/upgrade machinery). Latest clearance's modifier wins.
-                if (ctoResult.Success)
-                {
-                    aircraft.Ground.IsExpeditingLineup = cto.Immediate;
-                }
-                return ctoResult;
-            }
+                return ApplyClearedForTakeoff(cto, aircraft, currentPhase, ctx);
 
             case CancelTakeoffClearanceCommand:
                 // Cancelling the takeoff clearance moots any pending expedite intent.

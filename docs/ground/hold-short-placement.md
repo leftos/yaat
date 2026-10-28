@@ -227,7 +227,9 @@ Its `TargetName` is X, a taxiway, so `ComputeHoldShortPositions` places it on th
 
 `HoldShortPoint.EndsNoDestinationRoute` marks the hold that ends a clearance with no destination at an explicit hold short of its last taxiway: a bare final taxiway (`TAXI C B`, a bare `TAXI B` on C) and an `HS E` target the route would drive only on its way past (`TAXI C HS B`, `TAXI D C HS E RWY 28R`).
 
-The aircraft never stops inside the junction. The cut is described in [pathfinder.md](./pathfinder.md) under "Final named token — junction stop or terminus walk"; a cut with a destination or a missing link (`ApplyMissingTaxiwayFallbacks`) leaves the flag false.
+The aircraft never stops inside the junction. The cut is described in [pathfinder.md](./pathfinder.md) under "Final named token — junction stop or terminus walk"; a missing link (`ApplyMissingTaxiwayFallbacks`) leaves the flag false.
+
+An `HS E` target driven on the way to a destination is cut too (`GroundCommandHandler.HeldShortOfDrivenTarget` → `HoldShortBeforeTaxiway`): the route ends held short of E, the hold keeps `ExplicitHoldShort` and the route has no `DestinationRunway` hold. A `CTO` given there is an implicit taxi onto E for an intersection departure ([commands](../../COMMANDS.md): "`CTO` while holding short of a taxiway"), not a stored clearance for a runway bar.
 
 - **No release.** The phase refuses `RES`, `CROSS` and every other command it would refuse at a route-incomplete hold with `holding short of X where the route issued ends — issue a TAXI that includes X`, whether the aircraft is holding or still taxiing toward the hold, and a bare `RES` to a rolling aircraft never pre-clears it. Only a new `TAXI` moves the aircraft on.
 - **A bare TAXI to the same taxiway is refused**, since it names no way along X and would only end at the same hold: `holding short of B: give a direction (>B or <B) or a destination`, or `holding short of B: B lies behind, give a destination` when no direction onto X is admissible from the hold (OAK C/B, where B runs into C at 14.5°). The refusal is sim-side only and never spoken.

@@ -144,7 +144,7 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 | `AssignedRunway` | TAXI, RWY, departure clearance | `LineUpPhase`, `TakeoffPhase`, `FinalApproachPhase` |
 | `TaxiRoute` | A TAXI or TAXIAUTO accepted on the landing rollout (`GroundCommandHandler.RolloutTaxi.cs`); cleared when the exit completes and the route starts, or dropped (exit given up, another exit instructed, go-around, stopped with no exit ahead). The active route is `Ground.AssignedTaxiRoute`, not this | `RunwayExitPhase` (rolls into it; `GroundCommandHandler.TryStartStoredTaxiRoute`), the CROSS handlers, `SituationFlagCalculator`, `AircraftStatusDescriber` |
 | `StoredTaxiDestinationRunway` | The same TAXI, when its clearance names a destination runway; set and cleared with `TaxiRoute` | `TryStartStoredTaxiRoute` (assigned as the departure runway in preference to the one the route's last bar detects) |
-| `DepartureClearance` | LUAW / CTO | `LinedUpAndWaitingPhase`, threshold logic |
+| `DepartureClearance` | LUAW / CTO; a CTO while holding short of a taxiway stores it on the route of the implicit taxi onto that taxiway (`DepartureClearanceHandler.TakeoffFromTaxiwayHold`) | `LinedUpAndWaitingPhase`, threshold logic |
 | `LandingClearance` (`ClearanceType?`) | CLAND, CTOC, LUAW-cancel; voided by any go-around (`GoAroundHelper.InstallGoAroundPhases`, along with `Pattern.PendingLandingClearance`) | `FinalApproachPhase`, `LandingPhase` |
 | `ClearedRunwayId` | landing clearance; voided with it at go-around | `FinalApproachPhase` |
 | `TrafficDirection` (`PatternDirection?`) | pattern commands | auto-cycle in `PhaseRunner` |

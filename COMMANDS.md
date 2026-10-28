@@ -1110,6 +1110,10 @@ The advisory is suppressed at airports whose vNAS ARTCC config carries an ASDE-X
 
 `CTO` / `LUAW` issued while the aircraft is still taxiing to its destination runway — including while it is crossing another runway on the way there — is stored and applied when the taxi route reaches that runway: the destination hold-short (and any remaining crossings of the same runway) is pre-cleared, and with a `CTO` in hand the aircraft rolls straight through the line-up without stopping (Super/Heavy still make a standing-start takeoff per 7110.65 §3-9-5.3).
 
+**`CTO` while holding short of a taxiway** (`TAXI D C HS E RWY 28R`, the aircraft held short of E) is an implicit taxi onto that taxiway for an **intersection departure**: the aircraft is re-cleared `TAXI E RWY 28R`, taxis to the runway's hold line on E, lines up and departs from there. The readback names the intersection ("cleared for takeoff runway 28R at echo").
+
+`EXP` and a commanded taxi speed carry into that taxi, and the runway-occupancy warning fires as for any `CTO` that puts the aircraft on the runway. When E does not reach the assigned runway, or the aircraft has no assigned runway, it stays held and the clearance is stored on its route ("cleared for takeoff runway 28R, holding short of E"); `RES` or a new `TAXI` moves it on. When the route from E reaches the runway at another entry, the aircraft departs from that entry and the readback does not say "at". `LUAW` at a taxiway hold short does not start this taxi.
+
 #### CTO Departure Modifiers
 
 All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)) — except that on the closed-traffic modifiers `MLT`/`MRT` the first token competes with the runway slot: a 1–2 digit token there is a runway, so an altitude given without a runway needs three or more digits (`CTO MLT 015`); after a runway the shorthand works as usual (`CTO MLT 28R 15`).
