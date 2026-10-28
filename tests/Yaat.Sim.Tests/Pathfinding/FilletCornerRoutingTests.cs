@@ -8,18 +8,25 @@ namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// A corner is turned over the fillet arc the generator painted there, never square through the junction
-/// centre node. S2-OAK-2 bundle, SWA2600 <c>TAXI TE U W W1 30</c>: the U→W turn resolved as 686→17→683, so
-/// the navigator rounded it at the main-gear turn radius at 3 kt and re-acquired W with a visible swing instead
-/// of flying the 75 ft fillet 686→683 at its arc speed. The reverse-arc cost was the cause: half of all
+/// centre node. S2-OAK-2 bundle, SWA2600 <c>TAXI TE U W W1 30</c>: the U→W turn resolved through the U/W junction
+/// centre, so the navigator rounded it at the main-gear turn radius at 3 kt and re-acquired W with a visible swing
+/// instead of flying the 75 ft <c>W - U</c> fillet at its arc speed. The reverse-arc cost was the cause: half of all
 /// corner traversals run against an arc's stored node order, and that penalty made the square pivot cheaper.
 /// </summary>
 public class FilletCornerRoutingTests(ITestOutputHelper output)
 {
-    /// <summary>SWA2600's pushback end on TE in the S2-OAK-2 bundle.</summary>
-    private const int OakTeStart = 896;
+    /// <summary>
+    /// SWA2600's pushback end on TE in the S2-OAK-2 bundle: a ramp node with only RAMP edges, which no lookup names, so it is
+    /// pinned by id.
+    /// </summary>
+    private const int OakTeStart = 903;
 
-    private const int OakUArcEntry = 686;
-    private const int OakWArcExit = 683;
+    /// <summary>The U end of the <c>W - U</c> fillet arc (the only node on both U and that arc).</summary>
+    private static GroundNode OakUArcEntry(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "U", "W - U");
+
+    /// <summary>The W end of the <c>W - U</c> fillet arc on the W1 side of the U/W junction, toward runway 30.</summary>
+    private static GroundNode OakWArcExit(AirportGroundLayout layout) =>
+        GroundNodeLookup.Junction(layout, "W", "W - U", GroundNodeLookup.Junction(layout, "W", "W1"));
 
     /// <summary>UAL2164's stop on T after crossing 28L in the S1-SFO-2 bundle (#459), nosed south-west.</summary>
     private static GroundNode SfoTAfter28LCrossing(AirportGroundLayout layout) =>
@@ -86,11 +93,14 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Dump(route);
 
-        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == OakUArcEntry && s.ToNodeId == OakWArcExit);
+        int arcEntry = OakUArcEntry(layout).Id;
+        int arcExit = OakWArcExit(layout).Id;
+        output.WriteLine($"W - U arc {arcEntry} -> {arcExit}");
+        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == arcEntry && s.ToNodeId == arcExit);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
         int uwJunctionCentre = GroundNodeLookup.Junction(layout, "U", "W").Id;
         Assert.DoesNotContain(route.Segments, s => s.FromNodeId == uwJunctionCentre || s.ToNodeId == uwJunctionCentre);
-        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "OAK 896 TE U W W1 -> 30");
+        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, $"OAK {OakTeStart} TE U W W1 -> 30");
     }
 
     [Fact]

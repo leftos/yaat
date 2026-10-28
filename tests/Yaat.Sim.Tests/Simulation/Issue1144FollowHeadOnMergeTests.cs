@@ -22,8 +22,14 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     /// <summary>The second before the recorded <c>FOLLOWG SWA6139</c>, which lands at t=1019.</summary>
     private const int BeforeFollow = 1018;
 
-    /// <summary>A second after SWA6139 has rounded the B→T fillet, with B's edge 725-159 still in its trail.</summary>
+    /// <summary>A second after SWA6139 has rounded the B→T fillet, with B's edge from the fillet start (#724) to #159 still in its trail.</summary>
     private const int OnTAfterFillet = 1036;
+
+    /// <summary>
+    /// The B node next to the B→T fillet start, on the side SWA6139 came from. Pinned by id: no lookup names a plain B node,
+    /// and its id lies below the range the runway-paint snap renumbers.
+    /// </summary>
+    private const int TrailBNodeId = 159;
 
     /// <summary>The recording's last second.</summary>
     private const int RecordingEnd = 1078;
@@ -75,9 +81,9 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// At t=1036 SWA6139 has turned off B onto T through the B→T fillet 725→724, and its trail holds B's edge 725-159, sampled
+    /// At t=1036 SWA6139 has turned off B onto T through the B→T fillet from #724, and its trail holds B's edge 724-159, sampled
     /// while its centre lay over that straight edge rounding the fillet. Its lead path never turns, between consecutive edges,
-    /// past SWA6139's own junction limit: it does not run 725→159 and back to take the fillet.
+    /// past SWA6139's own junction limit: it does not run 724→159 and back to take the fillet.
     /// </summary>
     [Fact]
     public void SWA6139_LeadPathAfterTurningOntoT_NeverTurnsAbout()
@@ -95,7 +101,15 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         AircraftState ups = Assert.IsType<AircraftState>(engine.FindAircraft("UPS947"));
         AircraftState swa = Assert.IsType<AircraftState>(engine.FindAircraft("SWA6139"));
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(swa.Ground.Layout);
-        Assert.Contains(swa.Ground.TaxiEdgeTrail.Edges, e => ((e.NodeA == 717) && (e.NodeB == 159)) || ((e.NodeA == 159) && (e.NodeB == 717)));
+        // B's edge from the B→T fillet start to #159, the B node next to it (an id below the snap's renumbering).
+        int filletStart = GroundNodeLookup.Junction(layout, "B", "T - B", layout.Nodes[TrailBNodeId]).Id;
+        output.WriteLine(
+            $"trail pin: B edge {filletStart}-{TrailBNodeId}; trail: {string.Join(" ", swa.Ground.TaxiEdgeTrail.Edges.Select(e => $"{e.NodeA}-{e.NodeB}"))}"
+        );
+        Assert.Contains(
+            swa.Ground.TaxiEdgeTrail.Edges,
+            e => ((e.NodeA == filletStart) && (e.NodeB == TrailBNodeId)) || ((e.NodeA == TrailBNodeId) && (e.NodeB == filletStart))
+        );
 
         IReadOnlyList<DirectionalEdge> path = Assert.IsAssignableFrom<IReadOnlyList<DirectionalEdge>>(
             FollowRoutePlanner.LeadPathOf(layout, swa, ups)
