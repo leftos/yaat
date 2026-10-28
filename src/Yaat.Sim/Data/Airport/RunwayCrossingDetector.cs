@@ -56,48 +56,168 @@ internal static class RunwayCrossingDetector
     private const double MaxEdgeFraction = 0.99;
 
     /// <summary>
-    /// The runway's parse-time facts: its navdata width, its base separation S (<see cref="ResolveStandoff"/>, warning
-    /// when the rule overrides the authored value) and its rectangle. Every runway is planned before any runway's bars are
-    /// seated, so each crossing can see every other runway's holding area.
+    /// Plans every runway of the layout (<see cref="PlanRunway"/>) before any runway's bars are seated, so each crossing can
+    /// see every other runway's holding area. With a videomap, every runway's crossings are first paired with paint,
+    /// read-only, against the rule's or authored S (<see cref="PairWithUncalibratedStandoff"/>); a runway whose crossings pair
+    /// with at least <see cref="HoldShortStandoff.MinCalibrationBars"/> painted bars takes S from their near ends
+    /// (<see cref="HoldShortStandoff.CalibratedFt"/>), and its seating reuses those pairs (<see cref="RunwayPlan.Paint"/>).
+    /// With no map every runway keeps the rule's or authored S and seats every bar by the rule.
     /// </summary>
-    internal static RunwayPlan PlanRunway(GeoJsonParser.RunwayFeature rwy, string airportId, string? runwayAirportCode)
+    internal static List<RunwayPlan> PlanRunways(
+        IReadOnlyList<GeoJsonParser.RunwayFeature> runways,
+        AirportGroundLayout layout,
+        string? runwayAirportCode,
+        TowerCabVideoMap? videoMap
+    )
+    {
+        if (videoMap is not { } map)
+        {
+            return [.. runways.Select(rwy => PlanRunway(rwy, layout.AirportId, runwayAirportCode, calibratedFt: null))];
+        }
+
+        List<(RunwayPlan Plan, HoldShortStandoffResult Standoff)> uncalibrated =
+        [
+            .. runways.Select(rwy => PlanWithoutWarning(rwy, runwayAirportCode, calibratedFt: null)),
+        ];
+        List<RunwayPlan> uncalibratedPlans = [.. uncalibrated.Select(planned => planned.Plan)];
+        PaintSource paint = PaintSourceOf(map, uncalibratedPlans);
+        var plans = new List<RunwayPlan>(uncalibrated.Count);
+        foreach ((RunwayPlan rulePlan, HoldShortStandoffResult ruleStandoff) in uncalibrated)
+        {
+            (IReadOnlyDictionary<(int OnId, int OffId), IReadOnlyList<PaintPair>> pairs, List<double> nearEndsFt) = PairWithUncalibratedStandoff(
+                rulePlan,
+                uncalibratedPlans,
+                layout,
+                paint
+            );
+            double? calibratedFt = HoldShortStandoff.CalibratedFt(nearEndsFt);
+            LogCalibration(layout.AirportId, rulePlan.Feature.Name, ruleStandoff, nearEndsFt.Count, calibratedFt);
+            var planned = new PlannedPaint(paint, pairs, uncalibratedPlans);
+            plans.Add(PlanRunway(rulePlan.Feature, layout.AirportId, runwayAirportCode, calibratedFt) with { Paint = planned });
+        }
+
+        return plans;
+    }
+
+    /// <summary>
+    /// The runway's parse-time facts: its navdata width, its base separation S (<see cref="ResolveStandoff"/>, warning
+    /// when the rule overrides the authored value) and its rectangle, with no paint.
+    /// </summary>
+    internal static RunwayPlan PlanRunway(GeoJsonParser.RunwayFeature rwy, string airportId, string? runwayAirportCode, double? calibratedFt)
+    {
+        (RunwayPlan plan, HoldShortStandoffResult standoff) = PlanWithoutWarning(rwy, runwayAirportCode, calibratedFt);
+        HoldShortStandoff.WarnWhenRuleOverAuthored(airportId, rwy.Name, rwy.HoldShortDistanceFt, standoff);
+        return plan;
+    }
+
+    private static (RunwayPlan Plan, HoldShortStandoffResult Standoff) PlanWithoutWarning(
+        GeoJsonParser.RunwayFeature rwy,
+        string? runwayAirportCode,
+        double? calibratedFt
+    )
     {
         var combinedId = RunwayIdentifier.Parse(rwy.Name);
 
         // The rule's runway inputs from navdata; without navdata the width is the default and the length long.
         var inputs = RunwayStandoffInputs.Lookup(NavigationDatabase.InstanceOrNull, runwayAirportCode, combinedId);
-        HoldShortStandoffResult standoff = ResolveStandoff(rwy, inputs);
-        HoldShortStandoff.WarnWhenRuleOverAuthored(airportId, rwy.Name, rwy.HoldShortDistanceFt, standoff);
-        return new RunwayPlan(rwy, BuildRunwayRectangle(rwy, inputs.WidthFt, standoff.Ft, combinedId), inputs.WidthFt, standoff.Ft);
+        HoldShortStandoffResult standoff = ResolveStandoff(rwy, inputs, calibratedFt);
+        RunwayRectangle rect = BuildRunwayRectangle(rwy, inputs.WidthFt, standoff.Ft, combinedId);
+        return (new RunwayPlan(rwy, rect, inputs.WidthFt, standoff.Ft, Paint: null), standoff);
     }
 
     /// <summary>
+    /// The read-only pairing pass behind a runway's paint calibration, on the layout before any runway's bars are seated:
+    /// every boundary crossing's paint candidates (<see cref="RunwayPaintPairing.Candidates"/>) against its D_rule from the
+    /// uncalibrated S of every runway (<paramref name="runways"/>), by the crossing's node pair, and the near end of each
+    /// painted bar some crossing pairs with first, each bar once however many crossings rank it first.
+    /// </summary>
+    internal static (
+        IReadOnlyDictionary<(int OnId, int OffId), IReadOnlyList<PaintPair>> Pairs,
+        List<double> NearEndsFt
+    ) PairWithUncalibratedStandoff(RunwayPlan plan, IReadOnlyList<RunwayPlan> runways, AirportGroundLayout layout, PaintSource paint)
+    {
+        RunwayRectangle rect = plan.Rect;
+        var pairs = new Dictionary<(int OnId, int OffId), IReadOnlyList<PaintPair>>();
+        var nearEndBySegment = new Dictionary<int, double>();
+        foreach (Crossing crossing in BoundaryCrossings(layout, rect))
+        {
+            double ruleFt = CrossingStandoffNm(layout, crossing, rect, runways, StandoffPass.Planning) * GeoMath.FeetPerNm;
+            List<PaintPair> candidates = RunwayPaintPairing.Candidates(layout, crossing, rect, ruleFt, paint);
+            pairs[(crossing.On.Id, crossing.Off.Id)] = candidates;
+            if (candidates is [var first, ..])
+            {
+                nearEndBySegment.TryAdd(first.SegmentIndex, first.NearEndFt);
+            }
+        }
+
+        return (pairs, [.. nearEndBySegment.Values]);
+    }
+
+    /// <summary>Logs a runway whose paint calibration replaced the rule's or authored S.</summary>
+    private static void LogCalibration(string airportId, string runwayName, HoldShortStandoffResult uncalibrated, int pairCount, double? calibratedFt)
+    {
+        if (calibratedFt is not { } calibrated)
+        {
+            return;
+        }
+
+        Log.LogDebug(
+            "{Airport} runway {Runway}: S calibrated to {CalibratedFt:F1} ft, the median near end of {Count} paint-paired bars, "
+                + "replacing the {Source} value {UncalibratedFt:F1} ft (rule {RuleFt:F1} ft)",
+            airportId,
+            runwayName,
+            calibrated,
+            pairCount,
+            uncalibrated.Source,
+            uncalibrated.Ft,
+            uncalibrated.RuleFt
+        );
+    }
+
+    /// <summary>What crossings pair against: the videomap's segments and every planned runway's centerline.</summary>
+    private static PaintSource PaintSourceOf(TowerCabVideoMap map, IReadOnlyList<RunwayPlan> runways) =>
+        new(map.Segments, [.. runways.Select(other => (IReadOnlyList<LatLon>)[.. other.Feature.Coords.Select(c => new LatLon(c.Lat, c.Lon))])]);
+
+    /// <summary>
     /// Seats the planned runway's hold-short bars on every taxiway that crosses its edge and links its on-runway nodes.
-    /// <paramref name="runways"/> is every runway of the layout, planned (<see cref="PlanRunway"/>), whose holding areas
-    /// an angled bar keeps out of. A crossing whose taxiway carries a painted bar of <paramref name="videoMap"/> that pairs
-    /// with it (the first of <see cref="RunwayPaintPairing.Candidates"/> that <see cref="PairWithPaint"/> can seat) has its
-    /// bar seated on the paint; with no map every bar is seated by the rule. Returns the runway width used, the bars the
+    /// <paramref name="runways"/> is every runway of the layout, planned (<see cref="PlanRunways"/>), whose holding areas
+    /// an angled bar keeps out of. A crossing that pairs with a painted bar of the plan's paint (<see cref="RunwayPlan.Paint"/>:
+    /// the first of its planned candidates, <see cref="CandidatesFor"/>, that <see cref="PairWithPaint"/> can seat) has its
+    /// bar seated on the paint; a plan with no paint seats every bar by the rule. Returns the runway width used, the bars the
     /// dead-end fallback placed short of the holding distance at a junction, for <see cref="DropRedundantFallbackBars"/> once
-    /// every runway's bars are in, and the bars seated on paint.
+    /// every runway's bars are in, the bars seated on paint and how many crossings the planning pass had not seen.
     /// </summary>
     internal static RunwayCrossingResult DetectRunwayCrossings(
         RunwayPlan plan,
         IReadOnlyList<RunwayPlan> runways,
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
-        TowerCabVideoMap? videoMap,
         ref int nextNodeId
     )
     {
         RunwayRectangle rect = plan.Rect;
-        PaintSource? paint =
-            (videoMap is { } map)
-                ? new PaintSource(
-                    map.Segments,
-                    [.. runways.Select(other => (IReadOnlyList<LatLon>)[.. other.Feature.Coords.Select(c => new LatLon(c.Lat, c.Lon))])]
-                )
-                : null;
+        var seating = new RunwaySeating(new CrossingContext(layout, coordIndex), runways, plan.Paint, [], []);
+        foreach (Crossing crossing in BoundaryCrossings(layout, rect))
+        {
+            SeatCrossing(seating, crossing, rect, ref nextNodeId);
+        }
 
+        // Connect on-runway nodes with centerline edges so that taxiways
+        // crossing the same runway are linked (e.g., D and F at OAK both cross
+        // 15/33 but have no GeoJSON edges between them).
+        ConnectOnRunwayNodes(layout, rect, coordIndex, ref nextNodeId);
+
+        return new RunwayCrossingResult(plan.WidthFt, plan.StandoffFt, seating.FallbackBars, seating.SnappedBars, seating.UnplannedCrossings);
+    }
+
+    /// <summary>
+    /// The runway's boundary crossings: each taxiway edge with one node on the runway and the other off it, once per node
+    /// pair, in the layout's edge order. Lazy: the nodes are classified and the edges snapshotted when the walk begins, and
+    /// each crossing's nodes are looked up when the walk reaches it, so a caller that seats bars as it goes may mutate the
+    /// layout.
+    /// </summary>
+    private static IEnumerable<Crossing> BoundaryCrossings(AirportGroundLayout layout, RunwayRectangle rect)
+    {
         // Classify every node as on-runway or off-runway
         var onRunwayNodes = new HashSet<int>();
         foreach ((int nodeId, GroundNode? node) in layout.Nodes)
@@ -108,11 +228,9 @@ internal static class RunwayCrossingDetector
             }
         }
 
-        // Snapshot edges — we mutate during iteration
+        // Snapshot edges — the caller may mutate during iteration
         var edgeSnapshot = new List<GroundEdge>(layout.Edges);
         var processed = new HashSet<(int, int)>();
-        var seating = new RunwaySeating(new CrossingContext(layout, coordIndex), runways, paint, [], []);
-
         foreach (GroundEdge edge in edgeSnapshot)
         {
             if (edge.IsRunwayCenterline)
@@ -144,15 +262,8 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            SeatCrossing(seating, new Crossing(edge, onNode, offNode), rect, ref nextNodeId);
+            yield return new Crossing(edge, onNode, offNode);
         }
-
-        // Connect on-runway nodes with centerline edges so that taxiways
-        // crossing the same runway are linked (e.g., D and F at OAK both cross
-        // 15/33 but have no GeoJSON edges between them).
-        ConnectOnRunwayNodes(layout, rect, coordIndex, ref nextNodeId);
-
-        return new RunwayCrossingResult(plan.WidthFt, plan.StandoffFt, seating.FallbackBars, seating.SnappedBars);
     }
 
     /// <summary>
@@ -163,8 +274,9 @@ internal static class RunwayCrossingDetector
     private static void SeatCrossing(RunwaySeating seating, Crossing crossing, in RunwayRectangle rect, ref int nextNodeId)
     {
         AirportGroundLayout layout = seating.Context.Layout;
-        var ruleTarget = new BarTarget(rect, CrossingStandoffNm(layout, crossing, rect, seating.Runways), SnapPoint: null);
-        PaintPair? pair = (seating.Paint is { } paint) ? PairWithPaint(layout, crossing, ruleTarget, paint) : null;
+        var ruleTarget = new BarTarget(rect, CrossingStandoffNm(layout, crossing, rect, seating.Runways, StandoffPass.Seating), SnapPoint: null);
+        PaintPair? pair =
+            (seating.Paint is { } paint) ? PairWithPaint(layout, crossing, ruleTarget, CandidatesFor(seating, paint, crossing, rect)) : null;
         BarTarget target = (pair is { } paired) ? new BarTarget(rect, paired.PaintFt / GeoMath.FeetPerNm, paired.SnapPoint) : ruleTarget;
         BarPlacement placement = ProcessBoundaryEdge(seating.Context, crossing, target, ref nextNodeId);
         if (placement.Fallback is { } fallbackBar)
@@ -180,17 +292,53 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
-    /// The innermost painted bar the crossing's point can pair with (<see cref="RunwayPaintPairing.Candidates"/>) that the
-    /// placement can seat the point on. A candidate is passed over when the walk toward its D_paint would dead-end or run
-    /// out of hops, or would meet D_paint farther than <see cref="HoldShortSnapFt"/> from its snap point (on another segment
-    /// of a chain that turns back toward the runway); null when every one is. Logs a snap that moves the point more than
-    /// <see cref="LargeSnapFt"/> from where the rule seats it.
+    /// The painted bars the crossing's point can pair with, innermost first: the pairs the planning pass found for it
+    /// (<see cref="PlannedPaint.Pairs"/>), else, for a crossing that pass did not see (an earlier runway's bar split its
+    /// boundary edge), the candidates against the D_rule its runway's uncalibrated S gives, judged against every runway's
+    /// uncalibrated holding area as the planning pass judges it (<see cref="PlannedPaint.UncalibratedRunways"/>).
     /// </summary>
-    private static PaintPair? PairWithPaint(AirportGroundLayout layout, Crossing crossing, BarTarget ruleTarget, PaintSource paint)
+    private static IReadOnlyList<PaintPair> CandidatesFor(RunwaySeating seating, PlannedPaint paint, Crossing crossing, in RunwayRectangle rect)
+    {
+        if (paint.Pairs.TryGetValue((crossing.On.Id, crossing.Off.Id), out IReadOnlyList<PaintPair>? candidates))
+        {
+            return candidates;
+        }
+
+        string airportId = seating.Context.Layout.AirportId;
+        RunwayIdentifier runwayId = rect.CombinedId;
+        RunwayRectangle uncalibratedRect =
+            paint
+                .UncalibratedRunways.Where(runway => runway.Rect.CombinedId.Equals(runwayId))
+                .Select(runway => (RunwayRectangle?)runway.Rect)
+                .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"No uncalibrated standoff plan for runway {runwayId} at {airportId}; PlanRunways must plan every runway it seats."
+            );
+        AirportGroundLayout layout = seating.Context.Layout;
+        double ruleFt = CrossingStandoffNm(layout, crossing, uncalibratedRect, paint.UncalibratedRunways, StandoffPass.Planning) * GeoMath.FeetPerNm;
+        seating.UnplannedCrossings++;
+        Log.LogDebug(
+            "{Runway} crossing on {Taxiway} (node {On} to {Off}) was not in the planning pass; pairing it at its uncalibrated D_rule={RuleFt:F1} ft",
+            runwayId,
+            crossing.Edge.TaxiwayName,
+            crossing.On.Id,
+            crossing.Off.Id,
+            ruleFt
+        );
+        return RunwayPaintPairing.Candidates(layout, crossing, uncalibratedRect, ruleFt, paint.Source);
+    }
+
+    /// <summary>
+    /// The first of <paramref name="candidates"/> (innermost first) that the placement can seat the crossing's point on. A
+    /// candidate is passed over when the walk toward its D_paint would dead-end or run out of hops, or would meet D_paint
+    /// farther than <see cref="HoldShortSnapFt"/> from its snap point (on another segment of a chain that turns back toward
+    /// the runway); null when every one is. Logs a snap that moves the point more than <see cref="LargeSnapFt"/> from where
+    /// the rule seats it.
+    /// </summary>
+    private static PaintPair? PairWithPaint(AirportGroundLayout layout, Crossing crossing, BarTarget ruleTarget, IReadOnlyList<PaintPair> candidates)
     {
         RunwayRectangle rect = ruleTarget.Rect;
-        double ruleFt = ruleTarget.IdealNm * GeoMath.FeetPerNm;
-        foreach (PaintPair candidate in RunwayPaintPairing.Candidates(layout, crossing, rect, ruleFt, paint))
+        foreach (PaintPair candidate in candidates)
         {
             if (CanSeatOn(layout, crossing, rect, candidate))
             {
@@ -253,10 +401,11 @@ internal static class RunwayCrossingDetector
 
     /// <summary>
     /// The runway's base hold-short separation S from its authored <c>holdShortDistance</c> and its navdata
-    /// <paramref name="inputs"/> (<see cref="HoldShortStandoff.BaseSeparationFt"/>), with no paint calibration.
+    /// <paramref name="inputs"/> (<see cref="HoldShortStandoff.BaseSeparationFt"/>), or its paint calibration
+    /// <paramref name="calibratedFt"/> when it has one.
     /// </summary>
-    internal static HoldShortStandoffResult ResolveStandoff(GeoJsonParser.RunwayFeature rwy, RunwayStandoffInputs inputs) =>
-        HoldShortStandoff.BaseSeparationFt(null, rwy.HoldShortDistanceFt, inputs);
+    internal static HoldShortStandoffResult ResolveStandoff(GeoJsonParser.RunwayFeature rwy, RunwayStandoffInputs inputs, double? calibratedFt) =>
+        HoldShortStandoff.BaseSeparationFt(calibratedFt, rwy.HoldShortDistanceFt, inputs);
 
     internal static RunwayRectangle BuildRunwayRectangle(
         GeoJsonParser.RunwayFeature rwy,
@@ -423,19 +572,22 @@ internal static class RunwayCrossingDetector
     /// The crossing's centerline standoff, nm: D, the runway's base separation S plus the angle term for the taxiway's
     /// angle to the runway (<see cref="HoldShortStandoff.CenterlineStandoffFt"/>), unless the taxiway path from the crossing
     /// to the D point touches another runway's holding area at a node or along a segment (<see cref="FirstTouch"/>); then S.
+    /// <paramref name="pass"/> labels the log lines.
     /// </summary>
     private static double CrossingStandoffNm(
         AirportGroundLayout layout,
         Crossing crossing,
         in RunwayRectangle rect,
-        IReadOnlyList<RunwayPlan> runways
+        IReadOnlyList<RunwayPlan> runways,
+        StandoffPass pass
     )
     {
         double angleDeg = MeasureCrossingAngleDeg(layout, crossing.Edge, crossing.On, crossing.Off, rect);
         double baseFt = rect.HoldShortNm * GeoMath.FeetPerNm;
         double idealFt = HoldShortStandoff.CenterlineStandoffFt(baseFt, RunwayWidthFt(rect), angleDeg);
         Log.LogDebug(
-            "Hold-short standoff for {Runway} on {Taxiway}: θ={Angle:F1}°, S={BaseFt:F1} ft, D={IdealFt:F1} ft",
+            "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: θ={Angle:F1}°, S={BaseFt:F1} ft, D={IdealFt:F1} ft",
+            pass,
             rect.CombinedId,
             crossing.Edge.TaxiwayName,
             angleDeg,
@@ -459,8 +611,9 @@ internal static class RunwayCrossingDetector
             if (!other.Rect.CombinedId.Equals(rect.CombinedId) && (FirstTouch(path, other.Rect) is { } touch))
             {
                 Log.LogDebug(
-                    "Hold-short standoff for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} holding area "
-                        + "({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
+                    "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} "
+                        + "holding area ({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
+                    pass,
                     rect.CombinedId,
                     crossing.Edge.TaxiwayName,
                     idealFt,
@@ -1607,14 +1760,16 @@ internal readonly struct RunwayRectangle
 
 /// <summary>
 /// What <see cref="RunwayCrossingDetector.DetectRunwayCrossings"/> found for one runway: its width, the base hold-short
-/// separation S its bars were seated at (<see cref="HoldShortStandoff.BaseSeparationFt"/>), its junction fallback bars and
-/// its bars seated on paint.
+/// separation S its bars were seated at (<see cref="HoldShortStandoff.BaseSeparationFt"/>), its junction fallback bars, its
+/// bars seated on paint and how many of its crossings the planning pass had not seen, which were paired with paint at
+/// seating (an earlier runway's bar split their boundary edge).
 /// </summary>
 internal readonly record struct RunwayCrossingResult(
     double WidthFt,
     double HoldShortStandoffFt,
     List<FallbackBar> FallbackBars,
-    List<SnappedBar> SnappedBars
+    List<SnappedBar> SnappedBars,
+    int UnplannedPaintCrossings
 );
 
 /// <summary>
@@ -1641,22 +1796,51 @@ internal readonly record struct SnappedBar(GroundNode Bar, RunwayRectangle Rect,
 internal readonly record struct BarPlacement(GroundNode? Bar, FallbackBar? Fallback);
 
 /// <summary>
-/// One runway's bar seating: the layout and its coordinate index, every planned runway, the paint to pair with (null with
-/// no videomap) and the fallback bars and paint-seated bars collected so far.
+/// One runway's bar seating: the layout and its coordinate index, every planned runway, the runway's planned paint (null
+/// with no videomap) and the fallback bars and paint-seated bars collected so far, and how many crossings the planning pass
+/// had not seen (<see cref="RunwayCrossingResult.UnplannedPaintCrossings"/>).
 /// </summary>
 internal sealed record RunwaySeating(
     CrossingContext Context,
     IReadOnlyList<RunwayPlan> Runways,
-    PaintSource? Paint,
+    PlannedPaint? Paint,
     List<FallbackBar> FallbackBars,
     List<SnappedBar> SnappedBars
+)
+{
+    public int UnplannedCrossings { get; set; }
+}
+
+/// <summary>
+/// A runway planned for bar placement (<see cref="RunwayCrossingDetector.PlanRunways"/>): its feature, its parse-time
+/// rectangle (carrying S), its navdata width, its base separation S in feet and its planned paint, null with no videomap.
+/// </summary>
+internal readonly record struct RunwayPlan(
+    GeoJsonParser.RunwayFeature Feature,
+    RunwayRectangle Rect,
+    double WidthFt,
+    double StandoffFt,
+    PlannedPaint? Paint
 );
 
 /// <summary>
-/// A runway planned for bar placement (<see cref="RunwayCrossingDetector.PlanRunway"/>): its feature, its parse-time
-/// rectangle (carrying S), its navdata width and its base separation S in feet.
+/// A runway's paint, planned before any bar was seated (<see cref="RunwayCrossingDetector.PairWithUncalibratedStandoff"/>):
+/// what its crossings pair against, each boundary crossing's paint candidates by its node pair (on the runway, off it),
+/// innermost first, and every runway planned with its uncalibrated S, the rule's or authored, which the pairing band is
+/// judged from.
 /// </summary>
-internal readonly record struct RunwayPlan(GeoJsonParser.RunwayFeature Feature, RunwayRectangle Rect, double WidthFt, double StandoffFt);
+internal sealed record PlannedPaint(
+    PaintSource Source,
+    IReadOnlyDictionary<(int OnId, int OffId), IReadOnlyList<PaintPair>> Pairs,
+    IReadOnlyList<RunwayPlan> UncalibratedRunways
+);
+
+/// <summary>Which pass computes a crossing's D_rule, for the log: pairing paint before any bar is seated, or seating.</summary>
+internal enum StandoffPass
+{
+    Planning,
+    Seating,
+}
 
 /// <summary>
 /// A taxiway edge and its two ends, the one nearer the runway first: a boundary edge crossing a runway's edge (its node

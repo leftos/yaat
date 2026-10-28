@@ -771,20 +771,31 @@ public sealed class GroundRunway
     /// <summary>
     /// Author-specified runway holding-position standoff in feet from centerline (vNAS map <c>holdShortDistance</c>). Null
     /// when unset. One input of the resolved standoff (<see cref="HoldShortStandoffFt"/>, by
-    /// <see cref="HoldShortStandoff.BaseSeparationFt"/>), which uses it unless it is more than 15 ft below the rule value on
-    /// a runway in the 250 ft class.
+    /// <see cref="HoldShortStandoff.BaseSeparationFt"/>), which uses it unless the runway is paint-calibrated (a tower-cab
+    /// videomap pairs at least <see cref="HoldShortStandoff.MinCalibrationBars"/> of its bars, so
+    /// <see cref="HoldShortStandoff.CalibratedFt"/> wins) or it is more than 15 ft below the rule value on a runway in the
+    /// 250 ft class.
     /// </summary>
     public double? HoldShortDistanceFt { get; init; }
 
     /// <summary>
     /// The runway's resolved base hold-short separation S in feet from centerline: the distance its hold-line bars were
-    /// seated at by the layout build (<see cref="HoldShortStandoff.BaseSeparationFt"/>, from the authored
-    /// <see cref="HoldShortDistanceFt"/> and the runway's width, length, ILS category and elevation). Null only in a layout
-    /// serialised before this field existed, where readers fall back to <see cref="HoldShortDistanceFt"/>, else
-    /// <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/>.
+    /// seated at by the layout build (<see cref="HoldShortStandoff.BaseSeparationFt"/>): with a tower-cab videomap that pairs
+    /// at least <see cref="HoldShortStandoff.MinCalibrationBars"/> of its bars, the paint calibration
+    /// (<see cref="HoldShortStandoff.CalibratedFt"/>) wins; else from the authored <see cref="HoldShortDistanceFt"/> and the
+    /// runway's width, length, ILS category and elevation. Null only in a layout serialised before this field existed, where
+    /// readers fall back to <see cref="HoldShortDistanceFt"/>, else <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/>.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? HoldShortStandoffFt { get; init; }
+
+    /// <summary>
+    /// Build diagnostic: how many of the runway's boundary crossings the paint planning pass had not seen (an earlier
+    /// runway's bar split their boundary edge), so seating paired them with paint itself. Zero with no videomap. Not
+    /// serialized; zero in a deserialized layout.
+    /// </summary>
+    [JsonIgnore]
+    public int UnplannedPaintCrossings { get; init; }
 
     /// <summary>
     /// Canonical per-end identity parsed from <see cref="Name"/> (zero-pad-normalized ends, e.g.

@@ -19,7 +19,7 @@
 
 ### Changed
 
-- Generated hold-short bars sit on the tower-cab map's painted hold lines, or back by the runway's standoff where no line is painted.
+- Generated hold-short bars sit on the tower-cab map's painted hold lines, or where no line is painted, back by the standoff the runway's painted lines measure.
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The active-runways prompt offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
 - Join STAR opens a flyout with a tab per STAR, and the menus' "(other)" list items are gone.

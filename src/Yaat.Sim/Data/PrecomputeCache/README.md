@@ -19,7 +19,7 @@ Run from the repo; every command takes `--airport <id>` (repeatable) to work on 
 
 An entry's key carries the airport's sidecar hash, which stales the push targets alone, and its stand lead-in hash (`StandLeadInHash`, the sidecar `standLeadIns` section), which stales the layout too, since the layout build connects those stands. `--check` names it "the stand lead-in hash differs"; an entry stored without the field reads as layout-stale.
 
-Its tower-cab videomap hash (`VideoMapHash`, `TowerCabVideoMap.Hash`; "" = the airport has no map) is part of the layout match only. Nothing reads the videomap yet and the shipped entries are written with "", so an entry with a non-empty `VideoMapHash` reads as layout-stale, offline and online, naming "the videomap hash differs".
+Its tower-cab videomap hash (`VideoMapHash`, `TowerCabVideoMap.Hash`; "" = the airport has no map) is part of the layout match only. A parse with a videomap seats bars on its paint and calibrates each runway's S from it; the shipped entries are built with `VideoMap: null` and written with "", so an entry with a non-empty `VideoMapHash` reads as layout-stale, offline and online, naming "the videomap hash differs".
 
 Its standoff-input hash (`StandoffInputHash`, `HoldShortStandoff.InputHash`) covers the runway inputs the hold-short standoff rule reads for every navdata runway of the airport: width, length, highest ILS category and higher threshold elevation. It is part of the layout match, so a navdata or CIFP change that moves a runway's S stales the entry.
 

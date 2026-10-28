@@ -11,7 +11,8 @@ namespace Yaat.Sim.Tests.Data.Airport;
 
 /// <summary>
 /// The paint snap: OAK built with its tower-cab videomap seats each hold-short point that pairs with a painted bar on the
-/// paint (<see cref="RunwayPaintPairing"/>), and leaves every other point where the standoff rule seats it.
+/// paint (<see cref="RunwayPaintPairing"/>), and leaves every other point where the standoff rule seats it from the runway's
+/// paint-calibrated S.
 /// </summary>
 public class RunwayPaintSnapTests(ITestOutputHelper output)
 {
@@ -122,7 +123,7 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Oak_ARemovedBar_LeavesItsNodeWhereTheRuleSeatsIt_AndEveryOtherPairUnchanged()
+    public void Oak_ARemovedBar_LeavesItsNodeWhereTheCalibratedStandoffSeatsIt_AndEveryOtherPairUnchanged()
     {
         // The 28R/10L J bar: its walk passes the P/J junction the P crossing's walk ends at.
         TowerCabVideoMap map = OakMap();
@@ -134,12 +135,21 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
 
         AirportGroundLayout reduced = ParseOak(Without(map, removed), FilletMode.None);
 
+        // The unpaired node sits where the rule's no-map bar does, moved out by the runway's calibrated S less the rule's S.
         GroundNode[] unpaired = [.. HoldShortNodes(reduced).Where(node => node.PaintSegmentIndex is null)];
         GroundNode node = Assert.Single(unpaired);
-        double toRuleFt = HoldShortNodes(ruleLayout)
+        GroundNode ruleBar = HoldShortNodes(ruleLayout)
             .Where(other => Equals(other.RunwayId, node.RunwayId))
-            .Min(other => GeoMath.DistanceNm(other.Position, node.Position) * GeoMath.FeetPerNm);
-        Assert.True(toRuleFt <= 0.1, $"the J bar left unpaired sits {toRuleFt:F2} ft from every no-map bar of its runway");
+            .MinBy(other => GeoMath.DistanceNm(other.Position, node.Position))!;
+        GroundRunway reducedRunway = reduced.Runways.Single(runway => runway.Id.Equals(node.RunwayId));
+        GroundRunway ruleRunway = ruleLayout.Runways.Single(runway => runway.Id.Equals(node.RunwayId));
+        double calibratedMoveFt = reducedRunway.HoldShortStandoffFt!.Value - ruleRunway.HoldShortStandoffFt!.Value;
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(reducedRunway);
+        double beyondRuleFt = CrossFt(rect, node.Position) - CrossFt(rect, ruleBar.Position);
+        Assert.True(
+            Math.Abs(beyondRuleFt - calibratedMoveFt) <= 0.1,
+            $"unpaired J bar sits {beyondRuleFt:F2} ft beyond its no-map bar; calibrated S is {calibratedMoveFt:F2} ft beyond the rule's"
+        );
 
         foreach (GroundNode kept in SnappedNodes(full).Where(bar => bar.Id != removedBar.Id))
         {
