@@ -229,6 +229,13 @@ _Avoid_: ramp cut (a ramp cut is a free-space shortcut between lanes; a line-up 
 The route a `TAXI` or `TAXIAUTO` given on the landing rollout keeps behind the instructed exit: held on `PhaseList.TaxiRoute` from acceptance, shown to the controller at once, and started when `RunwayExitPhase` completes the exit, or dropped (a go-around, a given-up or replaced exit, a stop with no exit ahead). The active route stays `Ground.AssignedTaxiRoute` (`GroundCommandHandler.RolloutTaxi.cs`, docs/landing-and-runway-exit.md).
 _Avoid_: queued taxi (a queued `;` block waits for the exit to finish and routes from the hold-short)
 
+**Tail-clear point**:
+Where a runway exit or `CLRWY` stops the aircraft's reference point past the vacated runway's hold-short bar: half its length plus 10 ft along the graph, so every part is past the holding position marking (`RunwayTailClearance.PastBarFt`, docs/landing-and-runway-exit.md). Cut back to short of another runway's bar when a crossover is too short.
+
+**Tail-inside**:
+Stopped or moving with the tail still inside the vacated runway's holding position marking, because the exit's stop was cut back at another runway's bar: the aircraft is not clear of the runway and stays an occupant of it (`RunwayTailClearance.Stop.TailInsideLine`, `RunwayOccupancy.IsTailInsideRunwayState`, docs/landing-and-runway-exit.md "Crossovers too short to clear").
+_Avoid_: stopped inside the holding distance (that is a named exit whose own bar is short of the standoff)
+
 **Wingtip-clearance floor**:
 The least distance from a taxiway hold-short holder's nose to the centreline of the taxiway it holds short of: the half-span of the widest aircraft the airport can take, judged by its widest runway, plus 25 ft (`HoldShortAnnotator.WingtipClearanceFloorFt`, docs/ground/hold-short-placement.md).
 _Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)

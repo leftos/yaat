@@ -485,7 +485,19 @@ public sealed class AirTaxiPhaseDto : PhaseDto
     public required double TimeSinceLastLog { get; init; }
 }
 
-public sealed class HoldingInPositionPhaseDto : PhaseDto;
+public sealed class HoldingInPositionPhaseDto : PhaseDto
+{
+    /// <summary>
+    /// The other runway a <c>CLRWY</c>'s cut-back stop holds the nose short of; null (the default) for any other hold, and when the
+    /// nose was already past that runway's marking.
+    /// </summary>
+    public string? HeldShortOfRunway { get; init; }
+
+    /// <summary>
+    /// The runway a <c>CLRWY</c> was clearing whose holding position marking the tail is still inside; null (the default) otherwise.
+    /// </summary>
+    public string? TailInsideRunway { get; init; }
+}
 
 public sealed class HoldingAfterPushbackPhaseDto : PhaseDto;
 
@@ -495,6 +507,9 @@ public sealed class HoldingAfterExitPhaseDto : PhaseDto
     public string? ExitTaxiway { get; init; }
     public int? HoldShortNodeId { get; init; }
     public bool StoppedInsideHoldingDistance { get; init; }
+
+    /// <summary>The runway whose line the nose stopped at with the tail still inside <see cref="RunwayId"/>'s; null (the default) when not.</summary>
+    public string? HeldShortOfRunway { get; init; }
 }
 
 public sealed class AtParkingPhaseDto : PhaseDto;
@@ -1123,6 +1138,15 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // The pilot has already reported that it is stopped with no exit ahead.
     public bool ReportedNoExitAhead { get; init; }
 
+    /// <summary>
+    /// The exit route's stop leaves the tail inside the landing runway's holding position marking; null (an older snapshot, or no
+    /// route built yet) leaves it false until the first tick's route rebuild.
+    /// </summary>
+    public bool? StopTailInsideLine { get; init; }
+
+    /// <summary>The other runway's hold-short node the exit route's stop holds the nose short of; null when none.</summary>
+    public int? StopHeldShortOfBarNodeId { get; init; }
+
     public GroundNavigatorDto? Navigator { get; init; }
 }
 
@@ -1570,6 +1594,13 @@ public sealed class LandingPhaseDto : PhaseDto
     /// <summary>The side the exit search found the candidate exit on (<c>ExitSide</c>); null when none, or on older snapshots.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? CandidateExitSide { get; init; }
+
+    /// <summary>
+    /// The candidate exit's stop leaves the tail inside the runway's holding position marking; null when there is no candidate,
+    /// and on older snapshots, which restore it as false.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CandidateExitStopsTailInside { get; init; }
 
     public int? ActivePreferenceSide { get; init; }
     public string? ActivePreferenceTaxiway { get; init; }

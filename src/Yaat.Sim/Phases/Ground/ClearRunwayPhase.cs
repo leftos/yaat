@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
@@ -11,7 +12,13 @@ namespace Yaat.Sim.Phases.Ground;
 /// of a taxiway with its tail over a runway drives forward along its taxiway to a virtual node ½ aircraft
 /// length plus <see cref="RunwayTailClearance.MarginFt"/> past the runway's far hold-short bars
 /// (<see cref="RunwayTailClearance.PastBarFt"/>), so its tail stops that margin past the marking, then completes into
-/// <see cref="HoldingInPositionPhase"/>, just clear of the runway. The runway hold-short node and the approach
+/// <see cref="HoldingInPositionPhase"/>, just clear of the runway. The stop is cut back so the nose stays at or short of another
+/// runway's holding position marking (<see cref="RunwayTailClearance.StopPastBar"/>); when that leaves the tail inside this
+/// runway's, the hold carries both runways (<see cref="HoldingInPositionPhase.HeldShortOfRunway"/>,
+/// <see cref="HoldingInPositionPhase.TailInsideRunway"/>), the aircraft keeps this runway as its own and the pilot reports it is
+/// not clear. An aircraft already at or past the stop holds where it is; when its nose is already past the other runway's
+/// marking, the hold carries only the runway its tail is inside (no <see cref="HoldingInPositionPhase.HeldShortOfRunway"/>).
+/// The runway hold-short node and the approach
 /// (runway-side) node are kept so the route can be rebuilt after a snapshot restore, and the snapshot carries the
 /// navigator, which resumes the primitive it was playing (an entry-alignment turn part-way round), like <see cref="CrossingRunwayPhase"/>.
 /// </summary>
@@ -26,8 +33,12 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
     public int RunwayNodeId => _runwayNodeId;
 
     private TaxiRoute? _route;
+    private RunwayTailClearance.Stop? _stop;
     private GroundNavigator? _navigator;
     private bool _initialized;
+
+    /// <summary>The aircraft is already at or past the stop, so it holds where it is rather than turning back to it.</summary>
+    private bool _alreadyAtStop;
 
     /// <summary>The navigator a restored phase came back with, held until the first OnTick rebuilds the route on it.</summary>
     private GroundNavigatorDto? _restoredNavigator;
@@ -62,6 +73,14 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             return false;
         }
 
+        if (_alreadyAtStop)
+        {
+            ctx.Aircraft.IndicatedAirspeed = 0;
+            ctx.Targets.TargetSpeed = 0;
+            HoldNotClearIfTailInside(ctx);
+            return true;
+        }
+
         if (!_initialized || _navigator is null || _route is null)
         {
             // Degenerate fallback: no clearance route could be built. Stop and let the next phase take
@@ -77,6 +96,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             _route.CurrentSegmentIndex += 1;
             if (_route.IsComplete)
             {
+                HoldNotClearIfTailInside(ctx);
                 return true;
             }
 
@@ -112,13 +132,35 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         }
 
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
-        double pastBarFt = RunwayTailClearance.PastBarFt(lengthFt);
 
         // The clearance target: ½ aircraft length plus the tail-clear margin past the runway hold-short, away from the
-        // runway, so the tail stops the margin past the bars.
-        GroundNode target = VirtualNode.OffsetPast(layout, runwayNode, approachNode, pastBarFt / GeoMath.FeetPerNm);
-        TaxiRouteSegment segment = VirtualNode.CreateSegment(runwayNode, target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
+        // runway, so the tail stops the margin past the bars; cut back so the nose stays short of another runway's line ahead.
+        _stop = RunwayTailClearance.StopPastBar(layout, runwayNode, approachNode, lengthFt);
+        TaxiRouteSegment segment = VirtualNode.CreateSegment(runwayNode, _stop.Target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
         _route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
+
+        // A stop that clears the runway leaves the aircraft no runway of its own (GroundCommandHandler.TryClearRunway kept the
+        // one it was clearing for the case it does not).
+        if (!_stop.TailInsideLine && (ctx.Aircraft.Phases is { } phases))
+        {
+            phases.AssignedRunway = null;
+        }
+
+        _alreadyAtStop = IsAtOrPastStop(ctx.Aircraft, runwayNode, _stop);
+        _initialized = true;
+        Log.LogDebug(
+            "[ClearRunway] {Callsign}: pulling forward {PastBar:F0}ft past RWY node {Rwy}, nose held short of bar {Bar}{AtStop}",
+            ctx.Aircraft.Callsign,
+            _stop.PastBarFt,
+            _runwayNodeId,
+            _stop.HeldShortOfBar?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)",
+            _alreadyAtStop ? "; already there, holding" : ""
+        );
+        if (_alreadyAtStop)
+        {
+            _restoredNavigator = null;
+            return;
+        }
 
         // A restored phase takes the navigator from the snapshot, so the set-up below resumes the primitive it was
         // playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
@@ -126,9 +168,103 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
         _restoredNavigator = null;
         _navigator.SetupSegment(_route, ctx, _ => true);
-        _initialized = true;
+    }
 
-        Log.LogDebug("[ClearRunway] {Callsign}: pulling forward {PastBar:F0}ft past RWY node {Rwy}", ctx.Aircraft.Callsign, pastBarFt, _runwayNodeId);
+    /// <summary>
+    /// The aircraft is within the navigator's stop tolerance of <paramref name="stop"/>'s target, or beyond it, along the line from
+    /// <paramref name="runwayNode"/> to the target.
+    /// </summary>
+    private static bool IsAtOrPastStop(AircraftState aircraft, GroundNode runwayNode, RunwayTailClearance.Stop stop)
+    {
+        double pastBarNm = stop.PastBarFt / GeoMath.FeetPerNm;
+        if (pastBarNm <= GroundNavigator.FinalNodeArrivalThresholdNm)
+        {
+            return GeoMath.DistanceNm(aircraft.Position, runwayNode.Position) <= GroundNavigator.FinalNodeArrivalThresholdNm;
+        }
+
+        var bearing = new TrueHeading(GeoMath.BearingTo(runwayNode.Position, stop.Target.Position));
+        double aheadOfAircraftNm = GeoMath.AlongTrackDistanceNm(stop.Target.Position, aircraft.Position, bearing);
+        return aheadOfAircraftNm <= GroundNavigator.FinalNodeArrivalThresholdNm;
+    }
+
+    /// <summary>
+    /// When the stop was cut back at another runway's line and the tail is still inside the runway being cleared, the aircraft
+    /// has not cleared it: it holds in position short of the other runway with its tail inside this one
+    /// (<see cref="HoldingInPositionPhase(string, string)"/>), its assigned runway the one it is still on, and the pilot reports
+    /// holding short of the other runway, not clear of this one; only not clear of this one when the nose is already past the
+    /// other runway's marking.
+    /// </summary>
+    private void HoldNotClearIfTailInside(PhaseContext ctx)
+    {
+        if (
+            (_stop is not { TailInsideLine: true, HeldShortOfBar: { } otherBar })
+            || (ctx.GroundLayout is not { } layout)
+            || (ctx.Aircraft.Phases is not { } phases)
+            || !layout.Nodes.TryGetValue(_runwayNodeId, out GroundNode? runwayNode)
+            || (runwayNode.RunwayId is not { } clearedRunway)
+        )
+        {
+            return;
+        }
+
+        // The runway kept from before the CLRWY (GroundCommandHandler.TryClearRunway) names the end; else the end nearest the aircraft.
+        RunwayInfo? clearedInfo =
+            ((phases.AssignedRunway is { } kept) && kept.Id.Overlaps(clearedRunway))
+                ? kept
+                : NavigationDatabase.InstanceOrNull?.GetRunway(
+                    layout.AirportId,
+                    RunwayCrossingEnd.Nearest(ctx.Aircraft, clearedRunway.ToString(), layout)
+                );
+        if (clearedInfo is null)
+        {
+            Log.LogWarning(
+                "[ClearRunway] {Callsign}: no navdata for runway {Runway} at {Airport}; holding not clear of it with no runway assigned",
+                ctx.Aircraft.Callsign,
+                clearedRunway.ToString(),
+                layout.AirportId
+            );
+        }
+
+        phases.AssignedRunway = clearedInfo;
+        string clearedEnd = RunwayIdentifier.ToDisplayDesignator(
+            clearedInfo?.Designator ?? RunwayCrossingEnd.Nearest(ctx.Aircraft, clearedRunway.ToString(), layout)
+        );
+
+        // A nose already past the other runway's line before the CLRWY is not holding short of it: the hold says only that it is
+        // not clear. A stop this phase drove to leaves the nose at the line.
+        string? otherEnd =
+            (_alreadyAtStop && IsNosePastBar(ctx.Aircraft, runwayNode, otherBar))
+                ? null
+                : RunwayTailClearance.HeldShortRunwayEnd(layout, otherBar, clearedInfo, ctx.Aircraft);
+        Log.LogInformation(
+            "[ClearRunway] {Callsign}: nose {Where} on {Twy}, tail still inside {Runway}'s line — holding, not clear",
+            ctx.Aircraft.Callsign,
+            otherEnd is null ? $"already past bar {otherBar.Id}" : $"at runway {otherEnd}'s line",
+            ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway",
+            clearedEnd
+        );
+        phases.ReplaceUpcoming([new HoldingInPositionPhase(otherEnd, clearedEnd)]);
+    }
+
+    /// <summary>
+    /// How far past another runway's bar a nose may read and still be at the cut-back stop: the stop aims the nose
+    /// <see cref="GroundNavigator.SetBackStopMarginFt"/> short of the bar and the navigator arrives within
+    /// <see cref="GroundNavigator.FinalNodeArrivalThresholdNm"/>; on a curved connector the straight-line reading of such a stop
+    /// can fall past the bar.
+    /// </summary>
+    private const double NosePastBarSlackFt = GroundNavigator.SetBackStopMarginFt + (GroundNavigator.FinalNodeArrivalThresholdNm * GeoMath.FeetPerNm);
+
+    /// <summary>
+    /// The aircraft's nose, half its length ahead of its centre, lies more than <see cref="NosePastBarSlackFt"/> past
+    /// <paramref name="otherBar"/> along the line from <paramref name="runwayNode"/> to that bar: it pulled up beyond the other
+    /// runway's holding position marking before the <c>CLRWY</c>.
+    /// </summary>
+    private static bool IsNosePastBar(AircraftState aircraft, GroundNode runwayNode, GroundNode otherBar)
+    {
+        var bearing = new TrueHeading(GeoMath.BearingTo(runwayNode.Position, otherBar.Position));
+        double barAheadFt = GeoMath.AlongTrackDistanceNm(otherBar.Position, aircraft.Position, bearing) * GeoMath.FeetPerNm;
+        double nosePastBarFt = (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0) - barAheadFt;
+        return nosePastBarFt > NosePastBarSlackFt;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) =>

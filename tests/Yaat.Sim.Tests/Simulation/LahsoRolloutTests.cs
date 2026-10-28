@@ -253,7 +253,7 @@ public class LahsoRolloutTests(ITestOutputHelper output)
             Phases = new PhaseList { AssignedRunway = runway },
         };
         blocker.Ground.Layout = layout;
-        blocker.Phases.Add(new HoldingAfterExitPhase(runway.Designator, "N", holdShort.Id));
+        blocker.Phases.Add(new HoldingAfterExitPhase(runway.Designator, "N", holdShort.Id, heldShortOfRunway: null));
         blocker.Phases.Start(CommandDispatcher.BuildMinimalContext(blocker, layout));
         return blocker;
     }

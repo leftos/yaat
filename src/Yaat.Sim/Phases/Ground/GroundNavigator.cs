@@ -97,7 +97,7 @@ public sealed class GroundNavigator
     public const double NodeArrivalThresholdNm = 0.015;
 
     /// <summary>Tight arrival threshold used on the last segment and before arcs (~1.8 ft).</summary>
-    private const double FinalNodeArrivalThresholdNm = 0.0003;
+    public const double FinalNodeArrivalThresholdNm = 0.0003;
 
     /// <summary>Distance at which the overshoot watchdog arms (~182 ft).</summary>
     private const double OvershootDetectionNm = 0.03;

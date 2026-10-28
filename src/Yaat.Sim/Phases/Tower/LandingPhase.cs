@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -259,6 +260,7 @@ public sealed class LandingPhase : Phase
             CandidateExitPathNodeIds = _candidateExit?.Path.Select(n => n.Id).ToList(),
             CandidateExitSelectionDecelRate = _candidateExit?.SelectionDecelRate,
             CandidateExitSide = (int?)_candidateExit?.Side,
+            CandidateExitStopsTailInside = _candidateExit?.StopsTailInsideRunwayLine,
             ActivePreferenceSide = (int?)_activePreference?.Side,
             ActivePreferenceTaxiway = _activePreference?.Taxiway,
             OriginalPreferenceSide = (int?)_originalPreference?.Side,
@@ -360,6 +362,7 @@ public sealed class LandingPhase : Phase
             Path = path,
             SelectionDecelRate = dto.CandidateExitSelectionDecelRate,
             Side = (ExitSide?)dto.CandidateExitSide,
+            StopsTailInsideRunwayLine = dto.CandidateExitStopsTailInside ?? false,
         };
     }
 
@@ -1608,7 +1611,7 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private void ResolveForcedCandidate(PhaseContext ctx, LandingPlan plan)
     {
-        if ((ctx.GroundLayout is null) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
+        if ((ctx.GroundLayout is not { } layout) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
         {
             return;
         }
@@ -1616,50 +1619,64 @@ public sealed class LandingPhase : Phase
         ResolvedExitInfo? last = null;
         double lastDistNm = double.MinValue;
         double nearestDistNm = double.MaxValue;
-        ctx.GroundLayout.FindOnSidePreferredExit(
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            plan.RunwayHeading,
-            rwyDesignator,
-            preference: null,
-            sidePref: null,
-            excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
-            excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
-            filter: candidate =>
+
+        // An exit the aircraft fits comes first; when none does, the best one anyway (it stops short of the other runway, not clear).
+        foreach (bool skipTooShort in (bool[])[true, false])
+        {
+            if (last is not null)
             {
-                if (IsGivenUp(ctx.Aircraft, candidate.Taxiway))
+                break;
+            }
+
+            layout.FindOnSidePreferredExit(
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                plan.RunwayHeading,
+                rwyDesignator,
+                preference: null,
+                sidePref: null,
+                excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
+                excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
+                filter: candidate =>
                 {
+                    if (
+                        IsGivenUp(ctx.Aircraft, candidate.Taxiway)
+                        || (skipTooShort && RunwayTailClearance.IsTooShortForAutomaticExit(candidate, ctx.Aircraft))
+                    )
+                    {
+                        return AirportGroundLayout.CandidateVerdict.Skip;
+                    }
+
+                    GroundNode branch = candidate.Path[0];
+                    double distNm = GeoMath.AlongTrackDistanceNm(branch.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+                    double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
+                    var info = new ResolvedExitInfo
+                    {
+                        HoldShortNode = candidate.HoldShort,
+                        TaxiwayName = candidate.Taxiway,
+                        TurnOffSpeed = turnOff,
+                        Path = candidate.Path,
+                        BranchPointNode = branch,
+                        SelectionDecelRate = ForcedLandingProfile.RolloutMaxDecelKtsPerSec,
+                        Side = candidate.Side,
+                        StopsTailInsideRunwayLine = RunwayTailClearance.ExitStopsTailInside(layout, candidate.Path, ctx.Aircraft.AircraftType),
+                    };
+                    if ((distNm > lastDistNm) && (PlanForcedExitDeceleration(ctx, plan, plan.CoastSpeed, info) is not null))
+                    {
+                        last = info;
+                        lastDistNm = distNm;
+                    }
+
+                    if (distNm > 0)
+                    {
+                        nearestDistNm = Math.Min(nearestDistNm, distNm);
+                    }
+
+                    // Skip every candidate so the walk goes on to the end of the runway; the last usable one is kept above.
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
-
-                GroundNode branch = candidate.Path[0];
-                double distNm = GeoMath.AlongTrackDistanceNm(branch.Position, ctx.Aircraft.Position, plan.RunwayHeading);
-                double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
-                var info = new ResolvedExitInfo
-                {
-                    HoldShortNode = candidate.HoldShort,
-                    TaxiwayName = candidate.Taxiway,
-                    TurnOffSpeed = turnOff,
-                    Path = candidate.Path,
-                    BranchPointNode = branch,
-                    SelectionDecelRate = ForcedLandingProfile.RolloutMaxDecelKtsPerSec,
-                    Side = candidate.Side,
-                };
-                if ((distNm > lastDistNm) && (PlanForcedExitDeceleration(ctx, plan, plan.CoastSpeed, info) is not null))
-                {
-                    last = info;
-                    lastDistNm = distNm;
-                }
-
-                if (distNm > 0)
-                {
-                    nearestDistNm = Math.Min(nearestDistNm, distNm);
-                }
-
-                // Skip every candidate so the walk goes on to the end of the runway; the last usable one is kept above.
-                return AirportGroundLayout.CandidateVerdict.Skip;
-            }
-        );
+            );
+        }
 
         if (last is null)
         {
@@ -1980,6 +1997,7 @@ public sealed class LandingPhase : Phase
             From = ExitReachOrigin.Of(aircraft),
             ExcludeBranchPoints = UnableBranchPointsOrNull(),
             LahsoStopLimitNm = LahsoStopLimitNm(aircraft),
+            SkipTooShort = true,
         };
     }
 
@@ -2358,6 +2376,7 @@ public sealed class LandingPhase : Phase
             BranchPointNode = result.Value.Node,
             SelectionDecelRate = null,
             Side = null,
+            StopsTailInsideRunwayLine = false,
         };
     }
 
@@ -2427,6 +2446,13 @@ public sealed class LandingPhase : Phase
         /// a connection ahead at all; false skips it, as every search for an exit to take does.
         /// </summary>
         public required bool IgnoreLahso { get; init; }
+
+        /// <summary>
+        /// True to pass by an exit too short for the aircraft that the search did not name
+        /// (<see cref="RunwayTailClearance.IsTooShortForAutomaticExit"/>); false judges it as any other, for the rollout's last
+        /// resort when no exit it fits can be made at any rate.
+        /// </summary>
+        public required bool SkipTooShort { get; init; }
     }
 
     /// <summary>
@@ -2461,24 +2487,37 @@ public sealed class LandingPhase : Phase
             From = ExitReachOrigin.Of(ctx.Aircraft),
             ExcludeBranchPoints = UnableBranchPointsOrNull(),
             LahsoStopLimitNm = LahsoStopLimitNm(ctx.Aircraft),
+            SkipTooShort = true,
         };
-        ResolvedExitInfo? found = FindWithInferredSide(query);
 
-        // A crew that cannot make any exit at its default-selection rates takes the next one it can make braking
-        // firmly rather than rolling to the runway end and stopping on it. Instructed and expedited exits already
-        // search at the firm or max-effort rate.
-        bool defaultSelection = !_exitResolutionEnabled && !ctx.Aircraft.Ground.IsExpeditingExit;
-        if ((found is null) && defaultSelection)
-        {
-            double firmRate = CategoryPerformance.FirmBrakingRate(ctx.Category);
-            found = TryFindCandidate(query with { BrakingLimitForTurnOffSpeed = _ => firmRate });
-        }
+        // An exit the aircraft fits comes first at every rate, the firm one included; only when none fits at any rate does the
+        // crew take the best one anyway (it stops short of the other runway, not clear).
+        ResolvedExitInfo? found = FindAtSelectionRates(ctx, query) ?? FindAtSelectionRates(ctx, query with { SkipTooShort = false });
 
         if ((found is null) && GiveUpUnreachableNamedExit(ctx, query))
         {
             // The named exit is given up and the preference relaxed to the controller's side: resolve again under it, as
             // the rollout would on its next tick, so the aircraft brakes for the next exit it can make from this tick on.
             return FindGraphCandidate(ctx, layout, plan, rwyDesignator);
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// <see cref="FindGraphCandidate"/>'s search for <paramref name="query"/> at the query's own braking limit, then, under default
+    /// selection, at the firm rate: a crew that cannot make any exit at its default-selection rates takes the next one it can make
+    /// braking firmly rather than rolling to the runway end and stopping on it. Instructed and expedited exits already search at
+    /// the firm or max-effort rate.
+    /// </summary>
+    private ResolvedExitInfo? FindAtSelectionRates(PhaseContext ctx, ExitCandidateQuery query)
+    {
+        ResolvedExitInfo? found = FindWithInferredSide(query);
+        bool defaultSelection = !_exitResolutionEnabled && !ctx.Aircraft.Ground.IsExpeditingExit;
+        if ((found is null) && defaultSelection)
+        {
+            double firmRate = CategoryPerformance.FirmBrakingRate(ctx.Category);
+            found = TryFindCandidate(query with { BrakingLimitForTurnOffSpeed = _ => firmRate });
         }
 
         return found;
@@ -2586,6 +2625,7 @@ public sealed class LandingPhase : Phase
             BranchPointNode = branch,
             SelectionDecelRate = query.BrakingLimitForTurnOffSpeed(turnOff),
             Side = found.Side,
+            StopsTailInsideRunwayLine = RunwayTailClearance.ExitStopsTailInside(query.Layout, found.Path, query.Aircraft.AircraftType),
         };
     }
 
@@ -2633,8 +2673,9 @@ public sealed class LandingPhase : Phase
     /// <summary>
     /// <see cref="TryFindCandidate"/>'s verdict on one <paramref name="candidate"/>: skipped when its taxiway is one the crew
     /// has given up (unless the query judges afresh), when its branch is at or behind the aircraft (its hold-short added to
-    /// <paramref name="passedHoldShorts"/>), when it lies past a LAHSO hold-short point, or when <see cref="JudgeExitReach"/>
-    /// finds it beyond the query's braking limit for its turn-off speed.
+    /// <paramref name="passedHoldShorts"/>), under <see cref="ExitCandidateQuery.SkipTooShort"/> when the aircraft does not fit it
+    /// and the search did not name it (<see cref="RunwayTailClearance.IsTooShortForAutomaticExit"/>), when it lies past a LAHSO
+    /// hold-short point, or when <see cref="JudgeExitReach"/> finds it beyond the query's braking limit for its turn-off speed.
     /// </summary>
     private static AirportGroundLayout.CandidateVerdict JudgeCandidate(
         ExitCandidateQuery query,
@@ -2643,6 +2684,13 @@ public sealed class LandingPhase : Phase
     )
     {
         if (!query.IncludeGivenUp && IsGivenUp(query.Aircraft, candidate.Taxiway))
+        {
+            return AirportGroundLayout.CandidateVerdict.Skip;
+        }
+
+        // A taxiway the search was asked for by name is the controller's choice, never an automatic one.
+        bool searchedByName = string.Equals(query.SearchPref?.Taxiway, candidate.Taxiway, StringComparison.OrdinalIgnoreCase);
+        if (query.SkipTooShort && !searchedByName && RunwayTailClearance.IsTooShortForAutomaticExit(candidate, query.Aircraft))
         {
             return AirportGroundLayout.CandidateVerdict.Skip;
         }

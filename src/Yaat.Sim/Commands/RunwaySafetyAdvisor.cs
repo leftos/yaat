@@ -146,18 +146,15 @@ public static class RunwaySafetyAdvisor
     /// already count (line-up family awaiting takeoff clearance, <see cref="HoldingInPositionPhase"/>)
     /// are excluded so a held LUAW aircraft draws one warning, not two. A <c>GIVEWAY</c> still pending on an arrival's landing
     /// rollout or exit (<see cref="AircraftState.HasGiveWayPendingOnLandingRunway"/>) does not stop it, so that arrival is landed
-    /// traffic (<see cref="WarnIfLandedTrafficBlocksTakeoff"/>), not stopped traffic.
+    /// traffic (<see cref="WarnIfLandedTrafficBlocksTakeoff"/>), not stopped traffic. For a landing clearance an aircraft whose
+    /// tail stays inside the runway's holding position marking (<see cref="IsTailInsideOccupant"/>) counts too, wherever its centre is.
     /// </summary>
     private static void WarnIfStoppedTrafficOnRunway(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx, bool forTakeoff)
     {
         var stopped = ctx.ListAircraft!()
             .Where(other =>
                 (!ReferenceEquals(other, aircraft))
-                && other.Ground.IsImmobile
-                && (!other.HasGiveWayPendingOnLandingRunway)
-                && RunwayOccupancy.IsOnPavement(other, runway)
-                && (!AwaitsTakeoffClearanceOnRunway(other))
-                && other.Phases?.CurrentPhase is not HoldingInPositionPhase
+                && (IsHeldOnPavement(other, runway) || ((!forTakeoff) && IsTailInsideOccupant(other, runway, ctx.GroundLayout)))
             )
             .Select(other => other.Callsign)
             .ToList();
@@ -173,6 +170,29 @@ public static class RunwaySafetyAdvisor
         aircraft.PendingWarnings.Add(warning);
         Log.LogDebug("[RunwaySafety] {Warning}", warning);
     }
+
+    /// <summary>
+    /// Immobilized on <paramref name="runway"/>'s pavement by a hold directive, and not one the phase-based occupant matches already
+    /// count (<see cref="WarnIfStoppedTrafficOnRunway"/>).
+    /// </summary>
+    private static bool IsHeldOnPavement(AircraftState other, RunwayInfo runway) =>
+        other.Ground.IsImmobile
+        && (!other.HasGiveWayPendingOnLandingRunway)
+        && RunwayOccupancy.IsOnPavement(other, runway)
+        && (!AwaitsTakeoffClearanceOnRunway(other))
+        && other.Phases?.CurrentPhase is not HoldingInPositionPhase;
+
+    /// <summary>
+    /// An aircraft whose tail stays inside <paramref name="runway"/>'s holding position marking
+    /// (<see cref="RunwayOccupancy.IsTailInsideRunwayState"/>, judged on this runway by <see cref="RunwayOccupancy.Classify"/>),
+    /// moving or stopped: it has not cleared the runway and will not (AIM 4-3-21.b; 7110.65 3-10-3.a.1), so a landing clearance
+    /// draws the stopped-traffic warning. A <see cref="HoldingInPositionPhase"/> on the pavement is left to the phase-based occupant
+    /// match, so it draws one warning, not two.
+    /// </summary>
+    private static bool IsTailInsideOccupant(AircraftState other, RunwayInfo runway, AirportGroundLayout? layout) =>
+        RunwayOccupancy.IsTailInsideRunwayState(other)
+        && !((other.Phases?.CurrentPhase is HoldingInPositionPhase) && RunwayOccupancy.IsOnPavement(other, runway))
+        && (RunwayOccupancy.Classify(other, runway, layout)?.Kind == RunwayUseKind.OnSurface);
 
     /// <summary>
     /// Simulated traffic past the runway's holding position marking off its pavement

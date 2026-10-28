@@ -318,7 +318,8 @@ internal static class TaxiCoverageRunner
             TaxiNodeKind.RunwayExit => new HoldingAfterExitPhase(
                 runwayId: ExtractRunwayFromName(pair.OriginName),
                 exitTaxiway: ExtractTaxiwayFromName(pair.OriginName),
-                holdShortNodeId: origin.Id
+                holdShortNodeId: origin.Id,
+                heldShortOfRunway: null
             ),
             _ => throw new InvalidOperationException($"Unsupported origin kind: {pair.OriginKind}"),
         };

@@ -85,6 +85,7 @@ public static class FinalApproachExitForecast
             LahsoStopLimitNm = phases.LahsoHoldShort is { } lahso
                 ? LandingPhase.LahsoStopLimitNm(lahso.DistFromThresholdNm, aircraft.AircraftType)
                 : null,
+            SkipTooShort = true,
         };
 
         ExitPreference? requested = phases.RequestedExit;

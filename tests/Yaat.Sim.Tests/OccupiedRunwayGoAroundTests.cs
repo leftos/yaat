@@ -242,7 +242,7 @@ public class OccupiedRunwayGoAroundTests
         double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
         AircraftState held = RunwayOccupancyTests.SquareToTheRunway(oak.Runway, oak.Bar, "C172", facingRunway: false, barFt - 140.0, alongFt: 0);
         held.Phases = new PhaseList { AssignedRunway = oak.Runway };
-        held.Phases.Add(new HoldingAfterExitPhase(oak.Runway.Designator, exitTaxiway: null, oak.Bar.Id));
+        held.Phases.Add(new HoldingAfterExitPhase(oak.Runway.Designator, exitTaxiway: null, oak.Bar.Id, heldShortOfRunway: null));
         held.Phases.CurrentPhase!.Status = PhaseStatus.Active;
         held.Ground.Hold = HoldDirective.HoldPosition;
 

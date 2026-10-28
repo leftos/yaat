@@ -151,7 +151,7 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
             output.WriteLine($"blocking hold-short {bar.Id} at {bar.Position}, {AlongFt(rwy, bar.Position):F0} ft along");
             AircraftState blocker = NewCrj7($"BLK{bar.Id}", bar.Position, rwy.Runway.TrueHeading, rwy.Runway.ElevationFt, iasKts: 0, onGround: true);
             blocker.Phases = new PhaseList();
-            blocker.Phases.Add(new HoldingAfterExitPhase(rwy.Runway.Designator, exitTaxiway: null, bar.Id));
+            blocker.Phases.Add(new HoldingAfterExitPhase(rwy.Runway.Designator, exitTaxiway: null, bar.Id, heldShortOfRunway: null));
             AddPending(engine, blocker, rwy.Layout);
         }
 

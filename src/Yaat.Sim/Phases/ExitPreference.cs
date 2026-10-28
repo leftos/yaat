@@ -63,4 +63,11 @@ public sealed class ResolvedExitInfo
     /// straight-line search chose it (no braking filter) or when it was restored from a snapshot that did not carry it.
     /// </summary>
     public required double? SelectionDecelRate { get; init; }
+
+    /// <summary>
+    /// The stop past this exit's bar leaves the tail inside the landing runway's holding position marking
+    /// (<see cref="Ground.RunwayTailClearance.ExitStopsTailInside"/>), computed once when the exit is resolved: an aircraft taking
+    /// it will not clear the runway.
+    /// </summary>
+    public required bool StopsTailInsideRunwayLine { get; init; }
 }

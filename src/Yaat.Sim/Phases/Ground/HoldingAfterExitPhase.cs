@@ -22,12 +22,21 @@ public sealed class HoldingAfterExitPhase : Phase
     private string? _exitTaxiway;
     private int? _holdShortNodeId;
     private bool _stoppedInsideHoldingDistance;
+    private string? _heldShortOfRunway;
 
     /// <summary>
-    /// The aircraft holds at a bar inside the runway's holding distance (an exit the controller named whose bar is short
-    /// of the standoff, with nothing beyond it), so it has not cleared the runway. Set once on start.
+    /// The aircraft has not cleared the runway: it holds at a bar inside the runway's holding distance (an exit the controller
+    /// named whose bar is short of the standoff, with nothing beyond it), or it stopped with its nose at another runway's holding
+    /// position marking and its tail still inside this runway's (<see cref="HeldShortOfRunway"/>, a crossover shorter than the
+    /// aircraft). Set once on start.
     /// </summary>
     public bool StoppedInsideHoldingDistance => _stoppedInsideHoldingDistance;
+
+    /// <summary>
+    /// The runway whose holding position marking the nose stopped at, with the tail still inside <see cref="RunwayId"/>'s
+    /// (<see cref="RunwayTailClearance.Stop.TailInsideLine"/>); null when the stop left the aircraft clear of it or held at a bar.
+    /// </summary>
+    public string? HeldShortOfRunway => _heldShortOfRunway;
 
     /// <summary>
     /// The hold-short node this aircraft is occupying. Used by
@@ -44,11 +53,18 @@ public sealed class HoldingAfterExitPhase : Phase
 
     public HoldingAfterExitPhase() { }
 
-    public HoldingAfterExitPhase(string? runwayId, string? exitTaxiway, int? holdShortNodeId)
+    /// <param name="runwayId">The runway just exited or pulled clear of.</param>
+    /// <param name="exitTaxiway">The taxiway the aircraft holds on.</param>
+    /// <param name="holdShortNodeId">The runway's bar the aircraft passed.</param>
+    /// <param name="heldShortOfRunway">
+    /// The other runway whose line the nose stopped at with the tail still inside <paramref name="runwayId"/>'s; null otherwise.
+    /// </param>
+    public HoldingAfterExitPhase(string? runwayId, string? exitTaxiway, int? holdShortNodeId, string? heldShortOfRunway)
     {
         _runwayId = runwayId;
         _exitTaxiway = exitTaxiway;
         _holdShortNodeId = holdShortNodeId;
+        _heldShortOfRunway = heldShortOfRunway;
     }
 
     public override string Name => "Holding After Exit";
@@ -62,13 +78,33 @@ public sealed class HoldingAfterExitPhase : Phase
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
-        _stoppedInsideHoldingDistance = IsStopInsideHoldingDistance(ctx);
+        _stoppedInsideHoldingDistance = (_heldShortOfRunway is not null) || IsStopInsideHoldingDistance(ctx);
+        string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
+        string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
 
         // With no layout there was no exit to take: RunwayExitPhase rolled the aircraft to a stop on the
         // runway itself, so the pilot has nothing to report clear of.
         if ((_exitTaxiway is null) && (ctx.GroundLayout is null))
         {
             Log.LogDebug("[Exit] {Callsign}: no ground layout, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
+        }
+        else if (_heldShortOfRunway is { } otherRunway)
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: nose at runway {Other}'s line on {Twy}, tail inside {Runway}'s — reporting not clear",
+                ctx.Aircraft.Callsign,
+                otherRunway,
+                twy,
+                rwy
+            );
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                Pilot.PilotResponder.BuildHoldingShortNotClearOfRunwayText(ctx.Aircraft, otherRunway, twy, rwy),
+                Pilot.PilotResponder.SoloPositionsTower
+            );
         }
         else if (_stoppedInsideHoldingDistance)
         {
@@ -83,8 +119,6 @@ public sealed class HoldingAfterExitPhase : Phase
         {
             // Broadcast "clear of runway" — solo TWR students need the TTS so they can hand off
             // to ground; solo GND students aren't on tower frequency at this point.
-            string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
-            string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
             PilotSpeechText text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
             Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                 ctx.Aircraft,
@@ -146,6 +180,7 @@ public sealed class HoldingAfterExitPhase : Phase
             ExitTaxiway = _exitTaxiway,
             HoldShortNodeId = _holdShortNodeId,
             StoppedInsideHoldingDistance = _stoppedInsideHoldingDistance,
+            HeldShortOfRunway = _heldShortOfRunway,
         };
 
     public static HoldingAfterExitPhase FromSnapshot(HoldingAfterExitPhaseDto dto)
@@ -156,6 +191,7 @@ public sealed class HoldingAfterExitPhase : Phase
             _exitTaxiway = dto.ExitTaxiway,
             _holdShortNodeId = dto.HoldShortNodeId,
             _stoppedInsideHoldingDistance = dto.StoppedInsideHoldingDistance,
+            _heldShortOfRunway = dto.HeldShortOfRunway,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

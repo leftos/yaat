@@ -456,6 +456,31 @@ public class SameRunwayArrivalProtectionTests
         );
     }
 
+    /// <summary>
+    /// A leader on its exit whose centre is already 40 ft past its hold-short node has only its half length less those 40 ft
+    /// still to cover before all of it is across the marking: the remainder is signed along its track, not the straight-line
+    /// distance to the node, which grows again once the node is behind it.
+    /// </summary>
+    [Fact]
+    public void ExitingLeader_PastItsHoldShortNode_RemainderShrinks()
+    {
+        TestVnasData.EnsureInitialized();
+        double tailFt = SameRunwayArrivalProtection.TailClearanceNm("B738") * GeoMath.FeetPerNm;
+        AircraftState? leader = ExitingLeader("B738", remainderFt: tailFt, groundSpeedKts: 10.0);
+        if (leader is null)
+        {
+            return;
+        }
+
+        const double pastNodeFt = 40.0;
+        leader.Position = GeoMath.ProjectPoint(leader.Position, leader.TrueHeading, pastNodeFt / GeoMath.FeetPerNm);
+
+        SameRunwayArrivalProtection.LeaderRollout? rollout = SameRunwayArrivalProtection.TryBuildRollout(leader, 0.0);
+        Assert.NotNull(rollout);
+        double remainderFt = (rollout.Value.BrakingLegNm + rollout.Value.SteadyLegNm) * GeoMath.FeetPerNm;
+        Assert.Equal(tailFt - pastNodeFt, remainderFt, 0.5);
+    }
+
     [Fact]
     public void ExitingLeader_IsPredictedSteadyThenBraking()
     {

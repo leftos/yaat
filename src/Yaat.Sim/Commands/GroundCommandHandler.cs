@@ -7965,8 +7965,19 @@ public static partial class GroundCommandHandler
         holdPhase.HoldShort.IsCleared = true;
         holdPhase.HoldShort.TailOverRunwayNodeId = null;
 
+        // The runway being cleared stays the aircraft's own until ClearRunwayPhase finds its stop: one that clears it drops it, and
+        // one cut back short of another runway's line with the tail still over this one keeps it, so it still reads as an occupant.
+        RunwayInfo? keptRunway =
+            (
+                (aircraft.Phases?.AssignedRunway is { } assigned)
+                && (groundLayout.Nodes[runwayNodeId].RunwayId is { } clearedId)
+                && assigned.Id.Overlaps(clearedId)
+            )
+                ? assigned
+                : null;
+
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
-        aircraft.Phases = new PhaseList();
+        aircraft.Phases = new PhaseList { AssignedRunway = keptRunway };
         aircraft.Phases.Add(new ClearRunwayPhase(runwayNodeId, approachNodeId));
         aircraft.Phases.Add(new HoldingInPositionPhase());
         aircraft.Phases.Start(ctx);
