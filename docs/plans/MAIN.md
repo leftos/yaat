@@ -14,7 +14,7 @@
   - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
   - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
   - [/] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
-  - [ ] YAAT-1380 Stop an OAK HOLD near a snapped bar from running the aircraft past the hold line · release vNext
+  - [/] YAAT-1380 Stop an OAK HOLD near a snapped bar from running the aircraft past the hold line · release vNext
   - [ ] YAAT-1382 Give OAK's C route onto 15/33 a hold-short bar at the snapped 33 threshold · release vNext
   - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
   - [ ] YAAT-1406 Give a TAXI on a fillet arc ending at a runway bar the approach leg, so the nose stops at the line
@@ -923,6 +923,17 @@
 - [ ] YAAT-1402 Find why an OAKES3 arrival climbs to 18,100 ft before GRUDG after CFIX GRUDG 110 230 and a deferred CAPP I30
 - [ ] YAAT-1403 Keep approach transition and last STAR speed true after a later DCT or approach clearance (YAAT-1356 review)
 - [ ] YAAT-1404 Fill ApproachClearance.TransitionName when loading a pre-37 snapshot mid-approach
+- [ ] YAAT-1414 Pin HoldShortAnnotator's along-route clamp for a FromFarEnd stop with no approach leg
+- [ ] YAAT-1415 Keep a rolling aircraft's makeable stop ahead instead of moving the no-destination hold onto it (bare TAXI inside the setback)
+- [ ] YAAT-1416 Keep TaxiStartsOnOccupiedTaxiwayTests' FarSideBar walk on the stub's taxiway (OAK W2 bar 51 reaches W1 bar 41)
+- [ ] YAAT-1417 Restore an assigned speed once a speed cap stops binding (Vmo/Mmo and 91.117 leave the capped figure standing)
+- [ ] YAAT-1418 Stop reporting 'holding short of X' after an unable hold-short stop (HoldingShortPhase arrival report)
+- [ ] YAAT-1419 Give the menu golden regeneration command its routed gate --env form in tests/CLAUDE.md, CONTEXT.md and the context-menu plans
+- [ ] YAAT-1420 Read a hold-short stop's setback from the annotator instead of re-deriving it from its position (bend and turn-about windows)
+- [ ] YAAT-1421 Speak a pilot's unable line when a chained command is refused at fire time (ApplyBlock drops PilotUnable)
+- [ ] YAAT-1422 Hand a descending Mach hold over to an IAS at the crossover instead of riding Vmo (MACH .78 then DM 110)
+- [ ] YAAT-1423 Correct the Vmo/Mmo and minimum-speed data that refuse speeds real types fly (bizjets, Q400, CRJ/B76x/A34x/MD11, helicopters, KC-135) · release vNext
+- [ ] YAAT-1424 Offer only flyable speeds in the client's speed picker (MenuCatalog, SpeedFlyout read the Vmo/Mmo/minimum lookup)
 
 ## No project
 
