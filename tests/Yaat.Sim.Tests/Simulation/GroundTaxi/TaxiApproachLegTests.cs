@@ -34,7 +34,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     private const int StartNodeId = 755;
 
     /// <summary>OAK W1's runway 30 holding position.</summary>
-    private const int HoldShortNodeId = 495;
+    private static int HoldShortNodeId(AirportGroundLayout layout) => GroundNodeLookup.HoldShortBar(layout, "30", "W1").Id;
 
     /// <summary>How far past a holding position to look for the runway it protects.</summary>
     private const double RunwayProbeFt = 400.0;
@@ -225,9 +225,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
 
     private const double SfoOnFShortOfAHeadingDeg = 297.9;
 
-    /// <summary>SFO's F/A junction: its F edge runs to node 1598, where F meets E.</summary>
-    private const int SfoFAJunctionNodeId = 54;
-
+    /// <summary>Where the F edge from SFO's F/A junction meets E.</summary>
     private const int SfoFAtENodeId = 1598;
 
     /// <summary>
@@ -243,7 +241,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode junction = ground.Layout.Nodes[SfoFAJunctionNodeId];
+        GroundNode junction = GroundNodeLookup.Junction(ground.Layout, "F", "A");
         double downFDeg = GeoMath.BearingTo(junction.Position, ground.Layout.Nodes[SfoFAtENodeId].Position);
         AircraftState aircraft = MakeAircraft(ground.Layout, junction.Position, downFDeg);
         aircraft.Ground.CurrentTaxiway = "E";
@@ -366,7 +364,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     private (CommandResult Result, TaxiRoute Route) TaxiBAlongFTowardA(AirportGroundLayout layout, double fromFarEndFt)
     {
         GroundNode farEnd = layout.Nodes[SfoFFarEndNodeId];
-        double towardA = GeoMath.BearingTo(farEnd.Position, layout.Nodes[SfoFAJunctionNodeId].Position);
+        double towardA = GeoMath.BearingTo(farEnd.Position, GroundNodeLookup.Junction(layout, "F", "A").Position);
         AircraftState aircraft = MakeAircraft(layout, Project(farEnd.Position, towardA, fromFarEndFt), towardA);
         aircraft.AircraftType = "C172";
         CommandResult result = GroundCommandHandler.TryTaxi(
@@ -427,7 +425,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(HoldShortNodeId, out GroundNode? bar), $"node {HoldShortNodeId} missing from the OAK layout");
+        GroundNode bar = layout.Nodes[HoldShortNodeId(layout)];
         Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
 
         GroundNode? runwaySide = null;
@@ -465,7 +463,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         AircraftState aircraft = MakeAircraft(layout, position, headingDeg);
         TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], Expedite: false, DestinationRunway: null));
 
-        Assert.Equal(HoldShortNodeId, route.Segments[0].FromNodeId);
+        Assert.Equal(HoldShortNodeId(layout), route.Segments[0].FromNodeId);
     }
 
     private static bool IsRunwayName(string name) => name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);

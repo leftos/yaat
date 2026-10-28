@@ -27,7 +27,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
     private const double AfterEExitPastBarFt = 12.0;
 
     /// <summary>OAK D/J junction: D leaves it north toward 15/33.</summary>
-    private const int OakDJJunctionNode = 375;
+    private static GroundNode OakDJJunctionNode(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "D", "J");
 
     internal const string Callsign = "N36936";
 
@@ -221,7 +221,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         output.WriteLine($"route: {route.FormatTaxiwaySequence()} ({route.Segments.Count} segments)");
 
-        Assert.Contains(route.Segments, s => s.ToNodeId == OakDJJunctionNode);
+        Assert.Contains(route.Segments, s => s.ToNodeId == OakDJJunctionNode(layout).Id);
         Assert.Contains(route.Segments, s => (s.Edge.Edge is not GroundArc) && s.Edge.Edge.MatchesTaxiway("D"));
         Assert.Contains(route.Segments, s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesTaxiway(runway));
         HoldShortPoint crossing = Assert.Single(route.HoldShortPoints, h => h.TargetName?.Contains("33") == true);
@@ -244,7 +244,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode start = layout.Nodes[OakDJJunctionNode];
+        GroundNode start = OakDJJunctionNode(layout);
         Assert.Contains(start.Edges, e => e.MatchesTaxiway("D"));
         Assert.Contains(start.Edges, e => e.MatchesTaxiway("J"));
         AircraftState aircraft = MakeAircraftAt(layout, "OAK", start, 330.0);
@@ -287,7 +287,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
 
         // The probe starts beyond E's 28R bar, on E's straight edge toward C, so the C→D segment it resolves begins at a node
         // on C instead of reaching C only through the bar's C - E fillet arc.
-        GroundNode start = layout.Nodes[1091];
+        GroundNode start = GroundNodeLookup.OnTaxiway(layout, "E", OakE28RBar(layout), 1.0, GroundNodeLookup.Junction(layout, "C", "E"));
         Assert.Contains(start.Edges, e => (e is not GroundArc) && (e.TaxiwayName == "E"));
         Assert.Contains(start.Edges, e => e.TaxiwayName is "C" or "C - E");
         GroundNode bar = OakE28RBar(layout);

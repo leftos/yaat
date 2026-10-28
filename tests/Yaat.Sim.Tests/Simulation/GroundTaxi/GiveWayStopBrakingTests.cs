@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
@@ -381,7 +382,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         AircraftState giver = engine.FindAircraft(KoakFollowClip.Follower)!;
         AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(giver.Ground.Layout);
-        GroundNode firstBar = layout.Nodes[ClearedBarNodeId];
+        GroundNode firstBar = ClearedBar(layout);
         var speeds = new List<(int Second, double SpeedKts)>();
         double approachDeg = double.NaN;
         int leadTaxiAt = -1;
@@ -418,7 +419,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     }
 
                     giveWayAt = second;
-                    Assert.Equal(ClearedBarNodeId, holdShortNodeId);
+                    Assert.Equal(firstBar.Id, holdShortNodeId);
                     approachDeg = ApproachBearingDeg(firstBar, giver.Position);
                     output.WriteLine(
                         $"t={second}: GIVEWAY at gs={giver.GroundSpeed:F1}, give-way point {stop.ToStopFt:F1} ft ahead at junction {stop.NodeId}, "
@@ -440,7 +441,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
             }
         );
 
-        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {ClearedBarNodeId})");
+        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {firstBar.Id})");
         Assert.True(giveWayAt > 0, "N738SP never had a hold-short node on its route before the give-way point");
         Assert.True(stoppedAt > 0, $"N738SP never came to rest after the GIVEWAY; gs={giver.GroundSpeed:F1}");
         (double lossKts, int atSecond) = KoakFollowClip.LargestSpeedLossPerSecond(speeds);
@@ -448,12 +449,12 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         output.WriteLine($"largest one-second speed loss {lossKts:F2} kt ending t={atSecond}; firm rate allows {firmLossKts:F2}");
         Assert.True(lossKts <= firmLossKts + 1e-6, $"N738SP lost {lossKts:F2} kt in the second ending t={atSecond}, more than the firm rate allows");
         double nosePastFt = NosePastHoldLineFt(Nose(giver), firstBar, approachDeg);
-        output.WriteLine($"at rest t={stoppedAt}: nose {nosePastFt:F1} ft past the runway 33 hold line (node {ClearedBarNodeId})");
+        output.WriteLine($"at rest t={stoppedAt}: nose {nosePastFt:F1} ft past the runway 33 hold line (node {firstBar.Id})");
         Assert.True(nosePastFt <= 0.0, $"N738SP's nose came to rest {nosePastFt:F1} ft over the runway 33 holding-position marking");
     }
 
     /// <summary>
-    /// The same crossing, with the GIVEWAY issued once N738SP's nose is past the runway 33 hold line on C (node 510) but its
+    /// The same crossing, with the GIVEWAY issued once N738SP's nose is past the runway 33 hold line on C but its
     /// centre has not reached the bar node, so it is still taxiing toward the crossing its CROSS cleared. The painted stop is
     /// behind it, so it enters the crossing rather than braking to rest between the hold line and the runway (AIM 4-3-21.a),
     /// the GIVEWAY waits until its tail is past the far holding-position marking, and it comes to rest with no part between
@@ -473,7 +474,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         AircraftState giver = engine.FindAircraft(KoakFollowClip.Follower)!;
         AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(giver.Ground.Layout);
-        GroundNode firstBar = layout.Nodes[ClearedBarNodeId];
+        GroundNode firstBar = ClearedBar(layout);
         var speeds = new List<(int Second, double SpeedKts)>();
         double approachDeg = double.NaN;
         int nearBarSegmentIndex = -1;
@@ -498,8 +499,8 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     leadTaxiAt = second;
                     approachDeg = ApproachBearingDeg(firstBar, giver.Position);
                     TaxiRoute route = Assert.IsType<TaxiRoute>(giver.Ground.AssignedTaxiRoute);
-                    nearBarSegmentIndex = route.Segments.FindIndex(s => s.ToNodeId == ClearedBarNodeId);
-                    farBarSegment = FarBarSegment(route, ClearedBarNodeId);
+                    nearBarSegmentIndex = route.Segments.FindIndex(s => s.ToNodeId == firstBar.Id);
+                    farBarSegment = FarBarSegment(route, firstBar.Id);
                     Assert.True(engine.SendCommand(KoakFollowClip.Lead, LeadTaxiOnJ).Success);
                     return false;
                 }
@@ -543,9 +544,9 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
             }
         );
 
-        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {ClearedBarNodeId})");
+        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {firstBar.Id})");
         Assert.True(giveWayAt > 0, "N738SP's nose never passed the runway 33 hold line with its centre short of it and N52417 rolling");
-        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {ClearedBarNodeId}");
+        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {firstBar.Id}");
         (double lossKts, int atSecond) = LargestLossOverConsecutiveSeconds(speeds);
         double firmLossKts = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) * (1.0 + (1.0 / SimulationEngine.PhysicsSubTickRate));
         output.WriteLine($"largest one-second speed loss {lossKts:F2} kt ending t={atSecond}; firm rate allows {firmLossKts:F2}");
@@ -586,7 +587,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
 
         AircraftState giver = engine.FindAircraft(KoakFollowClip.Follower)!;
         AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
-        GroundNode firstBar = Assert.IsType<AirportGroundLayout>(giver.Ground.Layout).Nodes[ClearedBarNodeId];
+        GroundNode firstBar = ClearedBar(Assert.IsType<AirportGroundLayout>(giver.Ground.Layout));
         double approachDeg = double.NaN;
         double farApproachDeg = double.NaN;
         GroundNode? farBar = null;
@@ -614,8 +615,8 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     leadTaxiAt = second;
                     approachDeg = ApproachBearingDeg(firstBar, giver.Position);
                     TaxiRoute route = Assert.IsType<TaxiRoute>(giver.Ground.AssignedTaxiRoute);
-                    nearBarSegmentIndex = route.Segments.FindIndex(s => s.ToNodeId == ClearedBarNodeId);
-                    TaxiRouteSegment farBarSegment = FarBarSegment(route, ClearedBarNodeId);
+                    nearBarSegmentIndex = route.Segments.FindIndex(s => s.ToNodeId == firstBar.Id);
+                    TaxiRouteSegment farBarSegment = FarBarSegment(route, firstBar.Id);
                     farBar = farBarSegment.Edge.ToNode;
                     farApproachDeg = GeoMath.BearingTo(farBar.Position, farBarSegment.Edge.FromNode.Position);
                     Assert.True(engine.SendCommand(KoakFollowClip.Lead, LeadTaxiOnJ).Success);
@@ -717,7 +718,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         AircraftState crosser = engine.FindAircraft(KoakFollowClip.Follower)!;
         AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(crosser.Ground.Layout);
-        GroundNode firstBar = layout.Nodes[ClearedBarNodeId];
+        GroundNode firstBar = ClearedBar(layout);
         var speeds = new List<(int Second, double SpeedKts)>();
         bool enteredCrossing = false;
         int limitedSeconds = 0;
@@ -755,8 +756,8 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
             }
         );
 
-        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {ClearedBarNodeId})");
-        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {ClearedBarNodeId}");
+        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {firstBar.Id})");
+        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {firstBar.Id}");
         Assert.True(limitedSeconds > 0, "The ground-conflict detector never limited N738SP for N52417");
         (double lossKts, int atSecond) = LargestLossOverConsecutiveSeconds(speeds);
         double firmLossKts = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Piston) * (1.0 + (1.0 / SimulationEngine.PhysicsSubTickRate));
@@ -784,7 +785,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         AircraftState crosser = engine.FindAircraft(KoakFollowClip.Follower)!;
         AircraftState lead = engine.FindAircraft(KoakFollowClip.Lead)!;
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(crosser.Ground.Layout);
-        GroundNode firstBar = layout.Nodes[ClearedBarNodeId];
+        GroundNode firstBar = ClearedBar(layout);
         var speeds = new List<(int Second, double SpeedKts)>();
         var notClearCalls = new List<string>();
         TaxiRouteSegment? farBarSegment = null;
@@ -806,7 +807,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     }
 
                     leadTaxiAt = second;
-                    farBarSegment = FarBarSegment(Assert.IsType<TaxiRoute>(crosser.Ground.AssignedTaxiRoute), ClearedBarNodeId);
+                    farBarSegment = FarBarSegment(Assert.IsType<TaxiRoute>(crosser.Ground.AssignedTaxiRoute), firstBar.Id);
                     Assert.True(engine.SendCommand(KoakFollowClip.Lead, LeadTaxiWestOnC).Success);
                     speeds.Add((second, crosser.GroundSpeed));
                     return false;
@@ -829,8 +830,8 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
             }
         );
 
-        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {ClearedBarNodeId})");
-        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {ClearedBarNodeId}");
+        Assert.True(leadTaxiAt > 0, $"N738SP never came within {LeadTaxiTriggerFt:F0} ft of the runway 33 bar on C (node {firstBar.Id})");
+        Assert.True(enteredCrossing, $"N738SP never entered the runway 33 crossing past node {firstBar.Id}");
         Assert.True(stoppedAt > 0, $"N738SP never came to rest for N52417; gs={crosser.GroundSpeed:F1}");
         GroundNode farBar = farBarSegment!.Edge.ToNode;
         double farApproachDeg = GeoMath.BearingTo(farBar.Position, farBarSegment.Edge.FromNode.Position);
@@ -945,7 +946,7 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         }
 
         AircraftState held = engine.FindAircraft(KoakFollowClip.Follower)!;
-        GroundNode firstBar = Assert.IsType<AirportGroundLayout>(held.Ground.Layout).Nodes[ClearedBarNodeId];
+        GroundNode firstBar = ClearedBar(Assert.IsType<AirportGroundLayout>(held.Ground.Layout));
         double approachDeg = double.NaN;
         int holdAt = KoakFollowClip.RunScript(
             engine,
@@ -1047,8 +1048,9 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         return -(distFt * Math.Cos(offRad));
     }
 
-    /// <summary>The runway 33 bar on C that N738SP, eastbound on C, meets first (KOAK layout node).</summary>
-    private const int ClearedBarNodeId = 510;
+    /// <summary>The runway 33 bar on C that N738SP, eastbound on C, meets first: the one on the C/F side of the runway.</summary>
+    private static GroundNode ClearedBar(AirportGroundLayout layout) =>
+        GroundNodeLookup.HoldShortBar(layout, "33", "C", GroundNodeLookup.Junction(layout, "C", "F"));
 
     /// <summary>How close (ft) N738SP comes to that bar before N52417 is told to taxi: both then reach the C/J junction together.</summary>
     private const double LeadTaxiTriggerFt = 250.0;

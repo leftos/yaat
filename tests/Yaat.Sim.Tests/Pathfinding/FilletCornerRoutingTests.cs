@@ -19,11 +19,11 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     private const int OakTeStart = 896;
 
     private const int OakUArcEntry = 686;
-    private const int OakUwJunctionCentre = 17;
     private const int OakWArcExit = 683;
 
     /// <summary>UAL2164's stop on T after crossing 28L in the S1-SFO-2 bundle (#459), nosed south-west.</summary>
-    private const int SfoTAfter28LCrossing = 855;
+    private static GroundNode SfoTAfter28LCrossing(AirportGroundLayout layout) =>
+        GroundNodeLookup.HoldShortBar(layout, "28L", "T", GroundNodeLookup.Junction(layout, "B", "T"));
 
     private const double SfoTSouthboundHeading = 209.0;
 
@@ -38,7 +38,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     private static int SfoTbRightArcEntry(AirportGroundLayout layout)
     {
         GroundNode exit = layout.Nodes[SfoTbRightArcExit];
-        GroundNode start = layout.Nodes[SfoTAfter28LCrossing];
+        GroundNode start = SfoTAfter28LCrossing(layout);
         GroundNode entry =
             layout
                 .Arcs.Where(a => a.MatchesTaxiway("T") && a.MatchesTaxiway("B") && ((a.Nodes[0] == exit) || (a.Nodes[1] == exit)))
@@ -88,7 +88,8 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
 
         TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == OakUArcEntry && s.ToNodeId == OakWArcExit);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
-        Assert.DoesNotContain(route.Segments, s => s.FromNodeId == OakUwJunctionCentre || s.ToNodeId == OakUwJunctionCentre);
+        int uwJunctionCentre = GroundNodeLookup.Junction(layout, "U", "W").Id;
+        Assert.DoesNotContain(route.Segments, s => s.FromNodeId == uwJunctionCentre || s.ToNodeId == uwJunctionCentre);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "OAK 896 TE U W W1 -> 30");
     }
 
@@ -101,10 +102,10 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             return;
         }
 
-        // UAL2164 after crossing 28L on T (node 855), heading 209°, cleared "TAXI >B".
+        // UAL2164 after crossing 28L on T (holding at T's 28L bar on the B side), heading 209°, cleared "TAXI >B".
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            SfoTAfter28LCrossing,
+            SfoTAfter28LCrossing(layout).Id,
             ["T", "B"],
             out string? failReason,
             new ExplicitPathOptions
@@ -141,7 +142,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
 
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            SfoTAfter28LCrossing,
+            SfoTAfter28LCrossing(layout).Id,
             ["T", "B"],
             out string? failReason,
             new ExplicitPathOptions

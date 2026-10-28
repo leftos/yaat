@@ -33,16 +33,17 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     private const string OakBareRsp = "Taxi via D F [holding short of 15/33 at D — route ends on F clear of 15/33, no destination given]";
 
     /// <summary>KOAK's D/J junction (<see cref="Issue1334OakDToFAcross33Tests"/>), nosed north up D.</summary>
-    private const int OakDJJunctionNode = 375;
+    private static GroundNode OakDJJunctionNode(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "D", "J");
 
     /// <summary>KOAK's F join on the 15/33 centreline, where the D→F crossing leaves the runway.</summary>
-    private const int OakFJoinOn33Node = 481;
+    private static GroundNode OakFJoinOn33Node(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "RWY15/33", "F");
 
     /// <summary>KOAK F's 15/33 bar on the far side of the D→F crossing.</summary>
-    private const int OakFBar33Node = 514;
+    private static GroundNode OakFBar33Node(AirportGroundLayout layout) => GroundNodeLookup.HoldShortBar(layout, "33", "F");
 
     /// <summary>KOAK's next F node past <see cref="OakFBar33Node"/>, away from 15/33.</summary>
-    private const int OakFPastItsBarNode = 478;
+    private static GroundNode OakFPastItsBarNode(AirportGroundLayout layout) =>
+        GroundNodeLookup.OnTaxiway(layout, "F", OakFBar33Node(layout), 1.0, GroundNodeLookup.Parking(layout, "GA20"));
 
     /// <summary>The arrival landing KOAK 28R in <see cref="OakRolloutTaxiCDF_ReadsBackTheCrossingBeforeTheEnd"/>.</summary>
     private const string RolloutArrival = "ARR1";
@@ -328,7 +329,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "OAK", layout.Nodes[OakDJJunctionNode], 330.0);
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "OAK", OakDJJunctionNode(layout), 330.0);
         var taxi = new TaxiCommand(Path: ["D", "F"], HoldShorts: [], Expedite: false);
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
@@ -356,7 +357,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             return;
         }
 
-        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "OAK", layout.Nodes[OakDJJunctionNode], 330.0);
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "OAK", OakDJJunctionNode(layout), 330.0);
         var taxi = new TaxiCommand(Path: ["D", "F"], HoldShorts: [HoldShortTarget.Parse("J@D")], Expedite: false);
 
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
@@ -395,7 +396,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         var alongFt = new Dictionary<string, double>();
         foreach (string type in new[] { "C172", "B738" })
         {
-            AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "OAK", layout.Nodes[OakDJJunctionNode], 330.0);
+            AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "OAK", OakDJJunctionNode(layout), 330.0);
             aircraft.AircraftType = type;
             CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(["D", "F"], [], Expedite: false), layout);
             output.WriteLine($"{type}: {result.Success} — {result.Message}");
@@ -474,7 +475,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         Assert.False(SegmentExpander.RefusesClearOfRunwayEndAt(fBar33, crossed));
         Assert.False(SegmentExpander.RefusesClearOfRunwayEndAt(fNode, crossed));
 
-        GroundNode centreline33 = layout.Nodes[OakFJoinOn33Node];
+        GroundNode centreline33 = OakFJoinOn33Node(layout);
         Assert.True(AirportGroundLayout.HasRunwayCenterlineEdge(centreline33), $"#{centreline33.Id} is not on a runway centreline");
         Assert.True(
             SegmentExpander.RefusesClearOfRunwayEndAt(centreline33, crossed),
@@ -500,11 +501,11 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         GroundNode bar28L = layout.Nodes.Values.First(n =>
             (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId?.Contains("28L") == true) && !AirportGroundLayout.HasRunwayCenterlineEdge(n)
         );
-        GroundNode fNode = layout.Nodes[OakFPastItsBarNode];
+        GroundNode fNode = OakFPastItsBarNode(layout);
         double wellPastFt = 1000.0;
 
         Assert.False(SegmentExpander.EndClearsAt(bar28L, crossed, wellPastFt), $"a 15/33 crossing clears at 28L's bar #{bar28L.Id}");
-        Assert.False(SegmentExpander.EndClearsAt(layout.Nodes[OakFJoinOn33Node], crossed, wellPastFt));
+        Assert.False(SegmentExpander.EndClearsAt(OakFJoinOn33Node(layout), crossed, wellPastFt));
         Assert.True(SegmentExpander.EndClearsAt(fNode, crossed, RunwayTailClearance.MarginFt));
         Assert.False(SegmentExpander.EndClearsAt(fNode, crossed, RunwayTailClearance.MarginFt - 0.01));
     }
@@ -524,8 +525,8 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode fBar33 = layout.Nodes[OakFBar33Node];
-        GroundNode fNode = layout.Nodes[OakFPastItsBarNode];
+        GroundNode fBar33 = OakFBar33Node(layout);
+        GroundNode fNode = OakFPastItsBarNode(layout);
         double axisDeg = GeoMath.BearingTo(fBar33.Position, fNode.Position);
         double lengthFt = AircraftLength.ResolveFt("B738");
         LatLon centre = GeoMath.ProjectPointRaw(fBar33.Position, axisDeg, 20.0 / GeoMath.FeetPerNm);

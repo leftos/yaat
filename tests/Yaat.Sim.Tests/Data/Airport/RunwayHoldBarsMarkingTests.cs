@@ -131,14 +131,17 @@ public class RunwayHoldBarsMarkingTests
     [Fact]
     public void PartOverAStubsPaint_AircraftOnTheParallel_IsJudgedBesideThePaint()
     {
-        // 28R's bar #504 on J (θ ≈ 38.7°): J meets the parallel C at node #1118 about 86 ft out. Measured on the layout, a B738
+        // 28R's bar on J at C/J (θ ≈ 38.7°): J meets the parallel C about 86 ft out, at C's first node past its 15/33 bar
+        // toward C/J. Measured on the layout, a B738
         // stopped on C there has its right wingtip 24.1 ft along J's marking line and 12.1 ft past it along J's axis.
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(new TestAirportGroundData().GetLayout("OAK"));
         RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "28R"));
-        GroundNode bar = layout.Nodes[504];
+        GroundNode bar = Oak28RBarOnJAtC(layout);
         Assert.Contains(bar, RunwayHoldBars.RunwayBars(layout, runway));
-        GroundNode onTheParallel = layout.Nodes[1118];
+        GroundNode cj = GroundNodeLookup.Junction(layout, "C", "J");
+        GroundNode cBar33 = GroundNodeLookup.HoldShortBar(layout, "33", "C", cj);
+        GroundNode onTheParallel = GroundNodeLookup.OnTaxiway(layout, "C", cBar33, 1.0, cj);
 
         double axisDeg = RunwayHoldBars.TaxiwayAxisBearingDeg(runway, bar);
         LatLon past = Project(bar.Position, axisDeg + 180.0, 12.1);
@@ -154,13 +157,13 @@ public class RunwayHoldBarsMarkingTests
     [Fact]
     public void Following_NoseOverStubPaintWithGearBeside_NotInsideHoldLine()
     {
-        // 28R's bar #504 on J (θ ≈ 38.7°): a B738 crossing J's stub along its marking line toward the runway's end of it, the
+        // 28R's bar on J at C/J (θ ≈ 38.7°): a B738 crossing J's stub along its marking line toward the runway's end of it, the
         // nose in front of the paint's outer part and 10 ft past the line, the main gear beside the paint. Through the paint
         // that rises away from the runway, the nose stands farther from the centreline than the bar itself.
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(new TestAirportGroundData().GetLayout("OAK"));
         RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "28R"));
-        GroundNode bar = layout.Nodes[504];
+        GroundNode bar = Oak28RBarOnJAtC(layout);
         Assert.Contains(bar, RunwayHoldBars.RunwayBars(layout, runway));
 
         double axisDeg = RunwayHoldBars.TaxiwayAxisBearingDeg(runway, bar);
@@ -203,4 +206,8 @@ public class RunwayHoldBarsMarkingTests
             Assert.InRange(GeoMath.AbsBearingDifference(bothDeg, oneDeg), 0.0, 0.5);
         }
     }
+
+    /// <summary>KOAK 28R's bar on J on the C/J side of the runway.</summary>
+    private static GroundNode Oak28RBarOnJAtC(AirportGroundLayout layout) =>
+        GroundNodeLookup.HoldShortBar(layout, "28R", "J", GroundNodeLookup.Junction(layout, "C", "J"));
 }

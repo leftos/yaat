@@ -20,7 +20,6 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/oak-u-w-fillet-corner-recording.zip";
     private const string Callsign = "SWA2600";
     private const int ArcEntryNode = 686;
-    private const int JunctionCentreNode = 17;
     private const int ArcExitNode = 683;
 
     /// <summary>
@@ -74,7 +73,8 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
 
         TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == ArcEntryNode && s.ToNodeId == ArcExitNode);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
-        Assert.DoesNotContain(route.Segments, s => s.ToNodeId == JunctionCentreNode);
+        int junctionCentre = GroundNodeLookup.Junction(Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout), "U", "W").Id;
+        Assert.DoesNotContain(route.Segments, s => s.ToNodeId == junctionCentre);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, Callsign);
 
         var recorder = new TickRecorder(aircraft);

@@ -375,8 +375,7 @@ the default width, so the silent-skip convention still holds.
 
 **Runway width is load-bearing on graph shape.** It sizes the on-runway rectangle, which decides which nodes classify as on-runway and
 therefore where hold-short nodes seat, and it renumbers the nodes `RunwayCrossingDetector` creates (SFO's real 200 ft vs the old 150 ft
-default moved its hold-short standoff 250 ft → 280 ft). **Never hardcode a node id in a test** — resolve by name via
-`AirportGroundLayout.FindIntersectionNode` or `Helpers/TestLayoutNodes.cs`.
+default moved its hold-short standoff 250 ft → 280 ft). **Never hardcode a node id in a test**: resolve it by meaning with `Helpers/GroundNodeLookup.cs` (`HoldShortBar(layout, runway, taxiway)`, `Junction(layout, a, b)`, `Parking(layout, name)`, `OnTaxiway(layout, taxiway, from, distanceFt, toward)`, plus `nearestTo` overloads where a name matches more than one node), or via `AirportGroundLayout.FindIntersectionNode` or `Helpers/TestLayoutNodes.cs`. Every lookup throws, naming the airport and what it looked for, when nothing matches, when more than one node matches, or when a walk along a taxiway stops short of the distance asked for. It never falls back to a nearby node.
 
 To add a new airport: fetch its GeoJSON from the vNAS map API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and
 drop it in `TestData/<lowercase-short-id>.geojson`. See `AirportLayoutDownloader` and `docs/ground/README.md` for the ground stack.

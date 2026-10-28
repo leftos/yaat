@@ -40,9 +40,6 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
     /// <summary>End of the assertion window — after the TAXI, before the controller's DEL at t=692.</summary>
     private const int AssertAtSeconds = 690;
 
-    /// <summary>Node id of stand GA14, the drawn route's terminus.</summary>
-    private const int Ga14NodeId = 675;
-
     /// <summary>
     /// Generous ceiling on the resolved segment count. The drawn path is 48 nodes, so a faithful
     /// resolution is ~50 segments; the bug produced 544.
@@ -166,7 +163,8 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
         }
 
         Assert.Equal("GA14", route.DestinationParking);
-        Assert.Equal(Ga14NodeId, route.Segments[^1].ToNodeId);
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(new TestAirportGroundData().GetLayout("OAK"));
+        Assert.Equal(GroundNodeLookup.Parking(layout, "GA14").Id, route.Segments[^1].ToNodeId);
     }
 
     [Fact]
