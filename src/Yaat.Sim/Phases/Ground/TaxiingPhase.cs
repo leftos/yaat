@@ -1699,12 +1699,11 @@ public sealed class TaxiingPhase : Phase
     /// aircraft has been found heading along the first segment (within <see cref="StartBarAlignedDeg"/> of its departure) with
     /// its nose at or past the bar's marking — the line through the node square to that departure — no farther from the node
     /// than <see cref="StartNodeHoldRadiusFt"/> plus its firm-rate stopping distance; null otherwise. From farther back on the
-    /// straight taxi edge leading to a bar, <see cref="TaxiApproachLeg"/> drives the aircraft to the bar's node and the bar is an
-    /// ordinary hold ahead; a route keeps the bar as its start node only within half a fuselage (plus a small margin) of it, or
-    /// off that edge, so the nose is often over already. The finding is latched
-    /// on the bar's node (<see cref="_passedStartBarNodeId"/>), so the firm-rate stop it starts is never let go part-way as
-    /// the aircraft slows and the stop carries it away from the node; the latch drops when the bar is cleared, and the hold
-    /// clears it when taken.
+    /// straight taxi edge leading to a bar, <see cref="TaxiApproachLeg"/> drives the aircraft to the bar's node and the bar is
+    /// an ordinary hold ahead; a route keeps the bar as its start node only within half a fuselage (plus a small margin) of
+    /// it, or off that edge, so the nose is often over already. The finding is latched on the bar's node
+    /// (<see cref="_passedStartBarNodeId"/>), so the firm-rate stop it starts is never let go part-way as the aircraft slows
+    /// and the stop carries it away from the node; the latch drops when the bar is cleared, and the hold clears it when taken.
     /// </summary>
     private HoldShortPoint? PassedStartBar(PhaseContext ctx, TaxiRoute route)
     {

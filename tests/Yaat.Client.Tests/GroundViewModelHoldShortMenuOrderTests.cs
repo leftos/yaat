@@ -232,11 +232,11 @@ public class GroundViewModelHoldShortMenuOrderTests
     }
 
     /// <summary>
-    /// Partway along K toward its 15/33 bar the route starts at the bar itself (no free-space leg is laid to a holding
-    /// position), so the bar is the route's start node, not the end of any segment.
+    /// Partway along K toward its 15/33 bar, behind the bar's painted stop, the route leads to the bar by the free-space
+    /// leg along K, so the bar ends the route's first segment and is the menu's first row.
     /// </summary>
     [Fact]
-    public void ShortOfTheBarTheRouteStartsAt_TheBarIsTheFirstRow()
+    public void ShortOfTheBarTheRouteLeadsTo_TheBarIsTheFirstRow()
     {
         AirportGroundLayout layout = LoadOak();
         (GroundNode bar, GroundNode behind) = KBarAndTheNodeBehind(layout);
@@ -258,7 +258,7 @@ public class GroundViewModelHoldShortMenuOrderTests
             AssignedRunway = "",
         };
         GroundViewModel vm = ViewModel(layout, NoActiveRunways);
-        Assert.Equal(bar.Id, vm.ResolveRemainingRoute(ac)?.Segments[0].FromNodeId);
+        Assert.Equal(bar.Id, vm.ResolveRemainingRoute(ac)?.Segments[0].ToNodeId);
 
         IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
 
@@ -266,7 +266,10 @@ public class GroundViewModelHoldShortMenuOrderTests
         HoldShortChoice first = rows[0];
         Assert.Equal((HoldShortChoice.RunwayBadge, 200d), (first.Label.Badge, first.Label.DistanceFt));
         Assert.True(bar.RunwayId!.Value.Contains(first.Command["HS ".Length..]), Dump(rows));
-        Assert.Empty(first.Preview.Segments);
+        TaxiRouteSegment leg = Assert.Single(first.Preview.Segments);
+        Assert.True(leg.FromNodeId < 0, $"the preview's one segment starts at layout node {leg.FromNodeId}, not the approach leg");
+        Assert.Equal(bar.Id, leg.ToNodeId);
+        Assert.DoesNotContain(rows, r => r.Command == "HS K");
         Assert.All(rows.Skip(1), r => Assert.True(r.Label.DistanceFt > 200, Dump(rows)));
     }
 

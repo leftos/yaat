@@ -2429,9 +2429,9 @@ public partial class GroundViewModel : ObservableObject
     /// first; a runway gets one stop, for its first bar, named by <see cref="RunwayRowName"/>, except the destination
     /// runway whose bar the route ends at (the taxi already holds short of it; the ladder shows it as its destination
     /// row). A junction arc's joined name ("X - Y") is never a stop, and a bar at the aircraft's own position (0 ft once
-    /// rounded) is not listed. The node the route starts at is a bar like any other: an aircraft short of a holding
-    /// position starts there with no free-space leg (<see cref="TaxiApproachLeg"/>), so every distance is measured from
-    /// the aircraft (<see cref="RouteStart"/>). The bar a holding-short aircraft is held at is never a stop, however far
+    /// rounded) is not listed. The node the route starts at is a bar like any other, and so is the end of a free-space
+    /// approach leg (<see cref="TaxiApproachLeg"/>), which counts as the taxiway it runs along (<see cref="SegmentTaxiway"/>);
+    /// every distance is measured from the aircraft (<see cref="RouteStart"/>). The bar a holding-short aircraft is held at is never a stop, however far
     /// back of it the sim parks the aircraft: the walk starts past it (<see cref="PastHeldBar"/>), and no row names its
     /// runway or taxiway (<see cref="HeldTarget.IsNamedBy"/>). No stops when no layout is loaded or the route does not
     /// resolve.
@@ -2982,11 +2982,11 @@ public partial class GroundViewModel : ObservableObject
         {
             if (route.Segments[i].Edge.Edge is not GroundArc)
             {
-                return PlainTaxiway(route.Segments[i]);
+                return SegmentTaxiway(route, i);
             }
         }
 
-        return PlainTaxiway(route.Segments[index]);
+        return SegmentTaxiway(route, index);
     }
 
     /// <summary>
@@ -3000,17 +3000,51 @@ public partial class GroundViewModel : ObservableObject
         {
             if (route.Segments[i].Edge.Edge is not GroundArc)
             {
-                return PlainTaxiway(route.Segments[i]);
+                return SegmentTaxiway(route, i);
             }
         }
 
-        return PlainTaxiway(route.Segments[index]);
+        return SegmentTaxiway(route, index);
     }
 
-    /// <summary>The first plain taxiway name of <paramref name="seg"/> (a fillet arc's joined name split); null on runway/ramp.</summary>
-    private static string? PlainTaxiway(TaxiRouteSegment seg)
+    /// <summary>
+    /// The plain taxiway segment <paramref name="index"/> of <paramref name="route"/> runs along (<see cref="PlainTaxiway"/>).
+    /// A free-space approach leg minted from the aircraft (segment 0 leaving a virtual node, <see cref="TaxiApproachLeg"/>)
+    /// is named RAMP, but it counts as the taxiway it runs along (<see cref="ApproachLegTaxiway"/>), so the leg's end node
+    /// never reads as a join onto the taxiway the aircraft is already on.
+    /// </summary>
+    private static string? SegmentTaxiway(TaxiRoute route, int index)
     {
-        foreach (string name in seg.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
+        TaxiRouteSegment seg = route.Segments[index];
+        return ((index == 0) && (seg.FromNodeId < 0)) ? ApproachLegTaxiway(seg) : PlainTaxiway(seg.TaxiwayName);
+    }
+
+    /// <summary>
+    /// The plain taxiway of the straight edge an approach leg runs along: the edge at the leg's end node whose span the
+    /// leg's start (the aircraft) stands on, within <see cref="AirportGroundLayout.OnTaxiEdgeMaxOffsetFt"/> of it. Null for
+    /// a leg across open pavement, which runs along no taxiway.
+    /// </summary>
+    private static string? ApproachLegTaxiway(TaxiRouteSegment leg)
+    {
+        LatLon aircraft = leg.Edge.FromNode.Position;
+        GroundNode end = leg.Edge.ToNode;
+        foreach (GroundEdge edge in end.Edges.OfType<GroundEdge>())
+        {
+            (LatLon foot, _, bool clamped) = GeoMath.FootOfPerpendicular(aircraft, end.Position, edge.OtherNode(end).Position);
+            bool onEdge = !clamped && ((GeoMath.DistanceNm(aircraft, foot) * GeoMath.FeetPerNm) <= AirportGroundLayout.OnTaxiEdgeMaxOffsetFt);
+            if (onEdge && (PlainTaxiway(edge.TaxiwayName) is { } name))
+            {
+                return name;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The first plain taxiway name in <paramref name="taxiwayName"/> (a fillet arc's joined name split); null on runway/ramp.</summary>
+    private static string? PlainTaxiway(string taxiwayName)
+    {
+        foreach (string name in taxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
         {
             if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {

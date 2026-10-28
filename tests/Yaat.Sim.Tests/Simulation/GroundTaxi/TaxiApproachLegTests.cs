@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Soak;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -465,6 +467,282 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         TaxiRoute route = Resolve(layout, aircraft, new TaxiCommand(Path: ["W1", "W"], HoldShorts: [], Expedite: false, DestinationRunway: null));
 
         Assert.Equal(HoldShortNodeId(layout), route.Segments[0].FromNodeId);
+    }
+
+    /// <summary>The type the runway-bar rows stage: a B738's painted stop sits half its fuselage plus the set-back margin from the bar.</summary>
+    private const string BarAircraftType = "B738";
+
+    /// <summary>How far beyond the painted stop the rows that stand clear of it are placed.</summary>
+    private const double ClearOfThePaintedStopFt = 10.0;
+
+    private static double BarAircraftLengthFt => AircraftLength.ResolveFt(BarAircraftType);
+
+    private static double PaintedStopFt => (BarAircraftLengthFt / 2.0) + GroundNavigator.SetBackStopMarginFt;
+
+    /// <summary>A runway bar, the node out along its straight approach edge, and the node on its runway side.</summary>
+    private readonly record struct BarApproach(GroundNode Bar, GroundNode Outboard, GroundNode RunwaySide)
+    {
+        public double AwayDeg => GeoMath.BearingTo(Bar.Position, Outboard.Position);
+
+        public double TowardRunwayDeg => GeoMath.BearingTo(Bar.Position, RunwaySide.Position);
+    }
+
+    /// <summary>
+    /// OAK runway 33's bar on K at the end of K's longest straight approach edge, the K node out along that edge, and the
+    /// straight-edge neighbour on its runway side (the one nearer the runway centreline).
+    /// </summary>
+    private static BarApproach K33Bar(AirportGroundLayout layout)
+    {
+        GroundRunway runway = layout.Runways.Single(r => r.Id.Contains("33"));
+        (GroundNode bar, GroundNode outboard) = layout
+            .GetRunwayHoldShortNodes("33")
+            .Where(node => node.IsShortBar == false)
+            .SelectMany(node =>
+                node.Edges.OfType<GroundEdge>()
+                    .Where(edge =>
+                        edge.MatchesTaxiway("K") && (CentrelineFt(runway, edge.OtherNode(node).Position) > CentrelineFt(runway, node.Position))
+                    )
+                    .Select(edge => (Bar: node, Outboard: edge.OtherNode(node)))
+            )
+            .MaxBy(pair => GeoMath.DistanceNm(pair.Bar.Position, pair.Outboard.Position));
+        Assert.NotNull(bar);
+
+        GroundNode? runwaySide = bar
+            .Edges.OfType<GroundEdge>()
+            .Select(edge => edge.OtherNode(bar))
+            .FirstOrDefault(node => CentrelineFt(runway, node.Position) < CentrelineFt(runway, bar.Position));
+        Assert.NotNull(runwaySide);
+        return new BarApproach(bar, outboard, runwaySide);
+    }
+
+    /// <summary>The distance (ft) from <paramref name="point"/> to <paramref name="runway"/>'s centreline, as an infinite line.</summary>
+    private static double CentrelineFt(GroundRunway runway, LatLon point)
+    {
+        var axisStart = new LatLon(runway.Coordinates[0].Lat, runway.Coordinates[0].Lon);
+        var axisEnd = new LatLon(runway.Coordinates[^1].Lat, runway.Coordinates[^1].Lon);
+        var axis = new TrueHeading(GeoMath.BearingTo(axisStart, axisEnd));
+        return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(point, axisStart, axis)) * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>How far abeam the runway-side stub's line the past-the-bar row stands: inside the on-edge offset.</summary>
+    private const double StubAbeamFt = 15.0;
+
+    /// <summary>How much of the stub is left ahead of the past-the-bar row: less than twice <see cref="StubAbeamFt"/>.</summary>
+    private const double StubLeftAheadFt = 20.0;
+
+    /// <summary>The shortest runway-side stub the runway-side rows can stand on with <see cref="StubLeftAheadFt"/> to spare.</summary>
+    private static double MinStubFt => PaintedStopFt + ClearOfThePaintedStopFt + StubLeftAheadFt;
+
+    /// <summary>Where the past-the-bar row stands: on the stub, <see cref="StubLeftAheadFt"/> short of its far end and <see cref="StubAbeamFt"/> abeam.</summary>
+    private static LatLon PastTheBarAbeamTheStub(BarApproach approach)
+    {
+        double stubFt = GeoMath.DistanceNm(approach.Bar.Position, approach.RunwaySide.Position) * GeoMath.FeetPerNm;
+        return Project(
+            Project(approach.Bar.Position, approach.TowardRunwayDeg, stubFt - StubLeftAheadFt),
+            (approach.TowardRunwayDeg + 90.0) % 360.0,
+            StubAbeamFt
+        );
+    }
+
+    /// <summary>Where the vacated row stands: on the stub's line, clear of the painted stop on the runway side.</summary>
+    private static LatLon VacatedOnTheStub(BarApproach approach) =>
+        Project(approach.Bar.Position, approach.TowardRunwayDeg, PaintedStopFt + ClearOfThePaintedStopFt);
+
+    /// <summary>
+    /// The first OAK runway bar (by runway, then node id) with a straight edge to the runway side at least <see cref="MinStubFt"/>
+    /// long and a straight edge away from it, on whose stub both runway-side rows stand on that very edge
+    /// (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>).
+    /// </summary>
+    private BarApproach LongStubBar(AirportGroundLayout layout)
+    {
+        foreach (GroundRunway runway in layout.Runways)
+        {
+            foreach (GroundNode bar in layout.GetRunwayHoldShortNodes(runway.Id.End1).Where(n => n.IsShortBar == false).OrderBy(n => n.Id))
+            {
+                if (LongStubApproach(layout, runway, bar) is { } approach)
+                {
+                    double stubFt = GeoMath.DistanceNm(bar.Position, approach.RunwaySide.Position) * GeoMath.FeetPerNm;
+                    output.WriteLine(
+                        $"runway {runway.Id} bar {bar.Id}: stub to {approach.RunwaySide.Id} is {stubFt:F0} ft, outboard {approach.Outboard.Id}"
+                    );
+                    return approach;
+                }
+            }
+        }
+
+        Assert.Fail($"no OAK runway bar has a straight runway-side stub of {MinStubFt:F0} ft or more");
+        return default;
+    }
+
+    private static BarApproach? LongStubApproach(AirportGroundLayout layout, GroundRunway runway, GroundNode bar)
+    {
+        double barFt = CentrelineFt(runway, bar.Position);
+        GroundEdge? stub = bar
+            .Edges.OfType<GroundEdge>()
+            .FirstOrDefault(edge =>
+                (CentrelineFt(runway, edge.OtherNode(bar).Position) < barFt) && ((edge.DistanceNm * GeoMath.FeetPerNm) >= MinStubFt)
+            );
+        GroundEdge? away = bar.Edges.OfType<GroundEdge>().FirstOrDefault(edge => CentrelineFt(runway, edge.OtherNode(bar).Position) > barFt);
+        if ((stub is null) || (away is null))
+        {
+            return null;
+        }
+
+        var approach = new BarApproach(bar, away.OtherNode(bar), stub.OtherNode(bar));
+        bool onStub =
+            ReferenceEquals(layout.FindOccupiedTaxiEdge(PastTheBarAbeamTheStub(approach)), stub)
+            && ReferenceEquals(layout.FindOccupiedTaxiEdge(VacatedOnTheStub(approach)), stub);
+        return onStub ? approach : null;
+    }
+
+    /// <summary>A one-segment route leaving <paramref name="from"/> for <paramref name="to"/> along the edge between them.</summary>
+    private static TaxiRoute RouteAlong(GroundNode from, GroundNode to)
+    {
+        IGroundEdge? edge = from.Edges.FirstOrDefault(e => e.OtherNode(from) == to);
+        Assert.NotNull(edge);
+        return new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = edge.TaxiwayName, Edge = edge.Directed(from, to) }],
+            HoldShortPoints = [],
+        };
+    }
+
+    /// <summary>
+    /// An aircraft on the straight stub between an OAK runway bar and its runway, its centre past the holding position marking
+    /// by more than the painted stop and far enough abeam the stub's line that pure pursuit could not close onto it, with a
+    /// route that starts at the bar and crosses the runway: it is already past the bar along the route's first leg, so it is
+    /// not driven back to the bar.
+    /// </summary>
+    [Fact]
+    public void PastTheBarOnItsRunwaySide_RouteAcrossTheRunway_AddsNoLeg()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        BarApproach stub = LongStubBar(layout);
+        LatLon position = PastTheBarAbeamTheStub(stub);
+        double pastFt = GeoMath.DistanceNm(stub.Bar.Position, position) * GeoMath.FeetPerNm;
+        TaxiRoute route = RouteAlong(stub.Bar, stub.RunwaySide);
+
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(stub.TowardRunwayDeg), route, BarAircraftLengthFt);
+
+        Assert.True(ReferenceEquals(route, result), $"a leg was prepended to bar {stub.Bar.Id} from {pastFt:F0} ft past it on the runway side");
+    }
+
+    /// <summary>
+    /// On the straight K edge leading to OAK's runway 33 bar, the leg to the bar is laid only from behind the bar's painted
+    /// stop: 2 ft inside it the aircraft is waiting at the bar and gets none, 2 ft beyond it gets one ending at the bar.
+    /// </summary>
+    [Theory]
+    [InlineData(-2.0, false)]
+    [InlineData(2.0, true)]
+    public void OnTheApproachEdge_LegOnlyFromBehindThePaintedStop(double beyondStopFt, bool expectLeg)
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        BarApproach k = K33Bar(layout);
+        double behindFt = PaintedStopFt + beyondStopFt;
+        LatLon position = Project(k.Bar.Position, k.AwayDeg, behindFt);
+        TaxiRoute route = RouteAlong(k.Bar, k.RunwaySide);
+
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading((k.AwayDeg + 180.0) % 360.0), route, BarAircraftLengthFt);
+
+        if (!expectLeg)
+        {
+            Assert.True(ReferenceEquals(route, result), $"a leg was prepended to bar {k.Bar.Id} from {behindFt:F1} ft behind it");
+            return;
+        }
+
+        Assert.True(result.Segments[0].FromNodeId < 0, $"no leg was prepended to bar {k.Bar.Id} from {behindFt:F1} ft behind it");
+        Assert.Equal(k.Bar.Id, result.Segments[0].ToNodeId);
+    }
+
+    /// <summary>
+    /// Behind OAK's runway 33 bar on K but off every taxi edge: the aircraft is not on the straight edge leading to the bar,
+    /// so the route keeps the bar as its start and no leg is laid.
+    /// </summary>
+    [Fact]
+    public void BehindTheBarButOffEveryTaxiEdge_AddsNoLeg()
+    {
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, 100);
+        TestVnasData.EnsureInitialized();
+        SimLogBuilder.CreateForTest(output).CaptureInto(tap).EnableCategory("TaxiApproachLeg", LogLevel.Debug).InitializeSimLog();
+        if (new TestAirportGroundData().GetLayout("OAK") is not { } layout)
+        {
+            return;
+        }
+
+        BarApproach k = K33Bar(layout);
+        LatLon behind = Project(k.Bar.Position, k.AwayDeg, PaintedStopFt + ClearOfThePaintedStopFt);
+        LatLon? offEdge = null;
+        foreach (double abeamFt in (double[])[60.0, -60.0, 90.0, -90.0])
+        {
+            LatLon candidate = Project(behind, (k.AwayDeg + 90.0) % 360.0, abeamFt);
+            if (
+                (layout.FindNearestTaxiEdge(candidate) is not { } nearest)
+                || ((nearest.DistNm * GeoMath.FeetPerNm) > AirportGroundLayout.OnTaxiEdgeMaxOffsetFt)
+            )
+            {
+                offEdge = candidate;
+                break;
+            }
+        }
+
+        Assert.True(
+            offEdge is not null,
+            $"no pose abeam K behind bar {k.Bar.Id} lies more than {AirportGroundLayout.OnTaxiEdgeMaxOffsetFt:F0} ft off every taxi edge"
+        );
+        LatLon position = offEdge.Value;
+        TaxiRoute route = RouteAlong(k.Bar, k.RunwaySide);
+        tap.Drain();
+
+        TaxiRoute result = TaxiApproachLeg.Prepend(
+            layout,
+            position,
+            new TrueHeading(GeoMath.BearingTo(position, k.Bar.Position)),
+            route,
+            BarAircraftLengthFt
+        );
+
+        Assert.True(ReferenceEquals(route, result), $"a leg was prepended to bar {k.Bar.Id} from off every taxi edge");
+        Assert.Contains(tap.Drain(), record => record.Message.Contains("not on the taxi edge", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// An aircraft that has vacated the runway and stopped on the straight stub past an OAK runway bar, more than the painted
+    /// stop from it, with a route that starts at the bar and leads away from the runway: it is behind the bar along the
+    /// route's first leg, so the leg drives it out through the bar, which holds nothing for traffic leaving the runway
+    /// (AIM 2-3-5.a.1).
+    /// </summary>
+    [Fact]
+    public void VacatedOntoTheStubPastTheBar_RouteAwayFromTheRunway_LegsOutThroughTheBar()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        BarApproach stub = LongStubBar(layout);
+        LatLon position = VacatedOnTheStub(stub);
+        TaxiRoute route = RouteAlong(stub.Bar, stub.Outboard);
+
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(stub.AwayDeg), route, BarAircraftLengthFt);
+
+        Assert.True(result.Segments[0].FromNodeId < 0, $"no leg was prepended to bar {stub.Bar.Id} from its runway side");
+        Assert.Equal(stub.Bar.Id, result.Segments[0].ToNodeId);
+        Assert.Null(result.GetHoldShortAt(stub.Bar.Id));
+        Assert.False(
+            HoldShortAnnotator.StartBarHolds(layout, stub.Bar, stub.Outboard, StartPose.Of(position, stub.AwayDeg, BarAircraftType)),
+            $"bar {stub.Bar.Id} holds an aircraft leaving the runway past it"
+        );
     }
 
     private static bool IsRunwayName(string name) => name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);

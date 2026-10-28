@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
@@ -128,9 +127,18 @@ public class TaxiFromShortOfARunwayBarTests
         double offRad = GeoMath.SignedBearingDifference(awayDeg, GeoMath.BearingTo(bar.Position, nose)) * Math.PI / 180.0;
         double nosePastFt = -(noseFromBarFt * Math.Cos(offRad));
         Assert.True(
+            aircraft.GroundSpeed < 0.01,
+            $"the B738 is still rolling at {aircraft.GroundSpeed:F2} kt after the {RestBudgetSeconds} s budget, its nose {nosePastFt:F1} ft "
+                + $"past runway 33's holding position marking on {taxiway}"
+        );
+        Assert.True(
             nosePastFt <= NoseOverLineToleranceFt,
             $"the B738 came to rest with its nose {nosePastFt:F1} ft past runway 33's holding position marking on {taxiway} (gs "
                 + $"{aircraft.GroundSpeed:F2}, phase {aircraft.Phases?.CurrentPhase?.Name})"
+        );
+        Assert.True(
+            nosePastFt >= (-StopToleranceFt - 3.0),
+            $"the B738 came to rest with its nose {-nosePastFt:F1} ft short of runway 33's holding position marking on {taxiway}, " + "not at it"
         );
     }
 
@@ -150,16 +158,19 @@ public class TaxiFromShortOfARunwayBarTests
         var heading = new TrueHeading(GeoMath.BearingTo(axisStart, axisEnd));
         double CrossFt(LatLon point) => Math.Abs(GeoMath.SignedCrossTrackDistanceNm(point, axisStart, heading)) * GeoMath.FeetPerNm;
 
-        (GroundNode bar, GroundNode outboard) = layout
-            .GetRunwayHoldShortNodes(runway)
-            .Where(node => node.IsShortBar == false)
-            .SelectMany(node =>
-                node.Edges.OfType<GroundEdge>()
-                    .Where(edge => edge.MatchesTaxiway(taxiway) && (CrossFt(edge.OtherNode(node).Position) > CrossFt(node.Position)))
-                    .Select(edge => (Bar: node, Outboard: edge.OtherNode(node)))
-            )
-            .MaxBy(pair => GeoMath.DistanceNm(pair.Bar.Position, pair.Outboard.Position));
-        Assert.NotNull(bar);
+        List<(GroundNode Bar, GroundNode Outboard)> pairs =
+        [
+            .. layout
+                .GetRunwayHoldShortNodes(runway)
+                .Where(node => node.IsShortBar == false)
+                .SelectMany(node =>
+                    node.Edges.OfType<GroundEdge>()
+                        .Where(edge => edge.MatchesTaxiway(taxiway) && (CrossFt(edge.OtherNode(node).Position) > CrossFt(node.Position)))
+                        .Select(edge => (Bar: node, Outboard: edge.OtherNode(node)))
+                ),
+        ];
+        Assert.True(pairs.Count > 0, $"no runway {runway} bar on {taxiway} has a straight {taxiway} edge leading away from the runway");
+        (GroundNode bar, GroundNode outboard) = pairs.MaxBy(pair => GeoMath.DistanceNm(pair.Bar.Position, pair.Outboard.Position));
         return (bar, GeoMath.BearingTo(bar.Position, outboard.Position));
     }
 }

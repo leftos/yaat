@@ -163,7 +163,7 @@ public class LineupBarOrderTests(ITestOutputHelper output)
     }
 
     // ---------------------------------------------------------------------------
-    // OAK 33: starts before the threshold, where the start has no side
+    // OAK 33: starts near the threshold
     // ---------------------------------------------------------------------------
 
     /// <summary>A B738's length, for the explicit-path options.</summary>
