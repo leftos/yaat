@@ -149,6 +149,14 @@ Server log lines carry CIDs, and a refused CRC socket's IP, so no line is kept p
 - A roll that fails (a handle blocking the move, on Windows) is retried on the next write or daily pass, and the live file keeps the date it was opened on; if it would outlive the retention that way, it is truncated.
 - When `Yaat:LogPath` is set (the container), the console provider is filtered to Critical: Docker's json-file stdout stream has no age limit, so `docker compose logs` must not hold the lines the cap covers. The file on the volume is the log; `tools/fetch-server-logs.ps1 -Files` fetches it.
 
+## Hub calls rejected before the hub runs
+
+A `/hubs/training` call whose arguments do not bind to the hub method (no such method, or a different argument count or types, as when the client and the server are built from different versions) is answered by SignalR before `TrainingHub` or any hub filter runs. The client sees only `Failed to invoke '<Method>' due to an error on the server.`, and the hub's own log lines for the call are absent. The framework logs the refusal at Debug under `Microsoft.AspNetCore.SignalR.Internal.DefaultHubDispatcher`, which the shipped `"Microsoft.AspNetCore": "Warning"` rule drops.
+
+yaat-server's `BindingFailureLoggingHubProtocol` (installed by `ServerApp.AddTrainingHubSignalR`) logs a Warning for each such call, with the exception attached: `Hub call {Target} (invocation {InvocationId}) refused: this server has no such method.` or `... refused before it ran: its arguments do not match this server's method.`, each ending with the advice to update the older of client and server. A refused stream item logs `Hub stream item for stream {StreamId} refused ...`. Target and ids are cut to 128 characters with control characters shown as `?`, and the arguments are never logged. See [training-hub-contract.md](training-hub-contract.md#changing-a-hub-methods-parameters).
+
+Turning `Microsoft.AspNetCore.SignalR` up to Debug (`-- --Logging:LogLevel:Microsoft.AspNetCore.SignalR=Debug` on a source-run server) is a diagnosis-only switch: it also logs every invocation with its arguments, a whole `LoadScenario` JSON included, into the 90-day server log. Switch it back off afterwards.
+
 ## Seeing logs in tests
 
 By default, `SimLog`'s fallback is `NullLoggerFactory` — so in a test that hasn't wired anything, **every Yaat.Sim log line is silently discarded.**

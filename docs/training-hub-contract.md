@@ -23,7 +23,7 @@ The YAAT client talks to yaat-server over a standard ASP.NET Core SignalR connec
 `/hubs/training`. There is **no shared assembly and no generated wire artifact**. The two ends are two separate sets of
 C# `record` types — `ServerConnection.cs` (client, in `Yaat.Client.Core`) and `TrainingDtos.cs` (server) — that the
 SignalR `JsonHubProtocol` happens to serialize compatibly. The only binding is **matching JSON property names**. Nothing
-at compile time enforces that the two repos agree; the contract is verified by reading both files side by side.
+at compile time enforces that the two repos agree; the contract is verified by reading both files side by side. That holds for DTO fields; a hub method's **arguments** are positional and their count is checked (see [Changing a hub method's parameters](#changing-a-hub-methods-parameters)).
 
 ```
 Yaat.Client  ──InvokeAsync<T>("HubMethod", args)──►  TrainingHub      (client → server)
@@ -50,8 +50,8 @@ order in each repo**, yet it is the *same* wire object:
 | Type | `AircraftStateDto` (`TrainingDtos.cs:3`) | `AircraftDto` (`ServerConnection.cs:723`) |
 | `Remarks` position | constructor param 24 (right after `IsOnGround`, `TrainingDtos.cs:27`) | param 19, with a `= ""` default (`ServerConnection.cs:742`) |
 
-SignalR's JSON protocol matches by **property name** (the contexts set `PropertyNameCaseInsensitive = true`), so the
-positional/order difference is harmless. A side-by-side diff "screams mismatch" to a newcomer — it is not. **The
+SignalR's JSON protocol matches a DTO's fields by **property name** (the contexts set `PropertyNameCaseInsensitive = true`), so the
+positional/order difference is harmless. (A hub method's own arguments are different: they bind by position.) A side-by-side diff "screams mismatch" to a newcomer — it is not. **The
 invariant is property-name + type compatibility, not positional or name identity.** When you add a field you must add it
 to *both* records; whether the order matches is irrelevant to the wire, but every server field needs a client
 counterpart of a JSON-compatible type or it deserializes to the client default.
@@ -364,7 +364,13 @@ deserialize this response has no way to learn why it was refused.
 Comparison is `Yaat.Sim.ClientVersions`: numeric `major.minor.patch` only, prerelease/metadata suffix
 ignored. Every failure path **fails open** — unreachable server, malformed body, unparseable version, or a
 server predating the endpoint (whose catch-all returns `[]`) all yield "no objection". A false block leaves
-a user with no way forward, whereas a genuinely incompatible server still fails the connection on its own.
+a user with no way forward. The gate is one-way: it refuses clients that are too old, never a server older than the client. An older server accepts the connection, and only a method whose parameter list changed fails, with the logged Warning described in [Changing a hub method's parameters](#changing-a-hub-methods-parameters).
+
+## Changing a hub method's parameters
+
+A hub method's arguments are **positional**, and SignalR's JSON protocol checks their count and types against the server's method before the hub runs. A call that does not match (a client sending 3 arguments to a 2-parameter method, or the reverse) never reaches the hub: the client gets a `HubException` with the bare text `Failed to invoke '<Method>' due to an error on the server.`, and every other call on the connection keeps working. Adding or removing a parameter therefore breaks each client/server pair that straddles the change, so the client and the server must be built from the same version. The release client auto-updates and a source-built server is whatever was last pulled, so a stale source build is the usual case.
+
+yaat-server logs the refusal as a Warning from `BindingFailureLoggingHubProtocol` (target and invocation id, never the arguments); the framework itself logs it only at Debug, under a category the shipped settings cap at Warning ([logging.md](logging.md#hub-calls-rejected-before-the-hub-runs)). A Development server also sends SignalR's detailed error, e.g. `Invocation provides 3 argument(s) but target expects 2.`, to the client.
 
 Bumping the gate is release work, not day-to-day work: `Recommended` moves every release, `Minimum` only when a cycle breaks older clients. See `.claude/skills/prepare-release/SKILL.md` step 2.6.
 

@@ -52,6 +52,7 @@
 
 ### Fixed
 
+- A server built from older source than the client now logs each request it refused and says to update, instead of failing silently (Save Bug Report Bundle).
 - An aircraft whose crossing ends at the far hold line rolls straight on until its tail is clear, instead of stopping inside the line where no command could move it.
 - An aircraft cleared for closed traffic onto another runway no longer counts as on its takeoff runway once it flies the pattern, so arrivals there stop going around for it.
 - An open favorites edit or add flyout stays open when the bar refreshes, such as when the selected aircraft is deleted.
