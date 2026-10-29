@@ -15,6 +15,14 @@ public class HoldShortBarFlagTests
 {
     public HoldShortBarFlagTests() => TestVnasData.EnsureInitialized();
 
+    /// <summary>
+    /// The airport's layout with every bar where the parse's rules seat it: OAK parsed without its tower-cab map, since a bar
+    /// the map snaps is a hold line by paint rather than by cross-track (<see cref="ASnappedBar_IsAHoldLine_AndEveryOtherBarMatchesTheCrossTrack"/>);
+    /// every other airport from the shared harness, which has no map for it.
+    /// </summary>
+    private static AirportGroundLayout? UnsnappedLayout(string airportId) =>
+        (airportId == "OAK") ? RunwayPaintSnapTests.ParseOak(map: null, FilletMode.Standard) : new TestAirportGroundData().GetLayout(airportId);
+
     [Theory]
     [InlineData("OAK")]
     [InlineData("SFO")]
@@ -48,7 +56,7 @@ public class HoldShortBarFlagTests
     [InlineData("COS")]
     public void TheFlag_MatchesTheCrossTrackMeasurement(string airportId)
     {
-        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airportId);
+        AirportGroundLayout? layout = UnsnappedLayout(airportId);
         Assert.NotNull(layout);
 
         int marked = 0;
@@ -97,7 +105,7 @@ public class HoldShortBarFlagTests
     [Fact]
     public void TheFlag_DecidesIsAtRunwayHoldingDistance()
     {
-        AirportGroundLayout? shared = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? shared = UnsnappedLayout("OAK");
         Assert.NotNull(shared);
 
         AirportGroundLayout copy = Copy(shared);

@@ -440,9 +440,13 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             case "SFO Z1 S2":
                 return OnTaxiway(layout, 649, 28.0, ["Z1", "S2"], diag);
             case "OAK exit J: C F K J A B W":
-                GroundNode jBar = layout.Nodes[504];
-                Assert.True((jBar.Type == GroundNodeType.RunwayHoldShort) && jBar.Edges.Any(e => e.MatchesTaxiway("J")), "#504 is not J's 28R bar");
-                double offJ = GeoMath.BearingTo(jBar.Position, layout.Nodes[352].Position);
+                GroundNode cj = GroundNodeLookup.Junction(layout, "C", "J");
+                GroundNode jBar = GroundNodeLookup.HoldShortBar(layout, "28R", "J", cj);
+                Assert.True(
+                    (jBar.Type == GroundNodeType.RunwayHoldShort) && jBar.Edges.Any(e => e.MatchesTaxiway("J")),
+                    $"#{jBar.Id} is not J's 28R bar"
+                );
+                double offJ = GeoMath.BearingTo(jBar.Position, cj.Position);
                 return OnTaxiway(layout, jBar.Id, offJ, ["C", "F", "K", "J", "A", "B", "W"], diag);
             case "OAK on C: C F K J C W":
                 double alongC = GeoMath.BearingTo(layout.Nodes[352].Position, layout.Nodes[357].Position);
@@ -674,7 +678,6 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// the search's pick passing the post-hoc filter (no dropped-bridge diagnostic).
     /// </summary>
     [Theory]
-    [InlineData("OAK", 1246, 164.0, "D", "G")]
     [InlineData("MIA", 1160, 120.0, "Z", "M")]
     public void StandingOnARunway_ABridgeMayLeaveItWithinTheAllowance(string airportId, int startNodeId, double heading, string from, string to)
     {
@@ -685,6 +688,35 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             return;
         }
 
+        AssertABridgeLeavesTheStartRunwayWithinTheAllowance(layout, startNodeId, heading, from, to);
+    }
+
+    /// <summary>
+    /// Case 3a at OAK: <c>TAXI D G</c> from the 15/33 centreline node where the D and F fillets onto the runway meet, nosed
+    /// 164°.
+    /// </summary>
+    [Fact]
+    public void StandingOnOak33AtTheDAndFFillets_ABridgeMayLeaveItWithinTheAllowance()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        GroundNode start = GroundNodeLookup.Junction(layout, "D - RWY15/33", "F - RWY15/33");
+        AssertABridgeLeavesTheStartRunwayWithinTheAllowance(layout, start.Id, 164.0, "D", "G");
+    }
+
+    private void AssertABridgeLeavesTheStartRunwayWithinTheAllowance(
+        AirportGroundLayout layout,
+        int startNodeId,
+        double heading,
+        string from,
+        string to
+    )
+    {
         Assert.True(AirportGroundLayout.HasRunwayCenterlineEdge(layout.Nodes[startNodeId]), $"#{startNodeId} is not on a runway");
         var diag = new List<string>();
         TaxiRoute? route = ResolveDetailed(layout, startNodeId, [from, to], heading, diag, out PathfindingFailure? failure);

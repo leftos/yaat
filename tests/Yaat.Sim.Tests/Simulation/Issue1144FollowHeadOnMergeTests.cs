@@ -22,7 +22,7 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     /// <summary>The second before the recorded <c>FOLLOWG SWA6139</c>, which lands at t=1019.</summary>
     private const int BeforeFollow = 1018;
 
-    /// <summary>A second after SWA6139 has rounded the B→T fillet, with B's edge 725-159 still in its trail.</summary>
+    /// <summary>A second after SWA6139 has rounded the B→T fillet, with its B and T edges either side of it still in its trail.</summary>
     private const int OnTAfterFillet = 1036;
 
     /// <summary>The recording's last second.</summary>
@@ -75,9 +75,10 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// At t=1036 SWA6139 has turned off B onto T through the B→T fillet 725→724, and its trail holds B's edge 725-159, sampled
-    /// while its centre lay over that straight edge rounding the fillet. Its lead path never turns, between consecutive edges,
-    /// past SWA6139's own junction limit: it does not run 725→159 and back to take the fillet.
+    /// At t=1036 SWA6139 has turned off B onto T through the B→T fillet, and its trail holds a B edge then a T edge either side
+    /// of it. Rounding the fillet, the lead's centre can lie over B's straight edge past the fillet start and sample it into the
+    /// trail between them; staged that way, its lead path never turns, between consecutive edges, past SWA6139's own junction
+    /// limit: it does not run on along B past the fillet start and back to take the fillet.
     /// </summary>
     [Fact]
     public void SWA6139_LeadPathAfterTurningOntoT_NeverTurnsAbout()
@@ -95,21 +96,73 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         AircraftState ups = Assert.IsType<AircraftState>(engine.FindAircraft("UPS947"));
         AircraftState swa = Assert.IsType<AircraftState>(engine.FindAircraft("SWA6139"));
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(swa.Ground.Layout);
-        Assert.Contains(swa.Ground.TaxiEdgeTrail.Edges, e => ((e.NodeA == 717) && (e.NodeB == 159)) || ((e.NodeA == 159) && (e.NodeB == 717)));
+        (_, GroundNode bEnd, _, int newerIndex) = RoundedBToTFillet(layout, swa);
+        List<TaxiTrailEdge> trail = [.. swa.Ground.TaxiEdgeTrail.Edges];
+        GroundEdge arrival = Assert.IsType<GroundEdge>(trail[newerIndex - 1].Resolve(layout));
+        GroundEdge pastStart = Assert.Single(bEnd.Edges.OfType<GroundEdge>(), e => (e.TaxiwayName == "B") && !ReferenceEquals(e, arrival));
+        swa.Ground.TaxiEdgeTrail.Clear();
+        for (int i = 0; i < trail.Count; i++)
+        {
+            if (i == newerIndex)
+            {
+                swa.Ground.TaxiEdgeTrail.Record(pastStart, bEnd);
+            }
 
+            swa.Ground.TaxiEdgeTrail.Record(Assert.IsType<GroundEdge>(trail[i].Resolve(layout)), layout.Nodes[trail[i].EntryNodeId]);
+        }
+
+        output.WriteLine($"staged trail: {string.Join(" ", swa.Ground.TaxiEdgeTrail.Edges.Select(e => $"{e.NodeA}-{e.NodeB}"))}");
         IReadOnlyList<DirectionalEdge> path = Assert.IsAssignableFrom<IReadOnlyList<DirectionalEdge>>(
             FollowRoutePlanner.LeadPathOf(layout, swa, ups)
         );
-        double limit = CategoryLimits.MaxHeadingChangeDeg(AircraftCategorization.Categorize(swa.AircraftType));
         output.WriteLine(string.Join(" > ", path.Select(e => $"{e.FromNodeId}-{e.ToNodeId}({e.DepartureBearing:F0}/{e.ArrivalBearing:F0})")));
+        AssertNeverTurnsPastLimit(path, swa);
+    }
+
+    /// <summary>
+    /// The B→T fillet the lead rounded, read from its own trail: a B edge followed by a T edge, joined by a fillet arc whose
+    /// taxiway names hold B and T, from a node of the older edge to a node of the newer. Returns the arc, its B end, its T end
+    /// and the newer (T) edge's index in the trail.
+    /// </summary>
+    private static (GroundArc Arc, GroundNode BEnd, GroundNode TEnd, int NewerIndex) RoundedBToTFillet(AirportGroundLayout layout, AircraftState lead)
+    {
+        IReadOnlyList<TaxiTrailEdge> trail = lead.Ground.TaxiEdgeTrail.Edges;
+        for (int i = 1; i < trail.Count; i++)
+        {
+            GroundEdge? older = trail[i - 1].Resolve(layout);
+            GroundEdge? newer = trail[i].Resolve(layout);
+            if ((older?.TaxiwayName != "B") || (newer?.TaxiwayName != "T"))
+            {
+                continue;
+            }
+
+            foreach (GroundNode b in older.Nodes)
+            {
+                foreach (GroundArc arc in b.Edges.OfType<GroundArc>().Where(a => a.TaxiwayNames.Contains("B") && a.TaxiwayNames.Contains("T")))
+                {
+                    GroundNode t = arc.OtherNode(b);
+                    if (newer.HasNode(t.Id))
+                    {
+                        return (arc, b, t, i);
+                    }
+                }
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("the lead's trail has no B edge then T edge joined by a B/T fillet arc");
+    }
+
+    private static void AssertNeverTurnsPastLimit(IReadOnlyList<DirectionalEdge> path, AircraftState lead)
+    {
+        double limit = CategoryLimits.MaxHeadingChangeDeg(AircraftCategorization.Categorize(lead.AircraftType));
         for (int i = 1; i < path.Count; i++)
         {
             double turn = RouteCostFunction.HeadingDelta(path[i - 1].ArrivalBearing, path[i].DepartureBearing);
             Assert.True(
                 turn <= limit,
-                $"SWA6139's lead path turns {turn:F1}° at node {path[i].FromNodeId} ({path[i - 1].FromNodeId}-{path[i - 1].ToNodeId} arriving "
-                    + $"{path[i - 1].ArrivalBearing:F1}°, then {path[i].FromNodeId}-{path[i].ToNodeId} leaving {path[i].DepartureBearing:F1}°), "
-                    + $"past its {limit:F0}° junction limit"
+                $"{lead.Callsign}'s lead path turns {turn:F1}° at node {path[i].FromNodeId} ({path[i - 1].FromNodeId}-{path[i - 1].ToNodeId} "
+                    + $"arriving {path[i - 1].ArrivalBearing:F1}°, then {path[i].FromNodeId}-{path[i].ToNodeId} leaving "
+                    + $"{path[i].DepartureBearing:F1}°), past its {limit:F0}° junction limit"
             );
         }
     }
@@ -154,11 +207,12 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         Assert.Equal("SWA6139", follow.TargetCallsign);
         Assert.Equal("T", ups.Ground.CurrentTaxiway);
         Assert.True(ups.GroundSpeed >= MovingKts, $"UPS947 is not moving at t={RecordingEnd}: {ups.GroundSpeed:F1} kt");
-        // The recording ends on a stretch the lead itself drove at about 142°, so the pin is the follow route's own edge at
-        // UPS947's position, not T's nominal heading: the follower still tracks its route.
+        // The recording ends on a stretch the lead itself drove at about 142°, so the pin is the bearing of the follow route's
+        // current edge, not T's nominal heading: the follower still tracks its route. The edge's own bearing, not the bearing
+        // to its end node, which swings round once the 1 Hz sample lands a few feet past that node before the segment advances.
         TaxiRoute route = Assert.IsType<TaxiRoute>(follow.FollowRoute);
         TaxiRouteSegment current = route.Segments[route.CurrentSegmentIndex];
-        double edgeDeg = GeoMath.BearingTo(ups.Position, current.Edge.ToNode.Position);
+        double edgeDeg = current.Edge.DepartureBearing;
         double offEdge = Math.Abs(GeoMath.SignedBearingDifference(ups.TrueHeading.Degrees, edgeDeg));
         Assert.True(
             offEdge <= 10.0,

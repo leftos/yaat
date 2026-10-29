@@ -33,7 +33,6 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
     private const double PushedHeadingDeg = 53.0;
 
     /// <summary>The route's start node — the from-node of the <c>T - RAMP</c> fillet arc, ~105 ft behind the tail.</summary>
-    private const int StartNodeId = 763;
     private const double StartNodeLat = 37.70999962916134;
     private const double StartNodeLon = -122.21752272724868;
 
@@ -213,11 +212,11 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
             }
         }
 
-        output.WriteLine($"closest approach to node {StartNodeId} while on the first segments: {closestFt:F1} ft at t+{closestSecond}");
+        output.WriteLine($"closest approach to the route start node while on the first segments: {closestFt:F1} ft at t+{closestSecond}");
 
         Assert.True(
             closestFt <= 6.0,
-            $"{Callsign} never came within 6 ft of route start node {StartNodeId} while on its first route segment — "
+            $"{Callsign} never came within 6 ft of the route start node while on its first route segment — "
                 + $"closest {closestFt:F1} ft at t+{closestSecond}; the route starts at a node the aircraft never taxis to"
         );
     }

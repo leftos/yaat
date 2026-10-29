@@ -90,7 +90,7 @@ The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the sa
 
 Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1short`) are deliberate snapshots and are skipped, and an airport the API has no map for is kept as committed. `--check` reports what would change and exits 1 if anything would.
 
-`TestData/TowerCabMaps/<id>.geojson` holds an airport's tower-cab videomap (`oak.geojson`, read by `TowerCabVideoMapTests`). It lives in a subfolder because several tests read every top-level `TestData/*.geojson` as a ground layout, which a videomap is not. The same script refreshes it (the ARTCC for each fixture is in its `TOWER_CAB_ARTCC`); a response that is not JSON or not a FeatureCollection prints why to stderr and keeps the fixture. `TestAirportGroundData` and `PinnedSfoGroundData` build layouts with `VideoMap: null`, as production does, so no layout test depends on this fixture.
+`TestData/TowerCabMaps/<id>.geojson` holds an airport's tower-cab videomap (`oak.geojson`, read by `TowerCabVideoMapTests`). It lives in a subfolder because several tests read every top-level `TestData/*.geojson` as a ground layout, which a videomap is not. The same script refreshes it (the ARTCC for each fixture is in its `TOWER_CAB_ARTCC`); a response that is not JSON or not a FeatureCollection prints why to stderr and keeps the fixture. `TestAirportGroundData` parses any airport that has a committed map here (OAK) on it, as the server parses it on the fetched map, so the hold-short bars sit on the painted lines (a malformed map throws rather than falling back to the unsnapped graph). `PinnedSfoGroundData` builds with `VideoMap: null`. A test that needs the raw unsnapped positions parses with a null map itself (`RunwayPaintSnapTests.ParseOak(map: null, FilletMode.Standard)`).
 
 **CIFP is required too, and downloads stay enabled on purpose.** `ModuleInit` throws if it cannot
 resolve one. Unlike NavData it needs no offline-first switch: `CifpPathResolver` already returns a
@@ -409,7 +409,7 @@ runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationData
 `"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet
 arcs (taxiway topology, `TurnAngleDeg`) should pass `runwayAirportCode: null` to skip the runway-crossing pass while still producing
 nodes/edges/arcs (`OneWayResolverTests`, `GroundArcRenderFilterTests`, `DtoConverterGroundLayoutTests` all do). This applies to tests
-calling `GeoJsonParser.Parse` **directly** (its last required input is a `LayoutInputs`; `TestStandLeadIns.For(id)` gives an airport's shipped lead-ins, `VideoMap: null` the no-map case); the `TestAirportGroundData` harness always passes the real code (see above), because a graph
+calling `GeoJsonParser.Parse` **directly** (its last required input is a `LayoutInputs`; `TestStandLeadIns.For(id)` gives an airport's shipped lead-ins, `VideoMap: null` the no-map case); the `TestAirportGroundData` harness always passes the real code and the airport's committed videomap (see above), because a graph
 built against a 150 ft placeholder width is not the graph production builds.
 
 ## Ticking a phase by hand — steer *and* integrate, at 0.25 s
@@ -532,6 +532,8 @@ The default run passes `--filter-not-trait` for each of the three (untagged test
   **Evergreen** is behaviour that must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix): it runs on `TestData/<id>.geojson` and is maintained as the layout changes. When a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
 
   **Version-pinned** is behaviour that only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids): it runs on the archive's bundled layout, and its fixture's ids are never remapped. An airport the archive does not bundle falls back to `TestAirportGroundData`.
+
+  An archive can mix node-id spaces: a bundled layout or recorded `#id` commands carry the ids of the unsnapped graph, while the harness's OAK is snapped, where a bar seated on a shape point or minted on the paint renumbers nodes. For an unsnapped A/B comparison, parse OAK with a null map (`RunwayPaintSnapTests.ParseOak(map: null, ...)`) and run the same recording on both layouts; compare by meaning (`GroundNodeLookup`), never by id.
 
   A pinned test diverges from the server on purpose (see [snapshots-and-replay.md](snapshots-and-replay.md)): every test archive is pre-format, and a pre-format bundled layout lacks runway coordinates, edge shapes and the runway-end dictionaries, so a pinned test reads runway geometry from `NavigationDatabase`.
 

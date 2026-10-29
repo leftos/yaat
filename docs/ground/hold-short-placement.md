@@ -66,6 +66,8 @@ GeoJSON shape-point happens to sit nearby, scattering the standoff by up to the 
 out past it. Tightening to the coincident-node threshold forces a node at the exact standoff whenever
 no shape-point is essentially already there, so the scatter is the standoff rule's (the angle term), not the data's.
 
+A bar on paint is the exception: `TrySeatOnNearbyNode` merges a plain taxiway shape point (`CanTakePaintBar`: a `TaxiwayIntersection` on two edges of one taxiway, not yet on paint) within `PaintNodeMergeFt` (**6 ft**) of the snap point into the bar, so no node is minted beside it. On the taxiway side of the paint, or on it, the node stays where it is; on the runway side it is moved onto the snap point (`MoveNode`, which updates its edges' lengths and the coordinate index), so the nose never ends past the line. The move is refused when it would leave the node within `CoincidentNodeThresholdFt` (5 ft) of a neighbour on one of its edges (`SnapCrowdsNeighbour`): the edge between them would read as a zero-length no-op to the pathfinder and block every route that starts on the bar. The refusal leaves the reuse-or-mint logic above to run. A node the 5 ft reuse tolerance alone would have refused still consumes one node id, as the mint it replaces would have.
+
 ## Seating on the painted bar
 
 `GeoJsonParser.BuildLayout` passes the airport's `TowerCabVideoMap` (`LayoutInputs.VideoMap`, null when it has none) to `DetectRunwayCrossings`, which seats each crossing through `SeatCrossing`. The tower-cab videomap draws the real painted hold bars as two-point segments ([CONTEXT.md](../../CONTEXT.md), *Tower-cab videomap*); a crossing whose taxiway carries one is seated on it, not at D_rule.
@@ -80,7 +82,9 @@ Candidates rank innermost first: the nearer snap point along the taxiway walk fr
 
 `PairWithPaint` takes the first candidate the placement can seat (`CanSeatOn`): one is passed over when the walk toward its D_paint dead-ends, runs out of `HoldShortWalkMaxHops`, or meets D_paint more than `HoldShortSnapFt` from the snap point (a chain that turns back toward the runway). With no candidate left, the bar is seated by the rule.
 
-**Snap.** The bar's target becomes D_paint with the snap point (`BarTarget.SnapPoint`), and the placement above runs unchanged against it.
+**Snap.** The bar's target becomes D_paint with the snap point (`BarTarget.SnapPoint`), and the placement above runs against it, with the paint merge first ([The reuse tolerance](#the-reuse-tolerance-is-deliberately-tight)).
+
+**Seating on the painted bar.** A node reused or moved onto the paint becomes the bar, and it is the end of the approach segment that reaches it.
 
 A minted node's edge fraction is clamped to `MinEdgeFraction` (0.01) … `MaxEdgeFraction` (0.99), off the endpoints. `MintFraction` is the one exception: when the bar is on paint and the raw fraction lies inside that clamp beside an endpoint refused for reuse (one on the runway side of the paint), the node is minted at the raw fraction, on the snap point, so the endpoint moves onto the paint instead of staying off it. A snap that moves a bar more than `LargeSnapFt` (40 ft) from where the rule would seat it is logged at Debug.
 
@@ -171,7 +175,11 @@ With the nose short of the bar's marking, `TaxiingPhase.TryHoldAtRouteStartNode`
 
 While approaching, the navigator's speed is clamped to a braking curve that reaches zero 15 ft short of the node; the stop is taken within 150 ft of it at 3 kt or less. `StartNodeHoldShortArmingTests` pins both the parked and the rolling approach.
 
-With the nose already at or past the marking of an uncleared **runway** bar on the start node (a TAXI starts the route on a bar's node only once the aircraft is close to it, so this is common), the line is lost. `TaxiingPhase.TryHoldPastStartBar` takes that hold instead: the aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, never stopped dead from taxi speed, and holds once it is down to one sub-tick of that braking, wherever that leaves it.
+**Behind the painted stop, the route does not start on the bar.** An aircraft on the straight taxi edge leading to a runway bar, its centre more than half its length plus `GroundNavigator.SetBackStopMarginFt` behind the node measured along the occupied edge (`TaxiApproachLeg.BehindBarAlongEdgeFt`, not along the first leg, so a bar at a bend does not shorten it by the bend's cosine) while also behind it along the first leg, gets a `TaxiApproachLeg` to the bar like any other start: the bar is then the leg's far end, set back half a fuselage by the usual setback, so the aircraft holds there or crosses only under a clearance (`TaxiFromShortOfARunwayBarTests`).
+
+An aircraft within that stop, past the bar on its runway side, or off the edge keeps the bar as its start node and gets the two stops here. A vacated aircraft on the stub with a route away from the runway gets a leg too and is not held at the bar (the next rule).
+
+With the nose already at or past the marking of an uncleared **runway** bar on the start node (a TAXI starts the route on a bar's node when the aircraft is not behind the bar's painted stop on the edge leading to it, so this is common), the line is lost. `TaxiingPhase.TryHoldPastStartBar` takes that hold instead: the aircraft brakes at the firm rate as soon as it can, to keep off the runway's pavement, never stopped dead from taxi speed, and holds once it is down to one sub-tick of that braking, wherever that leaves it.
 
 The finding is latched on the bar's node (`TaxiingPhaseDto.PassedStartBarNodeId`), so the stop is not let go part-way as it carries the aircraft away from the node; how the nose is judged past the line is in [navigator.md](./navigator.md) § Stopping at an uncleared bar.
 

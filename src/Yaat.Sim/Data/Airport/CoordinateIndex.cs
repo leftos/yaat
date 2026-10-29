@@ -21,6 +21,25 @@ internal sealed class CoordinateIndex(double tolerance)
         list.Add((lat, lon, nodeId));
     }
 
+    /// <summary>
+    /// Moves node <paramref name="nodeId"/>'s entry from <paramref name="from"/>, where it was added, to <paramref name="to"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The index holds no entry for the node at <paramref name="from"/>.</exception>
+    internal void Move(LatLon from, LatLon to, int nodeId)
+    {
+        if (
+            !_grid.TryGetValue(BucketKey(from.Lat, from.Lon), out List<(double Lat, double Lon, int NodeId)>? list)
+            || (list.RemoveAll(entry => (entry.NodeId == nodeId) && (entry.Lat == from.Lat) && (entry.Lon == from.Lon)) == 0)
+        )
+        {
+            throw new InvalidOperationException(
+                $"the coordinate index holds no entry for node {nodeId} at ({from.Lat:F7}, {from.Lon:F7}) to move to ({to.Lat:F7}, {to.Lon:F7})"
+            );
+        }
+
+        Add(to, nodeId);
+    }
+
     public int? FindNearest(double lat, double lon)
     {
         (int LatBucket, int LonBucket) key = BucketKey(lat, lon);

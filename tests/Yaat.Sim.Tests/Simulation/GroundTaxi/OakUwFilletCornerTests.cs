@@ -13,14 +13,19 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// resolves when the tow ends at t=299 rather than when the timer expires at t≈235, and the aircraft then taxis
 /// <c>TE U W W1</c> to runway 30. In the recording the U→W corner was resolved through the junction centre (node 17)
 /// and flown as a square pivot: 3 kt through the turn, then a swing back onto W. The route must turn over the fillet
-/// arc 686→683 and the navigator must play that arc at its cornering speed in one monotonic sweep.
+/// arc <c>W - U</c> from U onto W and the navigator must play that arc at its cornering speed in one monotonic sweep.
 /// </summary>
 public class OakUwFilletCornerTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/oak-u-w-fillet-corner-recording.zip";
     private const string Callsign = "SWA2600";
-    private const int ArcEntryNode = 686;
-    private const int ArcExitNode = 683;
+
+    /// <summary>The U end of the <c>W - U</c> fillet arc (the only node on both U and that arc).</summary>
+    private static GroundNode ArcEntryNode(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "U", "W - U");
+
+    /// <summary>The W end of the <c>W - U</c> fillet arc on the W1 side of the U/W junction, toward runway 30.</summary>
+    private static GroundNode ArcExitNode(AirportGroundLayout layout) =>
+        GroundNodeLookup.Junction(layout, "W", "W - U", GroundNodeLookup.Junction(layout, "W", "W1"));
 
     /// <summary>
     /// The taxi route is resolved when the scripted WAIT's TAXI finally fires: the preset timer expires at t≈235
@@ -31,7 +36,7 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
 
     /// <summary>
     /// SWA2600 has cleared the U/W corner and is on W well before this. Measured with physics-owned taxi speed on
-    /// the held-tow timing: the corner window opens at t=383 (the segment before the arc), the fillet arc 686→683
+    /// the held-tow timing: the corner window opens at t=383 (the segment before the arc), the fillet arc
     /// is the current segment from t=385 and its exit node is reached at t=393, and the last corner-window sample
     /// (one segment past the arc) falls at t=426 - so 440 covers the whole corner with headroom. 440 is the last
     /// sample rounded up to the next 10 s plus 10 s of margin, the same way <see cref="RouteResolvedBySeconds"/> is.
@@ -71,9 +76,13 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
         Assert.NotNull(route);
         output.WriteLine(route.ToSummary());
 
-        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == ArcEntryNode && s.ToNodeId == ArcExitNode);
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
+        int arcEntry = ArcEntryNode(layout).Id;
+        int arcExit = ArcExitNode(layout).Id;
+        output.WriteLine($"W - U arc {arcEntry} -> {arcExit}");
+        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.FromNodeId == arcEntry && s.ToNodeId == arcExit);
         Assert.IsType<GroundArc>(corner.Edge.Edge);
-        int junctionCentre = GroundNodeLookup.Junction(Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout), "U", "W").Id;
+        int junctionCentre = GroundNodeLookup.Junction(layout, "U", "W").Id;
         Assert.DoesNotContain(route.Segments, s => s.ToNodeId == junctionCentre);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, Callsign);
 
@@ -85,7 +94,7 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
             engine.ReplayOneSecond();
             recorder.Record(t);
             TaxiRoute? current = aircraft.Ground.AssignedTaxiRoute;
-            int arcIndex = current?.Segments.FindIndex(s => s.FromNodeId == ArcEntryNode && s.ToNodeId == ArcExitNode) ?? -1;
+            int arcIndex = current?.Segments.FindIndex(s => s.FromNodeId == arcEntry && s.ToNodeId == arcExit) ?? -1;
             if (current is null || arcIndex < 0)
             {
                 break;

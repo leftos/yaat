@@ -73,18 +73,25 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
             // back to null so the harness's silent-skip convention still holds.
             TestVnasData.EnsureInitialized();
             string? runwayAirportCode = NavigationDatabase.InstanceOrNull is not null ? shortId.ToUpperInvariant() : null;
-            // The videomap is null: the server passes the fetched tower-cab map, but the precompute tool and this harness
-            // pass null, so the shared harness builds the unsnapped graph and the paint-snap tests build their own OAK layout.
+            // An airport with a committed tower-cab map (TestData/TowerCabMaps/<id>.geojson) is built on it, as the server
+            // builds it on the fetched map, so its hold-short points sit on the painted bars. A malformed map throws rather
+            // than falling back to the unsnapped graph. A test that needs raw unsnapped positions parses with a null map itself.
             layout = GeoJsonParser.Parse(
                 shortId,
                 File.ReadAllText(path),
                 runwayAirportCode,
-                new LayoutInputs(TestStandLeadIns.For(shortId), VideoMap: null),
+                new LayoutInputs(TestStandLeadIns.For(shortId), ReadVideoMap(shortId)),
                 filletMode
             );
         }
 
         return layout;
+    }
+
+    private static TowerCabVideoMap? ReadVideoMap(string shortId)
+    {
+        string path = Path.Combine(TestDataDir, "TowerCabMaps", $"{shortId.ToLowerInvariant()}.geojson");
+        return File.Exists(path) ? TowerCabVideoMap.Read(File.ReadAllText(path)) : null;
     }
 
     public string? GetSourceGeoJson(string airportId)

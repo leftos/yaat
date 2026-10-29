@@ -2875,10 +2875,13 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// Whether Rule 1 binds <paramref name="yielder"/> to <paramref name="priority"/>. Always for a runway user. For a vacating
-    /// aircraft its way out leads off the runway: moving, it gets priority unless the yielder lies ahead in its path, where the
-    /// pair takes the normal treatment so the vacating aircraft keeps its own closing check (AIM 4-3-21.b lets it protrude, not
-    /// collide); held (no direction), it gets priority only against traffic coming head-on into its way out — ahead along its
-    /// heading inside the in-path corridor (<see cref="LiesInPath"/>), and closing, which Rule 1's own closing test then checks.
+    /// aircraft its way out leads off the runway: moving, it gets priority unless the yielder lies ahead in its path or the
+    /// crossing stop curve braked it in the last pass (<see cref="_crossingStopCurveCarried"/>), where the pair takes the normal
+    /// treatment so the vacating aircraft keeps its own closing check (AIM 4-3-21.b lets it protrude, not collide). The carry
+    /// is per aircraft: while the curve brakes a vacater it loses Rule 1 priority against every other aircraft, not only the
+    /// traffic it is braking for, so it is never given the right of way and then loses the curve it was braking on; held
+    /// (no direction), it gets priority only against traffic coming head-on into its way out — ahead along its heading inside the
+    /// in-path corridor (<see cref="LiesInPath"/>), and closing, which Rule 1's own closing test then checks.
     /// Every other aircraft passing a held vacating one takes the normal closing check: it passes when clear, brakes to the stop
     /// ring, or stops at its own bar.
     /// </summary>
@@ -2890,7 +2893,7 @@ public static class GroundConflictDetector
         }
 
         return (priority.Dir is { } moving)
-            ? !LiesInPath(priority.Ac, moving, yielder.Ac, distFt)
+            ? (!LiesInPath(priority.Ac, moving, yielder.Ac, distFt) && (_crossingStopCurveCarried?.Contains(priority.Ac) != true))
             : LiesInPath(priority.Ac, priority.Ac.TrueHeading.Degrees, yielder.Ac, distFt);
     }
 

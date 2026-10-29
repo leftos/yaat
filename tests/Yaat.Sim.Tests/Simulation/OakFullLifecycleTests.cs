@@ -109,9 +109,11 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         TickUntil(engine, aircraft, 120, "exit complete", ac => ac.Phases?.CurrentPhase?.Name is "Holding After Exit");
         Assert.Equal("H", aircraft.Ground.CurrentTaxiway);
 
-        // Verify tail past hold-short node 509
-        Assert.True(layout.Nodes.TryGetValue(509, out GroundNode? hsNode509));
-        AssertTailPastLine(aircraft, hsNode509, "exit H hold-short 509");
+        // Verify tail past the 28R hold-short bar the exit left by: 28R's bar on H nearest the aircraft (H crosses 28R)
+        GroundNode exitBar = TestLayoutNodes
+            .RunwayHoldShortsOnTaxiway(layout, "28R", "H")
+            .MinBy(n => GeoMath.DistanceNm(n.Position, aircraft.Position))!;
+        AssertTailPastLine(aircraft, exitBar, $"exit H hold-short #{exitBar.Id}");
         output.WriteLine($"Exited on H: pos=({aircraft.Position.Lat:F6},{aircraft.Position.Lon:F6}), hdg={aircraft.TrueHeading.Degrees:F0}");
 
         // --- Phase 3: Taxi C B, hold short 28R ---

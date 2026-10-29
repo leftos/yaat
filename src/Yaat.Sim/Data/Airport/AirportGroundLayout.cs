@@ -19,10 +19,23 @@ public enum GroundNodeType
 
 public sealed class GroundNode
 {
+    private LatLon _position;
+
     public required int Id { get; init; }
 
-    /// <summary>Geographic position of the node.</summary>
-    public required LatLon Position { get; init; }
+    /// <summary>Geographic position of the node. Only the layout build moves it afterwards (<see cref="Relocate"/>).</summary>
+    public required LatLon Position
+    {
+        get => _position;
+        init => _position = value;
+    }
+
+    /// <summary>
+    /// Moves the node to <paramref name="position"/>. The caller keeps the layout consistent with the move: the length of every
+    /// edge at the node and any coordinate index holding it.
+    /// </summary>
+    /// <param name="position">The node's new position.</param>
+    internal void Relocate(LatLon position) => _position = position;
 
     public required GroundNodeType Type { get; set; }
     public string? Name { get; init; }

@@ -91,6 +91,7 @@ public sealed class OakTaxiMidRunwayCrossingTests
         GroundNode northBar = route
             .Segments.Select(s => s.FromNodeId)
             .Append(route.Segments[^1].ToNodeId)
+            .Where(id => id >= 0)
             .Select(id => rig.Layout.Nodes[id])
             .First(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains("28R"));
         int barSegment = (northBar.Id == route.Segments[0].FromNodeId) ? 0 : route.Segments.FindIndex(s => s.ToNodeId == northBar.Id) + 1;
@@ -112,11 +113,11 @@ public sealed class OakTaxiMidRunwayCrossingTests
 
     /// <summary>
     /// An aircraft that holds no clearance for 28R — stopped on B between the runways, its nose at the south 28R bar, not taxiing,
-    /// holding or crossing — given <c>TAXI B C D @SIG7</c>: the route starts at that bar, still ahead of the aircraft, and the
-    /// hold-short point there stays uncleared, so the aircraft holds short of 28R.
+    /// holding or crossing — given <c>TAXI B C D @SIG7</c>: the route holds that bar, still ahead of the aircraft (the B shape
+    /// point beside the paint became the bar), and the hold-short point there stays uncleared, so the aircraft holds short of 28R.
     /// </summary>
     [Fact]
-    public void SecondTaxi_FromOutsideTheRunway_StartNodeBarStaysUncleared()
+    public void SecondTaxi_FromOutsideTheRunway_BarAtOrAheadOfTheStartStaysUncleared()
     {
         var groundData = new TestAirportGroundData();
         if (groundData.GetLayout("OAK") is not { } layout)
@@ -148,10 +149,13 @@ public sealed class OakTaxiMidRunwayCrossingTests
         Assert.True(taxi.Success, taxi.Message);
 
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        Assert.Equal(southBar28R.Id, route.Segments[0].FromNodeId);
-        HoldShortPoint start = Assert.Single(route.HoldShortPoints, h => h.NodeId == southBar28R.Id);
-        Assert.Contains("28R", start.TargetName);
-        Assert.False(start.IsCleared, $"the start-node 28R point at #{southBar28R.Id} was cleared with no crossing clearance: {route.ToSummary()}");
+        Assert.True(
+            (route.Segments[0].FromNodeId == southBar28R.Id) || route.Segments.Any(s => s.ToNodeId == southBar28R.Id),
+            $"the route never reaches the south 28R bar #{southBar28R.Id}: {route.ToSummary()}"
+        );
+        HoldShortPoint barHold = Assert.Single(route.HoldShortPoints, h => h.NodeId == southBar28R.Id);
+        Assert.Contains("28R", barHold.TargetName);
+        Assert.False(barHold.IsCleared, $"the 28R point at #{southBar28R.Id} was cleared with no crossing clearance: {route.ToSummary()}");
     }
 
     /// <summary>On 28R, within <see cref="OnTheRunwayFt"/> of its centreline.</summary>

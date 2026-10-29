@@ -509,7 +509,10 @@ public class GroundNavigatorTests(ITestOutputHelper output)
 
     private const double PushedHeadingDeg = 53.0;
 
-    /// <summary>Node 763 — the node the TAXI route starts at, ~105 ft behind the pushed aircraft.</summary>
+    /// <summary>
+    /// A stand-in id for the node the TAXI route starts at, ~105 ft behind the pushed aircraft: the node is built from its
+    /// coordinates, not looked up in the layout.
+    /// </summary>
     private const int StartNodeId = 763;
 
     private const double StartNodeLat = 37.70999962916134;
@@ -558,16 +561,16 @@ public class GroundNavigatorTests(ITestOutputHelper output)
 
         _out.WriteLine(
             $"alignment arc: r={turn.RadiusFt:F0}ft sweep={turn.SweepDeg:F1}° right={turn.RightTurn} "
-                + $"exitHdg={turn.ExitTangentBearingDeg:F1}°; node {StartNodeId} is {abeamFt:F1} ft abeam, {alongFt:F1} ft along"
+                + $"exitHdg={turn.ExitTangentBearingDeg:F1}°; the start node is {abeamFt:F1} ft abeam, {alongFt:F1} ft along"
         );
 
         // aim=node: the point aim turns at the comfortable main-gear turn radius, the bearing-aimed fallback at the
         // adaptive radius, which this pose tightens to the 15 ft floor — so the radius identifies which fired.
         Assert.Equal(CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet), turn.RadiusFt, 3);
-        Assert.True(alongFt > 0, $"node {StartNodeId} must lie ahead of the arc's roll-out point; it is {alongFt:F1} ft along");
+        Assert.True(alongFt > 0, $"the start node must lie ahead of the arc's roll-out point; it is {alongFt:F1} ft along");
         Assert.True(
             Math.Abs(abeamFt) <= 0.5,
-            $"the alignment arc rolls out {abeamFt:F1} ft abeam the line to node {StartNodeId} — a free-space leg's arc must exit "
+            $"the alignment arc rolls out {abeamFt:F1} ft abeam the line to the start node — a free-space leg's arc must exit "
                 + "on the line through its node"
         );
     }

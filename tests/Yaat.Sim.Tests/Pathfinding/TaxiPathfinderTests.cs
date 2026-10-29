@@ -54,20 +54,27 @@ public sealed class TaxiPathfinderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// An aircraft on C at OAK one straight C edge short of the node where a "C - G" fillet arc leaves C for 28R's bar on G
-    /// (the C/G corner by the northern 28R bar on G), facing along C toward the arc: the run to that bar is C then the arc onto
-    /// G's bar, two taxiways, so a bare <c>TAXI 28R</c> does not resolve as "already at the runway".
+    /// An aircraft on C at OAK one straight C edge short of the node where a "C - G" fillet arc leaves C for G next to 28R's bar
+    /// on G (the C/G corner by the northern 28R bar on G, the arc's G end one straight G edge short of the bar), facing along C
+    /// toward the arc: the run to that bar is C, the arc, then G to the bar, so a bare <c>TAXI 28R</c> does not resolve as
+    /// "already at the runway".
     /// </summary>
     [Fact]
     public void BareTaxiRunway_FromCJustBeforeArcOntoG_NotAlreadyAtRunway()
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = new TestAirportGroundData().GetLayout("OAK") ?? throw new InvalidOperationException("no OAK test layout");
-        (GroundNode bar, GroundNode arcStart) = layout
+        (GroundNode bar, GroundNode arcEnd, GroundNode arcStart) = layout
             .GetRunwayHoldShortNodes("28R")
             .Where(b => RunwayHoldBars.BarTaxiwayName(b) == "G")
-            .SelectMany(b => b.Edges.OfType<GroundArc>().Select(arc => (Bar: b, ArcStart: arc.OtherNode(b))))
+            .SelectMany(b => b.Edges.Where(e => e is GroundEdge { TaxiwayName: "G" }).Select(e => (Bar: b, ArcEnd: e.OtherNode(b))))
+            .SelectMany(t =>
+                t.ArcEnd.Edges.OfType<GroundArc>()
+                    .Where(arc => arc.MatchesTaxiway("C") && arc.MatchesTaxiway("G"))
+                    .Select(arc => (t.Bar, t.ArcEnd, ArcStart: arc.OtherNode(t.ArcEnd)))
+            )
             .First(t => t.ArcStart.Edges.Any(e => e is GroundEdge { TaxiwayName: "C" }));
+        output.WriteLine($"bar {bar.Id} on G, {DistanceFt(arcEnd, bar):F1} ft from the C - G arc's G end {arcEnd.Id}");
         GroundNode start = arcStart
             .Edges.Where(e => e is GroundEdge { TaxiwayName: "C" })
             .Select(e => e.OtherNode(arcStart))

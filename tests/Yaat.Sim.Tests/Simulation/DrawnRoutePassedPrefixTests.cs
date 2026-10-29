@@ -13,11 +13,16 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-OAK-P (A) — N16390 (C182) taxiing north-west on OAK taxiway C after landing.
 /// At t=681 the controller finished drawing a route to stand GA14 and the client sent the dense
-/// node list <c>TAXI #1124 #352 #1126 #1127 #353 #517 … #675 @GA14, CROSS 15</c>. The drawn path
+/// node list <c>TAXI #1123 #352 #1125 #1126 #353 #1130 … #682 @GA14, CROSS 15</c>. The drawn path
 /// is a simple <c>C → F → RAMP</c> taxi crossing 15/33 once.
 ///
+/// The archive was remapped by position to the snapped OAK graph the harness builds with the tower-cab
+/// videomap: the t=681 TAXI and snapshot 136's N16390 route carry its ids (the unsnapped bar #510 and
+/// C node #355 collapse into bar #355); every other action and snapshot keeps its recording-era ids.
+///
 /// The aircraft kept taxiing while the route was being drawn, so by dispatch time its start node
-/// was 1127 — three nodes *past* the drawn path's first node (#1124). The resolver routed backwards
+/// was bar #353 — four nodes *past* the drawn path's first node (#1123), which the resolver now drops,
+/// resolving 43 segments that read back as <c>C F @GA14</c>. Before the fix the resolver routed backwards
 /// to reach them (permitted only because the admissibility gate is bypassed on the first edge), and
 /// every hop after that needed a ~180° reversal the gate hard-rejects. Each hop looped the whole
 /// <c>C → J → K → F → C</c> block instead: 544 segments, ten laps, reading back as

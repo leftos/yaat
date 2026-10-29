@@ -25,6 +25,12 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// bar uncleared and closer than its taxi-rate stopping distance, and is told <c>HOLD</c> or <c>GIVEWAY</c> (or nothing) on
 /// the same sub-tick. The B738's half fuselage (64.8 ft) is longer than the 33 bar's last segment on C, so its painted stop
 /// is set back onto an earlier segment; the C172's lies on the bar's own segment.</para>
+///
+/// <para>The lost-line cases (nose over the marking, centre short of the bar's node, re-route not starting on the bar) and the
+/// well-outside guard stage westbound on C instead (<see cref="WestOnC"/>): taxiing <c>TAXI C F CROSS 33</c> from east of the
+/// C/J junction toward the east 33 bar on C, re-routed <c>TAXI C F</c>. The painted-map snap seats the bar the eastbound rig
+/// meets on C's plain node, so no plain node lies between its painted stop and the bar; the east bar keeps one (a C/J fillet
+/// tangent) inside the B738's painted stop.</para>
 /// </summary>
 public class HoldInsideStoppingDistanceOfBarTests
 {
@@ -126,6 +132,18 @@ public class HoldInsideStoppingDistanceOfBarTests
 
     /// <summary>The taxi rig's starting conditions: parked at GA16.</summary>
     private const string ParkedAtGa16 = """{ "type": "Parking", "parking": "GA16" }""";
+
+    /// <summary>Standing on taxiway C's long straight east of the C/J junction, heading west along C toward runway 33.</summary>
+    private const string OnCEastOfJ = """{ "type": "Coordinates", "coordinates": { "lat": 37.729454, "lon": -122.215883 }, "heading": 292 }""";
+
+    /// <summary>The rig: from GA16 via F, C, B to runway 28R, crossing 33 eastbound on C, re-routed without the crossing.</summary>
+    private static readonly Staging EastFromGa16 = new(ParkedAtGa16, FirstTaxi, ReRoute, PlainNodeInsideStop: false);
+
+    /// <summary>
+    /// The rig westbound on C: crossing 33 toward F, re-routed without the crossing, at the east 33 bar on C, whose approach edge
+    /// starts at a plain node inside the B738's painted stop.
+    /// </summary>
+    private static readonly Staging WestOnC = new(OnCEastOfJ, "TAXI C F CROSS 33", "TAXI C F", PlainNodeInsideStop: true);
 
     /// <summary>Standing on taxiway C at KOAK spot I8R, heading down C toward the C/A junction.</summary>
     private const string OnCAtSpotI8R = """{ "type": "Coordinates", "coordinates": { "lat": 37.725692, "lon": -122.204250 }, "heading": 112 }""";
@@ -232,13 +250,18 @@ public class HoldInsideStoppingDistanceOfBarTests
 
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
         var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
-        engine.LoadScenario(Scenario, 1, MagneticDeclination.EvaluationDateUtc);
+        engine.LoadScenario(
+            Scenario.Replace(ParkedAtGa16, WestOnC.StartingConditions, StringComparison.Ordinal),
+            1,
+            MagneticDeclination.EvaluationDateUtc
+        );
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
-        Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);
+        Assert.True(engine.SendCommand(Callsign, WestOnC.FirstTaxi).Success);
         engine.TickOneSecond();
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
         TaxiRoute firstRoute = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         (int barSegment, HoldShortPoint clearedBar) = BarAhead(firstRoute);
+        AssertPlainNodeInsideStop(layout, firstRoute, barSegment, clearedBar);
         var rig = new ApproachRig(layout, firstRoute, barSegment, clearedBar, HoldLine.Through(firstRoute, barSegment));
 
         double? nosePastFt = null;
@@ -256,8 +279,8 @@ public class HoldInsideStoppingDistanceOfBarTests
             }
 
             nosePastFt = rig.Line.NosePastFt(aircraft);
-            CommandResult reRoute = engine.SendCommand(Callsign, ReRoute);
-            Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
+            CommandResult reRoute = engine.SendCommand(Callsign, WestOnC.ReRoute);
+            Assert.True(reRoute.Success, $"{WestOnC.ReRoute} was rejected: {reRoute.Message}");
             TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
             Assert.NotEqual(clearedBar.NodeId, route.Segments[0].FromNodeId);
             Assert.True(
@@ -282,7 +305,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         Assert.True(nosePastFt is not null, $"the {Jet} never met the lost-line condition approaching the runway {CrossedRunway} bar");
         double overrunFt = nosePastFt.Value;
         _output.WriteLine(
-            $"{ReRoute}: nose {overrunFt:F2} ft past the runway {CrossedRunway} hold line; new route's stop {toStopOnNewRouteFt:R} ft ahead"
+            $"{WestOnC.ReRoute}: nose {overrunFt:F2} ft past the runway {CrossedRunway} hold line; new route's stop {toStopOnNewRouteFt:R} ft ahead"
         );
         Assert.True(overrunFt >= LostLineToleranceFt, $"the shape under test is a nose over the line; it was {overrunFt:F2} ft past");
         Assert.True(
@@ -342,7 +365,7 @@ public class HoldInsideStoppingDistanceOfBarTests
     [Fact]
     public void Hold_WellOutsideTaxiStoppingDistance_StopsAtTheTaxiRateShortOfTheLine()
     {
-        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, WellOutside));
+        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, WellOutside) { Staging = WestOnC });
         if (outcome is null)
         {
             return;
@@ -503,7 +526,9 @@ public class HoldInsideStoppingDistanceOfBarTests
     [Fact]
     public void NosePastTheMarkingWhileTaxiing_ReRouteWithoutTheCrossing_FinishesCrossing()
     {
-        CrossingOutcome? outcome = RunThroughTheCrossing(new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode));
+        CrossingOutcome? outcome = RunThroughTheCrossing(
+            new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode) { Staging = WestOnC }
+        );
         if (outcome is not null)
         {
             AssertFinishesCrossing(outcome, Jet);
@@ -520,7 +545,7 @@ public class HoldInsideStoppingDistanceOfBarTests
     {
         var warnings = WarningLogCapture.Install();
         CrossingOutcome? outcome = RunThroughTheCrossing(
-            new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode) { LogInstalled = true }
+            new Case(Jet, AircraftCategory.Jet, Order.None, LineLostOffTheBarNode) { LogInstalled = true, Staging = WestOnC }
         );
         if (outcome is null)
         {
@@ -539,10 +564,10 @@ public class HoldInsideStoppingDistanceOfBarTests
     [Fact]
     public void LineAlreadyLost_RunwayBar_Hold_ClearedCrossing_StopsAtTheHoldOnCrossingRate()
     {
-        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, LineLostOffTheBarNode));
+        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, LineLostOffTheBarNode) { Staging = WestOnC });
         if (outcome is not null)
         {
-            Assert.False(outcome.RouteStartsAtBar, $"{ReRoute} started the route on the runway {CrossedRunway} bar's node");
+            Assert.False(outcome.RouteStartsAtBar, $"{WestOnC.ReRoute} started the route on the runway {CrossedRunway} bar's node");
             AssertHoldOnCrossingStop(outcome, Jet, AircraftCategory.Jet);
         }
     }
@@ -555,15 +580,15 @@ public class HoldInsideStoppingDistanceOfBarTests
     [Fact]
     public void StationaryPastNonStartRunwayBar_ClearedCrossing_NoStoppedPastWarning_FinishesOnceReleased()
     {
-        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, LineLostOffTheBarNode) { ReRouteAtKts = CreepKts });
+        Outcome? outcome = Run(new Case(Jet, AircraftCategory.Jet, Order.Hold, LineLostOffTheBarNode) { ReRouteAtKts = CreepKts, Staging = WestOnC });
         if (outcome is null)
         {
             return;
         }
 
         var warnings = WarningLogCapture.Install();
-        CommandResult reRoute = outcome.Engine.SendCommand(Callsign, ReRoute);
-        Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
+        CommandResult reRoute = outcome.Engine.SendCommand(Callsign, WestOnC.ReRoute);
+        Assert.True(reRoute.Success, $"{WestOnC.ReRoute} was rejected: {reRoute.Message}");
         TaxiRoute route = Assert.IsType<TaxiRoute>(outcome.Aircraft.Ground.AssignedTaxiRoute);
         Assert.NotEqual(outcome.Line.Node.Id, route.Segments[0].FromNodeId);
         CrossingOutcome crossing = RunToFarMarking(outcome.Engine, outcome.Aircraft, (outcome.Line, outcome.FarLine), rewind: false) with
@@ -985,7 +1010,8 @@ public class HoldInsideStoppingDistanceOfBarTests
     /// <summary>
     /// Where the aircraft stands on one sub-tick of its approach: along-route distance to the bar's painted stop, its taxi-
     /// and firm-rate stopping distances, whether a TAXI issued now would start the route on the bar's node (the taxi graph's
-    /// nearest node to the aircraft on its heading is the bar's), and how far (ft) its centre is past the hold line through
+    /// nearest node to the aircraft on its heading is the bar's, and no approach leg to it is driven), and how far (ft) its
+    /// centre is past the hold line through
     /// that node, negative when short.
     /// </summary>
     private sealed record Approach(double ToStopFt, double TaxiStopFt, double FirmStopFt, bool StartsAtBar, double CentrePastNodeFt);
@@ -1009,6 +1035,35 @@ public class HoldInsideStoppingDistanceOfBarTests
 
         /// <summary>Whether to re-arm the runway 33 bar with <c>HS 33</c> one second after the re-route.</summary>
         public bool ReArmStartBar { get; init; }
+
+        /// <summary>Where the aircraft starts, its first taxi (cleared across 33) and the re-route without the crossing.</summary>
+        public Staging Staging { get; init; } = EastFromGa16;
+    }
+
+    /// <summary>A rig's start and commands.</summary>
+    /// <param name="StartingConditions">The scenario's starting conditions for the aircraft, in place of <see cref="ParkedAtGa16"/>.</param>
+    /// <param name="FirstTaxi">The first taxi, cleared across runway 33.</param>
+    /// <param name="ReRoute">The re-route given on the approach, with no crossing clearance.</param>
+    /// <param name="PlainNodeInsideStop">Whether the staging needs a plain node inside the B738's painted stop of the bar.</param>
+    private sealed record Staging(string StartingConditions, string FirstTaxi, string ReRoute, bool PlainNodeInsideStop);
+
+    /// <summary>
+    /// Staging guard for <see cref="WestOnC"/>: the first route's 33 bar is the east 33 bar on C (the one nearest the C/J
+    /// junction), and its approach segment starts at a plain node no farther from it than the B738's half fuselage, so the
+    /// painted stop is set back past a node a re-route can start on.
+    /// </summary>
+    private static void AssertPlainNodeInsideStop(AirportGroundLayout layout, TaxiRoute firstRoute, int barSegment, HoldShortPoint clearedBar)
+    {
+        GroundNode eastBar = GroundNodeLookup.HoldShortBar(layout, CrossedRunway, "C", GroundNodeLookup.Junction(layout, "C", "J"));
+        Assert.Equal(eastBar.Id, clearedBar.NodeId);
+        TaxiRouteSegment approach = firstRoute.Segments[barSegment];
+        double approachFt = approach.Edge.DistanceNm * GeoMath.FeetPerNm;
+        double halfLengthFt = AircraftLength.ResolveFt(Jet) / 2.0;
+        Assert.True(
+            (approach.Edge.FromNode.Type != GroundNodeType.RunwayHoldShort) && (approachFt < halfLengthFt),
+            $"the east 33 bar #{eastBar.Id}'s approach segment starts at #{approach.FromNodeId} ({approach.Edge.FromNode.Type}) "
+                + $"{approachFt:F1} ft from it, not a plain node inside the {Jet}'s {halfLengthFt:F1} ft painted stop"
+        );
     }
 
     private sealed record Outcome(
@@ -1125,19 +1180,24 @@ public class HoldInsideStoppingDistanceOfBarTests
         }
 
         var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
+        string staged = Scenario.Replace(ParkedAtGa16, c.Staging.StartingConditions, StringComparison.Ordinal);
         string scenario =
             c.Order == Order.GiveWayToCrossingTraffic
-                ? Scenario.Replace("\"aircraft\": [", "\"aircraft\": [" + TrafficOnJ, StringComparison.Ordinal)
-                : Scenario;
+                ? staged.Replace("\"aircraft\": [", "\"aircraft\": [" + TrafficOnJ, StringComparison.Ordinal)
+                : staged;
         engine.LoadScenario(scenario.Replace(Jet, c.Type, StringComparison.Ordinal), 1, MagneticDeclination.EvaluationDateUtc);
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Callsign));
-        Assert.True(engine.SendCommand(Callsign, FirstTaxi).Success);
+        Assert.True(engine.SendCommand(Callsign, c.Staging.FirstTaxi).Success);
         aircraft.Ground.IsExpeditingTaxi = c.Expedite;
         engine.TickOneSecond();
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
         TaxiRoute firstRoute = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         (int barSegment, HoldShortPoint clearedBar) = BarAhead(firstRoute);
-        Assert.True(clearedBar.IsCleared, $"{FirstTaxi} left the runway {CrossedRunway} bar uncleared");
+        Assert.True(clearedBar.IsCleared, $"{c.Staging.FirstTaxi} left the runway {CrossedRunway} bar uncleared");
+        if (c.Staging.PlainNodeInsideStop)
+        {
+            AssertPlainNodeInsideStop(layout, firstRoute, barSegment, clearedBar);
+        }
         return (engine, aircraft, new ApproachRig(layout, firstRoute, barSegment, clearedBar, HoldLine.Through(firstRoute, barSegment)));
     }
 
@@ -1418,8 +1478,9 @@ public class HoldInsideStoppingDistanceOfBarTests
         }
 
         string sampledPhase = aircraft.Phases?.CurrentPhase?.Name ?? "(none)";
-        CommandResult reRoute = engine.SendCommand(Callsign, ReRoute);
-        Assert.True(reRoute.Success, $"{ReRoute} was rejected: {reRoute.Message}");
+        string reRouteCommand = c.Staging.ReRoute;
+        CommandResult reRoute = engine.SendCommand(Callsign, reRouteCommand);
+        Assert.True(reRoute.Success, $"{reRouteCommand} was rejected: {reRoute.Message}");
         if (onCrossing)
         {
             Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
@@ -1433,7 +1494,10 @@ public class HoldInsideStoppingDistanceOfBarTests
         if (startsAtBar)
         {
             HoldShortPoint startBar = Assert.IsType<HoldShortPoint>(route.GetHoldShortAt(rig.ClearedBar.NodeId));
-            Assert.True(startBar.IsCleared == implicitCross, $"{ReRoute} ('{reRoute.Message}') left the start bar cleared {startBar.IsCleared}");
+            Assert.True(
+                startBar.IsCleared == implicitCross,
+                $"{reRouteCommand} ('{reRoute.Message}') left the start bar cleared {startBar.IsCleared}"
+            );
             line = rig.Line;
             where = $"route starts on bar node {rig.ClearedBar.NodeId}";
         }
@@ -1443,7 +1507,7 @@ public class HoldInsideStoppingDistanceOfBarTests
             Assert.Equal(rig.ClearedBar.NodeId, bar.NodeId);
             Assert.True(
                 bar.IsCleared == implicitCross,
-                $"{ReRoute} ('{reRoute.Message}') left the runway {CrossedRunway} bar cleared {bar.IsCleared}"
+                $"{reRouteCommand} ('{reRoute.Message}') left the runway {CrossedRunway} bar cleared {bar.IsCleared}"
             );
             line = HoldLine.Through(route, newBarSegment);
             where = $"stop set back {route.HoldShortSetbackNm(newBarSegment, bar) * GeoMath.FeetPerNm:F1} ft from bar node {bar.NodeId}";
@@ -1452,7 +1516,7 @@ public class HoldInsideStoppingDistanceOfBarTests
         HoldGiven? hold = GiveOrder(engine, aircraft, rig.Layout, c.Order);
         double nosePastFt = rig.Line.NosePastFt(aircraft);
         _output.WriteLine(
-            $"{ReRoute} + {c.Order} at {aircraft.GroundSpeed:F1} kt, {approach.ToStopFt:F1} ft from the painted stop (taxi-rate stop "
+            $"{reRouteCommand} + {c.Order} at {aircraft.GroundSpeed:F1} kt, {approach.ToStopFt:F1} ft from the painted stop (taxi-rate stop "
                 + $"{approach.TaxiStopFt:F1} ft, firm-rate stop {approach.FirmStopFt:F1} ft, nose {nosePastFt:F1} ft past the line), {where}, "
                 + $"phase {sampledPhase} -> {aircraft.Phases?.CurrentPhase?.Name}"
         );
@@ -1466,9 +1530,22 @@ public class HoldInsideStoppingDistanceOfBarTests
         double taxiStopFt = StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.TaxiDecelRate(category));
         double firmStopFt = StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.ExpediteExitDecelRate(category));
         bool startsAtBar =
-            rig.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id == rig.ClearedBar.NodeId;
+            (rig.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id == rig.ClearedBar.NodeId)
+            && KeepsNoApproachLeg(aircraft, rig);
         double centrePastNodeFt = rig.Line.NosePastFt(aircraft) - (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0);
         return new Approach(toStopFt, taxiStopFt, firmStopFt, startsAtBar, centrePastNodeFt);
+    }
+
+    /// <summary>
+    /// Whether a route from the bar's node, onward as the first route leaves it, keeps the bar as its first node: the approach
+    /// leg (<see cref="TaxiApproachLeg"/>) is refused, as it is once the aircraft is waiting at the bar or has its nose over the
+    /// marking. Farther back on the edge leading to the bar, the re-route drives to the bar and the bar is a hold ahead.
+    /// </summary>
+    private static bool KeepsNoApproachLeg(AircraftState aircraft, ApproachRig rig)
+    {
+        var fromBar = new TaxiRoute { Segments = [rig.FirstRoute.Segments[rig.BarSegment + 1]], HoldShortPoints = [] };
+        double lengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
+        return ReferenceEquals(fromBar, TaxiApproachLeg.Prepend(rig.Layout, aircraft.Position, aircraft.TrueHeading, fromBar, lengthFt));
     }
 
     /// <summary>Gives the case's order; for a HOLD, the HOLD as given (null for every other order).</summary>

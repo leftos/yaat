@@ -120,8 +120,8 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The 28L/10R hold-short bar on B, the collinear <c>Node</c> west of it and <c>Next</c> (toward spot 9): three B nodes
-    /// whose two straight edges lie on one line.
+    /// The 28L/10R hold-short bar on B, the collinear <c>Node</c> west of it and <c>Next</c> (toward spot 9): the painted-map
+    /// snap seats the bar on the end node of the two long straight B edges itself.
     /// </summary>
     private static (GroundNode Bar, GroundNode Node, GroundNode Next) CollinearBNodesEastOfSpot9(AirportGroundLayout layout)
     {
@@ -136,12 +136,13 @@ public class TaxiCollinearNodeArrivalTests(ITestOutputHelper output)
             select (start, node, next),
         ];
         Assert.True(candidates.Count == 1, $"spot 9 leads to {candidates.Count} pairs of long collinear B edges, expected one");
-        List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "10R", "B");
+        (GroundNode edgeEnd, GroundNode collinear, GroundNode toward) = candidates[0];
+        GroundNode bar = GroundNodeLookup.HoldShortBar(layout, "10R", "B", edgeEnd);
         Assert.True(
-            bars.Any(b => b.Id == candidates[0].Start.Id),
-            $"the start node {candidates[0].Start.Id} is not the 28L/10R hold-short on B ({string.Join(", ", bars.Select(b => b.Id))})"
+            bar.Id == edgeEnd.Id,
+            $"the 28L/10R bar on B is node {bar.Id}, not the long collinear edges' end node {edgeEnd.Id} where the painted-map snap seats it"
         );
-        return candidates[0];
+        return (bar, collinear, toward);
     }
 
     private static bool IsLongCollinearPair(GroundNode start, GroundNode node, GroundNode next)

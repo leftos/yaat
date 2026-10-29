@@ -921,6 +921,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         WarnIfStationaryPastRunwayLine(ctx, bar, alongFt);
+        _nav.SayPendingTurnAboutUnable(ctx);
         TakeSetBackHold(ctx, route, bar, barSegmentIndex);
         return true;
     }
@@ -1370,12 +1371,13 @@ public sealed class TaxiingPhase : Phase
             || !exit.Bar.IsCleared
             || (exit.Bar.TargetName is not { Length: > 0 } runwayId)
             || (FarBarAfter(route, exit.SegmentIndex, exit.Bar, layout) is not null)
-            || !layout.Nodes.TryGetValue(route.Segments[0].FromNodeId, out GroundNode? start)
             || !layout.Nodes.TryGetValue(exit.Bar.NodeId, out GroundNode? exitBar)
         )
         {
             return null;
         }
+
+        GroundNode start = route.Segments[0].Edge.FromNode;
 
         var barRunway = RunwayIdentifier.Parse(runwayId);
         if (RunwayOccupancy.AirportRunways(layout.AirportId).FirstOrDefault(r => r.Id.Overlaps(barRunway)) is not { } runway)
@@ -1720,11 +1722,13 @@ public sealed class TaxiingPhase : Phase
     /// The uncleared runway hold-short (<see cref="HoldingShortPhase.ProtectsRunway"/>) on the route's start node once the
     /// aircraft has been found heading along the first segment (within <see cref="StartBarAlignedDeg"/> of its departure) with
     /// its nose at or past the bar's marking — the line through the node square to that departure — no farther from the node
-    /// than <see cref="StartNodeHoldRadiusFt"/> plus its firm-rate stopping distance; null otherwise. A TAXI starts the route
-    /// on a bar's node only once the aircraft is that close to it, so the nose is often over already. The finding is latched
-    /// on the bar's node (<see cref="_passedStartBarNodeId"/>), so the firm-rate stop it starts is never let go part-way as
-    /// the aircraft slows and the stop carries it away from the node; the latch drops when the bar is cleared, and the hold
-    /// clears it when taken.
+    /// than <see cref="StartNodeHoldRadiusFt"/> plus its firm-rate stopping distance; null otherwise. An aircraft on the
+    /// straight taxi edge leading to a bar and behind its painted stop along the route's first leg is driven to the bar's
+    /// node by <see cref="TaxiApproachLeg"/>, and the bar is an ordinary hold ahead. A route keeps the bar as its start node
+    /// when the aircraft is not behind that painted stop: within it, past the bar on its runway side, or off that edge, so
+    /// the nose is often over already. The finding is latched on the bar's node
+    /// (<see cref="_passedStartBarNodeId"/>), so the firm-rate stop it starts is never let go part-way as the aircraft slows
+    /// and the stop carries it away from the node; the latch drops when the bar is cleared, and the hold clears it when taken.
     /// </summary>
     private HoldShortPoint? PassedStartBar(PhaseContext ctx, TaxiRoute route)
     {

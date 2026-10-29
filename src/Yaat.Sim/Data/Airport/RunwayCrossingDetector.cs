@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport.Fillet;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 
@@ -31,6 +32,12 @@ internal static class RunwayCrossingDetector
     /// marking (lines 6 or 12 in apart, AIM 2-3-5.a.1), so the nose stays on the marking.
     /// </summary>
     private const double PaintRunwaySideToleranceFt = 1.0;
+
+    /// <summary>
+    /// How close (ft) a plain taxiway shape point must lie to a painted bar's snap point (<see cref="ReuseDistanceFt"/>) to
+    /// become that bar instead of having a bar minted beside it (<see cref="TrySeatOnNearbyNode"/>).
+    /// </summary>
+    internal const double PaintNodeMergeFt = 6.0;
 
     /// <summary>Maximum hops the junction walker takes while searching for a segment that crosses the ideal hold-short distance.</summary>
     internal const int HoldShortWalkMaxHops = 8;
@@ -676,6 +683,101 @@ internal static class RunwayCrossingDetector
         (ReuseDistanceFt(target, node, nodeCrossFt) <= HoldShortSnapFt)
         && ((target.SnapPoint is null) || (nodeCrossFt >= (target.IdealNm * GeoMath.FeetPerNm) - PaintRunwaySideToleranceFt));
 
+    /// <summary>
+    /// Seats a bar on paint on <paramref name="node"/> when it is a plain shape point (<see cref="CanTakePaintBar"/>) within
+    /// <see cref="PaintNodeMergeFt"/> of the snap point, so no bar is minted beside it. A node at cross-track
+    /// <paramref name="nodeCrossFt"/> on the taxiway side of the paint, or on it, becomes the bar where it stands; one on the
+    /// runway side is moved onto the snap point first, so the nose never ends past the line, unless the move would crowd a
+    /// neighbour (<see cref="SnapCrowdsNeighbour"/>). A node the reuse tolerance alone would have refused
+    /// (<see cref="IsReusableAt"/>) still consumes one id, as a mint at this bar would have. Returns false, touching nothing,
+    /// for a bar seated by the rule, a node that does not qualify, or a runway-side node whose move would crowd a neighbour.
+    /// </summary>
+    private static bool TrySeatOnNearbyNode(CrossingContext context, BarTarget target, GroundNode node, double nodeCrossFt, ref int nextNodeId)
+    {
+        if (
+            (target.SnapPoint is not { } snap)
+            || (ReuseDistanceFt(target, node, nodeCrossFt) > PaintNodeMergeFt)
+            || !CanTakePaintBar(node, context.Layout)
+        )
+        {
+            return false;
+        }
+
+        RunwayRectangle rect = target.Rect;
+        bool runwaySide = nodeCrossFt < (target.IdealNm * GeoMath.FeetPerNm);
+        if (runwaySide && SnapCrowdsNeighbour(node, snap, context.Layout))
+        {
+            Log.LogDebug(
+                "Runway crossing: node {NodeId} not moved onto the {Runway} paint: the snap point is within {ThresholdFt} ft of a neighbour",
+                node.Id,
+                rect.CombinedId,
+                FilletConstants.CoincidentNodeThresholdFt
+            );
+            return false;
+        }
+
+        if (!IsReusableAt(target, node, nodeCrossFt))
+        {
+            nextNodeId++;
+        }
+
+        if (runwaySide)
+        {
+            MoveNode(context, node, snap);
+        }
+
+        node.Type = GroundNodeType.RunwayHoldShort;
+        node.RunwayId = rect.CombinedId;
+        Log.LogDebug(
+            "Runway crossing: node {NodeId} becomes the {Runway} bar on its paint ({How})",
+            node.Id,
+            rect.CombinedId,
+            runwaySide ? "moved onto the snap point from the runway side" : "in place, on the taxiway side"
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// Whether moving <paramref name="node"/> onto <paramref name="snap"/> would crowd a neighbour: the node at the other end
+    /// of one of its edges that is not a runway centreline lies within <see cref="FilletConstants.CoincidentNodeThresholdFt"/>
+    /// of the snap point. The edge left between them would be one the pathfinder reads as a zero-length no-op
+    /// (<see cref="GeometricAdmissibility.IsNoOpEdge"/>), which blocks every route that starts on the bar.
+    /// </summary>
+    internal static bool SnapCrowdsNeighbour(GroundNode node, LatLon snap, AirportGroundLayout layout) =>
+        layout.Edges.Any(edge =>
+            !edge.IsRunwayCenterline
+            && edge.HasNode(node.Id)
+            && (
+                (GeoMath.DistanceNm(layout.Nodes[edge.OtherNodeId(node.Id)].Position, snap) * GeoMath.FeetPerNm)
+                <= FilletConstants.CoincidentNodeThresholdFt
+            )
+        );
+
+    /// <summary>
+    /// Whether <paramref name="node"/> is a plain shape point that may become a painted bar: a taxiway node (not a spot, not
+    /// already any runway's bar) on two edges of one taxiway, not already seated on paint.
+    /// </summary>
+    private static bool CanTakePaintBar(GroundNode node, AirportGroundLayout layout) =>
+        (node.Type == GroundNodeType.TaxiwayIntersection)
+        && (node.PaintSegmentIndex is null)
+        && (layout.Edges.Count(edge => !edge.IsRunwayCenterline && edge.HasNode(node.Id)) == 2)
+        && !HasMultipleTaxiwayConnections(node.Id, layout);
+
+    /// <summary>
+    /// Moves <paramref name="node"/> to <paramref name="position"/> with the layout around it: the length of every edge at the
+    /// node and its coordinate index entry. Node adjacency lists and fillet arcs do not exist yet at bar seating.
+    /// </summary>
+    private static void MoveNode(CrossingContext context, GroundNode node, LatLon position)
+    {
+        LatLon from = node.Position;
+        node.Relocate(position);
+        context.CoordIndex.Move(from, position, node.Id);
+        foreach (GroundEdge edge in context.Layout.Edges.Where(edge => edge.HasNode(node.Id)))
+        {
+            edge.DistanceNm = GeoMath.DistanceNm(edge.Nodes[0].Position, edge.Nodes[1].Position);
+        }
+    }
+
     private static BarPlacement ProcessBoundaryEdge(CrossingContext context, Crossing crossing, BarTarget target, ref int nextNodeId)
     {
         (AirportGroundLayout layout, CoordinateIndex coordIndex) = context;
@@ -683,6 +785,11 @@ internal static class RunwayCrossingDetector
         (GroundEdge edge, GroundNode onNode, GroundNode offNode) = crossing;
         double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
         double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading));
+
+        if (TrySeatOnNearbyNode(context, target, offNode, crossOff * GeoMath.FeetPerNm, ref nextNodeId))
+        {
+            return new BarPlacement(offNode, Fallback: null);
+        }
 
         bool offReusable = IsReusableAt(target, offNode, crossOff * GeoMath.FeetPerNm);
 
@@ -1299,7 +1406,8 @@ internal static class RunwayCrossingDetector
 
     /// <summary>
     /// Interpolates a hold-short node on <paramref name="segment"/>'s edge between its near node (toward the runway) and
-    /// its far node at <paramref name="target"/>'s ideal cross-track distance. If the ideal lies within
+    /// its far node at <paramref name="target"/>'s ideal cross-track distance. A paint-paired bar takes an endpoint that is a
+    /// shape point beside its paint (<see cref="TrySeatOnNearbyNode"/>). If the ideal lies within
     /// <see cref="HoldShortSnapFt"/> of either endpoint, upgrades that endpoint in place; a paint-paired bar refuses an
     /// endpoint on the runway side of the paint and mints on the paint (<see cref="MintFraction"/>). Returns the bar's
     /// node, or null when the segment has no extent across the runway to interpolate on.
@@ -1320,13 +1428,18 @@ internal static class RunwayCrossingDetector
         bool nearReusable = IsReusableAt(target, nearNode, crossNearFt);
         bool farReusable = IsReusableAt(target, farNode, crossFarFt);
 
-        // Prefer upgrading an endpoint the target can reuse.
-        if (nearReusable && TryUpgradeToHoldShort(nearNode, rect, layout))
+        // Prefer seating the bar on an endpoint: a shape point beside the paint, else one the target can reuse.
+        if (
+            TrySeatOnNearbyNode(context, target, nearNode, crossNearFt, ref nextNodeId)
+            || (nearReusable && TryUpgradeToHoldShort(nearNode, rect, layout))
+        )
         {
             return nearNode;
         }
 
-        if (farReusable && TryUpgradeToHoldShort(farNode, rect, layout))
+        if (
+            TrySeatOnNearbyNode(context, target, farNode, crossFarFt, ref nextNodeId) || (farReusable && TryUpgradeToHoldShort(farNode, rect, layout))
+        )
         {
             return farNode;
         }

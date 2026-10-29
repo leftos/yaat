@@ -199,7 +199,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void FoulerInsideTheEdgeBand_GoesAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -216,7 +216,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void FoulerOutsideTheEdgeBand_NoGoAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -260,7 +260,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void RestrictedExitingFouler_IsNeverProjectedClear()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -311,7 +311,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void MovingCrossing_ClearBeforeThreshold_NoGoAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -356,7 +356,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void CrossingTooSlowToClearBeforeThreshold_GoesAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -374,7 +374,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void MovingCrossing_CommandedToStop_GoesAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -429,7 +429,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void HeldCrossing_GoesAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -444,7 +444,7 @@ public class OccupiedRunwayGoAroundTests
     [Fact]
     public void ExitingArrivalMovingUnrestricted_TailInside_NoGoAround()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -464,7 +464,7 @@ public class OccupiedRunwayGoAroundTests
         // Real layouts author hold lines well outside their runway safety area: OAK 28L (150 ft wide, band 150) authors 250 ft and
         // OAK 33 (75 ft wide, band 75) authors 175 ft, so the cap (hold line minus 25 ft) never binds. A hold line closer than the
         // band exists in no bundled layout, so the cap branch itself is untested by real data.
-        if ((RunwayBarFixture.RunwayBar("OAK", "28L") is not { } large) || (RunwayBarFixture.RunwayBar("OAK", "33") is not { } medium))
+        if ((RunwayBarFixture.RunwayBar("OAK", "28L") is not { } large) || (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } medium))
         {
             return;
         }

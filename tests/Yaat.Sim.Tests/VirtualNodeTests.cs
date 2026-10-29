@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests;
 
@@ -12,9 +13,6 @@ namespace Yaat.Sim.Tests;
 public class VirtualNodeTests(ITestOutputHelper output)
 {
     private const string AirportId = "OAK";
-
-    /// <summary>The route start node of the OAK gate-15 push-then-taxi fixture.</summary>
-    private const int StartNodeId = 763;
 
     private const double PushedLat = 37.710217680439534;
     private const double PushedLon = -122.21728593336832;
@@ -73,7 +71,10 @@ public class VirtualNodeTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.True(layout.Nodes.TryGetValue(StartNodeId, out GroundNode? startNode), $"node {StartNodeId} missing from the {AirportId} layout");
+        // The route start node of the OAK gate-15 push-then-taxi fixture: the ramp end of a T - RAMP fillet nearest the pushed pose.
+        GroundNode startNode = TaxiApproachLegTests.StartNode(layout);
+        double startFt = GeoMath.DistanceNm(startNode.Position, new LatLon(PushedLat, PushedLon)) * GeoMath.FeetPerNm;
+        output.WriteLine($"start node #{startNode.Id}, {startFt:F1} ft from the pushed pose");
 
         var route = new TaxiRoute
         {

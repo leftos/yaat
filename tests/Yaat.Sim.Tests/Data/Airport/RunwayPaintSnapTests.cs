@@ -22,16 +22,21 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
 
     private const double FeetPerDegree = GeoMath.FeetPerNm * 60.0;
 
+    /// <summary>The nearest shape point (ft) any of OAK's moved bars keeps beside it on its taxiway (F at 15/33).</summary>
+    private const double NearestShapePointFt = 15.9;
+
     [Fact]
     public void Oak_EveryPairedBar_SitsOnItsPaint()
     {
         TowerCabVideoMap map = OakMap();
         AirportGroundLayout layout = ParseOak(map, FilletMode.Standard);
         AirportGroundLayout ruleLayout = ParseOak(map: null, FilletMode.Standard);
+        AirportGroundLayout snapGraph = ParseOak(map, FilletMode.None);
 
-        // A bar minted for the snap sits on the paint line. One that reuses an existing node does so only within the
-        // placement's reuse tolerance of the snap point, and never more than the runway-side tolerance on the runway side
-        // of the paint: a paired bar refuses an endpoint on the runway side of the paint and mints on the paint.
+        // A bar minted for the snap sits on the paint line, and every paint-seated bar lies within the merge distance of its
+        // snap point: an existing shape point that close becomes the bar, moved onto the paint when it sat on the runway side,
+        // so no reused bar ends more than the runway-side tolerance on the runway side of the paint and no bar is left with a
+        // shape point of its own taxiway beside it on the graph the snap built.
         GroundNode[] snapped = SnappedNodes(layout);
         var report = new StringBuilder();
         var runwaySide = new List<string>();
@@ -41,11 +46,11 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         {
             VideoMapSegment segment = map.Segments[SegmentOf(node)];
             RunwayRectangle rect = RectOf(layout, node);
-            bool isMinted = node.Origin?.StartsWith("RunwayCrossing:hold-short@", StringComparison.Ordinal) == true;
+            bool isMinted = IsMinted(node);
             minted += isMinted ? 1 : 0;
             (double offLineFt, double beyondEndFt) = OffPaint(node.Position, segment);
             (double toSnapFt, LatLon? snapPoint) = NearestSnap(layout, node, segment);
-            bool onPaint = isMinted ? (offLineFt <= 1.0) : (toSnapFt <= FilletConstants.CoincidentNodeThresholdFt + 0.1);
+            bool onPaint = (toSnapFt <= RunwayCrossingDetector.PaintNodeMergeFt) && (!isMinted || (offLineFt <= 1.0));
             allOnPaint &= onPaint && (beyondEndFt <= RunwayPaintPairing.BarExtensionFt);
 
             // How far the node sits on the runway side of its snap point (negative: on the far side).
@@ -76,6 +81,14 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         Assert.True(
             runwaySide.Count == 0,
             $"reused bars more than 1 ft on the runway side of their paint: {string.Join("; ", runwaySide)}\n{report}"
+        );
+        List<string> crowded =
+        [
+            .. SnappedNodes(snapGraph).SelectMany(bar => ShapePointsBeside(snapGraph, bar, RunwayCrossingDetector.PaintNodeMergeFt)),
+        ];
+        Assert.True(
+            crowded.Count == 0,
+            $"paint-seated bars with a shape point within {RunwayCrossingDetector.PaintNodeMergeFt} ft: {string.Join("; ", crowded)}"
         );
         Assert.True(snapped.Length == 31, $"{snapped.Length} OAK bars snapped, expected 31:\n{report}");
     }
@@ -130,29 +143,111 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         Assert.True(shortEdges.Count == 0, $"{shortEdges.Count} OAK edges are shorter than the no-op threshold: {string.Join("; ", shortEdges)}");
     }
 
+    /// <summary>
+    /// OAK's 15/33 bar on C pairs with paint about 1.7 ft from C node #355, which sits on the runway side of it: the node moves
+    /// onto the paint and becomes the bar, so no bar is minted beside it.
+    /// </summary>
     [Fact]
-    public void Oak_15_33_C_BarNearAnEndpoint_MintsOnThePaint()
+    public void Oak_15_33_C_BarNearAShapePoint_TakesThatNode() => AssertTheShapePointBecomesTheBar("15", "C", 355);
+
+    /// <summary>
+    /// OAK's 28R/10L bar on B pairs with paint about 1.2 ft from B node #188, which sits on the runway side of it: the node moves
+    /// onto the paint and becomes the bar, so no bar is minted beside it.
+    /// </summary>
+    [Fact]
+    public void Oak_28R_B_BarNearAShapePoint_TakesThatNode() => AssertTheShapePointBecomesTheBar("28R", "B", 188);
+
+    /// <summary>
+    /// On the graph the snap built, the <paramref name="runway"/> bar on <paramref name="taxiway"/> nearest shape point
+    /// <paramref name="shapePointId"/>'s unsnapped position lies on its snap point, no bar is minted within
+    /// <see cref="RunwayCrossingDetector.PaintNodeMergeFt"/> of that position, and no shape point of the bar's taxiway lies within
+    /// <see cref="NearestShapePointFt"/> of the bar.
+    /// </summary>
+    private static void AssertTheShapePointBecomesTheBar(string runway, string taxiway, int shapePointId)
     {
-        // OAK's 15/33 bar on C pairs with paint about 1.7 ft from C node #355, which sits on the runway side of it and is
-        // refused for reuse; the interpolation fraction falls inside the 0.01 clamp of that endpoint.
         TowerCabVideoMap map = OakMap();
-        AirportGroundLayout layout = ParseOak(map, FilletMode.Standard);
-        LatLon endpoint = layout.Nodes[355].Position;
+        AirportGroundLayout layout = ParseOak(map, FilletMode.None);
+        LatLon unsnapped = ParseOak(map: null, FilletMode.None).Nodes[shapePointId].Position;
         GroundNode bar =
             SnappedNodes(layout)
-                .Where(node => (node.RunwayId?.ToString().Contains("15", StringComparison.Ordinal) == true) && (TaxiwayOf(layout, node) == "C"))
-                .MinBy(node => GeoMath.DistanceNm(node.Position, endpoint))
-            ?? throw new Xunit.Sdk.XunitException("OAK has no snapped 15/33 bar on C");
-        VideoMapSegment segment = map.Segments[SegmentOf(bar)];
-        RunwayRectangle rect = RectOf(layout, bar);
-        (double offLineFt, _) = OffPaint(bar.Position, segment);
-        (_, LatLon? snapPoint) = NearestSnap(layout, bar, segment);
-        double shortfallFt = (snapPoint is { } snap) ? CrossFt(rect, snap) - CrossFt(rect, bar.Position) : double.NaN;
+                .Where(node => (node.RunwayId?.ToString().Contains(runway, StringComparison.Ordinal) == true) && (TaxiwayOf(layout, node) == taxiway))
+                .MinBy(node => GeoMath.DistanceNm(node.Position, unsnapped))
+            ?? throw new Xunit.Sdk.XunitException($"OAK has no snapped {runway} bar on {taxiway}");
+        (double toSnapFt, _) = NearestSnap(layout, bar, map.Segments[SegmentOf(bar)]);
+        List<string> mintedBeside =
+        [
+            .. layout
+                .Nodes.Values.Where(node =>
+                    IsMinted(node) && (GeoMath.DistanceNm(node.Position, unsnapped) * GeoMath.FeetPerNm <= RunwayCrossingDetector.PaintNodeMergeFt)
+                )
+                .Select(node => $"#{node.Id} ({node.Origin})"),
+        ];
+        List<string> beside = ShapePointsBeside(layout, bar, NearestShapePointFt);
 
-        string where = $"#{bar.Id} ({bar.Origin}): {offLineFt:F2} ft off the line, {shortfallFt:F2} ft on the runway side of the snap point";
-        Assert.True(bar.Origin?.StartsWith("RunwayCrossing:hold-short@", StringComparison.Ordinal) == true, $"the bar is not minted: {where}");
-        Assert.True(offLineFt <= 1.0, where);
-        Assert.True(shortfallFt <= 1.0, where);
+        string where =
+            $"#{bar.Id} ({bar.Origin}): {GeoMath.DistanceNm(bar.Position, unsnapped) * GeoMath.FeetPerNm:F2} ft from #{shapePointId}'s "
+            + $"unsnapped position, {toSnapFt:F2} ft from the snap point";
+        Assert.True(
+            mintedBeside.Count == 0,
+            $"bars minted within {RunwayCrossingDetector.PaintNodeMergeFt} ft of #{shapePointId}: {string.Join("; ", mintedBeside)}; {where}"
+        );
+        Assert.True(toSnapFt <= 0.1, where);
+        Assert.True(beside.Count == 0, $"shape points within {NearestShapePointFt} ft of the bar: {string.Join("; ", beside)}; {where}");
+    }
+
+    /// <summary>
+    /// The shape points of <paramref name="bar"/>'s own taxiway next to it on <paramref name="layout"/>, nodes with two edges of
+    /// one taxiway, that lie within <paramref name="withinFt"/> of it, described.
+    /// </summary>
+    private static List<string> ShapePointsBeside(AirportGroundLayout layout, GroundNode bar, double withinFt) =>
+        [
+            .. layout
+                .Edges.Where(edge => !edge.IsRunwayCenterline && edge.HasNode(bar.Id))
+                .Select(edge => layout.Nodes[edge.OtherNodeId(bar.Id)])
+                .Where(neighbour =>
+                {
+                    List<GroundEdge> edges = [.. layout.Edges.Where(edge => !edge.IsRunwayCenterline && edge.HasNode(neighbour.Id))];
+                    return (edges.Count == 2) && edges.All(edge => edge.MatchesTaxiway(edges[0].TaxiwayName));
+                })
+                .Where(neighbour => GeoMath.DistanceNm(neighbour.Position, bar.Position) * GeoMath.FeetPerNm < withinFt)
+                .Select(neighbour =>
+                    $"#{bar.Id} {bar.RunwayId} {TaxiwayOf(layout, bar)}: #{neighbour.Id} at "
+                    + $"{GeoMath.DistanceNm(neighbour.Position, bar.Position) * GeoMath.FeetPerNm:F2} ft"
+                ),
+        ];
+
+    /// <summary>
+    /// A snap point crowds a node's neighbour (<see cref="RunwayCrossingDetector.SnapCrowdsNeighbour"/>) when it lies within
+    /// <see cref="FilletConstants.CoincidentNodeThresholdFt"/> of the node at the other end of one of its taxi edges. Staged
+    /// on OAK's first paint-seated bar and one of its edge neighbours, from the map-built parse.
+    /// </summary>
+    [Fact]
+    public void SnapCrowdsNeighbour_SnapWithinFiveFeetOfAnEdgeNeighbour_IsTrue_AndFarIsFalse()
+    {
+        AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.None);
+        GroundNode bar = SnappedNodes(layout)[0];
+        List<GroundNode> neighbours =
+        [
+            .. layout.Edges.Where(edge => !edge.IsRunwayCenterline && edge.HasNode(bar.Id)).Select(edge => layout.Nodes[edge.OtherNodeId(bar.Id)]),
+        ];
+        GroundNode neighbour = neighbours[0];
+        double nearestNeighbourFt = neighbours.Min(other => GeoMath.DistanceNm(other.Position, bar.Position) * GeoMath.FeetPerNm);
+        Assert.True(
+            nearestNeighbourFt > FilletConstants.CoincidentNodeThresholdFt,
+            $"bar #{bar.Id}'s nearest edge neighbour is {nearestNeighbourFt:F2} ft away, within {FilletConstants.CoincidentNodeThresholdFt} ft"
+        );
+
+        var towardTheBar = new TrueHeading(GeoMath.BearingTo(neighbour.Position, bar.Position));
+        LatLon threeFeetFromTheNeighbour = GeoMath.ProjectPoint(neighbour.Position, towardTheBar, 3.0 / GeoMath.FeetPerNm);
+
+        Assert.True(
+            RunwayCrossingDetector.SnapCrowdsNeighbour(bar, threeFeetFromTheNeighbour, layout),
+            $"a snap point 3 ft from #{neighbour.Id} toward bar #{bar.Id} does not crowd it"
+        );
+        Assert.False(
+            RunwayCrossingDetector.SnapCrowdsNeighbour(bar, bar.Position, layout),
+            $"bar #{bar.Id}'s own position crowds a neighbour {nearestNeighbourFt:F2} ft away"
+        );
     }
 
     [Fact]
@@ -175,9 +270,10 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
 
     /// <summary>
     /// The end clearance (<see cref="RunwayCrossingDetector.ClearOfEdgeEnds"/>) moves a minted bar just past
-    /// <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/> from the edge end it sits too close to, leaves a bar clear of
-    /// both ends where it is, and leaves an edge too short to clear both ends unchanged. The positions are real, from the
-    /// map-built OAK parse: #188 and #189, the edge the 28R bar #506 is minted on, and the ~1.2 ft #188-#506 edge itself.
+    /// <see cref="GeometricAdmissibility.NoOpEdgeThresholdNm"/> from the edge end it sits too close to, and leaves a bar clear
+    /// of both ends where it is. The positions are real, from the map-built OAK parse: #188 and #189,
+    /// the ends of a B edge beside 28R/10L. An edge too short to hold a point clear of both ends, a point on that B edge and a
+    /// second point 1 ft further along it, keeps the fraction it was given.
     /// </summary>
     [Theory]
     [InlineData(EndClearance.NearEndMoved)]
@@ -187,9 +283,14 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     public void ClearOfEdgeEnds_MovesAMintedBarOffTheEdgeEndItSitsTooCloseTo(EndClearance scenario)
     {
         AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.Standard);
-        GroundNode bar = layout.Nodes[506];
-        GroundNode from = layout.Nodes[188];
-        GroundNode to = (scenario == EndClearance.EdgeTooShort) ? bar : layout.Nodes[189];
+        (LatLon from, LatLon to) = (layout.Nodes[188].Position, layout.Nodes[189].Position);
+        if (scenario == EndClearance.EdgeTooShort)
+        {
+            double edgeFt = GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
+            (from, to) = (Along(from, to, 0.5), Along(from, to, 0.5 + (ShortEdgeFt / edgeFt)));
+        }
+
+        RunwayIdentifier runway28R = layout.Runways.Single(runway => runway.Name.Contains("28R", StringComparison.Ordinal)).Id;
         double fraction = scenario switch
         {
             EndClearance.NearEndMoved => 0.05,
@@ -198,33 +299,27 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         };
         double thresholdFt = GeometricAdmissibility.NoOpEdgeThresholdNm * GeoMath.FeetPerNm;
 
-        (double cleared, double farEndMoveFt) = RunwayCrossingDetector.ClearOfEdgeEnds(
-            from.Position,
-            to.Position,
-            fraction,
-            "B",
-            bar.RunwayId!.Value
-        );
+        (double cleared, double farEndMoveFt) = RunwayCrossingDetector.ClearOfEdgeEnds(from, to, fraction, "B", runway28R);
         double clearedEndFt;
         switch (scenario)
         {
             case EndClearance.NearEndMoved:
-                clearedEndFt = GeoMath.DistanceNm(from.Position, Along(from.Position, to.Position, cleared)) * GeoMath.FeetPerNm;
+                clearedEndFt = GeoMath.DistanceNm(from, Along(from, to, cleared)) * GeoMath.FeetPerNm;
                 Assert.True(cleared > fraction, $"the bar moved to fraction {cleared:F4}, not past {fraction:F4} off the near end");
                 Assert.Equal(0.0, farEndMoveFt);
                 break;
             case EndClearance.FarEndMoved:
-                clearedEndFt = GeoMath.DistanceNm(Along(from.Position, to.Position, cleared), to.Position) * GeoMath.FeetPerNm;
+                clearedEndFt = GeoMath.DistanceNm(Along(from, to, cleared), to) * GeoMath.FeetPerNm;
                 Assert.True(cleared < fraction, $"the bar moved to fraction {cleared:F4}, not below {fraction:F4} off the far end");
                 Assert.True(farEndMoveFt > 0.0, "the far-end move reported no distance");
                 break;
             case EndClearance.EdgeTooShort:
                 Assert.Equal(fraction, cleared);
                 Assert.Equal(0.0, farEndMoveFt);
-                double lengthFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
+                double lengthFt = GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
                 Assert.True(
                     lengthFt < (2.0 * thresholdFt),
-                    $"the #188-#506 edge is {lengthFt:F2} ft, not too short to hold a point {thresholdFt:F2} ft off both ends"
+                    $"the staged edge is {lengthFt:F2} ft, not too short to hold a point {thresholdFt:F2} ft off both ends"
                 );
                 return;
             default:
@@ -248,6 +343,9 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
         ClearOfBothEnds,
         EdgeTooShort,
     }
+
+    /// <summary>The length (ft) of the edge <see cref="EndClearance.EdgeTooShort"/> stages, under twice the no-op threshold.</summary>
+    private const double ShortEdgeFt = 1.0;
 
     /// <summary>The point <paramref name="fraction"/> of the way from <paramref name="from"/> to <paramref name="to"/>.</summary>
     private static LatLon Along(LatLon from, LatLon to, double fraction) =>
@@ -793,6 +891,8 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     private static string TaxiwayOf(AirportGroundLayout layout, GroundNode node) =>
         layout.Edges.FirstOrDefault(edge => !edge.IsRunwayCenterline && edge.HasNode(node.Id))?.TaxiwayName ?? "?";
 
+    private static bool IsMinted(GroundNode node) => node.Origin?.StartsWith("RunwayCrossing:hold-short@", StringComparison.Ordinal) == true;
+
     private static int SegmentOf(GroundNode node) =>
         node.PaintSegmentIndex ?? throw new Xunit.Sdk.XunitException($"node #{node.Id} was not seated on paint");
 
@@ -812,9 +912,9 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
                 .Order(),
         ];
 
-    private static TowerCabVideoMap OakMap() => TowerCabVideoMap.Read(File.ReadAllText(OakMapPath));
+    internal static TowerCabVideoMap OakMap() => TowerCabVideoMap.Read(File.ReadAllText(OakMapPath));
 
-    private static AirportGroundLayout ParseOak(TowerCabVideoMap? map, FilletMode filletMode)
+    internal static AirportGroundLayout ParseOak(TowerCabVideoMap? map, FilletMode filletMode)
     {
         TestVnasData.EnsureInitialized();
         return GeoJsonParser.Parse("oak", File.ReadAllText(OakLayoutPath), "OAK", new LayoutInputs(TestStandLeadIns.For("oak"), map), filletMode);

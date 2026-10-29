@@ -38,7 +38,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Landing_OverAFoulerPastTheRunway33Bar_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -65,7 +65,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_RollingPastAFouler_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -84,7 +84,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_CrosserProjectedClearBeforeTheRollReachesIt_DoesNotScore()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -101,7 +101,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_HeldCrosserNeverProjectedClear_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -120,7 +120,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Landing_CrosserStillOnThePavementAtTheThreshold_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -169,7 +169,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_LineUpShortOfTheMarking_DoesNotScore()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -222,7 +222,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void TouchAndGo_OverAFouler_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -262,7 +262,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void RestrictedLowApproachAtFiveHundredFeet_OverAFouler_DoesNotScore()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -299,7 +299,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_PastAnEarlierArrivalNowStoppedPastABar_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -355,7 +355,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Finding_SurvivesASnapshotRoundTripOfThePreTriggerWorld()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -379,7 +379,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_LineUpMovingPastTheMarking_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -397,7 +397,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Departure_LineUpHeldPastTheMarking_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -417,7 +417,7 @@ public class SoloRunwayUserScoringTests
     [InlineData(0.5, false)]
     public void Departure_CrosserAgainstTheRollHorizon_ScoresOnlyWhenNotClearInTime(double rollMinusClearSeconds, bool scores)
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -439,7 +439,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void StopAndGo_OverAFouler_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -458,7 +458,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void StopAndGo_SecondRollPastAFouler_ScoresTheTakeoffOnly()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -481,7 +481,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void UnrestrictedLowApproachBelowFiveHundredFeet_OverAFouler_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -655,7 +655,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Landing_LahsoArrival_CrosserBeyondItsHoldShortPoint_DoesNotScore()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -671,7 +671,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Landing_LahsoArrival_CrosserShortOfItsHoldShortPoint_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -688,7 +688,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Landing_LahsoArrival_FoulerBeyondItsHoldShortPoint_DoesNotScore()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }
@@ -704,7 +704,7 @@ public class SoloRunwayUserScoringTests
     [Fact]
     public void Landing_LahsoArrival_EarlierLahsoHoldBeyondItsHoldShortPoint_Scores()
     {
-        if (RunwayBarFixture.RunwayBar("OAK", "33") is not { } oak)
+        if (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } oak)
         {
             return;
         }

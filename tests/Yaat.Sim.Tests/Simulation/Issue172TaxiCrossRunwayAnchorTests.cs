@@ -39,15 +39,21 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
         return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
-    // J approaches the 28R crossing from the #379 → #378 → #501 side (high-speed exit geometry).
+    // J approaches the 28R crossing from the #379 → #378 side (high-speed exit geometry).
     private const int JApproachNode = 379;
-    private const int Rwy28RHoldShortOnJ = 501; // entry-side 28R hold-short on J
-    private const int Rwy28RFarHoldShortOnJ = 374; // far-side 28R hold-short on J
+
+    /// <summary>The entry-side 28R hold-short bar on J: the one nearest the J approach node.</summary>
+    private static GroundNode EntryBarOnJ(AirportGroundLayout layout) =>
+        GroundNodeLookup.HoldShortBar(layout, "28R", "J", layout.Nodes[JApproachNode]);
+
+    /// <summary>The far-side 28R hold-short bar on J: the one nearest the C/J junction, across the runway.</summary>
+    private static GroundNode FarBarOnJ(AirportGroundLayout layout) =>
+        GroundNodeLookup.HoldShortBar(layout, "28R", "J", GroundNodeLookup.Junction(layout, "C", "J"));
 
     private static AircraftState SpawnOnJApproaching28R(AirportGroundLayout layout)
     {
         GroundNode start = layout.Nodes[JApproachNode];
-        GroundNode toward = layout.Nodes[Rwy28RHoldShortOnJ];
+        GroundNode toward = EntryBarOnJ(layout);
         var aircraft = new AircraftState
         {
             Callsign = "N172JX",
@@ -83,8 +89,9 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
 
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        GroundNode entryHs = layout.Nodes[Rwy28RHoldShortOnJ];
-        GroundNode farHs = layout.Nodes[Rwy28RFarHoldShortOnJ];
+        GroundNode entryHs = EntryBarOnJ(layout);
+        GroundNode farHs = FarBarOnJ(layout);
+        Assert.NotEqual(entryHs.Id, farHs.Id);
 
         AircraftState aircraft = SpawnOnJApproaching28R(layout);
         engine.World.AddAircraft(aircraft);

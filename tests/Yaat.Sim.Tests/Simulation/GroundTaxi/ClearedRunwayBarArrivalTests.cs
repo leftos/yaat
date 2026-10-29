@@ -15,9 +15,9 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// YAAT-1438: an aircraft taxiing onto a runway hold-short bar it is already cleared across arrives at the bar itself, not up
 /// to the loose node-arrival threshold (~91 ft) short of it, before it hands off to <see cref="CrossingRunwayPhase"/>.
 ///
-/// <para>OAK, taxiway G northbound: the aircraft starts at 28L's north bar (node 496), heading 22.1° true, and is cleared
-/// <c>TAXI G C CROSS 28R</c>. 28R's south bar on G (node 507) lies 500 ft ahead on a straight approach, with 150 ft of
-/// straight road after it: no stop, short edge, arc or corner tightens the arrival there but the hold-short.</para>
+/// <para>OAK, taxiway G northbound: the aircraft starts at 28L's north bar, heading 22.1° true, and is cleared
+/// <c>TAXI G C CROSS 28R</c>. 28R's south bar on G lies ahead on a straight approach, with straight road after it: no stop,
+/// short edge, arc or corner tightens the arrival there but the hold-short (<see cref="BarsOnG"/>).</para>
 /// </summary>
 [Collection("Acceptance")]
 public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
@@ -26,13 +26,10 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
     private const string AirportId = "OAK";
     private const string TaxiClearance = "TAXI G C CROSS 28R";
 
-    /// <summary>OAK 28L's north hold-short bar on taxiway G, where the aircraft starts.</summary>
-    private const int StartBarNodeId = 496;
-
-    /// <summary>OAK 28R's south hold-short bar on taxiway G, the cleared crossing's bar.</summary>
-    private const int CrossingBarNodeId = 507;
-
     private const double NorthboundOnGDeg = 22.1;
+
+    /// <summary>How far (deg) <see cref="NorthboundOnGDeg"/> may differ from the true bearing from the start bar to the crossing bar.</summary>
+    private const double NorthboundToleranceDeg = 3.0;
 
     /// <summary>How far short of the bar, along G, the hand-off may still happen.</summary>
     private const double ArrivalToleranceFt = 2.0;
@@ -51,7 +48,7 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
             return;
         }
 
-        AssertHandsOffAtTheBar(TickToHandOff(staged.Engine, staged.Layout, moving: false));
+        AssertHandsOffAtTheBar(TickToHandOff(staged.Engine, staged.Bars, moving: false), staged.Bars);
     }
 
     [Theory]
@@ -67,18 +64,18 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
         AircraftState aircraft = Assert.IsType<AircraftState>(staged.Engine.FindAircraft(Callsign));
         Assert.True(TickUntilMovingFor(staged.Engine, aircraft, SnapshotAfterMovingSeconds), "never started moving");
         Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
-        output.WriteLine($"snapshot: gs={aircraft.GroundSpeed:F1} along G from the bar {SignedAlongGFt(staged.Layout, aircraft.Position):F1} ft");
+        output.WriteLine($"snapshot: gs={aircraft.GroundSpeed:F1} along G from the bar {SignedAlongGFt(staged.Bars, aircraft.Position):F1} ft");
 
         SimulationEngine restored = NewEngine(staged.GroundData);
         restored.RestoreFromSnapshot(RoundTrip(staged.Engine.CaptureSnapshot()));
 
-        AssertHandsOffAtTheBar(TickToHandOff(restored, staged.Layout, moving: true));
+        AssertHandsOffAtTheBar(TickToHandOff(restored, staged.Bars, moving: true), staged.Bars);
     }
 
-    private static void AssertHandsOffAtTheBar(HandOff? handOff)
+    private static void AssertHandsOffAtTheBar(HandOff? handOff, GBars bars)
     {
         HandOff atHandOff = Assert.IsType<HandOff>(handOff);
-        Assert.False(atHandOff.HeldAtBar, $"a HoldingShortPhase was inserted at the cleared bar #{CrossingBarNodeId}");
+        Assert.False(atHandOff.HeldAtBar, $"a HoldingShortPhase was inserted at the cleared bar #{bars.Crossing.Id}");
         Assert.False(atHandOff.Stopped, "the aircraft stopped before it handed off to the crossing");
         Assert.True(
             atHandOff.SignedAlongFt >= -ArrivalToleranceFt,
@@ -86,7 +83,22 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
         );
     }
 
-    private sealed record Staged(SimulationEngine Engine, AirportGroundLayout Layout, TestAirportGroundData GroundData);
+    private sealed record Staged(SimulationEngine Engine, GBars Bars, TestAirportGroundData GroundData);
+
+    /// <summary>The two bars on G: 28L's north bar, where the aircraft starts, and 28R's south bar, the cleared crossing's.</summary>
+    private sealed record GBars(GroundNode Start, GroundNode Crossing);
+
+    /// <summary>
+    /// OAK's bars on G by meaning: the crossing bar is 28R's bar on G nearest 28L, the start bar is 28L's bar on G nearest
+    /// that crossing bar (28L's north bar).
+    /// </summary>
+    private static GBars BarsOnG(AirportGroundLayout layout)
+    {
+        GroundNode any28LBar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "G")[0];
+        GroundNode crossing = GroundNodeLookup.HoldShortBar(layout, "28R", "G", any28LBar);
+        GroundNode start = GroundNodeLookup.HoldShortBar(layout, "28L", "G", crossing);
+        return new GBars(start, crossing);
+    }
 
     /// <summary>The hand-off to the crossing: when, where along G from the bar (positive past it), and what led up to it.</summary>
     private sealed record HandOff(int Second, double SignedAlongFt, bool Stopped, bool HeldAtBar);
@@ -102,8 +114,14 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
             return null;
         }
 
+        GBars bars = BarsOnG(layout);
+        output.WriteLine(
+            $"start bar #{bars.Start.Id}, crossing bar #{bars.Crossing.Id}: "
+                + $"{GeoMath.DistanceNm(bars.Start.Position, bars.Crossing.Position) * GeoMath.FeetPerNm:F1} ft apart, "
+                + $"bearing {GeoMath.BearingTo(bars.Start.Position, bars.Crossing.Position):F1}° true"
+        );
         SimulationEngine engine = NewEngine(groundData);
-        engine.World.AddAircraft(Spawn(layout, aircraftType));
+        engine.World.AddAircraft(Spawn(layout, bars, aircraftType));
         CommandResult taxi = engine.SendCommand(Callsign, TaxiClearance);
         output.WriteLine($"taxi: {taxi.Success} — {taxi.Message}");
         Assert.True(taxi.Success, taxi.Message);
@@ -112,14 +130,20 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         string holdShorts = string.Join(", ", route.HoldShortPoints.Select(h => $"#{h.NodeId} {h.TargetName} {h.Reason} cleared={h.IsCleared}"));
         output.WriteLine($"route: {route.FormatTaxiwaySequence()}; hold shorts: {holdShorts}");
-        Assert.True(route.GetHoldShortAt(CrossingBarNodeId) is { IsCleared: true }, $"no cleared hold short at #{CrossingBarNodeId}: {holdShorts}");
-        return new Staged(engine, layout, groundData);
+        Assert.True(route.GetHoldShortAt(bars.Crossing.Id) is { IsCleared: true }, $"no cleared hold short at #{bars.Crossing.Id}: {holdShorts}");
+        return new Staged(engine, bars, groundData);
     }
 
-    private static AircraftState Spawn(AirportGroundLayout layout, string aircraftType)
+    private static AircraftState Spawn(AirportGroundLayout layout, GBars bars, string aircraftType)
     {
-        GroundNode startBar = layout.Nodes[StartBarNodeId];
+        GroundNode startBar = bars.Start;
         Assert.Equal(GroundNodeType.RunwayHoldShort, startBar.Type);
+        double towardCrossingDeg = GeoMath.BearingTo(startBar.Position, bars.Crossing.Position);
+        Assert.True(
+            GeoMath.AbsBearingDifference(NorthboundOnGDeg, towardCrossingDeg) <= NorthboundToleranceDeg,
+            $"start bar #{startBar.Id} to crossing bar #{bars.Crossing.Id} bears {towardCrossingDeg:F1}° true, "
+                + $"not northbound on G ({NorthboundOnGDeg}°)"
+        );
         var aircraft = new AircraftState
         {
             Callsign = Callsign,
@@ -169,7 +193,7 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
     /// Ticks until the aircraft's current phase is the crossing, sampling after every physics sub-tick so the hand-off
     /// position is the one at the sub-tick the crossing took over; null when it never gets there within the budget.
     /// </summary>
-    private HandOff? TickToHandOff(SimulationEngine engine, AirportGroundLayout layout, bool moving)
+    private HandOff? TickToHandOff(SimulationEngine engine, GBars bars, bool moving)
     {
         bool stopped = false;
         bool heldAtBar = false;
@@ -192,11 +216,14 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
                     {
                         lastPhase = aircraft.Phases?.CurrentPhase?.Name;
                         output.WriteLine(
-                            $"t={atSecond}.{subTick}: phase {lastPhase} at {SignedAlongGFt(layout, aircraft.Position):F1} ft along G, gs={aircraft.GroundSpeed:F1}"
+                            $"t={atSecond}.{subTick}: phase {lastPhase} at {SignedAlongGFt(bars, aircraft.Position):F1} ft along G, "
+                                + $"gs={aircraft.GroundSpeed:F1}"
                         );
                     }
 
-                    heldAtBar |= aircraft.Phases?.Phases.Any(p => p is HoldingShortPhase { HoldShort.NodeId: CrossingBarNodeId }) == true;
+                    heldAtBar |=
+                        aircraft.Phases?.Phases.Any(p => p is HoldingShortPhase { HoldShort.NodeId: var nodeId } && (nodeId == bars.Crossing.Id))
+                        == true;
                     if (moving && (aircraft.GroundSpeed < MovingKts))
                     {
                         stopped = true;
@@ -206,7 +233,7 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
                     moving |= aircraft.GroundSpeed >= MovingKts;
                     if (aircraft.Phases?.CurrentPhase is CrossingRunwayPhase)
                     {
-                        double alongFt = SignedAlongGFt(layout, aircraft.Position);
+                        double alongFt = SignedAlongGFt(bars, aircraft.Position);
                         output.WriteLine(
                             $"t={atSecond}.{subTick}: handed off to the crossing {alongFt:F1} ft along G from the bar, gs={aircraft.GroundSpeed:F1}"
                         );
@@ -245,10 +272,10 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
     }
 
     /// <summary>The position's distance from the crossing bar along G's northbound bearing: negative short of it, positive past it.</summary>
-    private static double SignedAlongGFt(AirportGroundLayout layout, LatLon position)
+    private static double SignedAlongGFt(GBars bars, LatLon position)
     {
-        GroundNode start = layout.Nodes[StartBarNodeId];
-        GroundNode bar = layout.Nodes[CrossingBarNodeId];
+        GroundNode start = bars.Start;
+        GroundNode bar = bars.Crossing;
         double distNm = GeoMath.DistanceNm(bar.Position, position);
         if (distNm < 1e-9)
         {

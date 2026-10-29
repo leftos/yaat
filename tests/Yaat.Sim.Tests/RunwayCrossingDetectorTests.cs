@@ -8,6 +8,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Soak;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Data.Airport;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -637,7 +638,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     /// Each OAK runway's resolved standoff S, as the parse stores it on <see cref="GroundRunway.HoldShortStandoffFt"/>:
     /// 28R/10L the rule over the authored 225 and 30/12 the CAT III row, both with a foot per 100 ft of the higher
     /// threshold elevation; 28L/10R its authored 250, within 15 ft of the rule's 250 + E/100; 15/33 its authored 175,
-    /// below the 250 ft class.
+    /// below the 250 ft class. Parsed without OAK's tower-cab map, which calibrates S from the painted bars instead.
     /// </summary>
     [Theory]
     [InlineData("28R/10L", 250.0, true)]
@@ -646,12 +647,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     [InlineData("15/33", 175.0, false)]
     public void DetectRunwayCrossings_Oak_StoresTheResolvedStandoff(string runwayName, double baseFt, bool addsElevation)
     {
-        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
-        if (layout is null)
-        {
-            return;
-        }
-
+        AirportGroundLayout layout = RunwayPaintSnapTests.ParseOak(map: null, FilletMode.Standard);
         var id = RunwayIdentifier.Parse(runwayName);
         GroundRunway runway = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(id));
         double expectedFt = addsElevation ? baseFt + (HigherThresholdElevationFt("OAK", id.End1) / 100.0) : baseFt;
@@ -1001,8 +997,15 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     {
         RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
 
-        // An angled taxiway's bar sits out to S + W_twy / 2, the angle term's ceiling.
-        double holdingFt = (rect.HoldShortNm * FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(rect)) / 2.0);
+        // An angled taxiway's bar sits out to S + W_twy / 2, the angle term's ceiling. A bar seated on the painted marking may sit
+        // farther out still, so the ceiling rises to the farthest painted bar of the runway, as RaiseCeilingsToSnappedBars does.
+        double ruleFt = (rect.HoldShortNm * FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(rect)) / 2.0);
+        double paintFt = layout
+            .Nodes.Values.Where(node => IsBarOf(node, rect) && (node.PaintSegmentIndex is not null))
+            .Select(node => CrossTrackFt(rect, node))
+            .DefaultIfEmpty(0.0)
+            .Max();
+        double holdingFt = Math.Max(ruleFt, paintFt);
         double escapeFt = holdingFt + AirportGroundLayout.HoldingDistanceToleranceFt;
         var start = layout.Nodes.Values.Where(node => RunwayCrossingDetector.IsOnRunway(node.Position, rect)).ToList();
         var visited = new HashSet<int>(start.Select(node => node.Id));

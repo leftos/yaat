@@ -2429,10 +2429,10 @@ public partial class GroundViewModel : ObservableObject
     /// first; a runway gets one stop, for its first bar, named by <see cref="RunwayRowName"/>, except the destination
     /// runway whose bar the route ends at (the taxi already holds short of it; the ladder shows it as its destination
     /// row). A junction arc's joined name ("X - Y") is never a stop, and a bar at the aircraft's own position (0 ft once
-    /// rounded) is not listed. The node the route starts at is a bar like any other: an aircraft short of a holding
-    /// position starts there with no free-space leg (<see cref="TaxiApproachLeg"/>), so every distance is measured from
-    /// the aircraft (<see cref="RouteStart"/>). The bar a holding-short aircraft is held at is never a stop, however far
-    /// back of it the sim parks the aircraft: the walk starts past it (<see cref="PastHeldBar"/>), and no row names its
+    /// rounded) is not listed. The node the route starts at is a bar like any other, and so is the end of a free-space
+    /// approach leg (<see cref="TaxiApproachLeg"/>), which counts as the taxiway it runs along (<see cref="SegmentTaxiway"/>);
+    /// every distance is measured from the aircraft (<see cref="RouteStart"/>). The bar a holding-short aircraft is held at
+    /// is never a stop, however far back of it the sim parks the aircraft: the walk starts past it (<see cref="PastHeldBar"/>), and no row names its
     /// runway or taxiway (<see cref="HeldTarget.IsNamedBy"/>). No stops when no layout is loaded or the route does not
     /// resolve.
     /// </summary>
@@ -2673,7 +2673,8 @@ public partial class GroundViewModel : ObservableObject
     /// The route taxiway the node at <paramref name="position"/> lies on: the one the route arrives by, and for the start
     /// node the one it leaves by. Null when that segment names none.
     /// </summary>
-    private static string? RouteTaxiwayAt(TaxiRoute route, int position) => ArrivingTaxiway(route, Math.Max(position - 1, 0));
+    private static string? RouteTaxiwayAt(AirportGroundLayout layout, TaxiRoute route, int position) =>
+        ArrivingTaxiway(layout, route, Math.Max(position - 1, 0));
 
     /// <summary>
     /// The line heading the Hold short of… ladder: <c>route S T V W4 · RWY 30</c>, then the stand the taxi is to
@@ -2723,7 +2724,7 @@ public partial class GroundViewModel : ObservableObject
         var runways = new HashSet<RunwayIdentifier>();
         var crossings = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
         // Past the held bar the walk may start beyond the route's last node, where it meets nothing.
-        string? taxiwayOn = (firstPosition <= route.Segments.Count) ? RouteTaxiwayAt(route, firstPosition) : null;
+        string? taxiwayOn = (firstPosition <= route.Segments.Count) ? RouteTaxiwayAt(layout, route, firstPosition) : null;
         for (int position = firstPosition; position <= route.Segments.Count; position++)
         {
             if (!layout.Nodes.TryGetValue(RouteNodeId(route, position), out GroundNode? node))
@@ -2744,7 +2745,7 @@ public partial class GroundViewModel : ObservableObject
                 targets.Add((end, HoldShortChoice.RunwayBadge, name));
             }
 
-            string? location = RouteTaxiwayAt(route, position);
+            string? location = RouteTaxiwayAt(layout, route, position);
             foreach (string name in CrossingTaxiways(node, routeTaxiways))
             {
                 // A location equal to the target names no crossing: record it as unlocated.
@@ -2752,7 +2753,7 @@ public partial class GroundViewModel : ObservableObject
             }
 
             // HS of a route taxiway binds the first route node meeting it, so only its first turn is a stop.
-            if ((RouteTaxiwayTurnedOnto(route, position, routeTaxiways, taxiwayOn) is { } turn) && !crossings.ContainsKey(turn))
+            if ((RouteTaxiwayTurnedOnto(layout, route, position, routeTaxiways, taxiwayOn) is { } turn) && !crossings.ContainsKey(turn))
             {
                 RecordCrossing(crossings, turn, location);
             }
@@ -2780,18 +2781,24 @@ public partial class GroundViewModel : ObservableObject
     /// at the route's last node, where it turns onto none, and for <paramref name="taxiwayOn"/>, the taxiway the aircraft
     /// is on.
     /// </summary>
-    private static string? RouteTaxiwayTurnedOnto(TaxiRoute route, int position, HashSet<string> routeTaxiways, string? taxiwayOn)
+    private static string? RouteTaxiwayTurnedOnto(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        int position,
+        HashSet<string> routeTaxiways,
+        string? taxiwayOn
+    )
     {
         if (position >= route.Segments.Count)
         {
             return null;
         }
 
-        string? next = DepartingTaxiway(route, position);
+        string? next = DepartingTaxiway(layout, route, position);
         bool isTurn =
             (next is not null)
             && routeTaxiways.Contains(next)
-            && !string.Equals(next, RouteTaxiwayAt(route, position), StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(next, RouteTaxiwayAt(layout, route, position), StringComparison.OrdinalIgnoreCase)
             && !string.Equals(next, taxiwayOn, StringComparison.OrdinalIgnoreCase);
         return isTurn ? next : null;
     }
@@ -2859,7 +2866,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        var label = new HoldShortRowLabel(rowTarget.Badge, rowTarget.Name, WhereOnRoute(route, position), distanceFt);
+        var label = new HoldShortRowLabel(rowTarget.Badge, rowTarget.Name, WhereOnRoute(layout, route, position), distanceFt);
         var preview = new TaxiRoute { Segments = route.Segments.GetRange(0, position), HoldShortPoints = [] };
         LatLon barPoint = layout.Nodes[RouteNodeId(route, position)].Position;
         return (position, new HoldShortChoice(label, $"HS {rowTarget.Target}", preview, barPoint));
@@ -2870,15 +2877,15 @@ public partial class GroundViewModel : ObservableObject
     /// W4, end of route" at the last node, "before turning onto T" where the route turns onto another taxiway, else
     /// "crossing on S".
     /// </summary>
-    private static string WhereOnRoute(TaxiRoute route, int position)
+    private static string WhereOnRoute(AirportGroundLayout layout, TaxiRoute route, int position)
     {
-        string? location = RouteTaxiwayAt(route, position);
+        string? location = RouteTaxiwayAt(layout, route, position);
         if (position == route.Segments.Count)
         {
             return (location is null) ? "at the end of the route" : $"at {location}, end of route";
         }
 
-        string? next = DepartingTaxiway(route, position);
+        string? next = DepartingTaxiway(layout, route, position);
         if ((location is not null) && (next is not null) && !string.Equals(location, next, StringComparison.OrdinalIgnoreCase))
         {
             return $"before turning onto {next}";
@@ -2981,17 +2988,17 @@ public partial class GroundViewModel : ObservableObject
     /// route followed into it. A route that starts on arcs falls back to the arc's first plain name. Null when that segment
     /// is pure runway/ramp pavement.
     /// </summary>
-    private static string? ArrivingTaxiway(TaxiRoute route, int index)
+    private static string? ArrivingTaxiway(AirportGroundLayout layout, TaxiRoute route, int index)
     {
         for (int i = index; i >= 0; i--)
         {
             if (route.Segments[i].Edge.Edge is not GroundArc)
             {
-                return PlainTaxiway(route.Segments[i]);
+                return SegmentTaxiway(layout, route, i);
             }
         }
 
-        return PlainTaxiway(route.Segments[index]);
+        return SegmentTaxiway(layout, route, index);
     }
 
     /// <summary>
@@ -2999,23 +3006,47 @@ public partial class GroundViewModel : ObservableObject
     /// straight segment from it on, so a fillet arc ("S - T") leads onto the taxiway the route follows out of it. A route
     /// that ends on arcs falls back to the arc's first plain name.
     /// </summary>
-    private static string? DepartingTaxiway(TaxiRoute route, int index)
+    private static string? DepartingTaxiway(AirportGroundLayout layout, TaxiRoute route, int index)
     {
         for (int i = index; i < route.Segments.Count; i++)
         {
             if (route.Segments[i].Edge.Edge is not GroundArc)
             {
-                return PlainTaxiway(route.Segments[i]);
+                return SegmentTaxiway(layout, route, i);
             }
         }
 
-        return PlainTaxiway(route.Segments[index]);
+        return SegmentTaxiway(layout, route, index);
     }
 
-    /// <summary>The first plain taxiway name of <paramref name="seg"/> (a fillet arc's joined name split); null on runway/ramp.</summary>
-    private static string? PlainTaxiway(TaxiRouteSegment seg)
+    /// <summary>
+    /// The plain taxiway segment <paramref name="index"/> of <paramref name="route"/> runs along (<see cref="PlainTaxiway"/>).
+    /// A free-space approach leg minted from the aircraft (segment 0 leaving a virtual node, <see cref="TaxiApproachLeg"/>)
+    /// is named RAMP, but it counts as the taxiway it runs along (<see cref="ApproachLegTaxiway"/>), so the leg's end node
+    /// never reads as a join onto the taxiway the aircraft is already on.
+    /// </summary>
+    private static string? SegmentTaxiway(AirportGroundLayout layout, TaxiRoute route, int index)
     {
-        foreach (string name in seg.TaxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
+        TaxiRouteSegment seg = route.Segments[index];
+        return ((index == 0) && (seg.FromNodeId < 0)) ? ApproachLegTaxiway(layout, seg) : PlainTaxiway(seg.TaxiwayName);
+    }
+
+    /// <summary>
+    /// The plain taxiway of the straight edge an approach leg runs along: the edge the leg's start (the aircraft) is on
+    /// (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>, the same edge the sim's <see cref="TaxiApproachLeg"/> picks),
+    /// when it ends at the leg's end node. Null for a leg across open pavement, which runs along no taxiway.
+    /// </summary>
+    private static string? ApproachLegTaxiway(AirportGroundLayout layout, TaxiRouteSegment leg)
+    {
+        GroundNode end = leg.Edge.ToNode;
+        GroundEdge? occupied = layout.FindOccupiedTaxiEdge(leg.Edge.FromNode.Position);
+        return ((occupied is not null) && occupied.HasNode(end.Id)) ? PlainTaxiway(occupied.TaxiwayName) : null;
+    }
+
+    /// <summary>The first plain taxiway name in <paramref name="taxiwayName"/> (a fillet arc's joined name split); null on runway/ramp.</summary>
+    private static string? PlainTaxiway(string taxiwayName)
+    {
+        foreach (string name in taxiwayName.Split(" - ", StringSplitOptions.RemoveEmptyEntries))
         {
             if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
@@ -3379,7 +3410,9 @@ public partial class GroundViewModel : ObservableObject
             return lineUp;
         }
 
-        return (turnedAbout || !StartsWithReversal(route, ac.Heading)) ? WithApproachLeg(improved, ac.Position, ac.Heading) : null;
+        return (turnedAbout || !StartsWithReversal(route, ac.Heading))
+            ? WithApproachLeg(improved, ac.Position, ac.Heading, AircraftLength.ResolveFt(ac.AircraftType))
+            : null;
     }
 
     /// <summary>
@@ -3435,7 +3468,7 @@ public partial class GroundViewModel : ObservableObject
             return cut.Route;
         }
 
-        return WithApproachLeg(route, ac.Position, ac.Heading);
+        return WithApproachLeg(route, ac.Position, ac.Heading, AircraftLength.ResolveFt(ac.AircraftType));
     }
 
     /// <summary>
@@ -3539,10 +3572,11 @@ public partial class GroundViewModel : ObservableObject
     /// starts at the aircraft instead of at the ramp node ahead of it (the leg's own guards refuse and hand
     /// the route back unchanged when the aircraft is standing on that node, or when the drive to it is not
     /// one the pilot would make). <see cref="RampLaneReposition"/> plans already start at the aircraft and
-    /// never come through here.
+    /// never come through here. <paramref name="aircraftLengthFt"/> places the aircraft against a runway bar the route
+    /// starts on, exactly as on the server.
     /// </summary>
-    private TaxiRoute? WithApproachLeg(TaxiRoute? route, LatLon position, TrueHeading heading) =>
-        ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route);
+    private TaxiRoute? WithApproachLeg(TaxiRoute? route, LatLon position, TrueHeading heading, double aircraftLengthFt) =>
+        ((_domainLayout is null) || (route is null)) ? route : TaxiApproachLeg.Prepend(_domainLayout, position, heading, route, aircraftLengthFt);
 
     /// <summary>
     /// Where the overlay resolves the route from, and whether that route opens with the turn about the simulation sent

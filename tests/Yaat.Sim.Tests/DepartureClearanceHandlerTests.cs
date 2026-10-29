@@ -589,10 +589,7 @@ public class DepartureClearanceHandlerTests
             return;
         }
 
-        GroundNode? holdShortNode = layout.Nodes.Values.FirstOrDefault(n =>
-            n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && id.Contains("30")
-        );
-        Assert.NotNull(holdShortNode);
+        GroundNode holdShortNode = GroundNodeLookup.HoldShortBar(layout, "30", "W2");
 
         AircraftState ac = MakeAircraft();
         ac.Position = holdShortNode.Position;
