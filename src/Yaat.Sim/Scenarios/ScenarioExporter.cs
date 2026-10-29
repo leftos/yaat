@@ -401,8 +401,8 @@ public static class ScenarioExporter
 
     /// <summary>
     /// The presets that give a reloaded aircraft back the targets it was flying to: a descend-via or climb-via with its
-    /// floor or ceiling, otherwise a climb or descent to an assigned altitude it has not reached, then an assigned speed
-    /// with its floor or ceiling suffix. Altitudes are written in hundreds of feet, the form the altitude parser reads.
+    /// floor or ceiling, otherwise a climb or descent to an assigned altitude it has not reached, then SMAX while the
+    /// aircraft holds its maximum forward speed, otherwise an assigned speed with its floor or ceiling suffix. Altitudes are written in hundreds of feet, the form the altitude parser reads.
     /// </summary>
     private static List<PresetCommand> PresetsOf(AircraftState state)
     {
@@ -423,7 +423,11 @@ public static class ScenarioExporter
             commands.Add($"{(altitude > state.Altitude ? "CM" : "DM")} {Hundreds(altitude)}");
         }
 
-        if (targets.AssignedSpeed is { } speed)
+        if (targets.SpeedMaxHeld)
+        {
+            commands.Add("SMAX");
+        }
+        else if (targets.AssignedSpeed is { } speed)
         {
             string suffix =
                 (targets.SpeedFloor == speed) ? "+"

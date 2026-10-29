@@ -334,6 +334,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Resume normal rate | `NORM` | — | — |
 | Reduce to final approach speed | `RFAS` or `SPD RFAS` | `FAS`, `SPD FAS` | — |
 | Mach number | `MACH .82` | `M` | — |
+| Maximum forward speed | `SMAX` | `BFS`, `MAXSPD` | — |
 | Delete speed restrictions | `DSR` | — | — |
 
 ### Squawk / Transponder
@@ -1814,6 +1815,7 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
 | `RFAS` / `FAS` / `SPD RFAS` / `SPD FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts). `SPD RFAS` is the same command as bare `RFAS` (normal deceleration, "unable" inside 5nm final); a trailing token (`SPD RFAS SUNOL`) is a parse error. `SPEEDF RFAS` is rejected: use `SPD RFAS`, or `SPDN RFAS` to set it instantly |
 | `MACH .82` / `M .82` | Maintain Mach number (also accepts `0.82` or `82`); IAS adjusts with altitude |
+| `SMAX` / `BFS` / `MAXSPD` | Maintain maximum forward speed (7110.65 §5-7-2; VICE `SMAX`): the aircraft flies the fastest speed its type can fly, following it as altitude changes, a margin under the redline (AIM 4-4-12.c; 7110.65 §5-7-1.g NOTE 1): Vmo less 10 kt below the IAS/Mach changeover, Mmo less 0.02 above it, 0.9 × Vne for a helicopter (B738: 330 kt, M.80). Takes no argument. **SMAX departs from 14 CFR 91.117**: it alone lifts the 250 kt limit below 10,000 ft and the 200 kt limit under Class B, while the type's own Vmo/Mmo still bind. Refused on the ground (`Maximum forward speed requires the aircraft to be airborne`), for a type with no known maximum (`Unable, no maximum speed is known for B738`) and inside 5nm final, as `SPD` is. It is an ATC speed assignment: `RNS`, `RPS`, `DSR`, an approach clearance, `DVIA`/`CVIA`, a new `SPD`/`SPEEDF`/`MACH`/`SPDN`/`RFAS` and the 5nm-final auto-cancel end it, as do `CFIX`, a constrained `DCTF` with a speed, and `WARP`; a crossing speed given while SMAX holds, or while it waits to come back, reverts to SMAX only past the route-order-last crossing fix with a controller-set speed, so every earlier crossing speed is flown first, and a later `SPD`, `MACH`, `RNS`, `RPS`, `DSR`, `SPDN` or `RFAS` given after the crossing restriction cancels that return (the later instruction stands). `SPD` and `MACH` are still refused past Vmo/Mmo, not the SMAX margin. The aircraft list's ASpd column shows `MAX 330` (`MAX M.80` above the changeover) and the EuroScope tag's speed field shows `SMAX` |
 | `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints; the aircraft resumes its normal speed schedule, so the next altitude command flies the type's schedule |
 | `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
 | `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |
@@ -1821,7 +1823,7 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `SPD 180 UNTIL AXMUL` | Fix-based: maintain 180 until reaching AXMUL, then resume normal speed |
 | `SPD 180 AXMUL` | ATCTrainer alias for `SPD 180 UNTIL AXMUL` |
 
-**Speed limits (14 CFR 91.117)** — an assigned speed above the limit (250 knots below 10,000 ft, 200 knots beneath a Class B shelf) is flown at the limit and taken up when the limit no longer applies — climbing through 10,000 ft or leaving the shelf — without a new instruction. A chained command behind it (`SPD 280; H 090`) advances once the aircraft has settled at the limit.
+**Speed limits (14 CFR 91.117)** — an assigned speed above the limit (250 knots below 10,000 ft, 200 knots beneath a Class B shelf) is flown at the limit and taken up when the limit no longer applies — climbing through 10,000 ft or leaving the shelf — without a new instruction. A chained command behind it (`SPD 280; H 090`) advances once the aircraft has settled at the limit. `SMAX` is the one speed command that flies past 91.117.
 
 The same holds for the type's own maximum: every speed, whether assigned, a Mach hold, published or the automatic climb and descent schedule, is also held to the type's Vmo and Mmo, recomputed each tick, and an assignment held there is kept rather than cancelled.
 
@@ -1854,7 +1856,7 @@ It is mutually exclusive with `EXP` (issuing either clears the other, and a cros
 
 A speed **you** assign outranks those baselines and holds for the rest of the circuit — per 7110.65 §5-7-4 only the controller terminates a speed adjustment, so turning onto the next leg does not revert it. `RNS` hands the leg baselines back. The 5nm gate below applies only to an aircraft actually **on final**, so traffic on upwind, crosswind, downwind, or base accepts normal speed instructions even when it happens to be within 5nm of the threshold.
 
-**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1.b.4, an ATC speed assignment is released — and a new speed instruction (`SPD`, `RFAS`, `RNS`, `DSR`, `MACH`) declined with a pilot **"unable"** — when an aircraft is **inbound to land** within 5nm of the runway's landing threshold (the controller can no longer adjust the speed; the pilot owns the approach speed).
+**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1.b.4, an ATC speed assignment is released — and a new speed instruction (`SPD`, `RFAS`, `RNS`, `DSR`, `MACH`, `SMAX`) declined with a pilot **"unable"** — when an aircraft is **inbound to land** within 5nm of the runway's landing threshold (the controller can no longer adjust the speed; the pilot owns the approach speed).
 
 On a runway with a displaced threshold the 5 miles are measured from the displaced (landing) threshold, not from the start of the pavement. The instruction is refused, not obeyed; the aircraft stays on its stabilized approach (it is never knocked off the final).
 

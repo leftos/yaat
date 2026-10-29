@@ -242,6 +242,7 @@ public enum CanonicalCommandType
     Expedite,
     NormalRate,
     Mach,
+    SpeedMax,
 
     // Force (immediate override) commands
     ForceHeading,

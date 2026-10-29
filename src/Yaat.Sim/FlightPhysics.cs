@@ -207,7 +207,15 @@ public static class FlightPhysics
                 aircraft.Targets.DesiredVerticalRate = null;
             }
 
-            if (sequenced.RevertSpeed is not null)
+            if (sequenced.RevertSpeedMax)
+            {
+                // A later crossing speed the controller set is flown first: SMAX comes back past the last one.
+                if (!Commands.NavigationCommandHandler.PlaceSpeedMaxRevert(route))
+                {
+                    Commands.FlightCommandHandler.ArmSpeedMax(aircraft, aircraft.Targets.SpeedCommandIsControllerIssued);
+                }
+            }
+            else if (sequenced.RevertSpeed is not null)
             {
                 aircraft.Targets.TargetSpeed = sequenced.RevertSpeed;
                 aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
@@ -784,7 +792,8 @@ public static class FlightPhysics
     /// speed revert on it, rather than the procedure publishing it. An altitude-only crossing leaves the speed the
     /// procedure's.
     /// </summary>
-    private static bool IsControllerSetSpeed(NavigationTarget fix) => (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null);
+    internal static bool IsControllerSetSpeed(NavigationTarget fix) =>
+        (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null) || fix.RevertSpeedMax;
 
     private static void ApplyFixSpeedConstraint(AircraftState aircraft, NavigationTarget target)
     {
@@ -1335,16 +1344,99 @@ public static class FlightPhysics
     /// (<see cref="RegulatorySpeedLimit"/>) and the type's own maximum (<see cref="EnvelopeSpeedLimit"/>). Both bend an
     /// assignment rather than end it: an aircraft held at either keeps its target and takes it up again where the limit
     /// allows (<see cref="ArriveAtGoal"/>). Unlimited while SPDN has lifted the limits
-    /// (<see cref="ControlTargets.SpeedLimitsLifted"/>).
+    /// (<see cref="ControlTargets.SpeedLimitsLifted"/>); the envelope alone while SMAX is in force
+    /// (<see cref="ControlTargets.SpeedMaxHeld"/>).
     /// </summary>
     private static double EffectiveSpeedLimit(AircraftState aircraft) =>
-        aircraft.Targets.SpeedLimitsLifted ? double.MaxValue : Math.Min(RegulatorySpeedLimit(aircraft), EnvelopeSpeedLimit(aircraft));
+        aircraft.Targets.SpeedLimitsLifted ? double.MaxValue : SpeedLimitWithin(aircraft, EnvelopeSpeedLimit(aircraft));
+
+    /// <summary>
+    /// The speed limit under <paramref name="envelopeLimit"/>: 14 CFR 91.117 as well, except while SMAX is in force
+    /// (<see cref="ControlTargets.SpeedMaxHeld"/>), which flies the type's maximum past it.
+    /// </summary>
+    private static double SpeedLimitWithin(AircraftState aircraft, double envelopeLimit) =>
+        aircraft.Targets.SpeedMaxHeld ? envelopeLimit : Math.Min(RegulatorySpeedLimit(aircraft), envelopeLimit);
+
+    /// <summary>
+    /// The knots SMAX holds below Vmo: a pilot flies an assigned speed within 10 knots of it (AIM 4-4-12.c; 7110.65 5-7-1.g
+    /// NOTE 1), so the maximum forward speed is flown that margin under the redline rather than on it.
+    /// </summary>
+    private const double SpeedMaxMarginKts = 10;
+
+    /// <summary>
+    /// The Mach SMAX holds below Mmo: a pilot flies an assigned Mach within 0.02 of it (AIM 4-4-12.c; 7110.65 5-7-1.g
+    /// NOTE 1), so the maximum forward speed is flown that margin under the redline rather than on it.
+    /// </summary>
+    private const double SpeedMaxMarginMach = 0.02;
+
+    /// <summary>The fraction of a helicopter's Vne SMAX holds it to, the helicopter's margin under its redline.</summary>
+    private const double HelicopterSpeedMaxFractionOfVne = 0.9;
+
+    /// <summary>
+    /// While SMAX is in force (<see cref="ControlTargets.SpeedMaxHeld"/>) and airborne, holds the type's maximum forward
+    /// speed a margin under its redline: Mmo less <see cref="SpeedMaxMarginMach"/> as a Mach hold
+    /// (<see cref="ControlTargets.TargetMach"/>, no <see cref="ControlTargets.AssignedSpeed"/>) where that Mach's IAS
+    /// equivalent is below Vmo less <see cref="SpeedMaxMarginKts"/>, that IAS as the assigned and target speed elsewhere,
+    /// and <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter. The fields are written only when the mode
+    /// changes, at the IAS/Mach crossover, not on every tick.
+    /// </summary>
+    internal static void HoldMaximumForwardSpeed(AircraftState aircraft)
+    {
+        if (!aircraft.Targets.SpeedMaxHeld || aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        double? maxKts = SpeedMaxKts(aircraft.AircraftType);
+        double? maxMach = AircraftPerformance.MaxOperatingMach(aircraft.AircraftType) is { } mmo ? Math.Round(mmo - SpeedMaxMarginMach, 2) : null;
+        if ((maxMach is { } smaxMach) && ((maxKts is not { } ktsBound) || (WindInterpolator.MachToIas(smaxMach, aircraft.Altitude) < ktsBound)))
+        {
+            if (aircraft.Targets.TargetMach != smaxMach)
+            {
+                Log.LogDebug("{Callsign}: SMAX holds Mach {Mach:F2} at {Altitude:F0} ft", aircraft.Callsign, smaxMach, aircraft.Altitude);
+                aircraft.Targets.TargetMach = smaxMach;
+                aircraft.Targets.AssignedSpeed = null;
+            }
+
+            return;
+        }
+
+        if (maxKts is not { } assigned)
+        {
+            return;
+        }
+
+        if ((aircraft.Targets.TargetMach is not null) || (aircraft.Targets.AssignedSpeed != assigned))
+        {
+            Log.LogDebug("{Callsign}: SMAX holds {Speed:F0} kt at {Altitude:F0} ft", aircraft.Callsign, assigned, aircraft.Altitude);
+            aircraft.Targets.TargetMach = null;
+            aircraft.Targets.AssignedSpeed = assigned;
+            aircraft.Targets.TargetSpeed = assigned;
+        }
+    }
+
+    /// <summary>
+    /// The IAS SMAX holds <paramref name="aircraftType"/> to below its IAS/Mach crossover: Vmo less
+    /// <see cref="SpeedMaxMarginKts"/>, or <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter, rounded to
+    /// the knot. Null for a type with no known Vmo.
+    /// </summary>
+    private static double? SpeedMaxKts(string aircraftType)
+    {
+        if (AircraftPerformance.MaxOperatingSpeedKts(aircraftType) is not { } vmo)
+        {
+            return null;
+        }
+
+        bool helicopter = AircraftCategorization.Categorize(aircraftType) == AircraftCategory.Helicopter;
+        return Math.Round(helicopter ? vmo * HelicopterSpeedMaxFractionOfVne : vmo - SpeedMaxMarginKts);
+    }
 
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
+        HoldMaximumForwardSpeed(aircraft);
         bool limitsLifted = aircraft.Targets.SpeedLimitsLifted;
         double envelopeLimit = limitsLifted ? double.MaxValue : EnvelopeSpeedLimit(aircraft);
-        double speedLimit = limitsLifted ? double.MaxValue : Math.Min(RegulatorySpeedLimit(aircraft), envelopeLimit);
+        double speedLimit = limitsLifted ? double.MaxValue : SpeedLimitWithin(aircraft, envelopeLimit);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach. The limit keeps a Mach
         // hold carried down a descent from running the IAS past Vmo (or 91.117) as the air thickens, unless SPDN has
@@ -2702,6 +2794,7 @@ public static class FlightPhysics
         aircraft.Targets.TargetSpeed = null;
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
+        aircraft.Targets.SpeedMaxHeld = false;
         aircraft.Targets.SpeedFloor = null;
 
         // A phase that owns speed (pattern legs, an active instrument approach, final) keeps

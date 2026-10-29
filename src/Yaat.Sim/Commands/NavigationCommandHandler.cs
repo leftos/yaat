@@ -240,8 +240,12 @@ internal static class NavigationCommandHandler
         bool revertsAltitude = !restatedWithVia && !AltitudeRevertReversesTravel(aircraft.Altitude, cmd.Altitude, aircraft.Targets.TargetAltitude);
         double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
         double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
-        double? previousSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.TargetSpeed : null;
-        double? previousAssignedSpeed = ((cmd.Speed is not null) && !restatedWithVia) ? aircraft.Targets.AssignedSpeed : null;
+        // A speed restated while SMAX is in force, or while it waits to be armed again past another crossing, reverts to
+        // SMAX past the last crossing (PlaceSpeedMaxRevert), not to a figure it flew.
+        bool revertsSpeed = (cmd.Speed is not null) && !restatedWithVia;
+        bool previousSpeedMax = revertsSpeed && SpeedMaxPending(aircraft);
+        double? previousSpeed = (revertsSpeed && !previousSpeedMax) ? aircraft.Targets.TargetSpeed : null;
+        double? previousAssignedSpeed = (revertsSpeed && !previousSpeedMax) ? aircraft.Targets.AssignedSpeed : null;
 
         CifpAltitudeRestriction altRestriction = FlightCommandHandler.ToAltitudeRestriction(cmd.Altitude, cmd.AltType);
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
@@ -269,6 +273,7 @@ internal static class NavigationCommandHandler
                 existing.SpeedTransmissionId = crossingTransmissionId;
                 existing.RevertSpeed = previousSpeed;
                 existing.RevertAssignedSpeed = previousAssignedSpeed;
+                existing.RevertSpeedMax = previousSpeedMax;
             }
         }
         else
@@ -284,10 +289,16 @@ internal static class NavigationCommandHandler
                     RevertAssignedAltitude = previousAssignedAlt,
                     RevertSpeed = previousSpeed,
                     RevertAssignedSpeed = previousAssignedSpeed,
+                    RevertSpeedMax = previousSpeedMax,
                     CrossingTransmissionId = crossingTransmissionId,
                     SpeedTransmissionId = (speedRestriction is not null) ? crossingTransmissionId : null,
                 }
             );
+        }
+
+        if (previousSpeedMax)
+        {
+            PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
         }
 
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
@@ -303,6 +314,7 @@ internal static class NavigationCommandHandler
         {
             aircraft.Targets.AssignedSpeed = spdVal;
             aircraft.Targets.SpeedLimitsLifted = false;
+            FlightCommandHandler.EndSpeedMax(aircraft);
 
             // For acceleration, set TargetSpeed immediately so the aircraft starts
             // accelerating toward the CFIX speed right away. For deceleration,
@@ -1602,6 +1614,7 @@ internal static class NavigationCommandHandler
             fix.RevertAssignedAltitude = null;
             fix.RevertSpeed = null;
             fix.RevertAssignedSpeed = null;
+            fix.RevertSpeedMax = false;
         }
     }
 
@@ -1623,6 +1636,7 @@ internal static class NavigationCommandHandler
             (fix.SpeedTransmissionId is not null)
             || (fix.RevertSpeed is not null)
             || (fix.RevertAssignedSpeed is not null)
+            || fix.RevertSpeedMax
             || published.Value.ContainsKey(fix.Name)
         );
 
@@ -1656,7 +1670,51 @@ internal static class NavigationCommandHandler
         {
             fix.RevertSpeed = null;
             fix.RevertAssignedSpeed = null;
+            fix.RevertSpeedMax = false;
         }
+    }
+
+    /// <summary>
+    /// A controller speed instruction given after a crossing restriction stands past its fix (7110.65 5-7-1; AIM
+    /// 4-4-12.f.1), so SMAX is armed again on no route fix (<see cref="NavigationTarget.RevertSpeedMax"/>). Plain speed
+    /// reverts are left as they are.
+    /// </summary>
+    internal static void DropSpeedMaxReverts(AircraftState aircraft)
+    {
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        {
+            fix.RevertSpeedMax = false;
+        }
+    }
+
+    /// <summary>
+    /// Whether a crossing speed set now reverts to SMAX past its crossings: SMAX is in force, or a route fix already
+    /// arms it again (<see cref="NavigationTarget.RevertSpeedMax"/>).
+    /// </summary>
+    internal static bool SpeedMaxPending(AircraftState aircraft) =>
+        aircraft.Targets.SpeedMaxHeld || aircraft.Targets.NavigationRoute.Exists(fix => fix.RevertSpeedMax);
+
+    /// <summary>
+    /// Puts SMAX's re-arm (<see cref="NavigationTarget.RevertSpeedMax"/>) on the route-order-last fix whose speed the
+    /// controller set (<see cref="FlightPhysics.IsControllerSetSpeed"/>) and clears it on every other fix, so every
+    /// crossing speed before that fix is flown first. The fix that holds it keeps no plain speed revert. Returns whether
+    /// a fix holds it.
+    /// </summary>
+    internal static bool PlaceSpeedMaxRevert(List<NavigationTarget> route)
+    {
+        int last = route.FindLastIndex(FlightPhysics.IsControllerSetSpeed);
+        for (int i = 0; i < route.Count; i++)
+        {
+            route[i].RevertSpeedMax = i == last;
+        }
+
+        if (last >= 0)
+        {
+            route[last].RevertSpeed = null;
+            route[last].RevertAssignedSpeed = null;
+        }
+
+        return last >= 0;
     }
 
     /// <summary>
@@ -1765,6 +1823,7 @@ internal static class NavigationCommandHandler
 
             fix.RevertSpeed = null;
             fix.RevertAssignedSpeed = null;
+            fix.RevertSpeedMax = false;
             first ??= fix;
         }
 
@@ -1784,7 +1843,8 @@ internal static class NavigationCommandHandler
         (fix.RevertAltitude is not null)
         || (fix.RevertAssignedAltitude is not null)
         || (fix.RevertSpeed is not null)
-        || (fix.RevertAssignedSpeed is not null);
+        || (fix.RevertAssignedSpeed is not null)
+        || fix.RevertSpeedMax;
 
     /// <summary>The active STAR's published restrictions by fix name; empty when the STAR cannot be resolved.</summary>
     private static Dictionary<string, NavigationTarget> ActiveStarRestrictions(AircraftState aircraft)

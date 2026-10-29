@@ -237,6 +237,8 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   Three forms: *unable, 290 knots is the fastest we can do.* (spoken *…, unable, two niner zero knots is the fastest we can do.*), *unable, Mach .82 is the fastest we can do.* when Mmo governs above the IAS/Mach crossover (spoken *…, unable, Mach point eight two is the fastest we can do.*), and *unable, 140 knots is the slowest we can do.* The figure is floored so it is always one the aircraft can fly, and the aircraft keeps its speed.
 
+  `BuildMaximumForwardSpeed` (`SMAX`, 7110.65 §5-7-2 "MAINTAIN MAXIMUM FORWARD SPEED": the pilot reads back the instruction, which has no number: *maximum forward speed.* in both the terminal and spoken forms).
+
   `BuildUnableGoAroundRequestVectors` (a bare `GA` outside the published final approach fix on an instrument approach: *unable go-around, we're in the procedure turn, request vectors.*, or *…we're in the hold…*, or *…we're outside the final approach fix…*).
 
   The published missed approach does not start from where the aircraft is, so the pilot refuses and asks for a vector in the AIM §5-5-16.a.1 unable, reason, request structure. `CommandDispatcher.RefuseBareGoAroundOutsideFaf` sets it as `CommandResult.PilotUnable`.

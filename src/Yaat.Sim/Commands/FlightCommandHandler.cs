@@ -224,15 +224,9 @@ internal static class FlightCommandHandler
         // also carries an AssignedRunway) and a go-around climbing out are not. SPEEDF
         // (cmd.Force) is the controller override for the cases the rule allows
         // (military, compression).
-        if (!cmd.Force && !aircraft.IsOnGround && ApproachCommandHandler.IsInboundToLand(aircraft) && aircraft.Phases?.AssignedRunway is { } spdRwy)
+        if (!cmd.Force && (RefuseInsideFinalGate(aircraft) is { } insideFinal))
         {
-            // Measured to the landing threshold, the same datum the physics auto-cancel uses, so the command and the
-            // gate that releases it never disagree about where the five miles start.
-            double spdDist = GeoMath.DistanceNm(aircraft.Position, LandingThreshold.Resolve(spdRwy, aircraft.Ground.Layout));
-            if (spdDist <= 5.0 && ApproachCommandHandler.IsOnFinal(aircraft, spdRwy, aircraft.Ground.Layout))
-            {
-                return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]");
-            }
+            return insideFinal;
         }
 
         // ATC can't assign a helicopter below the radar-speed minimum; floor a plain SPD to it.
@@ -261,6 +255,8 @@ internal static class FlightCommandHandler
         // a plain SPD clears the override so the gate resumes governing.
         aircraft.Targets.SpeedOverridesFinalGate = cmd.Force;
         aircraft.Targets.SpeedLimitsLifted = false;
+        aircraft.Targets.SpeedMaxHeld = false;
+        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
 
         // ATC speed supersedes the procedural last-published-speed memory.
         aircraft.Procedure.LastProcedureSpeedKts = null;
@@ -299,6 +295,25 @@ internal static class FlightCommandHandler
             SpeedModifier.Ceiling => CommandDispatcher.Ok($"Do not exceed {effectiveSpeed} knots"),
             _ => CommandDispatcher.Ok($"Speed {effectiveSpeed}"),
         };
+    }
+
+    /// <summary>
+    /// The refusal of a speed assignment to an airborne arrival on final inside 5 nm of its landing threshold
+    /// (7110.65 §5-7-1.b.4), or null when the gate does not apply.
+    /// </summary>
+    private static CommandResult? RefuseInsideFinalGate(AircraftState aircraft)
+    {
+        if (aircraft.IsOnGround || !ApproachCommandHandler.IsInboundToLand(aircraft) || (aircraft.Phases?.AssignedRunway is not { } runway))
+        {
+            return null;
+        }
+
+        // Measured to the landing threshold, the same datum the physics auto-cancel uses, so the command and the
+        // gate that releases it never disagree about where the five miles start.
+        double distanceNm = GeoMath.DistanceNm(aircraft.Position, LandingThreshold.Resolve(runway, aircraft.Ground.Layout));
+        return ((distanceNm <= 5.0) && ApproachCommandHandler.IsOnFinal(aircraft, runway, aircraft.Ground.Layout))
+            ? new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]")
+            : null;
     }
 
     /// <summary>
@@ -430,6 +445,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
+        aircraft.Targets.SpeedMaxHeld = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
 
@@ -444,6 +460,7 @@ internal static class FlightCommandHandler
         bool SpeedCommandIsControllerIssued,
         bool SpeedOverridesFinalGate,
         bool SpeedLimitsLifted,
+        bool SpeedMaxHeld,
         double? LastProcedureSpeedKts
     )
     {
@@ -458,6 +475,7 @@ internal static class FlightCommandHandler
                 aircraft.Targets.SpeedCommandIsControllerIssued,
                 aircraft.Targets.SpeedOverridesFinalGate,
                 aircraft.Targets.SpeedLimitsLifted,
+                aircraft.Targets.SpeedMaxHeld,
                 aircraft.Procedure.LastProcedureSpeedKts
             );
 
@@ -472,6 +490,7 @@ internal static class FlightCommandHandler
             aircraft.Targets.SpeedCommandIsControllerIssued = SpeedCommandIsControllerIssued;
             aircraft.Targets.SpeedOverridesFinalGate = SpeedOverridesFinalGate;
             aircraft.Targets.SpeedLimitsLifted = SpeedLimitsLifted;
+            aircraft.Targets.SpeedMaxHeld = SpeedMaxHeld;
             aircraft.Procedure.LastProcedureSpeedKts = LastProcedureSpeedKts;
         }
     }
@@ -532,6 +551,7 @@ internal static class FlightCommandHandler
         }
 
         CancelAssignedSpeed(aircraft);
+        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
         ResumePublishedStarSpeeds(aircraft);
 
         // Clearing the fields above is the whole command in most cases, but on a final approach it can leave the
@@ -609,6 +629,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
+        aircraft.Targets.SpeedMaxHeld = false;
+        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
     }
@@ -628,6 +650,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
+        aircraft.Targets.SpeedMaxHeld = false;
+        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
         aircraft.Procedure.SpeedRestrictionsDeleted = true;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Speed restrictions deleted");
@@ -770,8 +794,75 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCommandIsControllerIssued = !ctx.IsScenarioScripted;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
+        aircraft.Targets.SpeedMaxHeld = false;
+        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Maintain Mach {cmd.MachNumber:F2}");
+    }
+
+    /// <summary>
+    /// SMAX, "maintain maximum forward speed" (7110.65 5-7-2): an ATC speed assignment, like SPD, to the fastest the type
+    /// may fly where it is. <see cref="FlightPhysics.HoldMaximumForwardSpeed"/> sets the speed now and keeps it each tick,
+    /// a margin under the redline: Vmo less 10 kt below the IAS/Mach crossover, Mmo less 0.02 above it. Refused on the ground, inside the 5 nm final gate as a plain SPD
+    /// is, and for a type with no known maximum.
+    /// </summary>
+    internal static CommandResult ApplySpeedMax(AircraftState aircraft, DispatchContext ctx)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Maximum forward speed requires the aircraft to be airborne");
+        }
+
+        if (RefuseInsideFinalGate(aircraft) is { } insideFinal)
+        {
+            return insideFinal;
+        }
+
+        if (
+            (AircraftPerformance.MaxOperatingSpeedKts(aircraft.AircraftType) is null)
+            && (AircraftPerformance.MaxOperatingMach(aircraft.AircraftType) is null)
+        )
+        {
+            return new CommandResult(false, $"Unable, no maximum speed is known for {aircraft.AircraftType}");
+        }
+
+        ArmSpeedMax(aircraft, controllerIssued: !ctx.IsScenarioScripted);
+        return CommandDispatcher.Ok("Maintain maximum forward speed");
+    }
+
+    /// <summary>
+    /// Puts SMAX in force, replacing whatever ATC speed was assigned: the command does it, and so does passing a crossing
+    /// fix whose speed was restated while SMAX was in force (<see cref="NavigationTarget.RevertSpeedMax"/>).
+    /// </summary>
+    internal static void ArmSpeedMax(AircraftState aircraft, bool controllerIssued)
+    {
+        aircraft.Procedure.SpeedRestrictionsDeleted = false;
+        aircraft.Targets.TargetMach = null;
+        aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
+        aircraft.Targets.SpeedFloor = null;
+        aircraft.Targets.SpeedCeiling = null;
+        aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedCommandIsControllerIssued = controllerIssued;
+        aircraft.Targets.SpeedOverridesFinalGate = false;
+        aircraft.Targets.SpeedLimitsLifted = false;
+        aircraft.Procedure.LastProcedureSpeedKts = null;
+        aircraft.Targets.SpeedMaxHeld = true;
+        FlightPhysics.HoldMaximumForwardSpeed(aircraft);
+    }
+
+    /// <summary>
+    /// Ends SMAX for a speed act that does not itself clear the Mach hold (a crossing speed, WARP): SMAX's own Mach hold
+    /// goes with it, so the new speed is flown. A Mach hold a MACH command set is left as it was.
+    /// </summary>
+    internal static void EndSpeedMax(AircraftState aircraft)
+    {
+        if (aircraft.Targets.SpeedMaxHeld)
+        {
+            aircraft.Targets.TargetMach = null;
+        }
+
+        aircraft.Targets.SpeedMaxHeld = false;
     }
 
     /// <summary>
@@ -821,6 +912,8 @@ internal static class FlightCommandHandler
         // 14 CFR 91.117 and the type's Vmo/Mmo, scripted or not.
         aircraft.Targets.SpeedOverridesFinalGate = true;
         aircraft.Targets.SpeedLimitsLifted = true;
+        aircraft.Targets.SpeedMaxHeld = false;
+        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
@@ -1060,6 +1153,7 @@ internal static class FlightCommandHandler
         }
 
         int transmissionId = ctx.TransmissionId;
+        bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -1129,7 +1223,8 @@ internal static class FlightCommandHandler
             if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out int spd))
             {
                 speedRestriction = new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow);
-                if (i == lastConstrainedIdx)
+                // While SMAX is pending, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
+                if ((i == lastConstrainedIdx) && !speedMaxPending)
                 {
                     revertSpeed = aircraft.Targets.TargetSpeed;
                     revertAssignedSpeed = aircraft.Targets.AssignedSpeed;
@@ -1157,7 +1252,13 @@ internal static class FlightCommandHandler
 
         if (cmd.SpeedConstraints is { Count: > 0 })
         {
+            if (speedMaxPending)
+            {
+                NavigationCommandHandler.PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
+            }
+
             aircraft.Targets.SpeedLimitsLifted = false;
+            EndSpeedMax(aircraft);
         }
 
         string fixNames = FixListSpaced(cmd.Fixes);
@@ -1323,6 +1424,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.SpeedLimitsLifted = false;
+        EndSpeedMax(aircraft);
         aircraft.Procedure.LastProcedureSpeedKts = null;
         aircraft.IsOnGround = false;
         aircraft.Situation.WasOnGround = false;

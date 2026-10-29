@@ -550,7 +550,7 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 | TA | Temporary altitude assignment |
 | Phase | Current phase name (e.g., Downwind, FinalApproach, TakeoffRoll) |
 | Rwy | Assigned runway |
-| AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors |
+| AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors; ASpd reads `MAX 330` (`MAX M.80` above the IAS/Mach changeover) while the aircraft holds its maximum forward speed (`SMAX`) |
 | Dist | Distance in NM from the reference fix (see [Distance Column](#distance-column)) |
 | Pending Cmds | Numbered pending command blocks. Shows `[Active]` for the current block, then `[1]`, `[2]`, etc. for queued blocks |
 
@@ -1352,7 +1352,7 @@ Empty assigned fields show their identifier (`ASP`, `AHDG`, `(---)`) so the clic
 | **Owner** initials (or `--` if no RPO assigned) | **Left-click**: take RPO control (assign aircraft to yourself). **Right-click**: opens the RPO assignment menu — Take control / Give up control / Give control to *(submenu of other RPOs in the room)* / Unassign. |
 | **Destination** field | Enters **draw-route** mode — left-click waypoints on the map; right-click the last waypoint to confirm, Esc to cancel. |
 | Current or assigned **altitude** field | Altitude flyout (FL010..FL400 in 1000-ft steps). Opens scrolled to the current altitude with a roughly ±5,000 ft window visible; the rest is reachable by scrolling. Selection dispatches `CM` or `DM` based on whether the picked FL is above or below the aircraft. |
-| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed + **Reduce to final approach speed** at the bottom, labelled with the aircraft-specific speed, e.g. `Reduce to final approach speed - 144 kt`). Opens scrolled to the current speed with a ±60 kt window visible. Dispatches `SPD`, `RNS`, or `RFAS`. |
+| Current or assigned **speed** / `ASP` | Speed flyout (80..350 kt + Resume Normal Speed + **Reduce to final approach speed** at the bottom, labelled with the aircraft-specific speed, e.g. `Reduce to final approach speed - 144 kt`). Opens scrolled to the current speed with a ±60 kt window visible. Dispatches `SPD`, `RNS`, or `RFAS`. While the aircraft holds its maximum forward speed (`SMAX`) the field reads `SMAX`. |
 | **AHDG** field | Enters **heading mode** — see below. |
 | Assigned **runway** field | Runway flyout listing every runway end at the aircraft's departure (if on ground) or destination (if airborne) airport, sorted numerically. Dispatches `RWY <designator>`. Includes a Clear option. |
 | **Scratchpad 1/2** (`.XXX` / `+XXX`) | Text-entry popup with the current value pre-filled, plus EuroScope-convention preset chips (CLEA / NOTC / ST-UP / PUSH / TAXI / DEPA). Enter submits, Esc cancels. |
@@ -2017,6 +2017,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `FH 270` | Fly heading 270 |
 | `CM 100` | Climb and maintain 10,000 ft |
 | `SPD 250` | Maintain 250 knots |
+| `SMAX` | Maintain maximum forward speed: the fastest the type can fly, following the altitude (a margin under Vmo low, under Mmo high). Unlike `SPD`, it is not held to 250 knots below 10,000 ft |
 | `CM 050, FH 090` | Climb to 5,000 **and** turn to 090 simultaneously |
 | `CM 100; LV 050 FH 270` | Climb to 10,000; at 5,000 ft, turn heading 270 |
 | `EXP 014` | Descend to 1,400 ft and expedite — the altitude is a clearance, so this both re-clears the aircraft and raises its vertical rate (descents roughly double, climbs gain ~15%, within per-category limits). A bare `EXP` expedites the climb or descent already in progress instead |

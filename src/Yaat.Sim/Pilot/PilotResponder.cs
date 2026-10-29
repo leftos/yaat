@@ -623,6 +623,7 @@ public static partial class PilotResponder
             ),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext, trace),
             ReportCommand report => BuildReportWilcoClause(report),
+            SpeedMaxCommand => BuildMaximumForwardSpeed(),
             ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
             MaintainMilitaryRouteAltitudesCommand => BuildMaintainRouteAltitudesClause(aircraft),
             ClearedOutOfMilitaryRouteCommand xmtr => BuildClearedOutOfMilitaryRouteClause(aircraft, xmtr),
@@ -908,6 +909,12 @@ public static partial class PilotResponder
             $"cleared to {PhraseologyVerbalizer.SpellFix(cmd.Destination)} from {PhraseologyVerbalizer.SpellMilitaryRoute(designator)}{spokenVia}{spokenAlt}"
         );
     }
+
+    /// <summary>
+    /// Readback of SMAX, 7110.65 5-7-2 "MAINTAIN MAXIMUM FORWARD SPEED": the pilot reads back the instruction's speed,
+    /// which has no number.
+    /// </summary>
+    private static PilotSpeechText? BuildMaximumForwardSpeed() => Dual("maximum forward speed", "maximum forward speed");
 
     /// <summary>
     /// Pilot wilco for a controller <c>REPORT</c> request: acknowledges now ("will report turning

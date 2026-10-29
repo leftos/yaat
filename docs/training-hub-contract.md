@@ -72,6 +72,8 @@ that is a different field on a different wire for a different consumer. The trai
 twice on an otherwise-static aircraft, so without it neither the on- nor the off-edge is ever broadcast and the flash
 never starts or stops (`ChangeDetectionTests.IsIdenting_Change_TriggersTrainingDtoFlag_OnBothTransitions` guards this).
 
+`SpeedMax` (bool) is `ac.Targets.SpeedMaxHeld`, true while SMAX (maintain maximum forward speed) is in force; `AssignedSpeed`/`AssignedMach` then carry its live figure, and the client shows `MAX` before it in the ASpd column and `SMAX` in the EuroScope tag. It is part of the change-tracker fingerprint, so a change of the mode alone broadcasts.
+
 `TargetSpeedKts` carries `ac.Targets.TargetSpeed` (the transient physics goal, null when none) — the one `Target*` value on the wire, and it is not `AssignedSpeed`. It exists so the client can run the sim's own parked-or-held classification (`GroundConflictDetector.IsParkedOrHeld`, whose at-rest test excludes a `LiningUp` aircraft creeping at 2 kt by its target speed) for the Ground view's push-route preview; it is already part of `TrainingDtoFingerprint`.
 
 **Heading frame mismatch — `Heading` is TRUE, `AssignedHeading` is MAGNETIC.** The DTO's bare `Heading` field carries

@@ -277,6 +277,7 @@ public static class CommandRegistry
                 ["MACH", "M"],
                 [O(null, [R("mach", ".XX mach number")], "Maintain Mach number")]
             ),
+            Bare(SpeedMax, "Maximum Forward Speed", "Altitude / Speed", CommandDimension.Speed, false, ["SMAX", "BFS", "MAXSPD"]),
         ];
 
     private static CommandDefinition[] ForceCommands() =>

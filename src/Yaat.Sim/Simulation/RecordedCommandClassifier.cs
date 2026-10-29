@@ -420,6 +420,7 @@ public static class RecordedCommandClassifier
                 or SayExitFixEstimateCommand
                 or SetTurnRateCommand
                 or SpeedCommand
+                or SpeedMaxCommand
                 or SquawkCommand
                 or SquawkNormalCommand
                 or SquawkResetCommand

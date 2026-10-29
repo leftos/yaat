@@ -807,6 +807,7 @@ public static class CommandParser
             Expedite => ParseExpedite(arg),
             NormalRate when arg is null => PR.Ok(new NormalRateCommand()),
             Mach when arg is not null => ParseMach(arg),
+            SpeedMax when arg is null => PR.Ok(new SpeedMaxCommand()),
             // Force commands
             ForceHeading => ParseHeading(arg, h => new ForceHeadingCommand(new MagneticHeading(h))),
             ForceAltitude => ParseAltitude(arg, a => new ForceAltitudeCommand(a)),

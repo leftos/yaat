@@ -85,6 +85,12 @@ public record NormalRateCommand : ParsedCommand;
 
 public record MachCommand(double MachNumber) : ParsedCommand;
 
+/// <summary>
+/// "Maintain maximum forward speed" (7110.65 5-7-2): the fastest the type may fly where it is, Vmo below its IAS/Mach
+/// crossover and Mmo above it, held until another speed is assigned.
+/// </summary>
+public record SpeedMaxCommand : ParsedCommand;
+
 public record ForceHeadingCommand(MagneticHeading MagneticHeading) : ParsedCommand;
 
 public record ForceAltitudeCommand(int Altitude) : ParsedCommand;

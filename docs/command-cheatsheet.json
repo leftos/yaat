@@ -49,7 +49,8 @@
         { "verb": "DSR", "aliases": [], "description": "Delete speed restrictions" },
         { "verb": "EXP", "aliases": [], "description": "Expedite to [alt] (or taxi/runway exit if on ground)" },
         { "verb": "NORM", "aliases": [], "description": "Normal rate" },
-        { "verb": "MACH", "aliases": ["m"], "description": "Maintain Mach number" }
+        { "verb": "MACH", "aliases": ["m"], "description": "Maintain Mach number" },
+        { "verb": "SMAX", "aliases": ["bfs", "maxspd"], "description": "Maximum forward speed (a margin under Vmo, Mmo high up); lifts 91.117 limits" }
       ],
       "notes": []
     },

@@ -310,8 +310,13 @@ public static class EuroScopeTagLayout
         return "(---)";
     }
 
-    private static string FormatAssignedSpeed(AircraftModel ac)
+    public static string FormatAssignedSpeed(AircraftModel ac)
     {
+        if (ac.SpeedMax)
+        {
+            return "SMAX";
+        }
+
         if (ac.AssignedSpeed is double spd)
         {
             return $"S{(int)spd:D3}";

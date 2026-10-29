@@ -28,7 +28,7 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 37;
+    public const int CurrentSchemaVersion = 38;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -290,6 +290,10 @@ public static class SnapshotSchemaMigrator
                 MigrateLegacySpeedStamps(ac);
             }
         }
+
+        // V37→V38: ControlTargetsDto.SpeedMaxHeld added, true while SMAX ("maintain maximum forward speed") is in force, and
+        //   NavigationTargetDto.RevertSpeedMax, true on a crossing fix past which SMAX is armed again. No aircraft before V38
+        //   could have been given SMAX, so both members' absence restores false and needs no step.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

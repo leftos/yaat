@@ -147,6 +147,15 @@ public class ControlTargets
     public bool SpeedLimitsLifted { get; set; }
 
     /// <summary>
+    /// True while SMAX ("maintain maximum forward speed") is in force. <see cref="FlightPhysics"/> then holds the type's
+    /// Vmo below its IAS/Mach crossover (<see cref="AssignedSpeed"/>) and its Mmo above it (<see cref="TargetMach"/>),
+    /// switching at the crossover, and skips 14 CFR 91.117 while still holding the type's own Vmo/Mmo. Cleared by every
+    /// act that ends or replaces the assigned speed (SPD, SPEEDF, MACH, SPDN, RFAS, DSR, CFIX or a constrained DCTF with
+    /// a speed, WARP, the final-gate auto-cancel, and every act that cancels the assigned speed).
+    /// </summary>
+    public bool SpeedMaxHeld { get; set; }
+
+    /// <summary>
     /// True when the user has issued an explicit TRATE command.
     /// Prevents pattern phases from overwriting TurnRateOverride.
     /// Cleared on TRATE (no arg), Warp, WarpGround, and phase-clear.
@@ -188,6 +197,7 @@ public class ControlTargets
             SpeedCommandIsControllerIssued = SpeedCommandIsControllerIssued,
             SpeedOverridesFinalGate = SpeedOverridesFinalGate,
             SpeedLimitsLifted = SpeedLimitsLifted,
+            SpeedMaxHeld = SpeedMaxHeld,
             HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
             NavigationRoute = NavigationRoute.Count > 0 ? [.. NavigationRoute.Select(n => n.ToSnapshot())] : null,
@@ -214,6 +224,7 @@ public class ControlTargets
         targets.SpeedCommandIsControllerIssued = dto.SpeedCommandIsControllerIssued;
         targets.SpeedOverridesFinalGate = dto.SpeedOverridesFinalGate;
         targets.SpeedLimitsLifted = dto.SpeedLimitsLifted;
+        targets.SpeedMaxHeld = dto.SpeedMaxHeld;
         targets.HasExplicitTurnRate = dto.HasExplicitTurnRate;
         targets.TargetMach = dto.TargetMach;
         targets.NavigationRoute.Clear();
@@ -273,6 +284,13 @@ public class NavigationTarget
     public double? RevertAssignedSpeed { get; set; }
 
     /// <summary>
+    /// True when this fix's crossing speed was issued while SMAX was in force (<see cref="ControlTargets.SpeedMaxHeld"/>):
+    /// past the fix SMAX is armed again in place of <see cref="RevertSpeed"/> and <see cref="RevertAssignedSpeed"/>, which
+    /// stay null.
+    /// </summary>
+    public bool RevertSpeedMax { get; set; }
+
+    /// <summary>
     /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose CFIX or constrained DCTF stamped a
     /// crossing restriction on this fix, or null when neither did. It answers for the crossing altitude: a DVIA or CVIA in
     /// the same transmission keeps the fix's altitude restriction, a later one gives it the published restriction back.
@@ -310,6 +328,7 @@ public class NavigationTarget
             RevertAssignedAltitude = RevertAssignedAltitude,
             RevertSpeed = RevertSpeed,
             RevertAssignedSpeed = RevertAssignedSpeed,
+            RevertSpeedMax = RevertSpeedMax,
             TerminalCourseMagnetic = TerminalCourseMagnetic,
             CrossingTransmissionId = CrossingTransmissionId,
             SpeedTransmissionId = SpeedTransmissionId,
@@ -335,6 +354,7 @@ public class NavigationTarget
             RevertAssignedAltitude = dto.RevertAssignedAltitude,
             RevertSpeed = dto.RevertSpeed,
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
+            RevertSpeedMax = dto.RevertSpeedMax,
             TerminalCourseMagnetic = dto.TerminalCourseMagnetic,
             CrossingTransmissionId = dto.CrossingTransmissionId,
             SpeedTransmissionId = dto.SpeedTransmissionId,

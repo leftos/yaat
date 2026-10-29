@@ -1212,6 +1212,7 @@ public record AircraftDto(
     double IndicatedAirspeed = 0,
     double Mach = 0,
     double? AssignedMach = null,
+    bool SpeedMax = false,
     int WindDirection = 0,
     int WindSpeed = 0,
     List<double[]>? PositionHistory = null,

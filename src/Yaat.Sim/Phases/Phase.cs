@@ -65,6 +65,7 @@ public abstract class Phase
                 or CanonicalCommandType.ForceSpeedFinal
                 or CanonicalCommandType.ForceSpeed
                 or CanonicalCommandType.Mach
+                or CanonicalCommandType.SpeedMax
                 or CanonicalCommandType.ReduceToFinalApproachSpeed
                 or CanonicalCommandType.ResumeNormalSpeed
                 or CanonicalCommandType.ResumePublishedSpeed

@@ -21,6 +21,7 @@
 - The Favorites Editor's Duplicate to... copies the selected favorites into another set as independent copies, and Duplicate set... copies a whole set.
 - The favorites bar's Sets menu orders Global, airport, scenario and named sets with ▲/▼ arrows, and layouts and favorites exports keep that order.
 - `RPS` resumes published speeds, also undoing a `DSR`, and on a STAR holds the last published speed crossed until the next restriction.
+- `SMAX` (`BFS`, `MAXSPD`) flies the aircraft's maximum forward speed, just under its redline and past the 250 kt limit, shown as `MAX 330`.
 
 ### Changed
 

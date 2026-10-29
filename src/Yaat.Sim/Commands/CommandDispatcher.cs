@@ -1288,6 +1288,8 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyNormalRate(aircraft);
             case MachCommand cmd:
                 return FlightCommandHandler.ApplyMach(cmd, aircraft, ctx);
+            case SpeedMaxCommand:
+                return FlightCommandHandler.ApplySpeedMax(aircraft, ctx);
             case ForceSpeedCommand cmd:
                 return FlightCommandHandler.ApplyForceSpeed(cmd, aircraft, ctx);
             case ForceFinalApproachSpeedCommand:
@@ -4335,13 +4337,19 @@ public static class CommandDispatcher
 
     /// <summary>
     /// Whether <paramref name="cmd"/> replaces the whole ATC speed assignment, so a via or approach clearance later in its
-    /// block finds that speed restated with it (7110.65 5-7-1.c) and leaves it standing: a speed or Mach, or "reduce to
-    /// final approach speed". A crossing speed (a CFIX or constrained direct-to carrying one, or "DVIA SPD n FIX") restates
-    /// only its own fix's restriction, which the fix's speed stamp keeps, so the clearance still cancels the speed
-    /// assigned before it (7110.65 5-7-1.c, d).
+    /// block finds that speed restated with it (7110.65 5-7-1.c) and leaves it standing: a speed or Mach, "maintain maximum
+    /// forward speed", or "reduce to final approach speed". A crossing speed (a CFIX or constrained direct-to carrying
+    /// one, or "DVIA SPD n FIX") restates only its own fix's restriction, which the fix's speed stamp keeps, so the
+    /// clearance still cancels the speed assigned before it (7110.65 5-7-1.c, d).
     /// </summary>
     private static bool AssignsSpeed(ParsedCommand cmd) =>
-        cmd is SpeedCommand or ForceSpeedCommand or ForceFinalApproachSpeedCommand or MachCommand or ReduceToFinalApproachSpeedCommand;
+        cmd
+            is SpeedCommand
+                or ForceSpeedCommand
+                or ForceFinalApproachSpeedCommand
+                or MachCommand
+                or SpeedMaxCommand
+                or ReduceToFinalApproachSpeedCommand;
 
     /// <summary>
     /// Runs an approach clearance (<paramref name="clear"/>), which cancels any speed assigned before it

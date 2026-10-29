@@ -498,6 +498,12 @@ public static class AircraftPerformance
         return max;
     }
 
+    /// <summary>
+    /// Maximum operating speed, Vmo (Vne for a helicopter), in KIAS at every altitude, or null when the type has none.
+    /// Unlike <see cref="MaxOperatingIasKts"/> it is not lowered by Mmo above the IAS/Mach crossover.
+    /// </summary>
+    public static double? MaxOperatingSpeedKts(string aircraftType) => ResolveSpeedEnvelope(aircraftType).Vmo;
+
     /// <summary>Maximum operating Mach number, or null when the type has none (helicopters, unknown types).</summary>
     public static double? MaxOperatingMach(string aircraftType) => ResolveSpeedEnvelope(aircraftType).Mmo;
 

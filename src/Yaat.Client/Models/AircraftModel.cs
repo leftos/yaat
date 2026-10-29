@@ -537,12 +537,19 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [NotifyPropertyChangedFor(nameof(AssignedSpeedDisplay))]
     private double? _assignedMach;
 
+    /// <summary>True while SMAX ("maintain maximum forward speed") is in force; the assigned speed or Mach is its live figure.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AssignedSpeedDisplay))]
+    private bool _speedMax;
+
     [ObservableProperty]
     private string _wind = "";
 
     public string MachDisplay => Altitude >= 24000 && Mach >= 0.01 ? $"M.{Mach * 100:F0}" : "";
 
-    public string AssignedSpeedDisplay =>
+    public string AssignedSpeedDisplay => SpeedMax ? $"MAX {AssignedFigureDisplay}".TrimEnd() : AssignedFigureDisplay;
+
+    private string AssignedFigureDisplay =>
         AssignedMach.HasValue ? $"M.{AssignedMach.Value * 100:F0}"
         : AssignedSpeed.HasValue ? AssignedSpeed.Value.ToString("F0")
         : "";
@@ -1406,6 +1413,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             IndicatedAirspeed = dto.IndicatedAirspeed,
             Mach = dto.Mach,
             AssignedMach = dto.AssignedMach,
+            SpeedMax = dto.SpeedMax,
             Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "",
             PositionHistory = dto.PositionHistory,
             PatternEntryKind = dto.PatternEntryKind,
@@ -1550,6 +1558,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         IndicatedAirspeed = dto.IndicatedAirspeed;
         Mach = dto.Mach;
         AssignedMach = dto.AssignedMach;
+        SpeedMax = dto.SpeedMax;
         Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "";
         PositionHistory = dto.PositionHistory;
         PatternEntryKind = dto.PatternEntryKind;

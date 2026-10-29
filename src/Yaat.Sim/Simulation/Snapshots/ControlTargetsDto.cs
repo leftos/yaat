@@ -27,6 +27,10 @@ public sealed class ControlTargetsDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SpeedLimitsLifted { get; init; }
 
+    // Schema 38: written only when true; a schema-37 snapshot has none and restores false (no SMAX in force).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SpeedMaxHeld { get; init; }
+
     public bool HasExplicitTurnRate { get; init; }
     public double? TargetMach { get; init; }
     public List<NavigationTargetDto>? NavigationRoute { get; init; }
@@ -43,6 +47,11 @@ public sealed class NavigationTargetDto
     public double? RevertAssignedAltitude { get; init; }
     public double? RevertSpeed { get; init; }
     public double? RevertAssignedSpeed { get; init; }
+
+    // Schema 38: written only when true; a schema-37 snapshot has none and restores false.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RevertSpeedMax { get; init; }
+
     public double? TerminalCourseMagnetic { get; init; }
 
     // Additive, no schema bump: absent in older snapshots, which restore as "no CFIX stamp".

@@ -533,6 +533,22 @@ public class ScenarioExporterTests
     }
 
     [Fact]
+    public void Ifr_MaximumForwardSpeed_ExportsSmaxPreset_RoundTrips()
+    {
+        AircraftState fast = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
+        Dispatch(fast, "SMAX");
+        Assert.True(fast.Targets.SpeedMaxHeld);
+
+        ScenarioExportResult result = Export(fast);
+
+        Assert.Equal(["SMAX"], Assert.Single(result.Scenario.Aircraft).PresetCommands.Select(preset => preset.Command));
+        AircraftState reloaded = ReloadWithPresets(result);
+        Assert.True(reloaded.Targets.SpeedMaxHeld);
+        Assert.Equal(fast.Targets.AssignedSpeed, reloaded.Targets.AssignedSpeed);
+        Assert.Equal(fast.Targets.TargetMach, reloaded.Targets.TargetMach);
+    }
+
+    [Fact]
     public void Ifr_DescendVia_ExportsDviaPreset()
     {
         AircraftState arrival = OakesArrival();
