@@ -85,7 +85,7 @@ public sealed class PilotTransmissionQueueTests
             "[N100AA] descend and maintain five thousand, november one zero zero alpha alpha.",
             PilotTransmissionKind.Readback
         );
-        world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
+        world.ExpectPilotReadback([.. readback.PendingPilotTransmissions], elapsedSeconds: 10);
 
         List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
 
@@ -105,7 +105,7 @@ public sealed class PilotTransmissionQueueTests
         // Controller spoke to N100AA at t=10 but the readback never lands (e.g. aircraft
         // deleted between dispatch and drain). Without a timeout the gate would silence
         // every other pilot forever.
-        world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
+        world.ExpectPilotReadback([NewTransmission("N100AA")], elapsedSeconds: 10);
 
         List<PilotTransmission> blocked = world.DrainReadyPilotTransmissions(elapsedSeconds: 12);
         Assert.Empty(blocked);

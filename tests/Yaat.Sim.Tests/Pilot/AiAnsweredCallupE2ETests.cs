@@ -192,15 +192,18 @@ public class AiAnsweredCallupE2ETests
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };
-        BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(ac);
+        var capture = PreDispatchCapture.BeforeDispatch(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);
-        engine.ApplyPostDispatch(ac, compound, result, DispatchOrigin.ControllerAi, bravoWait);
+        engine.ApplyPostDispatch(ac, compound, result, DispatchOrigin.ControllerAi, capture);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.PendingPilotRequest!.IsOpen);
         Assert.False(ac.HasMadeInitialContact);
         Assert.False(ac.HasControllerAcknowledgedInitialContact);
         Assert.NotEmpty(ac.PendingPilotTransmissions);
+        Assert.Contains(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
+        // The applied read-back arms the frequency's read-back gate: another pilot cannot cut in before it.
+        Assert.Equal("N152SP", engine.World.ActiveFrequency.AwaitingReadbackFrom);
 
         // Replay of the same AI command from its recorded connection id lands in the same state.
         (SimulationEngine? replayEngine, List<string> _) = LoadWithAiGround(solo: false, student: null);

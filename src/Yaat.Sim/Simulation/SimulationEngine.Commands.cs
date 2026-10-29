@@ -13,6 +13,29 @@ using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
 
+/// <summary>
+/// What <see cref="SimulationEngine.ApplyPostDispatch"/> needs that must be taken <em>before</em> a dispatch runs: the
+/// Class B the pilot was waiting on (a pattern entry or approach clearance replaces the boundary hold it reads), and the
+/// read-backs the aircraft already had pending. The post-dispatch step arms the frequency's read-back gate only for a
+/// read-back the dispatch itself queued — one pending afterwards that is not in <paramref name="Readbacks"/> — so a
+/// read-back a pilot queued on its own neither arms the gate nor satisfies the one armed for an instruction's read-back.
+/// The set compares transmissions by reference, since <see cref="PilotTransmission"/> is a value-equal record.
+/// </summary>
+/// <param name="BravoWait">The Class B the pilot was waiting on before the dispatch.</param>
+/// <param name="Readbacks">The read-backs pending for the aircraft when the dispatch began.</param>
+public sealed record PreDispatchCapture(BravoClearanceWait? BravoWait, IReadOnlySet<PilotTransmission> Readbacks)
+{
+    /// <summary>Takes both captures for <paramref name="aircraft"/>: what the dispatch is about to change behind it.</summary>
+    public static PreDispatchCapture BeforeDispatch(AircraftState aircraft) =>
+        new(
+            ImplicitBravoClearance.CaptureWait(aircraft),
+            new HashSet<PilotTransmission>(
+                aircraft.PendingPilotTransmissions.Where(t => t.Kind == PilotTransmissionKind.Readback),
+                ReferenceEqualityComparer.Instance
+            )
+        );
+}
+
 // Command entry points and the aircraft mutations they drive. Routing is the ActionRouter's (Simulation/Actions/);
 // this file holds the entry points that call it and the bodies its aviation arm shares with every run kind.
 public sealed partial class SimulationEngine
@@ -166,16 +189,18 @@ public sealed partial class SimulationEngine
     /// an AI-controller dispatch still resolves the pilot's pending request, releases the frequency gate,
     /// and gets the read-back / "unable" whenever anyone answers pilots (<c>PilotContacts.AnyAnswering</c>).
     ///
-    /// <paramref name="bravoWait"/> is the Class B the pilot was waiting on before the dispatch
-    /// (<see cref="ImplicitBravoClearance.CaptureWait"/>), taken before the dispatch because a pattern entry or approach
-    /// clearance replaces the boundary hold it reads.
     /// </summary>
+    /// <param name="capture">
+    /// What had to be taken before the dispatch ran: the Class B the pilot was waiting on (a pattern entry or approach
+    /// clearance replaces the boundary hold the grant reads) and the read-backs the aircraft already had pending, which
+    /// is how the gate below arms for this dispatch's read-back and not a pilot's own.
+    /// </param>
     public void ApplyPostDispatch(
         AircraftState aircraft,
         CompoundCommand compound,
         CommandResult result,
         DispatchOrigin origin,
-        BravoClearanceWait? bravoWait
+        PreDispatchCapture capture
     )
     {
         bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
@@ -196,7 +221,7 @@ public sealed partial class SimulationEngine
         if (result.Success)
         {
             bravoGrant = Scenario is { } scenario
-                ? ImplicitBravoClearance.TryGrant(aircraft, compound, bravoWait, scenario, AirspaceDatabase.Default, LookupAirportPosition)
+                ? ImplicitBravoClearance.TryGrant(aircraft, compound, capture.BravoWait, scenario, AirspaceDatabase.Default, LookupAirportPosition)
                 : null;
 
             if (human)
@@ -239,7 +264,6 @@ public sealed partial class SimulationEngine
                     readback = PilotResponder.WithBravoClearance(aircraft, readback, wording, speechContext);
                 }
 
-                World.ExpectPilotReadback(aircraft.Callsign, elapsedSeconds);
                 Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
                     aircraft,
                     readback,
@@ -247,6 +271,21 @@ public sealed partial class SimulationEngine
                     Yaat.Sim.Pilot.PilotResponder.SourceResponse
                 );
             }
+        }
+
+        // Every read-back this dispatch queued arms the frequency's read-back gate, whichever site queued it: the
+        // applied read-back above — queued when the instruction is issued even if the command itself is only deferred by
+        // a reaction delay — the pilot's "unable" after a refused command, a contact/handoff read-back or a pattern-size
+        // reply. The gate holds other pilots until that read-back is on air, so none of them can cut in between the
+        // instruction and its read-back. A read-back the pilot had already queued on its own — its own "unable" about an
+        // assigned altitude, a re-asked request — is not a reply to this instruction and arms nothing.
+        PilotTransmission[] queuedReadbacks =
+        [
+            .. aircraft.PendingPilotTransmissions.Where(t => (t.Kind == PilotTransmissionKind.Readback) && !capture.Readbacks.Contains(t)),
+        ];
+        if (answering && (queuedReadbacks.Length > 0))
+        {
+            World.ExpectPilotReadback(queuedReadbacks, elapsedSeconds);
         }
     }
 

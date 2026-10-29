@@ -49,8 +49,10 @@ internal static class ActionArms
             ? null
             : ReactionDelayPolicy.Decide(scenario, engine.World, aircraft, compound, ctx.Input.Baked?.ReactionDelaySeconds);
 
-        // Before the dispatch: a pattern entry or approach clearance replaces the boundary hold this reads.
-        BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(aircraft);
+        // Before the dispatch: a pattern entry or approach clearance replaces the boundary hold this reads, and the
+        // read-backs the aircraft already has pending are what the post-dispatch step compares against to arm the
+        // frequency's read-back gate for this instruction's read-back alone.
+        var capture = PreDispatchCapture.BeforeDispatch(aircraft);
         CommandResult result;
         if (delay is double seconds)
         {
@@ -95,7 +97,7 @@ internal static class ActionArms
             engine.EvaluateSurfaceMembership(aircraft);
         }
 
-        engine.ApplyPostDispatch(aircraft, compound, result, origin, bravoWait);
+        engine.ApplyPostDispatch(aircraft, compound, result, origin, capture);
         return result;
     }
 

@@ -37,9 +37,9 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 `SimulationWorld.ActiveFrequency` is a single `FrequencyState` instance. Each tick, `SimulationEngine.TickPostPhysics` calls `World.DrainReadyPilotTransmissions(elapsedSeconds)`:
 
 1. **Drain.** Move every aircraft's `PendingPilotTransmissions` into the frequency's pending queue.
-2. **Awaited-readback gate.** If `_awaitingReadbackFrom` is set (the controller just spoke to a callsign), the matching readback gets airtime priority — if it's already in the queue, dequeue it first; if it isn't, hold other transmissions back so it can land.
+2. **Awaited-readback gate.** `FrequencyState` holds a FIFO of awaited callsigns (`_awaitingReadbacks`, each with the second it was added; a callsign already awaited is not added again). While it is non-empty, the head's readback gets airtime priority — if it's already in the queue, dequeue it first; if it isn't, hold other transmissions back so it can land. Two instructions outstanding therefore both come back, in instruction order, before any third pilot speaks.
 
-   The gate has an `AwaitedReadbackTimeoutSeconds` ceiling (8 s); past that, it releases the frequency to FIFO so a missing readback (deleted aircraft, future bug, etc.) can never silence the airport indefinitely. The awaited callsign stays set — if the readback arrives later, it dequeues normally; the gate just stops vetoing others.
+   The gate has an `AwaitedReadbackTimeoutSeconds` ceiling (8 s); past that, it releases the frequency to FIFO so a missing readback (deleted aircraft, future bug, etc.) can never silence the airport indefinitely. The 8 s counts from the later of the instruction and the frequency's next free second, so a readback waiting on airtime behind a long transmission keeps its priority. A timed-out callsign leaves the FIFO — if its readback arrives later, it dequeues normally without veto power over the rest.
 3. **Airtime gate.** A transmission can only dequeue when `elapsedSeconds >= _nextAvailableAtSeconds`. After dequeue, set the next slot to `now + (~0.25 s/word, min 1 s)`.
 4. **Activity meter.** `FrequencyActivityMeter` records each transmitted message in a rolling 60-second window. Counts classify into Quiet (<5) / Moderate (≤12) / Busy (≤20) / Saturated (above).
 
@@ -57,17 +57,13 @@ When solo mode is OFF, `World.DiscardAllPilotTransmissions()` runs each tick to 
 
 The readback text itself comes from `PilotResponder.BuildReadbackAsApplied` — when the dispatch rewrote the command (`CommandResult.EffectiveCommand`, e.g. a TAXI whose gate lead-out lane was dropped), the pilot reads back the route it will actually taxi, prefixed "unable <lane>," — see [pilot-phraseology.md](pilot-phraseology.md#readback-of-a-rewritten-clearance).
 
-Successful command dispatch in `SimulationEngine.SendCommand`:
+`SimulationEngine.BuildDispatchContext` records which `Readback` entries the aircraft already had pending; after the dispatch, `ApplyPostDispatch` calls `World.ExpectPilotReadback` when a `Readback` entry it did not have before is now pending. Whichever site queued it arms the gate: the applied readback, the pilot's "unable" after a refused command, a contact/handoff (CT/FCA) readback or a pattern-size reply. A reply the pilot had already queued on its own does not arm it.
 
-```csharp
-World.ExpectPilotReadback(aircraft.Callsign, scenario.ElapsedSeconds);
-PilotResponder.QueueSoloPilotTransmission(
-    aircraft, readback, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
-```
+In normal operation the readback emerges on the very next drain (1 s) and its callsign leaves the FIFO immediately, so the gate is invisible. Two consecutive controller commands to two different aircraft queue both callsigns; the second readback waits for the first.
 
-In normal operation the readback emerges on the very next drain (1 s) and `_awaitingReadbackFrom` clears immediately, so the gate is invisible. Two consecutive controller commands to two different aircraft will queue both readbacks; the second waits for the first to clear within the same drain window.
+An aircraft that leaves the world (`SimulationWorld.RemoveAircraft`) or is replaced by a same-callsign spawn (`AddAircraft`'s replace path) has its awaited readbacks dropped at once (`FrequencyState.ForgetAircraft`), so the next pilot speaks on the next drain.
 
-If the awaited readback never arrives — aircraft deleted between dispatch and drain, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
+If the awaited readback never arrives otherwise — an instruction whose readback never queues, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. Gate state, like the pending queue, is not snapshotted. **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
 
 ## Awaiting controller response after a proactive call
 
@@ -82,7 +78,7 @@ What still passes the gate:
 - The awaiting pilot's own follow-up calls (same callsign).
 - Any `Readback` or `SayReadback` from any pilot — those are responses to controller-issued commands, not new requests.
 
-For commands that *produce* a readback, both gates run sequentially: dispatch clears `_awaitingControllerResponseTo` (controller has spoken) and arms `_awaitingReadbackFrom` (waiting for the reply). For commands that don't produce a readback (e.g. `ROGER`/`STBY` via `AcknowledgePilotContactCommand`), the controller-response gate clears and other pilots can mic up immediately.
+For commands that *produce* a readback, both gates run sequentially: dispatch clears `_awaitingControllerResponseTo` (controller has spoken) and adds the callsign to `_awaitingReadbacks` (waiting for the reply). For commands that don't produce a readback (e.g. `ROGER`/`STBY` via `AcknowledgePilotContactCommand`), the controller-response gate clears and other pilots can mic up immediately.
 
 ## Activity-aware readback shortening
 

@@ -8,6 +8,7 @@
 - CRC's ASDE-X display no longer keeps closed runways or safety-logic alerts after a rewind, a scenario restart or an unload.
 - An IFR departure flying a SID's coded legs with no altitude assigned levels at the SID's initial altitude, instead of climbing toward cruise.
 - `CMN` during a SID's coded legs holds the forced altitude and keeps the aircraft on the SID, instead of cancelling it.
+- In solo sessions, other pilots no longer cut in before the pilot you just instructed has read back.
 
 ## v0.17.1-beta [2026/10/29]
 

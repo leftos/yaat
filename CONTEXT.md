@@ -588,6 +588,9 @@ The lowest position type a solo student works (`SimScenarioState.StudentLowestWo
 **Pilot trait**:
 How much a pilot says on the frequency regardless of load: terse (25%), normal (50%) or chatty (25%), derived from the callsign and the scenario seed and never stored. Terse speaks at the next busier load band, chatty at the next quieter, clamped to quiet..busy (`PilotTrait`, `PilotTraits.EffectiveBand`, docs/solo-training-pilot-speech.md).
 
+**Readback gate**:
+The hold on the solo frequency between a controller instruction and the pilot's queued reply (readback, "unable", contact/handoff readback or pattern-size reply): other pilots' calls wait until that reply is on air, replies to several instructions in instruction order, released 8 s after the frequency frees for that pilot if the reply never queues (`FrequencyState.ExpectReadback`). Not snapshotted.
+
 **Simulated tower**:
 The tower the sim plays without a word at a towered airport where the solo student does not work the tower and no AI tower covers it (`PilotContactRoster.TowerIsSimulatedAt`): no tower call reaches the student, it clears a departure the student transferred for takeoff once the runway is clear, clears arrivals to land and sends them around when the runway is not clear.
 

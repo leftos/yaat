@@ -120,6 +120,9 @@ public sealed class SimulationWorld
                     aircraft.Callsign,
                     removed
                 );
+                // The replaced entry's awaited read-backs can never arrive either; drop them instead of holding the
+                // frequency for them.
+                ActiveFrequency.ForgetAircraft(aircraft.Callsign);
             }
 
             // Same-callsign respawn after a removal: drop any stale completed record so the
@@ -171,6 +174,8 @@ public sealed class SimulationWorld
                 }
 
                 _aircraft.RemoveAt(i);
+                // Its awaited read-backs can never arrive now; drop them instead of holding the frequency for them.
+                ActiveFrequency.ForgetAircraft(ac.Callsign);
             }
         }
     }
@@ -460,7 +465,13 @@ public sealed class SimulationWorld
         return result;
     }
 
-    public void ExpectPilotReadback(string callsign, double elapsedSeconds) => ActiveFrequency.ExpectReadback(callsign, elapsedSeconds);
+    /// <summary>
+    /// Arms the read-back gate for the exact transmissions <paramref name="readbacks"/> the sim just queued as a
+    /// controller instruction's read-back, in order. Each is matched by reference, so a pilot's own earlier read-back
+    /// (even to the same callsign) neither satisfies nor clears the gate armed for the instruction's read-back.
+    /// </summary>
+    public void ExpectPilotReadback(IEnumerable<PilotTransmission> readbacks, double elapsedSeconds) =>
+        ActiveFrequency.ExpectReadback(readbacks, elapsedSeconds);
 
     /// <summary>
     /// Clears the awaiting-controller-response gate when the controller dispatches a

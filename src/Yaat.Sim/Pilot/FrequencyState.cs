@@ -22,15 +22,14 @@ public sealed class FrequencyState
     private static readonly ILogger Log = SimLog.CreateLogger("FrequencyState");
 
     private readonly Queue<PilotTransmission> _pending = [];
+    private readonly Queue<AwaitedReadback> _awaitingReadbacks = [];
     private double _nextAvailableAtSeconds;
-    private string? _awaitingReadbackFrom;
-    private double _awaitingReadbackSinceSeconds;
     private string? _awaitingControllerResponseTo;
     private double _awaitingControllerResponseSinceSeconds;
 
     public FrequencyActivityMeter ActivityMeter { get; } = new();
     public int PendingCount => _pending.Count;
-    public string? AwaitingReadbackFrom => _awaitingReadbackFrom;
+    public string? AwaitingReadbackFrom => (_awaitingReadbacks.Count > 0) ? _awaitingReadbacks.Peek().Transmission.Callsign : null;
     public string? AwaitingControllerResponseTo => _awaitingControllerResponseTo;
 
     public FrequencyActivityLevel GetActivityLevel(double elapsedSeconds)
@@ -42,12 +41,46 @@ public sealed class FrequencyState
     /// <summary>The frequency's load band at <paramref name="elapsedSeconds"/>, read without trimming the meter.</summary>
     public FrequencyLoadBand PeekLoadBand(double elapsedSeconds) => ActivityMeter.PeekLoadBand(elapsedSeconds);
 
-    public void ExpectReadback(string callsign, double elapsedSeconds)
+    /// <summary>
+    /// Records that the controller's instructions whose applied read-backs are <paramref name="readbacks"/> await those
+    /// exact transmissions. They keep their arrival order and are matched by reference: the first awaited read-back is
+    /// given airtime priority over every other transmission, so a second instruction in the same tick (or before the first
+    /// read-back speaks) cannot displace it, a pilot's own earlier read-back — even to the same callsign — neither
+    /// satisfies nor clears the entry armed for the instruction's read-back, and a second read-back to the same aircraft
+    /// keeps its own entry.
+    /// </summary>
+    public void ExpectReadback(IEnumerable<PilotTransmission> readbacks, double elapsedSeconds)
     {
-        if (!string.IsNullOrWhiteSpace(callsign))
+        foreach (PilotTransmission readback in readbacks)
         {
-            _awaitingReadbackFrom = callsign;
-            _awaitingReadbackSinceSeconds = elapsedSeconds;
+            _awaitingReadbacks.Enqueue(new AwaitedReadback(readback, elapsedSeconds));
+        }
+    }
+
+    /// <summary>
+    /// Drops the awaited read-backs of an aircraft that left the world: they can never arrive, so holding the frequency
+    /// for one would silence every other pilot for a transmission that no longer exists.
+    /// </summary>
+    public void ForgetAircraft(string callsign)
+    {
+        if (_awaitingReadbacks.Count == 0)
+        {
+            return;
+        }
+
+        AwaitedReadback[] keep =
+        [
+            .. _awaitingReadbacks.Where(a => !string.Equals(a.Transmission.Callsign, callsign, StringComparison.OrdinalIgnoreCase)),
+        ];
+        if (keep.Length == _awaitingReadbacks.Count)
+        {
+            return;
+        }
+
+        _awaitingReadbacks.Clear();
+        foreach (AwaitedReadback entry in keep)
+        {
+            _awaitingReadbacks.Enqueue(entry);
         }
     }
 
@@ -83,11 +116,12 @@ public sealed class FrequencyState
 
         PilotTransmission transmission = DequeueAt(index);
         if (
-            transmission.Kind == PilotTransmissionKind.Readback
-            && string.Equals(_awaitingReadbackFrom, transmission.Callsign, StringComparison.OrdinalIgnoreCase)
+            (transmission.Kind == PilotTransmissionKind.Readback)
+            && (_awaitingReadbacks.Count > 0)
+            && ReferenceEquals(_awaitingReadbacks.Peek().Transmission, transmission)
         )
         {
-            _awaitingReadbackFrom = null;
+            _awaitingReadbacks.Dequeue();
         }
 
         double airtime = EstimateAirtimeSeconds(transmission.SpeechText);
@@ -108,7 +142,8 @@ public sealed class FrequencyState
             _awaitingControllerResponseTo = transmission.Callsign;
             _awaitingControllerResponseSinceSeconds = _nextAvailableAtSeconds;
             Log.LogInformation(
-                "Awaiting controller response from {Callsign} ({Kind} ends at t={EndSeconds:F1}s, airtime={Airtime:F1}s); other-pilot proactive/report transmissions held until response or {Timeout}s of silence",
+                "Awaiting controller response from {Callsign} ({Kind} ends at t={EndSeconds:F1}s, airtime={Airtime:F1}s); "
+                    + "other-pilot proactive/report transmissions held until response or {Timeout}s of silence",
                 transmission.Callsign,
                 transmission.Kind,
                 _nextAvailableAtSeconds,
@@ -124,8 +159,7 @@ public sealed class FrequencyState
     public void Clear()
     {
         _pending.Clear();
-        _awaitingReadbackFrom = null;
-        _awaitingReadbackSinceSeconds = 0;
+        _awaitingReadbacks.Clear();
         _awaitingControllerResponseTo = null;
         _awaitingControllerResponseSinceSeconds = 0;
         _nextAvailableAtSeconds = 0;
@@ -134,43 +168,9 @@ public sealed class FrequencyState
 
     private int SelectReadyIndex(double elapsedSeconds)
     {
-        if (_awaitingReadbackFrom is { Length: > 0 } callsign)
+        if (AwaitedReadbackIndex(elapsedSeconds) is int awaitedIndex)
         {
-            int index = 0;
-            foreach (PilotTransmission transmission in _pending)
-            {
-                if (
-                    transmission.Kind == PilotTransmissionKind.Readback
-                    && string.Equals(transmission.Callsign, callsign, StringComparison.OrdinalIgnoreCase)
-                )
-                {
-                    return index;
-                }
-
-                index++;
-            }
-
-            // The expected readback hasn't reached the queue yet. Hold other
-            // transmissions back so the readback gets airtime priority — but only
-            // for AwaitedTimeoutSeconds. Past that, fall through to FIFO so
-            // a missing readback (deleted aircraft, future bug, etc.) can't freeze
-            // the frequency. The awaited callsign stays set: if the readback shows
-            // up later it will dequeue normally; the gate just stops vetoing others.
-            double waitedSeconds = elapsedSeconds - _awaitingReadbackSinceSeconds;
-            if (waitedSeconds < AwaitedTimeoutSeconds)
-            {
-                Log.LogDebug(
-                    "Holding frequency for {Callsign} readback ({Waited:F1}s waited); {Count} other transmissions queued",
-                    callsign,
-                    waitedSeconds,
-                    _pending.Count
-                );
-                return -1;
-            }
-
-            Log.LogDebug("Awaited readback from {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO", callsign, waitedSeconds);
-            _awaitingReadbackFrom = null;
-            // Fall through to the controller-response gate / FIFO below.
+            return awaitedIndex;
         }
 
         if (_awaitingControllerResponseTo is { Length: > 0 } awaitingCallsign)
@@ -219,6 +219,70 @@ public sealed class FrequencyState
 
         return 0;
     }
+
+    /// <summary>
+    /// The queue index of the read-back the frequency is holding for, <c>-1</c> while it is still held, or <c>null</c>
+    /// when no awaited read-back is left and the caller goes on to the controller-response gate and FIFO.
+    ///
+    /// A read-back that is merely waiting on airtime behind a long transmission keeps its slot: the window counts from
+    /// when the awaited pilot could first speak — the later of the instruction and the frequency's next free second — so
+    /// waiting for airtime cannot burn it. Past the window <see cref="AwaitedTimeoutSeconds"/> the entry is dropped, so a
+    /// read-back that never arrives (deleted aircraft, future bug) cannot freeze the frequency; one that shows up later
+    /// dequeues normally, without veto power over the rest.
+    /// </summary>
+    private int? AwaitedReadbackIndex(double elapsedSeconds)
+    {
+        while (_awaitingReadbacks.Count > 0)
+        {
+            AwaitedReadback awaited = _awaitingReadbacks.Peek();
+            int index = PendingIndexOf(awaited.Transmission);
+            if (index >= 0)
+            {
+                return index;
+            }
+
+            double waitedSeconds = elapsedSeconds - Math.Max(awaited.SinceSeconds, _nextAvailableAtSeconds);
+            if (waitedSeconds < AwaitedTimeoutSeconds)
+            {
+                Log.LogDebug(
+                    "Holding frequency for {Callsign} readback ({Waited:F1}s waited); {Count} other transmissions queued",
+                    awaited.Transmission.Callsign,
+                    waitedSeconds,
+                    _pending.Count
+                );
+                return -1;
+            }
+
+            Log.LogDebug(
+                "Awaited readback from {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO",
+                awaited.Transmission.Callsign,
+                waitedSeconds
+            );
+            _awaitingReadbacks.Dequeue();
+        }
+
+        return null;
+    }
+
+    /// <summary>The queue index of <paramref name="transmission"/> itself and not a value-equal copy, or -1.</summary>
+    private int PendingIndexOf(PilotTransmission transmission)
+    {
+        int index = 0;
+        foreach (PilotTransmission pending in _pending)
+        {
+            if (ReferenceEquals(pending, transmission))
+            {
+                return index;
+            }
+
+            index++;
+        }
+
+        return -1;
+    }
+
+    /// <summary>One controller instruction's read-back, awaited from the second its instruction was dispatched.</summary>
+    private readonly record struct AwaitedReadback(PilotTransmission Transmission, double SinceSeconds);
 
     private PilotTransmission DequeueAt(int targetIndex)
     {
