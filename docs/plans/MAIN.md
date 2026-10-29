@@ -10,12 +10,12 @@
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
-  - [/] YAAT-1192 Send ASDE-X safety-logic alert texts as vNAS does (RWY OCCUPIED, RWY CLOSED, RWY CLOSED, GO AROUND) · release vNext
-  - [/] YAAT-1193 Reconcile YAAT's RWY INCURSION alert with vNAS, which raises RWY OCCUPIED at threshold crossing instead · release vNext
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM · release vNext
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
+  - [ ] YAAT-1485 Show GO AROUND on a closed-runway arrival alert restored from a pre-V39 snapshot
+  - [ ] YAAT-1486 Merge feat/asdex-safety-logic to main (#1359)
 
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
 
@@ -42,9 +42,9 @@
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
-  - [ ] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext
+  - [/] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext
-  - [ ] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick · release vNext
+  - [/] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick · release vNext
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
 - [ ] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E) · release vNext
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP · release vNext
