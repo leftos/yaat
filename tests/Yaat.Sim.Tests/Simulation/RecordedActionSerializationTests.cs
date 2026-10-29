@@ -121,7 +121,9 @@ public class RecordedActionSerializationTests
                 [new AsdexRunwayConfig("28R", [new LatLon(37.6213, -122.3790), new LatLon(37.6188, -122.3581)], IsClosed: false)],
                 "cfg-1",
                 ["SFO_TWR"],
-                RunwayConfigurationChosen: true
+                RunwayConfigurationChosen: true,
+                AsdexSafetyLogicConfig.NoSeconds,
+                AsdexSafetyLogicConfig.NoSeconds
             )
         );
 
@@ -138,6 +140,39 @@ public class RecordedActionSerializationTests
         Assert.Equal(expected.Runways.Select(r => (r.Id, r.IsClosed)), reread.Config.Runways.Select(r => (r.Id, r.IsClosed)));
         Assert.Equal(expected.Runways.SelectMany(r => r.AreaPoints), reread.Config.Runways.SelectMany(r => r.AreaPoints));
         Assert.Equal(expected.RunwayConfigurationChosen, reread.Config.RunwayConfigurationChosen);
+    }
+
+    /// <summary>
+    /// The inhibit starts and the superseded configuration ids are derived when a push applies, like the chosen flag, so a
+    /// recorded push never carries them: a config holding both serializes without either member and reads back empty.
+    /// </summary>
+    [Fact]
+    public void RecordedAsdexSafetyLogicChange_LeavesTheDerivedSecondsOutOfTheRecording()
+    {
+        var change = new RecordedAsdexSafetyLogicChange(
+            115.0,
+            "SFO",
+            new AsdexSafetyLogicConfig(
+                [new AsdexRunwayConfig("28R", [new LatLon(37.6213, -122.3790), new LatLon(37.6188, -122.3581)], IsClosed: false)],
+                "cfg-1",
+                ["SFO_TWR"],
+                RunwayConfigurationChosen: false,
+                AsdexSafetyLogicConfig.Seconds([KeyValuePair.Create("SFO_TWR", 100.0)]),
+                AsdexSafetyLogicConfig.Seconds([KeyValuePair.Create("cfg-0", 110.0)])
+            )
+        );
+
+        JsonObject json = JsonSerializer.SerializeToNode<RecordedAction>(change, RecordingJsonOptions.Default)!.AsObject();
+        JsonObject config = json.Single(p => p.Key.Equals("config", StringComparison.OrdinalIgnoreCase)).Value!.AsObject();
+        Assert.DoesNotContain(config, p => p.Key.Equals("InhibitStartSeconds", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(config, p => p.Key.Equals("SupersededConfigurationIds", StringComparison.OrdinalIgnoreCase));
+
+        RecordedAsdexSafetyLogicChange reread = Assert.IsType<RecordedAsdexSafetyLogicChange>(
+            JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default)
+        );
+        Assert.Equal(["SFO_TWR"], reread.Config.InhibitedArrivalAlertPositionIds);
+        Assert.Empty(reread.Config.InhibitStartSeconds);
+        Assert.Empty(reread.Config.SupersededConfigurationIds);
     }
 
     private static IReadOnlyList<JsonDerivedTypeAttribute> DerivedTypeRegistrations() =>
@@ -283,7 +318,9 @@ public class RecordedActionSerializationTests
                     [new AsdexRunwayConfig("30", [new LatLon(37.7213, -122.2208), new LatLon(37.7222, -122.2101)], IsClosed: true)],
                     "cfg-1",
                     ["OAK_TWR"],
-                    RunwayConfigurationChosen: false
+                    RunwayConfigurationChosen: false,
+                    AsdexSafetyLogicConfig.NoSeconds,
+                    AsdexSafetyLogicConfig.NoSeconds
                 )
             ),
             new RecordedAttendanceChange(120.0, ["OAK_TWR", "OAK_GND", "NCT_W_APP"]),

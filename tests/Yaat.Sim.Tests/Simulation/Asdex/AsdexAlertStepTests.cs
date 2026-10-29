@@ -45,7 +45,14 @@ public class AsdexAlertStepTests
     ];
 
     private static AsdexSafetyLogicConfig ClosedRunways(params string[] runwayIds) =>
-        new([.. runwayIds.Select(id => new AsdexRunwayConfig(id, RunwayArea, IsClosed: true))], "WEST-PLAN", [], RunwayConfigurationChosen: false);
+        new(
+            [.. runwayIds.Select(id => new AsdexRunwayConfig(id, RunwayArea, IsClosed: true))],
+            "WEST-PLAN",
+            [],
+            RunwayConfigurationChosen: false,
+            AsdexSafetyLogicConfig.NoSeconds,
+            AsdexSafetyLogicConfig.NoSeconds
+        );
 
     /// <summary>
     /// Puts the scenario's one aircraft onto the configured footprint, aligned with the runway axis (28R is 280

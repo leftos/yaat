@@ -373,6 +373,12 @@ An aircraft on the ground off a runway's pavement with a body part past that run
 **Hold bar** (ASDE-X):
 A safety-logic line CRC draws at a runway's edge across a taxiway entrance or a crossing runway, lit (Active) while the runway is in use and hidden (Suppressed) otherwise (`AsdexHoldBar`, docs/crc-display-state.md). Not the painted hold-short node of the ground layout: see *Hold-short node*.
 
+**Arrival-alert inhibit** (of a tower position, ASDE-X):
+A tower position a CRC display marked so the facility's arrival alerts are inhibited for it. It lapses 180 sim seconds after it was set and clears when the facility's runway configuration changes; it suppresses no alert (`AsdexSafetyLogicConfig.InhibitStartSeconds`, docs/crc-display-state.md).
+
+**Superseded configuration** (ASDE-X runway configuration):
+A runway configuration id an `ARWY` re-pick moved a facility away from, remembered for 10 sim seconds. A CRC push naming it inside that window comes from a display that has not yet seen the re-pick, so it is not a choice (`AsdexSafetyLogicConfig.SupersededConfigurationIds`).
+
 **Hold line**:
 The runway holding position marking (AIM 2-3-5.a.1). The code's "bar" is its graph node, a `RunwayHoldShort` node (`RunwayHoldBars`).
 

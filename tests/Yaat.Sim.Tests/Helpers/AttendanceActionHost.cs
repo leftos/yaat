@@ -101,6 +101,11 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed) { }
 
+    /// <summary>Every batch of facilities whose ASDE-X safety-logic configuration a drain reported changed, in order.</summary>
+    public List<IReadOnlyList<string>> AsdexSafetyLogicConfigChanges { get; } = [];
+
+    public void OnAsdexSafetyLogicConfigsChanged(IReadOnlyList<string> facilityIds) => AsdexSafetyLogicConfigChanges.Add(facilityIds);
+
     /// <summary>Every batch of disconnect-coast facets a drain handed over as expired, in order.</summary>
     public List<IReadOnlyList<ExpiredDisconnectCoastFacet>> DisconnectCoastExpiries { get; } = [];
 

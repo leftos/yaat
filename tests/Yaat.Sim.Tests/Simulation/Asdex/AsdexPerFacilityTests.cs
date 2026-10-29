@@ -57,7 +57,14 @@ public class AsdexPerFacilityTests
         AsdexSafetyLogicSeed.Build(ZoaArtccConfig.Full, NavigationDatabase.Instance, ActiveRunways.Empty);
 
     private static AsdexSafetyLogicConfig Closed28R() =>
-        new([new AsdexRunwayConfig("28R", SharedArea, IsClosed: true)], "WEST-PLAN", [], RunwayConfigurationChosen: false);
+        new(
+            [new AsdexRunwayConfig("28R", SharedArea, IsClosed: true)],
+            "WEST-PLAN",
+            [],
+            RunwayConfigurationChosen: false,
+            AsdexSafetyLogicConfig.NoSeconds,
+            AsdexSafetyLogicConfig.NoSeconds
+        );
 
     [Fact]
     public void APushUnderSfo_LeavesOaksEntryAlone()

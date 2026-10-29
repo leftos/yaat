@@ -113,18 +113,112 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        // A push whose runway configuration differs from the one the facility held is a user's choice (CRC's F2); the
-        // closed-runway and inhibit toggles push the whole configuration with the id unchanged and choose nothing.
-        AsdexSafetyLogicConfig? old = scenario.AsdexSafetyLogicConfigs.GetValueOrDefault(change.FacilityId);
-        bool chosen = (old?.RunwayConfigurationChosen == true) || (change.Config.RunwayConfigurationId != old?.RunwayConfigurationId);
-        AsdexSafetyLogicConfig config = change.Config with { RunwayConfigurationChosen = chosen };
+        AsdexSafetyLogicConfig? stored = scenario.AsdexSafetyLogicConfigs.GetValueOrDefault(change.FacilityId);
+        AsdexSafetyLogicConfig config = stored is null ? FirstPush(change) : MergePush(stored, change);
         scenario.AsdexSafetyLogicConfigs = scenario.AsdexSafetyLogicConfigs.SetItem(change.FacilityId, config);
+        _asdexConfigChangedFacilities.Add(change.FacilityId);
     }
+
+    /// <summary>A push to a facility that held no configuration is taken whole, as chosen, each inhibit starting now.</summary>
+    private static AsdexSafetyLogicConfig FirstPush(RecordedAsdexSafetyLogicChange change) =>
+        change.Config with
+        {
+            RunwayConfigurationChosen = true,
+            InhibitStartSeconds = InhibitStarts(
+                change.Config.InhibitedArrivalAlertPositionIds,
+                AsdexSafetyLogicConfig.NoSeconds,
+                change.ElapsedSeconds
+            ),
+            SupersededConfigurationIds = AsdexSafetyLogicConfig.NoSeconds,
+        };
+
+    /// <summary>
+    /// A push merged onto the facility's stored configuration. CRC pushes the display's whole view, each push changing one
+    /// thing. A different runway configuration id is a user's choice (CRC's F2), which clears the inhibits, unless the id is
+    /// one an <c>ARWY</c> re-pick moved away from within the last <see cref="AsdexSafetyLogicConfig.SupersededIdWindowSeconds"/>:
+    /// then the display is stale, and the stored id stays. The push's closures always apply. Its inhibit list applies only
+    /// when the push carries the stored id and its closures match the stored ones, since a stale display's push and a closure
+    /// toggle from a display behind a lapse or a clear carry a stale list; a position kept keeps its start, one added starts now.
+    /// </summary>
+    private static AsdexSafetyLogicConfig MergePush(AsdexSafetyLogicConfig stored, RecordedAsdexSafetyLogicChange change)
+    {
+        AsdexSafetyLogicConfig pushed = change.Config;
+        double now = change.ElapsedSeconds;
+        IReadOnlyDictionary<string, double> liveSuperseded = LiveSuperseded(stored.SupersededConfigurationIds, now);
+        bool idDiffers = pushed.RunwayConfigurationId != stored.RunwayConfigurationId;
+        bool choice = idDiffers && !liveSuperseded.ContainsKey(pushed.RunwayConfigurationId);
+
+        IReadOnlyList<string> inhibited;
+        IReadOnlyDictionary<string, double> starts;
+        if (choice)
+        {
+            inhibited = [];
+            starts = AsdexSafetyLogicConfig.NoSeconds;
+        }
+        else if (!idDiffers && SameClosures(pushed, stored))
+        {
+            inhibited = pushed.InhibitedArrivalAlertPositionIds;
+            starts = InhibitStarts(inhibited, stored.InhibitStartSeconds, now);
+        }
+        else
+        {
+            inhibited = stored.InhibitedArrivalAlertPositionIds;
+            starts = stored.InhibitStartSeconds;
+        }
+
+        // Records compare their lists by reference, so the pushed list is kept whenever it is what the result holds.
+        if (inhibited.SequenceEqual(pushed.InhibitedArrivalAlertPositionIds))
+        {
+            inhibited = pushed.InhibitedArrivalAlertPositionIds;
+        }
+
+        return pushed with
+        {
+            RunwayConfigurationId = choice ? pushed.RunwayConfigurationId : stored.RunwayConfigurationId,
+            InhibitedArrivalAlertPositionIds = inhibited,
+            RunwayConfigurationChosen = stored.RunwayConfigurationChosen || choice,
+            InhibitStartSeconds = starts,
+            SupersededConfigurationIds = liveSuperseded,
+        };
+    }
+
+    /// <summary><paramref name="superseded"/> without the entries whose window has passed by <paramref name="now"/>.</summary>
+    private static IReadOnlyDictionary<string, double> LiveSuperseded(IReadOnlyDictionary<string, double> superseded, double now) =>
+        superseded.Values.All(second => second + AsdexSafetyLogicConfig.SupersededIdWindowSeconds > now)
+            ? superseded
+            : AsdexSafetyLogicConfig.Seconds(superseded.Where(entry => entry.Value + AsdexSafetyLogicConfig.SupersededIdWindowSeconds > now));
+
+    /// <summary>
+    /// True when each stored runway is in the push, matched by id (the first entry of an id), open or closed alike, and every
+    /// runway only the push names is open. CRC never removes a runway it was sent, so a display's list can carry more runways,
+    /// in another order; the footprints are not compared.
+    /// </summary>
+    private static bool SameClosures(AsdexSafetyLogicConfig pushed, AsdexSafetyLogicConfig stored)
+    {
+        Dictionary<string, bool> pushedClosed = [];
+        foreach (AsdexRunwayConfig runway in pushed.Runways)
+        {
+            pushedClosed.TryAdd(runway.Id, runway.IsClosed);
+        }
+
+        HashSet<string> storedIds = [.. stored.Runways.Select(r => r.Id)];
+        return stored.Runways.All(r => pushedClosed.TryGetValue(r.Id, out bool closed) && (closed == r.IsClosed))
+            && pushedClosed.Where(entry => !storedIds.Contains(entry.Key)).All(entry => !entry.Value);
+    }
+
+    /// <summary>Each of <paramref name="positions"/> with its start in <paramref name="known"/>, or <paramref name="now"/> if it has none.</summary>
+    private static IReadOnlyDictionary<string, double> InhibitStarts(
+        IReadOnlyList<string> positions,
+        IReadOnlyDictionary<string, double> known,
+        double now
+    ) => AsdexSafetyLogicConfig.Seconds(positions.Distinct().Select(id => KeyValuePair.Create(id, known.GetValueOrDefault(id, now))));
 
     /// <summary>
     /// Re-picks the runway configuration of every ASDE-X facility whose airport's active runways differ between
     /// <paramref name="before"/> and the scenario's current ones and whose configuration no CRC user has chosen
-    /// (<see cref="AsdexSafetyLogicSeed.Repick"/>). Deterministic from scenario state, so a replay reproduces it.
+    /// (<see cref="AsdexSafetyLogicSeed.Repick"/>), recording each configuration moved away from as superseded now.
+    /// Deterministic from scenario state, so a replay reproduces it. Each facility whose configuration changed is handed
+    /// to the host on the next drain.
     /// </summary>
     public void RepickAsdexRunwayConfigurations(ActiveRunways before)
     {
@@ -133,12 +227,90 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> previous = scenario.AsdexSafetyLogicConfigs;
         scenario.AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Repick(
-            scenario.AsdexSafetyLogicConfigs,
+            previous,
             scenario.ArtccConfig,
             before,
-            scenario.ActiveRunways
+            scenario.ActiveRunways,
+            scenario.ElapsedSeconds,
+            recordSuperseded: true
         );
+        foreach ((string facilityId, AsdexSafetyLogicConfig config) in scenario.AsdexSafetyLogicConfigs)
+        {
+            if (!ReferenceEquals(config, previous.GetValueOrDefault(facilityId)))
+            {
+                _asdexConfigChangedFacilities.Add(facilityId);
+            }
+        }
+    }
+
+    // The facilities whose stored safety-logic configuration a push, a re-pick or a lapse changed since the last drain.
+    // Transient, not snapshotted: it only says what the host has not been sent yet.
+    private readonly SortedSet<string> _asdexConfigChangedFacilities = new(StringComparer.Ordinal);
+
+    /// <summary>Hands the host the facilities whose configuration changed since the last drain, ordinal; nothing when none did.</summary>
+    private void DrainAsdexSafetyLogicConfigChangesInto(IStateChangeConsumer host)
+    {
+        IReadOnlyList<string> changed = DrainAsdexSafetyLogicConfigChanges();
+        if (changed.Count > 0)
+        {
+            host.OnAsdexSafetyLogicConfigsChanged(changed);
+        }
+    }
+
+    /// <summary>
+    /// Takes the facilities whose configuration changed since the last drain, ordinal, and clears them; empty when none did.
+    /// For a path that mutates the engine outside both the action router's drain and the post-physics one.
+    /// </summary>
+    public IReadOnlyList<string> DrainAsdexSafetyLogicConfigChanges()
+    {
+        if (_asdexConfigChangedFacilities.Count == 0)
+        {
+            return [];
+        }
+
+        List<string> changed = [.. _asdexConfigChangedFacilities];
+        _asdexConfigChangedFacilities.Clear();
+        return changed;
+    }
+
+    /// <summary>
+    /// Drops every inhibited position whose inhibit was set <see cref="AsdexSafetyLogicConfig.InhibitLapseSeconds"/> or more
+    /// sim seconds ago. Worked out from stored state, never recorded, so every run kind lapses on the same second.
+    /// </summary>
+    private void LapseAsdexInhibits(SimScenarioState scenario)
+    {
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig>.Builder? lapsed = null;
+        foreach ((string facilityId, AsdexSafetyLogicConfig config) in scenario.AsdexSafetyLogicConfigs)
+        {
+            if (
+                (config.InhibitStartSeconds.Count == 0)
+                || !config.InhibitStartSeconds.Values.Any(start => start + AsdexSafetyLogicConfig.InhibitLapseSeconds <= scenario.ElapsedSeconds)
+            )
+            {
+                continue;
+            }
+
+            HashSet<string> kept =
+            [
+                .. config
+                    .InhibitStartSeconds.Where(entry => entry.Value + AsdexSafetyLogicConfig.InhibitLapseSeconds > scenario.ElapsedSeconds)
+                    .Select(entry => entry.Key),
+            ];
+            lapsed ??= scenario.AsdexSafetyLogicConfigs.ToBuilder();
+            lapsed[facilityId] = config with
+            {
+                InhibitedArrivalAlertPositionIds = [.. config.InhibitedArrivalAlertPositionIds.Where(kept.Contains)],
+                InhibitStartSeconds = AsdexSafetyLogicConfig.Seconds(config.InhibitStartSeconds.Where(entry => kept.Contains(entry.Key))),
+            };
+            _asdexConfigChangedFacilities.Add(facilityId);
+        }
+
+        if (lapsed is not null)
+        {
+            scenario.AsdexSafetyLogicConfigs = lapsed.ToImmutable();
+        }
     }
 
     // The surface airports resolved for this config and navigation-data instance; rebuilt when either is replaced.
@@ -234,6 +406,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        LapseAsdexInhibits(scenario);
         ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs = scenario.AsdexSafetyLogicConfigs;
         foreach (string facilityId in scenario.ActiveAsdexAlerts.Keys.Where(id => !configs.ContainsKey(id)).ToList())
         {

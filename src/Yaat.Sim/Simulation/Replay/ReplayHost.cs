@@ -135,6 +135,8 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed) =>
         _bare.OnAsdexHoldBarsChanged(facilityId, changed);
 
+    public void OnAsdexSafetyLogicConfigsChanged(IReadOnlyList<string> facilityIds) => _bare.OnAsdexSafetyLogicConfigsChanged(facilityIds);
+
     public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) => _bare.OnDisconnectCoastExpired(expired);
 
     public void OnDisconnectCoastsCleared(IReadOnlyList<string> callsigns) => _bare.OnDisconnectCoastsCleared(callsigns);

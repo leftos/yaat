@@ -156,6 +156,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     /// <summary>Discarded: a bare engine has no surface display to draw the bars on. The statuses last reported are engine state.</summary>
     public void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed) { }
 
+    /// <summary>Discarded: a bare engine has no surface display to send the configuration to. The configuration is engine state.</summary>
+    public void OnAsdexSafetyLogicConfigsChanged(IReadOnlyList<string> facilityIds) { }
+
     /// <summary>Discarded: a bare engine has no display coasting a track. The coasts are engine state.</summary>
     public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) { }
 

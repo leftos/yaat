@@ -95,6 +95,15 @@ public interface IStateChangeConsumer
     void OnAsdexHoldBarsChanged(string facilityId, IReadOnlyList<AsdexHoldBarState> changed);
 
     /// <summary>
+    /// The ASDE-X facilities whose stored safety-logic configuration changed since the last drain, in ordinal order: a CRC
+    /// push applied, an <c>ARWY</c> re-pick, or an arrival-alert inhibit's lapse. Payload-less beyond the ids: the host sends
+    /// each named facility's stored configuration (<see cref="SimScenarioState.AsdexSafetyLogicConfigs"/>), the one channel
+    /// every such change reaches the displays through. Never called empty. Same suppression rule as
+    /// <see cref="OnStripsChanged"/>.
+    /// </summary>
+    void OnAsdexSafetyLogicConfigsChanged(IReadOnlyList<string> facilityIds);
+
+    /// <summary>
     /// The disconnect-coast facets the post-physics expiry step retired this second, ordered by callsign then facet
     /// order. Never called empty. The facets are already gone from <see cref="SimScenarioState.DisconnectCoasts"/>.
     /// </summary>

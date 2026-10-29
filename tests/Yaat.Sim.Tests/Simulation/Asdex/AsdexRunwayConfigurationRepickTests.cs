@@ -138,7 +138,7 @@ public class AsdexRunwayConfigurationRepickTests
     {
         const string json = """{"Runways":[],"RunwayConfigurationId":"01GVM1TJ6YF6HE25H6E4RD9DA2","InhibitedArrivalAlertPositionIds":[]}""";
 
-        var config = AsdexSafetyLogicConfig.FromSnapshot(JsonSerializer.Deserialize<AsdexSafetyLogicConfigDto>(json)!);
+        var config = AsdexSafetyLogicConfig.FromSnapshot(JsonSerializer.Deserialize<AsdexSafetyLogicConfigDto>(json)!, 0);
 
         Assert.Equal(L19D10, config.RunwayConfigurationId);
         Assert.False(config.RunwayConfigurationChosen);

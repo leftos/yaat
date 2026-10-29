@@ -287,7 +287,14 @@ public class RecordedStateChangeTests
         }
 
         var host = new AttendanceActionHost();
-        var config = new AsdexSafetyLogicConfig([], "WEST", [], RunwayConfigurationChosen: false);
+        var config = new AsdexSafetyLogicConfig(
+            [],
+            "WEST",
+            [],
+            RunwayConfigurationChosen: false,
+            AsdexSafetyLogicConfig.NoSeconds,
+            AsdexSafetyLogicConfig.NoSeconds
+        );
         var change = new RecordedAsdexSafetyLogicChange(0, "OAK", config);
 
         CommandResult applied = engine.Actions.ApplyRecorded(change, host);

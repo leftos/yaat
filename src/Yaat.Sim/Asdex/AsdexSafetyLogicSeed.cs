@@ -64,7 +64,9 @@ public static class AsdexSafetyLogicSeed
                 BuildRunways(facility.Id, asdex, navRunways),
                 configurationId,
                 [],
-                RunwayConfigurationChosen: false
+                RunwayConfigurationChosen: false,
+                AsdexSafetyLogicConfig.NoSeconds,
+                AsdexSafetyLogicConfig.NoSeconds
             );
         }
 
@@ -112,12 +114,19 @@ public static class AsdexSafetyLogicSeed
     /// (<see cref="SelectRunwayConfigurationId"/>) whose airport's active runways differ between
     /// <paramref name="before"/> and <paramref name="after"/>, unless a CRC user has chosen its configuration
     /// (<see cref="AsdexSafetyLogicConfig.RunwayConfigurationChosen"/>). Every other entry is returned as it stands.
+    /// A configuration change empties the facility's inhibit list and its starts. With <paramref name="recordSuperseded"/>
+    /// (an <c>ARWY</c> change) the configuration moved away from is also remembered as superseded at
+    /// <paramref name="elapsedSeconds"/>, so a stale display's push of it is not taken for a choice, and the set drops the
+    /// configuration re-picked to and every entry whose window has passed; a load's own re-pick passes false, since no
+    /// display can hold the seed's configuration yet.
     /// </summary>
     public static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Repick(
         ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs,
         ArtccConfigRoot? config,
         ActiveRunways before,
-        ActiveRunways after
+        ActiveRunways after,
+        double elapsedSeconds,
+        bool recordSuperseded
     )
     {
         if (config is null)
@@ -142,7 +151,24 @@ public static class AsdexSafetyLogicSeed
             if (id != current.RunwayConfigurationId)
             {
                 Log.LogDebug("ASDE-X facility {FacilityId} re-picks runway configuration {ConfigurationId}", facilityId, id);
-                repicked[facilityId] = current with { RunwayConfigurationId = id };
+                IReadOnlyDictionary<string, double> superseded = recordSuperseded
+                    ? AsdexSafetyLogicConfig.Seconds(
+                        current
+                            .SupersededConfigurationIds.Where(entry =>
+                                (entry.Key != current.RunwayConfigurationId)
+                                && (entry.Key != id)
+                                && (entry.Value + AsdexSafetyLogicConfig.SupersededIdWindowSeconds > elapsedSeconds)
+                            )
+                            .Append(KeyValuePair.Create(current.RunwayConfigurationId, elapsedSeconds))
+                    )
+                    : current.SupersededConfigurationIds;
+                repicked[facilityId] = current with
+                {
+                    RunwayConfigurationId = id,
+                    InhibitedArrivalAlertPositionIds = [],
+                    InhibitStartSeconds = AsdexSafetyLogicConfig.NoSeconds,
+                    SupersededConfigurationIds = superseded,
+                };
             }
         }
 

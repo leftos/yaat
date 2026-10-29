@@ -356,10 +356,13 @@ public sealed partial class SimulationEngine
             var restoredConfigs = AsdexSafetyLogicSeed.Empty.ToBuilder();
             foreach ((string facilityId, AsdexSafetyLogicConfigDto configDto) in scenarioDto.AsdexSafetyLogicConfigs ?? [])
             {
-                restoredConfigs[facilityId] = AsdexSafetyLogicConfig.FromSnapshot(configDto);
+                restoredConfigs[facilityId] = AsdexSafetyLogicConfig.FromSnapshot(configDto, scenarioDto.ElapsedSeconds);
             }
 
             Scenario.AsdexSafetyLogicConfigs = restoredConfigs.ToImmutable();
+
+            // A change marked before the restore belongs to the undone future; the room's resync sends every restored one.
+            _asdexConfigChangedFacilities.Clear();
 
             // Same rule for the standing alerts: a snapshot from before they were raised carries none, and the
             // detector re-raises whatever the restored world still warrants on the next tick.

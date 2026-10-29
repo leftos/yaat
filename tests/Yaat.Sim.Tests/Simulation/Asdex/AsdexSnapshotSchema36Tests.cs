@@ -37,7 +37,9 @@ public class AsdexSnapshotSchema36Tests
             [new AsdexRunwayConfig(runwayId, SharedArea, IsClosed: true)],
             configurationId,
             [$"{configurationId}_TWR"],
-            RunwayConfigurationChosen: false
+            RunwayConfigurationChosen: false,
+            AsdexSafetyLogicConfig.NoSeconds,
+            AsdexSafetyLogicConfig.NoSeconds
         );
 
     /// <summary>An engine with OAK and SFO each configuring a closed 28R over the one aircraft, and both alerts standing.</summary>

@@ -244,6 +244,15 @@ public sealed class AsdexSafetyLogicConfigDto
     // Optional and left out while false, so a snapshot written before it existed restores as not chosen.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RunwayConfigurationChosen { get; init; }
+
+    // Position id → sim second its inhibit was set; left out while empty. A snapshot without it restores each inhibited
+    // position as set at the snapshot's own second.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, double>? InhibitStartSeconds { get; init; }
+
+    // Runway-configuration id → sim second an ARWY re-pick moved away from it; left out while empty.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, double>? SupersededConfigurationIds { get; init; }
 }
 
 /// <summary>Snapshot of one <c>AsdexRunwayConfig</c>.</summary>
