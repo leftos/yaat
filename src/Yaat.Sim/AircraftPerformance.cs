@@ -501,8 +501,33 @@ public static class AircraftPerformance
     /// <summary>Maximum operating Mach number, or null when the type has none (helicopters, unknown types).</summary>
     public static double? MaxOperatingMach(string aircraftType) => ResolveSpeedEnvelope(aircraftType).Mmo;
 
-    /// <summary>The slowest speed the type is flown at: its final approach speed, at every altitude.</summary>
-    public static double MinOperatingIasKts(string aircraftType, AircraftCategory cat) => ApproachSpeed(aircraftType, cat);
+    /// <summary>
+    /// How far a raw profile final approach speed sits above the type's Vref: the "~20% too high" recorded at
+    /// <see cref="EurocontrolProfileCorrectionAdapter.FinalApproachSpeed"/>.
+    /// </summary>
+    private const double ProfileFinalApproachSpeedHighFactor = 1.2;
+
+    /// <summary>
+    /// The slowest speed the type is flown at, at every altitude: its final approach speed. A type whose figure is the raw
+    /// profile one (no FAA ACD approach speed, no final approach speed override) takes that figure over
+    /// <see cref="ProfileFinalApproachSpeedHighFactor"/>, since the raw profile figure sits about 20% above Vref.
+    /// </summary>
+    public static double MinOperatingIasKts(string aircraftType, AircraftCategory cat)
+    {
+        AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
+        bool hasFaaFigure = FaaAircraftDatabase.Get(aircraftType)?.ApproachSpeedKnot is not null;
+        if (
+            (p is not null)
+            && (p.FinalApproachSpeed > 0)
+            && !hasFaaFigure
+            && !AircraftProfileDatabase.IsOverridden(p.TypeCode, nameof(AircraftProfile.FinalApproachSpeed))
+        )
+        {
+            return p.FinalApproachSpeed / ProfileFinalApproachSpeedHighFactor;
+        }
+
+        return ApproachSpeed(aircraftType, cat);
+    }
 
     private const double ScheduleFloorStepFt = 100;
 

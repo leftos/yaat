@@ -89,7 +89,7 @@
   },
   {
     "typeCode": "A343",
-    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "note": "Vmo 330 KCAS / Mmo 0.86 from FAA TCDS A43NM (Airbus A340, data pertinent to all models).",
     "vmo": 330,
     "mmo": 0.86
   },
@@ -167,13 +167,13 @@
   },
   {
     "typeCode": "B752",
-    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "note": "Vmo 350 KCAS / Mmo 0.86 from FAA TCDS A2NM (Boeing 757).",
     "vmo": 350,
     "mmo": 0.86
   },
   {
     "typeCode": "B763",
-    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "note": "Vmo 360 KCAS / Mmo 0.86 from FAA TCDS A1NM (Boeing 767).",
     "vmo": 360,
     "mmo": 0.86
   },
@@ -213,9 +213,9 @@
   },
   {
     "typeCode": "CRJ9",
-    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
-    "vmo": 320,
-    "mmo": 0.82
+    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1 (CL-600-2D24, CRJ900): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-34,000 ft, 0.84 above). Replaces OpenAP's 320 / 0.82, which understates the TCDS.",
+    "vmo": 335,
+    "mmo": 0.85
   },
   {
     "typeCode": "E145",
@@ -225,9 +225,10 @@
   },
   {
     "typeCode": "E170",
-    "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
+    "note": "Vmo 320 KCAS / Mmo 0.82 from FAA TCDS A56NM (Embraer ERJ 170): 320 kt is the 10,000-28,887 ft band maximum. descentSpeedInitial 0.78 (Mach) replaces the profile's 1, which reads as 1 KIAS and dragged the descent speed toward 1 kt near the ceiling.",
     "vmo": 320,
-    "mmo": 0.82
+    "mmo": 0.82,
+    "descentSpeedInitial": 0.78
   },
   {
     "typeCode": "E190",
@@ -246,5 +247,226 @@
     "note": "Vmo/Mmo from OpenAP (TU Delft, junzis/openap, LGPL-3.0).",
     "vmo": 320,
     "mmo": 0.82
+  },
+  {
+    "typeCode": "CL60",
+    "note": "Vmo 348 KCAS / Mmo 0.85 from FAA TCDS A21EA, section III (CL-600-2B16, Challenger 604 table): 348 kt is the 8,000-22,160 ft band maximum.",
+    "vmo": 348,
+    "mmo": 0.85
+  },
+  {
+    "typeCode": "LJ35",
+    "note": "Vmo 350 KCAS / Mmo 0.81 from FAA TCDS A10CE (Model 35/36/35A): 350 kt is the 14,000-23,900 ft band maximum; 0.81 applies with the autopilot or Mach trim operating (0.73 without).",
+    "vmo": 350,
+    "mmo": 0.81
+  },
+  {
+    "typeCode": "LJ45",
+    "note": "Vmo 330 KIAS / Mmo 0.81 from FAA TCDS T00008WI (Learjet 45).",
+    "vmo": 330,
+    "mmo": 0.81
+  },
+  {
+    "typeCode": "FA20",
+    "note": "Vmo 390 KIAS / Mmo 0.88 from FAA TCDS A7EU (Falcon 20 Series E/F, the series maximum): 390 kt is reached at 23,000 ft.",
+    "vmo": 390,
+    "mmo": 0.88
+  },
+  {
+    "typeCode": "FA50",
+    "note": "Vmo 370 KIAS / Mmo 0.86 from FAA TCDS A46EU, section 1 (Mystere-Falcon 50): 370 kt is the 10,000-25,000 ft band maximum.",
+    "vmo": 370,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "GLF3",
+    "note": "Vmo 340 KCAS / Mmo 0.85 from FAA TCDS A12EA (G-1159A, Gulfstream III).",
+    "vmo": 340,
+    "mmo": 0.85
+  },
+  {
+    "typeCode": "GLEX",
+    "note": "Vmo 340 KCAS / Mmo 0.89 from FAA TCDS T00003NY (BD-700-1A10, Global Express): 340 kt is the 8,000-30,267 ft band maximum.",
+    "vmo": 340,
+    "mmo": 0.89
+  },
+  {
+    "typeCode": "GLF6",
+    "note": "Vmo 340 KCAS / Mmo 0.925 from FAA TCDS T00015AT, section I (Model GVI, the G650).",
+    "vmo": 340,
+    "mmo": 0.925
+  },
+  {
+    "typeCode": "DH8D",
+    "note": "Vmo 286 KIAS from FAA TCDS A13NM (DHC-8-400): the band maximum, at 18,000 ft. The TCDS gives no Mmo.",
+    "vmo": 286
+  },
+  {
+    "typeCode": "JS20",
+    "note": "Vmo 215 KIAS from FAA TCDS A21EU (Jetstream Series 200): the band maximum, up to 18,000 ft. TCDS gives no Mmo; the class M0.55 never binds below this Vmo up to the ceiling. finalApproachSpeed 105 is the Eurocontrol APD Vat. The descent speeds follow the TCDS Vmo bands: descentSpeedFl100 215 replaces the profile's 220, which flew past Vmo, and descentSpeedInitial 180 (the Vmo at 25,000 ft, the ceiling) replaces the profile's 1, which reads as 1 KIAS and dragged the descent speed toward 1 kt near the ceiling.",
+    "vmo": 215,
+    "finalApproachSpeed": 105,
+    "descentSpeedInitial": 180,
+    "descentSpeedFl100": 215
+  },
+  {
+    "typeCode": "A342",
+    "note": "Vmo 330 KCAS / Mmo 0.86 from FAA TCDS A43NM (Airbus A340, data pertinent to all models).",
+    "vmo": 330,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "A345",
+    "note": "Vmo 330 KCAS / Mmo 0.86 from FAA TCDS A43NM (Airbus A340, data pertinent to all models).",
+    "vmo": 330,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "A346",
+    "note": "Vmo 330 KCAS / Mmo 0.86 from FAA TCDS A43NM (Airbus A340, data pertinent to all models).",
+    "vmo": 330,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "B762",
+    "note": "Vmo 360 KCAS / Mmo 0.86 from FAA TCDS A1NM (Boeing 767).",
+    "vmo": 360,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "B764",
+    "note": "Vmo 360 KCAS / Mmo 0.86 from FAA TCDS A1NM (Boeing 767, the 767-400ER listed on the same TCDS).",
+    "vmo": 360,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "CRJ1",
+    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1, section I (CL-600-2B19, CRJ100/200): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-41,000 ft).",
+    "vmo": 335,
+    "mmo": 0.85
+  },
+  {
+    "typeCode": "CRJ2",
+    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1, section I (CL-600-2B19, CRJ100/200): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-41,000 ft).",
+    "vmo": 335,
+    "mmo": 0.85
+  },
+  {
+    "typeCode": "CRJ7",
+    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1, section II (CL-600-2C10, CRJ700): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-41,000 ft).",
+    "vmo": 335,
+    "mmo": 0.85
+  },
+  {
+    "typeCode": "B753",
+    "note": "Vmo 350 KCAS / Mmo 0.86 from FAA TCDS A2NM (Boeing 757-300).",
+    "vmo": 350,
+    "mmo": 0.86
+  },
+  {
+    "typeCode": "MD11",
+    "note": "Vmo 365 KCAS / Mmo 0.87 from FAA TCDS A22WE (MD-11): 365 kt is the 10,000-25,670 ft band maximum.",
+    "vmo": 365,
+    "mmo": 0.87
+  },
+  {
+    "typeCode": "B74S",
+    "note": "Vmo 375 KEAS / Mmo 0.92 from FAA TCDS A20WE (747 classic models state Vmo in KEAS; written as given). finalApproachSpeed 140 is the Eurocontrol APD Vat.",
+    "vmo": 375,
+    "mmo": 0.92,
+    "finalApproachSpeed": 140
+  },
+  {
+    "typeCode": "L101",
+    "note": "Vmo 375 KIAS / Mmo 0.90 from FAA TCDS A23WE (L-1011): 375 kt is the 10,000-26,200 ft band maximum. finalApproachSpeed 140 is the Eurocontrol APD Vat.",
+    "vmo": 375,
+    "mmo": 0.9,
+    "finalApproachSpeed": 140
+  },
+  {
+    "typeCode": "F100",
+    "note": "Vmo 320 KIAS / Mmo 0.77 from FAA TCDS A20EU (F28 Mk0100). finalApproachSpeed 130 is the Eurocontrol APD Vat.",
+    "vmo": 320,
+    "mmo": 0.77,
+    "finalApproachSpeed": 130
+  },
+  {
+    "typeCode": "F70",
+    "note": "Vmo 320 KIAS / Mmo 0.77 from FAA TCDS A20EU (F28 Mk0070). finalApproachSpeed 129 is the Eurocontrol APD Vat.",
+    "vmo": 320,
+    "mmo": 0.77,
+    "finalApproachSpeed": 129
+  },
+  {
+    "typeCode": "B463",
+    "note": "Vmo 295 KIAS / Mmo 0.73 from FAA TCDS A49EU, section III (BAe 146-300A): 295 kt is the 8,000-23,900 ft band maximum. finalApproachSpeed 125 is the Eurocontrol APD Vat.",
+    "vmo": 295,
+    "mmo": 0.73,
+    "finalApproachSpeed": 125
+  },
+  {
+    "typeCode": "D228",
+    "note": "Vmo 199 KIAS from FAA TCDS A16EU (Dornier 228-100/200 series). TCDS gives no Mmo; the class M0.55 never binds below this Vmo up to the ceiling. finalApproachSpeed 85 is the Eurocontrol APD Vat.",
+    "vmo": 199,
+    "finalApproachSpeed": 85
+  },
+  {
+    "typeCode": "C135",
+    "note": "finalApproachSpeed 150 is the Eurocontrol APD Vat. No public source gives the type's Vmo/Mmo.",
+    "finalApproachSpeed": 150
+  },
+  {
+    "typeCode": "K35E",
+    "note": "finalApproachSpeed 135 is the Eurocontrol APD Vat. No public source gives the type's Vmo/Mmo.",
+    "finalApproachSpeed": 135
+  },
+  {
+    "typeCode": "C141",
+    "note": "finalApproachSpeed 140 is the Eurocontrol APD Vat. No public source gives the type's Vmo/Mmo.",
+    "finalApproachSpeed": 140
+  },
+  {
+    "typeCode": "F50",
+    "note": "finalApproachSpeed 120 is the Eurocontrol APD Vat. EASA TCDS A.036 refers the Vmo to the flight manual, so none is set.",
+    "finalApproachSpeed": 120
+  },
+  {
+    "typeCode": "R22",
+    "note": "Vne 98 KCAS (power on or off, at sea level) from FAA TCDS H10WE (Robinson R22). The climb speeds are the R22 POH Vy, 53 KIAS, replacing the profile's 120 kt climb, which flew past Vne.",
+    "vmo": 98,
+    "climbSpeedInitial": 53,
+    "climbSpeedFl150": 53,
+    "climbSpeedFl240": 53,
+    "climbSpeedFinal": 53
+  },
+  {
+    "typeCode": "R44",
+    "note": "Vne 130 KIAS (at sea level, gross weight up to 2,200 lb) from FAA TCDS H11NM (Robinson R44).",
+    "vmo": 130
+  },
+  {
+    "typeCode": "B06",
+    "note": "Vne 130 KCAS (up to 3,000 lb) from FAA TCDS H2SW (Bell 206B).",
+    "vmo": 130
+  },
+  {
+    "typeCode": "B407",
+    "note": "Vne 140 KIAS (sea level to 3,000 ft density altitude) from FAA TCDS H2SW, NOTE 43 (Bell 407).",
+    "vmo": 140
+  },
+  {
+    "typeCode": "S76",
+    "note": "Vne 155 KCAS power on from FAA TCDS H1NE (Sikorsky S-76).",
+    "vmo": 155
+  },
+  {
+    "typeCode": "AS50",
+    "note": "Vne 155 kt power on (at zero pressure altitude) from FAA TCDS H9EU (AS350).",
+    "vmo": 155
+  },
+  {
+    "typeCode": "EC35",
+    "note": "Vne 155 kt from FAA TCDS H88EU (EC135).",
+    "vmo": 155
   }
 ]

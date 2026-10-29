@@ -80,7 +80,7 @@ misses instead of a clear error.
      `climbSpeedFl240`, `climbSpeedFinal`; rates mirror this. `0` in a banded field means "can't reach
      that altitude".
    - Don't override what the pipeline already gets right. Approach speed usually comes correctly from
-     the FAA ACD Vref — only override `finalApproachSpeed` if the ACD value is wrong or missing.
+     the FAA ACD Vref — only override `finalApproachSpeed` if the ACD value is wrong or missing. A `finalApproachSpeed` override also moves the type's final-approach and RFAS speeds, and its minimum speed (`MinOperatingIasKts`).
 3. Run the validation + behavior tests:
 
    ```bash
@@ -115,13 +115,13 @@ ladder) inverts both tails of every jet baseline.
 
 ## Speed limits (Vmo and Mmo)
 
-`AircraftPerformance.MaxOperatingIasKts(type, altitude)` is the fastest the type may be flown: the lower of Vmo and Mmo's IAS equivalent at that altitude, or Vmo alone where the type has no Mmo (a helicopter). It is null for a type with neither figure, and then nothing is refused or capped for it. `MaxOperatingMach(type)` is Mmo alone, and `MinOperatingIasKts(type, category)` is the type's final approach speed at every altitude (a helicopter has no minimum).
+`AircraftPerformance.MaxOperatingIasKts(type, altitude)` is the fastest the type may be flown: the lower of Vmo and Mmo's IAS equivalent at that altitude, or Vmo alone where the type has no Mmo (a helicopter). It is null for a type with neither figure, and then nothing is refused or capped for it. `MaxOperatingMach(type)` is Mmo alone, and `MinOperatingIasKts(type, category)` is the type's minimum speed at every altitude (a helicopter has no minimum). It resolves as the FAA approach speed (ACD) when the record has one, else a `finalApproachSpeed` override, else the profile's final approach speed divided by 1.2 (`ProfileFinalApproachSpeedHighFactor`, since the raw Eurocontrol figure sits about 20% above Vref), else the category default.
 
 The physics cap and the unable refusal both read these ([flight-physics.md](flight-physics.md), COMMANDS.md).
 
 Vmo and Mmo come from two sources, an override figure first:
 
-1. **An override entry's `vmo` (KCAS) and `mmo`** in `AircraftProfileOverrides.json`, from the type certificate data sheet or OpenAP. They are per exact type with no sibling fallback, and an entry carrying only `vmo`/`mmo` creates or alters no profile.
+1. **An override entry's `vmo` (KCAS) and `mmo`** in `AircraftProfileOverrides.json`, from the type certificate data sheet (TCDS) or OpenAP. They are per exact type with no sibling fallback, and an entry carrying only `vmo`/`mmo` creates or alters no profile. Where the TCDS gives Vmo or Mmo in altitude bands, the entry takes the band maximum. A helicopter's `vmo` is its own Vne, so it flies that figure rather than the DUMH class's 150 kt.
 2. **The type's speed envelope class** from `Data/AircraftSpeedEnvelopeClasses.json`, a flat `{ "A320": "J2M" }` table over the profile types (a type with no entry takes its sibling's class).
 
    The class figures live in `AircraftSpeedEnvelope` and are the dummy aircraft models shipped with EUROCONTROL's pybada: BZJT 292 kt / M0.755, J2M 340 / M0.82, J2H 335 / M0.82, J4H 365 / M0.92, TP2M 250 / M0.55, GA 126 / M0.24, DUMH (helicopters) 150 kt and no Mmo. A class code that names no class fails the load.

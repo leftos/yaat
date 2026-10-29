@@ -266,9 +266,10 @@ public sealed class AircraftProfileOverrideTests
                 Assert.NotNull(AircraftProfileDatabase.Get(ov.TypeCode));
             }
 
+            // The floor admits a light helicopter's Vne (R22: 98 KCAS, TCDS H10WE).
             if (ov.Vmo is { } vmo)
             {
-                Assert.InRange(vmo, 100, 500);
+                Assert.InRange(vmo, 50, 500);
             }
             if (ov.Mmo is { } mmo)
             {
