@@ -5,9 +5,10 @@ namespace Yaat.Sim.Asdex;
 /// <summary>
 /// A flat airport-scale frame laid along one runway: <c>along</c> is feet from end 1 toward end 2, <c>lateral</c> is feet right
 /// of that line (positive to the right facing end 2). Hold-bar geometry and the bar status rule both measure in it, so a bar's
-/// along-runway position and an aircraft's compare exactly.
+/// along-runway position and an aircraft's compare exactly, and the runway-user rule (<see cref="AsdexRunwayUsers"/>) takes the
+/// runway's true bearing from it. Built once per facility runway and kept, as its inputs are the navdata ends alone.
 /// </summary>
-internal sealed class AsdexRunwayAxis
+public sealed class AsdexRunwayAxis
 {
     private readonly double _lat0;
     private readonly double _lon0;
@@ -17,6 +18,7 @@ internal sealed class AsdexRunwayAxis
 
     public AsdexRunwayAxis(RunwayInfo runway)
     {
+        Runway = runway;
         _lat0 = runway.Lat1;
         _lon0 = runway.Lon1;
         _feetPerDegLon = Math.Cos(_lat0 * Math.PI / 180.0) * FeetPerDegLat;
@@ -29,6 +31,9 @@ internal sealed class AsdexRunwayAxis
     }
 
     private const double FeetPerDegLat = 60.0 * GeoMath.FeetPerNm;
+
+    /// <summary>The navdata runway the axis is laid along.</summary>
+    public RunwayInfo Runway { get; }
 
     /// <summary>End 1 to end 2, feet.</summary>
     public double LengthFt { get; }

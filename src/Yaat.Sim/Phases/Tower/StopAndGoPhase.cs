@@ -46,6 +46,12 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
     /// </summary>
     public bool HasStopped => _stopped;
 
+    /// <summary>
+    /// Past the complete stop and the pause, on the re-acceleration roll (or already lifted off): a departure under 7110.65
+    /// 3-8-2.
+    /// </summary>
+    public bool IsReaccelerating => _reaccelerating;
+
     /// <summary>On its second takeoff roll: re-accelerating after the full stop, not yet airborne.</summary>
     public bool IsTakeoffRoll => _reaccelerating && !_airborne;
 

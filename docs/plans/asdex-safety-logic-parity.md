@@ -56,8 +56,8 @@ Fetched live to `X:/dev/yaat/.tmp/zoa-artcc.json` (854,494 bytes, HTTP 200). Fac
 ## 3. YAAT today
 | CRC feature | State | Evidence |
 |---|---|---|
-| Closed-runway alert | Implemented; runs on the load-time seeded config, with or without a CRC push | AsdexSafetyLogicDetector.cs:101-109 |
-| Occupied-runway alerts (taxi-onto-active folded in, YAAT-1193) | Partial. Texts and per-pair ids match vNAS (YAAT-1192). They are binary: footprint overlap, one aligned claimant, plus a second aircraft. There is no time-to-collision look-ahead and no approach-corridor projection. Arrivals count at <= 300 ft AGL over the footprint | AsdexSafetyLogicDetector.cs:111-129, 66, 223 |
+| Closed-runway alert | Implemented; runs on the load-time seeded config, with or without a CRC push. A departure alerts from 50 kt over the footprint (`RWY CLOSED`); an arrival from 1 NM out, whatever its phase (`RWY CLOSED, GO AROUND`); both on the shared runway-user rule | `AsdexRunwayUsers`; `AsdexSafetyLogicDetector.Detect` |
+| Occupied-runway alerts (taxi-onto-active folded in, YAAT-1193) | Partial. Texts and per-pair ids match vNAS (YAAT-1192). They are binary: a runway user (`AsdexRunwayUsers`) plus an occupant of the footprint. There is no time-to-collision look-ahead. An airborne arrival counts once it is over the footprint | `AsdexRunwayUsers`; `AsdexSafetyLogicDetector.Detect` |
 | Landing on converging runways, landing vs converging departure | Missing (deliberately; the enum notes it) | AsdexSafetyLogicDetector.cs:6-9 |
 | Taxiway landing | Partial. Centerline proximity of 0.015 nm to ANY taxiway (not "configured" taxiways), so false positives are likely | AsdexSafetyLogicDetector.cs:136-174, 72 |
 | Opposite-direction, go-around and other aural tokens | Missing. Aural sequence is only Warning/Runway/id + Closed or Occupied, or Warning/Taxiway/phonetic | DtoConverter.cs:2221-2239 |
@@ -72,7 +72,7 @@ Fetched live to `X:/dev/yaat/.tmp/zoa-artcc.json` (854,494 bytes, HTTP 200). Fac
 | Config echo, recording and replay | Implemented | CrcClientState.Asdex.cs:245-272 |
 | Standing-set withdrawal on rewind/unload | Known gap, no Delete | crc-display-state.md:326 |
 
-Facts about the `Detect` input: it is `Yaat.Sim.Simulation.SimulationEngine.TickAsdexAlerts` (SimulationEngine.Asdex.cs:197-231), which clears all alerts when the config is null or has no runways (lines 207-217). It resolves the runway elevation with the nearest airport within 5 nm. Magnetic variation is applied to the runway id's heading (alignment +/-35 deg).
+Facts about the `Detect` input: it is `Yaat.Sim.Simulation.SimulationEngine.TickAsdexAlerts` (SimulationEngine.Asdex.cs:197-231), which clears all alerts when the config is null or has no runways (lines 207-217). It hands `Detect` the facility's runways as navdata resolves them (`AsdexSafetyLogicRunways`, the cache the hold bars read too). Alignment is true track against the runway's true bearing from navdata (+/-35 deg), and height over a runway is measured from the mean of its end elevations.
 
 ## 4. Gap table
 | Feature | CRC behaviour | YAAT state | Config field | Size | Repo |

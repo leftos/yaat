@@ -92,12 +92,16 @@ public class AsdexLimitedConfigurationAlertTests
         ?? NavigationDatabase.Instance.GetRunway("K" + airport, end)
         ?? throw new InvalidOperationException($"{airport} {end} is not in navdata");
 
-    /// <summary>The aircraft aligned <paramref name="nmPastThreshold"/> down <paramref name="runway"/>, airborne low or on the surface.</summary>
+    /// <summary>
+    /// The aircraft heading and tracking <paramref name="nmPastThreshold"/> down <paramref name="runway"/>, airborne low or on
+    /// the surface.
+    /// </summary>
     private static void Place(SimulationEngine engine, string callsign, RunwayInfo runway, double nmPastThreshold, bool airborne, double speedKts)
     {
         AircraftState ac = engine.World.FindAircraft(callsign)!;
         ac.Position = GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading, nmPastThreshold);
         ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
         ac.IsOnGround = !airborne;
         ac.Altitude = runway.ElevationFt + (airborne ? 100 : 0);
         ac.IndicatedAirspeed = speedKts;
