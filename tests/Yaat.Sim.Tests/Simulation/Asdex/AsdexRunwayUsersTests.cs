@@ -156,6 +156,30 @@ public class AsdexRunwayUsersTests
     }
 
     /// <summary>
+    /// Two aircraft head opposite ways along 28R/10L when each is aligned with the runway within 35° and they move toward each
+    /// other: reciprocal tracks closing do, a track 36° off the reciprocal does not, two aircraft moving the same way do not,
+    /// and reciprocal tracks moving apart do not.
+    /// </summary>
+    [Fact]
+    public void HeadsOpposite_ReciprocalAlignedTracks_Not36DegOff_NotTheSameDirection()
+    {
+        RunwayInfo end = End("28R");
+        AsdexRunwayAxis axis = _axes[IndexOf("28R")];
+        AircraftState rolling = Rolling(end, 2000, 80);
+        AircraftState reciprocal = At(end, 8000, RunwayElevationFt(end), onGround: true, speedKts: 20, offsetDeg: 180);
+        AircraftState offBy36 = At(end, 8000, RunwayElevationFt(end), onGround: true, speedKts: 20, offsetDeg: 180 + 36);
+        AircraftState sameWay = At(end, 8000, RunwayElevationFt(end), onGround: true, speedKts: 20, offsetDeg: 0);
+        AircraftState behindMovingAway = At(end, 1000, RunwayElevationFt(end), onGround: true, speedKts: 20, offsetDeg: 180);
+
+        Assert.True(AsdexRunwayUsers.HeadsOpposite(rolling, reciprocal, axis));
+        Assert.True(AsdexRunwayUsers.HeadsOpposite(reciprocal, rolling, axis));
+        Assert.False(AsdexRunwayUsers.HeadsOpposite(rolling, offBy36, axis));
+        Assert.False(AsdexRunwayUsers.HeadsOpposite(rolling, sameWay, axis));
+        Assert.False(AsdexRunwayUsers.HeadsOpposite(rolling, behindMovingAway, axis));
+        Assert.False(AsdexRunwayUsers.HeadsOpposite(behindMovingAway, rolling, axis));
+    }
+
+    /// <summary>
     /// A live-traffic shadow rolling at 50 kt or more with no acceleration to read (no history yet) is an arrival when it was
     /// seen landing on the runway, and a departure otherwise.
     /// </summary>

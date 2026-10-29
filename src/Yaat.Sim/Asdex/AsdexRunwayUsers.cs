@@ -76,6 +76,13 @@ public static class AsdexRunwayUsers
     /// <summary>Track tolerance (deg) for an aircraft to count as aligned with a runway direction.</summary>
     public const double AlignmentToleranceDeg = 35;
 
+    /// <summary>
+    /// The ground speed at or above which an occupant moving toward a runway user along the runway raises an opposite-direction
+    /// taxi alert; below it (stopped) the pair is an occupied runway. A judgement call: vNAS raised OPP DIR TAXI for a 20 kt
+    /// taxi and was not measured slower; its one stationary sample read RWY OCCUPIED but faced off the runway axis.
+    /// </summary>
+    public const double OppDirTaxiMinGroundSpeedKts = 5;
+
     /// <summary>Below this ground speed (kt) the aircraft's heading stands for its track, which a stopped aircraft does not have.</summary>
     private const double TrackMinGroundSpeedKts = 1;
 
@@ -165,8 +172,9 @@ public static class AsdexRunwayUsers
     /// <summary>
     /// Ranks aircraft for an alert by their <paramref name="roles"/>: arrivals, then departures, then the rest; within a role
     /// the faster over the ground, then the ordinal-first callsign, so the order never depends on the aircraft list's. The
-    /// detector orders an alert's callsigns (and so its second line) by it at detect time; the server reads that stored order,
-    /// never re-ranking, to find the runway end for the first line and aural name, so line 1's end and line 2's first aircraft
+    /// detector orders an alert's callsigns (and so its second line) at detect time in the stored order (this ranking, except
+    /// OPP DIR DEPARTURE, departure first, and OPP DIR LANDER, the rolled-out lander first); the server reads that stored
+    /// order, never re-ranking, to find the runway end for the first line and aural name, so line 1's end and line 2's first aircraft
     /// belong to the same aircraft.
     /// </summary>
     public static Comparer<AircraftState> First(IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles) =>
@@ -183,6 +191,50 @@ public static class AsdexRunwayUsers
                 return (speed != 0) ? speed : StringComparer.Ordinal.Compare(a.Callsign, b.Callsign);
             }
         );
+
+    /// <summary>
+    /// True when <paramref name="a"/> and <paramref name="b"/> head toward each other along the runway: each aligned with it
+    /// within <see cref="AlignmentToleranceDeg"/>, one toward end 2 and the other toward end 1, and each ahead of the other
+    /// in its direction of travel (a pair that has passed and moves apart does not).
+    /// </summary>
+    internal static bool HeadsOpposite(AircraftState a, AircraftState b, AsdexRunwayAxis axis)
+    {
+        foreach (int direction in Directions)
+        {
+            bool aligned = (OffTrackDeg(a, axis, direction) <= AlignmentToleranceDeg) && (OffTrackDeg(b, axis, -direction) <= AlignmentToleranceDeg);
+            // b ahead of a along a's direction of travel, so the two close rather than move apart.
+            bool closing = ((axis.Along(b.Position) - axis.Along(a.Position)) * direction) > 0;
+            if (aligned && closing)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True when lander <paramref name="a"/> is further into its landing than <paramref name="b"/>: on the ground while
+    /// <paramref name="b"/> is airborne, else further past its own landing threshold, else the ordinal-first callsign.
+    /// </summary>
+    internal static bool LandedFurther(AircraftState a, AircraftState b, AsdexRunwayAxis axis)
+    {
+        if (a.IsOnGround != b.IsOnGround)
+        {
+            return a.IsOnGround;
+        }
+
+        double pastA = PastLandingThresholdFt(a, axis);
+        double pastB = PastLandingThresholdFt(b, axis);
+        return (pastA != pastB) ? (pastA > pastB) : (StringComparer.Ordinal.Compare(a.Callsign, b.Callsign) < 0);
+    }
+
+    /// <summary>How far the aircraft is past its landing threshold: from end 1 when it moves toward end 2, else from end 2.</summary>
+    private static double PastLandingThresholdFt(AircraftState ac, AsdexRunwayAxis axis)
+    {
+        double along = axis.Along(ac.Position);
+        return (OffTrackDeg(ac, axis, 1) <= OffTrackDeg(ac, axis, -1)) ? along : (axis.LengthFt - along);
+    }
 
     private static AsdexRunwayUserRole PhaseRole(AircraftState aircraft) =>
         aircraft.Phases?.CurrentPhase switch

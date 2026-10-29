@@ -1,11 +1,13 @@
+using System.Collections.Immutable;
 using Yaat.Sim;
 
 namespace Yaat.Sim.Asdex;
 
 /// <summary>
 /// The kind of ASDE-X Safety Logic alert, per the CRC ASDE-X manual ("Safety Logic"). The kinds modelled are closed
-/// runway, occupied runway and taxiway landing. Snapshots store the kind by number, so each member keeps its value; 2 is
-/// unused (<c>SnapshotSchemaMigrator</c> rewrites a stored 2 to <see cref="OccupiedRunway"/>).
+/// runway, occupied runway, taxiway landing and the three opposite-direction kinds (taxi, departure, lander), which replace
+/// an occupied-runway alert for a pair heading opposite ways along the runway. Snapshots store the kind by number, so each
+/// member keeps its value; 2 is unused (<c>SnapshotSchemaMigrator</c> rewrites a stored 2 to <see cref="OccupiedRunway"/>).
 /// </summary>
 public enum AsdexAlertKind
 {
@@ -20,6 +22,20 @@ public enum AsdexAlertKind
 
     /// <summary>An aircraft landing on a taxiway rather than a runway.</summary>
     TaxiwayLanding = 3,
+
+    /// <summary>
+    /// A runway user and an occupant moving toward it along the runway at
+    /// <see cref="AsdexRunwayUsers.OppDirTaxiMinGroundSpeedKts"/> or more, the user first.
+    /// </summary>
+    OppDirTaxi = 4,
+
+    /// <summary>A departure and an arrival using the runway head on, the departure first.</summary>
+    OppDirDeparture = 5,
+
+    /// <summary>
+    /// Two arrivals using the runway head on, the one further into its landing first (<see cref="AsdexRunwayUsers.LandedFurther"/>).
+    /// </summary>
+    OppDirLander = 6,
 }
 
 /// <summary>
@@ -84,7 +100,28 @@ public sealed record AsdexSafetyAlert(
 );
 
 /// <summary>
-/// Stateless per-tick classifier for ASDE-X Safety Logic alerts, raised on the triggers measured on vNAS Test (yaat-server
+/// One facility's detection for a tick: the alerts its runways and taxiways raise, and the opposite-direction pair memory
+/// to pass to the next tick's <see cref="AsdexSafetyLogicDetector.Detect"/> (ordinal-sorted pair keys, each a runway id and
+/// the pair's ordinal callsigns, "28L|DAL2988,DAL530").
+/// </summary>
+public sealed record AsdexDetection(IReadOnlyList<AsdexSafetyAlert> Alerts, ImmutableSortedSet<string> OppDirPairs)
+{
+    /// <summary>No pair remembered: what a facility with no opposite-direction history reads as.</summary>
+    public static ImmutableSortedSet<string> NoOppDirPairs { get; } = ImmutableSortedSet.Create<string>(StringComparer.Ordinal);
+
+    /// <summary>Nothing raised and nothing remembered: a facility with no configuration or no runways.</summary>
+    public static AsdexDetection None { get; } = new([], NoOppDirPairs);
+}
+
+/// <summary>
+/// What <see cref="AsdexSafetyLogicDetector.Detect"/> reads besides the runways and aircraft: whether only closed-runway
+/// alerts are raised (the LIMITED configuration), and the pair memory the previous tick's detection returned.
+/// </summary>
+public sealed record AsdexDetectionInputs(bool ClosedRunwayAlertsOnly, ImmutableSortedSet<string> OppDirPairs);
+
+/// <summary>
+/// Per-tick classifier for ASDE-X Safety Logic alerts, a pure function of the world and the previous tick's
+/// opposite-direction pair memory, raised on the triggers measured on vNAS Test (yaat-server
 /// <c>docs/plans/asdex-probe-sfo</c>). Every alert kind reads one definition of a runway user, the one the hold bars read
 /// (<see cref="AsdexRunwayUsers"/>): an arrival inside about one nautical mile of the threshold, or an aircraft over the
 /// footprint at 50 kt or more below 200 ft. So a stopped or lined-up aircraft raises nothing, and an alert clears the tick
@@ -94,6 +131,13 @@ public sealed record AsdexSafetyAlert(
 /// Closed-runway-only alerting under the LIMITED runway configuration follows the CRC manual ("only generates alerts for
 /// arrivals or departures on closed runways", <c>docs/crc/asdex.md</c>), while every alert kind on every runway under a
 /// named configuration was measured on vNAS Test (YAAT-1194).
+///
+/// A pair heading toward each other along the runway raises an opposite-direction alert in place of RWY OCCUPIED
+/// (<see cref="PairKind"/>; two departures head on, or a user whose role is Other, fall back to RWY OCCUPIED, which was
+/// not measured). The pair is then remembered: while both stay on the runway it raises no RWY OCCUPIED (vNAS raised
+/// nothing after OPP DIR TAXI cleared at the turn-off), and it raises an opposite-direction alert again if it heads
+/// opposite again. A remembered pair is forgotten the first tick either aircraft no longer occupies that runway's
+/// footprint, or the runway is not evaluated (an inhibited aircraft, a closed or unconfigured runway, LIMITED).
 ///
 /// Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and alerts on any taxiway unless the
 /// airport's sidecar lists <c>asdexLandingTaxiways</c>, when it alerts only on the taxiways that list names.
@@ -115,6 +159,15 @@ public static class AsdexSafetyLogicDetector
     /// <summary>The third line of a closed-runway alert for an arrival (by role), as vNAS writes it; its aural ends with GO AROUND.</summary>
     public const string ClosedRunwayGoAroundText = "RWY CLOSED, GO AROUND";
 
+    /// <summary>The third line of an opposite-direction taxi alert, as vNAS writes it.</summary>
+    public const string OppDirTaxiText = "OPP DIR TAXI";
+
+    /// <summary>The third line of an opposite-direction departure alert, as vNAS writes it.</summary>
+    public const string OppDirDepartureText = "OPP DIR DEPARTURE";
+
+    /// <summary>The third line of an opposite-direction lander alert, as vNAS writes it.</summary>
+    public const string OppDirLanderText = "OPP DIR LANDER";
+
     /// <summary>The prefix vNAS writes before the runway on an alert's first line ("RWY 28L").</summary>
     public const string RunwayLinePrefix = "RWY ";
 
@@ -130,20 +183,25 @@ public static class AsdexSafetyLogicDetector
     /// <param name="taxiways">The taxiway centerline segments checked for taxiway landings.</param>
     /// <param name="aircraft">Every aircraft this tick.</param>
     /// <param name="fieldElevationFt">The facility's field elevation, the reference for an arrival's height.</param>
-    /// <param name="closedRunwayAlertsOnly">
-    /// True when the facility is on the LIMITED runway configuration ("limited", none, or an id that names none of its
+    /// <param name="inputs">
+    /// The facility's per-tick switches: its pair memory from the previous tick's detection, and
+    /// <see cref="AsdexDetectionInputs.ClosedRunwayAlertsOnly"/>, true when the facility is on the LIMITED runway
+    /// configuration ("limited", none, or an id that names none of its
     /// configurations): only closed-runway alerts are raised, and occupied-runway and taxiway-landing alerts are
     /// suppressed. False under any named configuration: every alert kind is raised on every runway, the
     /// configuration's arrival and departure runway lists playing no part.
     /// </param>
-    public static IReadOnlyList<AsdexSafetyAlert> Detect(
+    public static AsdexDetection Detect(
         AsdexSafetyLogicRunways runways,
         IReadOnlyList<AsdexTaxiwaySegment> taxiways,
         IReadOnlyList<AircraftState> aircraft,
         double fieldElevationFt,
-        bool closedRunwayAlertsOnly
+        AsdexDetectionInputs inputs
     )
     {
+        bool closedRunwayAlertsOnly = inputs.ClosedRunwayAlertsOnly;
+        ImmutableSortedSet<string> oppDirPairs = inputs.OppDirPairs;
+        var memory = new PairMemory(oppDirPairs, ImmutableSortedSet.CreateBuilder<string>(StringComparer.Ordinal));
         // Individually-inhibited targets (square drawn around them in CRC) take part in no alert.
         var candidates = aircraft.Where(ac => !ac.Stars.AsdexAlertsInhibited).ToList();
         IReadOnlyList<AsdexRunwaySurface> surfaces = runways.Surfaces;
@@ -170,7 +228,7 @@ public static class AsdexSafetyLogicDetector
                 }
             }
 
-            alerts.AddRange(RunwayAlerts(surfaces[i], users, candidates, roles));
+            alerts.AddRange(RunwayAlerts(surfaces[i], users, candidates, roles, memory));
         }
 
         if (!closedRunwayAlertsOnly)
@@ -178,19 +236,23 @@ public static class AsdexSafetyLogicDetector
             AppendTaxiwayLandings(runways.Footprints, taxiways, candidates, fieldElevationFt, alerts);
         }
 
-        return alerts;
+        return new AsdexDetection(alerts, memory.Next.ToImmutable());
     }
+
+    /// <summary>The pair memory the previous tick returned, and the one this tick builds from the pairs it sees.</summary>
+    private readonly record struct PairMemory(ImmutableSortedSet<string> Prior, ImmutableSortedSet<string>.Builder Next);
 
     /// <summary>
     /// The alerts a runway raises this tick from its <paramref name="users"/>: on a closed runway, one closed-runway alert
-    /// per user; on an open one, one occupied-runway alert per conflicting pair, a pair being a user over the footprint and
-    /// any other aircraft on it, using it or occupying it.
+    /// per user; on an open one, one occupied-runway or opposite-direction alert per conflicting pair, a pair being a user
+    /// over the footprint and any other aircraft on it, using it or occupying it.
     /// </summary>
     private static IEnumerable<AsdexSafetyAlert> RunwayAlerts(
         AsdexRunwaySurface runway,
         List<AircraftState> users,
         IReadOnlyList<AircraftState> candidates,
-        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles
+        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles,
+        PairMemory memory
     )
     {
         Comparer<AircraftState> first = AsdexRunwayUsers.First(roles);
@@ -198,6 +260,8 @@ public static class AsdexSafetyLogicDetector
         {
             return users.OrderBy(ac => ac, first).Select(ac => ClosedRunwayAlert(runway, ac, roles[ac]));
         }
+
+        RetainOccupyingPairs(runway, candidates, memory);
 
         // An occupied runway needs its user over the footprint: an airborne arrival raises it at the threshold crossing.
         // Ranked by role (AsdexRunwayUsers.First), so a pair's first aircraft is the one using the runway.
@@ -208,17 +272,22 @@ public static class AsdexSafetyLogicDetector
         }
 
         var onRunway = candidates.Where(ac => claimants.Contains(ac) || AsdexRunwayUsers.Occupies(ac, runway.Runway)).ToList();
-        return OccupiedRunwayAlerts(runway, claimants, onRunway);
+        return OccupiedRunwayAlerts(runway, claimants, onRunway, roles, memory);
     }
 
     /// <summary>
-    /// One occupied-runway alert per pair of a claimant and another aircraft on the runway, each pair once: a pair of two
-    /// claimants is raised from the higher-ranked one, which comes first.
+    /// One alert per pair of a claimant and another aircraft on the runway, each pair once: a pair of two claimants is raised
+    /// from the higher-ranked one, which comes first. A pair heading toward each other along the runway raises an
+    /// opposite-direction alert in place of RWY OCCUPIED (<see cref="PairKind"/>) and is remembered; a remembered pair that
+    /// would read RWY OCCUPIED raises nothing and stays remembered. Every pair key this tick sees is the next memory's
+    /// candidate, so a pair the detector no longer sees on this runway is forgotten.
     /// </summary>
     private static List<AsdexSafetyAlert> OccupiedRunwayAlerts(
         AsdexRunwaySurface runway,
         IReadOnlyList<AircraftState> rankedClaimants,
-        IReadOnlyList<AircraftState> onRunway
+        IReadOnlyList<AircraftState> onRunway,
+        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles,
+        PairMemory memory
     )
     {
         var alerts = new List<AsdexSafetyAlert>();
@@ -231,11 +300,96 @@ public static class AsdexSafetyLogicDetector
                 .OrderBy(ac => ac.Callsign, StringComparer.Ordinal);
             foreach (AircraftState other in others)
             {
-                alerts.Add(BuildAlert(AsdexAlertKind.OccupiedRunway, runway, [user, other], OccupiedRunwayText, goAround: false));
+                string pairKey = AlertKeyBody(runway, [user.Callsign, other.Callsign]);
+                AsdexAlertKind kind = PairKind(runway.Axis, user, other, rankedClaimants.Contains(other), roles);
+                if (kind != AsdexAlertKind.OccupiedRunway)
+                {
+                    memory.Next.Add(pairKey);
+                    alerts.Add(OppDirAlert(runway, kind, user, other, roles));
+                }
+                else if (memory.Prior.Contains(pairKey))
+                {
+                    memory.Next.Add(pairKey);
+                }
+                else
+                {
+                    alerts.Add(BuildAlert(AsdexAlertKind.OccupiedRunway, runway, [user, other], OccupiedRunwayText, goAround: false));
+                }
             }
         }
 
         return alerts;
+    }
+
+    /// <summary>
+    /// The opposite-direction alert for one pair of a claimant (<paramref name="user"/>) and another aircraft on the runway:
+    /// a departure names the departure first, a lander the one further into its landing
+    /// (<see cref="AsdexRunwayUsers.LandedFurther"/>), and a taxi the claimant.
+    /// </summary>
+    private static AsdexSafetyAlert OppDirAlert(
+        AsdexRunwaySurface runway,
+        AsdexAlertKind kind,
+        AircraftState user,
+        AircraftState other,
+        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles
+    ) =>
+        kind switch
+        {
+            AsdexAlertKind.OppDirDeparture => BuildAlert(
+                kind,
+                runway,
+                // First ranks an arrival before a departure, so the claimant is normally the arrival; the check guards a change to that ranking.
+                (roles[user] == AsdexRunwayUserRole.Departure)
+                    ? [user, other]
+                    : [other, user],
+                OppDirDepartureText,
+                goAround: false
+            ),
+            AsdexAlertKind.OppDirLander => BuildAlert(
+                kind,
+                runway,
+                AsdexRunwayUsers.LandedFurther(user, other, runway.Axis) ? [user, other] : [other, user],
+                OppDirLanderText,
+                goAround: false
+            ),
+            AsdexAlertKind.OppDirTaxi => BuildAlert(kind, runway, [user, other], OppDirTaxiText, goAround: false),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Not an opposite-direction alert kind"),
+        };
+
+    /// <summary>
+    /// The kind of a pair's alert: a pair heading toward each other along the runway
+    /// (<see cref="AsdexRunwayUsers.HeadsOpposite"/>) is an opposite-direction departure when both use it, one as a departure
+    /// and one as an arrival; an opposite-direction lander when both use it as arrivals; and an opposite-direction taxi when
+    /// the other only occupies it, moving at <see cref="AsdexRunwayUsers.OppDirTaxiMinGroundSpeedKts"/> or more (all three
+    /// measured on vNAS Test). Two departures head on, or a user whose role is Other, fall back to RWY OCCUPIED (not
+    /// measured), as does any other pair, a stopped occupant included.
+    /// </summary>
+    private static AsdexAlertKind PairKind(
+        AsdexRunwayAxis axis,
+        AircraftState user,
+        AircraftState other,
+        bool otherIsClaimant,
+        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles
+    )
+    {
+        if (!AsdexRunwayUsers.HeadsOpposite(user, other, axis))
+        {
+            return AsdexAlertKind.OccupiedRunway;
+        }
+
+        if (!otherIsClaimant)
+        {
+            return (other.GroundSpeed >= AsdexRunwayUsers.OppDirTaxiMinGroundSpeedKts) ? AsdexAlertKind.OppDirTaxi : AsdexAlertKind.OccupiedRunway;
+        }
+
+        return (roles[user], roles[other]) switch
+        {
+            (AsdexRunwayUserRole.Arrival, AsdexRunwayUserRole.Arrival) => AsdexAlertKind.OppDirLander,
+            // (Departure, Arrival) guards a change to First, which ranks the arrival first and so makes it the claimant.
+            (AsdexRunwayUserRole.Arrival, AsdexRunwayUserRole.Departure) or (AsdexRunwayUserRole.Departure, AsdexRunwayUserRole.Arrival) =>
+                AsdexAlertKind.OppDirDeparture,
+            _ => AsdexAlertKind.OccupiedRunway,
+        };
     }
 
     /// <summary>The closed-runway alert for one aircraft using a closed runway: an arrival (by role) is told to go around.</summary>
@@ -296,9 +450,10 @@ public static class AsdexSafetyLogicDetector
     {
         // The id names the aircraft in ordinal order, so a pair keeps one id however its ranking moves from tick to tick
         // (a speed crossover, a touchdown): the broadcaster diffs by id, and vNAS sends an alert once. The callsigns and
-        // the second line keep the ranked order the alert was raised in; a standing alert is never rewritten.
+        // the second line keep the stored order (the First ranking, except OPP DIR DEPARTURE, departure first, and OPP DIR
+        // LANDER, the rolled-out lander first); a standing alert is never rewritten.
         var callsigns = involved.Select(ac => ac.Callsign).ToList();
-        string id = $"{kind}|{runway.Id}|{string.Join(",", callsigns.Order(StringComparer.Ordinal))}";
+        string id = $"{kind}|{AlertKeyBody(runway, callsigns)}";
         return new AsdexSafetyAlert(
             Id: id,
             Kind: kind,
@@ -309,6 +464,33 @@ public static class AsdexSafetyLogicDetector
             GoAround: goAround
         );
     }
+
+    /// <summary>
+    /// Keeps every remembered pair on this open runway whose two aircraft both still occupy its footprint, user or not (two
+    /// aircraft below 50 kt included): a pair is forgotten only once one of the two leaves the runway.
+    /// </summary>
+    private static void RetainOccupyingPairs(AsdexRunwaySurface runway, IReadOnlyList<AircraftState> candidates, PairMemory memory)
+    {
+        var occupants = candidates.Where(ac => AsdexRunwayUsers.Occupies(ac, runway.Runway)).ToList();
+        for (int i = 0; i < occupants.Count; i++)
+        {
+            for (int j = i + 1; j < occupants.Count; j++)
+            {
+                string pairKey = AlertKeyBody(runway, [occupants[i].Callsign, occupants[j].Callsign]);
+                if (memory.Prior.Contains(pairKey))
+                {
+                    memory.Next.Add(pairKey);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// An alert id after its kind, and a remembered pair's key: the runway id and the aircraft's callsigns in ordinal order
+    /// ("28L|DAL2988,DAL530").
+    /// </summary>
+    private static string AlertKeyBody(AsdexRunwaySurface runway, IEnumerable<string> callsigns) =>
+        $"{runway.Id}|{string.Join(",", callsigns.Order(StringComparer.Ordinal))}";
 
     private static AsdexTaxiwaySegment? NearestTaxiwayWithin(LatLon point, IReadOnlyList<AsdexTaxiwaySegment> taxiways, double maxDistanceNm)
     {

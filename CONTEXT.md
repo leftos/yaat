@@ -410,6 +410,9 @@ An aircraft inside a runway's footprint, on the ground or airborne below 200 ft 
 **Paint-paired bar**:
 A runway hold-short node seated on the painted hold bar the tower-cab videomap draws on its taxiway, at that bar's distance from the centerline (D_paint) instead of the rule's D (`RunwayPaintPairing`, `GroundNode.PaintSegmentIndex`). It is always its runway's hold line, never a short bar (docs/ground/hold-short-placement.md).
 
+**Pair memory** (ASDE-X):
+After a pair raised an OPP DIR alert, the record that keeps it from raising RWY OCCUPIED until one of the two leaves the runway (`SimScenarioState.AsdexOppDirPairs`, docs/crc-display-state.md); snapshotted, never broadcast.
+
 **Runway rank**:
 Who gives way to whom across a runway in the ground-conflict pass (`GroundConflictDetector.ComputeRank`): a runway user (taking off, landing, rolling out, lined up on the pavement) outranks an aircraft vacating the runway, which outranks everything else; the lower rank yields (7110.65 3-1-3, AIM 4-3-21.a).
 
