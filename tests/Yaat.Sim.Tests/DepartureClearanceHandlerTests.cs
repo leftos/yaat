@@ -1326,12 +1326,12 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void RollingCtoDuringTaxi_TypedLegSid_InitialClimbKeepsRunwayTransitionLegs()
     {
-        // Regression for GitHub issue #289. NUEVO8 off OAK 28L (CIFP runway transition RW28B) has
-        // coded runway-transition legs: VD 278.2° -> VM 278.2° -> CF SAPLY 168°. When the takeoff
-        // clearance is issued while the aircraft is still taxiing (a rolling CTO), the route is
-        // resolved with the runway known, but DepartureClearanceInfo did not carry the typed
-        // ProcedureLegs, so TaxiingPhase.ApplyDepartureClearanceIfPending built the InitialClimb
-        // without them. The aircraft then flew the flat route direct to SAPLY (a ~77° left turn)
+        // Regression for GitHub issue #289. COAST9 off OAK 28L (CIFP runway transition RW28B) has
+        // coded runway-transition legs: VD -> VM -> CF SEGUL. When the takeoff clearance is issued
+        // while the aircraft is still taxiing (a rolling CTO), the route is resolved with the runway
+        // known, but DepartureClearanceInfo did not carry the typed ProcedureLegs, so
+        // TaxiingPhase.ApplyDepartureClearanceIfPending built the InitialClimb without them. The
+        // aircraft then flew the flat route direct to the CF fix (a sharp turn off runway heading)
         // instead of runway heading + vectors. The InitialClimb must keep the VD/VM/CF legs.
         if (TestVnasData.NavigationDb is null)
         {
@@ -1346,7 +1346,7 @@ public class DepartureClearanceHandlerTests
         };
         AircraftState ac = MakeTaxiingAircraftWithRoute([destHs]);
         ac.FlightPlan.Departure = "KOAK";
-        ac.FlightPlan.Route = "NUEVO8 EUGEN";
+        ac.FlightPlan.Route = "COAST9 SXC";
         ac.FlightPlan.FlightRules = "IFR";
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
@@ -1372,7 +1372,7 @@ public class DepartureClearanceHandlerTests
         Assert.Equal(ProcedureLegType.HeadingToDistance, legs[0].Type);
         Assert.Equal(ProcedureLegType.HeadingToManual, legs[1].Type);
         Assert.Equal(ProcedureLegType.CourseToFix, legs[2].Type);
-        Assert.Equal("SAPLY", legs[2].FixName);
+        Assert.Equal("SEGUL", legs[2].FixName);
     }
 
     [Fact]

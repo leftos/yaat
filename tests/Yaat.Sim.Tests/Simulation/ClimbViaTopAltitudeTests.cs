@@ -180,8 +180,8 @@ public class ClimbViaTopAltitudeTests
     [Fact]
     public void ClimbVia_OakSidWithTdlsValue_ClimbsToThatValue_NotTheMenuAltitude()
     {
-        AircraftState ac = SidDeparture("NUEVO8", "RW30", "SNS", "SAPLY", 3000, sidAlreadyActive: false);
-        int published = HighestPublishedFt(FlownLegs("NUEVO8", "RW30", "SNS"));
+        AircraftState ac = SidDeparture("KOAK", "NUEVO8", "RW30", "SNS", "SAPLY", 3000, sidAlreadyActive: false);
+        int published = HighestPublishedFt(FlownLegs("KOAK", "NUEVO8", "RW30", "SNS"));
         Assert.True(published < 10000, $"setup: NUEVO8 SNS must publish nothing as high as its 10,000 TDLS value, got {published}");
         ac.Procedure.SidInitialAltitudeFt = OakMenuInitialAltitudeFt;
 
@@ -197,8 +197,8 @@ public class ClimbViaTopAltitudeTests
     [Fact]
     public void ClimbVia_OakSidWithoutTdlsValue_ClimbsToHighestPublished_NotTheMenuAltitude()
     {
-        AircraftState ac = SidDeparture("CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive: false);
-        int published = HighestPublishedFt(FlownLegs("CNDEL5", "RW30", "SUSEY"));
+        AircraftState ac = SidDeparture("KOAK", "CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive: false);
+        int published = HighestPublishedFt(FlownLegs("KOAK", "CNDEL5", "RW30", "SUSEY"));
         Assert.Equal(10000, published);
         ac.Procedure.SidInitialAltitudeFt = OakMenuInitialAltitudeFt;
 
@@ -214,7 +214,7 @@ public class ClimbViaTopAltitudeTests
     [Fact]
     public void ClimbViaExceptMaintain_PastAtOrAboveRestriction_LevelsAtTheExceptMaintainAltitude()
     {
-        AircraftState ac = SidDeparture("HUSSH2", "RW30", "TIPRE", "HUSSH", 3000, sidAlreadyActive: false);
+        AircraftState ac = SidDeparture("KOAK", "HUSSH2", "RW30", "TIPRE", "HUSSH", 3000, sidAlreadyActive: false);
         DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
         Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 8000), RouteFix(ac, "REBAS").AltitudeRestriction);
 
@@ -226,26 +226,27 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
-    /// SKYL1 from runway 10 publishes SIZXO at or above 9,000 and WAGES at or above 20,000; its TDLS climb-via text at KOAK
-    /// is "CLB VIA SID EXC MAINT 10000FT". A bare CVIA climbs past SIZXO to 10,000 and levels there, short of WAGES' floor:
-    /// a published floor above the top never raises it (AIM 5-2-9 Example 4 NOTE).
+    /// SFO's SEGUL1 from runways 28 publishes SEGUL at or above 16,000, and its YYUNG transition CYPRS at or above FL220; its
+    /// TDLS climb-via text at KSFO is "CLB VIA SID EXC MAINT 10000FT". A bare CVIA climbs to 10,000 and levels there, short of
+    /// SEGUL's and CYPRS' floors: a published floor above the top never raises it (AIM 5-2-9 Example 4 NOTE).
     /// </summary>
     [Fact]
     public void BareClimbVia_TdlsExceptMaintain_LevelsThereBelowAHigherPublishedFloor()
     {
-        AircraftState ac = SidDeparture("SKYL1", "RW10B", "AVE", "SIXDY", 3000, sidAlreadyActive: false);
-        Assert.Equal(20000, HighestPublishedFt(FlownLegs("SKYL1", "RW10B", "AVE")));
+        AircraftState ac = SidDeparture("KSFO", "SEGUL1", "RW28B", "YYUNG", "SENZY", 3000, sidAlreadyActive: false);
+        Assert.Equal(22000, HighestPublishedFt(FlownLegs("KSFO", "SEGUL1", "RW28B", "YYUNG")));
 
         DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
         Assert.Equal(10000, ac.Procedure.ClimbViaTargetFt);
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 20000), RouteFix(ac, "WAGES").AltitudeRestriction);
+        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 16000), RouteFix(ac, "SEGUL").AltitudeRestriction);
+        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 22000), RouteFix(ac, "CYPRS").AltitudeRestriction);
 
-        double atSizxo = FlyPastFix(ac, "SIZXO", 900);
-        double atWages = FlyPastFix(ac, "WAGES", 1800);
-        _output.WriteLine($"atSizxo={atSizxo:F0} atWages={atWages:F0} finalAlt={ac.Altitude:F0}");
+        double atSegul = FlyPastFix(ac, "SEGUL", 900);
+        double atCyprs = FlyPastFix(ac, "CYPRS", 1800);
+        _output.WriteLine($"atSegul={atSegul:F0} atCyprs={atCyprs:F0} finalAlt={ac.Altitude:F0}");
 
-        Assert.True(atSizxo >= 9000 - LevelToleranceFt, $"crossed SIZXO below its at-or-above 9,000: {atSizxo:F0}");
-        Assert.InRange(atWages, 10000 - LevelToleranceFt, 10000 + LevelToleranceFt);
+        Assert.InRange(atSegul, 10000 - LevelToleranceFt, 10000 + LevelToleranceFt);
+        Assert.InRange(atCyprs, 10000 - LevelToleranceFt, 10000 + LevelToleranceFt);
     }
 
     /// <summary>
@@ -291,7 +292,7 @@ public class ClimbViaTopAltitudeTests
     [Fact]
     public void ClimbViaExceptMaintain_UnderCeilingAhead_HoldsItThenLevelsAtTheExceptMaintainAltitude()
     {
-        AircraftState ac = SidDeparture("CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive: false);
+        AircraftState ac = SidDeparture("KOAK", "CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive: false);
         DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
         Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 10000), RouteFix(ac, "PORTE").AltitudeRestriction);
 
@@ -345,12 +346,12 @@ public class ClimbViaTopAltitudeTests
     /// <summary>
     /// The check-in after a climb via names an ATC-assigned top: the "except maintain" altitude, "leaving 3,000 for 12,000,
     /// climbing via the CNDEL5 departure" (AIM 5-2-9.h.9 and initial contact Example 2), or the TDLS climb-via text's
-    /// "EXC MAINT" altitude (SKYL1's 10,000). After a bare climb via whose top is published (CNDEL5) it names none.
+    /// "EXC MAINT" altitude (NUEVO8 SNS's 10,000). After a bare climb via whose top is published (CNDEL5) it names none.
     /// </summary>
     [Theory]
     [InlineData("CNDEL5", "RW30", "SUSEY", "LEJAY", "CVIA 120", 12000)]
     [InlineData("CNDEL5", "RW30", "SUSEY", "LEJAY", "CVIA", null)]
-    [InlineData("SKYL1", "RW10B", "AVE", "SIXDY", "CVIA", 10000)]
+    [InlineData("NUEVO8", "RW30", "SNS", "SAPLY", "CVIA", 10000)]
     public void ClimbVia_CheckIn_NamesOnlyAnAssignedTopAltitude(
         string sidId,
         string runwayTransition,
@@ -360,7 +361,7 @@ public class ClimbViaTopAltitudeTests
         int? assignedTop
     )
     {
-        AircraftState ac = SidDeparture(sidId, runwayTransition, enrouteTransition, startFix, 3000, sidAlreadyActive: true);
+        AircraftState ac = SidDeparture("KOAK", sidId, runwayTransition, enrouteTransition, startFix, 3000, sidAlreadyActive: true);
         DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: LoadZoa());
         DispatchLine(ac, "CM 080", ctx);
         DispatchLine(ac, command, ctx);
@@ -624,19 +625,20 @@ public class ClimbViaTopAltitudeTests
             .OfType<CifpAltitudeRestriction>()
             .Max(r => r.Type == CifpAltitudeRestrictionType.Between ? Math.Max(r.Altitude1Ft, r.Altitude2Ft ?? 0) : r.Altitude1Ft);
 
-    private static List<CifpLeg> FlownLegs(string sidId, string runwayTransition, string enrouteTransition)
+    private static List<CifpLeg> FlownLegs(string airport, string sidId, string runwayTransition, string enrouteTransition)
     {
-        CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KOAK", sidId));
+        CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid(airport, sidId));
         return [.. sid.RunwayTransitions[runwayTransition].Legs, .. sid.CommonLegs, .. sid.EnrouteTransitions[enrouteTransition].Legs];
     }
 
     /// <summary>
-    /// A KOAK departure on <paramref name="sidId"/> from <paramref name="runwayTransition"/> to
+    /// A departure from <paramref name="airport"/> on <paramref name="sidId"/> from <paramref name="runwayTransition"/> to
     /// <paramref name="enrouteTransition"/>, at <paramref name="startFix"/> at <paramref name="altitude"/>, its route the SID
     /// fixes after it. With the SID active the route carries the SID's published restrictions; otherwise it holds bare fixes
     /// (as after a re-clearance direct) and a CVIA activates the filed SID.
     /// </summary>
     private static AircraftState SidDeparture(
+        string airport,
         string sidId,
         string runwayTransition,
         string enrouteTransition,
@@ -645,7 +647,9 @@ public class ClimbViaTopAltitudeTests
         bool sidAlreadyActive
     )
     {
-        List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(FlownLegs(sidId, runwayTransition, enrouteTransition));
+        List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(
+            FlownLegs(airport, sidId, runwayTransition, enrouteTransition)
+        );
         int start = resolved.FindIndex(t => t.Name == startFix);
         Assert.True((start >= 0) && (start + 1 < resolved.Count), $"setup: {sidId} {runwayTransition} {enrouteTransition} must pass {startFix}");
 
@@ -662,7 +666,7 @@ public class ClimbViaTopAltitudeTests
             IndicatedAirspeed = 230,
             FlightPlan = new AircraftFlightPlan
             {
-                Departure = "KOAK",
+                Departure = airport,
                 Destination = "KLAS",
                 Route = $"{sidId} {enrouteTransition}",
                 Altitude = PlannedAltitude.Ifr(35000),
@@ -688,9 +692,9 @@ public class ClimbViaTopAltitudeTests
     /// <summary>A CNDEL5 SUSEY departure past LEJAY at 3,000. <paramref name="published"/> is PORTE's published restriction.</summary>
     internal static AircraftState Cndel5Departure(bool sidAlreadyActive, out CifpAltitudeRestriction published)
     {
-        List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(FlownLegs("CNDEL5", "RW30", "SUSEY"));
+        List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(FlownLegs("KOAK", "CNDEL5", "RW30", "SUSEY"));
         published = Assert.IsType<CifpAltitudeRestriction>(resolved.First(t => t.Name == "PORTE").AltitudeRestriction);
-        return SidDeparture("CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive);
+        return SidDeparture("KOAK", "CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive);
     }
 
     /// <summary>Flies physics alone until <paramref name="fixName"/> leaves the route; returns the altitude there.</summary>
@@ -746,7 +750,7 @@ public class ClimbViaTopAltitudeTests
     private Harness BuildHussh2Harness()
     {
         SimLogBuilder.CreateForTest(_output).InitializeSimLog();
-        AircraftState aircraft = SidDeparture("HUSSH2", "RW30", "TIPRE", "HUSSH", 3000, sidAlreadyActive: false);
+        AircraftState aircraft = SidDeparture("KOAK", "HUSSH2", "RW30", "TIPRE", "HUSSH", 3000, sidAlreadyActive: false);
         Assert.Equal(["NIITE", "REBAS", "TAMMM", "TIPRE"], aircraft.Targets.NavigationRoute.Select(f => f.Name));
 
         SimulationEngine engine = NewEngine();

@@ -564,11 +564,11 @@ public class ScenarioExporterTests
 
     /// <summary>
     /// A climb via in force exports as one: bare when its top is published (CNDEL5's "CLIMB VIA SID"), with the altitude
-    /// when its top is ATC-assigned (SKYL1's TDLS "CLB VIA SID EXC MAINT 10000FT").
+    /// when its top is ATC-assigned (NUEVO8 SNS's TDLS "CLB VIA SID EXC MAINT 10000FT").
     /// </summary>
     [Theory]
     [InlineData("CNDEL5", "RW30", "SUSEY", "CVIA")]
-    [InlineData("SKYL1", "RW10B", "AVE", "CVIA 100")]
+    [InlineData("NUEVO8", "RW30", "SNS", "CVIA 100")]
     public void SidDeparture_BareClimbVia_ExportsCviaPreset(string sidId, string runwayTransition, string enrouteTransition, string expected)
     {
         AircraftState departure = OakSidDeparture(sidId, runwayTransition, enrouteTransition);
