@@ -19,12 +19,20 @@ public sealed class FrequencyState
     /// </summary>
     private const double AwaitedTimeoutSeconds = 8.0;
 
+    /// <summary>
+    /// How long after the end of a check-in's airtime a second pilot's own check-in may butt in while the controller has
+    /// not answered the first. Inside the window the second pilot draws <see cref="SpokenFormDraws.CheckInButtInPercent"/>;
+    /// outside it the call keeps the ordinary hold, up to <see cref="AwaitedTimeoutSeconds"/>.
+    /// </summary>
+    private const double CheckInButtInDelaySeconds = 3.0;
+
     private static readonly ILogger Log = SimLog.CreateLogger("FrequencyState");
 
     private readonly Queue<PilotTransmission> _pending = [];
     private readonly Queue<AwaitedReadback> _awaitingReadbacks = [];
     private double _nextAvailableAtSeconds;
     private string? _awaitingControllerResponseTo;
+    private bool _awaitingControllerResponseIsCheckIn;
     private double _awaitingControllerResponseSinceSeconds;
 
     public FrequencyActivityMeter ActivityMeter { get; } = new();
@@ -96,12 +104,18 @@ public sealed class FrequencyState
         {
             Log.LogInformation("Controller acknowledged {Callsign}; releasing awaiting-controller-response gate", callsign);
             _awaitingControllerResponseTo = null;
+            _awaitingControllerResponseIsCheckIn = false;
         }
     }
 
     public void Enqueue(PilotTransmission transmission) => _pending.Enqueue(transmission);
 
-    public PilotTransmission? TryDequeueReady(double elapsedSeconds)
+    /// <summary>
+    /// The next transmission allowed on the air at <paramref name="elapsedSeconds"/>, or null while none is.
+    /// <paramref name="rngSeed"/> is the scenario seed of every seeded draw a held call makes, so a replay reproduces the
+    /// same check-in butt-in.
+    /// </summary>
+    public PilotTransmission? TryDequeueReady(double elapsedSeconds, int rngSeed)
     {
         ActivityMeter.Trim(elapsedSeconds);
         if (_pending.Count == 0 || elapsedSeconds < _nextAvailableAtSeconds)
@@ -109,7 +123,7 @@ public sealed class FrequencyState
             return null;
         }
 
-        int index = SelectReadyIndex(elapsedSeconds);
+        int index = SelectReadyIndex(elapsedSeconds, rngSeed);
         if (index < 0)
         {
             return null;
@@ -141,6 +155,7 @@ public sealed class FrequencyState
         if (transmission.Kind is PilotTransmissionKind.Proactive or PilotTransmissionKind.Report)
         {
             _awaitingControllerResponseTo = transmission.Callsign;
+            _awaitingControllerResponseIsCheckIn = transmission.IsInitialContact;
             _awaitingControllerResponseSinceSeconds = _nextAvailableAtSeconds;
             Log.LogInformation(
                 "Awaiting controller response from {Callsign} ({Kind} ends at t={EndSeconds:F1}s, airtime={Airtime:F1}s); "
@@ -165,12 +180,13 @@ public sealed class FrequencyState
         _pending.Clear();
         _awaitingReadbacks.Clear();
         _awaitingControllerResponseTo = null;
+        _awaitingControllerResponseIsCheckIn = false;
         _awaitingControllerResponseSinceSeconds = 0;
         _nextAvailableAtSeconds = 0;
         ActivityMeter.Restore([]);
     }
 
-    private int SelectReadyIndex(double elapsedSeconds)
+    private int SelectReadyIndex(double elapsedSeconds, int rngSeed)
     {
         if (AwaitedReadbackIndex(elapsedSeconds) is int awaitedIndex)
         {
@@ -179,50 +195,127 @@ public sealed class FrequencyState
 
         if (_awaitingControllerResponseTo is { Length: > 0 } awaitingCallsign)
         {
-            // Allow anything that isn't another pilot's proactive/report through.
-            // The awaiting pilot themselves can keep talking (follow-ups, additional
-            // requests). Readbacks and SayReadback are responses to controller-issued
-            // commands and aren't gated here.
-            int index = 0;
-            foreach (PilotTransmission transmission in _pending)
+            return ControllerResponseGateIndex(awaitingCallsign, elapsedSeconds, rngSeed);
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// The queue index the controller-response gate allows at <paramref name="elapsedSeconds"/>. Anything that is not
+    /// another pilot's proactive/report call passes at once: the awaiting pilot can keep talking (follow-ups, additional
+    /// requests), and read-backs are responses to controller-issued commands, not new requests. Only other-pilot
+    /// proactive/report transmissions are held back, until the controller answers, a check-in butts in, or
+    /// <see cref="AwaitedTimeoutSeconds"/> of silence fall through to FIFO.
+    /// </summary>
+    private int ControllerResponseGateIndex(string awaitingCallsign, double elapsedSeconds, int rngSeed)
+    {
+        int index = 0;
+        foreach (PilotTransmission transmission in _pending)
+        {
+            if (!IsOtherPilotCall(transmission, awaitingCallsign))
             {
-                bool isOtherPilotProactiveOrReport =
-                    transmission.Kind is PilotTransmissionKind.Proactive or PilotTransmissionKind.Report
-                    && !string.Equals(transmission.Callsign, awaitingCallsign, StringComparison.OrdinalIgnoreCase);
-
-                if (!isOtherPilotProactiveOrReport)
-                {
-                    return index;
-                }
-
-                index++;
+                return index;
             }
 
-            // Only other-pilot proactive/report transmissions are queued. Hold them
-            // back until the controller responds or the timeout falls through.
-            double waitedSeconds = elapsedSeconds - _awaitingControllerResponseSinceSeconds;
-            if (waitedSeconds < AwaitedTimeoutSeconds)
-            {
-                Log.LogInformation(
-                    "Holding frequency for controller response to {Callsign} ({Waited:F1}s waited); {Count} other-pilot transmissions queued",
-                    awaitingCallsign,
-                    waitedSeconds,
-                    _pending.Count
-                );
-                return -1;
-            }
+            index++;
+        }
 
+        double waitedSeconds = elapsedSeconds - _awaitingControllerResponseSinceSeconds;
+        if (waitedSeconds >= AwaitedTimeoutSeconds)
+        {
             Log.LogWarning(
                 "Awaited controller response to {Callsign} timed out after {Waited:F1}s; releasing frequency to FIFO",
                 awaitingCallsign,
                 waitedSeconds
             );
             _awaitingControllerResponseTo = null;
-            return _pending.Count > 0 ? 0 : -1;
+            _awaitingControllerResponseIsCheckIn = false;
+            return 0;
         }
 
-        return 0;
+        int buttInIndex = ButtInIndex(elapsedSeconds, rngSeed);
+        if (buttInIndex >= 0)
+        {
+            return buttInIndex;
+        }
+
+        Log.LogInformation(
+            "Holding frequency for controller response to {Callsign} ({Waited:F1}s waited); {Count} other-pilot transmissions queued",
+            awaitingCallsign,
+            waitedSeconds,
+            _pending.Count
+        );
+        return -1;
     }
+
+    /// <summary>Whether <paramref name="transmission"/> is another pilot's new request, the kind the gate holds back.</summary>
+    private static bool IsOtherPilotCall(PilotTransmission transmission, string awaitingCallsign) =>
+        transmission.Kind is PilotTransmissionKind.Proactive or PilotTransmissionKind.Report
+        && !string.Equals(transmission.Callsign, awaitingCallsign, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The queue index of the first other-pilot initial-contact check-in whose seeded draw allows it to butt in behind the
+    /// awaited check-in, or <c>-1</c> while the butt-in window is shut. The draws are made in queue order and keyed on the
+    /// first call's end second, not the current tick, so a held call gets one answer that repeats until it speaks or the
+    /// gate clears.
+    /// </summary>
+    private int ButtInIndex(double elapsedSeconds, int rngSeed)
+    {
+        if (!ButtInWindowOpen(elapsedSeconds))
+        {
+            return -1;
+        }
+
+        int firstCallEndSecond = (int)Math.Floor(_awaitingControllerResponseSinceSeconds);
+        int index = 0;
+        foreach (PilotTransmission transmission in _pending)
+        {
+            if (IsButtingIn(transmission, firstCallEndSecond, rngSeed))
+            {
+                Log.LogInformation(
+                    "{ButtIn} butts in {Waited:F1}s after {Callsign}'s unanswered check-in",
+                    transmission.Callsign,
+                    elapsedSeconds - LastTransmissionEndSeconds(),
+                    _awaitingControllerResponseTo
+                );
+                return index;
+            }
+
+            index++;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Whether a second pilot's check-in may butt in now: the gate is waiting on a check-in, the moment is inside
+    /// <see cref="AwaitedTimeoutSeconds"/>, and <see cref="CheckInButtInDelaySeconds"/> of silence have passed since the
+    /// frequency last carried a transmission. A pilot listens and pauses after every transmission (AIM 4-2-2.a), so a
+    /// winner held back by a third call keys three seconds after that call ends, not the instant it ends.
+    /// </summary>
+    private bool ButtInWindowOpen(double elapsedSeconds)
+    {
+        if (!_awaitingControllerResponseIsCheckIn)
+        {
+            return false;
+        }
+
+        if (elapsedSeconds - _awaitingControllerResponseSinceSeconds >= AwaitedTimeoutSeconds)
+        {
+            return false;
+        }
+
+        return elapsedSeconds - LastTransmissionEndSeconds() >= CheckInButtInDelaySeconds;
+    }
+
+    /// <summary>The second the frequency last carried a transmission, never earlier than the awaited check-in's end.</summary>
+    private double LastTransmissionEndSeconds() => Math.Max(_awaitingControllerResponseSinceSeconds, _nextAvailableAtSeconds);
+
+    private static bool IsButtingIn(PilotTransmission transmission, int firstCallEndSecond, int rngSeed) =>
+        (transmission.Kind == PilotTransmissionKind.Proactive)
+        && transmission.IsInitialContact
+        && SpokenFormDraws.DrawCheckInButtIn(transmission.Callsign, firstCallEndSecond, rngSeed);
 
     /// <summary>
     /// The queue index of the read-back the frequency is holding for, <c>-1</c> while it is still held, or <c>null</c>

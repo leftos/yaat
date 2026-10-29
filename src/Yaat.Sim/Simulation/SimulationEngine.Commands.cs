@@ -312,7 +312,7 @@ public sealed partial class SimulationEngine
             canonical = PilotResponder.WithBravoClearance(aircraft, canonical, wording, PilotSpeechContext.Canonical);
         }
 
-        PilotResponder.QueueSoloPilotTransmission(aircraft, readback, canonical, PilotTransmissionKind.Readback);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, readback, canonical, PilotTransmissionKind.Readback, initialContact: false);
     }
 
     /// <summary>
@@ -395,7 +395,7 @@ public sealed partial class SimulationEngine
         }
 
         PilotSpeechText transmission = result.PilotUnable ?? PilotResponder.BuildUnable(aircraft, result.Message);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, initialContact: false);
     }
 
     /// <summary>

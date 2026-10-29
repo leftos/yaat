@@ -5,6 +5,7 @@
 ### Changed
 
 - In solo sessions, how busy the frequency sounds now follows how little dead air is left, counting your transmissions and pilots' say answers, not how many calls were made.
+- In solo sessions, a second arriving pilot now and then checks in a few seconds after the first, before you have answered it.
 
 ### Fixed
 

@@ -160,7 +160,7 @@ public static class ContactCommandHandler
     {
         if (ctx.SoloTrainingMode)
         {
-            PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, canonicalSpeech, PilotTransmissionKind.Readback);
+            PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, canonicalSpeech, PilotTransmissionKind.Readback, initialContact: false);
             return;
         }
         PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);

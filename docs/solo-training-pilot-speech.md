@@ -39,7 +39,7 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 1. **Drain.** Move every aircraft's `PendingPilotTransmissions` into the frequency's pending queue.
 2. **Awaited-readback gate.** `FrequencyState` holds a FIFO of awaited readbacks (`_awaitingReadbacks`: the exact `PilotTransmission` awaited, with the second it was added; a callsign already awaited is not added again). While it is non-empty, the head's readback gets airtime priority — if it's already in the queue, dequeue it first; if it isn't, hold other transmissions back so it can land. Two instructions outstanding therefore both come back, in instruction order, before any third pilot speaks.
 
-   The gate has an `AwaitedReadbackTimeoutSeconds` ceiling (8 s); past that, it releases the frequency to FIFO so a missing readback (deleted aircraft, future bug, etc.) can never silence the airport indefinitely. The 8 s counts from the later of the instruction and the frequency's next free second, so a readback waiting on airtime behind a long transmission keeps its priority. A timed-out callsign leaves the FIFO — if its readback arrives later, it dequeues normally without veto power over the rest.
+   The gate has an `AwaitedReadbackTimeoutSeconds` ceiling (8 s); past that, it releases the frequency to FIFO so a missing readback (deleted aircraft, future bug, etc.) can never silence the airport indefinitely. The 8 s counts from the later of the instruction and the frequency's next free second, so a readback waiting on airtime behind a long transmission keeps its priority. A timed-out entry leaves the FIFO — if its readback arrives later, it dequeues normally without veto power over the rest.
 3. **Airtime gate.** A transmission can only dequeue when `elapsedSeconds >= _nextAvailableAtSeconds`. After dequeue, set the next slot to `now + (~0.25 s/word, min 1 s)` (`FrequencyState.EstimateAirtimeSeconds`, the one estimate behind the gate and the meter's durations).
 4. **Activity meter.** `FrequencyActivityMeter` records each transmission as an interval (`FrequencyTransmission(Start, Duration)`) and judges the frequency by `DeadAirShare(elapsed)`, the share of the last 60 s that no transmission occupied: Quiet at 70% or more, Normal from 35% to under 70%, Busy under 35%. Overlapping intervals count once, and an interval still on air counts only up to now, so a transmission adds nothing to the band stamped on it at the second it keys.
 
@@ -64,7 +64,7 @@ The readback text itself comes from `PilotResponder.BuildReadbackAsApplied` — 
 
 `SimulationEngine.BuildDispatchContext` records which `Readback` entries the aircraft already had pending; after the dispatch, `ApplyPostDispatch` calls `World.ExpectPilotReadback` when a `Readback` entry it did not have before is now pending. Whichever site queued it arms the gate: the applied readback, the pilot's "unable" after a refused command, a contact/handoff (CT/FCA) readback or a pattern-size reply. A reply the pilot had already queued on its own does not arm it.
 
-In normal operation the readback emerges on the very next drain (1 s) and its callsign leaves the FIFO immediately, so the gate is invisible. Two consecutive controller commands to two different aircraft queue both callsigns; the second readback waits for the first.
+In normal operation the readback emerges on the very next drain (1 s) and its entry leaves the FIFO immediately, so the gate is invisible. Two consecutive controller commands to two different aircraft queue both readbacks; the second readback waits for the first.
 
 An aircraft that leaves the world (`SimulationWorld.RemoveAircraft`) or is replaced by a same-callsign spawn (`AddAircraft`'s replace path) has its awaited readbacks dropped at once (`FrequencyState.ForgetAircraft`), so the next pilot speaks on the next drain.
 
@@ -83,7 +83,15 @@ What still passes the gate:
 - The awaiting pilot's own follow-up calls (same callsign).
 - Any `Readback` or `SayReadback` from any pilot — those are responses to controller-issued commands, not new requests.
 
-For commands that *produce* a readback, both gates run sequentially: dispatch clears `_awaitingControllerResponseTo` (controller has spoken) and adds the callsign to `_awaitingReadbacks` (waiting for the reply). For commands that don't produce a readback (e.g. `ROGER`/`STBY` via `AcknowledgePilotContactCommand`), the controller-response gate clears and other pilots can mic up immediately.
+For commands that *produce* a readback, both gates run sequentially: dispatch clears `_awaitingControllerResponseTo` (controller has spoken) and adds the awaited readback to `_awaitingReadbacks` (waiting for the reply). For commands that don't produce a readback (e.g. `ROGER`/`STBY` via `AcknowledgePilotContactCommand`), the controller-response gate clears and other pilots can mic up immediately.
+
+### Check-in butt-in
+
+While the gate waits on an airborne or pattern initial-contact check-in (`PilotTransmission.IsInitialContact`, passed as the required `initialContact` of `PilotResponder.QueueSoloPilotTransmission`), a second pilot's own initial-contact check-in may key up early instead of waiting the full 8 s. It gets one draw, `SpokenFormDraws.DrawCheckInButtIn`: 10% (`CheckInButtInPercent`), seeded by the callsign, the second the first call's airtime ended and the scenario seed through `VariantPick`, so a replay draws the same.
+
+On a win it keys up once 3 s of silence have passed (`CheckInButtInDelaySeconds`), counted from the end of the most recent transmission and never earlier than the end of the first check-in. A butt-in never keys over another transmission and never goes ahead of a pending readback, and it does not happen if the controller answered first. A losing draw, or any other call, waits up to 8 s as before.
+
+After a butt-in the gate waits on the butting pilot, so the next call queues behind that check-in. Ground and departure first calls (ready to taxi, pushback, clearance, taxi-in, release request, ready for departure) are not initial contacts and never butt in. The required `rngSeed` of `FrequencyState.TryDequeueReady` and `SimulationWorld.DrainReadyPilotTransmissions` carries the seed.
 
 ## Activity-aware readback shortening
 

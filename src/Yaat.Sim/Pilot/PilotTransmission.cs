@@ -31,4 +31,13 @@ public sealed record PilotTransmission(
     /// to which the transmission, keyed then, adds nothing yet. Null until <see cref="FrequencyState.TryDequeueReady"/> dequeues it.
     /// </summary>
     public FrequencyLoadBand? LoadBand { get; init; }
+
+    /// <summary>
+    /// Whether this is a pilot's initial contact with the position it is calling — an airborne check-in, a tower check-in
+    /// on final, a pattern arrival's first call. Only such a call may butt in under the frequency's controller-response
+    /// gate (<see cref="FrequencyState"/>); every other call and every read-back is false. A ground or departure first
+    /// call — ready to taxi, pushback, clearance request, taxi-in, release request, ready for departure — is false on
+    /// purpose: the flag marks airborne and pattern check-ins only.
+    /// </summary>
+    public bool IsInitialContact { get; init; }
 }

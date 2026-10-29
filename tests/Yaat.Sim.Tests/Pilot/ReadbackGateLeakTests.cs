@@ -36,15 +36,15 @@ public sealed class ReadbackGateLeakTests
         QueueSetupTransmission(other, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
 
         // The instructed read-back has not been queued at all yet: the other pilot is held for the window.
-        Assert.Empty(world.DrainReadyPilotTransmissions(elapsedSeconds: 12));
+        Assert.Empty(world.DrainReadyPilotTransmissions(elapsedSeconds: 12, rngSeed: 1));
 
         awaited.PendingPilotTransmissions.Add(readback);
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 13);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 13, rngSeed: 1);
         AssertSpoke(readback, drained);
         Assert.Null(world.ActiveFrequency.AwaitingReadbackFrom);
 
         // With the read-back on air, the held call follows once its airtime is over.
-        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 30);
+        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 30, rngSeed: 1);
         Assert.Equal("N200BB", Assert.Single(released).Callsign);
     }
 
@@ -55,7 +55,7 @@ public sealed class ReadbackGateLeakTests
         frequency.Enqueue(Transmission("N900ZZ", FortyWordTransmission, PilotTransmissionKind.Readback));
 
         // Forty words hold the frequency until t=10; nothing can speak before then.
-        Assert.Equal("N900ZZ", frequency.TryDequeueReady(elapsedSeconds: 0)?.Callsign);
+        Assert.Equal("N900ZZ", frequency.TryDequeueReady(elapsedSeconds: 0, rngSeed: 1)?.Callsign);
         PilotTransmission stalled = Transmission(
             "N100AA",
             "[N100AA] descend and maintain five thousand, november one zero zero alpha alpha.",
@@ -64,16 +64,16 @@ public sealed class ReadbackGateLeakTests
         frequency.ExpectReadback([stalled], elapsedSeconds: 1);
         frequency.Enqueue(Transmission("N200BB", "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive));
 
-        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 9));
+        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 9, rngSeed: 1));
         // Eight seconds past the instruction the airtime is only just free: the read-back's window must not have burned.
-        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 10));
+        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 10, rngSeed: 1));
 
         frequency.Enqueue(stalled);
-        PilotTransmission? readback = frequency.TryDequeueReady(elapsedSeconds: 10.5);
+        PilotTransmission? readback = frequency.TryDequeueReady(elapsedSeconds: 10.5, rngSeed: 1);
 
         Assert.NotNull(readback);
         Assert.Equal(stalled.Text, readback.Text);
-        Assert.Equal("N200BB", frequency.TryDequeueReady(elapsedSeconds: 40)?.Callsign);
+        Assert.Equal("N200BB", frequency.TryDequeueReady(elapsedSeconds: 40, rngSeed: 1)?.Callsign);
     }
 
     [Fact]
@@ -96,16 +96,16 @@ public sealed class ReadbackGateLeakTests
         Assert.True(engine.SendCommand("N200BB", "DM 5000").Success);
         Assert.Equal("N100AA", engine.World.ActiveFrequency.AwaitingReadbackFrom);
 
-        List<PilotTransmission> firstDrain = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> firstDrain = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1);
         PilotTransmission spoke = Assert.Single(firstDrain);
         Assert.Equal("N100AA", spoke.Callsign);
         Assert.Equal("fly heading 270", spoke.Text);
 
-        List<PilotTransmission> secondDrain = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 40);
+        List<PilotTransmission> secondDrain = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 40, rngSeed: 1);
         Assert.Equal("N200BB", Assert.Single(secondDrain).Callsign);
 
         // Only once both read-backs have spoken does the third pilot's earlier-queued call get through.
-        List<PilotTransmission> thirdDrain = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 80);
+        List<PilotTransmission> thirdDrain = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 80, rngSeed: 1);
         Assert.Equal("N300CC", Assert.Single(thirdDrain).Callsign);
     }
 
@@ -121,11 +121,11 @@ public sealed class ReadbackGateLeakTests
         frequency.ExpectReadback([neverQueued], elapsedSeconds: 10);
         frequency.Enqueue(Transmission("N200BB", "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive));
 
-        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 12));
-        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 17));
+        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 12, rngSeed: 1));
+        Assert.Null(frequency.TryDequeueReady(elapsedSeconds: 17, rngSeed: 1));
         Assert.Equal("N100AA", frequency.AwaitingReadbackFrom);
 
-        PilotTransmission? released = frequency.TryDequeueReady(elapsedSeconds: 18);
+        PilotTransmission? released = frequency.TryDequeueReady(elapsedSeconds: 18, rngSeed: 1);
 
         Assert.Equal("N200BB", released?.Callsign);
         Assert.Null(frequency.AwaitingReadbackFrom);
@@ -148,7 +148,7 @@ public sealed class ReadbackGateLeakTests
         world.ExpectPilotReadback([readback], elapsedSeconds: 5);
         QueueSetupTransmission(other, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 5);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 5, rngSeed: 1);
 
         AssertSpoke(readback, drained);
         Assert.Null(world.ActiveFrequency.AwaitingReadbackFrom);
@@ -180,10 +180,10 @@ public sealed class ReadbackGateLeakTests
         PilotTransmission readback = Assert.Single(instructed.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.Equal("N100AA", engine.World.ActiveFrequency.AwaitingReadbackFrom);
 
-        List<PilotTransmission> first = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30);
+        List<PilotTransmission> first = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30, rngSeed: 1);
         AssertSpoke(readback, first);
 
-        List<PilotTransmission> second = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 60);
+        List<PilotTransmission> second = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 60, rngSeed: 1);
         Assert.Equal("N200BB", Assert.Single(second).Callsign);
     }
 
@@ -249,7 +249,7 @@ public sealed class ReadbackGateLeakTests
         // The pilot's own message is not a reply to the instruction, so it arms no gate.
         Assert.Null(engine.World.ActiveFrequency.AwaitingReadbackFrom);
 
-        List<PilotTransmission> drained = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30);
+        List<PilotTransmission> drained = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30, rngSeed: 1);
         PilotTransmission first = Assert.Single(drained);
         Assert.Equal("N200BB", first.Callsign);
         Assert.Equal(PilotTransmissionKind.Proactive, first.Kind);
@@ -280,14 +280,14 @@ public sealed class ReadbackGateLeakTests
         Assert.Equal("N100AA", engine.World.ActiveFrequency.AwaitingReadbackFrom);
 
         // The instruction's read-back takes the slot, not the pilot's own earlier message.
-        List<PilotTransmission> first = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30);
+        List<PilotTransmission> first = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30, rngSeed: 1);
         AssertSpoke(instructionReadback, first);
 
         // The other pilot speaks next: nothing between the two read-backs got in.
-        List<PilotTransmission> second = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 60);
+        List<PilotTransmission> second = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 60, rngSeed: 1);
         Assert.Equal("N200BB", Assert.Single(second).Callsign);
 
-        List<PilotTransmission> third = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 90);
+        List<PilotTransmission> third = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 90, rngSeed: 1);
         AssertSpoke(own, third);
     }
 
@@ -310,14 +310,14 @@ public sealed class ReadbackGateLeakTests
         PilotTransmission heading = Assert.Single(aircraft.PendingPilotTransmissions, t => t.Text == "fly heading 270");
         PilotTransmission descend = Assert.Single(aircraft.PendingPilotTransmissions, t => t.Text == "descend and maintain 5000");
 
-        List<PilotTransmission> first = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30);
+        List<PilotTransmission> first = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 30, rngSeed: 1);
         AssertSpoke(heading, first);
 
         // The second read-back keeps its own gate entry; the other pilot does not slip in between.
-        List<PilotTransmission> second = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 60);
+        List<PilotTransmission> second = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 60, rngSeed: 1);
         AssertSpoke(descend, second);
 
-        List<PilotTransmission> third = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 90);
+        List<PilotTransmission> third = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 90, rngSeed: 1);
         Assert.Equal("N200BB", Assert.Single(third).Callsign);
     }
 
@@ -341,7 +341,7 @@ public sealed class ReadbackGateLeakTests
         // The read-back was never queued and its aircraft is gone: there is nothing left to wait for.
         world.RemoveAircraft("N100AA");
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 5);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 5, rngSeed: 1);
 
         Assert.Equal("N200BB", Assert.Single(drained).Callsign);
         Assert.Null(world.ActiveFrequency.AwaitingReadbackFrom);
@@ -367,7 +367,7 @@ public sealed class ReadbackGateLeakTests
         // A same-callsign spawn replaces N100AA: the replaced aircraft's read-back can never arrive either.
         world.AddAircraft(NewAircraft("N100AA"));
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 5);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 5, rngSeed: 1);
 
         Assert.Equal("N200BB", Assert.Single(drained).Callsign);
         Assert.Null(world.ActiveFrequency.AwaitingReadbackFrom);

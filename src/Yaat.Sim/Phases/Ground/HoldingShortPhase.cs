@@ -122,7 +122,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         {
             string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             PilotSpeechText line = PilotResponder.BuildHoldingShortReady(ctx.Aircraft, runwayId, facilityCallName);
-            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
                 PilotPendingRequestKind.Takeoff,

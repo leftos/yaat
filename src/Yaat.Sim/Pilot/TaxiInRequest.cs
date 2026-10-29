@@ -60,7 +60,7 @@ public static class TaxiInRequest
 
         string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "GND", "ground");
         PilotSpeechText line = PilotResponder.BuildTaxiInRequest(aircraft, facilityCallName, runwayId, taxiway, parking);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.Taxi,

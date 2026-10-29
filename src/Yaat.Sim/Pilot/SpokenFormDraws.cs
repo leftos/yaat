@@ -27,8 +27,12 @@ public static class SpokenFormDraws
     /// <summary>Percent of contact readbacks that group the frequency when the pilot speaks at the quiet band.</summary>
     public const int QuietGroupedFrequencyPercent = 0;
 
+    /// <summary>Percent of held second initial-contact check-ins whose pilot butts in after a first one the controller has not answered.</summary>
+    public const int CheckInButtInPercent = 10;
+
     private const string CallsignFormBody = "callsign-form";
     private const string ContactFrequencyBody = "contact-frequency";
+    private const string CheckInButtInBody = "check-in-butt-in";
 
     /// <summary>
     /// Whether a pilot may abbreviate its callsign in a readback (AIM 4-2-4.a.1-a.3, 7110.65 2-4-9): the callsign is an FAA
@@ -87,4 +91,12 @@ public static class SpokenFormDraws
         };
         return VariantPick.Index(callsign, ContactFrequencyBody, elapsedSecond, rngSeed, 100) < percent;
     }
+
+    /// <summary>
+    /// Whether this pilot's initial-contact check-in, held while the controller-response gate waits on another pilot's
+    /// check-in that ended at <paramref name="firstCallEndSecond"/>, may butt in three seconds later. One draw per
+    /// candidate and first call: neither input changes tick to tick, so a held call draws the same answer every tick.
+    /// </summary>
+    public static bool DrawCheckInButtIn(string callsign, int firstCallEndSecond, int rngSeed) =>
+        VariantPick.Index(callsign, CheckInButtInBody, firstCallEndSecond, rngSeed, 100) < CheckInButtInPercent;
 }

@@ -63,19 +63,24 @@ public static partial class PilotResponder
     /// when the frequency is available. <paramref name="text"/> is built canonically (never with a
     /// <see cref="PilotPersonality.Varied"/> context), so its own spoken form gives the meter's airtime.
     /// </summary>
-    public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind) =>
-        QueueSoloPilotTransmission(aircraft, text, text, kind);
+    public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind, bool initialContact) =>
+        QueueSoloPilotTransmission(aircraft, text, text, kind, initialContact);
 
     /// <summary>
     /// Queues a solo-training pilot line spoken as <paramref name="spoken"/>, whose frequency-meter airtime is that of
     /// <paramref name="canonical"/>, the same line built with <see cref="PilotSpeechContext.Canonical"/>: a load-varied
-    /// line must not make the frequency read quieter than the canonical one would.
+    /// line must not make the frequency read quieter than the canonical one would. <paramref name="initialContact"/> marks
+    /// the pilot's first call to the position it is calling, the only kind of call that may butt in behind another
+    /// check-in the controller has not answered (<see cref="FrequencyState"/>). A ground or departure first call — ready
+    /// to taxi, pushback, clearance request, taxi-in, release request, ready for departure — is false on purpose: the
+    /// flag marks airborne and pattern check-ins only.
     /// </summary>
     public static void QueueSoloPilotTransmission(
         AircraftState aircraft,
         PilotSpeechText spoken,
         PilotSpeechText canonical,
-        PilotTransmissionKind kind
+        PilotTransmissionKind kind,
+        bool initialContact
     ) =>
         aircraft.PendingPilotTransmissions.Add(
             new PilotTransmission(
@@ -86,6 +91,9 @@ public static partial class PilotResponder
                 kind,
                 FrequencyState.EstimateAirtimeSeconds(canonical.Tts)
             )
+            {
+                IsInitialContact = initialContact,
+            }
         );
 
     /// <summary>

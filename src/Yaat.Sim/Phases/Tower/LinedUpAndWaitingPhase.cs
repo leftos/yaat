@@ -127,7 +127,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
         {
             string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             PilotSpeechText line = PilotResponder.BuildLinedUpReady(ctx.Aircraft, rwy.Designator, facilityCallName);
-            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
                 PilotPendingRequestKind.Takeoff,

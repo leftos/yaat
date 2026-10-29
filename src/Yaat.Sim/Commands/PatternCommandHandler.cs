@@ -2844,7 +2844,7 @@ internal static class PatternCommandHandler
             PilotSpeechText speech = PilotResponder.BuildUnablePatternSize(aircraft, sizeNm, floorNm);
             if (soloTrainingMode)
             {
-                PilotResponder.QueueSoloPilotTransmission(aircraft, speech, PilotTransmissionKind.Readback);
+                PilotResponder.QueueSoloPilotTransmission(aircraft, speech, PilotTransmissionKind.Readback, initialContact: false);
             }
             else
             {

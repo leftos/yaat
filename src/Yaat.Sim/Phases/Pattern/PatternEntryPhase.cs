@@ -153,7 +153,7 @@ public sealed class PatternEntryPhase : Phase
             int altitudeFt = (int)Math.Round(ctx.Aircraft.Altitude);
             string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, "TWR", "tower");
             PilotSpeechText line = PilotResponder.BuildClosedTrafficRequest(ctx.Aircraft, airportPos, altitudeFt, facilityCallName, ctx.AtisLetter);
-            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, initialContact: true);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
                 PilotPendingRequestKind.Landing,

@@ -121,7 +121,7 @@ public static class RunwaySpawnCall
         string fallback = positionType == "CTR" ? "center" : "approach";
         string facilityCallName = PilotResponder.ResolveAnsweringCallName(answering, positionType, fallback);
         PilotSpeechText line = PilotResponder.BuildReleaseRequest(aircraft, runway.Designator, runway.AirportId, facilityCallName);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.Release,

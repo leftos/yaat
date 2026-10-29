@@ -490,7 +490,12 @@ public sealed class SimulationWorld
     public void RecordControllerTransmission(double elapsedSeconds, double durationSeconds) =>
         ActiveFrequency.ActivityMeter.Record(elapsedSeconds - durationSeconds, durationSeconds);
 
-    public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds)
+    /// <summary>
+    /// Drains every aircraft's pending pilot transmissions into the frequency queue, then dequeues whatever may speak at
+    /// <paramref name="elapsedSeconds"/>. <paramref name="rngSeed"/> is the scenario seed the frequency feeds a held
+    /// check-in's butt-in draw, so a replay keys the same pilot at the same second.
+    /// </summary>
+    public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds, int rngSeed)
     {
         var result = new List<PilotTransmission>();
         lock (_lock)
@@ -508,7 +513,7 @@ public sealed class SimulationWorld
                 }
             }
 
-            while (ActiveFrequency.TryDequeueReady(elapsedSeconds) is { } transmission)
+            while (ActiveFrequency.TryDequeueReady(elapsedSeconds, rngSeed) is { } transmission)
             {
                 result.Add(transmission);
             }

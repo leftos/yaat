@@ -60,7 +60,7 @@ public sealed class PilotTransmissionQueueTests
         world.AddAircraft(aircraft);
         PilotResponder.QueueSoloPilotReadback(aircraft, "Traffic in sight", PilotResponder.SourceSayReadback);
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1);
 
         PilotTransmission tx = Assert.Single(drained);
         Assert.Equal("SWA123", tx.Callsign);
@@ -87,7 +87,7 @@ public sealed class PilotTransmissionQueueTests
         );
         world.ExpectPilotReadback([.. readback.PendingPilotTransmissions], elapsedSeconds: 10);
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1);
 
         PilotTransmission tx = Assert.Single(drained);
         Assert.Equal("N100AA", tx.Callsign);
@@ -107,10 +107,10 @@ public sealed class PilotTransmissionQueueTests
         // every other pilot forever.
         world.ExpectPilotReadback([NewTransmission("N100AA")], elapsedSeconds: 10);
 
-        List<PilotTransmission> blocked = world.DrainReadyPilotTransmissions(elapsedSeconds: 12);
+        List<PilotTransmission> blocked = world.DrainReadyPilotTransmissions(elapsedSeconds: 12, rngSeed: 1);
         Assert.Empty(blocked);
 
-        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 19);
+        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 19, rngSeed: 1);
         PilotTransmission tx = Assert.Single(released);
         Assert.Equal("N200BB", tx.Callsign);
     }
@@ -130,7 +130,7 @@ public sealed class PilotTransmissionQueueTests
         );
 
         // First pilot transmits at t=2.
-        List<PilotTransmission> firstDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        List<PilotTransmission> firstDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 2, rngSeed: 1);
         Assert.Single(firstDrain);
         Assert.Equal("N100AA", firstDrain[0].Callsign);
 
@@ -145,11 +145,11 @@ public sealed class PilotTransmissionQueueTests
         // First pilot's airtime is ~3.5s, so drain at t=10 is past airtime but
         // the controller-response gate (set at end-of-airtime ~5.5, 8s timeout)
         // is still active until ~13.5s.
-        List<PilotTransmission> heldDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 10);
+        List<PilotTransmission> heldDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1);
         Assert.Empty(heldDrain);
 
         // After airtime + 8s of silence, the gate falls through to FIFO.
-        List<PilotTransmission> releasedDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 14);
+        List<PilotTransmission> releasedDrain = world.DrainReadyPilotTransmissions(elapsedSeconds: 14, rngSeed: 1);
         PilotTransmission tx = Assert.Single(releasedDrain);
         Assert.Equal("N200BB", tx.Callsign);
     }
@@ -168,7 +168,7 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Proactive
         );
 
-        world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        world.DrainReadyPilotTransmissions(elapsedSeconds: 2, rngSeed: 1);
 
         QueueSetupTransmission(
             second,
@@ -176,12 +176,12 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Proactive
         );
 
-        Assert.Empty(world.DrainReadyPilotTransmissions(elapsedSeconds: 6));
+        Assert.Empty(world.DrainReadyPilotTransmissions(elapsedSeconds: 6, rngSeed: 1));
 
         // Controller acknowledges/responds to the first pilot — gate clears.
         world.AcknowledgeControllerResponse("N100AA");
 
-        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        List<PilotTransmission> released = world.DrainReadyPilotTransmissions(elapsedSeconds: 7, rngSeed: 1);
         PilotTransmission tx = Assert.Single(released);
         Assert.Equal("N200BB", tx.Callsign);
     }
@@ -198,12 +198,12 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Proactive
         );
 
-        world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        world.DrainReadyPilotTransmissions(elapsedSeconds: 2, rngSeed: 1);
 
         // Same pilot follow-up — should not be held back by the gate (it's the awaiting pilot).
         QueueSetupTransmission(pilot, "tower, november one zero zero alpha alpha, did you hear that.", PilotTransmissionKind.Proactive);
 
-        List<PilotTransmission> drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        List<PilotTransmission> drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7, rngSeed: 1);
         PilotTransmission tx = Assert.Single(drain);
         Assert.Equal("N100AA", tx.Callsign);
     }
@@ -222,7 +222,7 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Proactive
         );
 
-        world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        world.DrainReadyPilotTransmissions(elapsedSeconds: 2, rngSeed: 1);
 
         // A different aircraft's readback should not be blocked by the controller-response
         // gate — readbacks are responses to controller-issued commands, not new requests.
@@ -232,7 +232,7 @@ public sealed class PilotTransmissionQueueTests
             PilotTransmissionKind.Readback
         );
 
-        List<PilotTransmission> drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        List<PilotTransmission> drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7, rngSeed: 1);
         PilotTransmission tx = Assert.Single(drain);
         Assert.Equal("N200BB", tx.Callsign);
         Assert.Equal(PilotTransmissionKind.Readback, tx.Kind);
@@ -256,7 +256,7 @@ public sealed class PilotTransmissionQueueTests
             "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
             PilotTransmissionKind.Proactive
         );
-        engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 2);
+        engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 2, rngSeed: 1);
 
         // Second pilot queues a proactive — held back by the gate.
         QueueSetupTransmission(
@@ -264,7 +264,7 @@ public sealed class PilotTransmissionQueueTests
             "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
             PilotTransmissionKind.Proactive
         );
-        Assert.Empty(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 6));
+        Assert.Empty(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 6, rngSeed: 1));
 
         // Controller dispatches a command to the first pilot — gate clears.
         engine.Scenario!.ElapsedSeconds = 6;
@@ -273,12 +273,12 @@ public sealed class PilotTransmissionQueueTests
 
         // The readback fires first (it's higher-priority via the readback gate). After
         // its airtime elapses the second pilot's proactive can finally drain.
-        List<PilotTransmission> firstResults = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 7);
+        List<PilotTransmission> firstResults = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 7, rngSeed: 1);
         Assert.Single(firstResults);
         Assert.Equal("N100AA", firstResults[0].Callsign);
         Assert.Equal(PilotTransmissionKind.Readback, firstResults[0].Kind);
 
-        List<PilotTransmission> released = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 20);
+        List<PilotTransmission> released = engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 20, rngSeed: 1);
         PilotTransmission tx = Assert.Single(released);
         Assert.Equal("N200BB", tx.Callsign);
     }
@@ -314,7 +314,7 @@ public sealed class PilotTransmissionQueueTests
         var frequency = new FrequencyState();
         frequency.Enqueue(new PilotTransmission("AAL1", "with you", "with you", PilotResponder.SourceResponse, PilotTransmissionKind.Readback, 4.5));
 
-        Assert.NotNull(frequency.TryDequeueReady(30));
+        Assert.NotNull(frequency.TryDequeueReady(30, rngSeed: 1));
 
         Assert.Equal([new FrequencyTransmission(30, 4.5)], frequency.ActivityMeter.Transmissions);
     }
@@ -327,14 +327,14 @@ public sealed class PilotTransmissionQueueTests
         busy.ActivityMeter.Record(-15, 45);
 
         busy.Enqueue(NewTransmission("AAL1"));
-        PilotTransmission? busyTransmission = busy.TryDequeueReady(30);
+        PilotTransmission? busyTransmission = busy.TryDequeueReady(30, rngSeed: 1);
 
         Assert.NotNull(busyTransmission);
         Assert.Equal(FrequencyLoadBand.Busy, busyTransmission.LoadBand);
 
         var quiet = new FrequencyState();
         quiet.Enqueue(NewTransmission("AAL2"));
-        PilotTransmission? quietTransmission = quiet.TryDequeueReady(30);
+        PilotTransmission? quietTransmission = quiet.TryDequeueReady(30, rngSeed: 1);
 
         Assert.NotNull(quietTransmission);
         Assert.Equal(FrequencyLoadBand.Quiet, quietTransmission.LoadBand);
@@ -691,7 +691,7 @@ public sealed class PilotTransmissionQueueTests
         // The busy pilot speaks the terse "heading two seven zero, ..." but its airtime is the canonical read-back's.
         Assert.True(queued.CanonicalAirtimeSeconds > FrequencyState.EstimateAirtimeSeconds(queued.SpeechText));
 
-        PilotTransmission spoken = Assert.Single(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 40));
+        PilotTransmission spoken = Assert.Single(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 40, rngSeed: 1));
 
         Assert.Equal(new FrequencyTransmission(40, queued.CanonicalAirtimeSeconds), engine.World.ActiveFrequency.ActivityMeter.Transmissions[^1]);
         Assert.Equal(PilotTransmissionKind.Readback, spoken.Kind);
@@ -934,7 +934,12 @@ public sealed class PilotTransmissionQueueTests
     // to when these tests were written. Text content is not asserted by these tests — only
     // callsign, kind, and drain ordering.
     private static void QueueSetupTransmission(AircraftState aircraft, string text, PilotTransmissionKind kind) =>
-        PilotResponder.QueueSoloPilotTransmission(aircraft, new PilotSpeechText(text, PilotResponder.PrepareForTts(aircraft, text)), kind);
+        PilotResponder.QueueSoloPilotTransmission(
+            aircraft,
+            new PilotSpeechText(text, PilotResponder.PrepareForTts(aircraft, text)),
+            kind,
+            initialContact: false
+        );
 
     private static AircraftState NewAircraft(string callsign) => new() { Callsign = callsign, AircraftType = "C172" };
 

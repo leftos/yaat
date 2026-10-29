@@ -304,7 +304,8 @@ public sealed class DownwindPhase : Phase
                         PilotResponder.QueueSoloPilotTransmission(
                             ctx.Aircraft,
                             PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
-                            PilotTransmissionKind.Proactive
+                            PilotTransmissionKind.Proactive,
+                            initialContact: false
                         );
                     }
                     else

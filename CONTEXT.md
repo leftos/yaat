@@ -575,6 +575,9 @@ _Avoid_: variant row (a rule's own `PilotVariantSet` row)
 **Chained readback**:
 A readback of two or more commands (a CAPP with a route or crossing before it included): it never takes a chatty row or the quiet "alright," / ", thanks" flavour, a quiet frequency speaks the normal-band words and a busy one keeps its terse rows on every clause. A single command, conditioned or not, is not chained.
 
+**Check-in butt-in**:
+A second solo pilot's initial-contact check-in keying up 3 s after the last transmission while the frequency still waits for the controller's answer to the first, on a seeded 10% draw (`SpokenFormDraws.DrawCheckInButtIn`); ground and departure first calls never do it. See [solo-training-pilot-speech.md](docs/solo-training-pilot-speech.md#check-in-butt-in).
+
 **Comma-led capture**:
 A spoken capture value that begins with ", " (the visual clearance's `{side}` ", left traffic" and `{follow}` ", follow the traffic"): the renderer attaches it to the text before it with no space, and an empty one leaves the next comma in place (`PhraseologyVerbalizer.Append`, `RenderVariantTemplate`).
 

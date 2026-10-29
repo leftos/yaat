@@ -149,7 +149,7 @@ public static class InitialCallupCall
         }
 
         PilotSpeechText line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter, location);
-        PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive);
+        PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             ctx.Aircraft,
             PilotPendingRequestKind.Taxi,
@@ -183,7 +183,7 @@ public static class InitialCallupCall
     {
         AircraftState aircraft = ctx.Aircraft;
         PilotSpeechText line = PilotResponder.BuildPushbackRequest(aircraft, facilityCallName, ctx.AtisLetter, location);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.Pushback,
@@ -336,7 +336,7 @@ public static class InitialCallupCall
             location,
             aircraft.Ground.VfrDepartureDirection
         );
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
         PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.Clearance,
